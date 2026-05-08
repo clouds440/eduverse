@@ -91,7 +91,7 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
             [MailStatus.CLOSED]: 'status-close',
         };
         const lid = idMap[newStatus as keyof typeof idMap] || 'status-update';
-        
+
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: lid });
             await api.mail.updateMail(mail.id, { status: newStatus }, token);
@@ -140,7 +140,7 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
             subtitle={
                 mail ? (
                     <div className="block md:flex items-center justify-between w-full pr-12 text-sm sm:text-base md:text-xl">
-                        <div className="flex items-center gap-3 flex-wrap text-[10px] text-indigo-50/60 font-bold tracking-widest">
+                        <div className="flex items-center gap-3 flex-wrap text-[10px] text-muted-foreground font-bold tracking-widest">
                             <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{mail.category.replace('_', ' ')}</span>
                             <span className="flex items-center gap-1"><Hash className="w-3 h-3" />{mail.id.slice(0, 8)}</span>
                             <span className="flex items-center gap-1"><User className="w-3 h-3" />{mail.creator.name}</span>

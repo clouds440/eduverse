@@ -107,7 +107,7 @@ export default function TranscriptsPage() {
                                 </div>
                             </div>
                         )}
-                        
+
                         <div className="w-full sm:w-64">
                             <label className="text-xs font-bold text-muted-foreground mb-1.5 block uppercase tracking-wider">
                                 Academic Cycle
@@ -123,9 +123,9 @@ export default function TranscriptsPage() {
                             />
                         </div>
 
-                        <Button 
-                            onClick={handlePrint} 
-                            icon={Printer} 
+                        <Button
+                            onClick={handlePrint}
+                            icon={Printer}
                             disabled={!transcript}
                             className="w-full sm:w-auto mt-0 sm:mt-5 h-10.5 shadow-lg shadow-primary/20"
                         >
@@ -137,7 +137,7 @@ export default function TranscriptsPage() {
 
             <div className="flex-1 bg-card rounded-lg shadow-xl border border-border p-8 overflow-y-auto min-h-0 print:border-none print:shadow-none print:p-0 print:overflow-visible">
                 {isLoading && <Loading text="Generating Transcript..." />}
-                {error && <ErrorState error={error} onRetry={() => {}} />}
+                {error && <ErrorState error={error} onRetry={() => { }} />}
 
                 {!isLoading && !error && !transcript && (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20 print:hidden">
@@ -194,7 +194,7 @@ export default function TranscriptsPage() {
                                             {section.percentage}%
                                         </td>
                                         <td className="py-4 px-4 text-center">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${section.status === 'PASS' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${section.status === 'PASS' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
                                                 {section.status}
                                             </span>
                                         </td>

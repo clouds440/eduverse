@@ -119,7 +119,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                                         value: i.toString(),
                                         label: t.label,
                                         icon: Zap,
-                                        iconClassName: 'text-amber-500'
+                                        iconClassName: 'text-warning'
                                     }))}
                                     value=""
                                     onChange={(val: string) => {
@@ -139,13 +139,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                                             value: `org-${key}`,
                                             label: key.toUpperCase(),
                                             icon: key === 'name' ? User : key === 'id' ? Hash : Mail,
-                                            iconClassName: key === 'name' ? 'text-indigo-500' : key === 'id' ? 'text-rose-500' : 'text-blue-500'
+                                            iconClassName: key === 'name' ? 'text-primary' : key === 'id' ? 'text-danger' : 'text-info'
                                         })),
                                         ...['admin', 'role', 'date', 'signature'].filter(k => orgData[k]).map(key => ({
                                             value: `gen-${key}`,
                                             label: key.toUpperCase(),
                                             icon: key === 'admin' ? PenTool : key === 'role' ? ShieldCheck : key === 'date' ? Calendar : Zap,
-                                            iconClassName: key === 'admin' ? 'text-emerald-500' : key === 'role' ? 'text-teal-500' : key === 'date' ? 'text-orange-500' : 'text-amber-500'
+                                            iconClassName: key === 'admin' ? 'text-success' : key === 'role' ? 'text-secondary' : key === 'date' ? 'text-warning' : 'text-danger'
                                         }))
                                     ]}
                                     value=""

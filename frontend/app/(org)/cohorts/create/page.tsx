@@ -103,7 +103,7 @@ export default function CreateCohortPage() {
 
     const students = studentsData?.data || [];
     const sections = sectionsData?.data || [];
-    const filteredSections = formData.academicCycleId 
+    const filteredSections = formData.academicCycleId
         ? sections.filter((s: Section) => s.academicCycleId === formData.academicCycleId)
         : sections;
 
@@ -130,11 +130,11 @@ export default function CreateCohortPage() {
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
-                                <div className="p-2 bg-amber-500/10 rounded-lg"><Calendar className="w-4 h-4 text-amber-500" /></div>
+                                <div className="p-2 bg-warning/10 rounded-lg"><Calendar className="w-4 h-4 text-warning" /></div>
                                 <span className="text-xs font-bold">Cycle-specific grouping</span>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
-                                <div className="p-2 bg-indigo-500/10 rounded-lg"><GraduationCap className="w-4 h-4 text-indigo-500" /></div>
+                                <div className="p-2 bg-primary/10 rounded-lg"><GraduationCap className="w-4 h-4 text-primary" /></div>
                                 <span className="text-xs font-bold">Bulk enrollment support</span>
                             </div>
                         </div>
@@ -184,7 +184,7 @@ export default function CreateCohortPage() {
                                                 required
                                                 error={!!formErrors.academicCycleId}
                                             />
-                                            {formErrors.academicCycleId && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.academicCycleId}</p>}
+                                            {formErrors.academicCycleId && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.academicCycleId}</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -206,7 +206,7 @@ export default function CreateCohortPage() {
                                                 error={!!formErrors.name}
                                                 className="h-12 md:h-14 font-medium"
                                             />
-                                            {formErrors.name && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.name}</p>}
+                                            {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -245,7 +245,7 @@ export default function CreateCohortPage() {
                             </div>
 
                             {formErrors.general && (
-                                <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl flex items-center text-sm font-bold animate-in slide-in-from-top-2">
+                                <div className="p-4 bg-danger/10 border border-danger/20 text-danger rounded-xl flex items-center text-sm font-bold animate-in slide-in-from-top-2">
                                     <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
                                     {formErrors.general}
                                 </div>

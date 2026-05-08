@@ -86,7 +86,7 @@ export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigne
 
   const handleDelete = async () => {
     if (!token || !deletingMaterial) return;
-    
+
     try {
       dispatch({ type: 'UI_START_PROCESSING', payload: `material-delete-${deletingMaterial.id}` });
       await api.courseMaterials.deleteMaterial(deletingMaterial.id, token);
@@ -110,7 +110,7 @@ export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigne
       console.error(error)
     }
   };
-  
+
   const canViewDetails = true; // All users can view material details
 
   if (isLoading) {
@@ -185,7 +185,7 @@ export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigne
                         </button>
                         <button
                           onClick={() => setDeletingMaterial(material)}
-                          className="p-2.5 text-red-500 hover:text-red-500 transition-all hover:bg-red-500/50 rounded-xl border border-transparent hover:border-red-500 bg-foreground shadow-xs"
+                          className="p-2.5 text-dangerhover:text-ddangerransition-all hover:bg-dadanger rounded-xl border border-transparent hover:border-dandangerforeground shadow-xs"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -417,7 +417,7 @@ function UploadMaterialModal({
   const [title, setTitle] = useState(material?.title || '');
   const [description, setDescription] = useState(material?.description || '');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [existingFiles, setExistingFiles] = useState<Array<{id: string, filename: string, path: string, mimeType: string, size: number}>>(material?.files || []);
+  const [existingFiles, setExistingFiles] = useState<Array<{ id: string, filename: string, path: string, mimeType: string, size: number }>>(material?.files || []);
   const [filesToRemove, setFilesToRemove] = useState<string[]>([]);
   const [externalLink, setExternalLink] = useState('');
   const [isVideoLink, setIsVideoLink] = useState(false);
@@ -561,14 +561,14 @@ function UploadMaterialModal({
               </span>
             </label>
           </div>
-          
+
           {/* Staged Files List */}
           {(pendingFiles.length > 0 || existingFiles.length > 0) && (
             <div className="mt-4 space-y-2">
               <p className="text-xs font-semibold text-card-text/40 tracking-widest">
                 {material ? 'FILES' : 'STAGED FILES'}
               </p>
-              
+
               {/* Existing files (in edit mode) */}
               {existingFiles.map((file) => {
                 const FileIcon = getFileIcon(file.mimeType);
@@ -591,7 +591,7 @@ function UploadMaterialModal({
                   </div>
                 );
               })}
-              
+
               {/* New pending files */}
               {pendingFiles.map((file, index) => {
                 const FileIcon = getFileIcon(file.type);

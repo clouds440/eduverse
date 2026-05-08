@@ -44,7 +44,7 @@ export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
 
                 {/* Achievement Sidebar */}
                 <div className="lg:col-span-1 space-y-6">
-                    <Card padding="lg" accentColor="bg-indigo-600" className="bg-card border-border shadow-2xl relative overflow-hidden group" delay={0}>
+                    <Card padding="lg" accentColor="bg-primary" className="bg-card border-border shadow-2xl relative overflow-hidden group" delay={0}>
                         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
                         <div className="relative z-10 text-left">
                             <p className="text-[10px] font-black text-primary tracking-[0.2em] mb-4">Cumulative Average</p>
@@ -55,17 +55,17 @@ export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
                             <div className="mt-8 pt-6 border-t border-border">
                                 <p className="text-[10px] font-black text-muted-foreground/60 tracking-widest mb-1 font-sans">Institutional Rank</p>
                                 <p className="text-sm font-black text-foreground flex items-center gap-2">
-                                    <Trophy className="w-4 h-4 text-amber-500" />
+                                    <Trophy className="w-4 h-4 text-warning" />
                                     Dean&apos;s Distinction List
                                 </p>
                             </div>
                         </div>
                     </Card>
 
-                    <Card padding="md" className="border-border bg-emerald-500/5" delay={100}>
+                    <Card padding="md" className="border-border bg-success/5" delay={100}>
                         <div className="flex items-center gap-4 text-left">
-                            <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
-                                <Award className="w-6 h-6 text-emerald-600" />
+                            <div className="w-12 h-12 bg-success/10 rounded-xl flex items-center justify-center border border-success/20">
+                                <Award className="w-6 h-6 text-success" />
                             </div>
                             <div>
                                 <h3 className="text-sm font-black text-foreground">Honor Roll</h3>

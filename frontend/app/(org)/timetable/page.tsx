@@ -14,15 +14,15 @@ const START_HOUR = 8;
 const END_HOUR = 18;
 
 const SECTION_COLORS = [
-    'bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:border-indigo-800',
-    'bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800',
-    'bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800',
-    'bg-rose-500/10 text-rose-600 border-rose-200 dark:border-rose-800',
-    'bg-cyan-500/10 text-cyan-600 border-cyan-200 dark:border-cyan-800',
-    'bg-orange-500/10 text-orange-600 border-orange-200 dark:border-orange-800',
-    'bg-fuchsia-500/10 text-fuchsia-600 border-fuchsia-200 dark:border-fuchsia-800',
-    'bg-blue-500/10 text-blue-600 border-blue-200 dark:border-blue-800',
-    'bg-violet-500/10 text-violet-600 border-violet-200 dark:border-violet-800',
+    'bg-primary/10 text-primary border-primary/20 dark:border-primary/40',
+    'bg-success/10 text-success border-success/20 dark:border-success/40',
+    'bg-warning/10 text-warning border-warning/20 dark:border-warning/40',
+    'bg-danger/10 text-danger border-danger/20 dark:border-danger/40',
+    'bg-info/10 text-info border-info/20 dark:border-info/40',
+    'bg-secondary/10 text-secondary-foreground border-secondary/20 dark:border-secondary/40',
+    'bg-primary/5 text-primary/80 border-primary/10 dark:border-primary/20',
+    'bg-info/5 text-info/80 border-info/10 dark:border-info/20',
+    'bg-neutral/10 text-neutral border-neutral/20 dark:border-neutral/40',
 ];
 
 const getSectionColor = (id: string) => {
@@ -140,7 +140,7 @@ export default function TimetablePage() {
                                         const colorClass = getSectionColor(entry.sectionId);
                                         return (
                                             <div key={`${hour}-${dayIdx}`} className="p-2 h-full flex flex-col">
-                                                <div 
+                                                <div
                                                     onClick={() => {
                                                         if (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN) {
                                                             const closestDate = getClosestDateForWeekday(entry.day);

@@ -351,12 +351,12 @@ export function NewMailModal({
             maxWidth="max-w-7xl"
             feedback={
                 error ? (
-                        <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-100 rounded-lg text-red-600 animate-shake">
+                    <div className="flex items-center gap-3 p-3 bg-danger/10 border border-danger/20 rounded-lg text-danger animate-shake">
                         <AlertCircle className="w-4 h-4 shrink-0" />
                         <p className="text-[11px] font-bold tracking-wider">{error}</p>
                     </div>
                 ) : info ? (
-                    <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-lg text-blue-600 animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center gap-3 p-3 bg-info/10 border border-info/20 rounded-lg text-info animate-in fade-in slide-in-from-top-1">
                         <AlertCircle className="w-4 h-4 shrink-0 opacity-70" />
                         <p className="text-[11px] font-bold tracking-wider">{info}</p>
                     </div>
@@ -364,7 +364,7 @@ export function NewMailModal({
             }
         >
             <div>
-                        <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                     {/* Left Column: Basic Info */}
                     <div className="space-y-3">
                         <div>
@@ -374,7 +374,7 @@ export function NewMailModal({
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
                                 placeholder="Explain your issue briefly"
-                                className="w-full px-5 py-4 rounded-2xl bg-card/5 border border-border focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none text-foreground font-bold text-base"
+                                className="w-full px-5 py-4 rounded-2xl bg-card/5 border border-border focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none text-foreground font-bold text-base"
                             />
                         </div>
 
@@ -392,9 +392,9 @@ export function NewMailModal({
                                 placeholder={searching ? "Loading recipients..." : "Select one or more recipients..."}
                             />
                             {targetIds.length > 0 && (
-                                        <div className="mt-3 space-y-2">
+                                <div className="mt-3 space-y-2">
                                     {selectedTargets.map(t => (
-                                        <div key={t.id} className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-3 py-1.5 rounded-lg tracking-wider block">
+                                        <div key={t.id} className="text-[10px] font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg tracking-wider block">
                                             {t.type === 'USER'
                                                 ? `User: ${t.email} - ${t.role?.replace('_', ' ')} - ${t.description}`
                                                 : `Group: ${t.label} - ${t.description}`
@@ -428,7 +428,7 @@ export function NewMailModal({
                             </div>
                             {/* No Reply Option for Admins/Managers */}
                             {showNoReply && (
-                                <div 
+                                <div
                                     className="px-4 py-3 select-none hover:bg-card border border-border cursor-pointer rounded-2xl mt-3"
                                     onClick={() => setNoReply(!noReply)}
                                 >
@@ -458,7 +458,7 @@ export function NewMailModal({
                                             {file.type.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
                                         </div>
                                         <span className="text-[11px] font-bold text-foreground max-w-25 truncate select-none">{file.name}</span>
-                                        <button type="button" onClick={() => removeFile(i)} className="p-1 text-muted-foreground hover:text-red-500 hover:bg-red-500/40 rounded-full transition-colors ml-1">
+                                        <button type="button" onClick={() => removeFile(i)} className="p-1 text-muted-foreground hover:text-dangerhover:bg-ddanger0 rounded-full transition-colors ml-1">
                                             <X className="w-3 h-3" />
                                         </button>
                                     </div>
@@ -468,7 +468,7 @@ export function NewMailModal({
                                     <button
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="h-8.5 flex items-center gap-2 px-4 border border-dashed border-border rounded-2xl text-muted-foreground hover:border-indigo-500 hover:text-indigo-600 hover:bg-card/80 transition-all group"
+                                        className="h-8.5 flex items-center gap-2 px-4 border border-dashed border-border rounded-2xl text-muted-foreground hover:border-primary hover:text-primary hover:bg-card/80 transition-all group"
                                     >
                                         <Paperclip className="w-3.5 h-3.5" />
                                         <span className="text-[10px] font-black tracking-wider">Add File</span>

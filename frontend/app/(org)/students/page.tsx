@@ -203,7 +203,7 @@ export default function StudentsPage() {
                     <div className="flex flex-wrap gap-1 max-w-50">
                         {sectionsList.map(sec => (
                             <span key={sec?.id || Math.random()} title={sec?.name}>
-                                <Badge variant="secondary" size="sm" className="truncate max-w-37.5">
+                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5">
                                     {sec?.name || 'Unknown'}
                                 </Badge>
                             </span>
@@ -213,12 +213,12 @@ export default function StudentsPage() {
                     <div className="flex flex-wrap gap-1 max-w-50">
                         {sectionsList.slice(0, 1).map(sec => (
                             <span key={sec?.id || Math.random()} title={sec?.name}>
-                                <Badge variant="secondary" size="sm" className="truncate max-w-37.5">
+                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5">
                                     {sec?.name || 'Unknown'}
                                 </Badge>
                             </span>
                         ))}
-                        <Badge variant="secondary" size="sm" className="truncate max-w-37.5" title='Click to view all sections'>
+                        <Badge variant="neutral" size="sm" className="truncate max-w-37.5" title='Click to view all sections'>
                             +{sectionsList.length - 1} more
                         </Badge>
                     </div>
@@ -334,119 +334,117 @@ export default function StudentsPage() {
                         </div>
                         <div className='flex w-full md:w-auto gap-2 justify-between'>
                             {!isDeletedView && (
-                                    <Drawer position='left'>
-                                        <div className="flex flex-col gap-8">
-                                            {/* Status Filter */}
+                                <Drawer position='left'>
+                                    <div className="flex flex-col gap-8">
+                                        {/* Status Filter */}
+                                        <div>
+                                            <label className="text-xs font-bold text-muted-foreground mb-1 block">
+                                                Status
+                                            </label>
+                                            <CustomSelect
+                                                options={[
+                                                    { label: 'All Statuses', value: '' },
+                                                    { label: 'Active', value: StudentStatus.ACTIVE },
+                                                    { label: 'Suspended', value: StudentStatus.SUSPENDED },
+                                                ]}
+                                                value={statusFilter}
+                                                onChange={(val) => updateQueryParams({ status: val, page: 1 })}
+                                                placeholder="Filter Status"
+                                            />
+                                        </div>
+
+                                        {/* Cohort Filter */}
+                                        {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
                                             <div>
                                                 <label className="text-xs font-bold text-muted-foreground mb-1 block">
-                                                    Status
+                                                    Cohort
                                                 </label>
                                                 <CustomSelect
                                                     options={[
-                                                        { label: 'All Statuses', value: '' },
-                                                        { label: 'Active', value: StudentStatus.ACTIVE },
-                                                        { label: 'Suspended', value: StudentStatus.SUSPENDED },
+                                                        { label: 'All Cohorts', value: '' },
+                                                        ...cohorts.map((c) => ({ value: c.id, label: c.name })),
                                                     ]}
-                                                    value={statusFilter}
-                                                    onChange={(val) => updateQueryParams({ status: val, page: 1 })}
-                                                    placeholder="Filter Status"
+                                                    value={cohortId}
+                                                    onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}
+                                                    placeholder="Filter Cohort"
                                                 />
                                             </div>
+                                        )}
 
-                                            {/* Cohort Filter */}
-                                            {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
-                                                <div>
-                                                    <label className="text-xs font-bold text-muted-foreground mb-1 block">
-                                                        Cohort
-                                                    </label>
-                                                    <CustomSelect
-                                                        options={[
-                                                            { label: 'All Cohorts', value: '' },
-                                                            ...cohorts.map((c) => ({ value: c.id, label: c.name })),
-                                                        ]}
-                                                        value={cohortId}
-                                                        onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}
-                                                        placeholder="Filter Cohort"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {/* Show Alumni Toggle */}
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm font-medium">Show Alumni</span>
-                                                <Toggle
-                                                    checked={showAlumni}
-                                                    onCheckedChange={(val) =>
-                                                        updateQueryParams({ showAlumni: val ? 'true' : undefined, page: 1 })
-                                                    }
-                                                />
-                                            </div>
-
-                                            {/* Section Select (if role allows) */}
-                                            {(user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) && (
-                                                <div>
-                                                    <label className="text-xs font-bold text-muted-foreground mb-1 block">
-                                                        Section
-                                                    </label>
-                                                    <CustomSelect
-                                                        value={sectionId}
-                                                        onChange={(val) => updateQueryParams({ sectionId: val, page: 1 })}
-                                                        options={[
-                                                            { value: '', label: 'All My Sections' },
-                                                            ...sections.map((sec) => ({ value: sec.id, label: sec.name })),
-                                                        ]}
-                                                        placeholder="All My Sections"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {/* My Students Toggle (if ORG_MANAGER) */}
-                                            {user?.role === Role.ORG_MANAGER && (
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-sm font-medium">My Students</span>
-                                                    <Toggle
-                                                        checked={showOnlyMyStudents}
-                                                        onCheckedChange={(checked) => updateQueryParams({ my: checked, page: 1 })}
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {/* View Deleted Students */}
-                                            <button
-                                                onClick={() =>
-                                                    updateQueryParams({
-                                                        deleted: isDeletedView ? undefined : 'true',
-                                                        page: 1,
-                                                        status: undefined,
-                                                        showAlumni: undefined,
-                                                        sectionId: undefined,
-                                                    })
+                                        {/* Show Alumni Toggle */}
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-medium">Show Alumni</span>
+                                            <Toggle
+                                                checked={showAlumni}
+                                                onCheckedChange={(val) =>
+                                                    updateQueryParams({ showAlumni: val ? 'true' : undefined, page: 1 })
                                                 }
-                                                className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${
-                                                    isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
-                                                }`}
-                                            >
-                                                {isDeletedView ? '← Back to Active Students' : 'View Deleted Students'}
-                                            </button>
+                                            />
                                         </div>
-                                    </Drawer>
-                                )}
 
-                                {isDeletedView && (
-                                    <button
-                                        onClick={() =>
-                                            updateQueryParams({
-                                                deleted: undefined,
-                                                page: 1,
-                                            })
-                                        }
-                                        className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${
-                                            isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
+                                        {/* Section Select (if role allows) */}
+                                        {(user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) && (
+                                            <div>
+                                                <label className="text-xs font-bold text-muted-foreground mb-1 block">
+                                                    Section
+                                                </label>
+                                                <CustomSelect
+                                                    value={sectionId}
+                                                    onChange={(val) => updateQueryParams({ sectionId: val, page: 1 })}
+                                                    options={[
+                                                        { value: '', label: 'All My Sections' },
+                                                        ...sections.map((sec) => ({ value: sec.id, label: sec.name })),
+                                                    ]}
+                                                    placeholder="All My Sections"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* My Students Toggle (if ORG_MANAGER) */}
+                                        {user?.role === Role.ORG_MANAGER && (
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm font-medium">My Students</span>
+                                                <Toggle
+                                                    checked={showOnlyMyStudents}
+                                                    onCheckedChange={(checked) => updateQueryParams({ my: checked, page: 1 })}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* View Deleted Students */}
+                                        <button
+                                            onClick={() =>
+                                                updateQueryParams({
+                                                    deleted: isDeletedView ? undefined : 'true',
+                                                    page: 1,
+                                                    status: undefined,
+                                                    showAlumni: undefined,
+                                                    sectionId: undefined,
+                                                })
+                                            }
+                                            className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
+                                                }`}
+                                        >
+                                            {isDeletedView ? '← Back to Active Students' : 'View Deleted Students'}
+                                        </button>
+                                    </div>
+                                </Drawer>
+                            )}
+
+                            {isDeletedView && (
+                                <button
+                                    onClick={() =>
+                                        updateQueryParams({
+                                            deleted: undefined,
+                                            page: 1,
+                                        })
+                                    }
+                                    className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
                                         }`}
-                                    >
-                                        ← Back to Active Students
-                                    </button>
-                                )}
+                                >
+                                    ← Back to Active Students
+                                </button>
+                            )}
 
                             {!isDeletedView && (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
                                 <Button

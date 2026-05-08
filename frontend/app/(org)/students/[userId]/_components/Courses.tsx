@@ -65,7 +65,7 @@ export default function Courses({ sections }: { sections: Section[] }) {
                 {filteredSections.map((sec, index) => (
                     <Card
                         key={sec.id}
-                        accentColor="bg-indigo-500"
+                        accentColor="bg-primary"
                         padding="lg"
                         delay={index * 100}
                     >

@@ -99,7 +99,7 @@ export function ImageCropperModal({
       </div>
 
       {/* Cropper */}
-      <div className="relative bg-gray-900" style={{ height: 480 }}>
+      <div className="relative bg-card" style={{ height: 480 }}>
         <Cropper
           image={imageSrc}
           crop={crop}

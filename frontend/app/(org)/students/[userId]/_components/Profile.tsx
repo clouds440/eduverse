@@ -40,10 +40,10 @@ export default function Profile({ profile }: { profile: Student | null }) {
                         />
                     ) : (
                         <div className="py-20 text-center">
-                            <div className="text-red-500/10 mb-4">
+                            <div className="text-danger/10 mb-4">
                                 <UserCircle className="w-16 h-16 mx-auto" />
                             </div>
-                            <p className="text-red-500 font-semibold">Failed to load profile data</p>
+                            <p className="text-danger font-semibold">Failed to load profile data</p>
                         </div>
                     )}
                 </div>

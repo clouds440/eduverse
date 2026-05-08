@@ -27,15 +27,15 @@ interface TableActionsProps {
 }
 
 const adminActionConfig: Record<AdminActionVariant, { icon: React.ElementType, color: string, defaultTitle: string }> = {
-    approve: { icon: Check, color: 'text-emerald-600 hover:bg-emerald-500/10', defaultTitle: 'Approve' },
-    reject: { icon: X, color: 'text-red-600 hover:bg-red-500/10', defaultTitle: 'Reject' },
-    suspend: { icon: ShieldAlert, color: 'text-orange-600 hover:bg-orange-500/10', defaultTitle: 'Suspend' },
-    unsuspend: { icon: Check, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Unsuspend' },
-    reapprove: { icon: Check, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Re-approve' },
-    resolve: { icon: CheckCircle2, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Resolve' },
-    editMessage: { icon: MessageSquareText, color: 'text-blue-600 hover:bg-blue-500/10', defaultTitle: 'Edit Message' },
+    approve: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Approve' },
+    reject: { icon: X, color: 'text-danger hover:bg-danger/10', defaultTitle: 'Reject' },
+    suspend: { icon: ShieldAlert, color: 'text-warning hover:bg-warning/10', defaultTitle: 'Suspend' },
+    unsuspend: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Unsuspend' },
+    reapprove: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Re-approve' },
+    resolve: { icon: CheckCircle2, color: 'text-success hover:bg-success/10', defaultTitle: 'Resolve' },
+    editMessage: { icon: MessageSquareText, color: 'text-info hover:bg-info/10', defaultTitle: 'Edit Message' },
     mail: { icon: Send, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Send Mail' },
-    restore: { icon: Check, color: 'text-emerald-600 hover:bg-emerald-500/10', defaultTitle: 'Restore' }
+    restore: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Restore' }
 };
 
 export const TableActions: React.FC<TableActionsProps> = ({
@@ -124,7 +124,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
                         onDelete();
                     }}
                     disabled={isDeleting || !canWrite}
-                    className={`text-red-600 cursor-pointer hover:bg-red-500/50 px-3 py-2.5 border border-red-500/20 rounded-lg transition-all shadow-xs active:scale-95 disabled:opacity-50 group flex items-center gap-2 ${!canWrite ? 'hidden' : ''}`}
+                    className={`text-danger cursor-pointer hover:bg-danger/20 px-3 py-2.5 border border-danger rounded-lg transition-all shadow-xs active:scale-95 disabled:opacity-50 group flex items-center gap-2 ${!canWrite ? 'hidden' : ''}`}
                     title={canWrite ? deleteTitle : `${deleteTitle} (Permission Denied)`}
                 >
                     {isDeleting ? (

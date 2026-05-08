@@ -45,7 +45,7 @@ export function ConfirmDialog({
                         onConfirm();
                         onClose();
                     }}
-                    className={`w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 text-sm sm:text-base font-semibold border-none ${!isDestructive ? 'shadow-[0_8px_16px_var(--shadow-color)]' : 'shadow-red-500/30'}`}
+                    className={`w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 text-sm sm:text-base font-semibold border-none ${!isDestructive ? 'shadow-[0_8px_16px_var(--shadow-color)]' : 'shadow-danger30'}`}
                 >
                     {confirmText}
                 </Button>

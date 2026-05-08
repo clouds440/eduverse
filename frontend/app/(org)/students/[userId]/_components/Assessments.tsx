@@ -18,40 +18,40 @@ const getGradeColors = (marks: number, total: number) => {
     const percentage = (marks / total) * 100;
     if (percentage < 40) {
         return {
-            bg: 'bg-red-500/10',
-            border: 'border-red-500/20',
-            text: 'text-red-600',
-            accent: 'text-red-600',
-            light: 'text-red-400',
-            muted: 'text-red-600/60',
-            fill: 'text-red-500',
-            dark: 'text-red-900 dark:text-red-400',
-            borderDark: 'border-red-500/30'
+            bg: 'bg-danger/10',
+            border: 'border-danger/20',
+            text: 'text-danger',
+            accent: 'text-danger',
+            light: 'text-danger',
+            muted: 'text-danger/60',
+            fill: 'text-danger',
+            dark: 'text-danger',
+            borderDark: 'border-danger/30'
         };
     }
     if (percentage < 60) {
         return {
-            bg: 'bg-orange-500/10',
-            border: 'border-orange-500/20',
-            text: 'text-orange-600',
-            accent: 'text-orange-600',
-            light: 'text-orange-400',
-            muted: 'text-orange-600/60',
-            fill: 'text-orange-500',
-            dark: 'text-orange-900 dark:text-orange-400',
-            borderDark: 'border-orange-500/30'
+            bg: 'bg-warning/10',
+            border: 'border-warning/20',
+            text: 'text-warning',
+            accent: 'text-warning',
+            light: 'text-warning',
+            muted: 'text-warning/60',
+            fill: 'text-warning',
+            dark: 'text-warning',
+            borderDark: 'border-warning/30'
         };
     }
     return {
-        bg: 'bg-emerald-500/10',
-        border: 'border-emerald-500/20',
-        text: 'text-emerald-600',
-        accent: 'text-emerald-600',
-        light: 'text-emerald-400',
-        muted: 'text-emerald-600/60',
-        fill: 'text-emerald-500',
-        dark: 'text-emerald-900 dark:text-emerald-400',
-        borderDark: 'border-emerald-500/30'
+        bg: 'bg-success/10',
+        border: 'border-success/20',
+        text: 'text-success',
+        accent: 'text-success',
+        light: 'text-success',
+        muted: 'text-success/60',
+        fill: 'text-success',
+        dark: 'text-success',
+        borderDark: 'border-success/30'
     };
 };
 
@@ -215,7 +215,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                 <CardFooter className="flex-col gap-4 items-stretch border-border">
                                     <div className="flex justify-between items-center text-[10px] font-black tracking-widest">
                                         <span className="text-muted-foreground/60">Total Progress</span>
-                                        <span className="text-emerald-600 px-2 py-0.5 bg-emerald-500/10 rounded border border-emerald-500/20 tracking-tighter">
+                                        <span className="text-success px-2 py-0.5 bg-success/10 rounded border border-success/20 tracking-tighter">
                                             {doneCount} / {courseAssessments.length} Done
                                         </span>
                                     </div>
@@ -264,7 +264,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                 delay={index * 50}
                             >
                                 <CardHeader>
-                                    <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg tracking-widest border border-border/50 shadow-sm ${hasGrade ? 'bg-emerald-500/10 text-emerald-600' : isSubmitted ? 'bg-blue-500/10 text-blue-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                                    <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg tracking-widest border border-border/50 shadow-sm ${hasGrade ? 'bg-success/10 text-success' : isSubmitted ? 'bg-info/10 text-info' : 'bg-warning/10 text-warning'}`}>
                                         {hasGrade ? 'Graded' : isSubmitted ? 'Work submitted' : 'Pending'}
                                     </span>
                                     <div className="p-2.5 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-colors border border-primary/20 shadow-xs">
@@ -306,12 +306,12 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                         );
                     })}
                     {filteredAssessments.length === 0 && (
-                        <div className="col-span-full p-16 bg-white border border-dashed border-slate-300 rounded-2xl text-center shadow-sm">
-                            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                                <BookOpen className="w-8 h-8 text-slate-400" />
+                        <div className="col-span-full p-16 bg-card border border-dashed border-border rounded-2xl text-center shadow-sm">
+                            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
+                                <BookOpen className="w-8 h-8 text-muted-foreground/40" />
                             </div>
-                            <h3 className="text-lg font-bold text-slate-900 mb-1">No Assessments Found</h3>
-                            <p className="text-slate-500 max-w-sm mx-auto">There are no assessments matching your criteria for this course.</p>
+                            <h3 className="text-lg font-bold text-foreground mb-1">No Assessments Found</h3>
+                            <p className="text-muted-foreground max-w-sm mx-auto">There are no assessments matching your criteria for this course.</p>
                         </div>
                     )}
                 </div>
@@ -329,7 +329,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                 const hasGrade = selectedAssessment.grades && selectedAssessment.grades.length > 0 && (selectedAssessment.grades[0].status === GradeStatus.PUBLISHED || selectedAssessment.grades[0].status === GradeStatus.FINALIZED);
                                 const isSubmitted = (selectedAssessment._count?.submissions || 0) > 0 || submittedAssessmentIds.has(selectedAssessment.id);
                                 return (
-                                    <span className={`self-start text-xs font-bold px-3 py-1.5 rounded-lg tracking-wider ${hasGrade ? 'bg-emerald-500/10 text-emerald-600' : isSubmitted ? 'bg-blue-500/10 text-blue-600' : 'bg-amber-500/10 text-amber-600'}`}>
+                                    <span className={`self-start text-xs font-bold px-3 py-1.5 rounded-lg tracking-wider ${hasGrade ? 'bg-success/10 text-success' : isSubmitted ? 'bg-info/10 text-info' : 'bg-warning/10 text-warning'}`}>
                                         {hasGrade ? 'Graded' : isSubmitted ? 'Work submitted' : 'Pending'}
                                     </span>
                                 );
@@ -459,7 +459,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                                     const fileInput = document.getElementById('student-file-upload') as HTMLInputElement;
                                                     if (fileInput) fileInput.value = '';
                                                 }}
-                                                className="absolute top-4 right-4 p-1.5 bg-white border border-red-200 text-red-500 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+                                                className="absolute top-4 right-4 p-1.5 bg-white border border-danger/30 text-danger rounded-lg hover:bg-danger/10 transition-colors shadow-sm"
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>

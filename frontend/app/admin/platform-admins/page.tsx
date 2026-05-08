@@ -124,7 +124,7 @@ export default function PlatformAdminsPage() {
         } catch (err: any) {
             const message = err?.response?.data?.message || err?.message || 'Failed to save admin';
             const newErrors: typeof formErrors = {};
-            
+
             if (Array.isArray(message)) {
                 message.forEach((m: string) => {
                     const msg = m.toLowerCase();
@@ -314,7 +314,7 @@ export default function PlatformAdminsPage() {
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                             placeholder="John Doe"
                         />
-                        {formErrors.name && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.name}</p>}
+                        {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
                     </div>
                     {adminModalMode === 'CREATE' && (
                         <div className="space-y-2">
@@ -329,7 +329,7 @@ export default function PlatformAdminsPage() {
                                 className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                                 placeholder="john@example.com"
                             />
-                            {formErrors.email && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.email}</p>}
+                            {formErrors.email && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.email}</p>}
                         </div>
                     )}
                     <div className="space-y-2">
@@ -344,7 +344,7 @@ export default function PlatformAdminsPage() {
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                             placeholder="+1 (555) 000-0000"
                         />
-                        {formErrors.phone && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.phone}</p>}
+                        {formErrors.phone && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.phone}</p>}
                     </div>
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-muted-foreground tracking-wider block ml-1">
@@ -360,10 +360,10 @@ export default function PlatformAdminsPage() {
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                             placeholder="••••••••"
                         />
-                        {formErrors.password && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.password}</p>}
+                        {formErrors.password && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.password}</p>}
                         <PasswordStrength password={adminFormData.password} className="mt-2" />
                     </div>
-                    {formErrors.general && <p className="mt-2 text-sm text-red-500 font-bold text-center">{formErrors.general}</p>}
+                    {formErrors.general && <p className="mt-2 text-sm text-danger font-bold text-center">{formErrors.general}</p>}
                 </div>
             </ModalForm>
 
@@ -381,7 +381,7 @@ export default function PlatformAdminsPage() {
                     <p className="text-sm font-medium text-foreground">
                         Are you sure you want to remove <strong>{operatingAdmin?.name}</strong> from Platform Admins?
                     </p>
-                    <p className="text-xs text-red-500 mt-2">This action cannot be undone.</p>
+                    <p className="text-xs text-danger mt-2">This action cannot be undone.</p>
                 </div>
             </ModalForm>
         </div>

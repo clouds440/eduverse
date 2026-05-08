@@ -108,7 +108,7 @@ export default function ChangePasswordForm({
                             error={!!errors.oldPassword}
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                         />
-                        {errors.oldPassword && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.oldPassword}</p>}
+                        {errors.oldPassword && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.oldPassword}</p>}
                     </div>
 
                     <div className="space-y-2">
@@ -124,7 +124,7 @@ export default function ChangePasswordForm({
                             error={!!errors.newPassword}
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                         />
-                        {errors.newPassword && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.newPassword}</p>}
+                        {errors.newPassword && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.newPassword}</p>}
                         <PasswordStrength password={formData.newPassword} className="mt-3 px-1" />
                     </div>
 
@@ -141,7 +141,7 @@ export default function ChangePasswordForm({
                             error={!!errors.confirmPassword}
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                         />
-                        {errors.confirmPassword && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.confirmPassword}</p>}
+                        {errors.confirmPassword && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.confirmPassword}</p>}
                     </div>
                 </div>
 

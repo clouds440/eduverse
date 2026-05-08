@@ -80,11 +80,11 @@ export default function CreateCoursePage() {
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
-                                <div className="p-2 bg-emerald-500/10 rounded-lg"><FileText className="w-4 h-4 text-emerald-500" /></div>
+                                <div className="p-2 bg-success/10 rounded-lg"><FileText className="w-4 h-4 text-success" /></div>
                                 <span className="text-xs font-bold">Searchable in Catalog</span>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
-                                <div className="p-2 bg-blue-500/10 rounded-lg"><LibraryBig className="w-4 h-4 text-blue-500" /></div>
+                                <div className="p-2 bg-info/10 rounded-lg"><LibraryBig className="w-4 h-4 text-info" /></div>
                                 <span className="text-xs font-bold">Reusable across Cycles</span>
                             </div>
                         </div>

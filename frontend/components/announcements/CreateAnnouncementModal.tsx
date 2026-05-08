@@ -156,7 +156,7 @@ export function CreateAnnouncementModal({ isOpen, onClose, onSuccess }: Props) {
         >
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                    <Label>Title <span className="text-red-500">*</span></Label>
+                    <Label>Title <span className="text-danger">*</span></Label>
                     <Input
                         required
                         value={title}
@@ -167,7 +167,7 @@ export function CreateAnnouncementModal({ isOpen, onClose, onSuccess }: Props) {
                 </div>
 
                 <div>
-                    <Label>Message <span className="text-red-500">*</span></Label>
+                    <Label>Message <span className="text-danger">*</span></Label>
                     <Textarea
                         required
                         value={body}
@@ -185,16 +185,16 @@ export function CreateAnnouncementModal({ isOpen, onClose, onSuccess }: Props) {
                             value={priority}
                             onChange={(val) => setPriority(val as AnnouncementPriority)}
                             options={[
-                                    { value: AnnouncementPriority.LOW, label: 'Low', icon: Megaphone, iconClassName: 'text-muted-foreground' },
-                                    { value: AnnouncementPriority.NORMAL, label: 'Normal', icon: Megaphone, iconClassName: 'text-blue-400' },
-                                    { value: AnnouncementPriority.HIGH, label: 'High', icon: Megaphone, iconClassName: 'text-orange-500' },
-                                    { value: AnnouncementPriority.URGENT, label: 'Urgent 🔴', icon: Megaphone, iconClassName: 'text-red-600' },
-                                ]}
+                                { value: AnnouncementPriority.LOW, label: 'Low', icon: Megaphone, iconClassName: 'text-muted-foreground' },
+                                { value: AnnouncementPriority.NORMAL, label: 'Normal', icon: Megaphone, iconClassName: 'text-primary' },
+                                { value: AnnouncementPriority.HIGH, label: 'High', icon: Megaphone, iconClassName: 'text-warning' },
+                                { value: AnnouncementPriority.URGENT, label: 'Urgent 🔴', icon: Megaphone, iconClassName: 'text-danger' },
+                            ]}
                         />
                     </div>
 
                     <div>
-                        <Label>Audience <span className="text-red-500">*</span></Label>
+                        <Label>Audience <span className="text-danger">*</span></Label>
                         <CustomSelect
                             value={targetType}
                             onChange={(val) => setTargetType(val as TargetType)}
@@ -210,8 +210,8 @@ export function CreateAnnouncementModal({ isOpen, onClose, onSuccess }: Props) {
 
                 {targetType !== TargetType.GLOBAL && (
                     <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                        <Label>Select {targetType.toLowerCase().replace('_', ' ')} <span className="text-red-500">*</span></Label>
-                            {targetType === TargetType.ORG && !isPlatformAdmin ? (
+                        <Label>Select {targetType.toLowerCase().replace('_', ' ')} <span className="text-danger">*</span></Label>
+                        {targetType === TargetType.ORG && !isPlatformAdmin ? (
                             <div className="px-4 py-3 bg-card/80 border border-border/10 rounded-lg text-sm font-bold text-card-text/60 flex items-center gap-2">
                                 <Building2 className="w-4 h-4" />
                                 Current Organization

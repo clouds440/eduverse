@@ -78,17 +78,17 @@ export default function HomePage() {
                 <Reveal delay={500}>
                   <div className="flex flex-wrap justify-center lg:justify-start items-center gap-6 pt-4">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
-                      <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                      <ShieldCheck className="w-4 h-4 text-success" />
                       <span>Enterprise Security</span>
                     </div>
                     <div className="w-1 h-1 bg-border rounded-full" />
                     <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
-                      <Zap className="w-4 h-4 text-amber-500" />
+                      <Zap className="w-4 h-4 text-warning" />
                       <span>14-Day Free Trial</span>
                     </div>
                     <div className="w-1 h-1 bg-border rounded-full" />
                     <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
-                      <Users className="w-4 h-4 text-blue-500" />
+                      <Users className="w-4 h-4 text-info" />
                       <span>100+ Schools</span>
                     </div>
                   </div>
@@ -106,9 +106,9 @@ export default function HomePage() {
                     <div className="relative bg-card/80 backdrop-blur-xl rounded-2xl border border-border shadow-2xl overflow-hidden">
                       {/* Header */}
                       <div className="h-12 bg-muted/30 border-b border-border flex items-center px-4 gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500" />
-                        <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                        <div className="w-3 h-3 rounded-full bg-green-500" />
+                        <div className="w-3 h-3 rounded-full bg-danger" />
+                        <div className="w-3 h-3 rounded-full bg-warning" />
+                        <div className="w-3 h-3 rounded-full bg-success" />
                       </div>
 
                       {/* Content */}
@@ -128,7 +128,7 @@ export default function HomePage() {
                             </div>
                             <p className="text-xs text-muted-foreground font-medium">Teachers</p>
                           </div>
-                          <div className="bg-emerald-500/5 rounded-xl p-4 border border-emerald-500/10">
+                          <div className="bg-success/5 rounded-xl p-4 border border-success/10">
                             <div className="flex items-center gap-2 mb-1">
                               <Zap className='w-5 h-5 text-success' />
                               <p className="text-2xl font-black text-success">99.9%</p>
@@ -171,7 +171,7 @@ export default function HomePage() {
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+        <div className="hidden md:block absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
           <div className="w-6 h-10 rounded-full border-2 border-border flex items-start justify-center p-1">
             <div className="w-1.5 h-3 bg-muted-foreground/50 rounded-full animate-pulse" />
           </div>
@@ -251,7 +251,7 @@ export default function HomePage() {
                   { icon: <Zap className="w-4 h-4 text-primary" />, text: 'Live Data Syncing', color: 'bg-primary/10 border-primary/20' },
                   { icon: <ShieldCheck className="w-4 h-4 text-success" />, text: 'Instant Smart Alerts', color: 'bg-success/10 border-success/20' },
                   { icon: <LayoutDashboard className="w-4 h-4 text-warning" />, text: 'One-Click Analytics', color: 'bg-warning/10 border-warning/20' },
-                  { icon: <MessageSquare className="w-4 h-4 text-blue-500" />, text: 'Unified Comms', color: 'bg-blue-500/10 border-blue-500/20' }
+                  { icon: <MessageSquare className="w-4 h-4 text-info" />, text: 'Unified Comms', color: 'bg-info/10 border-info/20' }
                 ].map((item, i) => (
                   <Reveal key={i} delay={300 + (i * 100)}>
                     <li className="flex items-center text-foreground font-bold text-sm p-3 rounded-xl bg-card border border-border hover:border-primary/20 hover:shadow-lg transition-all">
@@ -284,12 +284,12 @@ export default function HomePage() {
                     {/* Header */}
                     <div className="h-14 bg-muted/30 border-b border-border flex items-center justify-between px-6">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500" />
-                        <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                        <div className="w-3 h-3 rounded-full bg-green-500" />
+                        <div className="w-3 h-3 rounded-full bg-danger" />
+                        <div className="w-3 h-3 rounded-full bg-warning" />
+                        <div className="w-3 h-3 rounded-full bg-success" />
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
                         <span>Live</span>
                       </div>
                     </div>
@@ -328,19 +328,19 @@ export default function HomePage() {
                           <LayoutDashboard className="w-10 h-10 text-primary mx-auto mb-2" />
                           <p className="text-sm text-muted-foreground font-medium">Real-time Analytics</p>
                         </div>
-                        
-                      {/* Floating badges */}
-                      <div className="hidden md:flex absolute bottom-1 right-1 bg-card rounded-2xl border border-border shadow-xl p-4 animate-bounce animation-duration-3000">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-success/10 rounded-xl flex items-center justify-center">
-                            <Check className="w-5 h-5 text-success" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground font-medium">Today</p>
-                            <p className="text-sm font-black text-foreground">+127 Tasks</p>
+
+                        {/* Floating badges */}
+                        <div className="hidden md:flex absolute bottom-1 right-1 bg-card rounded-2xl border border-border shadow-xl p-4 animate-bounce animation-duration-3000">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-success/10 rounded-xl flex items-center justify-center">
+                              <Check className="w-5 h-5 text-success" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground font-medium">Today</p>
+                              <p className="text-sm font-black text-foreground">+127 Tasks</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
                       </div>
 
                       {/* Progress bars */}
@@ -397,45 +397,45 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <FeatureCard
-              icon={<MessageSquare className="w-6 h-6 text-blue-600" />}
+              icon={<MessageSquare className="w-6 h-6 text-info" />}
               title="Global Chat"
               description="Real-time localized and global messaging channels for seamless student-teacher interaction."
-              color="from-blue-500/10 to-blue-500/5 border-blue-500/20"
+              color="from-info/10 to-info/5 border-info/20"
               index={0}
             />
             <FeatureCard
-              icon={<Megaphone className="w-6 h-6 text-purple-600" />}
+              icon={<Megaphone className="w-6 h-6 text-primary" />}
               title="Smart Notices"
               description="Automated broadcasting system with priority levels and read-receipt tracking for admins."
-              color="from-purple-500/10 to-purple-500/5 border-purple-500/20"
+              color="from-primary/10 to-primary/5 border-primary/20"
               index={1}
             />
             <FeatureCard
-              icon={<BookOpen className="w-6 h-6 text-indigo-600" />}
+              icon={<BookOpen className="w-6 h-6 text-primary" />}
               title="Assessments"
               description="Professional grading engine with support for multimedia submissions and peer feedback loops."
-              color="from-indigo-500/10 to-indigo-500/5 border-indigo-500/20"
+              color="from-primary/10 to-primary/5 border-primary/20"
               index={2}
             />
             <FeatureCard
-              icon={<Users className="w-6 h-6 text-pink-600" />}
+              icon={<Users className="w-6 h-6 text-info" />}
               title="Permissions"
               description="High-security access controls for administrators, managers, educators, and guard-controlled students."
-              color="from-pink-500/10 to-pink-500/5 border-pink-500/20"
+              color="from-info/10 to-info/5 border-info/20"
               index={3}
             />
             <FeatureCard
-              icon={<Globe className="w-6 h-6 text-orange-600" />}
+              icon={<Globe className="w-6 h-6 text-warning" />}
               title="Scalability"
               description="Robust multi-tenant architecture designed to handle thousands of concurrent organizations."
-              color="from-orange-500/10 to-orange-500/5 border-orange-500/20"
+              color="from-warning/10 to-warning/5 border-warning/20"
               index={4}
             />
             <FeatureCard
-              icon={<LayoutDashboard className="w-6 h-6 text-green-600" />}
+              icon={<LayoutDashboard className="w-6 h-6 text-success" />}
               title="Analytics"
               description="Deep-dive reporting with exportable data visualizations for financial and academic metrics."
-              color="from-green-500/10 to-green-500/5 border-green-500/20"
+              color="from-success/10 to-success/5 border-success/20"
               index={5}
             />
           </div>
@@ -466,8 +466,8 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { icon: <ShieldCheck className="w-10 h-10 text-emerald-500" />, title: 'Enterprise Security', desc: 'Financial-level encryption with daily redundant backups and SOC-2 compliance standards.', color: 'from-emerald-500/10 to-emerald-500/5 border-emerald-500/20' },
-              { icon: <Zap className="w-10 h-10 text-amber-500" />, title: 'Ultra Low Latency', desc: 'Edge-optimized delivery ensuring real-time features work anywhere in the world, instantly.', color: 'from-amber-500/10 to-amber-500/5 border-amber-500/20' },
+              { icon: <ShieldCheck className="w-10 h-10 text-success" />, title: 'Enterprise Security', desc: 'Financial-level encryption with daily redundant backups and SOC-2 compliance standards.', color: 'from-success/10 to-success/5 border-success/20' },
+              { icon: <Zap className="w-10 h-10 text-warning" />, title: 'Ultra Low Latency', desc: 'Edge-optimized delivery ensuring real-time features work anywhere in the world, instantly.', color: 'from-warning/10 to-warning/5 border-warning/20' },
               { icon: <GraduationCap className="w-10 h-10 text-primary" />, title: 'Human-First UX', desc: 'Minimal learning curve with an interface designed after studying thousands of school workflows.', color: 'from-primary/10 to-primary/5 border-primary/20' }
             ].map((item, i) => (
               <Reveal key={i} delay={i * 200}>
@@ -537,17 +537,17 @@ export default function HomePage() {
           <Reveal delay={400}>
             <div className="flex flex-wrap justify-center items-center gap-8 pt-8">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <ShieldCheck className="w-4 h-4 text-success" />
                 <span>No credit card required</span>
               </div>
               <div className="w-1 h-1 bg-border rounded-full" />
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Zap className="w-4 h-4 text-amber-500" />
+                <Zap className="w-4 h-4 text-warning" />
                 <span>14-day free trial</span>
               </div>
               <div className="w-1 h-1 bg-border rounded-full" />
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="w-4 h-4 text-blue-500" />
+                <Users className="w-4 h-4 text-info" />
                 <span>Cancel anytime</span>
               </div>
             </div>

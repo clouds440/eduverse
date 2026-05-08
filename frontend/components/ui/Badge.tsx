@@ -17,24 +17,24 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-    success: "bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-600",
-    error: "bg-red-200 text-red-700 dark:bg-red-900/30 dark:text-red-600",
-    warning: "bg-amber-200 text-amber-700 dark:bg-amber-900/30 dark:text-amber-600",
-    neutral: "bg-slate-200 text-slate-700 dark:bg-slate-600/30 dark:text-slate-600",
-    primary: "bg-indigo-600 text-white dark:bg-indigo-500",
-    secondary: "bg-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-600",
-    info: "bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:text-blue-600",
+    success: "bg-success/10 text-success dark:bg-success/30",
+    error: "bg-danger/10 text-danger dark:bg-danger/30",
+    warning: "bg-warning/10 text-warning dark:bg-warning/30",
+    neutral: "bg-neutral/10 text-neutral dark:bg-neutral/30",
+    primary: "bg-primary/10 text-primary dark:bg-primary/30",
+    secondary: "bg-secondary/40 text-foreground dark:bg-secondary/50",
+    info: "bg-info/10 text-info dark:bg-info/30",
     purple: "bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:text-purple-600",
 };
 
 const dotColors: Record<BadgeVariant, string> = {
-    success: "bg-emerald-600",
-    error: "bg-red-600",
-    warning: "bg-amber-600",
-    neutral: "bg-slate-600",
-    primary: "bg-white",
-    secondary: "bg-indigo-600",
-    info: "bg-blue-600",
+    success: "bg-success",
+    error: "bg-danger",
+    warning: "bg-warning",
+    neutral: "bg-neutral",
+    primary: "bg-primary",
+    secondary: "bg-secondary",
+    info: "bg-info",
     purple: "bg-purple-600",
 };
 

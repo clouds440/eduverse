@@ -312,7 +312,7 @@ export default function SettingsPage() {
                                 error={!!formErrors.name}
                                 className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                             />
-                            {formErrors.name && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.name}</p>}
+                            {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
                         </div>
 
                         <div className="space-y-2">
@@ -360,7 +360,7 @@ export default function SettingsPage() {
                                 error={!!formErrors.location}
                                 className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                             />
-                            {formErrors.location && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.location}</p>}
+                            {formErrors.location && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.location}</p>}
                         </div>
 
                         <div className="space-y-2">
@@ -375,7 +375,7 @@ export default function SettingsPage() {
                                 error={!!formErrors.contactEmail}
                                 className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                             />
-                            {formErrors.contactEmail && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.contactEmail}</p>}
+                            {formErrors.contactEmail && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.contactEmail}</p>}
                         </div>
 
                         <div className="space-y-2">
@@ -390,12 +390,12 @@ export default function SettingsPage() {
                                 error={!!formErrors.phone}
                                 className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                             />
-                            {formErrors.phone && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.phone}</p>}
+                            {formErrors.phone && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.phone}</p>}
                         </div>
                     </div>
 
                     {formErrors.general && (
-                        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center text-sm font-medium animate-shake">
+                        <div className="p-4 bg-danger/10 border border-danger/30 text-danger rounded-xl flex items-center text-sm font-medium animate-shake">
                             <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
                             {formErrors.general}
                         </div>

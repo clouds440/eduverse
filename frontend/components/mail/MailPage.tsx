@@ -74,7 +74,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
         if (token && paginatedData) {
             api.mail.getUnreadCount(token).then((stats: { total: number; unread: number; countsByStatus: Record<string, number> }) => {
                 dispatch({ type: 'STATS_SET_MAIL', payload: stats });
-            }).catch(() => {});
+            }).catch(() => { });
         }
     }, [token, paginatedData, dispatch]);
 
@@ -117,9 +117,9 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
             const { items } = notificationsStore.getAll();
             const notif = items.find(n => n.metadata?.mailId === mail.id || (n.actionUrl && n.actionUrl.includes(mail.id)) || n.metadata?.entityId === mail.id);
             if (notif && token) {
-                notificationsStore.markAsReadGuard(notif.id, token).catch(() => {});
+                notificationsStore.markAsReadGuard(notif.id, token).catch(() => { });
             }
-        } catch {}
+        } catch { }
     };
 
     const handlePageSizeChange = (newSize: number) => {
@@ -190,14 +190,14 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                         </>
                     ) : (
                         <>
-                            <div className="w-7 h-7 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-[10px] font-black text-center leading-none shadow-sm">
+                            <div className="w-7 h-7 rounded-full bg-warning/10 flex items-center justify-center text-warning text-[10px] font-black text-center leading-none shadow-sm">
                                 <span className="scale-75">GRP</span>
                             </div>
                             <div>
                                 <p className="text-xs font-bold text-foreground truncate max-w-30">
                                     {row.targetRole ? row.targetRole.replace('_', ' ') : 'Platform Support'}
                                 </p>
-                                <p className="text-[10px] font-bold text-orange-400">Team</p>
+                                <p className="text-[10px] font-bold text-warning">Team</p>
                             </div>
                         </>
                     )}
@@ -232,7 +232,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                         {row._count?.messages || 0}
                     </div>
                     {row.unreadCount > 0 && (
-                        <span className="bg-red-500 text-red-50 px-2 py-0.5 rounded-full text-[9px] font-black animate-in fade-in zoom-in duration-300">
+                        <span className="bg-dangertext-white px-2 py-0.5 rounded-full text-[9px] font-black animate-in fade-in zoom-in duration-300">
                             {row.unreadCount} new
                         </span>
                     )}
@@ -263,29 +263,29 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                     <div className="flex flex-1 items-center gap-2 w-full">
                         <div className="flex w-full gap-2">
                             <SearchBar
-                            placeholder="Search mail by subject or content..."
-                            value={searchQuery}
-                            onChange={(val: string) => updateFilters('search', val)}
-                            className="w-full"
+                                placeholder="Search mail by subject or content..."
+                                value={searchQuery}
+                                onChange={(val: string) => updateFilters('search', val)}
+                                className="w-full"
                             />
                         </div>
                     </div>
                     <div className='flex gap-2 w-full md:w-auto'>
                         <div className='w-7/12 sm:w-8/12 md:w-auto'>
                             <CustomSelect
-                                    options={[
-                                        { value: '', label: 'All Statuses', badge: state.stats.mail?.total },
-                                        { value: MailStatus.OPEN, label: 'Open', badge: state.stats.mail?.countsByStatus?.[MailStatus.OPEN], icon: Clock, iconClassName: 'text-blue-500' },
-                                        { value: MailStatus.IN_PROGRESS, label: 'In Progress', badge: state.stats.mail?.countsByStatus?.[MailStatus.IN_PROGRESS], icon: ArrowUpRight, iconClassName: 'text-amber-500' },
-                                        { value: MailStatus.AWAITING_RESPONSE, label: 'Awaiting Response', badge: state.stats.mail?.countsByStatus?.[MailStatus.AWAITING_RESPONSE], icon: MessageSquare, iconClassName: 'text-primary/80' },
-                                        { value: MailStatus.RESOLVED, label: 'Resolved', badge: state.stats.mail?.countsByStatus?.[MailStatus.RESOLVED], icon: CheckCircle2, iconClassName: 'text-green-500' },
-                                        { value: MailStatus.CLOSED, label: 'Closed', badge: state.stats.mail?.countsByStatus?.[MailStatus.CLOSED], icon: XCircle, iconClassName: 'text-muted-foreground' },
-                                    ]}
-                                    value={statusFilter}
-                                    onChange={(val: string) => updateFilters('status', val)}
-                                    placeholder="Filter Status"
-                                    icon={Filter}
-                                />
+                                options={[
+                                    { value: '', label: 'All Statuses', badge: state.stats.mail?.total },
+                                    { value: MailStatus.OPEN, label: 'Open', badge: state.stats.mail?.countsByStatus?.[MailStatus.OPEN], icon: Clock, iconClassName: 'text-info' },
+                                    { value: MailStatus.IN_PROGRESS, label: 'In Progress', badge: state.stats.mail?.countsByStatus?.[MailStatus.IN_PROGRESS], icon: ArrowUpRight, iconClassName: 'text-warning' },
+                                    { value: MailStatus.AWAITING_RESPONSE, label: 'Awaiting Response', badge: state.stats.mail?.countsByStatus?.[MailStatus.AWAITING_RESPONSE], icon: MessageSquare, iconClassName: 'text-primary/80' },
+                                    { value: MailStatus.RESOLVED, label: 'Resolved', badge: state.stats.mail?.countsByStatus?.[MailStatus.RESOLVED], icon: CheckCircle2, iconClassName: 'text-success' },
+                                    { value: MailStatus.CLOSED, label: 'Closed', badge: state.stats.mail?.countsByStatus?.[MailStatus.CLOSED], icon: XCircle, iconClassName: 'text-muted-foreground' },
+                                ]}
+                                value={statusFilter}
+                                onChange={(val: string) => updateFilters('status', val)}
+                                placeholder="Filter Status"
+                                icon={Filter}
+                            />
                         </div>
                         <div className='w-5/12 sm:w-4/12 md:w-auto'>
                             <Button

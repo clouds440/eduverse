@@ -114,7 +114,7 @@ export default function AssessmentDetailPage() {
                                 href={safeAssessmentExternalLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-4 py-2 bg-card/40 hover:bg-card border border-border rounded-lg text-xs font-bold transition-colors text-blue-400 hover:text-blue-300 shadow-sm"
+                                className="flex items-center gap-2 px-4 py-2 bg-card/40 hover:bg-card border border-border rounded-lg text-xs font-bold transition-colors text-info/80 hover:text-info/40 shadow-sm"
                             >
                                 <LinkIcon className="w-4 h-4" />
                                 External Resource
@@ -185,11 +185,11 @@ export default function AssessmentDetailPage() {
                                 accessor: (student) => {
                                     const grade = grades.find(g => g.studentId === student.id);
                                     return grade ? (
-                                        <span className="flex items-center gap-1.5 text-emerald-500">
+                                        <span className="flex items-center gap-1.5 text-success">
                                             <CheckCircle2 className="w-3.5 h-3.5" /> Graded
                                         </span>
                                     ) : (
-                                        <span className="flex items-center gap-1.5 text-orange-500">
+                                        <span className="flex items-center gap-1.5 text-warning">
                                             <Calendar className="w-3.5 h-3.5" /> Pending
                                         </span>
                                     );
@@ -223,7 +223,7 @@ export default function AssessmentDetailPage() {
                                                 <LinkIcon className="w-3 h-3" /> View Link
                                             </a>
                                         ) : (
-                                            <span className="text-emerald-500 italic flex items-center gap-1.5 font-black tracking-widest"><CheckCircle2 className="w-3 h-3" /> Done</span>
+                                            <span className="text-success italic flex items-center gap-1.5 font-black tracking-widest"><CheckCircle2 className="w-3 h-3" /> Done</span>
                                         )
                                     ) : (
                                         <span className="text-muted-foreground italic font-black tracking-widest">No Submission</span>
@@ -274,7 +274,7 @@ export default function AssessmentDetailPage() {
                         showSerialNumber
                         totalResults={section.students?.length || 0}
                         pageSize={section.students?.length || 10}
-                        onPageChange={() => {}}
+                        onPageChange={() => { }}
                         disableZebra={true}
                     />
                 </div>

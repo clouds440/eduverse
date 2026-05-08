@@ -29,9 +29,9 @@ interface DashboardLayoutProps {
 }
 
 const ReadOnlyBanner = () => (
-    <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-center gap-2 animate-in slide-in-from-top duration-500">
-        <Eye className="w-4 h-4 text-amber-600" />
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">
+    <div className="bg-warning/10 border-b border-warning/20 px-4 py-2 flex items-center justify-center gap-2 animate-in slide-in-from-top duration-500">
+        <Eye className="w-4 h-4 text-warning" />
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-warning/90">
             Read-Only Mode: Your account has restricted write access.
         </span>
     </div>
@@ -220,7 +220,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                             e.preventDefault();
                                             router.push('/mail');
                                         }}
-                                        className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 shadow-sm relative ${pathname.includes('/mail') ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70 border border-transparent'}`}
+                                        className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 relative ${pathname.includes('/mail') ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70'}`}
                                         title="Mail"
                                     >
                                         <Mail className="w-4 h-4 shrink-0 text-primary/80" />
@@ -240,7 +240,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                                 e.preventDefault();
                                                 router.push('/contact');
                                             }}
-                                            className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 shadow-sm ${pathname === '/contact' ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70 border border-transparent'}`}
+                                            className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 ${pathname === '/contact' ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70'}`}
                                             title="Contact Us"
                                         >
                                             <MessageCircleQuestionMark className="w-4 h-4 shrink-0 text-primary/80" />
@@ -255,7 +255,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                     e.preventDefault();
                                     router.push(user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN ? '/admin/change-password' : '/change-password');
                                 }}
-                                className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 shadow-sm ${pathname.includes('/change-password') ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70 border border-transparent'}`}
+                                className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 ${pathname.includes('/change-password') ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70'}`}
                                 title="Change Password"
                             >
                                 <Key className="w-4 h-4 shrink-0 text-primary/80" />
@@ -267,10 +267,10 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
 
                             <button
                                 onClick={handleLogout}
-                                className={`flex items-center cursor-pointer ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} w-full rounded-md text-red-500 bg-red-500/10 hover:bg-red-500/30 transition-all py-3 border border-transparent shadow-sm`}
+                                className={`flex items-center cursor-pointer ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} w-full rounded-md text-danger bg-danger/10 hover:bg-danger/30 transition-all py-3`}
                                 title="Log out"
                             >
-                                <LogOut className="w-4 h-4 shrink-0 text-red-500/80" />
+                                <LogOut className="w-4 h-4 shrink-0 text-danger" />
                                 {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Log out</span>}
                             </button>
                         </div>

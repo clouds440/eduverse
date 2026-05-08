@@ -53,7 +53,7 @@ export function Drawer({
                 ref={triggerRef}
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
-                    `transition-colors ${isOpen ? 'opacity-80 text-primary' : ''}`,
+                    `transition-all border-none outline-none ${isOpen ? 'opacity-90 scale-98' : ''}`,
                     triggerClassName
                 )}
                 variant='secondary'

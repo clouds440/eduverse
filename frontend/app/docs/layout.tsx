@@ -99,7 +99,7 @@ export default function DocsLayout({
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col relative overflow-hidden">
-        <div className="flex-1 px-4 py-8 md:px-12 md:py-12 w-full h-full overflow-y-auto custom-scrollbar">
+        <div className="flex-1 w-full h-full overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </main>

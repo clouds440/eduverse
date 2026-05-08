@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Calendar, MapPin, Hash, AlertCircle } from 'lucide-react';
+import { Calendar, MapPin, Hash, AlertCircle, LibraryBig, Network, Layers } from 'lucide-react';
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
@@ -112,7 +112,7 @@ export default function CreateSectionPage() {
         <div className="flex flex-col w-full max-w-6xl py-10 mx-auto animate-in fade-in duration-700">
             <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-4 px-2">
                 <div className="p-3 bg-primary/10 rounded-xl border border-primary/20 shadow-lg shadow-primary/5">
-                    <BookOpen className="w-8 h-8 text-primary" />
+                    <Layers className="w-8 h-8 text-primary" />
                 </div>
                 <div>
                     <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-foreground leading-tight">Create New Section</h1>
@@ -131,11 +131,11 @@ export default function CreateSectionPage() {
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
-                                <div className="p-2 bg-amber-500/10 rounded-lg"><Calendar className="w-4 h-4 text-amber-500" /></div>
+                                <div className="p-2 bg-warning/10 rounded-lg"><Calendar className="w-4 h-4 text-warning" /></div>
                                 <span className="text-xs font-bold">Cycle-specific enrollment</span>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
-                                <div className="p-2 bg-indigo-500/10 rounded-lg"><MapPin className="w-4 h-4 text-indigo-500" /></div>
+                                <div className="p-2 bg-primary/10 rounded-lg"><MapPin className="w-4 h-4 text-primary" /></div>
                                 <span className="text-xs font-bold">Resource Allocation</span>
                             </div>
                         </div>
@@ -175,7 +175,7 @@ export default function CreateSectionPage() {
                                             <CustomSelect
                                                 value={formData.courseId}
                                                 onChange={(value) => setFormData({ ...formData, courseId: value })}
-                                                icon={BookOpen}
+                                                icon={LibraryBig}
                                                 options={courses.map((c: Course) => ({ value: c.id, label: c.name }))}
                                                 placeholder="Select course..."
                                                 required
@@ -187,6 +187,7 @@ export default function CreateSectionPage() {
                                             <CustomSelect
                                                 value={formData.academicCycleId}
                                                 onChange={(value) => setFormData({ ...formData, academicCycleId: value, cohortId: '' })}
+                                                icon={Calendar}
                                                 options={[
                                                     ...(cyclesData?.data?.map((c: AcademicCycle) => ({ value: c.id, label: c.name })) || [])
                                                 ]}
@@ -215,7 +216,7 @@ export default function CreateSectionPage() {
                                                 error={!!formErrors.name}
                                                 className="h-12 md:h-14 font-medium"
                                             />
-                                            {formErrors.name && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.name}</p>}
+                                            {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
                                         </div>
                                         <div className="space-y-2">
                                             <Label className="text-sm font-bold ml-1">Location / Room</Label>
@@ -243,6 +244,7 @@ export default function CreateSectionPage() {
                                                     label: c.name
                                                 })) || [])
                                             ]}
+                                            icon={Network}
                                             placeholder="Select student cohort..."
                                         />
                                     </div>
@@ -250,7 +252,7 @@ export default function CreateSectionPage() {
                             </div>
 
                             {formErrors.general && (
-                                <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl flex items-center text-sm font-bold animate-in slide-in-from-top-2">
+                                <div className="p-4 bg-danger/10 border border-danger/20 text-danger rounded-xl flex items-center text-sm font-bold animate-in slide-in-from-top-2">
                                     <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
                                     {formErrors.general}
                                 </div>

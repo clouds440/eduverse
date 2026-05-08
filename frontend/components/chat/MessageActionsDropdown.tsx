@@ -51,29 +51,29 @@ export function MessageContextMenu({
         <>
             {!isFailedMessage && (
                 <button onClick={() => handleAction(() => onReply(msg))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
-                    <Reply size={14} className="mr-3 md:mr-2 opacity-85 text-purple-600" /> Reply
+                    <Reply size={14} className="mr-3 md:mr-2 opacity-85 text-primary" /> Reply
                 </button>
             )}
             <button onClick={() => handleAction(() => onCopyText(msg))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
-                <Copy size={14} className="mr-3 md:mr-2 opacity-85 text-yellow-500" /> Copy Text
+                <Copy size={14} className="mr-3 md:mr-2 opacity-85 text-warning" /> Copy Text
             </button>
             {isMine && !isFailedMessage && (
                 <button onClick={() => handleAction(() => onEditMessage(msg))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
-                    <Pencil size={14} className="mr-3 md:mr-2 opacity-85 text-green-500" /> Edit
+                    <Pencil size={14} className="mr-3 md:mr-2 opacity-85 text-success" /> Edit
                 </button>
             )}
             {links.map((match, idx) => {
                 const label = (match[1] || '').trim();
                 return (
                     <button key={idx} onClick={(e) => handleAction(() => onDownload(e, match[2], label || 'download'))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
-                        <Download size={14} className="mr-3 md:mr-2 opacity-85 text-blue-500" /> Download {label}
+                        <Download size={14} className="mr-3 md:mr-2 opacity-85 text-info" /> Download {label}
                     </button>
                 );
             })}
             {(isMine || user?.role === Role.ORG_ADMIN) && (
                 <div className='border-t border-border'>
-                    <button onClick={() => handleAction(() => onDeleteMessage(msg.id))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-red-600 hover:bg-red-500/10 flex items-center mt-1 pt-2 md:pt-1 md:mt-0">
-                        <Trash2 size={14} className="mr-3 md:mr-2 opacity-85 text-red-500" /> Delete
+                    <button onClick={() => handleAction(() => onDeleteMessage(msg.id))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-danger hover:bg-danger/10 flex items-center mt-1 pt-2 md:pt-1 md:mt-0">
+                        <Trash2 size={14} className="mr-3 md:mr-2 opacity-85 text-danger" /> Delete
                     </button>
                 </div>
             )}

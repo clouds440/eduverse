@@ -11,7 +11,7 @@
   --foreground: #0f172a;
   /* slate-900 */
   --primary: #4f46e5;
-  /* indigo-600 */
+  /* primary */
   --primary-hover: #4338ca;
   /* indigo-700 */
   --primary-text: #ffffff;
@@ -20,9 +20,10 @@
   --secondary-text: #0f172a;
 
   --neutral: #8A919E;
-  --success: #05B169;
-  --warning: #F0AD4E;
-  --error: #DF2935;
+  --success: #019256;
+  --info: #1e4dc5;
+  --warning: #d89436;
+  --danger: #c71c27;
 
   --card-bg: #babadb;
   --card-text: #1e293b;
@@ -70,6 +71,8 @@
   --color-neutral: var(--neutral);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

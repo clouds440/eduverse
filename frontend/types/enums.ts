@@ -140,3 +140,12 @@ export enum AttendanceStatus {
     EXCUSED = 'EXCUSED',
 }
 
+// Insights
+export enum Tone {
+    DEFAULT = 'DEFAULT',
+    INFO = 'INFO',
+    SUCCESS = 'SUCCESS',
+    WARNING = 'WARNING',
+    DANGER = 'DANGER',
+}
+

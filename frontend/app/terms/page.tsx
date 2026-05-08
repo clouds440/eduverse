@@ -48,36 +48,36 @@ export default function TermsPage() {
                   <h2 className="text-3xl font-black text-foreground">Acceptance of Terms</h2>
                 </div>
                 <p className="text-muted-foreground font-medium leading-relaxed">
-              By accessing or using the {PLATFORM_NAME} platform, you agree to comply with and be bound by these Terms of Service. If you do not agree to these terms, you must not use our services. These terms apply to all administrators, educators, students, and institutional managers who access our platform.
-            </p>
+                  By accessing or using the {PLATFORM_NAME} platform, you agree to comply with and be bound by these Terms of Service. If you do not agree to these terms, you must not use our services. These terms apply to all administrators, educators, students, and institutional managers who access our platform.
+                </p>
               </div>
             </Reveal>
 
             <Reveal delay={100}>
               <div className="p-8 bg-card border border-border rounded-2xl space-y-4 shadow-lg">
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20">
-                    <CreditCard className="w-7 h-7 text-indigo-500" />
+                  <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
+                    <CreditCard className="w-7 h-7 text-primary" />
                   </div>
                   <h2 className="text-3xl font-black text-foreground">Subscription & Payments</h2>
                 </div>
                 <p className="text-muted-foreground font-medium leading-relaxed">
-              Our services are provided on a subscription basis. Subscriptions automatically renew at the end of each billing cycle unless cancelled by the institutional administrator. We reserve the right to modify our pricing with a 30-day notice to current active organizations.
-            </p>
+                  Our services are provided on a subscription basis. Subscriptions automatically renew at the end of each billing cycle unless cancelled by the institutional administrator. We reserve the right to modify our pricing with a 30-day notice to current active organizations.
+                </p>
               </div>
             </Reveal>
 
             <Reveal delay={200}>
               <div className="p-8 bg-card border border-border rounded-2xl space-y-4 shadow-lg">
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20">
-                    <AlertTriangle className="w-7 h-7 text-amber-500" />
+                  <div className="w-14 h-14 bg-warning/10 rounded-2xl flex items-center justify-center border border-warning/20">
+                    <AlertTriangle className="w-7 h-7 text-warning" />
                   </div>
                   <h2 className="text-3xl font-black text-foreground">User Responsibility & Code of Conduct</h2>
                 </div>
                 <p className="text-muted-foreground font-medium leading-relaxed">
-              Organizations are responsible for the actions of their assigned users. {PLATFORM_NAME} is a professional educational tool; we prohibit the transmission of harmful code, harassment, or illegal content. We reserve the right to suspend any organization that violates our security standards or code of conduct.
-            </p>
+                  Organizations are responsible for the actions of their assigned users. {PLATFORM_NAME} is a professional educational tool; we prohibit the transmission of harmful code, harassment, or illegal content. We reserve the right to suspend any organization that violates our security standards or code of conduct.
+                </p>
               </div>
             </Reveal>
           </div>

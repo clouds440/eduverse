@@ -124,11 +124,11 @@ export default function CreateAcademicCyclePage() {
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
-                                <div className="p-2 bg-amber-500/10 rounded-lg"><Clock className="w-4 h-4 text-amber-500" /></div>
+                                <div className="p-2 bg-warning/10 rounded-lg"><Clock className="w-4 h-4 text-warning" /></div>
                                 <span className="text-xs font-bold">Time-bound organization</span>
                             </div>
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
-                                <div className="p-2 bg-indigo-500/10 rounded-lg"><CheckCircle2 className="w-4 h-4 text-indigo-500" /></div>
+                                <div className="p-2 bg-primary/10 rounded-lg"><CheckCircle2 className="w-4 h-4 text-primary" /></div>
                                 <span className="text-xs font-bold">Data isolation per cycle</span>
                             </div>
                         </div>
@@ -180,7 +180,7 @@ export default function CreateAcademicCyclePage() {
                                                 error={!!formErrors.name}
                                                 className="h-12 md:h-14 font-medium"
                                             />
-                                            {formErrors.name && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.name}</p>}
+                                            {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -201,7 +201,7 @@ export default function CreateAcademicCyclePage() {
                                                 error={!!formErrors.startDate}
                                                 className="h-12 md:h-14 font-medium"
                                             />
-                                            {formErrors.startDate && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.startDate}</p>}
+                                            {formErrors.startDate && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.startDate}</p>}
                                         </div>
                                         <div className="space-y-2">
                                             <Label className="text-sm font-bold ml-1">End Date <span className="text-primary">*</span></Label>
@@ -215,7 +215,7 @@ export default function CreateAcademicCyclePage() {
                                                 error={!!formErrors.endDate}
                                                 className="h-12 md:h-14 font-medium"
                                             />
-                                            {formErrors.endDate && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.endDate}</p>}
+                                            {formErrors.endDate && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.endDate}</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -236,7 +236,7 @@ export default function CreateAcademicCyclePage() {
                             </div>
 
                             {formErrors.general && (
-                                <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl flex items-center text-sm font-bold animate-in slide-in-from-top-2">
+                                <div className="p-4 bg-danger/10 border border-danger/20 text-danger rounded-xl flex items-center text-sm font-bold animate-in slide-in-from-top-2">
                                     <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
                                     {formErrors.general}
                                 </div>

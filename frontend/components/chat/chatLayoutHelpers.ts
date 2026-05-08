@@ -1,5 +1,5 @@
 import { Chat, ChatMessage, ChatType, User } from '@/types';
-import { MutableRefObject } from 'react';
+import { RefObject } from 'react';
 import { isToday, isYesterday, format } from 'date-fns';
 
 export type ChatMessageWithMeta = ChatMessage & {
@@ -275,9 +275,9 @@ export interface LongPressHandlersOptions {
  */
 export function getLongPressHandlers(
     options: LongPressHandlersOptions,
-    timerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>,
-    startPosRef: MutableRefObject<{ x: number; y: number } | null>,
-    hasTriggeredRef: MutableRefObject<boolean>
+    timerRef: RefObject<ReturnType<typeof setTimeout> | null>,
+    startPosRef: RefObject<{ x: number; y: number } | null>,
+    hasTriggeredRef: RefObject<boolean>
 ): LongPressHandlersResult {
     const { isDesktop, itemId, onLongPress, delay = 500, movementThreshold = 10 } = options;
 

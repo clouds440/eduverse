@@ -155,7 +155,7 @@ export default function LoginPage() {
                   error={!!errors.email}
                   className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                 />
-                {errors.email && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.email}</p>}
+                {errors.email && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.email}</p>}
               </div>
 
               <div className="space-y-2">
@@ -176,8 +176,8 @@ export default function LoginPage() {
                   error={!!errors.password}
                   className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                 />
-                {errors.password && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.password}</p>}
-                {errors.general && <p className="mt-2 text-sm text-red-500 font-bold text-center">{errors.general}</p>}
+                {errors.password && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.password}</p>}
+                {errors.general && <p className="mt-2 text-sm text-danger font-bold text-center">{errors.general}</p>}
               </div>
             </div>
 

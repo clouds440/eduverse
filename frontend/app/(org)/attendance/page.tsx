@@ -48,7 +48,7 @@ export default function AttendanceLandingPage() {
                             {sections.map((section) => {
                                 const studentCount = section.studentsCount || section.students?.length || 0;
                                 const attendanceRate = studentCount > 0 ? 85 + (section.name.length % 15) : 100;
-                                
+
                                 return (
                                     <Link
                                         key={section.id}
@@ -61,11 +61,11 @@ export default function AttendanceLandingPage() {
                                                     <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
                                                     <span className="text-[9px] font-black tracking-widest text-primary">{section.course?.name || 'Course'}</span>
                                                 </div>
-                                                <div className="text-[10px] font-black text-emerald-500 tracking-tighter bg-emerald-500/10 px-2 py-1 rounded-md">Active</div>
+                                                <div className="text-[10px] font-black text-success tracking-tighter bg-success/10 px-2 py-1 rounded-md">Active</div>
                                             </div>
 
                                             <h3 className="text-lg md:text-xl font-black tracking-tighter mb-3 text-foreground group-hover:text-primary transition-colors leading-tight">{section.name}</h3>
-                                            
+
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2 text-muted-foreground">
@@ -74,10 +74,10 @@ export default function AttendanceLandingPage() {
                                                     </div>
                                                     <p className="text-[10px] font-black text-primary italic">{attendanceRate}% Avg</p>
                                                 </div>
-                                                
+
                                                 <div className="h-1 w-full bg-muted/30 rounded-full overflow-hidden">
-                                                    <div 
-                                                        className="h-full bg-primary group-hover:bg-primary/80 transition-all duration-500 ease-out" 
+                                                    <div
+                                                        className="h-full bg-primary group-hover:bg-primary/80 transition-all duration-500 ease-out"
                                                         style={{ width: `${attendanceRate}%` }}
                                                     ></div>
                                                 </div>

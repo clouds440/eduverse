@@ -50,18 +50,18 @@ export function MailPriorityBadge({ priority, className = '' }: PriorityBadgePro
 export function useMailRowClassName() {
     return (status: MailStatus) => {
         const base = 'shadow-sm transition-colors';
-        
+
         switch (status) {
             case MailStatus.OPEN:
-                return `bg-blue-200/50 dark:bg-blue-950/30 border-l-4 border-l-blue-500 ${base}`;
+                return `bg-info/50 dark:bg-info/30 border-l-4 border-l-info ${base}`;
             case MailStatus.IN_PROGRESS:
-                return `bg-amber-200/50 dark:bg-amber-950/30 border-l-4 border-l-amber-400 ${base}`;
+                return `bg-warning/50 dark:bg-warning/30 border-l-4 border-l-warning ${base}`;
             case MailStatus.AWAITING_RESPONSE:
-                return `bg-indigo-200/50 dark:bg-indigo-950/30 border-l-4 border-l-indigo-400 ${base}`;
+                return `bg-primary/50 dark:bg-primary/30 border-l-4 border-l-primary ${base}`;
             case MailStatus.RESOLVED:
-                return `bg-emerald-200/50 dark:bg-emerald-950/30 border-l-4 border-l-emerald-500 ${base}`;
+                return `bg-success/50 dark:bg-success/30 border-l-4 border-l-success ${base}`;
             case MailStatus.CLOSED:
-                return `bg-slate-200/50 dark:bg-slate-800/50 border-l-4 border-l-slate-400 opacity-80 ${base}`;
+                return `bg-muted/50 dark:bg-muted/30 border-l-4 border-l-muted-foreground/30 opacity-80 ${base}`;
             default:
                 return 'transition-colors hover:bg-muted/40';
         }

@@ -174,7 +174,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             } else {
                 router.push('/students');
             }
-            
+
             // Invalidate all student lists
             mutate(matchesCacheKeyPrefix('students'));
         } catch (error: unknown) {
@@ -241,7 +241,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     placeholder="Alex Johnson"
                                     className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                                 />
-                                {errors.name && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.name.message}</p>}
+                                {errors.name && <p className="mt-1 text-xs text-danger font-semibold">{errors.name.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
@@ -258,7 +258,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     placeholder="alex.j@example.com"
                                     className={studentId || isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                                 />
-                                {errors.email && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.email.message}</p>}
+                                {errors.email && <p className="mt-1 text-xs text-danger font-semibold">{errors.email.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
@@ -272,11 +272,11 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     placeholder={studentId ? "Leave blank to keep current" : "Min 8 chars, 1 upper, 1 lower, 1 num"}
                                     className="font-medium"
                                 />
-                                {errors.password && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.password.message}</p>}
+                                {errors.password && <p className="mt-1 text-xs text-danger font-semibold">{errors.password.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
-                                <Label>Registration Number <span className="text-red-500">*</span></Label>
+                                <Label>Registration Number <span className="text-danger">*</span></Label>
                                 <Input
                                     type="text"
                                     {...register('registrationNumber')}
@@ -289,11 +289,11 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     placeholder="ST-2026-001"
                                     className={isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN) ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                                 />
-                                {errors.registrationNumber && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.registrationNumber.message}</p>}
+                                {errors.registrationNumber && <p className="mt-1 text-xs text-danger font-semibold">{errors.registrationNumber.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
-                                <Label>Roll Number <span className="text-red-500">*</span></Label>
+                                <Label>Roll Number <span className="text-danger">*</span></Label>
                                 <Input
                                     type="text"
                                     {...register('rollNumber')}
@@ -306,7 +306,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     placeholder="2026-001"
                                     className={isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN) ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                                 />
-                                {errors.rollNumber && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.rollNumber.message}</p>}
+                                {errors.rollNumber && <p className="mt-1 text-xs text-danger font-semibold">{errors.rollNumber.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
@@ -321,7 +321,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     disabled={isProfile || isWatchMode}
                                     className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                                 />
-                                {errors.admissionDate && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.admissionDate.message}</p>}
+                                {errors.admissionDate && <p className="mt-1 text-xs text-danger font-semibold">{errors.admissionDate.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
@@ -345,14 +345,14 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                             formData.status === StudentStatus.SUSPENDED ? UserX : GraduationCap
                                     }
                                 />
-                                {errors.status && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.status.message}</p>}
+                                {errors.status && <p className="mt-1 text-xs text-danger font-semibold">{errors.status.message}</p>}
                             </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                         <div className="space-y-2 md:space-y-3">
-                            <Label>Major / Program <span className="text-red-500">*</span></Label>
+                            <Label>Major / Program <span className="text-danger">*</span></Label>
                             <Input
                                 type="text"
                                 {...register('major')}
@@ -365,7 +365,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 placeholder="Computer Science"
                                 className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.major && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.major.message}</p>}
+                            {errors.major && <p className="mt-1 text-xs text-danger font-semibold">{errors.major.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
                             <Label>Department</Label>
@@ -381,7 +381,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 placeholder="Engineering & Tech"
                                 className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.department && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.department.message}</p>}
+                            {errors.department && <p className="mt-1 text-xs text-danger font-semibold">{errors.department.message}</p>}
                         </div>
                     </div>
                 </div>
@@ -424,7 +424,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 disabled={isProfile || isWatchMode}
                                 icon={Users}
                             />
-                            {errors.cohortId && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.cohortId.message}</p>}
+                            {errors.cohortId && <p className="mt-1 text-xs text-danger font-semibold">{errors.cohortId.message}</p>}
                         </div>
 
                         <div className="space-y-2 md:space-y-3">
@@ -444,7 +444,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 error={!!errors.sectionIds}
                                 disabled={isProfile || isWatchMode}
                             />
-                            {errors.sectionIds && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.sectionIds.message}</p>}
+                            {errors.sectionIds && <p className="mt-1 text-xs text-danger font-semibold">{errors.sectionIds.message}</p>}
                         </div>
                     </div>
                 </div>
@@ -467,7 +467,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                 <div className="p-6 md:p-8">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                         <div className="space-y-2 md:space-y-3">
-                            <Label>Annual/Semester Fee <span className="text-red-500">*</span></Label>
+                            <Label>Annual/Semester Fee <span className="text-danger">*</span></Label>
                             <Input
                                 type="number"
                                 {...register('fee')}
@@ -480,10 +480,10 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 placeholder="12000"
                                 className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.fee && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.fee.message}</p>}
+                            {errors.fee && <p className="mt-1 text-xs text-danger font-semibold">{errors.fee.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
-                            <Label>Fee Plan <span className="text-red-500">*</span></Label>
+                            <Label>Fee Plan <span className="text-danger">*</span></Label>
                             <Input
                                 type="text"
                                 {...register('feePlan')}
@@ -496,7 +496,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 placeholder="Standard / Installments"
                                 className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.feePlan && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.feePlan.message}</p>}
+                            {errors.feePlan && <p className="mt-1 text-xs text-danger font-semibold">{errors.feePlan.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
                             <Label>Exp. Graduation</Label>
@@ -510,7 +510,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 disabled={isProfile || isWatchMode}
                                 className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.graduationDate && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.graduationDate.message}</p>}
+                            {errors.graduationDate && <p className="mt-1 text-xs text-danger font-semibold">{errors.graduationDate.message}</p>}
                         </div>
                     </div>
                 </div>
@@ -543,7 +543,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 placeholder="Michael Johnson"
                                 className="font-medium"
                             />
-                            {errors.fatherName && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.fatherName.message}</p>}
+                            {errors.fatherName && <p className="mt-1 text-xs text-danger font-semibold">{errors.fatherName.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
                             <Label>Current Age</Label>
@@ -556,10 +556,10 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 placeholder="16"
                                 className="font-medium"
                             />
-                            {errors.age && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.age.message}</p>}
+                            {errors.age && <p className="mt-1 text-xs text-danger font-semibold">{errors.age.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
-                            <Label>Gender Identification <span className="text-red-500">*</span></Label>
+                            <Label>Gender Identification <span className="text-danger">*</span></Label>
                             <CustomSelect
                                 options={[
                                     { value: 'Male', label: 'Male' },
@@ -577,7 +577,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 icon={Users}
                                 placeholder="Gender"
                             />
-                            {errors.gender && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.gender.message}</p>}
+                            {errors.gender && <p className="mt-1 text-xs text-danger font-semibold">{errors.gender.message}</p>}
                         </div>
                     </div>
 
@@ -594,7 +594,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     placeholder="+1 555-0100"
                                     className="font-medium"
                                 />
-                                {errors.phone && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.phone.message}</p>}
+                                {errors.phone && <p className="mt-1 text-xs text-danger font-semibold">{errors.phone.message}</p>}
                             </div>
                             <div className="space-y-2 md:space-y-3">
                                 <Label>Emergency Contact</Label>
@@ -607,7 +607,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     placeholder="Relationship - Phone"
                                     className="font-medium"
                                 />
-                                {errors.emergencyContact && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.emergencyContact.message}</p>}
+                                {errors.emergencyContact && <p className="mt-1 text-xs text-danger font-semibold">{errors.emergencyContact.message}</p>}
                             </div>
                             <div className="space-y-2 md:space-y-3">
                                 <Label>Blood Group</Label>
@@ -620,7 +620,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     placeholder="A+, B-, etc."
                                     className="font-medium"
                                 />
-                                {errors.bloodGroup && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.bloodGroup.message}</p>}
+                                {errors.bloodGroup && <p className="mt-1 text-xs text-danger font-semibold">{errors.bloodGroup.message}</p>}
                             </div>
                         </div>
 
@@ -636,7 +636,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                     className="min-h-32 md:min-h-40 font-medium"
                                 />
                             </div>
-                            {errors.address && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.address.message}</p>}
+                            {errors.address && <p className="mt-1 text-xs text-danger font-semibold">{errors.address.message}</p>}
                         </div>
                     </div>
                 </div>

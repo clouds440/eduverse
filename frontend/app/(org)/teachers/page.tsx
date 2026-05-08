@@ -147,8 +147,8 @@ export default function TeachersPage() {
                         {(row.user.role === Role.ORG_ADMIN || row.user.role === Role.ORG_MANAGER) && (
                             <div
                                 className={`absolute -bottom-1 -right-1 p-0.5 rounded-full bg-background shadow-sm border z-20 ${row.user.role === Role.ORG_ADMIN
-                                    ? 'text-amber-500 border-amber-200'
-                                    : 'text-blue-500 border-blue-200'
+                                    ? 'text-warning border-warning/20'
+                                    : 'text-info border-info/30'
                                     }`}
                                 title={row.user.role === Role.ORG_ADMIN ? 'Administrator' : 'Manager'}
                             >
@@ -203,7 +203,7 @@ export default function TeachersPage() {
                 return sectionsList.length > 0 ? (
                     <div className="flex flex-wrap gap-1 max-w-50">
                         {sectionsList.map(sec => (
-                            <Badge key={sec?.id || Math.random()} variant="secondary" size="sm" className="truncate max-w-37.5" title={sec?.name}>
+                            <Badge key={sec?.id || Math.random()} variant="neutral" size="sm" className="truncate max-w-37.5" title={sec?.name}>
                                 {sec?.name || 'Unknown'}
                             </Badge>
                         ))}
@@ -303,9 +303,8 @@ export default function TeachersPage() {
                                     {/* View Deleted Faculty */}
                                     <button
                                         onClick={() => updateQueryParams({ deleted: isDeletedView ? undefined : 'true', page: 1, status: undefined, showEmeritus: undefined })}
-                                        className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${
-                                            isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
-                                        }`}
+                                        className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
+                                            }`}
                                     >
                                         {isDeletedView ? '← Back to Active Faculty' : 'View Deleted Faculty'}
                                     </button>
@@ -316,9 +315,8 @@ export default function TeachersPage() {
                         {isDeletedView && (
                             <button
                                 onClick={() => updateQueryParams({ deleted: undefined, page: 1 })}
-                                className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${
-                                    isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
-                                }`}
+                                className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
+                                    }`}
                             >
                                 ← Back to Active Faculty
                             </button>

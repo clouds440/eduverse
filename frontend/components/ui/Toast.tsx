@@ -41,9 +41,9 @@ export function Toast({ id, message, type, duration = 2000, onClose }: ToastProp
     };
 
     const backgrounds = {
-        success: 'bg-emerald-700/80 border-emerald-800',
-        error: 'bg-red-700/80 border-red-800',
-        info: 'bg-blue-700/80 border-blue-800'
+        success: 'bg-success/80 border-success/80',
+        error: 'bg-danger/80 border-danger/80',
+        info: 'bg-info/80 border-info/80'
     };
 
     return (

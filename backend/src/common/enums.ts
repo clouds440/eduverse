@@ -92,11 +92,11 @@ export enum MailCategory {
 }
 
 export enum InsightTone {
-  DEFAULT = 'default',
-  INFO = 'info',
-  SUCCESS = 'success',
-  WARNING = 'warning',
-  DANGER = 'danger',
+  DEFAULT = 'DEFAULT',
+  INFO = 'INFO',
+  SUCCESS = 'SUCCESS',
+  WARNING = 'WARNING',
+  DANGER = 'DANGER',
 }
 
 export enum AttendanceStatus {

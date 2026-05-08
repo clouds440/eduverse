@@ -224,7 +224,7 @@ export function ChatSettingsModal({
                             return (
                                 <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border border-border/10 bg-card/30 group/item transition-all hover:bg-card/80 hover:border-border hover:shadow-sm">
                                     <div className="flex items-center space-x-2 sm:space-x-3">
-                                        <BrandIcon variant="user" user={p.user} size="sm" className="w-7 h-7 sm:w-8 sm:h-8" initialsFallback/>
+                                        <BrandIcon variant="user" user={p.user} size="sm" className="w-7 h-7 sm:w-8 sm:h-8" initialsFallback />
                                         <div className="min-w-0">
                                             <p className="text-[11px] sm:text-xs font-bold truncate" style={{ color: getUserColor(p.user?.id) }}>
                                                 {p.user?.name} {p.userId === currentUser.id && '(You)'}
@@ -240,7 +240,7 @@ export function ChatSettingsModal({
                                                     </span>
                                                 )}
                                                 {!isCreator && participantRole !== 'MEMBER' && (
-                                                    <span className={`text-[10px] font-black px-1 sm:px-1.5 rounded-lg flex items-center ${participantRole === 'MOD' ? 'bg-blue-500/10 text-blue-500' : 'bg-green-500/10 text-green-500'}`}>
+                                                    <span className={`text-[10px] font-black px-1 sm:px-1.5 rounded-lg flex items-center ${participantRole === 'MOD' ? 'bg-info/10 text-info' : 'bg-success/10 text-success'}`}>
                                                         {participantRole}
                                                     </span>
                                                 )}
@@ -262,7 +262,7 @@ export function ChatSettingsModal({
                                         {isGroupAdmin && p.userId !== currentUser.id && p.userId !== chat.creatorId && (
                                             <button
                                                 onClick={() => handleRemoveParticipant(p.userId)}
-                                                className="p-1 sm:p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover/item:opacity-100 transition-all"
+                                                className="p-1 sm:p-1.5 text-muted-foreground hover:text-dangerhover:bg-danger/10 rounded-lg opacity-0 group-hover/item:opacity-100 transition-all"
                                                 title="Remove from group"
                                             >
                                                 <UserMinus size={12} />

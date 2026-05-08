@@ -217,7 +217,7 @@ export default function SectionsPage() {
                 <div className="flex flex-wrap gap-1">
                     {row.teachers && row.teachers.length > 0 ? (
                         row.teachers.map((teacher, idx) => (
-                            <Badge key={idx} variant="secondary" size="sm">
+                            <Badge key={idx} variant="primary" size="sm">
                                 {teacher.user.name}
                             </Badge>
                         ))
@@ -234,7 +234,7 @@ export default function SectionsPage() {
                 const studentsList = row.students || [];
                 return studentsList.length > 0 ? (
                     <div className="flex flex-wrap gap-1 max-w-50">
-                        <Badge variant="secondary" size="sm" className="truncate max-w-37.5" title='Click edit icon to view all'>
+                        <Badge variant="primary" size="sm" className="truncate max-w-37.5" title='Click edit icon to view all'>
                             {studentsList.length === 1 ? '1 Student' : studentsList.length + ' Students'}
                         </Badge>
                     </div>

@@ -43,28 +43,30 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         root.style.setProperty('--primary-hover', '#003ECB'); // Primary Hover
         root.style.setProperty('--secondary', secondary);
         root.style.setProperty('--neutral', '#8A919E'); // Neutral
-        root.style.setProperty('--success', '#05B169'); // Success
-        root.style.setProperty('--warning', '#F0AD4E'); // Warning
-        root.style.setProperty('--error', '#DF2935'); // Error
+        root.style.setProperty('--success', '#019256'); // Success
+        root.style.setProperty('--warning', '#d89436'); // Warning
+        root.style.setProperty('--danger', '#c71c27'); // Danger
+        root.style.setProperty('--info', '#1e4dc5'); // Info
 
         // RGB for opacity support (used for shadow)
         const primaryRgb = hexToRgb(primary);
-        
+
         // Text Contrast (Automatic black/white text based on background)
         const primaryText = getContrastColor(primary);
         const secondaryText = getContrastColor(secondary);
-        
+
         // Chat tick color (white if primary is blue shade, else blue)
         const chatTickColor = isBlueShade(primary) ? '#ffffff' : '#0952C8';
 
         // Global foreground (text) color depends on mode
+        // Global foreground (text) color depends on mode
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const effectiveMode = (mode && mode !== ThemeMode.SYSTEM) ? mode : (prefersDark ? ThemeMode.DARK : ThemeMode.LIGHT);
+        const effectiveMode = mode === ThemeMode.SYSTEM ? (prefersDark ? ThemeMode.DARK : ThemeMode.LIGHT) : mode;
 
         // --- Semantic Variable Injection ---
         const isDark = effectiveMode === ThemeMode.DARK;
 
-        
+
         // Chat bubble background (dimmer version of primary if too bright)
         const chatBubbleBg = isColorTooBright(primary) ? adjustBrightness(primary, isDark ? -60 : -25) : primary;
 
@@ -128,8 +130,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const setThemeColors = useCallback((primary: string, secondary: string) => {
         setPrimaryColorState(primary);
         setSecondaryColor(secondary);
-        applyTheme(primary, secondary);
-    }, [applyTheme]);
+    }, []);
 
     // Save primary only; secondary is computed
     const setPrimaryColor = useCallback((primary: string) => {
@@ -138,8 +139,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const computedSecondary = mode === ThemeMode.DARK ? adjustBrightness(primary, -85) : adjustBrightness(primary, 90);
         setPrimaryColorState(primary);
         setSecondaryColor(computedSecondary);
-        applyTheme(primary, computedSecondary, mode);
-    }, [applyTheme, themeMode]);
+    }, [themeMode]);
 
     // Preview-only: set theme mode locally (no DB persistence). Settings form will persist on save.
     const setThemeMode = useCallback((mode: ThemeMode) => {
@@ -150,8 +150,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         // recompute secondary from current primary
         const computedSecondary = mode === ThemeMode.DARK ? adjustBrightness(primaryColor, -85) : adjustBrightness(primaryColor, 90);
         setSecondaryColor(computedSecondary);
-        applyTheme(primaryColor, computedSecondary, mode);
-    }, [applyTheme, primaryColor]);
+    }, [primaryColor]);
 
     const refreshTheme = useCallback(() => {
         // Read org data from GlobalContext
@@ -162,17 +161,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             const secondary = orgData.accentColor.secondary || (mode === ThemeMode.DARK ? adjustBrightness(primary, -85) : adjustBrightness(primary, 90));
             setPrimaryColorState(primary);
             setSecondaryColor(secondary);
-            applyTheme(primary, secondary, mode);
         } else {
             // Fallback to defaults if no org data or no primary color
             setThemeColors(DEFAULT_PRIMARY, DEFAULT_SECONDARY);
         }
-    }, [applyTheme, setThemeColors, themeMode, state.stats.orgData]);
+    }, [setThemeColors, themeMode, state.stats.orgData]);
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         refreshTheme();
     }, [refreshTheme]);
+
+    // Centralized theme application
+    useEffect(() => {
+        applyTheme(primaryColor, secondaryColor, themeMode);
+    }, [primaryColor, secondaryColor, themeMode, applyTheme]);
 
     // Centralized theme class management
     useEffect(() => {
@@ -197,8 +200,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             const handleSystemChange = () => {
                 const isDark = mediaQuery.matches;
                 updateClass(isDark);
-                // Also update CSS variables
-                applyTheme(primaryColor, secondaryColor, ThemeMode.SYSTEM);
             };
 
             handleSystemChange(); // Initial set
@@ -206,17 +207,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             mediaQuery.addEventListener('change', handleSystemChange);
             return () => mediaQuery.removeEventListener('change', handleSystemChange);
         }
-    }, [themeMode, applyTheme, primaryColor, secondaryColor]);
+    }, [themeMode]);
 
 
     return (
-        <ThemeContext.Provider value={{ 
-            primaryColor, 
-            secondaryColor, 
-            themeMode, 
-            setThemeMode, 
-            setPrimaryColor, 
-            setThemeColors, 
+        <ThemeContext.Provider value={{
+            primaryColor,
+            secondaryColor,
+            themeMode,
+            setThemeMode,
+            setPrimaryColor,
+            setThemeColors,
             refreshTheme
         }}>
             {children}

@@ -1,5 +1,5 @@
-import { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus } from './enums';
-export { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus } from './enums';
+import { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
+export { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
 
 export interface PaginatedResponse<T> {
     data: T[];
@@ -190,7 +190,7 @@ export interface DashboardInsightCard {
     value: string;
     detail?: string;
     href?: string;
-    tone?: 'default' | 'info' | 'success' | 'warning' | 'danger';
+    tone?: Tone;
 }
 
 export interface DashboardInsightItem {
@@ -200,7 +200,7 @@ export interface DashboardInsightItem {
     meta?: string;
     href?: string;
     badge?: string;
-    tone?: 'default' | 'info' | 'success' | 'warning' | 'danger';
+    tone?: Tone;
 }
 
 export interface DashboardInsightGroup {
@@ -216,7 +216,7 @@ export interface DashboardInsightActivity {
     description?: string;
     createdAt: string;
     href?: string;
-    tone?: 'default' | 'info' | 'success' | 'warning' | 'danger';
+    tone?: Tone;
 }
 
 export interface DashboardInsights {
@@ -230,6 +230,17 @@ export interface DashboardInsights {
     spotlight: DashboardInsightItem | null;
     groups: DashboardInsightGroup[];
     recentActivity: DashboardInsightActivity[];
+    // Visualization data
+    charts?: {
+        attendanceTrend?: { date: string; value: number }[];
+        enrollmentTrend?: { date: string; value: number }[];
+        gradeDistribution?: { range: string; count: number }[];
+        sectionCapacity?: { name: string; enrolled: number; capacity?: number }[];
+        mailStatus?: { status: string; count: number }[];
+        assessmentCompletion?: { section: string; completed: number; total: number }[];
+        teacherWorkload?: { name: string; sections: number; students: number }[];
+        studentPerformance?: { subject: string; grade: number; attendance: number }[];
+    };
 }
 
 // ─── Mail System Types ────────────────────────────────────────────────────────

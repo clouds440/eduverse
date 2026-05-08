@@ -12,7 +12,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       <div className="relative group">
         {Icon && (
           <div className={`absolute top-3 sm:top-3.5 left-0 pl-3 sm:pl-3.5 flex items-start pointer-events-none transition-colors ${error ? 'text-destructive' : 'text-muted-foreground group-focus-within:text-primary'}`}>
-            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+            <Icon className="h-4 w-4 sm:h-5 sm:w-5 focus:text-primary z-30" />
           </div>
         )}
         <textarea

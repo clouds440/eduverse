@@ -24,14 +24,14 @@ export default function CareersPage() {
           <Reveal delay={100}>
             <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tight leading-[1.1]">
               Help Us Build the
-              <span className="block bg-linear-to-r from-primary via-indigo-400 to-purple-400 bg-clip-text text-transparent mt-2">
+              <span className="block bg-linear-to-r from-primary via-primary to-primary/60 bg-clip-text text-transparent mt-2">
                 Future of Education
               </span>
             </h1>
           </Reveal>
           <Reveal delay={200}>
             <p className="text-xl text-muted-foreground font-medium leading-relaxed max-w-2xl mx-auto">
-              We&apos;re a distributed team of dreamers and doers building the tools 
+              We&apos;re a distributed team of dreamers and doers building the tools
               that empower thousands of educational institutions.
             </p>
           </Reveal>
@@ -52,9 +52,9 @@ export default function CareersPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left max-w-6xl mx-auto">
             {[
-              { icon: <Globe className="w-8 h-8 text-indigo-500" />, title: 'Full Remote', desc: 'Work from anywhere in the world. We value outcomes over hours at a desk.', color: 'from-indigo-500/10 to-indigo-500/5 border-indigo-500/20' },
-              { icon: <Shield className="w-8 h-8 text-emerald-500" />, title: 'Ownership', desc: 'Every team member has a voice and the autonomy to drive their own initiatives.', color: 'from-emerald-500/10 to-emerald-500/5 border-emerald-500/20' },
-              { icon: <Zap className="w-8 h-8 text-purple-500" />, title: 'Fast Scale', desc: 'Experience the thrill of a rapidly scaling platform with new challenges every day.', color: 'from-purple-500/10 to-purple-500/5 border-purple-500/20' }
+              { icon: <Globe className="w-8 h-8 text-primary" />, title: 'Full Remote', desc: 'Work from anywhere in the world. We value outcomes over hours at a desk.', color: 'from-primary/10 to-primary/5 border-primary/20' },
+              { icon: <Shield className="w-8 h-8 text-success" />, title: 'Ownership', desc: 'Every team member has a voice and the autonomy to drive their own initiatives.', color: 'from-success/10 to-success/5 border-success/20' },
+              { icon: <Zap className="w-8 h-8 text-warning" />, title: 'Fast Scale', desc: 'Experience the thrill of a rapidly scaling platform with new challenges every day.', color: 'from-warning/10 to-warning/5 border-warning/20' }
             ].map((v, i) => (
               <Reveal key={i} delay={i * 200}>
                 <div className="relative p-8 bg-card border border-border rounded-2xl hover:shadow-xl transition-all overflow-hidden group">
@@ -79,7 +79,7 @@ export default function CareersPage() {
       <section className="py-20 md:py-32 bg-muted/30">
         <div className="container mx-auto px-6 max-w-5xl">
           <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
-                <div className="space-y-4 max-w-xl">
+            <div className="space-y-4 max-w-xl">
               <Reveal>
                 <h2 className="text-3xl md:text-5xl font-black text-foreground tracking-tighter">Open Roles</h2>
               </Reveal>
@@ -90,9 +90,9 @@ export default function CareersPage() {
             <Reveal delay={400}>
               <div className="relative w-full md:w-80">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input 
-                  type="text" 
-                  placeholder="Search positions..." 
+                <input
+                  type="text"
+                  placeholder="Search positions..."
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 ring-primary/20 font-medium"
                 />
               </div>

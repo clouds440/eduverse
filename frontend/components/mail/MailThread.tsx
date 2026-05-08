@@ -199,13 +199,13 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
                 <div className="px-6 py-2 bg-card/5 border-b border-border flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="flex -space-x-2">
-                            <BrandIcon variant="user" size="sm" user={mail.creator} className="border-2 border-white/80 shadow-sm" />
+                            <BrandIcon variant="user" size="sm" user={mail.creator} className="border-2 border-border shadow-sm" />
                             {mail.assignees.length > 0 ? (
                                 mail.assignees.slice(0, 2).map((a) => (
-                                    <BrandIcon key={a.id} variant="user" size="sm" user={a} className="border-2 border-white/80 shadow-sm" />
+                                    <BrandIcon key={a.id} variant="user" size="sm" user={a} className="border-2 border-border shadow-sm" />
                                 ))
                             ) : (
-                                <div className="w-8 h-8 rounded-full bg-orange-100 border-2 border-white flex items-center justify-center text-orange-600 text-[10px] font-black shadow-sm font-mono">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 border-2 border-border flex items-center justify-center text-primary text-[10px] font-black shadow-sm font-mono">
                                     {mail.targetRole ? 'GRP' : 'ALL'}
                                 </div>
                             )}
@@ -227,7 +227,7 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
                     </div>
                     <div className="text-right">
                         <p className="text-[10px] font-black text-muted-foreground tracking-widest leading-none mb-1">Priority</p>
-                        <Badge 
+                        <Badge
                             variant={mail.priority === 'URGENT' ? 'error' : mail.priority === 'HIGH' ? 'warning' : 'info'}
                             size="sm"
                             className="uppercase"

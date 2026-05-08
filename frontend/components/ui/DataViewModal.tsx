@@ -34,7 +34,7 @@ export function DataViewModal({ isOpen, onClose, title, subtitle, fields, action
                     onClick={onClose}
                     className="p-2 hover:bg-primary/10 rounded-lg transition-all group"
                 >
-                    <X className="w-8 h-8 opacity-40 group-hover:opacity-100 group-hover:text-red-500 transition-all" />
+                    <X className="w-8 h-8 opacity-40 group-hover:opacity-100 group-hover:text-dangertransition-all" />
                 </button>
             </div>
 

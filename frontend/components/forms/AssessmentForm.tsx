@@ -130,7 +130,7 @@ export default function AssessmentForm({
                         placeholder="e.g. Midterm Exam, Assignment 1"
                         className="font-medium"
                     />
-                    {errors.title && <p className="text-xs text-red-500 font-semibold">{errors.title.message}</p>}
+                    {errors.title && <p className="text-xs text-danger font-semibold">{errors.title.message}</p>}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -149,7 +149,7 @@ export default function AssessmentForm({
                             error={!!errors.type}
                             icon={BookType}
                         />
-                        {errors.type && <p className="text-xs text-red-500 font-semibold">{errors.type.message}</p>}
+                        {errors.type && <p className="text-xs text-danger font-semibold">{errors.type.message}</p>}
                     </div>
 
                     <div className="space-y-2 md:space-y-3">
@@ -162,7 +162,7 @@ export default function AssessmentForm({
                             icon={Calendar}
                             className="font-medium"
                         />
-                        {errors.dueDate && <p className="text-xs text-red-500 font-semibold">{errors.dueDate.message}</p>}
+                        {errors.dueDate && <p className="text-xs text-danger font-semibold">{errors.dueDate.message}</p>}
                     </div>
                 </div>
 
@@ -178,7 +178,7 @@ export default function AssessmentForm({
                             placeholder="100"
                             className="font-medium"
                         />
-                        {errors.totalMarks && <p className="text-xs text-red-500 font-semibold">{errors.totalMarks.message}</p>}
+                        {errors.totalMarks && <p className="text-xs text-danger font-semibold">{errors.totalMarks.message}</p>}
                     </div>
 
                     <div className="space-y-2 md:space-y-3">
@@ -192,7 +192,7 @@ export default function AssessmentForm({
                             placeholder="10"
                             className="font-medium"
                         />
-                        {errors.weightage && <p className="text-xs text-red-500 font-semibold">{errors.weightage.message}</p>}
+                        {errors.weightage && <p className="text-xs text-danger font-semibold">{errors.weightage.message}</p>}
                     </div>
                 </div>
 
@@ -219,7 +219,7 @@ export default function AssessmentForm({
                                         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
                                         if (fileInput) fileInput.value = '';
                                     }}
-                                    className="p-1 shrink-0 border border-red-500/60 hover:border-red-500 hover:bg-red-500/10 text-muted-foreground hover:text-red-500 rounded-lg transition-all shadow-sm"
+                                    className="p-1 shrink-0 border border-danger/60 hover:border-danger hover:bg-danger/10 text-muted-foreground hover:text-danger rounded-lg transition-all shadow-sm"
                                 >
                                     <X className="w-4 h-4" />
                                 </button>
@@ -245,7 +245,7 @@ export default function AssessmentForm({
                                 <span className="truncate py-0.5 rounded-xl text-sm font-semibold flex-1">
                                     {selectedFile ? selectedFile.name.length > 25 ? selectedFile.name.slice(0, 25) + '...' : selectedFile.name : 'Choose file...'}
                                 </span>
-                                {selectedFile && <Check className="w-4 h-4 text-emerald-500" />}
+                                {selectedFile && <Check className="w-4 h-4 text-success" />}
                             </Label>
                         </div>
                     </div>

@@ -22,7 +22,7 @@ export default function DocsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden">
+      <section className="relative py-18 md:py-10 overflow-hidden">
         <div className="absolute inset-0 bg-background">
           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary/20 rounded-full blur-[120px] animate-pulse animation-delay-2000" />
@@ -38,9 +38,9 @@ export default function DocsPage() {
             </Reveal>
             <Reveal delay={100}>
               <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tight leading-[1.1]">
-                Master the
+                Learn About
                 <span className="block bg-linear-to-r from-primary via-primary/80 to-success bg-clip-text text-transparent mt-2">
-                  Platform
+                  EduVerse
                 </span>
               </h1>
             </Reveal>
@@ -52,13 +52,13 @@ export default function DocsPage() {
             <Reveal delay={300}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
                 <QuickLink
-                  icon={<Shield className="w-5 h-5 text-emerald-500" />}
+                  icon={<Shield className="w-5 h-5 text-success" />}
                   title="Safety & Security"
                   description="Learn how we protect student data and enforce role-based access control."
                   href="#roles"
                 />
                 <QuickLink
-                  icon={<Settings className="w-5 h-5 text-indigo-500" />}
+                  icon={<Settings className="w-5 h-5 text-primary" />}
                   title="Platform Settings"
                   description="Configure global institution settings, branding, and billing."
                   href="#branding"
@@ -70,7 +70,7 @@ export default function DocsPage() {
       </section>
 
       {/* Account Setup */}
-      <section id="setup" className="scroll-mt-24 py-20 bg-muted/30">
+      <section id="setup" className="scroll-mt-24 py-20 ">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto">
             <Reveal>
@@ -138,13 +138,13 @@ export default function DocsPage() {
       </section>
 
       {/* Organization */}
-      <section id="org-creation" className="scroll-mt-24 py-20 bg-muted/30">
+      <section id="org-creation" className="scroll-mt-24 py-20 ">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto">
             <Reveal>
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20">
-                  <Settings className="w-7 h-7 text-indigo-500" />
+                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
+                  <Settings className="w-7 h-7 text-primary" />
                 </div>
                 <h2 className="text-3xl md:text-4xl font-black text-foreground">Organization Management</h2>
               </div>
@@ -182,8 +182,8 @@ export default function DocsPage() {
           <div className="max-w-4xl mx-auto">
             <Reveal>
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center border border-purple-500/20">
-                  <Users className="w-7 h-7 text-purple-500" />
+                <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
+                  <Users className="w-7 h-7 text-primary" />
                 </div>
                 <h2 className="text-3xl md:text-4xl font-black text-foreground">User Roles & Permissions</h2>
               </div>
@@ -191,10 +191,10 @@ export default function DocsPage() {
             <Reveal delay={100}>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4">
                 {[
-                  { title: 'Super Admin', role: 'Platform-wide access to all data, payments, and global system settings.', color: 'from-primary/10 to-primary/5 border-primary/20' },
-                  { title: 'Org Admin', role: 'Full control over their specific institution, branding, and staffing.', color: 'from-indigo-500/10 to-indigo-500/5 border-indigo-500/20' },
-                  { title: 'Teacher', role: 'Manage assigned classes, assessments, and grade student performance.', color: 'from-purple-500/10 to-purple-500/5 border-purple-500/20' },
-                  { title: 'Student', role: 'Participate in courses, submit assessments, and engage in school chat.', color: 'from-emerald-500/10 to-emerald-500/5 border-emerald-500/20' }
+                  { title: 'Super Admin', role: 'Platform-wide access to all data, payments, and global system settings.', color: 'from-primary/10 to-primary/5' },
+                  { title: 'Org Admin', role: 'Full control over their specific institution, branding, and staffing.', color: 'from-secondary/10 to-secondary/5' },
+                  { title: 'Teacher', role: 'Manage assigned classes, assessments, and grade student performance.', color: 'from-warning/10 to-warning/5' },
+                  { title: 'Student', role: 'Participate in courses, submit assessments, and engage in school chat.', color: 'from-success/10 to-success/5' }
                 ].map((item, i) => (
                   <RoleItem key={i} title={item.title} role={item.role} color={item.color} />
                 ))}
@@ -204,7 +204,7 @@ export default function DocsPage() {
         </div>
       </section>
 
-      <section id="branding" className="scroll-mt-24 py-20 bg-muted/30">
+      <section id="branding" className="scroll-mt-24 py-20 ">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto">
             <Reveal>
@@ -227,8 +227,8 @@ export default function DocsPage() {
           <div className="max-w-4xl mx-auto">
             <Reveal>
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-14 h-14 bg-pink-500/10 rounded-2xl flex items-center justify-center border border-pink-500/20">
-                  <MessageCircle className="w-7 h-7 text-pink-500" />
+                <div className="w-14 h-14 bg-info/10 rounded-2xl flex items-center justify-center border border-info/20">
+                  <MessageCircle className="w-7 h-7 text-info" />
                 </div>
                 <h2 className="text-3xl md:text-4xl font-black text-foreground">Communication Suite</h2>
               </div>
@@ -249,7 +249,7 @@ export default function DocsPage() {
         </div>
       </section>
 
-      <section id="announcements" className="scroll-mt-24 py-20 bg-muted/30">
+      <section id="announcements" className="scroll-mt-24 py-20 ">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto">
             <Reveal>
@@ -272,8 +272,8 @@ export default function DocsPage() {
           <div className="max-w-4xl mx-auto">
             <Reveal>
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-14 h-14 bg-sky-500/10 rounded-2xl flex items-center justify-center border border-sky-500/20">
-                  <GraduationCap className="w-7 h-7 text-sky-500" />
+                <div className="w-14 h-14 bg-info/10 rounded-2xl flex items-center justify-center border border-info/20">
+                  <GraduationCap className="w-7 h-7 text-info" />
                 </div>
                 <h2 className="text-3xl md:text-4xl font-black text-foreground">Academic Engine</h2>
               </div>
@@ -294,7 +294,7 @@ export default function DocsPage() {
         </div>
       </section>
 
-      <section id="grading" className="scroll-mt-24 py-20 bg-muted/30">
+      <section id="grading" className="scroll-mt-24 py-20 ">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto">
             <Reveal>
@@ -328,13 +328,13 @@ export default function DocsPage() {
       </section>
 
       {/* User Portals */}
-      <section id="teachers" className="scroll-mt-24 py-20 bg-muted/30">
+      <section id="teachers" className="scroll-mt-24 py-20 ">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto">
             <Reveal>
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20">
-                  <Users className="w-7 h-7 text-emerald-500" />
+                <div className="w-14 h-14 bg-success/10 rounded-2xl flex items-center justify-center border border-success/20">
+                  <Users className="w-7 h-7 text-success" />
                 </div>
                 <h2 className="text-3xl md:text-4xl font-black text-foreground">Teacher Portal</h2>
               </div>
@@ -354,8 +354,8 @@ export default function DocsPage() {
           <div className="max-w-4xl mx-auto">
             <Reveal>
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
-                  <GraduationCap className="w-7 h-7 text-blue-500" />
+                <div className="w-14 h-14 bg-info/10 rounded-2xl flex items-center justify-center border border-info/20">
+                  <GraduationCap className="w-7 h-7 text-info" />
                 </div>
                 <h2 className="text-3xl md:text-4xl font-black text-foreground">Student Portal</h2>
               </div>
@@ -371,7 +371,7 @@ export default function DocsPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="scroll-mt-24 py-20 bg-muted/30">
+      <section id="faq" className="scroll-mt-24 py-20 ">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto">
             <Reveal>
@@ -419,7 +419,7 @@ export default function DocsPage() {
       </section>
 
       {/* Footer Support */}
-      <section className="py-20 border-t border-border bg-muted/30">
+      <section className="py-20 border-t border-border ">
         <div className="container mx-auto px-6">
           <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
             <Reveal>
@@ -459,8 +459,8 @@ function QuickLink({ icon, title, description, href }: { icon: React.ReactNode, 
 
 function RoleItem({ title, role, color }: { title: string, role: string, color: string }) {
   return (
-    <div className={`p-6 bg-card rounded-2xl space-y-3 border hover:shadow-lg transition-all relative overflow-hidden group`}>
-      <div className={`absolute inset-0 bg-linear-to-br ${color} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
+    <div className={`p-6 bg-card rounded-2xl space-y-3 border border-border hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all relative overflow-hidden group h-full`}>
+      <div className={`absolute inset-0 h-full bg-linear-to-br ${color} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
       <div className="relative z-10">
         <h4 className="font-black text-foreground group-hover:text-primary transition-colors">{title}</h4>
         <p className="text-sm text-muted-foreground font-medium leading-relaxed">{role}</p>

@@ -127,7 +127,7 @@ export function ChatLayout() {
     const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
     const touchHasTriggeredRef = useRef<boolean>(false);
-    
+
     // Touch refs for chat list long press
     const touchChatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const touchChatStartPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -339,7 +339,7 @@ export function ChatLayout() {
                     initialsFallback
                 />
                 {isOnline && (
-                    <span className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background shadow-sm" />
+                    <span className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full bg-success ring-2 ring-background shadow-sm" />
                 )}
             </div>
         );
@@ -858,7 +858,7 @@ export function ChatLayout() {
 
     const handleDeleteChat = async (chatId: string) => {
         if (!token || !user?.id) return;
-        
+
         try {
             await api.chat.removeParticipant(chatId, user.id, token);
             // Remove the chat from the local state
@@ -876,14 +876,14 @@ export function ChatLayout() {
 
     const filteredChats = useMemo(() => {
         let result = chats;
-        
+
         // Filter by group type
         if (activeGroupFilter === 'groups') {
             result = result.filter(chat => chat.type === ChatType.GROUP);
         } else if (activeGroupFilter === 'dms') {
             result = result.filter(chat => chat.type === ChatType.DIRECT);
         }
-        
+
         // Filter by search query
         if (searchQuery.trim()) {
             const lowerQuery = searchQuery.toLowerCase();
@@ -896,7 +896,7 @@ export function ChatLayout() {
                     (otherUser?.email || '').toLowerCase().includes(lowerQuery);
             });
         }
-        
+
         return result;
     }, [chats, searchQuery, user?.id, activeGroupFilter]);
 
@@ -1373,7 +1373,7 @@ export function ChatLayout() {
                                 {isDeleted ? (
                                     <div className={`px-3.5 py-2 rounded-2xl text-[13px] leading-relaxed my-1 bg-card text-muted-foreground border border-border ${isMine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
                                         <div className="flex items-center space-x-1.5">
-                                            <Trash2 size={13} className="opacity-50 text-red-500" />
+                                            <Trash2 size={13} className="opacity-50 text-danger" />
                                             <span>Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name} </span> : null} <sub className='opacity-70'>{formatChatTimestamp(msg.createdAt!)}</sub></span>
                                         </div>
                                     </div>
@@ -1435,7 +1435,7 @@ export function ChatLayout() {
                                                                     <div
                                                                         onClick={(e) => { e.stopPropagation(); void scrollToMessage(msg.replyTo!.id); }}
                                                                         className={`px-2 py-1 rounded-lg text-[12px] bg-muted text-foreground! border-l-5 max-w-full overflow-hidden cursor-pointer hover:opacity-90 transition-opacity
-                                                                                    ${isMineRepliedTo ? 'border-green-600' : 'broder-border'}`}
+                                                                                    ${isMineRepliedTo ? 'border-success' : 'broder-border'}`}
                                                                     >
                                                                         <p className="font-semibold mb-0.5 text-[11px] flex items-center opacity-80">
                                                                             <Reply size={11} className='mr-1 rotate-180' />
@@ -1463,7 +1463,7 @@ export function ChatLayout() {
                                                                         <Loader2 className="w-3 h-3 animate-spin opacity-80" strokeWidth={2.5} />
                                                                     ) : isFailedMessage ? (
                                                                         <span className="ml-1 inline-flex items-center gap-1">
-                                                                            <span className="text-[9px] font-bold text-red-300">Failed</span>
+                                                                            <span className="text-[9px] font-bold text-danger/70">Failed</span>
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => { void handleSendMessage(msg); }}
@@ -1720,7 +1720,7 @@ export function ChatLayout() {
                                                     });
                                                     setChatMenuOpenId(null);
                                                 }}
-                                                className="w-full px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+                                                className="w-full px-3 py-2 text-left text-sm font-medium text-danger hover:bg-danger/10 dark:hover:bg-danger/20 transition-colors flex items-center gap-2"
                                             >
                                                 <Trash2 size={14} />
                                                 Delete Chat
@@ -1907,7 +1907,7 @@ export function ChatLayout() {
                                 >
                                     <ArrowDown size={18} className="group-hover:translate-y-0.5 transition-transform text-primary/80" />
                                     {!isViewingHistory && unreadSinceScroll > 0 && (
-                                        <span className="absolute -top-1.5 -right-1.5 bg-red-500/60 text-white text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-card shadow-sm">
+                                        <span className="absolute -top-1.5 -right-1.5 bg-danger/60 text-white text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-card shadow-sm">
                                             {unreadSinceScroll}
                                         </span>
                                     )}
@@ -1999,14 +1999,14 @@ export function ChatLayout() {
 
                                     {/* Mention Banner */}
                                     {mentionedUsers.length > 0 && !editingMessage && (
-                                        <div className="mb-1.5 sm:mb-1 px-2.5 sm:px-3 py-2 sm:py-2 mr-2 bg-muted border-l-4 border-indigo-500 rounded-lg flex items-center justify-between animate-in slide-in-from-bottom duration-200">
+                                        <div className="mb-1.5 sm:mb-1 px-2.5 sm:px-3 py-2 sm:py-2 mr-2 bg-muted border-l-4 border-primary rounded-lg flex items-center justify-between animate-in slide-in-from-bottom duration-200">
                                             <div className="flex-1 min-w-0 pr-2 sm:pr-3">
-                                                <p className="text-[12px] sm:text-[13px] font-semibold text-indigo-500 mb-0.5">
+                                                <p className="text-[12px] sm:text-[13px] font-semibold text-primary mb-0.5">
                                                     Mentioning
                                                 </p>
                                                 <div className="flex flex-wrap gap-1">
                                                     {mentionedUsers.map(u => (
-                                                        <span key={u.id} className="text-[11px] sm:text-[12px] bg-indigo-500/10 text-indigo-600 px-1.5 py-0.5 rounded-md font-medium">
+                                                        <span key={u.id} className="text-[11px] sm:text-[12px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">
                                                             @{u.name}
                                                         </span>
                                                     ))}
@@ -2016,9 +2016,9 @@ export function ChatLayout() {
                                                 title='Clear Mentions'
                                                 type="button"
                                                 onClick={() => updateActiveComposerState({ mentionedUsers: [] })}
-                                                className="p-1 text-muted-foreground hover:text-indigo-500 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                                                className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                             >
-                                                <X size={14} className="text-indigo-500/80 hover:text-indigo-500" />
+                                                <X size={14} className="text-primary/80 hover:text-primary" />
                                             </button>
                                         </div>
                                     )}
@@ -2045,7 +2045,7 @@ export function ChatLayout() {
                                                         type="button"
                                                         title='Remove'
                                                         onClick={() => removeStagedFile(i)}
-                                                        className="p-0.5 text-foreground hover:text-red-500 rounded-full transition-all"
+                                                        className="p-0.5 text-foreground hover:text-danger rounded-full transition-all"
                                                     >
                                                         <X size={12} className="text-primary/80 hover:text-primary" />
                                                     </button>
@@ -2245,9 +2245,9 @@ export function ChatLayout() {
 
                                 </div>
                             ) : (
-                                <div ref={readOnlyBannerRefCallback} className="absolute bottom-0 left-0 right-0 px-2 sm:px-3 py-2 sm:py-2.5 bg-amber-500/10 mr-2.5 mb-1 border-x-4 border-amber-500 rounded-lg flex items-center justify-center gap-2 animate-in slide-in-from-bottom duration-200">
-                                    <LockIcon size={14} className="text-amber-600 shrink-0" />
-                                    <p className="text-[11px] sm:text-[12px] md:text-[13px] font-semibold text-amber-600 text-center">
+                                <div ref={readOnlyBannerRefCallback} className="absolute bottom-0 left-0 right-0 px-2 sm:px-3 py-2 sm:py-2.5 bg-warning/10 mr-2.5 mb-1 border-x-4 border-warning rounded-lg flex items-center justify-center gap-2 animate-in slide-in-from-bottom duration-200">
+                                    <LockIcon size={14} className="text-warning shrink-0" />
+                                    <p className="text-[11px] sm:text-[12px] md:text-[13px] font-semibold text-warning text-center">
                                         Read-Only Mode - Only admins and moderators can send messages
                                     </p>
                                 </div>

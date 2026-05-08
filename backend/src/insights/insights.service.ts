@@ -57,6 +57,17 @@ export interface DashboardInsightsResponse {
   spotlight: DashboardInsightItem | null;
   groups: DashboardInsightGroup[];
   recentActivity: DashboardInsightActivity[];
+  // Visualization data
+  charts?: {
+    attendanceTrend?: { date: string; value: number }[];
+    enrollmentTrend?: { date: string; value: number }[];
+    gradeDistribution?: { range: string; count: number }[];
+    sectionCapacity?: { name: string; enrolled: number; capacity?: number }[];
+    mailStatus?: { status: string; count: number }[];
+    assessmentCompletion?: { section: string; completed: number; total: number }[];
+    teacherWorkload?: { name: string; sections: number; students: number }[];
+    studentPerformance?: { subject: string; grade: number; attendance: number }[];
+  };
 }
 
 @Injectable()
@@ -223,6 +234,129 @@ export class InsightsService {
       .slice(0, limit);
   }
 
+  private formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+  private processDateTrendData(
+    groupByData: { createdAt?: Date; date?: Date; _count: number }[],
+    startDate: Date,
+    endDate: Date,
+  ): { date: string; value: number }[] {
+    const result: { date: string; value: number }[] = [];
+    const currentDate = new Date(startDate);
+    currentDate.setHours(0, 0, 0, 0);
+    const endDateOnly = new Date(endDate);
+    endDateOnly.setHours(23, 59, 59, 999);
+
+    // Create a map of date to count
+    const dataMap = new Map<string, number>();
+    groupByData.forEach((item) => {
+      const dateKey = item.createdAt
+        ? this.formatLocalDate(item.createdAt)
+        : item.date
+          ? this.formatLocalDate(item.date)
+          : '';
+            if (dateKey) {
+              dataMap.set(dateKey, (dataMap.get(dateKey) || 0) + item._count);
+            }
+          });
+
+    // Fill in all dates in range
+    while (currentDate.getTime() <= endDateOnly.getTime()) {
+      const dateKey = this.formatLocalDate(currentDate);
+      result.push({
+        date: dateKey,
+        value: dataMap.get(dateKey) || 0,
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return result;
+  }
+
+  private async getTeacherWorkload(orgId: string): Promise<{ name: string; sections: number; students: number }[]> {
+    const teachers = await this.prisma.teacher.findMany({
+      where: { organizationId: orgId, status: { not: TeacherStatus.DELETED } },
+      include: {
+        user: { select: { name: true } },
+        sections: {
+          include: {
+            _count: { select: { enrollments: true } },
+          },
+        },
+      },
+    });
+
+    return teachers.map((teacher) => ({
+      name: teacher.user.name || 'Unknown',
+      sections: teacher.sections.length,
+      students: teacher.sections.reduce((sum, section) => sum + (section._count?.enrollments || 0), 0),
+    }));
+  }
+
+  private processGradeDistribution(grades: Array<{ marksObtained: number; assessment: { totalMarks: number; section: { course: { name: string } } } }>): { range: string; count: number }[] {
+    const distribution = {
+      '90-100%': 0,
+      '80-89%': 0,
+      '70-79%': 0,
+      '60-69%': 0,
+      'Below 60%': 0,
+    };
+
+    grades.forEach((grade) => {
+      const percentage = (grade.marksObtained / grade.assessment.totalMarks) * 100;
+      if (percentage >= 90) distribution['90-100%']++;
+      else if (percentage >= 80) distribution['80-89%']++;
+      else if (percentage >= 70) distribution['70-79%']++;
+      else if (percentage >= 60) distribution['60-69%']++;
+      else distribution['Below 60%']++;
+    });
+
+    return Object.entries(distribution).map(([range, count]) => ({ range, count }));
+  }
+
+  private async getAssessmentCompletion(sectionIds: string[]): Promise<{ section: string; completed: number; total: number }[]> {
+    const assessments = await this.prisma.assessment.findMany({
+      where: { sectionId: { in: sectionIds } },
+      include: {
+        section: { select: { name: true } },
+      },
+    });
+
+    // Get submission counts and enrollment counts separately
+    const assessmentIds = assessments.map((a) => a.id);
+    const [submissionCounts, enrollmentCounts] = await Promise.all([
+      this.prisma.submission.groupBy({
+        by: ['assessmentId'],
+        where: { assessmentId: { in: assessmentIds } },
+        _count: true,
+      }),
+      this.prisma.enrollment.groupBy({
+        by: ['sectionId'],
+        where: { sectionId: { in: sectionIds } },
+        _count: true,
+      }),
+    ]);
+
+    const submissionMap = new Map(
+      submissionCounts.map((s) => [s.assessmentId, s._count]),
+    );
+    const enrollmentMap = new Map(
+      enrollmentCounts.map((e) => [e.sectionId, e._count]),
+    );
+
+    return assessments.map((assessment) => ({
+      section: assessment.section.name,
+      completed: submissionMap.get(assessment.id) || 0,
+      total: enrollmentMap.get(assessment.sectionId) || 0,
+    }));
+  }
+
   private async buildOrgAdminInsights(
     orgId: string,
     user: JwtPayload,
@@ -230,6 +364,8 @@ export class InsightsService {
     const now = new Date();
     const fourteenDaysAgo = new Date(now);
     fourteenDaysAgo.setDate(now.getDate() - 13);
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 29);
 
     const [
       teachers,
@@ -244,6 +380,10 @@ export class InsightsService {
       recentAssessments,
       recentAttendance,
       openMailCount,
+      mailByStatus,
+      studentEnrollmentsByDate,
+      cohortMembershipsByDate,
+      attendanceCoverageByDate,
     ] = await Promise.all([
       this.prisma.teacher.count({
         where: { organizationId: orgId, status: { not: TeacherStatus.DELETED } },
@@ -322,6 +462,39 @@ export class InsightsService {
           },
         },
       }),
+      this.prisma.mail.groupBy({
+        by: ['status'],
+        where: { organizationId: orgId },
+        _count: true,
+      }),
+      // Enrollment trend data (last 30 days)
+      this.prisma.enrollment.groupBy({
+        by: ['createdAt'],
+        where: {
+          section: { course: { organizationId: orgId } },
+          createdAt: { gte: thirtyDaysAgo },
+        },
+        _count: true,
+      }),
+      // Cohort membership trend data (last 30 days)
+      this.prisma.cohortMembershipHistory.groupBy({
+        by: ['joinedAt'],
+        where: {
+          cohort: { organizationId: orgId },
+          joinedAt: { gte: thirtyDaysAgo },
+        },
+        _count: true,
+      }),
+      // Attendance coverage by date (last 30 days)
+      this.prisma.attendanceSession.groupBy({
+        by: ['date'],
+        where: {
+          section: { course: { organizationId: orgId } },
+          isAdhoc: false,
+          date: { gte: thirtyDaysAgo },
+        },
+        _count: true,
+      }),
     ]);
 
     const attendanceCoverage = this.getAttendanceCoverage(
@@ -339,6 +512,24 @@ export class InsightsService {
       .sort((a, b) => b._count.enrollments - a._count.enrollments)
       .slice(0, 5);
     const nextClass = this.getUpcomingScheduleOccurrences(schedules, 1)[0];
+
+    // Process chart data - merge section enrollments and cohort memberships for enrollment trend
+    const cohortMembershipTrend = cohortMembershipsByDate.map((item) => ({
+      createdAt: item.joinedAt,
+      _count: item._count,
+    }));
+    const allEnrollments = [...studentEnrollmentsByDate, ...cohortMembershipTrend];
+    const enrollmentTrend = this.processDateTrendData(allEnrollments, thirtyDaysAgo, now);
+    const attendanceTrend = this.processDateTrendData(attendanceCoverageByDate, thirtyDaysAgo, now);
+    const mailStatus = mailByStatus.map((item) => ({
+      status: item.status,
+      count: item._count,
+    }));
+    const sectionCapacity = topSections.map((section) => ({
+      name: section.name,
+      enrolled: section._count?.enrollments || 0,
+    }));
+    const teacherWorkload = await this.getTeacherWorkload(orgId);
 
     const recentActivity = this.sortActivities([
       ...recentTeachers.map((teacher) => ({
@@ -490,6 +681,13 @@ export class InsightsService {
         },
       ],
       recentActivity,
+      charts: {
+        enrollmentTrend,
+        attendanceTrend,
+        mailStatus,
+        sectionCapacity,
+        teacherWorkload,
+      },
     };
   }
 
@@ -509,6 +707,8 @@ export class InsightsService {
     const now = new Date();
     const fourteenDaysAgo = new Date(now);
     fourteenDaysAgo.setDate(now.getDate() - 13);
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 29);
 
     const sections = await this.prisma.section.findMany({
       where: { teachers: { some: { id: teacher.id } } },
@@ -532,6 +732,8 @@ export class InsightsService {
       recentAttendance,
       officialAttendanceRecords,
       uniqueStudentEnrollments,
+      attendanceByDate,
+      gradesBySection,
     ] = await Promise.all([
       this.prisma.assessment.findMany({
         where: {
@@ -608,6 +810,32 @@ export class InsightsService {
         select: { studentId: true },
         distinct: ['studentId'],
       }),
+      // Attendance by date for trend (last 30 days)
+      this.prisma.attendanceSession.groupBy({
+        by: ['date'],
+        where: {
+          sectionId: { in: sectionIds },
+          isAdhoc: false,
+          date: { gte: thirtyDaysAgo },
+        },
+        _count: true,
+      }),
+      // Grade data for distribution
+      this.prisma.grade.findMany({
+        where: {
+          assessment: { sectionId: { in: sectionIds } },
+          status: { in: ['PUBLISHED', 'FINALIZED'] },
+        },
+        include: {
+          assessment: {
+            include: {
+              section: {
+                select: { id: true, name: true, course: { select: { name: true } } },
+              },
+            },
+          },
+        },
+      }),
     ]);
 
     const schedules = sections.flatMap((section) =>
@@ -646,6 +874,11 @@ export class InsightsService {
       7,
       5,
     );
+
+    // Process chart data for teacher
+    const attendanceTrend = this.processDateTrendData(attendanceByDate, thirtyDaysAgo, now);
+    const gradeDistribution = this.processGradeDistribution(gradesBySection);
+    const assessmentCompletion = await this.getAssessmentCompletion(sectionIds);
 
     const attendanceByStudent = new Map<
       string,
@@ -814,6 +1047,11 @@ export class InsightsService {
         },
       ],
       recentActivity,
+      charts: {
+        attendanceTrend,
+        gradeDistribution,
+        assessmentCompletion,
+      },
     };
   }
 
@@ -830,7 +1068,13 @@ export class InsightsService {
       throw new NotFoundException('Student profile not found');
     }
 
-    const [enrollments, grades, attendanceRecords, pendingAssessments, submissions] =
+    const now = new Date();
+    const fourteenDaysAgo = new Date(now);
+    fourteenDaysAgo.setDate(now.getDate() - 13);
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 29);
+
+    const [enrollments, grades, attendanceRecords, pendingAssessments, submissions, attendanceByDate] =
       await Promise.all([
         this.prisma.enrollment.findMany({
           where: {
@@ -892,6 +1136,19 @@ export class InsightsService {
           orderBy: { submittedAt: 'desc' },
           take: 5,
         }),
+        // Attendance by date for trend (last 30 days)
+        this.prisma.attendanceSession.groupBy({
+          by: ['date'],
+          where: {
+            section: {
+              enrollments: { some: { studentId: student.id } },
+              course: { organizationId: orgId },
+            },
+            isAdhoc: false,
+            date: { gte: thirtyDaysAgo },
+          },
+          _count: true,
+        }),
       ]);
 
     const officialPresent = attendanceRecords.filter(
@@ -905,6 +1162,40 @@ export class InsightsService {
       grades.length > 0
         ? grades.reduce((sum, grade) => sum + grade.finalPercentage, 0) / grades.length
         : 0;
+
+    // Process chart data for student
+    const attendanceTrend = this.processDateTrendData(attendanceByDate, thirtyDaysAgo, now);
+    const gradeDistribution = this.processGradeDistribution(grades.map((g) => ({
+      marksObtained: g.finalPercentage,
+      assessment: { totalMarks: 100, section: { course: { name: g.courseName } } },
+    })));
+    const studentPerformance = grades.map((g) => ({
+      subject: g.courseName,
+      grade: g.finalPercentage,
+      attendance: 0, // Will calculate below
+    }));
+
+    // Calculate attendance per subject for performance chart
+    const attendanceCountsBySection = new Map<string, { present: number; total: number }>();
+    attendanceRecords.forEach((record) => {
+      const sectionId = record.session.section.id;
+      const existing = attendanceCountsBySection.get(sectionId) || { present: 0, total: 0 };
+      existing.total += 1;
+      if (record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.LATE) {
+        existing.present += 1;
+      }
+      attendanceCountsBySection.set(sectionId, existing);
+    });
+
+    studentPerformance.forEach((perf) => {
+      const gradeData = grades.find((g) => g.courseName === perf.subject);
+      if (gradeData) {
+        const sectionAttendance = attendanceCountsBySection.get(gradeData.sectionId);
+        if (sectionAttendance) {
+          perf.attendance = (sectionAttendance.present / sectionAttendance.total) * 100;
+        }
+      }
+    });
 
     const attendanceBySection = new Map<
       string,
@@ -1126,6 +1417,11 @@ export class InsightsService {
         },
       ],
       recentActivity,
+      charts: {
+        attendanceTrend,
+        gradeDistribution,
+        studentPerformance,
+      },
     };
   }
 

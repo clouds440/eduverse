@@ -8,7 +8,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero */}
-      <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden">
+      <section className="relative py-18 md:py-10 overflow-hidden">
         <div className="absolute inset-0 bg-background">
           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary/20 rounded-full blur-[120px] animate-pulse animation-delay-2000" />
@@ -93,11 +93,10 @@ export default function PricingPage() {
 function PricingCard({ tier, price, description, features, highlighted = false, delay }: { tier: string, price: string, description: string, features: string[], highlighted?: boolean, delay: number }) {
   return (
     <Reveal delay={delay}>
-      <div className={`p-8 rounded-3xl border space-y-8 h-full flex flex-col relative overflow-hidden group ${
-        highlighted 
-          ? 'border-primary ring-4 ring-primary/5 bg-primary/60 shadow-2xl' 
-          : 'border-border bg-card hover:border-primary/20 hover:shadow-xl'
-      }`}>
+      <div className={`p-8 rounded-3xl border space-y-8 h-full flex flex-col relative overflow-hidden group ${highlighted
+        ? 'border-primary ring-4 ring-primary/5 bg-primary/60 shadow-2xl'
+        : 'border-border bg-card hover:border-primary/20 hover:shadow-xl'
+        }`}>
         {highlighted && (
           <div className="absolute top-0 right-0 bg-linear-to-l from-primary/20 to-transparent w-32 h-32 blur-2xl" />
         )}
@@ -113,7 +112,7 @@ function PricingCard({ tier, price, description, features, highlighted = false, 
         <ul className="space-y-4 flex-1 relative z-10">
           {features.map((f, i) => (
             <li key={i} className="flex items-center text-muted-foreground font-bold text-sm">
-              <Check className="w-5 h-5 text-green-500 mr-3 shrink-0" />
+              <Check className="w-5 h-5 text-success mr-3 shrink-0" />
               {f}
             </li>
           ))}
@@ -121,11 +120,10 @@ function PricingCard({ tier, price, description, features, highlighted = false, 
 
         <Link
           href="/register"
-          className={`relative z-10 w-full py-4 rounded-xl font-bold text-center transition-all flex items-center justify-center gap-2 ${
-            highlighted 
-              ? 'bg-primary text-primary-foreground hover:bg-primary-hover shadow-xl shadow-primary/20' 
-              : 'bg-card text-foreground hover:bg-muted border border-border'
-          }`}
+          className={`relative z-10 w-full py-4 rounded-xl font-bold text-center transition-all flex items-center justify-center gap-2 ${highlighted
+            ? 'bg-primary text-primary-foreground hover:bg-primary-hover shadow-xl shadow-primary/20'
+            : 'bg-card text-foreground hover:bg-muted border border-border'
+            }`}
         >
           {price === 'Custom' ? 'Contact Sales' : 'Get Started'}
           {price !== 'Custom' && <ArrowRight className="w-4 h-4" />}

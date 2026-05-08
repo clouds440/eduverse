@@ -25,20 +25,20 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
         // Only show spinner if local loading is true OR this specific button is processing
         const effectiveLoading = localIsLoading || isThisButtonProcessing;
-        
+
         let variantClasses = "";
         if (variant === 'primary') {
-            variantClasses = "bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-primary/60 focus:ring-4 focus:ring-primary/30";
+            variantClasses = "bg-primary text-white hover:bg-primary/80 disabled:bg-primary/50 focus:ring-1 focus:ring-primary/30";
         } else if (variant === 'secondary') {
-            variantClasses = "bg-accent text-foreground border border-border/50 hover:bg-accent/90 disabled:bg-accent/60 disabled:text-muted-foreground focus:ring-4 focus:ring-secondary/20";
+            variantClasses = "bg-neutral/30 text-foreground border border-border hover:bg-neutral/60 disabled:bg-neutral/30 disabled:text-muted-foreground focus:ring-1 focus:ring-neutral/20";
         } else if (variant === 'danger') {
-            variantClasses = "bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:bg-destructive/60 focus:ring-4 focus:ring-destructive/30";
+            variantClasses = "bg-danger text-white border-danger hover:bg-danger/80 disabled:bg-danger/60 focus:ring-1 focus:ring-danger/30";
         } else if (variant === 'success') {
-            variantClasses = "bg-emerald-600 text-foreground hover:bg-emerald-600/90 disabled:bg-emerald-600/60 focus:ring-4 focus:ring-emerald-500/30";
+            variantClasses = "bg-success text-white border-success hover:bg-success/80 disabled:bg-success/60 focus:ring-1 focus:ring-success/30";
         } else if (variant === 'warning') {
-            variantClasses = "bg-amber-600 text-foreground hover:bg-amber-600/90 disabled:bg-amber-600/60 focus:ring-4 focus:ring-amber-500/30";
+            variantClasses = "bg-warning text-white border-warning hover:bg-warning/80 disabled:bg-warning/60 focus:ring-1 focus:ring-warning/30";
         } else if (variant === 'black') {
-            variantClasses = "bg-black text-background hover:bg-black/90 hover:text-foreground disabled:bg-black/60 disabled:opacity-70 border border-border/50 focus:ring-4 focus:ring-foreground/20";
+            variantClasses = "bg-foreground text-white border border-border/50 hover:bg-black/80 hover:text-white disabled:bg-black/60 disabled:opacity-70 focus:ring-1 focus:ring-foreground/20";
         }
 
         return (

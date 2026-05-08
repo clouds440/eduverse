@@ -163,7 +163,7 @@ export const Brand = React.memo(function Brand({
   const isOrgBrandingActive = !forcePlatform && isDashboardContext && activeUser?.orgName;
 
   const displayName = isOrgBrandingActive ? activeUser.orgName : PLATFORM_NAME;
-  const nameStyles = isOrgBrandingActive ? 'text-primary' : (useGradient ? 'text-transparent bg-clip-text bg-linear-to-r from-primary via-indigo-600 to-purple-600' : 'text-foreground');
+  const nameStyles = isOrgBrandingActive ? 'text-primary' : (useGradient ? 'text-transparent bg-clip-text bg-linear-to-r from-primary via-primary to-primary/80' : 'text-foreground');
 
   const sizeTextClasses = {
     sm: 'text-lg',
@@ -196,10 +196,10 @@ export const Brand = React.memo(function Brand({
           </span>
         ) : (
           <div className={`relative ${size === 'sm' ? 'w-24 h-5'
-              : size === 'md' ? 'w-32 h-8'
-                : size === 'lg' ? 'w-36 h-9'
-                  : size === 'xl' ? 'w-44 h-11'
-                    : 'w-64 h-28 md:w-80 md:h-32'
+            : size === 'md' ? 'w-32 h-8'
+              : size === 'lg' ? 'w-36 h-9'
+                : size === 'xl' ? 'w-44 h-11'
+                  : 'w-64 h-28 md:w-80 md:h-32'
             }`}>
             <Image
               src="/assets/eduverse.png"

@@ -251,7 +251,7 @@ export default function SessionManagement({ userId }: SessionManagementProps) {
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                     <div className="flex items-center gap-3 text-sm text-muted-foreground">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                            <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
                                             <span className="font-medium">
                                                 {sessions.filter(s => !isCurrentSession(s)).length} other session{sessions.filter(s => !isCurrentSession(s)).length !== 1 ? 's' : ''} active
                                             </span>

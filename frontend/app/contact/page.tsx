@@ -102,7 +102,7 @@ export default function ContactPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <section className="relative py-18 overflow-hidden">
+      <section className="relative py-18 md:py-10 overflow-hidden">
         <div className="absolute inset-0 bg-background">
           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary/20 rounded-full blur-[120px] animate-pulse animation-delay-2000" />
@@ -147,17 +147,17 @@ export default function ContactPage() {
               <Reveal>
                 <div className="space-y-6">
                   <InfoCard
-                    icon={<ShieldHalf className="w-5 h-5 text-indigo-500" />}
+                    icon={<ShieldHalf className="w-5 h-5 text-primary" />}
                     title="Identity Verified"
                     description="Your message will be tied to your official account for faster resolution."
                   />
                   <InfoCard
-                    icon={<MessageSquare className="w-5 h-5 text-purple-500" />}
+                    icon={<MessageSquare className="w-5 h-5 text-primary" />}
                     title="Direct Message"
                     description="This message goes directly to our platform support team."
                   />
                   <InfoCard
-                    icon={<Zap className="w-5 h-5 text-amber-500" />}
+                    icon={<Zap className="w-5 h-5 text-warning" />}
                     title="Fast Response"
                     description="Our team typically responds within 24 hours on business days."
                   />
@@ -185,111 +185,111 @@ export default function ContactPage() {
             <div className="lg:col-span-3">
               <Reveal delay={300}>
                 <div className="bg-linear-to-br from-card/80 via-card/60 to-card/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 p-6 md:p-10 relative overflow-hidden">
-            {!user ? (
-              <div className="text-center py-12 space-y-6">
-                <div className="relative mx-auto w-16 h-16 mb-6">
-                  <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
-                  <div className="relative w-full h-full bg-red-50 rounded-full flex items-center justify-center">
-                    <AlertCircle className="w-8 h-8 text-red-500" />
-                  </div>
-                </div>
-                <h2 className="text-2xl md:text-3xl font-bold text-foreground">Login Required</h2>
-                <p className="text-muted-foreground text-base md:text-lg">
-                  To ensure the security and tracking of your support requests,
-                  you must be logged in to contact our team.
-                </p>
-                <div className="pt-4">
-                  <Link
-                    href="/login"
-                    className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:brightness-95 shadow-lg hover:shadow-xl transition-all"
-                  >
-                    Login to Continue
-                  </Link>
-                </div>
-              </div>
-            ) : isSuccess ? (
-              <div className="text-center py-12 space-y-6 animate-scale-in">
-                <div className="relative mx-auto w-20 h-20 mb-6">
-                  <div className="absolute inset-0 bg-green-100 rounded-full animate-pulse" />
-                  <div className="relative w-full h-full bg-green-50 rounded-full flex items-center justify-center">
-                    <CheckCircle className="w-10 h-10 text-green-500" />
-                  </div>
-                </div>
-                <h2 className="text-3xl md:text-4xl font-bold text-foreground">Message Sent!</h2>
-                <p className="text-muted-foreground text-base md:text-lg font-medium">
-                  Thank you for reaching out. Your mail has been logged and assigned to
-                  our administrative team. You will receive a notification when they reply.
-                </p>
-                <button
-                  onClick={() => setIsSuccess(false)}
-                  className="text-primary font-semibold hover:text-primary/80 underline underline-offset-4 py-2"
-                >
-                  Send another message
-                </button>
-                <div className="pt-6">
-                  <Link
-                    href={user.role === Role.SUPER_ADMIN ? '/admin/organizations' : '/mail'}
-                    className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:brightness-95 shadow-lg hover:shadow-xl transition-all"
-                  >
-                    Go to Your Mailbox
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in-up" noValidate>
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold tracking-wider text-muted-foreground ml-1 opacity-70">Subject</label>
-                  <Input
-                    type="text"
-                    required
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Brief summary of your inquiry"
-                    error={!!formErrors.subject}
-                    className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
-                  />
-                  {formErrors.subject && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.subject}</p>}
-                </div>
+                  {!user ? (
+                    <div className="text-center py-12 space-y-6">
+                      <div className="relative mx-auto w-16 h-16 mb-6">
+                        <div className="absolute inset-0 bg-danger/20 rounded-full animate-pulse" />
+                        <div className="relative w-full h-full bg-danger/10 rounded-full flex items-center justify-center">
+                          <AlertCircle className="w-8 h-8 text-danger" />
+                        </div>
+                      </div>
+                      <h2 className="text-2xl md:text-3xl font-bold text-foreground">Login Required</h2>
+                      <p className="text-muted-foreground text-base md:text-lg">
+                        To ensure the security and tracking of your support requests,
+                        you must be logged in to contact our team.
+                      </p>
+                      <div className="pt-4">
+                        <Link
+                          href="/login"
+                          className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:brightness-95 shadow-lg hover:shadow-xl transition-all"
+                        >
+                          Login to Continue
+                        </Link>
+                      </div>
+                    </div>
+                  ) : isSuccess ? (
+                    <div className="text-center py-12 space-y-6 animate-scale-in">
+                      <div className="relative mx-auto w-20 h-20 mb-6">
+                        <div className="absolute inset-0 bg-success/20 rounded-full animate-pulse" />
+                        <div className="relative w-full h-full bg-success/5 rounded-full flex items-center justify-center">
+                          <CheckCircle className="w-10 h-10 text-success" />
+                        </div>
+                      </div>
+                      <h2 className="text-3xl md:text-4xl font-bold text-foreground">Message Sent!</h2>
+                      <p className="text-muted-foreground text-base md:text-lg font-medium">
+                        Thank you for reaching out. Your mail has been logged and assigned to
+                        our administrative team. You will receive a notification when they reply.
+                      </p>
+                      <button
+                        onClick={() => setIsSuccess(false)}
+                        className="text-primary font-semibold hover:text-primary/80 underline underline-offset-4 py-2"
+                      >
+                        Send another message
+                      </button>
+                      <div className="pt-6">
+                        <Link
+                          href={user.role === Role.SUPER_ADMIN ? '/admin/organizations' : '/mail'}
+                          className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:brightness-95 shadow-lg hover:shadow-xl transition-all"
+                        >
+                          Go to Your Mailbox
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in-up" noValidate>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold tracking-wider text-muted-foreground ml-1 opacity-70">Subject</label>
+                        <Input
+                          type="text"
+                          required
+                          value={subject}
+                          onChange={(e) => setSubject(e.target.value)}
+                          placeholder="Brief summary of your inquiry"
+                          error={!!formErrors.subject}
+                          className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
+                        />
+                        {formErrors.subject && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.subject}</p>}
+                      </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold tracking-wider text-foreground ml-1 opacity-70">Message</label>
-                  <MarkdownEditor
-                    value={message}
-                    onChange={setMessage}
-                    placeholder="How can we help you today? Please provide as much detail as possible. Markdown is supported."
-                    rows={8}
-                    orgData={{
-                      userName: user?.name || '',
-                      role: user?.role || '',
-                      orgName: user?.orgName || PLATFORM_NAME
-                    }}
-                  />
-                </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold tracking-wider text-foreground ml-1 opacity-70">Message</label>
+                        <MarkdownEditor
+                          value={message}
+                          onChange={setMessage}
+                          placeholder="How can we help you today? Please provide as much detail as possible. Markdown is supported."
+                          rows={8}
+                          orgData={{
+                            userName: user?.name || '',
+                            role: user?.role || '',
+                            orgName: user?.orgName || PLATFORM_NAME
+                          }}
+                        />
+                      </div>
 
-                {formErrors.message && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{formErrors.message}</p>}
+                      {formErrors.message && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.message}</p>}
 
-                {formErrors.general && (
-                  <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center text-sm font-medium animate-shake">
-                    <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
-                    {formErrors.general}
-                  </div>
-                )}
+                      {formErrors.general && (
+                        <div className="p-4 bg-danger/10 border border-danger/30 text-danger rounded-xl flex items-center text-sm font-medium animate-shake">
+                          <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
+                          {formErrors.general}
+                        </div>
+                      )}
 
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  icon={Send}
-                  variant="primary"
-                  loadingText="Sending..."
-                  className="w-full text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
-                >
-                  Send Message
-                </Button>
-                <p className="text-center text-xs text-muted-foreground font-medium">
-                  By submitting this form, you agree to our <Link href="/terms" className="text-primary hover:text-primary/80 underline underline-offset-4">Terms of Service</Link> and <Link href="/privacy" className="text-primary hover:text-primary/80 underline underline-offset-4">Privacy Policy</Link>.
-                </p>
-              </form>
-            )}
+                      <Button
+                        type="submit"
+                        disabled={isSubmitting}
+                        icon={Send}
+                        variant="primary"
+                        loadingText="Sending..."
+                        className="w-full text-base font-semibold shadow-lg hover:shadow-xl transition-shadow"
+                      >
+                        Send Message
+                      </Button>
+                      <p className="text-center text-xs text-muted-foreground font-medium">
+                        By submitting this form, you agree to our <Link href="/terms" className="text-primary hover:text-primary/80 underline underline-offset-4">Terms of Service</Link> and <Link href="/privacy" className="text-primary hover:text-primary/80 underline underline-offset-4">Privacy Policy</Link>.
+                      </p>
+                    </form>
+                  )}
                 </div>
               </Reveal>
             </div>

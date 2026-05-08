@@ -104,8 +104,8 @@ function StudentPortalContent() {
 
     if (user?.status === 'SUSPENDED') {
         return (
-            <div className="flex flex-col items-center justify-center p-12 bg-card/70 backdrop-blur-md rounded-lg shadow-2xl border border-orange-500/20 text-center max-w-2xl mx-auto mt-10">
-                <ShieldOff className="w-20 h-20 text-orange-500 mb-6" />
+            <div className="flex flex-col items-center justify-center p-12 bg-card/70 backdrop-blur-md rounded-lg shadow-2xl border border-warning text-center max-w-2xl mx-auto mt-10">
+                <ShieldOff className="w-20 h-20 text-warning mb-6" />
                 <h2 className="text-4xl font-black text-foreground mb-4">Account Suspended</h2>
                 <p className="text-muted-foreground text-lg mb-8">
                     Your account has been temporarily suspended by the administration. Please contact your Administration for details.
@@ -125,9 +125,9 @@ function StudentPortalContent() {
     return (
         <div className="flex flex-col w-full h-full">
             {user?.status === 'ALUMNI' && (
-                <div className="flex flex-col items-center justify-center p-12 bg-card/70 backdrop-blur-md rounded-lg shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-blue-500/20 text-center max-w-2xl mx-auto mb-10 hover:shadow-2xl transition-all duration-500">
-                    <div className="p-6 bg-blue-500/10 rounded-full mb-6">
-                        <GraduationCap className="w-20 h-20 text-blue-500" />
+                <div className="flex flex-col items-center justify-center p-12 bg-card/70 backdrop-blur-md rounded-lg shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-info/20 text-center max-w-2xl mx-auto mb-10 hover:shadow-2xl transition-all duration-500">
+                    <div className="p-6 bg-info/10 rounded-full mb-6">
+                        <GraduationCap className="w-20 h-20 text-info" />
                     </div>
                     <h2 className="text-4xl font-black text-foreground mb-4 tracking-tight">Alumni Access</h2>
                     <p className="text-muted-foreground text-lg mb-8 font-medium">

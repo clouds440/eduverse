@@ -18,11 +18,11 @@ const PasswordStrength: React.FC<PasswordStrengthProps> = ({ password = '', clas
 
     const getStrengthColor = (s: number) => {
         switch (s) {
-            case 0: return 'bg-red-500';
-            case 1: return 'bg-orange-500';
-            case 2: return 'bg-yellow-500';
+            case 0: return 'bg-danger';
+            case 1: return 'bg-danger';
+            case 2: return 'bg-warning';
             case 3: return 'bg-lime-500';
-            case 4: return 'bg-green-500';
+            case 4: return 'bg-success';
             default: return 'bg-muted';
         }
     };
@@ -46,15 +46,15 @@ const PasswordStrength: React.FC<PasswordStrengthProps> = ({ password = '', clas
                 </span>
                 <span className={cn(
                     "text-[10px] font-black uppercase tracking-widest transition-colors duration-500",
-                    score === 0 ? "text-red-500" :
-                    score === 1 ? "text-orange-500" :
-                    score === 2 ? "text-yellow-500" :
-                    score === 3 ? "text-lime-500" : "text-green-500"
+                    score === 0 ? "text-danger" :
+                        score === 1 ? "text-danger" :
+                            score === 2 ? "text-warning" :
+                                score === 3 ? "text-lime-500" : "text-success"
                 )}>
                     {getStrengthLabel(score)}
                 </span>
             </div>
-            
+
             <div className="flex gap-1 h-1">
                 {[0, 1, 2, 3].map((step) => (
                     <div
@@ -68,11 +68,11 @@ const PasswordStrength: React.FC<PasswordStrengthProps> = ({ password = '', clas
             </div>
 
             {result.feedback.warning && (
-                <p className="text-[9px] font-bold text-red-500/80 leading-tight">
+                <p className="text-[9px] font-bold text-danger80 leading-tight">
                     ⚠ {result.feedback.warning}
                 </p>
             )}
-            
+
             {result.feedback.suggestions.length > 0 && score < 3 && (
                 <ul className="space-y-1">
                     {result.feedback.suggestions.map((suggestion, i) => (

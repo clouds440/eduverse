@@ -123,10 +123,10 @@ export default function AttendanceSheet({
 
     const getStatusIcon = (status: AttendanceStatus | null, size = "w-3.5 h-3.5") => {
         switch (status) {
-            case AttendanceStatus.PRESENT: return <Check className={`${size} text-emerald-600 dark:text-emerald-400`} />;
-            case AttendanceStatus.ABSENT: return <X className={`${size} text-red-600 dark:text-red-400`} />;
-            case AttendanceStatus.LATE: return <Clock className={`${size} text-amber-600 dark:text-amber-400`} />;
-            case AttendanceStatus.EXCUSED: return <FileWarning className={`${size} text-blue-600 dark:text-blue-400`} />;
+            case AttendanceStatus.PRESENT: return <Check className={`${size} text-success`} />;
+            case AttendanceStatus.ABSENT: return <X className={`${size} text-danger`} />;
+            case AttendanceStatus.LATE: return <Clock className={`${size} text-warning`} />;
+            case AttendanceStatus.EXCUSED: return <FileWarning className={`${size} text-info`} />;
             default: return <span className="text-muted-foreground/40 text-xs">-</span>;
         }
     };
@@ -134,10 +134,10 @@ export default function AttendanceSheet({
     const getStatusButtonClass = (isActive: boolean, type: AttendanceStatus) => {
         if (!isActive) return "bg-background hover:bg-muted/50 text-muted-foreground border-border shadow-sm";
         switch (type) {
-            case AttendanceStatus.PRESENT: return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 shadow-sm ring-1 ring-emerald-500/20";
-            case AttendanceStatus.ABSENT: return "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 shadow-sm ring-1 ring-red-500/20";
-            case AttendanceStatus.LATE: return "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 shadow-sm ring-1 ring-amber-500/20";
-            case AttendanceStatus.EXCUSED: return "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/40 shadow-sm ring-1 ring-blue-500/20";
+            case AttendanceStatus.PRESENT: return "bg-success/15 text-success border-success shadow-sm ring-1 ring-success";
+            case AttendanceStatus.ABSENT: return "bg-danger/15 text-danger border-danger shadow-sm ring-1 ring-danger";
+            case AttendanceStatus.LATE: return "bg-warning/15 text-warning border-warning shadow-sm ring-1 ring-warning";
+            case AttendanceStatus.EXCUSED: return "bg-info/15 text-info border-info shadow-sm ring-1 ring-info";
             default: return "";
         }
     };
@@ -307,7 +307,7 @@ export default function AttendanceSheet({
                                                             <div
                                                                 key={session.id}
                                                                 className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 transition-all ${isAdhoc
-                                                                    ? 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10'
+                                                                    ? 'border-warning/30 bg-warning/5 hover:bg-warning/10'
                                                                     : 'border-border/70 bg-muted/10 hover:bg-muted/20'
                                                                     }`}
                                                             >
@@ -346,20 +346,20 @@ export default function AttendanceSheet({
                                                     </div>
                                                 )}
                                                 <div className="grid grid-cols-4 gap-2 w-full max-w-30 mt-1">
-                                                    <div className="flex flex-col items-center bg-emerald-500/10 rounded-lg py-1">
-                                                        <span className="text-[8px] font-black text-emerald-600">P</span>
+                                                    <div className="flex flex-col items-center bg-success/10 rounded-lg py-1">
+                                                        <span className="text-[8px] font-black text-success">P</span>
                                                         <span className="text-xs font-bold">{present}</span>
                                                     </div>
-                                                    <div className="flex flex-col items-center bg-red-500/10 rounded-lg py-1">
-                                                        <span className="text-[8px] font-black text-red-600">A</span>
+                                                    <div className="flex flex-col items-center bg-danger/10 rounded-lg py-1">
+                                                        <span className="text-[8px] font-black text-danger">A</span>
                                                         <span className="text-xs font-bold">{absent}</span>
                                                     </div>
-                                                    <div className="flex flex-col items-center bg-amber-500/10 rounded-lg py-1">
-                                                        <span className="text-[8px] font-black text-amber-600">L</span>
+                                                    <div className="flex flex-col items-center bg-warning/10 rounded-lg py-1">
+                                                        <span className="text-[8px] font-black text-warning">L</span>
                                                         <span className="text-xs font-bold">{late}</span>
                                                     </div>
-                                                    <div className="flex flex-col items-center bg-blue-500/10 rounded-lg py-1">
-                                                        <span className="text-[8px] font-black text-blue-600">E</span>
+                                                    <div className="flex flex-col items-center bg-info/10 rounded-lg py-1">
+                                                        <span className="text-[8px] font-black text-info">E</span>
                                                         <span className="text-xs font-bold">{excused}</span>
                                                     </div>
                                                 </div>

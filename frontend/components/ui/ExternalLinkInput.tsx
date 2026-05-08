@@ -15,13 +15,13 @@ interface ExternalLinkInputProps {
     error?: string;
 }
 
-export function ExternalLinkInput({ 
-    value, 
-    onChange, 
-    isVideo, 
-    onIsVideoChange, 
+export function ExternalLinkInput({
+    value,
+    onChange,
+    isVideo,
+    onIsVideoChange,
     disabled = false,
-    error 
+    error
 }: ExternalLinkInputProps) {
     const [thumbnail, setThumbnail] = useState<string | null>(null);
 
@@ -106,15 +106,15 @@ export function ExternalLinkInput({
                 )}
             </div>
 
-            {error && <p className="text-xs text-red-500 font-semibold">{error}</p>}
+            {error && <p className="text-xs text-dangerfont-semibold">{error}</p>}
 
             {/* Thumbnail Preview */}
             {isVideo && thumbnail && (
                 <div className="relative group">
                     <div className="relative rounded-lg overflow-hidden border border-border shadow-sm">
-                        <img 
-                            src={thumbnail} 
-                            alt="Video thumbnail" 
+                        <img
+                            src={thumbnail}
+                            alt="Video thumbnail"
                             className="w-full h-72 object-cover"
                         />
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

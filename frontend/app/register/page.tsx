@@ -188,7 +188,7 @@ export default function RegisterPage() {
                                         placeholder="EduPulse Academy"
                                         className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                                     />
-                                    {errors.name && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.name.message}</p>}
+                                    {errors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.name.message}</p>}
                                 </div>
 
                                 <div className="space-y-2">
@@ -201,7 +201,7 @@ export default function RegisterPage() {
                                         placeholder="John Doe"
                                         className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                                     />
-                                    {errors.adminName && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.adminName.message}</p>}
+                                    {errors.adminName && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.adminName.message}</p>}
                                 </div>
                             </div>
                         </div>
@@ -238,7 +238,7 @@ export default function RegisterPage() {
                                         placeholder="Select Type"
                                         className="h-12 md:h-14 font-medium border-border/50"
                                     />
-                                    {errors.type && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.type.message}</p>}
+                                    {errors.type && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.type.message}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="location" className="text-xs font-semibold tracking-wider text-muted-foreground ml-1 opacity-70">Location</Label>
@@ -250,7 +250,7 @@ export default function RegisterPage() {
                                         placeholder="New York, USA"
                                         className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                                     />
-                                    {errors.location && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.location.message}</p>}
+                                    {errors.location && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.location.message}</p>}
                                 </div>
                             </div>
                         </div>
@@ -271,7 +271,7 @@ export default function RegisterPage() {
                                         placeholder="admin@school.com"
                                         className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                                     />
-                                    {errors.email && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.email.message}</p>}
+                                    {errors.email && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.email.message}</p>}
                                     <p className="mt-3 text-xs text-muted-foreground font-medium tracking-wider ml-1 opacity-60">
                                         Primary credentials used for administrator console access.
                                     </p>
@@ -306,7 +306,7 @@ export default function RegisterPage() {
                                         className={`h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm ${sameAsLoginEmail ? 'bg-muted/40 opacity-50 grayscale pointer-events-none' : ''}`}
                                     />
                                     {errors.contactEmail && !sameAsLoginEmail && (
-                                        <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.contactEmail.message}</p>
+                                        <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.contactEmail.message}</p>
                                     )}
                                 </div>
 
@@ -321,7 +321,7 @@ export default function RegisterPage() {
                                             placeholder="+1 (555) 000-0000"
                                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                                         />
-                                        {errors.phone && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.phone.message}</p>}
+                                        {errors.phone && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.phone.message}</p>}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="password" className="text-xs font-semibold tracking-wider text-muted-foreground ml-1 opacity-70">Login Password</Label>
@@ -334,7 +334,7 @@ export default function RegisterPage() {
                                             placeholder="••••••••"
                                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                                         />
-                                        {errors.password && <p className="mt-1 text-xs text-red-500 font-semibold ml-1">{errors.password.message}</p>}
+                                        {errors.password && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.password.message}</p>}
                                         <PasswordStrength password={formData.password} className="mt-3 px-1" />
                                     </div>
                                 </div>

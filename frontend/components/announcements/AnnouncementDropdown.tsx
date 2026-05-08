@@ -135,14 +135,14 @@ export function AnnouncementDropdown() {
             >
                 <Megaphone className="w-5 h-5" />
                 {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex items-center justify-center w-5.5 h-5.5 text-[12px] font-bold text-white bg-blue-500 rounded-full border-2 border-white shadow-sm animate-in zoom-in">
+                    <span className="absolute -top-1 -right-1 flex items-center justify-center w-5.5 h-5.5 text-[12px] font-bold text-white bg-info rounded-full border-2 border-white shadow-sm animate-in zoom-in">
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
             </button>
 
             {isOpen && (
-                 <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-card rounded-xl shadow-2xl border border-border/80 overflow-hidden transform origin-top-right animate-in fade-in slide-in-from-top-2 z-50">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-card rounded-xl shadow-2xl border border-border/80 overflow-hidden transform origin-top-right animate-in fade-in slide-in-from-top-2 z-50">
                     <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border backdrop-blur-sm">
                         <h3 className="font-semibold text-foreground">Announcements</h3>
                         {user.role !== Role.STUDENT && (
@@ -156,19 +156,19 @@ export function AnnouncementDropdown() {
                         )}
                     </div>
 
-                            <div className="max-h-100 overflow-y-auto custom-scrollbar">
-                                {isLoading ? (
-                                    <div className="flex justify-center items-center py-8">
-                                        <Loader2 className="w-6 h-6 animate-spin text-blue-500 opacity-50" />
-                                    </div>
-                                ) : announcements.length > 0 ? (
-                                    <div className="divide-y divide-border">
+                    <div className="max-h-100 overflow-y-auto custom-scrollbar">
+                        {isLoading ? (
+                            <div className="flex justify-center items-center py-8">
+                                <Loader2 className="w-6 h-6 animate-spin text-info opacity-50" />
+                            </div>
+                        ) : announcements.length > 0 ? (
+                            <div className="divide-y divide-border">
                                 {announcements.map((announcement) => {
                                     const priorityColors = {
                                         LOW: 'bg-muted/40 hover:bg-muted border-l-border',
-                                        NORMAL: 'bg-card hover:bg-muted/40 border-l-blue-400',
-                                        HIGH: 'bg-orange-50/50 hover:bg-orange-100/80 border-l-orange-500',
-                                        URGENT: 'bg-red-50/50 hover:bg-red-100/80 border-l-red-600',
+                                        NORMAL: 'bg-card hover:bg-muted/40 border-l-info/80',
+                                        HIGH: 'bg-warning/10 hover:bg-warning/80 border-l-warning',
+                                        URGENT: 'bg-danger/10 hover:bg-danger/80 border-l-danger',
                                     };
 
                                     const targetIcons = {
@@ -194,13 +194,13 @@ export function AnnouncementDropdown() {
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="text-xs font-black text-foreground truncate">{creator?.name || 'Unknown User'}</div>
                                                         {(lastSeen === 0 || new Date(announcement.createdAt).getTime() > lastSeen + 1000) && (
-                                                            <span className="shrink-0 text-[8px] font-black bg-blue-500 text-white px-1.5 py-0.5 rounded-full animate-pulse tracking-[0.2em] shadow-sm">
+                                                            <span className="shrink-0 text-[8px] font-black bg-info text-white px-1.5 py-0.5 rounded-full animate-pulse tracking-[0.2em] shadow-sm">
                                                                 New
                                                             </span>
                                                         )}
                                                     </div>
                                                     <div className="flex items-center justify-between mt-0.5">
-                                                        <span className="text-[9px] font-black text-blue-600/70 tracking-widest bg-blue-50/50 border border-blue-100/30 px-1.5 py-0.5 rounded-lg">
+                                                        <span className="text-[9px] font-black text-info/70 tracking-widest bg-info/10 border border-info/10 px-1.5 py-0.5 rounded-lg">
                                                             {creator?.role?.replace('_', ' ') || 'SYSTEM'}
                                                         </span>
                                                         <div className="text-[9px] text-muted-foreground font-bold tracking-wider">
@@ -213,13 +213,13 @@ export function AnnouncementDropdown() {
                                             <div className="flex justify-between items-start mb-2">
                                                 <div className="flex items-start gap-2 pr-4">
                                                     {(lastSeen === 0 || new Date(announcement.createdAt).getTime() > lastSeen + 1000) && (
-                                                        <div className="w-2 h-2 mt-1.5 rounded-full bg-blue-500 shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                                                        <div className="w-2 h-2 mt-1.5 rounded-full bg-info shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
                                                     )}
                                                     <h4 className="text-sm font-black text-foreground leading-tight">
                                                         {announcement.title}
                                                     </h4>
                                                 </div>
-                                                <div className="shrink-0 flex items-center gap-1.5 text-[9px] font-black text-muted-foreground tracking-widest bg-card border border-border px-2 py-1 rounded-lg shadow-sm group-hover:border-blue-100 group-hover:text-blue-500 transition-colors">
+                                                <div className="shrink-0 flex items-center gap-1.5 text-[9px] font-black text-muted-foreground tracking-widest bg-card border border-border px-2 py-1 rounded-lg shadow-sm group-hover:border-info/10 group-hover:text-info transition-colors">
                                                     {targetIcons[announcement.targetType] || <Megaphone className="w-3 h-3" />}
                                                     <span>{announcement.targetType}</span>
                                                 </div>
@@ -233,7 +233,7 @@ export function AnnouncementDropdown() {
                                                 <div className="mt-4 pt-3 border-t border-border flex justify-end">
                                                     <Link
                                                         href={safeActionUrl}
-                                                        className="text-[10px] font-black text-blue-600 hover:text-blue-800 tracking-widest flex items-center gap-1 group/link"
+                                                        className="text-[10px] font-black text-info hover:text-info tracking-widest flex items-center gap-1 group/link"
                                                     >
                                                         <span>View Full Details</span>
                                                         <Plus className="w-3 h-3 group-hover/link:rotate-90 transition-transform" />

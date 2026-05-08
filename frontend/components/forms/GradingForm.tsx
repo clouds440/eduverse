@@ -91,7 +91,7 @@ export default function GradingForm({
                     <div className="relative">
                         <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
                         <div className="relative rounded-full">
-                            <BrandIcon variant='user' user={student.user} size='xl'/>
+                            <BrandIcon variant='user' user={student.user} size='xl' />
                         </div>
                     </div>
                     <div>
@@ -115,7 +115,7 @@ export default function GradingForm({
                             placeholder={`e.g. ${Math.round(totalMarks * 0.85)}`}
                             className="font-medium"
                         />
-                        {errors.marksObtained && <p className="text-xs text-red-500 font-semibold">{errors.marksObtained.message}</p>}
+                        {errors.marksObtained && <p className="text-xs text-danger font-semibold">{errors.marksObtained.message}</p>}
                     </div>
 
                     <div className="space-y-2 md:space-y-3">
@@ -131,7 +131,7 @@ export default function GradingForm({
                             error={!!errors.status}
                             icon={Edit3}
                         />
-                        {errors.status && <p className="text-xs text-red-500 font-semibold">{errors.status.message}</p>}
+                        {errors.status && <p className="text-xs text-danger font-semibold">{errors.status.message}</p>}
                     </div>
                 </div>
 
@@ -152,10 +152,10 @@ export default function GradingForm({
                 <Button type="button" variant="secondary" onClick={onCancel} className="w-full sm:w-auto h-12 font-semibold">
                     Cancel
                 </Button>
-                <Button 
-                    type="submit" 
-                    loadingId="grading-submit" 
-                    loadingText="Saving..." 
+                <Button
+                    type="submit"
+                    loadingId="grading-submit"
+                    loadingText="Saving..."
                     icon={Check}
                 >
                     Save Grade

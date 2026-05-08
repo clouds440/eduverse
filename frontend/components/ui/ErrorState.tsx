@@ -13,9 +13,9 @@ export function ErrorState({ error, onRetry, className = '' }: ErrorStateProps) 
   const errorMessage = error instanceof Error ? error.message : error || 'An error occurred';
 
   return (
-    <div className={`flex flex-col m-auto items-center justify-center p-6 bg-red-500/10 border border-red-500/20 rounded-lg text-center ${className}`}>
-      <ServerCrash className="w-8 h-8 text-red-500 mb-2" />
-      <p className="text-red-500 font-bold">{errorMessage}</p>
+    <div className={`flex flex-col m-auto items-center justify-center p-6 bg-danger10 border border-ddanger0 rounded-lg text-center ${className}`}>
+      <ServerCrash className="w-8 h-8 text-dangermb-2" />
+      <p className="text-dangerfont-bold">{errorMessage}</p>
       <Button onClick={onRetry} className="mt-4" variant="primary">
         Try Again
       </Button>

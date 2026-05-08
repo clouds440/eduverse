@@ -5,7 +5,7 @@ import { PLATFORM_NAME } from '@/lib/constants';
 
 export default function PrivacyPage() {
   return (
-     <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden">
         <div className="absolute inset-0 bg-background">
@@ -22,12 +22,12 @@ export default function PrivacyPage() {
           </Reveal>
           <Reveal delay={200}>
             <p className="text-xl text-muted-foreground font-medium leading-relaxed max-w-2xl mx-auto">
-                Your trust is our most valuable asset. We treat your data with the highest level of security and transparency.
+              Your trust is our most valuable asset. We treat your data with the highest level of security and transparency.
             </p>
           </Reveal>
           <Reveal delay={400}>
             <div className="flex items-center justify-center space-x-2 text-xs font-black text-muted-foreground tracking-widest">
-                <Clock className="w-4 h-4" />
+              <Clock className="w-4 h-4" />
               <span>Last Updated: April 01, 2026</span>
             </div>
           </Reveal>
@@ -47,36 +47,36 @@ export default function PrivacyPage() {
                   <h2 className="text-3xl font-black text-foreground">Data Storage & Multi-Tenancy</h2>
                 </div>
                 <p className="text-muted-foreground font-medium leading-relaxed">
-              {PLATFORM_NAME} architecture is built upon a high-performance multi-tenant system. This means your institution&apos;s data is logically isolated in its own dedicated workspace. We use AES-256 encryption at rest and TLS 1.3 for data in transit, ensuring that student and administrative information remains private and secure at all times.
-            </p>
+                  {PLATFORM_NAME} architecture is built upon a high-performance multi-tenant system. This means your institution&apos;s data is logically isolated in its own dedicated workspace. We use AES-256 encryption at rest and TLS 1.3 for data in transit, ensuring that student and administrative information remains private and secure at all times.
+                </p>
               </div>
             </Reveal>
 
             <Reveal delay={100}>
               <div className="p-8 bg-card border border-border rounded-2xl space-y-4 shadow-lg">
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20">
-                    <Globe className="w-7 h-7 text-indigo-500" />
+                  <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20">
+                    <Globe className="w-7 h-7 text-primary" />
                   </div>
                   <h2 className="text-3xl font-black text-foreground">Collection of Information</h2>
                 </div>
                 <p className="text-muted-foreground font-medium leading-relaxed">
-              We collect information necessary to provide and improve the educational experience, including account details, organizational metadata, and interaction logs. We never sell your data to third parties. Our business model is based on subscriptions, not your personal information.
-            </p>
+                  We collect information necessary to provide and improve the educational experience, including account details, organizational metadata, and interaction logs. We never sell your data to third parties. Our business model is based on subscriptions, not your personal information.
+                </p>
               </div>
             </Reveal>
 
             <Reveal delay={200}>
               <div className="p-8 bg-card border border-border rounded-2xl space-y-4 shadow-lg">
                 <div className="flex items-center gap-4 mb-6">
-                  <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20">
-                    <Lock className="w-7 h-7 text-emerald-500" />
+                  <div className="w-14 h-14 bg-success/10 rounded-2xl flex items-center justify-center border border-success/20">
+                    <Lock className="w-7 h-7 text-success" />
                   </div>
                   <h2 className="text-3xl font-black text-foreground">Security Standards</h2>
                 </div>
                 <p className="text-muted-foreground font-medium leading-relaxed">
-              We maintain SOC-2 and GDPR compliance standards. Our engineers perform daily redundant backups across geographically distributed edge locations to ensure zero data loss and persistent availability, even in the event of local infrastructure failures.
-            </p>
+                  We maintain SOC-2 and GDPR compliance standards. Our engineers perform daily redundant backups across geographically distributed edge locations to ensure zero data loss and persistent availability, even in the event of local infrastructure failures.
+                </p>
               </div>
             </Reveal>
           </div>

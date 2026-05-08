@@ -116,12 +116,12 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                             <Card
                                 key={assessment.id}
                                 onClick={() => router.push(targetUrl)}
-                                accentColor={assessment.type === AssessmentType.FINAL ? 'bg-indigo-500' : assessment.type === AssessmentType.MIDTERM ? 'bg-orange-500' : 'bg-primary'}
+                                accentColor={assessment.type === AssessmentType.FINAL ? 'bg-primary' : assessment.type === AssessmentType.MIDTERM ? 'bg-warning' : 'bg-info'}
                                 padding="lg"
                             >
                                 <CardHeader>
-                                    <div className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-[0.15em] border-2 shadow-sm ${assessment.type === AssessmentType.FINAL ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                                        assessment.type === AssessmentType.MIDTERM ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                                    <div className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-[0.15em] border-2 shadow-sm ${assessment.type === AssessmentType.FINAL ? 'bg-primary/10 text-primary border-primary/30' :
+                                        assessment.type === AssessmentType.MIDTERM ? 'bg-warning/10 text-warning border-warning/30' :
                                             'bg-primary/5 text-primary border-primary/10'
                                         }`}>
                                         {assessment.type}
@@ -143,7 +143,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                                                     e.stopPropagation();
                                                     setDeletingAssessment(assessment);
                                                 }}
-                                                className="p-2.5 text-red-500 hover:text-red-500 transition-all hover:bg-red-500/50 rounded-xl border border-transparent hover:border-red-500 bg-foreground shadow-xs"
+                                                className="p-2.5 text-danger hover:text-danger/80 transition-all hover:bg-danger/50 rounded-xl border border-transparent hover:border-danger bg-foreground shadow-xs"
                                                 title="Delete"
                                             >
                                                 <Trash2 className="w-4 h-4" />
@@ -155,7 +155,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                                 <CardContent>
                                     <h4 className="text-xl font-black text-foreground leading-tight tracking-tight group-hover:text-primary transition-colors duration-300">{assessment.title}</h4>
 
-                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-slate-500 font-bold tracking-widest pt-2">
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-muted font-bold tracking-widest pt-2">
                                         <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/20 rounded-full border border-primary">
                                             <Trophy className="w-4 h-4 text-primary/70" />
                                             <span>{assessment.totalMarks} Marks</span>
@@ -169,7 +169,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
 
                                 <CardFooter>
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] font-black tracking-[0.2em] text-slate-400">Weightage</span>
+                                        <span className="text-[10px] font-black tracking-[0.2em] text-muted">Weightage</span>
                                         <span className="text-xl font-black text-primary leading-none">{assessment.weightage}%</span>
                                     </div>
 

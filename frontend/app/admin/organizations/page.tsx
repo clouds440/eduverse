@@ -112,7 +112,7 @@ export default function OrganizationsPage() {
             dispatch({ type: 'UI_START_PROCESSING', payload: `approve-${id}` });
             await api.admin.approveOrganization(id, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: `${name} approved successfully`, type: 'success' } });
-                mutate(matchesCacheKeyPrefix('admin-organizations'));
+            mutate(matchesCacheKeyPrefix('admin-organizations'));
             // Also refresh admin stats
             if (token) {
                 statsStore.fetchAll(token).then(({ admin }) => {
@@ -144,11 +144,11 @@ export default function OrganizationsPage() {
             if (modalMode === 'REJECT') {
                 await api.admin.rejectOrganization(operatingOrg.id, reason, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: `${operatingOrg.name} rejected`, type: 'info' } });
-                    mutate(matchesCacheKeyPrefix('admin-organizations'));
+                mutate(matchesCacheKeyPrefix('admin-organizations'));
             } else if (modalMode === 'SUSPEND') {
                 await api.admin.suspendOrganization(operatingOrg.id, reason, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: `${operatingOrg.name} suspended`, type: 'info' } });
-                    mutate(matchesCacheKeyPrefix('admin-organizations'));
+                mutate(matchesCacheKeyPrefix('admin-organizations'));
             } else {
                 if (activeStatusTab === OrgStatus.REJECTED) {
                     await api.admin.rejectOrganization(operatingOrg.id, reason, token);
@@ -156,7 +156,7 @@ export default function OrganizationsPage() {
                     await api.admin.suspendOrganization(operatingOrg.id, reason, token);
                 }
                 dispatch({ type: 'TOAST_ADD', payload: { message: `Status message updated for ${operatingOrg.name}`, type: 'success' } });
-                    mutate(matchesCacheKeyPrefix('admin-organizations'));
+                mutate(matchesCacheKeyPrefix('admin-organizations'));
             }
             setIsModalOpen(false);
             setOperatingOrg(null);
@@ -179,9 +179,9 @@ export default function OrganizationsPage() {
 
     const statusTabs: { id: OrgStatus | 'ALL', label: string, icon: LucideIcon, color: string, bg: string, count?: number }[] = [
         { id: 'ALL', label: 'All Orgs', icon: Building2, color: 'text-primary', bg: 'bg-primary/40', count: (dynamicCounts?.PENDING || 0) + (dynamicCounts?.APPROVED || 0) + (dynamicCounts?.REJECTED || 0) + (dynamicCounts?.SUSPENDED || 0) },
-        { id: OrgStatus.PENDING, label: 'Pending', icon: ShieldAlert, color: 'text-amber-600', bg: 'bg-amber-600/40', count: dynamicCounts?.PENDING },
-        { id: OrgStatus.APPROVED, label: 'Approved', icon: ShieldCheck, color: 'text-green-600', bg: 'bg-green-600/40', count: dynamicCounts?.APPROVED },
-        { id: OrgStatus.REJECTED, label: 'Rejected', icon: ShieldOff, color: 'text-red-600', bg: 'bg-red-600/40', count: dynamicCounts?.REJECTED },
+        { id: OrgStatus.PENDING, label: 'Pending', icon: ShieldAlert, color: 'text-warning', bg: 'bg-warning/40', count: dynamicCounts?.PENDING },
+        { id: OrgStatus.APPROVED, label: 'Approved', icon: ShieldCheck, color: 'text-success', bg: 'bg-success/40', count: dynamicCounts?.APPROVED },
+        { id: OrgStatus.REJECTED, label: 'Rejected', icon: ShieldOff, color: 'text-danger', bg: 'bg-danger/40', count: dynamicCounts?.REJECTED },
         { id: OrgStatus.SUSPENDED, label: 'Suspended', icon: ShieldAlert, color: 'text-muted-foreground', bg: 'bg-muted', count: dynamicCounts?.SUSPENDED },
     ];
 
@@ -203,13 +203,12 @@ export default function OrganizationsPage() {
                         <h4 className="text-sm font-black text-foreground leading-tight">{row.name.slice(0, 20)}{row.name.length > 20 ? '...' : ''}</h4>
                         <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] font-bold text-muted-foreground tracking-widest">{row.type.replace('_', ' ')}</span>
-                            <span className={`text-[9px] font-black px-2 rounded-full ${
-                                row.status === OrgStatus.APPROVED ? 'bg-green-500/10 text-green-600 border border-green-500/20' :
-                                row.status === OrgStatus.PENDING ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
-                                row.status === OrgStatus.REJECTED ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
-                                row.status === OrgStatus.SUSPENDED ? 'bg-muted text-muted-foreground border border-border' :
-                                'bg-muted text-muted-foreground border border-border'
-                            }`}>
+                            <span className={`text-[9px] font-black px-2 rounded-full ${row.status === OrgStatus.APPROVED ? 'bg-success/10 text-success border border-success/20' :
+                                row.status === OrgStatus.PENDING ? 'bg-warning/10 text-warning border border-warning/20' :
+                                    row.status === OrgStatus.REJECTED ? 'bg-danger/10 text-danger border border-danger/20' :
+                                        row.status === OrgStatus.SUSPENDED ? 'bg-muted text-muted-foreground border border-border' :
+                                            'bg-muted text-muted-foreground border border-border'
+                                }`}>
                                 {row.status.replace('_', ' ')}
                             </span>
                         </div>
@@ -339,18 +338,18 @@ export default function OrganizationsPage() {
                         {[...org.statusHistory].reverse().map((entry, idx) => (
                             <div key={idx} className="relative pl-8 border-l-2 border-primary/10 last:border-l-0 pb-8 last:pb-2">
                                 <div className="absolute left-2 top-0.5 w-5 h-5 rounded-full bg-card border-4 border-primary/20 flex items-center justify-center shadow-sm">
-                                    <div className={`w-2 h-2 rounded-full ${entry.status === 'APPROVED' ? 'bg-green-500' :
-                                        entry.status === 'REJECTED' ? 'bg-red-500' :
-                                            'bg-amber-500'
+                                    <div className={`w-2 h-2 rounded-full ${entry.status === 'APPROVED' ? 'bg-success' :
+                                        entry.status === 'REJECTED' ? 'bg-danger' :
+                                            'bg-warning'
                                         }`} />
                                 </div>
 
                                 <div className="bg-card-text/5 rounded-lg p-6 border border-card-text/10 shadow-sm relative transition-all hover:bg-card-text/[0.07]">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                                         <div className="flex items-center gap-3">
-                                            <span className={`text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-lg shadow-sm ${entry.status === 'APPROVED' ? 'bg-green-500 text-white' :
-                                                entry.status === 'REJECTED' ? 'bg-red-500 text-white' :
-                                                    'bg-amber-600 text-white'
+                                            <span className={`text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-lg shadow-sm ${entry.status === 'APPROVED' ? 'bg-success text-white' :
+                                                entry.status === 'REJECTED' ? 'bg-danger text-white' :
+                                                    'bg-warning text-white'
                                                 }`}>
                                                 {entry.status}
                                             </span>
@@ -396,186 +395,186 @@ export default function OrganizationsPage() {
         });
     };
 
-return (
-  <div className="flex flex-col h-full w-full">
-    <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl overflow-hidden flex flex-col flex-1 min-h-0">
-      {/* Top controls - fully responsive */}
-      <div className="p-4 space-y-1 border-b border-border/40">
-        {/* Mobile: status dropdown (visible only on small screens) */}
-        <div className="block md:hidden w-full">
-          <CustomSelect
-            value={activeStatusTab}
-            onChange={(val) => updateQueryParams({ status: val as OrgStatus | 'ALL', page: 1 })}
-            options={statusTabs.map(tab => ({ value: tab.id, label: `${tab.label} (${tab.count || 0})`, icon: tab.icon }))}
-            className="w-full"
-            placeholder="Select Status"
-          />
-        </div>
+    return (
+        <div className="flex flex-col h-full w-full">
+            <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl overflow-hidden flex flex-col flex-1 min-h-0">
+                {/* Top controls - fully responsive */}
+                <div className="p-4 space-y-1 border-b border-border/40">
+                    {/* Mobile: status dropdown (visible only on small screens) */}
+                    <div className="block md:hidden w-full">
+                        <CustomSelect
+                            value={activeStatusTab}
+                            onChange={(val) => updateQueryParams({ status: val as OrgStatus | 'ALL', page: 1 })}
+                            options={statusTabs.map(tab => ({ value: tab.id, label: `${tab.label} (${tab.count || 0})`, icon: tab.icon }))}
+                            className="w-full"
+                            placeholder="Select Status"
+                        />
+                    </div>
 
-        {/* Tablet/Desktop: status tabs (horizontally scrollable, no wrap) */}
-        <div className="hidden md:flex overflow-x-auto gap-1 scrollbar-thin">
-          {statusTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => updateQueryParams({ status: tab.id, page: 1 })}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-1 whitespace-nowrap shadow-sm border border-border/50
+                    {/* Tablet/Desktop: status tabs (horizontally scrollable, no wrap) */}
+                    <div className="hidden md:flex overflow-x-auto gap-1 scrollbar-thin">
+                        {statusTabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => updateQueryParams({ status: tab.id, page: 1 })}
+                                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-1 whitespace-nowrap shadow-sm border border-border/50
                 ${activeStatusTab === tab.id
-                  ? `${tab.bg} text-foreground shadow-md`
-                  : 'bg-card/40 text-muted-foreground hover:bg-card/60 hover:text-foreground'
-                }`}
-            >
-              <tab.icon className={`w-4 h-4 ${activeStatusTab === tab.id ? tab.color : 'opacity-50'}`} />
-              <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all
+                                        ? `${tab.bg} text-foreground shadow-md`
+                                        : 'bg-card/40 text-muted-foreground hover:bg-card/60 hover:text-foreground'
+                                    }`}
+                            >
+                                <tab.icon className={`w-4 h-4 ${activeStatusTab === tab.id ? tab.color : 'opacity-50'}`} />
+                                <span>{tab.label}</span>
+                                {tab.count !== undefined && (
+                                    <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all
                   ${activeStatusTab === tab.id
-                    ? `${tab.bg} text-white shadow-sm`
-                    : 'bg-muted text-muted-foreground'
-                  }`}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+                                            ? `${tab.bg} text-white shadow-sm`
+                                            : 'bg-muted text-muted-foreground'
+                                        }`}>
+                                        {tab.count}
+                                    </span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
 
-        {/* Filters row: column on mobile, row on sm+ */}
-        <div className="flex flex-col sm:flex-row gap-1 items-stretch sm:items-center">
-          <div className="w-full sm:w-64">
-            <CustomSelect
-              value={orgTypeFilter}
-              onChange={(val) => updateQueryParams({ type: val, page: 1 })}
-              options={[
-                { value: 'ALL', label: 'All Org Types' },
-                { value: 'KINDERGARTEN', label: 'Kindergarten', icon: Pencil },
-                { value: 'PRE_SCHOOL', label: 'Pre-School', icon: Pencil },
-                { value: 'PRIMARY_SCHOOL', label: 'Primary School', icon: BookOpen },
-                { value: 'MIDDLE_SCHOOL', label: 'Middle School', icon: BookOpen },
-                { value: 'HIGH_SCHOOL', label: 'High School', icon: School },
-                { value: 'COLLEGE', label: 'College', icon: Library },
-                { value: 'UNIVERSITY', label: 'University', icon: GraduationCap },
-                { value: 'VOCATIONAL_SCHOOL', label: 'Vocational School', icon: Building2 },
-                { value: 'INSTITUTE', label: 'Institute', icon: Building2 },
-                { value: 'ACADEMY', label: 'Academy', icon: Building2 },
-                { value: 'TUTORING_CENTER', label: 'Tutoring Center', icon: BookOpen },
-                { value: 'ONLINE_SCHOOL', label: 'Online School', icon: MonitorPlay },
-                { value: 'OTHER', label: 'Other', icon: Info },
-              ]}
-              className="w-full"
-              placeholder="Org Type"
+                    {/* Filters row: column on mobile, row on sm+ */}
+                    <div className="flex flex-col sm:flex-row gap-1 items-stretch sm:items-center">
+                        <div className="w-full sm:w-64">
+                            <CustomSelect
+                                value={orgTypeFilter}
+                                onChange={(val) => updateQueryParams({ type: val, page: 1 })}
+                                options={[
+                                    { value: 'ALL', label: 'All Org Types' },
+                                    { value: 'KINDERGARTEN', label: 'Kindergarten', icon: Pencil },
+                                    { value: 'PRE_SCHOOL', label: 'Pre-School', icon: Pencil },
+                                    { value: 'PRIMARY_SCHOOL', label: 'Primary School', icon: BookOpen },
+                                    { value: 'MIDDLE_SCHOOL', label: 'Middle School', icon: BookOpen },
+                                    { value: 'HIGH_SCHOOL', label: 'High School', icon: School },
+                                    { value: 'COLLEGE', label: 'College', icon: Library },
+                                    { value: 'UNIVERSITY', label: 'University', icon: GraduationCap },
+                                    { value: 'VOCATIONAL_SCHOOL', label: 'Vocational School', icon: Building2 },
+                                    { value: 'INSTITUTE', label: 'Institute', icon: Building2 },
+                                    { value: 'ACADEMY', label: 'Academy', icon: Building2 },
+                                    { value: 'TUTORING_CENTER', label: 'Tutoring Center', icon: BookOpen },
+                                    { value: 'ONLINE_SCHOOL', label: 'Online School', icon: MonitorPlay },
+                                    { value: 'OTHER', label: 'Other', icon: Info },
+                                ]}
+                                className="w-full"
+                                placeholder="Org Type"
+                            />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <SearchBar
+                                value={searchQuery}
+                                onChange={(val) => updateQueryParams({ search: val, page: 1 })}
+                                placeholder="Search organizations..."
+                                className="max-w-full md:max-w-sm"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Data Table - with horizontal scroll on small screens */}
+                <div className="flex-1 min-h-0 overflow-x-auto">
+                    <DataTable
+                        columns={columns}
+                        data={fetchedData?.data || []}
+                        keyExtractor={(row) => row.id}
+                        isLoading={isFetching}
+                        onRowClick={handleViewOrg}
+                        currentPage={page}
+                        totalPages={fetchedData?.totalPages || 1}
+                        totalResults={fetchedData?.totalRecords || 0}
+                        pageSize={pageSize}
+                        onPageChange={(p) => updateQueryParams({ page: p })}
+                        onPageSizeChange={handlePageSizeChange}
+                        maxHeight="100%"
+                        sortConfig={{ key: sortBy, direction: sortOrder }}
+                        onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                    />
+                </div>
+            </div>
+
+            {/* Modals - responsive sizing */}
+            <ModalForm
+                isOpen={isModalOpen}
+                onClose={() => {
+                    setIsModalOpen(false);
+                    setOperatingOrg(null);
+                    setReason('');
+                }}
+                onSubmit={handleModalSubmit}
+                title={modalMode === 'REJECT' ? `Reject ${operatingOrg?.name}` : modalMode === 'SUSPEND' ? `Suspend ${operatingOrg?.name}` : 'Edit Status Message'}
+                submitText={modalMode === 'REJECT' ? 'Confirm Rejection' : modalMode === 'SUSPEND' ? 'Confirm Suspension' : 'Update Message'}
+                variant={modalMode === 'REJECT' ? 'danger' : modalMode === 'SUSPEND' ? 'warning' : 'primary'}
+                isSubmitting={actionLoading}
+                maxWidth="max-w-[95vw] sm:max-w-2xl md:max-w-3xl"
+            >
+                <div className="space-y-4 pt-2">
+                    <p className="text-sm text-muted-foreground font-medium">
+                        {modalMode === 'EDIT_MESSAGE'
+                            ? 'Update the administrative notice for this organization. They will see this message on their dashboard.'
+                            : `Please provide a detailed reason for ${modalMode === 'REJECT' ? 'rejecting' : 'suspending'} this organization. This will be shown to the organization administrators.`
+                        }
+                    </p>
+                    <MarkdownEditor
+                        value={reason}
+                        onChange={setReason}
+                        placeholder={`Enter ${modalMode === 'EDIT_MESSAGE' ? 'new status message' : 'reason for ' + modalMode?.toLowerCase()}...`}
+                        rows={10}
+                        orgData={{
+                            name: operatingOrg?.name || '',
+                            id: operatingOrg?.id || '',
+                            email: operatingOrg?.email || '',
+                            admin: user?.name || 'Platform Administrator',
+                            role: user?.role || 'Administrator',
+                            date: new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }),
+                            signature: 'EduVerse @ Support Team'
+                        }}
+                        templates={[
+                            {
+                                label: 'Violation of Terms',
+                                content: '# Access Suspended\n\nDear Admin of **{{name}}**,\n\nWe are writing to inform you that your organization\'s access has been suspended due to a **violation of our Terms of Service**.\n\nSpecifically: [Enter violation details here]\n\n**Organization ID:** {{id}}'
+                            },
+                            {
+                                label: 'Missing Required Info',
+                                content: '# Information Required\n\nYour application for **{{name}}** is currently on hold as some **critical information is missing**.\n\nPlease provide: \n1. [Item 1]\n2. [Item 2]\n\nSubmit the missing documents via your settings page to proceed.'
+                            },
+                            {
+                                label: 'Identity Verification',
+                                content: '# Verification Required\n\nTo ensure the security of our platform, we require **further identity verification** for **{{name}}**.\n\nPlease upload a valid institutional certificate or government-issued document showing your organization\'s status.'
+                            },
+                            {
+                                label: 'Suspect Unusual Activity',
+                                content: '# Security Notice\n\nDear **{{name}}**,\n\nOur system has detected **suspicious activity** originating from your account. As a security precaution, we have temporarily restricted access.\n\nDetails: [Enter details here]\n\n**ID Reference:** {{id}}'
+                            },
+                            {
+                                label: 'Unauthorized Access Detected',
+                                content: '# Unauthorized Access Warning\n\nDear **{{name}}**,\n\nWe have detected **unauthorized access attempts** to your organization dashboard. To protect your data, we have suspended the account.\n\nPlease contact support to verify your identity.'
+                            },
+                            {
+                                label: 'Policy Compliance Check',
+                                content: '# Compliance Notice\n\nYour organization **{{name}}** is currently under a **routine policy compliance check**.\n\nThis is a standard procedure and usually takes 2-3 business days. No further action is required from your side at this moment.'
+                            }
+                        ]}
+                    />
+                </div>
+            </ModalForm>
+
+            <NewMailModal
+                isOpen={newMailOpen}
+                onClose={() => {
+                    setNewMailOpen(false);
+                    setInitialTargetId(undefined);
+                    setInitialSubject(undefined);
+                }}
+                initialTargetId={initialTargetId}
+                initialSubject={initialSubject}
+                onSuccess={() => {
+                    dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });
+                }}
             />
-          </div>
-          <div className="flex-1 min-w-0">
-            <SearchBar
-              value={searchQuery}
-              onChange={(val) => updateQueryParams({ search: val, page: 1 })}
-              placeholder="Search organizations..."
-              className="max-w-full md:max-w-sm"
-            />
-          </div>
         </div>
-      </div>
-
-      {/* Data Table - with horizontal scroll on small screens */}
-      <div className="flex-1 min-h-0 overflow-x-auto">
-        <DataTable
-          columns={columns}
-          data={fetchedData?.data || []}
-          keyExtractor={(row) => row.id}
-          isLoading={isFetching}
-          onRowClick={handleViewOrg}
-          currentPage={page}
-          totalPages={fetchedData?.totalPages || 1}
-          totalResults={fetchedData?.totalRecords || 0}
-          pageSize={pageSize}
-          onPageChange={(p) => updateQueryParams({ page: p })}
-          onPageSizeChange={handlePageSizeChange}
-          maxHeight="100%"
-          sortConfig={{ key: sortBy, direction: sortOrder }}
-          onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
-        />
-      </div>
-    </div>
-
-    {/* Modals - responsive sizing */}
-    <ModalForm
-      isOpen={isModalOpen}
-      onClose={() => {
-        setIsModalOpen(false);
-        setOperatingOrg(null);
-        setReason('');
-      }}
-      onSubmit={handleModalSubmit}
-      title={modalMode === 'REJECT' ? `Reject ${operatingOrg?.name}` : modalMode === 'SUSPEND' ? `Suspend ${operatingOrg?.name}` : 'Edit Status Message'}
-      submitText={modalMode === 'REJECT' ? 'Confirm Rejection' : modalMode === 'SUSPEND' ? 'Confirm Suspension' : 'Update Message'}
-      variant={modalMode === 'REJECT' ? 'danger' : modalMode === 'SUSPEND' ? 'warning' : 'primary'}
-      isSubmitting={actionLoading}
-      maxWidth="max-w-[95vw] sm:max-w-2xl md:max-w-3xl"
-    >
-      <div className="space-y-4 pt-2">
-        <p className="text-sm text-muted-foreground font-medium">
-          {modalMode === 'EDIT_MESSAGE'
-            ? 'Update the administrative notice for this organization. They will see this message on their dashboard.'
-            : `Please provide a detailed reason for ${modalMode === 'REJECT' ? 'rejecting' : 'suspending'} this organization. This will be shown to the organization administrators.`
-          }
-        </p>
-        <MarkdownEditor
-          value={reason}
-          onChange={setReason}
-          placeholder={`Enter ${modalMode === 'EDIT_MESSAGE' ? 'new status message' : 'reason for ' + modalMode?.toLowerCase()}...`}
-          rows={10}
-          orgData={{
-            name: operatingOrg?.name || '',
-            id: operatingOrg?.id || '',
-            email: operatingOrg?.email || '',
-            admin: user?.name || 'Platform Administrator',
-            role: user?.role || 'Administrator',
-            date: new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }),
-            signature: 'EduVerse @ Support Team'
-          }}
-          templates={[
-            {
-              label: 'Violation of Terms',
-              content: '# Access Suspended\n\nDear Admin of **{{name}}**,\n\nWe are writing to inform you that your organization\'s access has been suspended due to a **violation of our Terms of Service**.\n\nSpecifically: [Enter violation details here]\n\n**Organization ID:** {{id}}'
-            },
-            {
-              label: 'Missing Required Info',
-              content: '# Information Required\n\nYour application for **{{name}}** is currently on hold as some **critical information is missing**.\n\nPlease provide: \n1. [Item 1]\n2. [Item 2]\n\nSubmit the missing documents via your settings page to proceed.'
-            },
-            {
-              label: 'Identity Verification',
-              content: '# Verification Required\n\nTo ensure the security of our platform, we require **further identity verification** for **{{name}}**.\n\nPlease upload a valid institutional certificate or government-issued document showing your organization\'s status.'
-            },
-            {
-              label: 'Suspect Unusual Activity',
-              content: '# Security Notice\n\nDear **{{name}}**,\n\nOur system has detected **suspicious activity** originating from your account. As a security precaution, we have temporarily restricted access.\n\nDetails: [Enter details here]\n\n**ID Reference:** {{id}}'
-            },
-            {
-              label: 'Unauthorized Access Detected',
-              content: '# Unauthorized Access Warning\n\nDear **{{name}}**,\n\nWe have detected **unauthorized access attempts** to your organization dashboard. To protect your data, we have suspended the account.\n\nPlease contact support to verify your identity.'
-            },
-            {
-              label: 'Policy Compliance Check',
-              content: '# Compliance Notice\n\nYour organization **{{name}}** is currently under a **routine policy compliance check**.\n\nThis is a standard procedure and usually takes 2-3 business days. No further action is required from your side at this moment.'
-            }
-          ]}
-        />
-      </div>
-    </ModalForm>
-
-    <NewMailModal
-      isOpen={newMailOpen}
-      onClose={() => {
-        setNewMailOpen(false);
-        setInitialTargetId(undefined);
-        setInitialSubject(undefined);
-      }}
-      initialTargetId={initialTargetId}
-      initialSubject={initialSubject}
-      onSuccess={() => {
-        dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });
-      }}
-    />
-  </div>
-);
+    );
 }

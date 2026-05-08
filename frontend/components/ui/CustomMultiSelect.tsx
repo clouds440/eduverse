@@ -163,7 +163,7 @@ export const CustomMultiSelect = React.memo(function CustomMultiSelect({
                                 <button
                                     type="button"
                                     onClick={(e) => removeOption(opt.value, e)}
-                                    className="ml-1 hover:bg-indigo-200/50 dark:hover:bg-indigo-400/20 p-0.5 rounded-full transition-colors"
+                                    className="ml-1 hover:bg-primary/20 dark:hover:bg-primary/20 p-0.5 rounded-full transition-colors"
                                     title="Remove option"
                                 >
                                     <X className="h-3 w-3" />

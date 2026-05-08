@@ -86,9 +86,9 @@ export default function AboutPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left max-w-6xl mx-auto">
             {[
-              { icon: <Heart className="w-8 h-8 text-rose-500" />, title: 'Human Centric', desc: 'We build for people, not just for databases. The user experience is our top priority.', color: 'from-rose-500/10 to-rose-500/5 border-rose-500/20' },
-              { icon: <Shield className="w-8 h-8 text-indigo-500" />, title: 'Radical Security', desc: 'Institutions trust us with sensitive data, and we treat that trust as our highest responsibility.', color: 'from-indigo-500/10 to-indigo-500/5 border-indigo-500/20' },
-              { icon: <Globe className="w-8 h-8 text-emerald-500" />, title: 'Educational Equity', desc: 'Our platform is designed to scale and serve schools regardless of their geographic location or size.', color: 'from-emerald-500/10 to-emerald-500/5 border-emerald-500/20' }
+              { icon: <Heart className="w-8 h-8 text-danger" />, title: 'Human Centric', desc: 'We build for people, not just for databases. The user experience is our top priority.', color: 'from-danger/10 to-danger/5 border-danger/20' },
+              { icon: <Shield className="w-8 h-8 text-primary" />, title: 'Radical Security', desc: 'Institutions trust us with sensitive data, and we treat that trust as our highest responsibility.', color: 'from-primary/10 to-primary/5 border-primary/20' },
+              { icon: <Globe className="w-8 h-8 text-success" />, title: 'Educational Equity', desc: 'Our platform is designed to scale and serve schools regardless of their geographic location or size.', color: 'from-success/10 to-success/5 border-success/20' }
             ].map((v, i) => (
               <Reveal key={i} delay={i * 200}>
                 <div className="relative p-8 bg-card border border-border rounded-2xl hover:shadow-xl transition-all overflow-hidden group">

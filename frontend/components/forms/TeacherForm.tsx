@@ -160,7 +160,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
             } else {
                 router.push('/teachers');
             }
-            
+
             // Invalidate all teacher lists (paginated, filtered, etc.)
             mutate(matchesCacheKeyPrefix('teachers'));
         } catch (error: unknown) {
@@ -221,7 +221,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                     placeholder="Dr. Sarah Wilson"
                                     className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                                 />
-                                {errors.name && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.name.message}</p>}
+                                {errors.name && <p className="mt-1 text-xs text-danger font-semibold">{errors.name.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
@@ -250,7 +250,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                                 formData.status === TeacherStatus.EMERITUS ? UserLock : CalendarClock
                                     }
                                 />
-                                {errors.status && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.status.message}</p>}
+                                {errors.status && <p className="mt-1 text-xs text-danger font-semibold">{errors.status.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
@@ -267,7 +267,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                     placeholder="sarah.wilson@school.com"
                                     className={teacherId || isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                                 />
-                                {errors.email && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.email.message}</p>}
+                                {errors.email && <p className="mt-1 text-xs text-danger font-semibold">{errors.email.message}</p>}
                             </div>
 
                             <div className="space-y-2 md:space-y-3">
@@ -280,14 +280,14 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                     placeholder={teacherId ? "Leave blank to keep current" : "Min 8 chars, 1 upper, 1 lower, 1 num"}
                                     className="font-medium"
                                 />
-                                {errors.password && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.password.message}</p>}
+                                {errors.password && <p className="mt-1 text-xs text-danger font-semibold">{errors.password.message}</p>}
                             </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                         <div className="space-y-2 md:space-y-3">
-                            <Label>Education / Degree <span className="text-red-500">*</span></Label>
+                            <Label>Education / Degree <span className="text-danger">*</span></Label>
                             <Input
                                 type="text"
                                 {...register('education')}
@@ -300,10 +300,10 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 placeholder="Ph.D. in Computer Science"
                                 className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.education && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.education.message}</p>}
+                            {errors.education && <p className="mt-1 text-xs text-danger font-semibold">{errors.education.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
-                            <Label>Designation <span className="text-red-500">*</span></Label>
+                            <Label>Designation <span className="text-danger">*</span></Label>
                             <Input
                                 type="text"
                                 {...register('designation')}
@@ -316,10 +316,10 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 placeholder="Senior Faculty / HOD"
                                 className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.designation && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.designation.message}</p>}
+                            {errors.designation && <p className="mt-1 text-xs text-danger font-semibold">{errors.designation.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
-                            <Label>Subject Expertise <span className="text-red-500">*</span></Label>
+                            <Label>Subject Expertise <span className="text-danger">*</span></Label>
                             <Input
                                 type="text"
                                 {...register('subject')}
@@ -332,7 +332,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 placeholder="Mathematics / AI / Physics"
                                 className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.subject && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.subject.message}</p>}
+                            {errors.subject && <p className="mt-1 text-xs text-danger font-semibold">{errors.subject.message}</p>}
                         </div>
                     </div>
                 </div>
@@ -355,7 +355,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                 <div className="p-6 md:p-8">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                         <div className="space-y-2 md:space-y-3">
-                            <Label>Monthly Salary <span className="text-red-500">*</span></Label>
+                            <Label>Monthly Salary <span className="text-danger">*</span></Label>
                             <Input
                                 type="number"
                                 {...register('salary')}
@@ -368,7 +368,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 placeholder="5000"
                                 className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.salary && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.salary.message}</p>}
+                            {errors.salary && <p className="mt-1 text-xs text-danger font-semibold">{errors.salary.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
                             <Label>Department</Label>
@@ -380,7 +380,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 placeholder="Computer Science"
                                 className="font-medium"
                             />
-                            {errors.department && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.department.message}</p>}
+                            {errors.department && <p className="mt-1 text-xs text-danger font-semibold">{errors.department.message}</p>}
                         </div>
                         <div className="space-y-2 md:space-y-3">
                             <Label>Joining Date</Label>
@@ -394,7 +394,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 disabled={isProfile}
                                 className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
                             />
-                            {errors.joiningDate && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.joiningDate.message}</p>}
+                            {errors.joiningDate && <p className="mt-1 text-xs text-danger font-semibold">{errors.joiningDate.message}</p>}
                         </div>
                     </div>
 
@@ -454,7 +454,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                             error={!!errors.sectionIds}
                             disabled={isProfile}
                         />
-                        {errors.sectionIds && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.sectionIds.message}</p>}
+                        {errors.sectionIds && <p className="mt-1 text-xs text-danger font-semibold">{errors.sectionIds.message}</p>}
                         <p className="text-xs text-muted-foreground font-medium pt-2">
                             Teacher will be able to manage students and grading for selected sections.
                         </p>
@@ -480,7 +480,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                         <div className="space-y-4 md:space-y-6">
                             <div className="space-y-2 md:space-y-3">
-                                <Label>Contact Phone <span className="text-red-500">*</span></Label>
+                                <Label>Contact Phone <span className="text-danger">*</span></Label>
                                 <Input
                                     type="text"
                                     {...register('phone')}
@@ -489,7 +489,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                     placeholder="+1 555-0123"
                                     className="font-medium"
                                 />
-                                {errors.phone && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.phone.message}</p>}
+                                {errors.phone && <p className="mt-1 text-xs text-danger font-semibold">{errors.phone.message}</p>}
                             </div>
                             <div className="space-y-2 md:space-y-3">
                                 <Label>Emergency Contact</Label>
@@ -501,7 +501,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                     placeholder="Name - Relation - Phone"
                                     className="font-medium"
                                 />
-                                {errors.emergencyContact && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.emergencyContact.message}</p>}
+                                {errors.emergencyContact && <p className="mt-1 text-xs text-danger font-semibold">{errors.emergencyContact.message}</p>}
                             </div>
                             <div className="space-y-2 md:space-y-3">
                                 <Label>Blood Group</Label>
@@ -513,7 +513,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                     placeholder="O+, A-, etc."
                                     className="font-medium"
                                 />
-                                {errors.bloodGroup && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.bloodGroup.message}</p>}
+                                {errors.bloodGroup && <p className="mt-1 text-xs text-danger font-semibold">{errors.bloodGroup.message}</p>}
                             </div>
                         </div>
 
@@ -528,7 +528,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                     className="min-h-32 md:min-h-40 font-medium"
                                 />
                             </div>
-                            {errors.address && <p className="mt-1 text-xs text-red-500 font-semibold">{errors.address.message}</p>}
+                            {errors.address && <p className="mt-1 text-xs text-danger font-semibold">{errors.address.message}</p>}
                         </div>
                     </div>
                 </div>
