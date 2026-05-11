@@ -34,7 +34,7 @@ export class ChatService {
     private readonly events: EventsGateway,
     private readonly notifications: NotificationsService,
     private readonly teacherService: TeacherService,
-  ) {}
+  ) { }
 
   async searchUsers(query: string, user: CurrentUser) {
     if (user.role === Role.STUDENT) {
@@ -591,6 +591,43 @@ export class ChatService {
     return { message: 'Participants added successfully.' };
   }
 
+  async updateChatLocalState(chatId: string, userId: string, options: { hide?: boolean; clear?: boolean }) {
+    const participant = await this.prisma.chatParticipant.findUnique({
+      where: { chatId_userId: { chatId, userId } },
+    });
+    if (!participant) throw new NotFoundException('Participant not found');
+
+    const now = new Date();
+    const data: any = {};
+
+    if (options.hide) {
+      data.hiddenAt = now;
+    }
+    if (options.clear) {
+      data.clearedAt = now;
+
+      // Find the latest message to mark it as read when clearing
+      const latestMsg = await this.prisma.chatMessage.findFirst({
+        where: { chatId },
+        orderBy: { createdAt: 'desc' },
+      });
+      data.lastReadMessageId = latestMsg?.id || participant.lastReadMessageId;
+    }
+
+    const updated = await this.prisma.chatParticipant.update({
+      where: { id: participant.id },
+      data,
+    });
+
+    // Notify user of the change so frontend can refresh
+    this.events.emitToRoom(`user:${userId}`, 'chat:update', {
+      id: chatId,
+      ...data,
+    });
+
+    return { message: 'Chat local state updated successfully.' };
+  }
+
   async removeParticipant(
     chatId: string,
     targetUserId: string,
@@ -676,11 +713,11 @@ export class ChatService {
       }),
       ...(lastHistory
         ? [
-            this.prisma.chatMembershipHistory.update({
-              where: { id: lastHistory.id },
-              data: { deactivatedAt: new Date() },
-            }),
-          ]
+          this.prisma.chatMembershipHistory.update({
+            where: { id: lastHistory.id },
+            data: { deactivatedAt: new Date() },
+          }),
+        ]
         : []),
     ]);
 
@@ -1057,9 +1094,21 @@ export class ChatService {
       },
     });
 
+    // Filter chats based on hiddenAt and latest message (revival logic)
+    const visibleChats = chats.filter((chat) => {
+      const myParticipant = chat.participants.find((p) => p.userId === user.id);
+      if (!myParticipant?.hiddenAt) return true;
+
+      const latestMsg = chat.messages[0];
+      if (!latestMsg) return false;
+
+      // Revive if there's a message newer than hiddenAt
+      return latestMsg.createdAt > myParticipant.hiddenAt;
+    });
+
     // Add unread count for each chat based on user's lastReadMessageId
     const chatsWithUnread = await Promise.all(
-      chats.map(async (chat) => {
+      visibleChats.map(async (chat) => {
         const myParticipant = chat.participants.find(
           (p) => p.userId === user.id,
         );
@@ -1099,11 +1148,18 @@ export class ChatService {
         const unreadCount = await this.prisma.chatMessage.count({
           where: {
             chatId: chat.id,
-            createdAt: lastReadAt ? { gt: lastReadAt } : undefined,
+            createdAt: lastReadAt
+              ? { gt: lastReadAt }
+              : myParticipant?.clearedAt
+                ? { gt: myParticipant.clearedAt }
+                : undefined,
             senderId: { not: user.id },
             deletedAt: null,
             type: { not: ChatMessageType.SYSTEM },
             ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
+            ...(myParticipant?.clearedAt
+              ? { createdAt: { gt: myParticipant.clearedAt } }
+              : {}),
           },
         });
         return {
@@ -1115,6 +1171,70 @@ export class ChatService {
     );
 
     return chatsWithUnread;
+  }
+
+  async getChat(chatId: string, user: CurrentUser) {
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                avatarUrl: true,
+                role: true,
+              },
+            },
+          },
+        },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: {
+            sender: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+    });
+
+    if (!chat) throw new NotFoundException('Chat not found');
+
+    const myParticipant = chat.participants.find((p) => p.userId === user.id);
+    if (!myParticipant) throw new ForbiddenException('Not a participant');
+
+    const lastReadAt = myParticipant.lastReadMessageId
+      ? (
+          await this.prisma.chatMessage.findUnique({
+            where: { id: myParticipant.lastReadMessageId },
+            select: { createdAt: true },
+          })
+        )?.createdAt
+      : null;
+
+    const unreadCount = await this.prisma.chatMessage.count({
+      where: {
+        chatId: chat.id,
+        createdAt: lastReadAt
+          ? { gt: lastReadAt }
+          : myParticipant?.clearedAt
+          ? { gt: myParticipant.clearedAt }
+          : undefined,
+        senderId: { not: user.id },
+        deletedAt: null,
+        type: { not: ChatMessageType.SYSTEM },
+        ...(myParticipant?.clearedAt
+          ? { createdAt: { gt: myParticipant.clearedAt } }
+          : {}),
+      },
+    });
+
+    return {
+      ...chat,
+      unreadCount,
+    };
   }
 
   async getChatMessages(
@@ -1137,6 +1257,15 @@ export class ChatService {
         ...(h.deactivatedAt ? { lte: h.deactivatedAt } : {}),
       },
     }));
+
+    // Local history clearing logic
+    const baseWhere: Prisma.ChatMessageWhereInput = {
+      chatId,
+      ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
+      ...(participant.clearedAt
+        ? { createdAt: { gt: participant.clearedAt } }
+        : {}),
+    };
 
     const include = {
       sender: {
@@ -1174,9 +1303,8 @@ export class ChatService {
       // Messages before and including target
       const before = await this.prisma.chatMessage.findMany({
         where: {
-          chatId,
-          createdAt: { lte: target.createdAt },
-          ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
+          ...baseWhere,
+          createdAt: { ...baseWhere.createdAt as any, lte: target.createdAt },
         },
         orderBy: { createdAt: 'desc' },
         take: halfLimit + 1,
@@ -1186,9 +1314,8 @@ export class ChatService {
       // Messages after target
       const after = await this.prisma.chatMessage.findMany({
         where: {
-          chatId,
-          createdAt: { gt: target.createdAt },
-          ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
+          ...baseWhere,
+          createdAt: { ...baseWhere.createdAt as any, gt: target.createdAt },
         },
         orderBy: { createdAt: 'asc' },
         take: halfLimit,
@@ -1202,10 +1329,7 @@ export class ChatService {
       hasMoreAfter = after.length >= halfLimit;
     } else {
       const list = await this.prisma.chatMessage.findMany({
-        where: {
-          chatId,
-          ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
-        },
+        where: baseWhere,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -1224,10 +1348,7 @@ export class ChatService {
     }
 
     const totalCount = await this.prisma.chatMessage.count({
-      where: {
-        chatId,
-        ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
-      },
+      where: baseWhere,
     });
 
     // Include read receipts

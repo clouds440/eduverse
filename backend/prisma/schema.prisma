@@ -502,6 +502,10 @@ model ChatParticipant {
   lastReadMessageId String?
   lastSeenAt        DateTime?
   joinedAt          DateTime                 @default(now())
+  
+  // User-local chat state
+  hiddenAt          DateTime?
+  clearedAt         DateTime?
   membershipHistory ChatMembershipHistory[]
 
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)

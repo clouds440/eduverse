@@ -42,7 +42,7 @@ export default function Navbar() {
                     >
                         {isDesktop ? (<Menu className="w-6 h-6" />) : (isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />)}
                         {!isDesktop && !isMobileOpen && (chatUnread + mailUnread) > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-dangertext-white text-[10px] font-black shadow-sm">
+                            <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-danger text-white text-[10px] font-black shadow-sm">
                                 {chatUnread + mailUnread > 99 ? '99+' : chatUnread + mailUnread}
                             </span>
                         )}
@@ -52,7 +52,7 @@ export default function Navbar() {
             </div>
 
             {!isDashboard && (
-                <div className="hidden md:flex items-center space-x-12 lg:space-x-16">
+                <div className="hidden md:flex items-center space-x-8">
                     {[
                         { name: 'Documentation', href: '/docs' },
                         { name: 'Pricing', href: '/pricing' },
@@ -68,7 +68,7 @@ export default function Navbar() {
                                     }`}
                             >
                                 <span>{item.name}</span>
-                                <span className={`absolute -bottom-1.5 left-0 h-[2px] bg-primary transition-all duration-300 ${isActive ? 'w-full' : 'w-0 group-hover:w-full'}`} />
+                                <span className={`absolute -bottom-1.5 left-0 h-0.5 bg-primary transition-all duration-300 ${isActive ? 'w-full' : 'w-0 group-hover:w-full'}`} />
                             </Link>
                         );
                     })}

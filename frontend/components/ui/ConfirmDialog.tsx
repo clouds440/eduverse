@@ -24,11 +24,14 @@ export function ConfirmDialog({
     confirmText = 'Confirm',
     isDestructive = false,
     loadingId,
-}: ConfirmDialogProps) {
+    children,
+}: ConfirmDialogProps & { children?: React.ReactNode }) {
     return (
         <ModalOverlay isOpen={isOpen} maxWidth="max-w-md" className="p-6 sm:p-8 md:p-10 animate-scale-in">
             <h3 className="text-xl sm:text-2xl font-black mb-3 sm:mb-4 leading-tight">{title}</h3>
             <p className="opacity-70 text-base sm:text-lg mb-6 sm:mb-8 md:mb-10 leading-relaxed font-medium">{description}</p>
+
+            {children && <div className="mb-6 sm:mb-8">{children}</div>}
 
             <div className="flex gap-3 sm:gap-4 justify-end shrink-0 flex-col-reverse sm:flex-row">
                 <Button

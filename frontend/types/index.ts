@@ -525,6 +525,8 @@ export interface ChatParticipant {
     lastReadMessageId: string | null;
     lastSeenAt: string | null;
     joinedAt: string;
+    hiddenAt?: string | null;
+    clearedAt?: string | null;
     user?: User;
 }
 

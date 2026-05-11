@@ -97,6 +97,18 @@ export class ChatController {
     });
   }
 
+  @Get(':id')
+  async getChat(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.getChat(id, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+    });
+  }
+
   @Get(':id/messages')
   async getChatMessages(
     @Param('id') id: string,
@@ -160,6 +172,16 @@ export class ChatController {
       role: req.user.role,
       organizationId: req.user.organizationId,
     });
+  }
+
+  @Post(':id/local-state')
+  @Access(AccessLevel.WRITE)
+  async updateChatLocalState(
+    @Param('id') id: string,
+    @Body() body: { hide?: boolean; clear?: boolean },
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.updateChatLocalState(id, req.user.id, body);
   }
 
   @Post([':id/participants/:userId/remove', ':id/participants/remove/:userId'])

@@ -31,6 +31,7 @@ import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { Toggle } from '../ui/Toggle';
 import { NewChatModal } from './NewChatModal';
 import { ChatSettingsModal } from './ChatSettingsModal';
 import { MessageContextMenu } from './MessageActionsDropdown';
@@ -82,17 +83,22 @@ export function ChatLayout() {
         isOpen: boolean;
         chatId: string | null;
         chatName: string;
+        alsoCloseMessages: boolean;
     }>({
         isOpen: false,
         chatId: null,
-        chatName: ''
+        chatName: '',
+        alsoCloseMessages: true
     });
 
     useEffect(() => {
+        if (initialChatId) {
+            setActiveChatId(initialChatId);
+        }
         if (msgIdParam) {
             setTargetMessageId(msgIdParam);
         }
-    }, [msgIdParam]);
+    }, [initialChatId, msgIdParam]);
     // Initialize from persistent store
     const [messages, setMessages] = useState<ChatMessageWithMeta[]>(() => {
         if (initialChatId) {
@@ -212,9 +218,9 @@ export function ChatLayout() {
             try {
                 const res = await api.chat.getChatMessages(activeChatId, token, { aroundId: messageId, limit: 30 });
                 setMessages(res.data);
-                setIsViewingHistory(true);
                 setHasMoreMessages(res.hasMoreBefore ?? false);
                 setHasMoreAfter(res.hasMoreAfter ?? false);
+                setIsViewingHistory(res.hasMoreAfter ?? false);
 
                 // Wait for render, then scroll to the specific item
                 setTimeout(() => {
@@ -347,7 +353,7 @@ export function ChatLayout() {
         setHasMoreMessages(true);
         setHasMoreAfter(false);
         setUnreadSinceScroll(0);
-        setIsViewingHistory(!!targetMsgId);
+        setIsViewingHistory(false);
 
         try {
             let res: PaginatedResponse<ChatMessage>;
@@ -362,6 +368,7 @@ export function ChatLayout() {
             setCachedMessages(chatId, messagesData);
             setHasMoreMessages(res.hasMoreBefore ?? (res.currentPage < res.totalPages));
             setHasMoreAfter(res.hasMoreAfter ?? false);
+            setIsViewingHistory(res.hasMoreAfter ?? false);
 
             if (targetMsgId) {
                 // When deep-linking, scroll to message and highlight
@@ -528,6 +535,7 @@ export function ChatLayout() {
             });
             setMessages(prev => mergeUniqueMessages(prev, res.data, 'append'));
             setHasMoreAfter(res.hasMoreAfter ?? false);
+            setIsViewingHistory(res.hasMoreAfter ?? false);
         } catch (err) {
             console.error('Failed to load newer messages', err);
         } finally {
@@ -588,10 +596,20 @@ export function ChatLayout() {
                     return [updatedChat, ...newChats];
                 }
 
-                // If chat isn't present, insert a lightweight placeholder from message
-                insertOrUpdateChatFromMessage(message);
-                const cached = getCachedChats();
-                if (cached) return cached;
+                // Chat not in list — fetch full chat data from API to avoid stale/missing fields
+                if (token) {
+                    api.chat.getChat(message.chatId, token).then((fullChat: Chat) => {
+                        setChats(prev => {
+                            if (prev.some(c => c.id === fullChat.id)) return prev;
+                            return [{ ...fullChat, messages: [message], unreadCount: message.senderId !== user.id ? 1 : 0 }, ...prev];
+                        });
+                    }).catch(() => {
+                        // Fallback: insert lightweight placeholder
+                        insertOrUpdateChatFromMessage(message);
+                        const cached = getCachedChats();
+                        if (cached) setChats(cached);
+                    });
+                }
                 return prevChats;
             });
         });
@@ -708,9 +726,10 @@ export function ChatLayout() {
                 const presenceTimer = setTimeout(() => {
                     emit('presence:request', { chatId: activeChatId });
                 }, 300);
-                // Update URL without full page reload
+                // Update URL without full page reload, clear msgId
                 const url = new URL(window.location.href);
                 url.searchParams.set('id', activeChatId);
+                url.searchParams.delete('msgId');
                 window.history.replaceState({}, '', url.toString());
 
                 return () => {
@@ -719,9 +738,10 @@ export function ChatLayout() {
                 };
             }
 
-            // Update URL without full page reload
+            // Update URL without full page reload, clear msgId
             const url = new URL(window.location.href);
             url.searchParams.set('id', activeChatId);
+            url.searchParams.delete('msgId');
             window.history.replaceState({}, '', url.toString());
 
             return () => leaveRoom(`chat:${activeChatId}`);
@@ -832,16 +852,17 @@ export function ChatLayout() {
         }
     }, [emit]);
 
-    const handleDeleteChat = async (chatId: string) => {
+    const handleDeleteChat = async (chatId: string, alsoClear: boolean) => {
         if (!token || !user?.id) return;
 
         try {
-            await api.chat.removeParticipant(chatId, user.id, token);
+            await api.chat.updateLocalState(chatId, { hide: true, clear: alsoClear }, token);
             // Remove the chat from the local state
             setChats(prev => prev.filter(c => c.id !== chatId));
             // If the deleted chat was active, clear it
             if (activeChatId === chatId) {
                 setActiveChatId(null);
+                setMessages([]);
             }
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Chat deleted successfully', type: 'success' } });
         } catch (err) {
@@ -850,8 +871,38 @@ export function ChatLayout() {
         }
     };
 
+    const handleClearChatHistory = async (chatId: string) => {
+        if (!token || !user?.id) return;
+
+        try {
+            await api.chat.updateLocalState(chatId, { clear: true }, token);
+            // If this is the active chat, clear messages in UI
+            if (activeChatId === chatId) {
+                setMessages([]);
+                setCachedMessages(chatId, []);
+            }
+            dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Chat history cleared', type: 'success' } });
+        } catch (err) {
+            console.error('Failed to clear chat history:', err);
+            dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Failed to clear chat history', type: 'error' } });
+        }
+    };
+
     const filteredChats = useMemo(() => {
         let result = chats;
+
+        // Visibility / Revival logic
+        result = result.filter(chat => {
+            const myParticipant = chat.participants?.find(p => p.userId === user?.id);
+            // Check both on participant and on chat (in case of partial updates)
+            const hiddenAt = myParticipant?.hiddenAt || (chat as any).hiddenAt;
+            if (!hiddenAt) return true;
+
+            const latestMsg = chat.messages?.[0];
+            if (!latestMsg) return false;
+
+            return new Date(latestMsg.createdAt) > new Date(hiddenAt);
+        });
 
         // Filter by group type
         if (activeGroupFilter === 'groups') {
@@ -1483,7 +1534,7 @@ export function ChatLayout() {
             {/* ===== SIDEBAR ===== */}
             <div className={`
             ${activeChatId && !isDesktop ? 'hidden' : 'flex'} 
-            w-full sm:max-w-xs md:max-w-sm lg:max-w-[320px] xl:max-w-87.5 2xl:max-w-95 border-r border-border flex-col bg-card h-full transition-all duration-300 ease-in-out
+            w-full lg:max-w-[320px] 2xl:max-w-95 border-r border-border flex-col bg-card h-full transition-all duration-300 ease-in-out
         `}>
                 <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-border bg-card/50 flex justify-between items-center">
                     <div>
@@ -1592,7 +1643,7 @@ export function ChatLayout() {
                                 <div key={chat.id} className="relative group">
                                     <button
                                         type='button'
-                                        onClick={() => setActiveChatId(chat.id)}
+                                        onClick={() => { setActiveChatId(chat.id); setTargetMessageId(null); }}
                                         {...getLongPressHandlers({
                                             isDesktop,
                                             itemId: chat.id,
@@ -1684,7 +1735,35 @@ export function ChatLayout() {
                                         <MoreVertical size={16} className="text-muted-foreground" />
                                     </button>
                                     {chatMenuOpenId === chat.id && (
-                                        <div data-chat-menu={chat.id} className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-xl py-1 z-50 min-w-35">
+                                        <div data-chat-menu={chat.id} className="absolute right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-xl py-1 z-50 min-w-40">
+                                            <button
+                                                type='button'
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleClearChatHistory(chat.id);
+                                                    setChatMenuOpenId(null);
+                                                }}
+                                                className="w-full px-3 py-2 text-left text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+                                            >
+                                                <Trash2 size={14} />
+                                                Clear Chat
+                                            </button>
+                                            {chat.type === ChatType.GROUP && (
+                                                <button
+                                                    type='button'
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveChatId(chat.id);
+                                                        setTargetMessageId(null);
+                                                        setIsSettingsModalOpen(true);
+                                                        setChatMenuOpenId(null);
+                                                    }}
+                                                    className="w-full px-3 py-2 text-left text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-2"
+                                                >
+                                                    <Info size={14} />
+                                                    Settings
+                                                </button>
+                                            )}
                                             <button
                                                 type='button'
                                                 onClick={(e) => {
@@ -1692,7 +1771,8 @@ export function ChatLayout() {
                                                     setDeleteConfirmConfig({
                                                         isOpen: true,
                                                         chatId: chat.id,
-                                                        chatName: displayName
+                                                        chatName: displayName,
+                                                        alsoCloseMessages: true
                                                     });
                                                     setChatMenuOpenId(null);
                                                 }}
@@ -1774,18 +1854,16 @@ export function ChatLayout() {
                                 </div>
                             </div>
                             <div className="flex items-center space-x-1">
-                                {activeChat.type === ChatType.GROUP && (
-                                    <Button
-                                        type='button'
-                                        variant="secondary"
-                                        px="px-2"
-                                        py="py-2"
-                                        onClick={() => setIsSettingsModalOpen(true)}
-                                        className="text-muted-foreground hover:text-foreground rounded-xl bg-transparent border-none shadow-none"
-                                        title="Chat Settings"
-                                        icon={MoreVertical}
-                                    />
-                                )}
+                                <Button
+                                    type='button'
+                                    variant="secondary"
+                                    px="px-2"
+                                    py="py-2"
+                                    onClick={() => activeChat.type === ChatType.GROUP ? setIsSettingsModalOpen(true) : handleClearChatHistory(activeChat.id)}
+                                    className="text-muted-foreground hover:text-foreground rounded-xl bg-transparent border-none shadow-none"
+                                    title={activeChat.type === ChatType.GROUP ? 'Chat Settings' : 'Clear Chat'}
+                                    icon={activeChat.type === ChatType.GROUP ? MoreVertical : Trash2}
+                                />
                             </div>
                         </div>
 
@@ -2172,7 +2250,7 @@ export function ChatLayout() {
                                                                         }}
                                                                         className={`mention-item w-full flex items-center space-x-2 sm:space-x-3 px-2.5 sm:px-3 py-1.5 sm:py-2 transition-colors ${idx === mentionSelectedIndex ? 'bg-primary/10' : 'hover:bg-muted'}`}
                                                                     >
-                                                    <ChatAvatar targetUser={member.user} className="w-6 h-6 sm:w-7 sm:h-7" isOnline={!!onlineUsers[member.userId]} />
+                                                                        <ChatAvatar targetUser={member.user} className="w-6 h-6 sm:w-7 sm:h-7" isOnline={!!onlineUsers[member.userId]} />
                                                                         <div className="text-left min-w-0">
                                                                             <p className="text-[12px] sm:text-[13px] font-semibold text-foreground truncate">{member.user?.name}</p>
                                                                             <p className="text-[10px] sm:text-[11px] text-muted-foreground capitalize">{member.user?.role?.toLowerCase().replace('_', ' ')}</p>
@@ -2297,17 +2375,25 @@ export function ChatLayout() {
 
             <ConfirmDialog
                 isOpen={deleteConfirmConfig.isOpen}
-                onClose={() => setDeleteConfirmConfig({ isOpen: false, chatId: null, chatName: '' })}
+                onClose={() => setDeleteConfirmConfig({ isOpen: false, chatId: null, chatName: '', alsoCloseMessages: true })}
                 onConfirm={() => {
                     if (deleteConfirmConfig.chatId) {
-                        handleDeleteChat(deleteConfirmConfig.chatId);
+                        handleDeleteChat(deleteConfirmConfig.chatId, deleteConfirmConfig.alsoCloseMessages);
                     }
                 }}
                 title="Delete Chat"
-                description={`This will only remove you from the chat "${deleteConfirmConfig.chatName}". Other participants will still see all messages and the chat will remain in their chat list.`}
+                description={`This will hide "${deleteConfirmConfig.chatName}" from your sidebar. It will reappear if a new message is received. You remain a participant.`}
                 confirmText="Delete"
                 isDestructive
-            />
+            >
+                <Toggle
+                    checked={deleteConfirmConfig.alsoCloseMessages}
+                    onCheckedChange={(checked) => setDeleteConfirmConfig(prev => ({ ...prev, alsoCloseMessages: checked }))}
+                    label="Also clear chat messages"
+                    description="Remove your local message history for this chat"
+                    size="sm"
+                />
+            </ConfirmDialog>
 
             {contextMenu && (
                 <MessageContextMenu

@@ -98,7 +98,14 @@ export function invalidateChats() {
 export function insertOrUpdateChatFromMessage(message: ChatMessage) {
     if (!cache.chats.data) {
         // create a minimal placeholder list
-        cache.chats.data = [{ id: message.chatId, messages: [message], unreadCount: 1, updatedAt: message.createdAt } as Chat];
+        const placeholder: Chat = {
+            id: message.chatId,
+            messages: [message],
+            unreadCount: 1,
+            updatedAt: message.createdAt,
+            ...(message.chat || {})
+        } as Chat;
+        cache.chats.data = [placeholder];
         return cache.chats.data;
     }
 
@@ -108,6 +115,10 @@ export function insertOrUpdateChatFromMessage(message: ChatMessage) {
         updated.messages = [message];
         updated.updatedAt = message.createdAt;
         updated.unreadCount = (updated.unreadCount || 0) + 1;
+        // Merge chat info if available
+        if (message.chat) {
+            Object.assign(updated, message.chat);
+        }
         const arr = [...cache.chats.data];
         arr.splice(idx, 1);
         arr.unshift(updated);
@@ -115,7 +126,13 @@ export function insertOrUpdateChatFromMessage(message: ChatMessage) {
         return arr;
     }
 
-    const newChat: Chat = { id: message.chatId, messages: [message], unreadCount: 1, updatedAt: message.createdAt } as Chat;
+    const newChat: Chat = {
+        id: message.chatId,
+        messages: [message],
+        unreadCount: 1,
+        updatedAt: message.createdAt,
+        ...(message.chat || {})
+    } as Chat;
     cache.chats.data = [newChat, ...cache.chats.data];
     return cache.chats.data;
 }

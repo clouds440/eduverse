@@ -352,6 +352,8 @@ export const api = {
             request<Chat>('/chat/direct', { method: 'POST', body: JSON.stringify({ participantId }), token }),
         createGroupChat: (name: string, participantIds: string[], token: string) =>
             request<Chat>('/chat/group', { method: 'POST', body: JSON.stringify({ name, participantIds }), token }),
+        getChat: (chatId: string, token: string) =>
+            request<Chat>(`/chat/${chatId}`, { token }),
         getUserChats: (token: string) =>
             request<Chat[]>('/chat', { token }),
         getChatMessages: (chatId: string, token: string, params: { page?: number, limit?: number, aroundId?: string } = {}) =>
@@ -366,6 +368,8 @@ export const api = {
             request<void>(`/chat/${chatId}/read${messageId ? `/${messageId}` : ''}`, { method: 'PATCH', token }),
         deleteMessage: (chatId: string, messageId: string, token: string) =>
             request<void>(`/chat/${chatId}/messages/${messageId}/delete`, { method: 'POST', token }),
+        updateLocalState: (chatId: string, options: { hide?: boolean, clear?: boolean }, token: string) =>
+            request<void>(`/chat/${chatId}/local-state`, { method: 'POST', body: JSON.stringify(options), token }),
         updateChat: (chatId: string, data: { name?: string, avatarUrl?: string, readOnly?: boolean }, token: string) =>
             request<Chat>(`/chat/${chatId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         addParticipants: (chatId: string, participantIds: string[], token: string) =>
