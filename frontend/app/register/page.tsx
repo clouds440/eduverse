@@ -139,7 +139,7 @@ export default function RegisterPage() {
                             src="/assets/eduverse.png"
                             alt="Growth Illustration"
                             fill
-                            className="object-contain invert relative z-10"
+                            className="object-contain dark:invert relative z-10"
                             sizes="(max-width: 1024px) 0px, 24rem"
                         />
                     </div>

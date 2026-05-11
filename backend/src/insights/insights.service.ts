@@ -72,7 +72,7 @@ export interface DashboardInsightsResponse {
 
 @Injectable()
 export class InsightsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private formatPercent(value: number, fractionDigits = 0) {
     if (!Number.isFinite(value)) return '0%';
@@ -235,12 +235,12 @@ export class InsightsService {
   }
 
   private formatLocalDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
 
-  return `${year}-${month}-${day}`;
-}
+    return `${year}-${month}-${day}`;
+  }
 
   private processDateTrendData(
     groupByData: { createdAt?: Date; date?: Date; _count: number }[],
@@ -261,10 +261,10 @@ export class InsightsService {
         : item.date
           ? this.formatLocalDate(item.date)
           : '';
-            if (dateKey) {
-              dataMap.set(dateKey, (dataMap.get(dateKey) || 0) + item._count);
-            }
-          });
+      if (dateKey) {
+        dataMap.set(dateKey, (dataMap.get(dateKey) || 0) + item._count);
+      }
+    });
 
     // Fill in all dates in range
     while (currentDate.getTime() <= endDateOnly.getTime()) {
@@ -305,7 +305,8 @@ export class InsightsService {
       '80-89%': 0,
       '70-79%': 0,
       '60-69%': 0,
-      'Below 60%': 0,
+      '50-59%': 0,
+      '0-49%': 0,
     };
 
     grades.forEach((grade) => {
@@ -314,7 +315,8 @@ export class InsightsService {
       else if (percentage >= 80) distribution['80-89%']++;
       else if (percentage >= 70) distribution['70-79%']++;
       else if (percentage >= 60) distribution['60-69%']++;
-      else distribution['Below 60%']++;
+      else if (percentage >= 50) distribution['50-59%']++;
+      else distribution['0-49%']++;
     });
 
     return Object.entries(distribution).map(([range, count]) => ({ range, count }));
@@ -623,14 +625,14 @@ export class InsightsService {
       ],
       spotlight: nextClass
         ? {
-            id: 'next-class',
-            title: `${nextClass.sectionName} is up next`,
-            description: `${nextClass.courseName} • ${nextClass.startTime}-${nextClass.endTime}${nextClass.room ? ` • ${nextClass.room}` : ''}`,
-            meta: nextClass.startsAt.toLocaleString(),
-            href: `/attendance/${nextClass.sectionId}?scheduleId=${nextClass.scheduleId}&date=${this.toDateOnly(nextClass.startsAt)}`,
-            badge: 'Next class',
-            tone: InsightTone.INFO,
-          }
+          id: 'next-class',
+          title: `${nextClass.sectionName} is up next`,
+          description: `${nextClass.courseName} • ${nextClass.startTime}-${nextClass.endTime}${nextClass.room ? ` • ${nextClass.room}` : ''}`,
+          meta: nextClass.startsAt.toLocaleString(),
+          href: `/attendance/${nextClass.sectionId}?scheduleId=${nextClass.scheduleId}&date=${this.toDateOnly(nextClass.startsAt)}`,
+          badge: 'Next class',
+          tone: InsightTone.INFO,
+        }
         : null,
       groups: [
         {
@@ -993,14 +995,14 @@ export class InsightsService {
       ],
       spotlight: nextClass
         ? {
-            id: 'next-class',
-            title: `${nextClass.sectionName} is your next class`,
-            description: `${nextClass.courseName} • ${nextClass.startTime}-${nextClass.endTime}${nextClass.room ? ` • ${nextClass.room}` : ''}`,
-            meta: nextClass.startsAt.toLocaleString(),
-            href: `/attendance/${nextClass.sectionId}?scheduleId=${nextClass.scheduleId}&date=${this.toDateOnly(nextClass.startsAt)}`,
-            badge: 'Next class',
-            tone: InsightTone.INFO,
-          }
+          id: 'next-class',
+          title: `${nextClass.sectionName} is your next class`,
+          description: `${nextClass.courseName} • ${nextClass.startTime}-${nextClass.endTime}${nextClass.room ? ` • ${nextClass.room}` : ''}`,
+          meta: nextClass.startsAt.toLocaleString(),
+          href: `/attendance/${nextClass.sectionId}?scheduleId=${nextClass.scheduleId}&date=${this.toDateOnly(nextClass.startsAt)}`,
+          badge: 'Next class',
+          tone: InsightTone.INFO,
+        }
         : null,
       groups: [
         {

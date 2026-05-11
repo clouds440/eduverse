@@ -34,6 +34,8 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { NewChatModal } from './NewChatModal';
 import { ChatSettingsModal } from './ChatSettingsModal';
 import { MessageContextMenu } from './MessageActionsDropdown';
+import { ChatAvatar } from './ChatAvatar';
+import { ImagePreviewModal } from './ImagePreviewModal';
 import {
     type ChatTypingEvent,
     type ChatTypingStateMap,
@@ -318,32 +320,6 @@ export function ChatLayout() {
         };
     }, []);
 
-    // Helper: Get avatar with fallback — delegate to `BrandIcon` which now supports initials fallback
-    const UserAvatar = ({ targetUser, className = "w-8 h-8", groupIcon = false, isOnline = false }: { targetUser?: { id?: string; name?: string | null; avatarUrl?: string | null; role?: Role; orgName?: string; orgLogoUrl?: string | null; avatarUpdatedAt?: string | null; userName?: string }, className?: string, groupIcon?: boolean, isOnline?: boolean }) => {
-        if (groupIcon) {
-            return (
-                <div className={`${className} rounded-full bg-primary/60 flex items-center justify-center text-primary font-bold border border-primary shadow-sm shrink-0`}>
-                    <Plus size={16} />
-                </div>
-            );
-        }
-
-        // Always use BrandIcon; ask it to render initials when no avatar is present
-        return (
-            <div className="relative shrink-0">
-                <BrandIcon
-                    variant="user"
-                    size="sm"
-                    user={targetUser}
-                    className={className}
-                    initialsFallback
-                />
-                {isOnline && (
-                    <span className="absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full bg-success ring-2 ring-background shadow-sm" />
-                )}
-            </div>
-        );
-    };
 
     // 1. Fetch Chat List
     const fetchChats = useCallback(async () => {
@@ -1359,7 +1335,7 @@ export function ChatLayout() {
                 >
                     {!isMine && (
                         <div className="w-7 shrink-0 mr-2 flex flex-col justify-end mb-1">
-                            {isLastInGroup && <UserAvatar targetUser={msg.sender} className="w-7 h-7 rounded-full" isOnline={!!(msg.sender?.id && onlineUsers[msg.sender.id])} />}
+                            {isLastInGroup && <ChatAvatar targetUser={msg.sender} className="w-7 h-7 rounded-full" isOnline={!!(msg.sender?.id && onlineUsers[msg.sender.id])} />}
                         </div>
                     )}
                     <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] lg:max-w-[65%] min-w-0 ${isMine ? 'items-end' : 'items-start'}`}>
@@ -1633,7 +1609,7 @@ export function ChatLayout() {
                                             }`}
                                     >
                                         <div className="relative mr-2.5 sm:mr-3 shrink-0">
-                                            <UserAvatar
+                                            <ChatAvatar
                                                 targetUser={chat.type === ChatType.GROUP
                                                     ? { name: displayName, avatarUrl: chat.avatarUrl, avatarUpdatedAt: chat.avatarUpdatedAt }
                                                     : otherUsers[0]?.user
@@ -1756,7 +1732,7 @@ export function ChatLayout() {
                                         <ChevronLeft size={22} className="text-primary/80 hover:text-primary" />
                                     </button>
                                 )}
-                                <UserAvatar
+                                <ChatAvatar
                                     targetUser={activeChat.type === ChatType.GROUP
                                         ? { name: activeChat.name, avatarUrl: activeChat.avatarUrl, avatarUpdatedAt: activeChat.avatarUpdatedAt }
                                         : activeChat.participants?.find(p => p.userId !== user.id)?.user
@@ -1935,7 +1911,7 @@ export function ChatLayout() {
                                         {activeChat.participants?.filter(p => p.isActive).map(p => (
                                             <div key={p.id} className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl hover:bg-muted transition-colors group/item">
                                                 <div className="flex items-center space-x-2 sm:space-x-2.5 min-w-0">
-                                                    <UserAvatar targetUser={p.user} className="w-7 h-7 sm:w-8 sm:h-8" isOnline={!!onlineUsers[p.userId]} />
+                                                    <ChatAvatar targetUser={p.user} className="w-7 h-7 sm:w-8 sm:h-8" isOnline={!!onlineUsers[p.userId]} />
                                                     <div className="min-w-0">
                                                         <p className="text-[12px] sm:text-[13px] font-semibold truncate" style={{ color: getUserColor(p.user?.id) }}>{p.user?.name} {p.userId === user.id && <span className="text-muted-foreground font-normal">(You)</span>}</p>
                                                         <p className="text-[11px] sm:text-[13px] text-muted-foreground font-medium capitalize truncate">{p.user?.role?.toLowerCase().replace('_', ' ')}</p>
@@ -2196,7 +2172,7 @@ export function ChatLayout() {
                                                                         }}
                                                                         className={`mention-item w-full flex items-center space-x-2 sm:space-x-3 px-2.5 sm:px-3 py-1.5 sm:py-2 transition-colors ${idx === mentionSelectedIndex ? 'bg-primary/10' : 'hover:bg-muted'}`}
                                                                     >
-                                                                        <UserAvatar targetUser={member.user} className="w-6 h-6 sm:w-7 sm:h-7" isOnline={!!onlineUsers[member.userId]} />
+                                                    <ChatAvatar targetUser={member.user} className="w-6 h-6 sm:w-7 sm:h-7" isOnline={!!onlineUsers[member.userId]} />
                                                                         <div className="text-left min-w-0">
                                                                             <p className="text-[12px] sm:text-[13px] font-semibold text-foreground truncate">{member.user?.name}</p>
                                                                             <p className="text-[10px] sm:text-[11px] text-muted-foreground capitalize">{member.user?.role?.toLowerCase().replace('_', ' ')}</p>
@@ -2270,30 +2246,10 @@ export function ChatLayout() {
 
             {/* Image Preview Modal */}
             {previewImageUrl && (
-                <div
-                    className="absolute w-full h-full z-50 flex items-center justify-center bg-accent/90 backdrop-blur-sm"
-                    onClick={() => setPreviewImageUrl(null)}
-                >
-                    <div className="relative max-w-4xl max-h-screen p-3 sm:p-4 w-full h-full flex items-center justify-center">
-                        <div className="relative w-full h-full max-h-[85vh] flex items-center justify-center">
-                            <Image
-                                src={previewImageUrl}
-                                alt="Preview"
-                                fill
-                                className="object-contain rounded-lg shadow-2xl"
-                                unoptimized
-                            />
-                        </div>
-                        <button
-                            title='Close'
-                            type='button'
-                            onClick={() => setPreviewImageUrl(null)}
-                            className="absolute top-3 sm:top-4 right-3 sm:right-4 p-2 bg-accent/80 hover:bg-accent/70 rounded-full transition-colors shadow-lg"
-                        >
-                            <X size={24} className="text-primary/80 hover:text-primary" />
-                        </button>
-                    </div>
-                </div>
+                <ImagePreviewModal
+                    imageUrl={previewImageUrl}
+                    onClose={() => setPreviewImageUrl(null)}
+                />
             )}
 
             <NewChatModal

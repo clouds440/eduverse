@@ -19,9 +19,9 @@ import {
 // Color palette for charts
 export const COLORS = {
   primary: '#6366f1', // primary
-  success: '#10b981', // Emerald-500
-  warning: '#f59e0b', // Amber-500
-  danger: '#ef4444',  // danger/100
+  success: '#10b981', // success
+  warning: '#f59e0b', // warning
+  danger: '#ef4444',  // danger
   info: '#3b82f6',    // info
   purple: '#8b5cf6',
   pink: '#ec4899',

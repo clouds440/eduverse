@@ -73,7 +73,7 @@ export default function LoginPage() {
 
 
   return (
-    <div className="flex min-h-full h-screen bg-background overflow-hidden relative">
+    <div className="flex min-h-fit h-screen bg-background overflow-hidden relative">
       {/* Left Column: Branding Assets (Hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 relative flex-col items-center justify-center p-10 overflow-hidden bg-linear-to-br from-primary/5 via-background to-secondary/5">
         {/* Decorative elements */}
@@ -100,7 +100,7 @@ export default function LoginPage() {
               src="/assets/eduverse.png"
               alt="Eduverse"
               fill
-              className="object-contain invert relative z-10"
+              className="object-contain dark:invert relative z-10"
               sizes="(max-width: 1024px) 0px, 28rem"
             />
           </div>
