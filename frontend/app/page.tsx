@@ -99,7 +99,7 @@ export default function HomePage() {
                             </div>
 
                             {/* Right — Dashboard Mockup */}
-                            <div className="relative hidden lg:block">
+                            <div className="relative hidden lg:block py-10 px-2">
                                 <Reveal delay={600}>
                                     <DashboardMockup />
                                 </Reveal>
