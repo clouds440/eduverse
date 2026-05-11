@@ -7,7 +7,7 @@ import useSWR from 'swr';
 import { Section, Role } from '@/types';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
-import { Loading } from '@/components/ui/Loading';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export default function GradesPage() {
     const { token, user } = useAuth();
@@ -27,8 +27,32 @@ export default function GradesPage() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center p-12 h-[60vh]">
-                <Loading size="lg" />
+            <div className="flex flex-col h-full w-full space-y-6 animate-in fade-in duration-500">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-card/50 p-4 md:p-6 rounded-lg border border-border shadow-inner">
+                    <Skeleton className="h-10 w-full max-w-md rounded-md" />
+                    <div className="hidden sm:flex items-center gap-2">
+                        <Skeleton className="w-4 h-4 rounded-full" />
+                        <Skeleton className="h-3 w-24 rounded-md" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                    {[...Array(6)].map((_, i) => (
+                        <div key={i} className="bg-card border border-border rounded-lg p-4 md:p-6 space-y-6">
+                            <div className="flex justify-between items-start">
+                                <Skeleton className="w-12 h-12 rounded-lg" />
+                                <Skeleton className="w-5 h-5 rounded-md" />
+                            </div>
+                            <div className="space-y-3">
+                                <Skeleton className="h-7 w-full rounded-md" />
+                                <Skeleton className="h-3 w-2/3 rounded-md" />
+                            </div>
+                            <div className="mt-8 pt-6 border-t border-border flex items-center justify-between">
+                                <Skeleton className="h-3 w-32 rounded-md" />
+                                <Skeleton className="h-6 w-20 rounded-lg" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     }

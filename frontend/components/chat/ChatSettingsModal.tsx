@@ -12,6 +12,7 @@ import { Input } from '../ui/Input';
 import { useGlobal } from '@/context/GlobalContext';
 import { Modal } from '../ui/Modal';
 import { Toggle } from '../ui/Toggle';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface ChatSettingsModalProps {
     isOpen: boolean;
@@ -38,6 +39,18 @@ export function ChatSettingsModal({
     const [readOnly, setReadOnly] = useState(chat.readOnly || false);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        description: string;
+        onConfirm: () => void;
+        isDestructive?: boolean;
+    }>({
+        isOpen: false,
+        title: '',
+        description: '',
+        onConfirm: () => { },
+    });
 
     useEffect(() => {
         if (isOpen) {
@@ -99,15 +112,23 @@ export function ChatSettingsModal({
         }
     };
 
-    const handleRemoveParticipant = async (userId: string) => {
-        try {
-            await api.chat.removeParticipant(chat.id, userId, token);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Participant removed', type: 'success' } });
-            onUpdate();
-        } catch (err) {
-            console.error(err);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to remove', type: 'error' } });
-        }
+    const handleRemoveParticipant = (userId: string, userName: string) => {
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Remove Participant',
+            description: `Are you sure you want to remove ${userName} from this group? They will no longer be able to see new messages or participate in the conversation.`,
+            isDestructive: true,
+            onConfirm: async () => {
+                try {
+                    await api.chat.removeParticipant(chat.id, userId, token);
+                    dispatch({ type: 'TOAST_ADD', payload: { message: 'Participant removed', type: 'success' } });
+                    onUpdate();
+                } catch (err) {
+                    console.error(err);
+                    dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to remove', type: 'error' } });
+                }
+            }
+        });
     };
 
     const handleUpdateParticipantRole = async (userId: string, newRole: 'ADMIN' | 'MOD' | 'MEMBER') => {
@@ -195,7 +216,7 @@ export function ChatSettingsModal({
                         <Toggle
                             checked={readOnly}
                             onCheckedChange={setReadOnly}
-                            knobColor="bg-white"
+                            offColor='bg-primary/20'
                         />
                     </div>
                 )}
@@ -208,7 +229,7 @@ export function ChatSettingsModal({
                         <label className="text-[11px] font-black text-muted-foreground tracking-widest block ml-1">Participants</label>
                         {isGroupAdmin && (
                             <button
-                                onClick={() => { onClose(); onAddParticipants(); }}
+                                onClick={() => { onAddParticipants(); }}
                                 className="text-[10px] font-black text-primary/90 cursor-pointer hover:text-primary flex items-center bg-primary/10  hover:bg-primary/20 px-3 py-2 rounded-lg transition-all"
                             >
                                 <UserPlus size={12} />
@@ -252,7 +273,7 @@ export function ChatSettingsModal({
                                             <select
                                                 value={participantRole}
                                                 onChange={(e) => handleUpdateParticipantRole(p.userId, e.target.value as 'ADMIN' | 'MOD' | 'MEMBER')}
-                                                className="text-[8px] sm:text-[9px] font-bold bg-card/50 border border-border/30 rounded px-1 sm:px-1.5 py-0.5 sm:py-1 focus:outline-none focus:border-primary/50"
+                                                className="text-[8px] sm:text-[9px] font-bold bg-card/50 border border-border/30 rounded-lg px-1 sm:px-1.5 py-0.5 sm:py-1 focus:outline-none focus:border-primary/50"
                                             >
                                                 <option value="MEMBER">Member</option>
                                                 <option value="MOD">Mod</option>
@@ -261,8 +282,8 @@ export function ChatSettingsModal({
                                         )}
                                         {isGroupAdmin && p.userId !== currentUser.id && p.userId !== chat.creatorId && (
                                             <button
-                                                onClick={() => handleRemoveParticipant(p.userId)}
-                                                className="p-1 sm:p-1.5 text-muted-foreground hover:text-dangerhover:bg-danger/10 rounded-lg opacity-0 group-hover/item:opacity-100 transition-all"
+                                                onClick={() => handleRemoveParticipant(p.userId, p.user?.name || 'this participant')}
+                                                className="p-1 sm:p-1.5 text-muted-foreground hover:text-danger cursor-pointer hover:bg-danger/10 rounded-lg transition-all"
                                                 title="Remove from group"
                                             >
                                                 <UserMinus size={12} />
@@ -275,6 +296,14 @@ export function ChatSettingsModal({
                     </div>
                 </div>
             </div>
+            <ConfirmDialog
+                isOpen={confirmConfig.isOpen}
+                onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                title={confirmConfig.title}
+                description={confirmConfig.description}
+                onConfirm={confirmConfig.onConfirm}
+                isDestructive={confirmConfig.isDestructive}
+            />
         </Modal>
     );
 }

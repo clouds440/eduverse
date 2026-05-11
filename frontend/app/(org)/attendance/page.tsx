@@ -5,7 +5,7 @@ import { Section, PaginatedResponse } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { CheckCircle, Users, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { Loading } from '@/components/ui/Loading';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export default function AttendanceLandingPage() {
     const { token, user } = useAuth();
@@ -38,7 +38,28 @@ export default function AttendanceLandingPage() {
 
                 <div className="overflow-y-auto flex-1 pr-2">
                     {fetching ? (
-                        <div className="py-12 flex justify-center"><Loading size="md" /></div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 animate-in fade-in duration-500">
+                            {[...Array(8)].map((_, i) => (
+                                <div key={i} className="p-4 md:p-6 bg-card border border-border rounded-xl shadow-lg space-y-4">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <Skeleton className="h-6 w-24 rounded-full" />
+                                        <Skeleton className="h-4 w-12 rounded-md" />
+                                    </div>
+                                    <Skeleton className="h-8 w-full" />
+                                    <div className="space-y-2">
+                                        <Skeleton className="h-3 w-2/3" />
+                                        <Skeleton className="h-1 w-full rounded-full" />
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <Skeleton className="h-2 w-16" />
+                                            <Skeleton className="h-3 w-12" />
+                                        </div>
+                                        <Skeleton className="w-8 h-8 rounded-xl" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     ) : sections.length === 0 ? (
                         <div className="text-center py-16 bg-muted/20 border border-border/50 rounded-xl border-dashed">
                             <p className="text-muted-foreground font-medium">No active sections assigned to you.</p>

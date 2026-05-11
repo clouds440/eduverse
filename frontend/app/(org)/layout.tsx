@@ -257,7 +257,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             label: 'Messages',
             icon: MessageSquare,
             href: '/chat',
-            badge: chatStats && chatStats.unread > 0 ? `${chatStats.unread} New` : undefined
+            badge: chatStats && chatStats.unread > 0 ? `${chatStats.unread}` : undefined
         });
 
         const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
@@ -315,7 +315,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             label: 'Mail',
             href: '/mail',
             icon: Mail,
-            badge: state.stats.mail && state.stats.mail.unread > 0 ? `${state.stats.mail.unread} New` : undefined
+            badge: state.stats.mail && state.stats.mail.unread > 0 ? `${state.stats.mail.unread}` : undefined
         }
     ];
 

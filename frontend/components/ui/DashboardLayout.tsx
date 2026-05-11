@@ -144,13 +144,16 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                 className={`
                                     flex items-center rounded-md transition-all group relative hover:bg-primary/10
                                     ${isActive
-                                        ? 'bg-primary/30 border-l-3 border-primary text-primary shadow-[0_8px_16px_var(--shadow-color)]'
+                                        ? 'bg-primary/30 text-primary shadow-[0_8px_16px_var(--shadow-color)]'
                                         : 'text-sidebar-text/70 hover:text-foreground/70 hover:text-sidebar-text'
                                     }
                                     ${!effectiveExpanded ? 'lg:justify-center p-3' : 'px-4 py-3 space-x-3'}
                                 `}
                                 title={!effectiveExpanded ? link.label : undefined}
                             >
+                                {isActive && (
+                                    <div className="absolute left-0 top-2.5 bottom-2.5 w-1 bg-primary rounded-full z-10 shadow-[0_0_8px_rgba(var(--primary-rgb),0.6)]" />
+                                )}
                                 <link.icon className={`w-5 h-5 shrink-0 text-primary/80 transition-transform ${isActive ? 'scale-110 text-primary' : 'group-hover:scale-110'}`} />
                                 <span className={`font-bold text-sm tracking-wide ml-2 ${!effectiveExpanded ? 'lg:hidden' : 'block'}`}>
                                     {link.label}
@@ -220,9 +223,12 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                             e.preventDefault();
                                             router.push('/mail');
                                         }}
-                                        className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 relative ${pathname.includes('/mail') ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70'}`}
+                                        className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 relative ${pathname.includes('/mail') ? 'bg-primary/30 text-primary' : 'bg-background hover:text-foreground/70'}`}
                                         title="Mail"
                                     >
+                                        {pathname.includes('/mail') && (
+                                            <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
+                                        )}
                                         <Mail className="w-4 h-4 shrink-0 text-primary/80" />
                                         {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Mail</span>}
                                         {/* Always show a mail count; gray when zero */}
@@ -240,9 +246,12 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                                 e.preventDefault();
                                                 router.push('/contact');
                                             }}
-                                            className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 ${pathname === '/contact' ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70'}`}
+                                            className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 relative ${pathname === '/contact' ? 'bg-primary/30 text-primary' : 'bg-background hover:text-foreground/70'}`}
                                             title="Contact Us"
                                         >
+                                            {pathname === '/contact' && (
+                                                <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
+                                            )}
                                             <MessageCircleQuestionMark className="w-4 h-4 shrink-0 text-primary/80" />
                                             {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Contact Us</span>}
                                         </Link>}
@@ -255,9 +264,12 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                     e.preventDefault();
                                     router.push(user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN ? '/admin/change-password' : '/change-password');
                                 }}
-                                className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 ${pathname.includes('/change-password') ? 'bg-primary/30 text-primary border-l-3 border-primary' : 'bg-background hover:text-foreground/70'}`}
+                                className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 relative ${pathname.includes('/change-password') ? 'bg-primary/30 text-primary' : 'bg-background hover:text-foreground/70'}`}
                                 title="Change Password"
                             >
+                                {pathname.includes('/change-password') && (
+                                    <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
+                                )}
                                 <Key className="w-4 h-4 shrink-0 text-primary/80" />
                                 {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Change Password</span>}
                             </Link>

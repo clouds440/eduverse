@@ -26,7 +26,7 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
             description,
             size = 'md',
             onColor = 'bg-primary/70',
-            offColor = 'bg-background',
+            offColor = 'bg-primary/20',
             knobColor = 'bg-muted-foreground',
             className = '',
             textColor = 'text-foreground',

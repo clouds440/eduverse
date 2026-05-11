@@ -5,11 +5,43 @@ import useSWR from 'swr';
 import { Section, SectionSchedule } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
-import { Loading } from '@/components/ui/Loading';
-import { CalendarDays, Clock, MapPin, ChevronRight, Layers } from 'lucide-react';
-import Link from 'next/link';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function SectionScheduleSkeleton() {
+    return (
+        <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-lg animate-in fade-in duration-500">
+            <div className="p-4 md:p-6 bg-linear-to-br from-primary/5 via-transparent to-transparent border-b border-border/50 flex items-center justify-between">
+                <div className="flex items-center gap-3 md:gap-4">
+                    <Skeleton className="w-10 h-10 md:w-12 md:h-12 rounded-xl" />
+                    <div className="space-y-2">
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-3 w-20" />
+                    </div>
+                </div>
+                <Skeleton className="w-10 h-10 rounded-lg" />
+            </div>
+            <div className="p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3">
+                {[...Array(2)].map((_, i) => (
+                    <div key={i} className="flex flex-col gap-3 p-3 md:p-4 bg-muted/20 rounded-xl border border-border/50">
+                        <div className="flex justify-between">
+                            <Skeleton className="h-3 w-16" />
+                            <Skeleton className="w-1.5 h-1.5 rounded-full" />
+                        </div>
+                        <div className="space-y-2">
+                            <Skeleton className="h-2 w-24" />
+                            <Skeleton className="h-2 w-20" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+import { CalendarDays, Clock, MapPin, ChevronRight, Layers } from 'lucide-react';
+import Link from 'next/link';
 
 // Individual section card with its own schedule fetch
 // This pattern avoids React hooks violation by calling useSWR at component level
@@ -95,7 +127,28 @@ export default function SchedulesPage() {
         }
     }, [sectionsError, dispatch]);
 
-    if (sectionsLoading) return <Loading className="h-full" text="Synchronizing Time-slots..." size="lg" />;
+    if (sectionsLoading) {
+        return (
+            <div className="flex flex-col h-full w-full space-y-6 pb-6">
+                <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl border border-border p-4 md:p-6 overflow-hidden">
+                    <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="p-3 bg-primary/10 rounded-lg w-fit">
+                            <CalendarDays className="w-8 h-8 text-primary" />
+                        </div>
+                        <div className="space-y-2">
+                            <Skeleton className="h-8 w-48" />
+                            <Skeleton className="h-4 w-64" />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                        {[...Array(4)].map((_, i) => (
+                            <SectionScheduleSkeleton key={i} />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full w-full space-y-6 pb-6">

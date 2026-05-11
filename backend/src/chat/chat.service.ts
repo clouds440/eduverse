@@ -1207,11 +1207,11 @@ export class ChatService {
 
     const lastReadAt = myParticipant.lastReadMessageId
       ? (
-          await this.prisma.chatMessage.findUnique({
-            where: { id: myParticipant.lastReadMessageId },
-            select: { createdAt: true },
-          })
-        )?.createdAt
+        await this.prisma.chatMessage.findUnique({
+          where: { id: myParticipant.lastReadMessageId },
+          select: { createdAt: true },
+        })
+      )?.createdAt
       : null;
 
     const unreadCount = await this.prisma.chatMessage.count({
@@ -1220,8 +1220,8 @@ export class ChatService {
         createdAt: lastReadAt
           ? { gt: lastReadAt }
           : myParticipant?.clearedAt
-          ? { gt: myParticipant.clearedAt }
-          : undefined,
+            ? { gt: myParticipant.clearedAt }
+            : undefined,
         senderId: { not: user.id },
         deletedAt: null,
         type: { not: ChatMessageType.SYSTEM },
@@ -1566,15 +1566,28 @@ export class ChatService {
   async getUnreadCount(user: CurrentUser) {
     const participants = await this.prisma.chatParticipant.findMany({
       where: { userId: user.id, isActive: true },
-      select: {
-        id: true,
-        chatId: true,
-        lastReadMessageId: true,
+      include: {
+        chat: {
+          include: {
+            messages: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
       },
     });
 
+    // Filter to only count unread from visible chats (not hidden OR revived)
+    const visibleParticipants = participants.filter((p) => {
+      if (!p.hiddenAt) return true;
+      const latestMsg = p.chat.messages[0];
+      if (!latestMsg) return false;
+      return latestMsg.createdAt > p.hiddenAt;
+    });
+
     let totalUnread = 0;
-    for (const p of participants) {
+    for (const p of visibleParticipants) {
       let lastReadAt: Date | undefined;
       if (p.lastReadMessageId) {
         const lastMsg = await this.prisma.chatMessage.findUnique({

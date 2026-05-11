@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/Label';
 import { useGlobal } from '@/context/GlobalContext';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { Loading } from '@/components/ui/Loading';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 
 export default function AcademicCyclesPage() {
@@ -227,7 +227,7 @@ export default function AcademicCyclesPage() {
     ];
 
     if ((!token && !user) || (isFetching && !fetchedData)) {
-        return <Loading className="h-full" text="Loading Academic Cycles..." size="lg" />;
+        return <div className="p-4"><SkeletonTable rows={5} columns={5} /></div>;
     }
 
     if (cyclesError) {

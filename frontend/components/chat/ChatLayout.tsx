@@ -19,12 +19,11 @@ import {
     getCachedComposerStates,
     setCachedComposerStates
 } from '@/lib/chatStore';
-import { BrandIcon } from '../ui/Brand';
 import { Chat, ChatMessage, ChatParticipant, ChatType, ChatMessageType, PaginatedResponse, Role, User, ChatParticipantRole } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import {
-    Search, Plus, Paperclip, MessageSquarePlus, MessageSquareDashed, SendHorizonal as Send, MoreVertical, X, Loader2,
-    UserMinus, Trash2, Info, ChevronLeft, Check, CheckCheck, ArrowDown, Pencil, Reply, ArrowUp, RotateCcw,
+    Search, Paperclip, MessageSquarePlus, MessageSquareDashed, SendHorizonal as Send, MoreVertical, X, Loader2,
+    UserMinus, Trash2, Info, SlidersHorizontal, ChevronLeft, Check, CheckCheck, ArrowDown, Pencil, Reply, ArrowUp, RotateCcw,
     Lock as LockIcon
 } from 'lucide-react';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
@@ -83,12 +82,10 @@ export function ChatLayout() {
         isOpen: boolean;
         chatId: string | null;
         chatName: string;
-        alsoCloseMessages: boolean;
     }>({
         isOpen: false,
         chatId: null,
         chatName: '',
-        alsoCloseMessages: true
     });
 
     useEffect(() => {
@@ -852,11 +849,11 @@ export function ChatLayout() {
         }
     }, [emit]);
 
-    const handleDeleteChat = async (chatId: string, alsoClear: boolean) => {
+    const handleDeleteChat = async (chatId: string) => {
         if (!token || !user?.id) return;
 
         try {
-            await api.chat.updateLocalState(chatId, { hide: true, clear: alsoClear }, token);
+            await api.chat.updateLocalState(chatId, { hide: true }, token);
             // Remove the chat from the local state
             setChats(prev => prev.filter(c => c.id !== chatId));
             // If the deleted chat was active, clear it
@@ -864,28 +861,56 @@ export function ChatLayout() {
                 setActiveChatId(null);
                 setMessages([]);
             }
-            dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Chat deleted successfully', type: 'success' } });
+            dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Chat removed from view', type: 'success' } });
         } catch (err) {
             console.error('Failed to delete chat:', err);
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Failed to delete chat', type: 'error' } });
         }
     };
 
-    const handleClearChatHistory = async (chatId: string) => {
+    const performClearChatHistory = async (chatId: string) => {
         if (!token || !user?.id) return;
 
         try {
             await api.chat.updateLocalState(chatId, { clear: true }, token);
-            // If this is the active chat, clear messages in UI
+
+            // 1. Clear session cache regardless of active chat
+            setCachedMessages(chatId, []);
+
+            // 2. Clear messages in UI if active
             if (activeChatId === chatId) {
                 setMessages([]);
-                setCachedMessages(chatId, []);
             }
+
+            // 3. Update optimistic clearedAt in chat list
+            const now = new Date().toISOString();
+            setChats(prev => prev.map(c => {
+                if (c.id === chatId) {
+                    return {
+                        ...c,
+                        unreadCount: 0,
+                        participants: c.participants?.map(p =>
+                            p.userId === user.id ? { ...p, clearedAt: now } : p
+                        )
+                    };
+                }
+                return c;
+            }));
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Chat history cleared', type: 'success' } });
         } catch (err) {
             console.error('Failed to clear chat history:', err);
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Failed to clear chat history', type: 'error' } });
         }
+    };
+
+    const handleClearChatHistory = (chatId: string, chatName?: string) => {
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Clear Chat History',
+            description: `Are you sure you want to clear all messages ${chatName ? `for "${chatName}"` : 'in this chat'}? This action cannot be undone.`,
+            isDestructive: true,
+            onConfirm: () => performClearChatHistory(chatId)
+        });
     };
 
     const filteredChats = useMemo(() => {
@@ -1344,10 +1369,17 @@ export function ChatLayout() {
         if (msg.type === ChatMessageType.SYSTEM) {
             return (
                 <div key={msg.id}>
-                    {showDateSep && <div className="chat-date-separator"><span>{formatChatDateLabel(msg.createdAt)}</span></div>}
-                    <div className="flex justify-center py-2 px-3 rounded-xl">
-                        <div className="bg-background backdrop-blur-sm text-foreground px-4 py-1.5 rounded-full text-[13px] font-medium flex items-center border border-border shadow-sm max-w-[90%] sm:max-w-[80%] md:max-w-[70%] text-center overflow-hidden">
-                            <span className="whitespace-normal wrap-break-word">{msg.content}</span> <sub className='text-[10px] ml-2 shrink-0 whitespace-nowrap'>{formatChatTimestamp(msg.createdAt)}</sub>
+                    {showDateSep && (
+                        <div className="flex items-center my-6">
+                            <div className="flex-1 h-px bg-border/40" />
+                            <span className="px-4 text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">{formatChatDateLabel(msg.createdAt)}</span>
+                            <div className="flex-1 h-px bg-border/40" />
+                        </div>
+                    )}
+                    <div className="flex justify-center py-2 px-3">
+                        <div className="bg-muted/50 backdrop-blur-sm text-muted-foreground px-4 py-1.5 rounded-full text-[12px] font-black uppercase tracking-wider border border-border/30 shadow-sm flex items-center gap-2">
+                            <span>{msg.content}</span>
+                            <span className="opacity-40 text-[10px]">{formatChatTimestamp(msg.createdAt)}</span>
                         </div>
                     </div>
                 </div>
@@ -1364,7 +1396,13 @@ export function ChatLayout() {
 
         return (
             <div key={msg.id}>
-                {showDateSep && <div className="chat-date-separator"><span className='bg-background text-foreground'>{formatChatDateLabel(msg.createdAt)}</span></div>}
+                {showDateSep && (
+                    <div className="flex items-center my-6">
+                        <div className="flex-1 h-px bg-border/40" />
+                        <span className="px-4 text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">{formatChatDateLabel(msg.createdAt)}</span>
+                        <div className="flex-1 h-px bg-border/40" />
+                    </div>
+                )}
                 <div
                     id={`msg-${msg.id}`}
                     onContextMenu={(e) => {
@@ -1393,15 +1431,15 @@ export function ChatLayout() {
                         <div className={`flex items-end space-x-1.5 relative max-w-full min-w-0 group/content ${isMine ? 'flex-row-reverse space-x-reverse justify-start' : 'flex-row justify-end'}`}>
                             <div className="flex flex-col items-inherit max-w-full min-w-0">
                                 {activeChat?.type === ChatType.GROUP && !isMine && showAvatar && (
-                                    <span className="text-[12px] font-bold mb-1.5 ml-1" style={{ color: getUserColor(msg.sender?.id) }}>
+                                    <span className="text-[11px] font-black tracking-widest mb-1.5 ml-1 opacity-80" style={{ color: getUserColor(msg.sender?.id) }}>
                                         {msg.sender?.name}
                                     </span>
                                 )}
                                 {isDeleted ? (
-                                    <div className={`px-3.5 py-2 rounded-2xl text-[13px] leading-relaxed my-1 bg-card text-muted-foreground border border-border ${isMine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
-                                        <div className="flex items-center space-x-1.5">
-                                            <Trash2 size={13} className="opacity-50 text-danger" />
-                                            <span>Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name} </span> : null} <sub className='opacity-70'>{formatChatTimestamp(msg.createdAt!)}</sub></span>
+                                    <div className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed my-1 bg-muted/40 text-muted-foreground border border-border/50 italic ${isMine ? 'rounded-br-none' : 'rounded-bl-none'}`}>
+                                        <div className="flex items-center space-x-2">
+                                            <Trash2 size={13} className="opacity-40" />
+                                            <span>Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name} </span> : null} <sub className='opacity-40 italic not-all-italic'>{formatChatTimestamp(msg.createdAt!)}</sub></span>
                                         </div>
                                     </div>
                                 ) : (
@@ -1410,19 +1448,18 @@ export function ChatLayout() {
                                         const segments = msg.content.split(imageRegex).filter(s => s.trim() !== '');
 
                                         return (
-                                            <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1 relative`}>
+                                            <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative`}>
                                                 {!isDeleted && isDesktop && (
-                                                    <div className={`absolute top-0 ${isMine ? '-left-6' : '-right-6'} shrink-0 flex items-center justify-center transition-all z-10
+                                                    <div className={`absolute top-0.5 ${isMine ? '-left-10' : '-right-10'} shrink-0 flex items-center justify-center transition-all z-10
                                                         opacity-0 group-hover/content:opacity-100 pointer-events-none
                                                     `}>
-                                                        <div className="w-5 h-5 rounded-full bg-background/80 shadow-sm border border-border flex items-center justify-center">
-                                                            <MoreVertical size={12} className="text-muted-foreground opacity-60" />
+                                                        <div className="w-7 h-7 rounded-full bg-background/60 backdrop-blur-md shadow-lg border border-border/50 flex items-center justify-center">
+                                                            <MoreVertical size={14} className="text-muted-foreground/60" />
                                                         </div>
                                                     </div>
                                                 )}
                                                 {segments.map((segment, idx) => {
                                                     const isImage = segment.match(/^!\[.*?\]\(.*?\)$/);
-                                                    const isFirstSegment = idx === 0;
                                                     if (isImage) {
                                                         return (
                                                             <div key={idx} className={`naked-image-container max-w-full rounded-xl relative ${isSendingMessage && isMine ? 'animate-in fade-in slide-in-from-bottom-1 duration-200' : ''}`}>
@@ -1446,29 +1483,31 @@ export function ChatLayout() {
                                                             </div>
                                                         );
                                                     }
-
                                                     return (
                                                         <div
                                                             key={idx}
-                                                            className={`message-bubble px-1 py-1.5 rounded-2xl leading-relaxed relative shadow-sm
-                                                                        ${isMine
-                                                                    ? 'bg-chat-bubble text-primary-foreground rounded-tr-md rounded-br-xs'
-                                                                    : 'bg-card border border-border rounded-tl-md rounded-bl-xs text-foreground'
+                                                            className={`
+                                                                relative p-1.5 rounded-2xl text-[14.5px] leading-relaxed shadow-sm
+                                                                ${isMine
+                                                                    ? 'bg-primary text-primary rounded-br-sm'
+                                                                    : 'bg-card text-foreground border border-border rounded-bl-sm shadow-sm'
                                                                 }
-                                                                        ${isSendingMessage && isMine ? 'animate-in fade-in slide-in-from-bottom-1 duration-200' : ''}
-                                                                        `}>
-                                                            {isFirstSegment && msg.replyTo && !isDeleted && (() => {
+                                                                ${isSendingMessage && isMine ? 'opacity-70' : ''}
+                                                                ${isFailedMessage && isMine ? 'border-danger border-2' : ''}
+                                                            `}
+                                                        >
+                                                            {/* Reply Section inside Bubble */}
+                                                            {msg.replyTo && !isDeleted && (() => {
                                                                 return (
                                                                     <div
                                                                         onClick={(e) => { e.stopPropagation(); void scrollToMessage(msg.replyTo!.id); }}
                                                                         className={`px-2 py-1 rounded-lg text-[12px] bg-muted text-foreground! border-l-5 max-w-full overflow-hidden cursor-pointer hover:opacity-90 transition-opacity
                                                                                     ${isMineRepliedTo ? 'border-success' : 'broder-border'}`}
                                                                     >
-                                                                        <p className="font-semibold mb-0.5 text-[11px] flex items-center opacity-80">
-                                                                            <Reply size={11} className='mr-1 rotate-180' />
+                                                                        <p className="font-semibold mb-0.5 text-[11px] flex items-center opacity-70">
                                                                             {msg.replyTo.sender?.id === user?.id ? 'You' : msg.replyTo.sender?.name || 'Someone'}
                                                                         </p>
-                                                                        <div className="truncate line-clamp-1 opacity-90">
+                                                                        <div className="truncate line-clamp-1 opacity-70">
                                                                             <MarkdownRenderer content={getTruncatedMessagePreview(msg.replyTo.deletedAt ? 'Message deleted' : msg.replyTo.content, isDesktop ? 400 : 200)} className={`${msg.replyTo.deletedAt ? 'text-muted-foreground!' : 'text-foreground!'}`} />
                                                                         </div>
                                                                     </div>
@@ -1478,11 +1517,12 @@ export function ChatLayout() {
                                                             <div className={`prose prose-sm mx-2 max-w-full prose-p:mb-0 ${isMine && highlightedMessageId !== msg.id ? 'prose-invert' : 'prose-p:text-foreground!'}`}>
                                                                 <MarkdownRenderer content={segment} className={`${isMine ? 'text-white!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} />
                                                             </div>
+
                                                             <div className={`flex items-center mx-2 justify-end space-x-1 mt-0.5 -mb-0.5 text-foreground`}>
                                                                 {msg.updatedAt && msg.updatedAt !== msg.createdAt && (
-                                                                    <span className={`text-[9px] sm:text-[10px] rounded-lg px-1.5 py-0 ${isMine ? 'bg-card/70 text-foreground!' : 'bg-foreground/70 text-background!'}`}>Edited</span>
+                                                                    <span className={`text-[11px] tracking-wide sm:text-[11px] rounded-lg px-1.5 py-0 ${isMine ? 'bg-card/70 text-foreground!' : 'bg-foreground/70 text-background!'}`}>Edited</span>
                                                                 )}
-                                                                <span className={`text-[9.5px] sm:text-[10px] font-medium tracking-wide ${isMine ? 'text-white!' : 'text-foreground!'}`}>
+                                                                <span className={`text-[11px] tracking-wider sm:text-[11px] font-medium ${isMine ? 'text-white!' : 'text-foreground!'}`}>
                                                                     {formatChatTimestamp(msg.createdAt)}
                                                                 </span>
                                                                 {isMine && (
@@ -1490,7 +1530,7 @@ export function ChatLayout() {
                                                                         <Loader2 className="w-3 h-3 animate-spin opacity-80" strokeWidth={2.5} />
                                                                     ) : isFailedMessage ? (
                                                                         <span className="ml-1 inline-flex items-center gap-1">
-                                                                            <span className="text-[9px] font-bold text-danger/70">Failed</span>
+                                                                            <span className="text-[11px] tracking-wide font-medium text-danger/70">Failed</span>
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => { void handleSendMessage(msg); }}
@@ -1635,12 +1675,16 @@ export function ChatLayout() {
                                 ? chat.name || 'Unnamed Group'
                                 : otherUsers[0]?.user?.name || 'Unknown User';
 
-                            const lastMsg = chat.messages?.[0];
+                            const myParticipant = chat.participants?.find(p => p.userId === user.id);
+                            const lastMsgRaw = chat.messages?.[0];
+                            const isCleared = lastMsgRaw && myParticipant?.clearedAt && new Date(lastMsgRaw.createdAt) <= new Date(myParticipant.clearedAt);
+                            const lastMsg = isCleared ? null : lastMsgRaw;
+
                             const isActive = activeChatId === chat.id;
-                            const hasUnread = chat.unreadCount !== undefined && chat.unreadCount > 0;
+                            const hasUnread = chat.unreadCount !== undefined && chat.unreadCount > 0 && !isCleared;
 
                             return (
-                                <div key={chat.id} className="relative group">
+                                <div key={chat.id} className="relative group mx-2 mb-1 first:mt-2">
                                     <button
                                         type='button'
                                         onClick={() => { setActiveChatId(chat.id); setTargetMessageId(null); }}
@@ -1653,12 +1697,17 @@ export function ChatLayout() {
                                                 }
                                             }
                                         }, touchChatTimerRef, touchChatStartPosRef, touchChatHasTriggeredRef)}
-                                        className={`w-full flex items-center px-3 sm:px-4 py-3 sm:py-3.5 transition-all text-left
+                                        className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-300 text-left relative overflow-hidden
                                             ${isActive
-                                                ? 'bg-primary/10 border-l-[3px] border-l-primary'
-                                                : 'hover:bg-muted/60 border-l-[3px] border-l-transparent'
-                                            }`}
+                                                ? 'bg-primary/10 shadow-sm shadow-primary/5 ring-1 ring-primary/30'
+                                                : 'group-hover:bg-muted/50'
+                                            }
+                                            ${chatMenuOpenId === chat.id ? 'bg-muted/50' : ''}
+                                            `}
                                     >
+                                        {isActive && (
+                                            <div className="absolute left-0 top-3 bottom-3 w-1 bg-primary rounded-full z-10 shadow-[0_0_8px_rgba(var(--primary-rgb),0.6)]" />
+                                        )}
                                         <div className="relative mr-2.5 sm:mr-3 shrink-0">
                                             <ChatAvatar
                                                 targetUser={chat.type === ChatType.GROUP
@@ -1673,12 +1722,12 @@ export function ChatLayout() {
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between items-center mb-0.5">
-                                                <h4 className={`text-[12px] sm:text-[13.5px] truncate pr-2 ${isActive ? 'font-bold text-primary' : hasUnread ? 'font-bold text-foreground' : 'font-semibold text-foreground/80'}`}>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <h4 className={`text-[13px] font-black tracking-tight truncate pr-2 leading-tight ${isActive ? 'text-primary' : hasUnread ? 'text-foreground' : 'text-foreground/90'}`}>
                                                     {displayName}
                                                 </h4>
                                                 {lastMsg && (
-                                                    <span className={`text-[11px] sm:text-[13px] shrink-0 ${hasUnread ? 'text-primary font-bold' : 'text-muted-foreground font-medium'}`}>
+                                                    <span className={`text-[10px] font-bold shrink-0 ml-2 uppercase tracking-tighter ${hasUnread ? 'text-primary' : 'text-muted-foreground/40'}`}>
                                                         {formatDistanceToNow(new Date(lastMsg.createdAt), { addSuffix: false })}
                                                     </span>
                                                 )}
@@ -1728,9 +1777,9 @@ export function ChatLayout() {
                                         type='button'
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            setChatMenuOpenId(chatMenuOpenId === chat.id ? null : chat.id);
+                                            setChatMenuOpenId(chat.id);
                                         }}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-muted/90 hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg cursor-pointer bg-muted/70 hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
                                     >
                                         <MoreVertical size={16} className="text-muted-foreground" />
                                     </button>
@@ -1740,13 +1789,13 @@ export function ChatLayout() {
                                                 type='button'
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleClearChatHistory(chat.id);
+                                                    handleClearChatHistory(chat.id, displayName);
                                                     setChatMenuOpenId(null);
                                                 }}
                                                 className="w-full px-3 py-2 text-left text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-2"
                                             >
                                                 <Trash2 size={14} />
-                                                Clear Chat
+                                                Clear History
                                             </button>
                                             {chat.type === ChatType.GROUP && (
                                                 <button
@@ -1760,7 +1809,7 @@ export function ChatLayout() {
                                                     }}
                                                     className="w-full px-3 py-2 text-left text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-2"
                                                 >
-                                                    <Info size={14} />
+                                                    <SlidersHorizontal size={14} />
                                                     Settings
                                                 </button>
                                             )}
@@ -1771,8 +1820,7 @@ export function ChatLayout() {
                                                     setDeleteConfirmConfig({
                                                         isOpen: true,
                                                         chatId: chat.id,
-                                                        chatName: displayName,
-                                                        alsoCloseMessages: true
+                                                        chatName: displayName
                                                     });
                                                     setChatMenuOpenId(null);
                                                 }}
@@ -1792,22 +1840,26 @@ export function ChatLayout() {
             {/* ===== CHAT PANEL ===== */}
             <div className={`
             ${!activeChatId && !isDesktop ? 'hidden' : 'flex'} 
-            flex-1 flex-col bg-background h-full relative overflow-hidden
+            flex-1 flex-col h-full relative overflow-hidden chat-bg-pattern
             ${!isDesktop && activeChatId ? 'animate-in slide-in-from-right duration-300 ease-out' : ''}
         `}>
                 {activeChat ? (
                     <>
                         {/* Chat Header */}
                         <div
-                            className="relative w-full px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border flex items-center justify-between z-20 bg-background/80 backdrop-blur-md transition-all duration-200"
+                            className="relative w-full px-4 py-3 border-b border-border flex items-center justify-between z-20 bg-background/60 backdrop-blur-xl"
                         >
-                            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                            <div
+                                id="participants-toggle"
+                                className="flex items-center space-x-2 sm:space-x-3 min-w-0 cursor-pointer group/header"
+                                onClick={() => setShowParticipants(!showParticipants)}
+                            >
                                 {!isDesktop && (
                                     <button
                                         type='button'
                                         title='Back'
                                         className="p-1.5 -ml-1 text-foreground/60 hover:text-primary hover:bg-muted rounded-xl transition-all active:scale-95"
-                                        onClick={() => setActiveChatId(null)}
+                                        onClick={(e) => { e.stopPropagation(); setActiveChatId(null); }}
                                     >
                                         <ChevronLeft size={22} className="text-primary/80 hover:text-primary" />
                                     </button>
@@ -1817,40 +1869,40 @@ export function ChatLayout() {
                                         ? { name: activeChat.name, avatarUrl: activeChat.avatarUrl, avatarUpdatedAt: activeChat.avatarUpdatedAt }
                                         : activeChat.participants?.find(p => p.userId !== user.id)?.user
                                     }
-                                    className="w-9 h-9 sm:w-10 sm:h-10"
+                                    className="w-9 h-9 sm:w-10 sm:h-10 transition-transform group-hover/header:scale-105"
                                     isOnline={!!(directChatTarget?.id && onlineUsers[directChatTarget.id])}
                                 />
                                 <div className="min-w-0">
-                                    <h3 className="font-bold text-[14px] sm:text-[15px] text-foreground leading-tight truncate">
+                                    <h3 className="font-bold text-[14px] sm:text-[15px] text-foreground leading-tight truncate group-hover/header:text-primary transition-colors">
                                         {activeChat.type === ChatType.GROUP ? activeChat.name : activeChat.participants?.find(p => p.userId !== user.id)?.user?.name || 'Unknown'}
                                     </h3>
-                                    <button
-                                        type='button'
-                                        id="participants-toggle"
-                                        onClick={() => setShowParticipants(!showParticipants)}
-                                        className={`text-[12px] sm:text-[13px] font-semibold rounded-md transition-all flex items-center gap-1.5 ${showParticipants ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}
-                                    >
-                                        {typingIndicatorLabel ? (
-                                            <span className="inline-flex items-center gap-1.5">
-                                                <span>{typingIndicatorLabel}</span>
-                                                <span className="inline-flex items-center gap-0.5">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.2s]" />
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.1s]" />
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" />
-                                                </span>
+
+                                    {typingIndicatorLabel ? (
+                                        <span className="inline-flex items-center gap-1.5 text-primary">
+                                            <span className="animate-pulse">{typingIndicatorLabel}</span>
+                                            <span className="inline-flex items-center gap-0.5">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.2s]" />
+                                                <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce [animation-delay:-0.1s]" />
+                                                <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" />
                                             </span>
-                                        ) : activeChat.type === ChatType.GROUP
-                                            ? `${activeChat.participants?.filter(p => p.isActive).length || 0} members`
-                                            : (() => {
-                                                const otherParticipant = activeChat.participants?.find(p => p.userId !== user.id);
-                                                const isOnline = onlineUsers[directChatTarget?.id || ''];
-                                                const role = otherParticipant?.user?.role?.replace('_', ' ').toLowerCase() || 'member';
-                                                const status = isOnline ? 'Online' : otherParticipant?.lastSeenAt
-                                                    ? `Last seen ${formatDistanceToNow(new Date(otherParticipant.lastSeenAt), { addSuffix: true })}`
-                                                    : null;
-                                                return status ? `${role} • ${status}` : role;
-                                            })()}
-                                    </button>
+                                        </span>
+                                    ) : activeChat.type === ChatType.GROUP
+                                        ? `${activeChat.participants?.filter(p => p.isActive).length || 0} members`
+                                        : (() => {
+                                            const otherParticipant = activeChat.participants?.find(p => p.userId !== user.id);
+                                            const isOnline = onlineUsers[directChatTarget?.id || ''];
+                                            const role = otherParticipant?.user?.role?.replace('_', ' ').toLowerCase() || 'member';
+                                            const status = isOnline ? 'Online' : otherParticipant?.lastSeenAt
+                                                ? `Last seen ${formatDistanceToNow(new Date(otherParticipant.lastSeenAt), { addSuffix: true })}`
+                                                : null;
+                                            return (
+                                                <span className="flex items-center gap-2">
+                                                    <span className={isOnline ? 'text-success' : ''}>{status || role}</span>
+                                                    {!isOnline && <span className="opacity-40">•</span>}
+                                                    {!isOnline && <span>{role}</span>}
+                                                </span>
+                                            );
+                                        })()}
                                 </div>
                             </div>
                             <div className="flex items-center space-x-1">
@@ -1868,11 +1920,11 @@ export function ChatLayout() {
                         </div>
 
                         {/* Messages Area */}
-                        <div className="flex-1 flex overflow-hidden relative">
+                        <div className="flex-1 flex overflow-hidden relative bg-background/90">
                             <div
                                 ref={messagesContainerRef}
                                 onScroll={handleScroll}
-                                className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-10 md:px-12 lg:px-14 py-2 sm:py-3 space-y-0.5 custom-scrollbar chat-bg-pattern"
+                                className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:px-24 py-2 sm:py-3 space-y-0.5 custom-scrollbar"
                                 style={{
                                     paddingBottom: !isDesktop
                                         ? `calc(${(canSendMessage ? composerHeight : readOnlyBannerHeight) + 16}px + env(safe-area-inset-bottom, 0px))`
@@ -1969,67 +2021,65 @@ export function ChatLayout() {
                             )}
 
                             {/* Participants Drawer */}
-                            {showParticipants && (
-                                <div
-                                    ref={participantsRef}
-                                    className="absolute top-0 right-0 h-full w-64 sm:w-72 bg-card border-l border-border shadow-2xl z-30 animate-in slide-in-from-right duration-300 flex flex-col"
-                                >
-                                    <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border flex justify-between items-center">
-                                        <h4 className="font-bold text-foreground text-[12px] sm:text-[13px]">Members</h4>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowParticipants(false)}
-                                            className="text-muted-foreground hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors"
-                                            title="Close"
-                                        >
-                                            <X size={16} className="text-primary/80 hover:text-primary" />
-                                        </button>
-                                    </div>
-                                    <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-0.5 custom-scrollbar">
-                                        {activeChat.participants?.filter(p => p.isActive).map(p => (
-                                            <div key={p.id} className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl hover:bg-muted transition-colors group/item">
-                                                <div className="flex items-center space-x-2 sm:space-x-2.5 min-w-0">
-                                                    <ChatAvatar targetUser={p.user} className="w-7 h-7 sm:w-8 sm:h-8" isOnline={!!onlineUsers[p.userId]} />
-                                                    <div className="min-w-0">
-                                                        <p className="text-[12px] sm:text-[13px] font-semibold truncate" style={{ color: getUserColor(p.user?.id) }}>{p.user?.name} {p.userId === user.id && <span className="text-muted-foreground font-normal">(You)</span>}</p>
-                                                        <p className="text-[11px] sm:text-[13px] text-muted-foreground font-medium capitalize truncate">{p.user?.role?.toLowerCase().replace('_', ' ')}</p>
-                                                    </div>
-                                                </div>
-                                                {isGroupAdmin && p.userId !== user.id && p.userId !== activeChat.creatorId && (
-                                                    <Button
-                                                        variant="danger"
-                                                        px="p-1.5"
-                                                        py="p-1.5"
-                                                        onClick={() => handleRemoveParticipant(p.userId)}
-                                                        className="text-muted-foreground hover:text-primary rounded-lg opacity-0 group-hover/item:opacity-100 transition-all bg-transparent border-none shadow-none"
-                                                        title="Remove from group"
-                                                        icon={UserMinus}
-                                                    />
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
+                            <div
+                                ref={participantsRef}
+                                className={`absolute top-0 right-0 h-full w-64 sm:w-72 bg-card border-l border-border shadow-2xl z-30 flex flex-col transition-all duration-300 ease-in-out ${showParticipants ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
+                            >
+                                <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border flex justify-between items-center">
+                                    <h4 className="font-bold text-foreground text-[12px] sm:text-[13px]">Members</h4>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowParticipants(false)}
+                                        className="text-muted-foreground hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors"
+                                        title="Close"
+                                    >
+                                        <X size={16} className="text-primary/80 hover:text-primary" />
+                                    </button>
                                 </div>
-                            )}
+                                <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-0.5 custom-scrollbar">
+                                    {activeChat.participants?.filter(p => p.isActive).map(p => (
+                                        <div key={p.id} className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl hover:bg-muted transition-colors group/item">
+                                            <div className="flex items-center space-x-2 sm:space-x-2.5 min-w-0">
+                                                <ChatAvatar targetUser={p.user} className="w-7 h-7 sm:w-8 sm:h-8" isOnline={!!onlineUsers[p.userId]} />
+                                                <div className="min-w-0">
+                                                    <p className="text-[12px] sm:text-[13px] font-semibold truncate" style={{ color: getUserColor(p.user?.id) }}>{p.user?.name} {p.userId === user.id && <span className="text-muted-foreground font-normal">(You)</span>}</p>
+                                                    <p className="text-[11px] sm:text-[13px] text-muted-foreground font-medium capitalize truncate">{p.user?.role?.toLowerCase().replace('_', ' ')}</p>
+                                                </div>
+                                            </div>
+                                            {isGroupAdmin && p.userId !== user.id && p.userId !== activeChat.creatorId && (
+                                                <Button
+                                                    variant="danger"
+                                                    px="p-1.5"
+                                                    py="p-1.5"
+                                                    onClick={() => handleRemoveParticipant(p.userId)}
+                                                    className="text-muted-foreground! hover:text-white! rounded-lg transition-all bg-transparent border-none shadow-none"
+                                                    title="Remove from group"
+                                                    icon={UserMinus}
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                             {/* Input Composer - Only show if user can send messages */}
                             {canSendMessage ? (
                                 <div
                                     ref={composerRef}
-                                    className="absolute bottom-0 w-full border-border px-2 sm:px-3 py-2 z-20"
+                                    className="absolute bottom-0 w-full px-4 py-1 z-20 bg-background/80 backdrop-blur-xl"
                                     style={!isDesktop ? { paddingBottom: mobileBottomInset } : undefined}
                                 >
                                     {/* Reply / Edit Banner */}
                                     {(replyToMessage || editingMessage) && (
-                                        <div className="mb-1.5 sm:mb-1 px-2.5 sm:px-3 py-2 sm:py-2 mr-2 bg-muted border-l-4 border-primary rounded-lg flex items-center justify-between animate-in slide-in-from-bottom duration-200">
-                                            <div className="flex-1 min-w-0 pr-2 sm:pr-3">
-                                                <p className="text-[12px] sm:text-[13px] font-semibold text-primary mb-0.5">
+                                        <div className="mb-2 px-4 py-2.5 bg-primary/5 border-l-4 border-primary rounded-xl flex items-center justify-between animate-in slide-in-from-bottom-2 duration-300 shadow-sm ring-1 ring-primary/10">
+                                            <div className="flex-1 min-w-0 pr-4">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">
                                                     {editingMessage ? 'Editing Message' : `Replying to ${replyToMessage?.sender?.name == user.name ? 'Yourself' : (replyToMessage?.sender?.name || 'Message')}`}
                                                 </p>
                                                 <div
                                                     onClick={() => { if (replyToMessage) scrollToMessage(replyToMessage.id); else (scrollToMessage(editingMessage!.id)) }}
-                                                    className="text-[12px] sm:text-[13px] text-muted-foreground! truncate cursor-pointer"
+                                                    className="text-[12px] text-muted-foreground truncate cursor-pointer italic"
                                                 >
-                                                    <MarkdownRenderer content={getTruncatedMessagePreview(editingMessage?.content || replyToMessage?.content, isDesktop ? 70 : 35)} className='text-muted-foreground!' />
+                                                    <MarkdownRenderer content={getTruncatedMessagePreview(editingMessage?.content || replyToMessage?.content, isDesktop ? 100 : 50)} className='text-muted-foreground!' />
                                                 </div>
                                             </div>
                                             <button
@@ -2130,7 +2180,7 @@ export function ChatLayout() {
                                         />
 
                                         {/* Main composer container */}
-                                        <div className="flex-1 bg-muted border border-transparent rounded-3xl focus-within:bg-card focus-within:border-primary/30 focus-within:ring-2 focus-within:ring-primary/10 transition-all shadow-sm">
+                                        <div className="flex-1 bg-background border border-border/50 rounded-3xl focus-within:bg-background/60 focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/5 transition-all shadow-sm">
                                             {/* Top row */}
                                             <div className={`flex items-end transition-all duration-500 ease-out ${isComposerExpanded ? 'px-3 pt-2' : 'px-2'}`}>
                                                 {/* Left buttons only in compact mode */}
@@ -2151,6 +2201,7 @@ export function ChatLayout() {
                                                 <div className="relative flex-1">
                                                     <textarea
                                                         ref={textareaRef}
+                                                        rows={1}
                                                         value={messageDraft}
                                                         disabled={isUploading}
                                                         onChange={(e) => {
@@ -2226,7 +2277,6 @@ export function ChatLayout() {
                                                         onFocus={handleEditorFocus}
                                                         onBlur={() => setTimeout(() => setShowMentionDropdown(false), 200)}
                                                         placeholder={stagedFiles.length > 0 ? "Add a caption..." : `Message...`}
-                                                        rows={1}
                                                         className={`w-full bg-transparent px-2 sm:px-3 py-2.5 border-none text-[14px] sm:text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 resize-none max-h-60 leading-relaxed transition-[height] duration-500 ease-out`}
                                                     />
 
@@ -2375,25 +2425,17 @@ export function ChatLayout() {
 
             <ConfirmDialog
                 isOpen={deleteConfirmConfig.isOpen}
-                onClose={() => setDeleteConfirmConfig({ isOpen: false, chatId: null, chatName: '', alsoCloseMessages: true })}
+                onClose={() => setDeleteConfirmConfig({ isOpen: false, chatId: null, chatName: '' })}
                 onConfirm={() => {
                     if (deleteConfirmConfig.chatId) {
-                        handleDeleteChat(deleteConfirmConfig.chatId, deleteConfirmConfig.alsoCloseMessages);
+                        handleDeleteChat(deleteConfirmConfig.chatId);
                     }
                 }}
                 title="Delete Chat"
                 description={`This will hide "${deleteConfirmConfig.chatName}" from your sidebar. It will reappear if a new message is received. You remain a participant.`}
                 confirmText="Delete"
                 isDestructive
-            >
-                <Toggle
-                    checked={deleteConfirmConfig.alsoCloseMessages}
-                    onCheckedChange={(checked) => setDeleteConfirmConfig(prev => ({ ...prev, alsoCloseMessages: checked }))}
-                    label="Also clear chat messages"
-                    description="Remove your local message history for this chat"
-                    size="sm"
-                />
-            </ConfirmDialog>
+            />
 
             {contextMenu && (
                 <MessageContextMenu

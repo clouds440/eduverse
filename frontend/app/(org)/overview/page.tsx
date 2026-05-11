@@ -3,7 +3,7 @@
 import useSWR from 'swr';
 import { useAuth } from '@/context/AuthContext';
 import { DashboardInsights } from '@/types';
-import { Loading } from '@/components/ui/Loading';
+import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import InsightsOverview from '@/components/dashboard/InsightsOverview';
 
 export default function AdminPage() {
@@ -16,7 +16,7 @@ export default function AdminPage() {
     });
 
     if (loading || insightsLoading) {
-        return <Loading className="h-full" text="Loading live organization insights..." size="lg" />;
+        return <DashboardSkeleton />;
     }
 
     if (!insights) return null;

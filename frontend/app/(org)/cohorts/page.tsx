@@ -19,7 +19,7 @@ import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { useGlobal } from '@/context/GlobalContext';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { Loading } from '@/components/ui/Loading';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Drawer } from '@/components/ui/Drawer';
 import { Filter } from 'lucide-react';
@@ -192,7 +192,7 @@ export default function CohortsPage() {
     ];
 
     if ((!token && !user) || (isFetching && !fetchedData)) {
-        return <Loading className="h-full" text="Loading Cohorts..." size="lg" />;
+        return <div className="p-4"><SkeletonTable rows={5} columns={5} /></div>;
     }
 
     if (cohortsError) {
@@ -295,7 +295,7 @@ export default function CohortsPage() {
                             />
                         </div>
                     )}
-                    
+
                     <div className="space-y-2">
                         <Label>Assigned Students</Label>
                         <CustomMultiSelect

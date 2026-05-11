@@ -7,7 +7,7 @@ import useSWR from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import { Section, FinalGradeResponse, Student, Role, Assessment, DashboardInsights, PaginatedResponse } from '@/types';
 import { ShieldOff, GraduationCap } from 'lucide-react';
-import { Loading } from '@/components/ui/Loading';
+import { Skeleton, DashboardSkeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import { NotFound } from '@/components/NotFound';
 import { ErrorState } from '@/components/ui/ErrorState';
 
@@ -90,10 +90,22 @@ function StudentPortalContent() {
         }
     }, [user, studentData, userId, router, dispatch]);
 
-    if (validating) {
+    if (validating || state.auth.loading) {
         return (
-            <div className="flex flex-1 items-center justify-center h-full py-20">
-                <Loading size="lg" />
+            <div className="flex flex-col w-full h-full space-y-8 animate-in fade-in duration-500">
+                <div className="flex items-center gap-6 p-6 bg-card border border-border rounded-xl">
+                    <Skeleton className="w-24 h-24 rounded-2xl" />
+                    <div className="space-y-3 flex-1">
+                        <Skeleton className="h-8 w-1/3" />
+                        <Skeleton className="h-4 w-1/4" />
+                    </div>
+                </div>
+                <div className="flex gap-4 border-b border-border pb-4">
+                    {[...Array(5)].map((_, i) => (
+                        <Skeleton key={i} className="h-10 w-24 rounded-lg" />
+                    ))}
+                </div>
+                <DashboardSkeleton />
             </div>
         );
     }
@@ -110,14 +122,6 @@ function StudentPortalContent() {
                 <p className="text-muted-foreground text-lg mb-8">
                     Your account has been temporarily suspended by the administration. Please contact your Administration for details.
                 </p>
-            </div>
-        );
-    }
-
-    if (state.auth.loading) {
-        return (
-            <div className="flex flex-1 items-center justify-center h-full py-20">
-                <Loading size="lg" />
             </div>
         );
     }
@@ -139,9 +143,7 @@ function StudentPortalContent() {
             <div className="mt-4">
                 {tab === 'overview' && (
                     insightsLoading ? (
-                        <div className="flex flex-1 items-center justify-center h-full py-20">
-                            <Loading size="lg" />
-                        </div>
+                        <DashboardSkeleton />
                     ) : insightsError ? (
                         <ErrorState error={insightsError} onRetry={() => mutateInsights()} />
                     ) : (
@@ -150,9 +152,7 @@ function StudentPortalContent() {
                 )}
                 {tab === 'courses' && (
                     sectionsLoading ? (
-                        <div className="flex flex-1 items-center justify-center h-full py-20">
-                            <Loading size="lg" />
-                        </div>
+                        <SkeletonTable rows={5} columns={4} />
                     ) : sectionsError ? (
                         <ErrorState error={sectionsError} onRetry={() => mutateSections()} />
                     ) : (
@@ -161,8 +161,10 @@ function StudentPortalContent() {
                 )}
                 {tab === 'assessments' && (
                     assessmentsLoading ? (
-                        <div className="flex flex-1 items-center justify-center h-full py-20">
-                            <Loading size="lg" />
+                        <div className="space-y-4">
+                            {[...Array(3)].map((_, i) => (
+                                <Skeleton key={i} className="h-24 w-full rounded-xl" />
+                            ))}
                         </div>
                     ) : assessmentsError ? (
                         <ErrorState error={assessmentsError} onRetry={() => mutateAssessments()} />
@@ -172,9 +174,7 @@ function StudentPortalContent() {
                 )}
                 {tab === 'grades' && (
                     gradesLoading ? (
-                        <div className="flex flex-1 items-center justify-center h-full py-20">
-                            <Loading size="lg" />
-                        </div>
+                        <SkeletonTable rows={8} columns={3} />
                     ) : gradesError ? (
                         <ErrorState error={gradesError} onRetry={() => mutateGrades()} />
                     ) : (
@@ -184,8 +184,16 @@ function StudentPortalContent() {
                 {tab === 'attendance' && <Attendance />}
                 {tab === 'profile' && (
                     profileLoading ? (
-                        <div className="flex flex-1 items-center justify-center h-full py-20">
-                            <Loading size="lg" />
+                        <div className="space-y-6">
+                            <Skeleton className="h-12 w-1/4" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {[...Array(6)].map((_, i) => (
+                                    <div key={i} className="space-y-2">
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="h-10 w-full rounded-md" />
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     ) : profileError ? (
                         <ErrorState error={profileError} onRetry={() => mutateProfile()} />
@@ -200,11 +208,7 @@ function StudentPortalContent() {
 
 export default function StudentOverviewPage() {
     return (
-        <Suspense fallback={
-            <div className="flex flex-1 items-center justify-center h-full">
-                <Loading size="lg" />
-            </div>
-        }>
+        <Suspense fallback={<DashboardSkeleton />}>
             <StudentPortalContent />
         </Suspense>
     );

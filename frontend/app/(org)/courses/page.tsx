@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/Label';
 import { useGlobal } from '@/context/GlobalContext';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { Loading } from '@/components/ui/Loading';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Toggle } from '@/components/ui/Toggle';
 import { Drawer } from '@/components/ui/Drawer';
@@ -211,7 +211,7 @@ export default function CoursesPage() {
     ];
 
     if ((!token && !user) || (isFetching && !fetchedData)) {
-        return <Loading className="h-full" text="Loading Courses..." size="lg" />;
+        return <div className="p-4"><SkeletonTable rows={5} columns={4} /></div>;
     }
 
     if (coursesError) {
@@ -222,9 +222,9 @@ export default function CoursesPage() {
         <div className="flex flex-col h-full w-full">
             <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-1 md:p-2 overflow-hidden flex flex-col flex-1 min-h-0">
                 <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-2 shrink-0">
-                        <div className="flex-1 w-full">
-                            <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder="Search by name or description..." />
-                        </div>
+                    <div className="flex-1 w-full">
+                        <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder="Search by name or description..." />
+                    </div>
 
                     <div className='flex w-full md:w-auto gap-2 justify-between'>
                         {user?.role === Role.ORG_MANAGER && (
