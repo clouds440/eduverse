@@ -1570,13 +1570,13 @@ export function ChatLayout() {
         messageDraft.includes('\n');
 
     return (
-        <div className="flex h-full bg-card lg:shadow-md lg:border border-border overflow-hidden relative">
+        <div className="flex h-full bg-background lg:shadow-md lg:border border-border overflow-hidden relative">
             {/* ===== SIDEBAR ===== */}
             <div className={`
             ${activeChatId && !isDesktop ? 'hidden' : 'flex'} 
-            w-full lg:max-w-[320px] 2xl:max-w-95 border-r border-border flex-col bg-card h-full transition-all duration-300 ease-in-out
+            w-full lg:max-w-[320px] 2xl:max-w-95 border-r border-border flex-col bg-background h-full transition-all duration-300 ease-in-out
         `}>
-                <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-border bg-card/50 flex justify-between items-center">
+                <div className="px-4 sm:px-5 py-3 sm:py-4 border-b border-border bg-background flex justify-between items-center">
                     <div>
                         <h2 className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">Messages</h2>
                         <p className="text-[12px] sm:text-[13px] text-muted-foreground font-semibold tracking-wide mt-0.5">{chats.length} conversation{chats.length !== 1 ? 's' : ''}</p>
@@ -1847,7 +1847,7 @@ export function ChatLayout() {
                     <>
                         {/* Chat Header */}
                         <div
-                            className="relative w-full px-4 py-3 border-b border-border flex items-center justify-between z-20 bg-background/60 backdrop-blur-xl"
+                            className="relative w-full px-4 py-3 border-b border-border flex items-center justify-between z-20 bg-background"
                         >
                             <div
                                 id="participants-toggle"
@@ -1898,25 +1898,28 @@ export function ChatLayout() {
                                             return (
                                                 <span className="flex items-center gap-2">
                                                     <span className={isOnline ? 'text-success' : ''}>{status || role}</span>
+                                                    {role && <span className='capitalize text-sm'> - &nbsp;{role}</span>}
                                                     {!isOnline && <span className="opacity-40">•</span>}
-                                                    {!isOnline && <span>{role}</span>}
+                                                    {!isOnline && <span className='capitalize'>{role}</span>}
                                                 </span>
                                             );
                                         })()}
                                 </div>
                             </div>
-                            <div className="flex items-center space-x-1">
-                                <Button
-                                    type='button'
-                                    variant="secondary"
-                                    px="px-2"
-                                    py="py-2"
-                                    onClick={() => activeChat.type === ChatType.GROUP ? setIsSettingsModalOpen(true) : handleClearChatHistory(activeChat.id)}
-                                    className="text-muted-foreground hover:text-foreground rounded-xl bg-transparent border-none shadow-none"
-                                    title={activeChat.type === ChatType.GROUP ? 'Chat Settings' : 'Clear Chat'}
-                                    icon={activeChat.type === ChatType.GROUP ? MoreVertical : Trash2}
-                                />
-                            </div>
+                            {activeChat.type === ChatType.GROUP && (
+                                <div className="flex items-center space-x-1">
+                                    <Button
+                                        type='button'
+                                        variant="secondary"
+                                        px="px-2"
+                                        py="py-2"
+                                        onClick={() => setIsSettingsModalOpen(true)}
+                                        className="text-muted-foreground hover:text-foreground rounded-xl bg-transparent border-none shadow-none"
+                                        title={'Chat Settings'}
+                                        icon={MoreVertical}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {/* Messages Area */}

@@ -7,7 +7,8 @@ import {
     MessageSquare, Settings, LibraryBig, Trophy,
     Clock, ShieldOff, RefreshCw, Mail, CheckCircle, Book,
     Layers,
-    CalendarDays, Calendar, Network, FileText, ArrowRightCircle
+    CalendarDays, Calendar, Network, FileText, ArrowRightCircle, Wallet,
+    ShieldAlert
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -39,7 +40,7 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
                     Your organization registration is currently being verified.
                     You&apos;ll have full access once EduVerse confirms your details.
                 </p>
-                <div className="bg-warning text-warning/10 px-10 py-5 rounded-lg font-black text-xl border border-warning/40 w-full shadow-2xl flex items-center justify-center gap-3">
+                <div className="bg-warning/10 text-warning px-10 py-5 rounded-lg font-black text-xl border border-warning/40 w-full shadow-2xl flex items-center justify-center gap-3">
                     Status: Pending Verification
                 </div>
             </div>
@@ -60,7 +61,7 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
                         content={orgData.statusHistory && orgData.statusHistory.length > 0
                             ? orgData.statusHistory[orgData.statusHistory.length - 1].message
                             : 'No reason provided.'}
-                        className="text-danger text-lg font-bold prose prose-red prose-sm max-w-none leading-relaxed"
+                        className="text-danger! text-lg font-bold prose prose-red prose-sm max-w-none leading-relaxed"
                     />
                 </div>
                 <p className="text-muted-foreground text-base mb-10 font-medium max-w-md">
@@ -69,10 +70,10 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
                 {user?.role === Role.ORG_ADMIN && (
                     <Link
                         href="/settings"
-                        className="inline-flex items-center gap-4 bg-danger hover:bg-danger/90 text-white px-12 py-6 rounded-lg font-black text-xl shadow-[0_20px_50px_rgba(220,38,38,0.3)] transition-all hover:-translate-y-1 active:scale-95 group tracking-tighter"
+                        className="inline-flex items-center gap-4 bg-danger/10 hover:bg-danger/30 text-danger px-12 py-6 rounded-lg font-black text-xl shadow-[0_20px_50px_rgba(220,38,38,0.3)] transition-all hover:-translate-y-1 active:scale-95 group tracking-tighter"
                     >
                         <RefreshCw className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />
-                        Status: RE-APPLY NOW
+                        RE-APPLY NOW
                     </Link>
                 )}
             </div>
@@ -91,12 +92,12 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
                     Your institutional access has been temporarily restricted by the platform administrators.
                 </p>
                 <div className="bg-warning/10 text-warning p-8 rounded-lg border border-warning w-full mb-10 text-left shadow-inner">
-                    <h3 className="font-black mb-4 flex items-center gap-2 text-[10px] tracking-[0.3em] text-warning/60"><ShieldOff className="w-4 h-4" /> Official Suspension Reason</h3>
+                    <h3 className="font-black mb-4 flex items-center gap-2 tracking-[0.3em] text-warning/60"><ShieldAlert className="w-4 h-4" /> Official Suspension Reason</h3>
                     <MarkdownRenderer
                         content={orgData.statusHistory && orgData.statusHistory.length > 0
                             ? orgData.statusHistory[orgData.statusHistory.length - 1].message
-                            : 'Please contact platform support for further details.'}
-                        className="italic font-bold text-warning prose prose-warning prose-sm max-w-none leading-relaxed"
+                            : 'Please contact EduVerse support for further details.'}
+                        className="italic font-bold text-warning! prose prose-warning prose-sm max-w-none leading-relaxed"
                     />
                 </div>
                 <Link
@@ -275,6 +276,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             orgLinks.push({ id: 'SCHEDULES', label: 'Schedules', href: '/schedules', icon: CalendarDays });
             orgLinks.push({ id: 'TRANSCRIPTS', label: 'Transcripts', href: '/transcripts', icon: FileText });
             orgLinks.push({ id: 'PROMOTIONS', label: 'Promotions', href: '/promotions', icon: ArrowRightCircle });
+            orgLinks.push({ id: 'FINANCE', label: 'Finance', href: '/finance', icon: Wallet });
 
             if (user?.role === Role.ORG_ADMIN) {
                 orgLinks.push({ id: 'SETTINGS', label: 'Settings', href: '/settings', icon: Settings });

@@ -226,14 +226,10 @@ export default function StudentsPage() {
             }
         },
         {
-            header: 'Fee',
+            header: 'Enrolled On',
             sortable: true,
-            sortKey: 'fee',
-            accessor: (row: Student) => (
-                <div className="whitespace-nowrap">
-                    {row.fee ? `$${row.fee}` : '-'}
-                </div>
-            )
+            sortKey: 'createdAt',
+            accessor: (row: Student) => row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '-'
         },
         {
             header: 'Last Updated',

@@ -49,7 +49,6 @@ const teacherBaseSchema = z.object({
     education: z.string().optional().or(z.literal('')),
     designation: z.string().optional().or(z.literal('')),
     subject: z.string().optional().or(z.literal('')),
-    salary: z.string().nullable().optional(),
     department: z.string().optional().or(z.literal('')),
     joiningDate: z.string().optional().or(z.literal('')),
     address: z.string().optional().or(z.literal('')),
@@ -66,7 +65,6 @@ export const teacherCreateSchema = teacherBaseSchema.extend({
     education: z.string().min(1, 'Education is required'),
     designation: z.string().min(1, 'Designation is required'),
     subject: z.string().min(1, 'Subject Expertise is required'),
-    salary: z.string().min(1, 'Salary is required'),
     phone: z.string().regex(phoneRegex, 'Invalid phone number').min(1, 'Phone number is required'),
 });
 
@@ -78,7 +76,6 @@ export const teacherUpdateSchema = teacherBaseSchema.extend({
     education: z.string().min(1, 'Education is required'),
     designation: z.string().min(1, 'Designation is required'),
     subject: z.string().min(1, 'Subject Expertise is required'),
-    salary: z.string().min(1, 'Salary is required'),
     phone: z.string().regex(phoneRegex, 'Invalid phone number').min(1, 'Phone number is required'),
 });
 
@@ -107,8 +104,6 @@ const studentBaseSchema = z.object({
     fatherName: z.string().optional().or(z.literal('')),
     age: z.string().nullable().optional(),
     gender: z.string().optional().or(z.literal('')),
-    fee: z.string().nullable().optional(),
-    feePlan: z.string().optional().or(z.literal('')),
     graduationDate: z.string().optional().or(z.literal('')),
     phone: z.string().regex(phoneRegex, 'Invalid phone number').optional().or(z.literal('')),
     emergencyContact: z.string().optional().or(z.literal('')),
@@ -125,8 +120,6 @@ export const studentCreateSchema = studentBaseSchema.extend({
     rollNumber: z.string().min(1, 'Roll Number is required'),
     major: z.string().min(1, 'Major/Program is required'),
     gender: z.string().min(1, 'Gender is required'),
-    fee: z.string().min(1, 'Fee is required'),
-    feePlan: z.string().min(1, 'Fee Plan is required'),
 });
 
 // Update → password OPTIONAL + metadata REQUIRED
@@ -136,8 +129,6 @@ export const studentUpdateSchema = studentBaseSchema.extend({
     rollNumber: z.string().min(1, 'Roll Number is required'),
     major: z.string().min(1, 'Major/Program is required'),
     gender: z.string().min(1, 'Gender is required'),
-    fee: z.string().min(1, 'Fee is required'),
-    feePlan: z.string().min(1, 'Fee Plan is required'),
 });
 
 export type StudentCreateFormData = z.infer<typeof studentCreateSchema>;

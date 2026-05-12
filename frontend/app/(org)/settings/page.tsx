@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Settings, Save, CheckCircle, Mail, MapPin, Phone, School, RefreshCw, ShieldOff, AlertCircle } from 'lucide-react';
+import { Settings, Save, CheckCircle, Mail, MapPin, Phone, School, RefreshCw, AlertCircle, TriangleAlert } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Organization, Role } from '@/types';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
@@ -250,7 +250,7 @@ export default function SettingsPage() {
                     <div className="mb-6 md:mb-8 p-4 md:p-6 bg-destructive/10 border border-destructive/20 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
                         <div className="flex items-center gap-3 md:gap-4">
                             <div className="p-3 bg-destructive/20 rounded-xl text-destructive">
-                                <ShieldOff className="w-5 h-5 md:w-6 md:h-6" />
+                                <TriangleAlert className="w-5 h-5 md:w-6 md:h-6" />
                             </div>
                             <div>
                                 <h4 className="text-base md:text-lg font-black text-destructive leading-tight">Your application was rejected</h4>
@@ -259,23 +259,19 @@ export default function SettingsPage() {
                                         content={orgData?.statusHistory && orgData.statusHistory.length > 0
                                             ? orgData.statusHistory[orgData.statusHistory.length - 1].message
                                             : 'Please correct the details below and re-submit for review.'}
-                                        className="text-xs md:text-sm text-destructive font-medium prose prose-red dark:prose-invert prose-sm max-w-none opacity-80"
+                                        className="text-xs md:text-sm text-muted-foreground! font-medium prose prose-red dark:prose-invert prose-sm max-w-none opacity-80"
                                     />
                                 </div>
                             </div>
                         </div>
-                        <button
+                        <Button
                             onClick={handleReapply}
                             disabled={reapplying}
-                            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground px-6 md:px-8 py-2 md:py-3 rounded-xl font-semibold transition-all shadow-lg hover:shadow-destructive/20 active:scale-95 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap text-sm md:text-base"
+                            icon={RefreshCw}
+                            variant="primary"
                         >
-                            {reapplying ? (
-                                <Loading size="xs" />
-                            ) : (
-                                <RefreshCw className="w-4 h-4" />
-                            )}
                             Re-submit for Review
-                        </button>
+                        </Button>
                     </div>
                 )}
 

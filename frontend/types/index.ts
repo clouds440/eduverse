@@ -28,7 +28,6 @@ export interface Teacher {
     education?: string;
     designation?: string;
     subject?: string;
-    salary?: number;
     userId: string;
     department?: string;
     joiningDate?: string;
@@ -71,7 +70,6 @@ export interface Student {
     registrationNumber?: string;
     rollNumber?: string;
     fatherName?: string;
-    fee?: number;
     age?: number;
     address?: string;
     major?: string;
@@ -79,15 +77,15 @@ export interface Student {
     department?: string;
     admissionDate?: string;
     graduationDate?: string;
+    createdAt?: string;
+    updatedAt?: string;
     emergencyContact?: string;
     bloodGroup?: string;
     gender?: string | null;
-    feePlan?: string | null;
     status?: StudentStatus;
     user: User;
     enrollments?: { section: Section; source?: string; isExcludedFromCohort?: boolean; academicCycleId?: string }[];
     updatedBy?: string;
-    updatedAt?: string;
     cohortId?: string | null;
     cohort?: Cohort;
 }
@@ -353,7 +351,6 @@ export interface CreateTeacherRequest {
     education?: string | null;
     designation?: string | null;
     subject?: string | null;
-    salary?: number | null;
     department?: string | null;
     joiningDate?: string | null;
     emergencyContact?: string | null;
@@ -374,7 +371,6 @@ export interface CreateStudentRequest {
     registrationNumber?: string | null;
     rollNumber?: string | null;
     fatherName?: string | null;
-    fee?: number | null;
     age?: number | null;
     address?: string | null;
     major?: string | null;
@@ -384,7 +380,6 @@ export interface CreateStudentRequest {
     emergencyContact?: string | null;
     bloodGroup?: string | null;
     gender?: string | null;
-    feePlan?: string | null;
     status?: StudentStatus;
     sectionIds?: string[];
     cohortId?: string | null;
@@ -797,6 +792,141 @@ export interface CreateAcademicCycleDto {
     endDate: string;
     isActive?: boolean;
 }
+
+// ─── Financial System Types ──────────────────────────────────────────────────
+
+export enum FinanceCategory {
+    TUITION = 'TUITION',
+    TRANSPORT = 'TRANSPORT',
+    LIBRARY = 'LIBRARY',
+    EXAM = 'EXAM',
+    SALARY = 'SALARY',
+    BONUS = 'BONUS',
+    ADMISSION = 'ADMISSION',
+    HOSTEL = 'HOSTEL',
+    ACTIVITY = 'ACTIVITY',
+    REIMBURSEMENT = 'REIMBURSEMENT',
+    OTHER = 'OTHER'
+}
+
+export enum BillingCycle {
+    ONCE = 'ONCE',
+    MONTHLY = 'MONTHLY',
+    QUARTERLY = 'QUARTERLY',
+    SEMESTER = 'SEMESTER',
+    ANNUAL = 'ANNUAL'
+}
+
+export enum EntryStatus {
+    PENDING = 'PENDING',
+    UNVERIFIED = 'UNVERIFIED',
+    PARTIAL = 'PARTIAL',
+    PAID = 'PAID',
+    OVERDUE = 'OVERDUE',
+    CANCELLED = 'CANCELLED'
+}
+
+export enum EntrySource {
+    SYSTEM = 'SYSTEM',
+    MANUAL = 'MANUAL'
+}
+
+export enum TransactionType {
+    INCOME = 'INCOME',
+    EXPENSE = 'EXPENSE'
+}
+
+export enum FinanceTargetType {
+    STUDENT = 'STUDENT',
+    TEACHER = 'TEACHER'
+}
+
+export enum FinanceTab {
+    ALL = 'ALL',
+    PENDING = 'PENDING',
+    OVERDUE = 'OVERDUE',
+    UNVERIFIED = 'UNVERIFIED',
+    PAID = 'PAID'
+}
+
+export interface FinancialStructure {
+    id: string;
+    organizationId: string;
+    title: string;
+    description: string | null;
+    studentId: string | null;
+    teacherId: string | null;
+    category: FinanceCategory;
+    amount: number;
+    currency: string;
+    billingCycle: BillingCycle;
+    dueDay: number | null;
+    startDate: string;
+    endDate: string | null;
+    isActive: boolean;
+    metadata: Record<string, unknown> | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface FinancialEntry {
+    id: string;
+    organizationId: string;
+    structureId: string | null;
+    title: string;
+    studentId: string | null;
+    teacherId: string | null;
+    amount: number;
+    paidAmount: number;
+    currency: string;
+    source: EntrySource;
+    status: EntryStatus;
+    periodStart: string | null;
+    periodEnd: string | null;
+    dueDate: string;
+    metadata: Record<string, unknown> | null;
+    markedByUser: boolean;
+    markedAt: string | null;
+    paymentMethod: string | null;
+    receiptUrl: string | null;
+    confirmedByAdmin: boolean;
+    confirmedAt: string | null;
+    confirmedById: string | null;
+    createdAt: string;
+    updatedAt: string;
+
+    // Relations (if included)
+    structure?: FinancialStructure | null;
+    transactions?: Transaction[];
+}
+
+export interface Transaction {
+    id: string;
+    organizationId: string;
+    relatedEntryId: string | null;
+    type: TransactionType;
+    category: FinanceCategory;
+    amount: number;
+    currency: string;
+    description: string | null;
+    paymentMethod: string | null;
+    metadata: Record<string, unknown> | null;
+    createdById: string | null;
+    createdAt: string;
+
+    // Relations (if included)
+    relatedEntry?: FinancialEntry | null;
+}
+
+export interface FinanceStats {
+    totalExpectedIncome: number;
+    totalCollectedIncome: number;
+    overdueAmount: number;
+    totalSalaryExpenses: number;
+    pendingConfirmations: number;
+    recentTransactions: Transaction[];
+}
+
 
 export interface UpdateAcademicCycleDto {
     name?: string;

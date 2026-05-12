@@ -49,6 +49,8 @@ export interface ModalConfig {
     title: string;
     subtitle?: string;
     fields: DataField[];
+    body?: React.ReactNode;
+    bodyClassName?: string;
     actions?: React.ReactNode;
 }
 

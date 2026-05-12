@@ -24,4 +24,5 @@ export const DASHBOARD_MODULES = [
     'cohorts',
     'promotions',
     'transcripts',
+    'finance',
 ];

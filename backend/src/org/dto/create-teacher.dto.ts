@@ -3,7 +3,6 @@ import {
   IsEmail,
   IsNotEmpty,
   IsOptional,
-  IsNumber,
   MinLength,
   IsBoolean,
   Matches,
@@ -31,10 +30,6 @@ export class CreateTeacherDto {
   @IsString()
   @IsNotEmpty()
   name: string; // Used for general info if needed by user schema
-
-  @IsNumber()
-  @IsNotEmpty()
-  salary: number;
 
   @IsString()
   @IsNotEmpty()

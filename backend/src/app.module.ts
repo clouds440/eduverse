@@ -24,6 +24,7 @@ import { CohortsModule } from './cohorts/cohorts.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
 import { PromotionsModule } from './promotions/promotions.module';
 import { CopyForwardModule } from './copy-forward/copy-forward.module';
+import { FinanceModule } from './finance/finance.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { CopyForwardModule } from './copy-forward/copy-forward.module';
     TranscriptsModule,
     PromotionsModule,
     CopyForwardModule,
+    FinanceModule,
   ],
   providers: [
     {

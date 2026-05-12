@@ -106,6 +106,7 @@ export default function ChangePasswordForm({
                             value={formData.oldPassword}
                             onChange={handleChange}
                             error={!!errors.oldPassword}
+                            tabIndex={1}
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                         />
                         {errors.oldPassword && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.oldPassword}</p>}
@@ -122,6 +123,7 @@ export default function ChangePasswordForm({
                             value={formData.newPassword}
                             onChange={handleChange}
                             error={!!errors.newPassword}
+                            tabIndex={2}
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                         />
                         {errors.newPassword && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.newPassword}</p>}
@@ -139,6 +141,7 @@ export default function ChangePasswordForm({
                             value={formData.confirmPassword}
                             onChange={handleChange}
                             error={!!errors.confirmPassword}
+                            tabIndex={3}
                             className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
                         />
                         {errors.confirmPassword && <p className="mt-1 text-xs text-danger font-semibold ml-1">{errors.confirmPassword}</p>}

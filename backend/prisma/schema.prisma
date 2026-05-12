@@ -34,6 +34,9 @@ model Organization {
   announcements   Announcement[]
   academicCycles  AcademicCycle[]
   cohorts         Cohort[]
+  financialStructures FinancialStructure[]
+  financialEntries    FinancialEntry[]
+  transactions        Transaction[]
 
   @@index([status])
   @@index([type])
@@ -71,6 +74,8 @@ model User {
   deletedChatMessages   ChatMessage[]      @relation("DeletedChatMessages")
   userNotifications     Notification[]     @relation("UserNotifications")
   createdAnnouncements  Announcement[]     @relation("CreatedAnnouncements")
+  confirmedFinancialEntries FinancialEntry[] @relation("AdminConfirmations")
+  createdTransactions       Transaction[]    @relation("UserTransactions")
 
   @@index([organizationId])
   @@index([role])
@@ -103,7 +108,6 @@ model Teacher {
   id               String        @id @default(uuid())
   userId           String        @unique
   organizationId   String
-  salary           Float         @default(0.0)
   subject          String        @default("Unassigned")
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -118,6 +122,8 @@ model Teacher {
   organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   sections         Section[]     @relation("SectionToTeacher")
+  financialStructures FinancialStructure[]
+  financialEntries    FinancialEntry[]
 
   @@index([organizationId])
 }
@@ -189,7 +195,6 @@ model Student {
   registrationNumber String        @default("TEMP_ID")
   rollNumber         String        @default("TEMP_ROLL")
   fatherName         String?
-  fee                Float         @default(0.0)
   age                Int?
   address            String?
   major              String        @default("Unassigned")
@@ -200,7 +205,6 @@ model Student {
   bloodGroup         String?
   department         String?
   emergencyContact   String?
-  feePlan            String        @default("Unassigned")
   gender             String        @default("Unassigned")
   graduationDate     DateTime?
   status             StudentStatus @default(ACTIVE)
@@ -213,6 +217,8 @@ model Student {
   attendanceRecords  AttendanceRecord[]
   enrollmentHistories     EnrollmentHistory[]
   cohortMembershipHistories CohortMembershipHistory[]
+  financialStructures FinancialStructure[]
+  financialEntries    FinancialEntry[]
 
   @@index([organizationId])
   @@index([cohortId])
@@ -782,4 +788,160 @@ model CohortMembershipHistory {
   @@index([studentId])
   @@index([cohortId])
   @@index([academicCycleId])
+}
+
+// ─── FINANCIAL LEDGER SYSTEM ────────────────────────────────────────────────
+
+enum FinanceCategory {
+  TUITION
+  TRANSPORT
+  LIBRARY
+  EXAM
+  SALARY
+  BONUS
+  ADMISSION
+  HOSTEL
+  ACTIVITY
+  REIMBURSEMENT
+  OTHER
+}
+
+enum BillingCycle {
+  ONCE
+  MONTHLY
+  SEMESTER
+  YEARLY
+  ACADEMIC_CYCLE
+}
+
+enum EntryStatus {
+  PENDING
+  UNVERIFIED
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum EntrySource {
+  SYSTEM
+  MANUAL
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model FinancialStructure {
+  id              String           @id @default(uuid())
+  organizationId  String
+  title           String           // e.g. "Standard Tuition"
+  description     String?
+
+  studentId       String?
+  teacherId       String?
+
+  category        FinanceCategory
+
+  amount          Float
+  currency        String           @default("USD")
+
+  billingCycle    BillingCycle
+  dueDay          Int?             // Allow null for ONCE or ACADEMIC_CYCLE
+
+  startDate       DateTime
+  endDate         DateTime?
+
+  isActive        Boolean          @default(true)
+  metadata        Json?
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student         Student?         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher         Teacher?         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  entries         FinancialEntry[]
+
+  @@index([organizationId])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([isActive])
+}
+
+model FinancialEntry {
+  id                String             @id @default(uuid())
+  organizationId    String
+  structureId       String?
+
+  title             String             // e.g. "September Tuition"
+  
+  studentId         String?
+  teacherId         String?
+
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  dueDate           DateTime
+
+  amount            Float
+  paidAmount        Float              @default(0.0)
+
+  status            EntryStatus        @default(PENDING)
+
+  markedByUser      Boolean            @default(false)
+  markedAt          DateTime?
+  receiptUrl        String?
+  paymentMethod     String?
+
+  confirmedByAdmin  Boolean            @default(false)
+  confirmedAt       DateTime?
+  confirmedById     String?
+
+  source            EntrySource
+
+  metadata          Json?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  structure         FinancialStructure? @relation(fields: [structureId], references: [id], onDelete: SetNull)
+  student           Student?           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher           Teacher?           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  confirmedBy       User?              @relation("AdminConfirmations", fields: [confirmedById], references: [id])
+  transactions      Transaction[]
+
+  @@index([organizationId])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([status])
+  @@index([dueDate])
+  @@unique([structureId, periodStart, periodEnd])
+}
+
+model Transaction {
+  id              String           @id @default(uuid())
+  organizationId  String
+
+  type            TransactionType
+  category        FinanceCategory
+
+  amount          Float
+  currency        String           @default("USD")
+  description     String?
+
+  relatedEntryId  String?
+  paymentMethod   String?
+  referenceNumber String?
+
+  createdById     String
+  createdAt       DateTime         @default(now())
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  relatedEntry    FinancialEntry?  @relation(fields: [relatedEntryId], references: [id], onDelete: SetNull)
+  createdBy       User             @relation("UserTransactions", fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([relatedEntryId])
+  @@index([createdById])
 }

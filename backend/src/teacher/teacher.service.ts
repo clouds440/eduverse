@@ -249,7 +249,6 @@ export class TeacherService {
           data: {
             userId: user.id,
             organizationId: orgId,
-            salary: data.salary,
             subject: data.subject,
             education: data.education,
             designation: data.designation,
@@ -333,7 +332,6 @@ export class TeacherService {
 
     const userFields = ['name', 'email', 'phone', 'password'];
     const teacherFields = [
-      'salary',
       'subject',
       'education',
       'designation',

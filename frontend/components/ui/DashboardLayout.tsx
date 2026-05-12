@@ -94,6 +94,8 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                 title={modalConfig.title}
                 subtitle={modalConfig.subtitle}
                 fields={modalConfig.fields}
+                body={modalConfig.body}
+                bodyClassName={modalConfig.bodyClassName}
                 actions={modalConfig.actions}
             />
 

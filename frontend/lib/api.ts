@@ -9,7 +9,8 @@ import {
     Chat, ChatMessage, Notification, Announcement, TargetType, AnnouncementPriority, User,
     ThemeMode, SectionSchedule, TimetableEntry, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights,
-    AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto
+    AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto,
+    FinancialStructure, FinancialEntry, Transaction, FinanceStats
 } from '@/types';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? '';
@@ -466,5 +467,26 @@ export const api = {
     copyForward: {
         execute: (data: CopyForwardDto, token: string) =>
             request<{ message: string; sectionsCopied: number; details: any }>(`/org/copy-forward`, { method: 'POST', body: JSON.stringify(data), token }),
+    },
+
+    finance: {
+        getStructures: (token: string, params: { studentId?: string, teacherId?: string } = {}) =>
+            request<FinancialStructure[]>(`/finance/structures${buildQueryString(params)}`, { token }),
+        createStructure: (data: Partial<FinancialStructure>, token: string) =>
+            request<FinancialStructure>('/finance/structures', { method: 'POST', body: JSON.stringify(data), token }),
+        updateStructure: (id: string, data: Partial<FinancialStructure>, token: string) =>
+            request<FinancialStructure>(`/finance/structures/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getEntries: (token: string, params: { studentId?: string, teacherId?: string } = {}) =>
+            request<FinancialEntry[]>(`/finance/entries${buildQueryString(params)}`, { token }),
+        createManualEntry: (data: Partial<FinancialEntry>, token: string) =>
+            request<FinancialEntry>('/finance/entries/manual', { method: 'POST', body: JSON.stringify(data), token }),
+        markEntryPaid: (id: string, data: { paymentMethod?: string, receiptUrl?: string }, token: string) =>
+            request<FinancialEntry>(`/finance/entries/${id}/mark-paid`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        confirmEntry: (id: string, data: { paidAmount?: number }, token: string) =>
+            request<{ entry: FinancialEntry, transaction: Transaction }>(`/finance/entries/${id}/confirm`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getTransactions: (token: string, params: { studentId?: string, teacherId?: string } = {}) =>
+            request<Transaction[]>(`/finance/transactions${buildQueryString(params)}`, { token }),
+        getStats: (token: string) =>
+            request<FinanceStats>('/finance/stats', { token }),
     }
 };

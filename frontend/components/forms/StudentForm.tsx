@@ -59,8 +59,6 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             fatherName: initialData.fatherName || '',
             age: initialData.age?.toString() || '',
             gender: initialData.gender || '',
-            fee: initialData.fee?.toString() || '',
-            feePlan: initialData.feePlan || '',
             graduationDate: initialData.graduationDate ? new Date(initialData.graduationDate).toISOString().split('T')[0] : '',
             phone: initialData.user?.phone || '',
             emergencyContact: initialData.emergencyContact || '',
@@ -81,8 +79,6 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             fatherName: '',
             age: '',
             gender: '',
-            fee: '',
-            feePlan: '',
             graduationDate: '',
             phone: '',
             emergencyContact: '',
@@ -108,8 +104,6 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                 fatherName: initialData.fatherName || '',
                 age: initialData.age?.toString() || '',
                 gender: initialData.gender || '',
-                fee: initialData.fee?.toString() || '',
-                feePlan: initialData.feePlan || '',
                 graduationDate: initialData.graduationDate ? new Date(initialData.graduationDate).toISOString().split('T')[0] : '',
                 phone: initialData.user?.phone || '',
                 emergencyContact: initialData.emergencyContact || '',
@@ -125,11 +119,10 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     const onSubmit: SubmitHandler<StudentCreateFormData | StudentUpdateFormData | StudentProfileFormData> = async (data) => {
         dispatch({ type: 'UI_START_PROCESSING', payload: 'student-submit' });
         try {
-            const { password, fee, age, ...rest } = data;
+            const { password, age, ...rest } = data;
 
             const payload: CreateStudentRequest | UpdateStudentRequest = {
                 ...rest,
-                fee: fee ? Number(fee) : null,
                 age: age ? Number(age) : null,
                 ...(studentId ? (password ? { password } : {}) : { password })
             };
@@ -450,7 +443,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                 </div>
             </div>
 
-            {/* Billing & Progress */}
+            {/* Profile & Contact */}
             <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
                 <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
                     <div className="flex items-center gap-4">
@@ -460,44 +453,12 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 <DollarSign className="w-6 h-6 text-primary" />
                             </div>
                         </div>
-                        <h3 className="text-lg md:text-xl font-black text-foreground">Billing & Expected Progress</h3>
+                        <h3 className="text-lg md:text-xl font-black text-foreground">Expected Progress</h3>
                     </div>
                 </div>
 
                 <div className="p-6 md:p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Annual/Semester Fee <span className="text-danger">*</span></Label>
-                            <Input
-                                type="number"
-                                {...register('fee')}
-                                onChange={(isProfile || isWatchMode) ? undefined : register('fee').onChange}
-                                readOnly={isProfile || isWatchMode}
-                                value={watch('fee') || ''}
-                                error={!!errors.fee}
-                                disabled={isProfile || isWatchMode}
-                                icon={DollarSign}
-                                placeholder="12000"
-                                className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.fee && <p className="mt-1 text-xs text-danger font-semibold">{errors.fee.message}</p>}
-                        </div>
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Fee Plan <span className="text-danger">*</span></Label>
-                            <Input
-                                type="text"
-                                {...register('feePlan')}
-                                onChange={(isProfile || isWatchMode) ? undefined : register('feePlan').onChange}
-                                readOnly={isProfile || isWatchMode}
-                                value={watch('feePlan') || ''}
-                                error={!!errors.feePlan}
-                                disabled={isProfile || isWatchMode}
-                                icon={BookOpen}
-                                placeholder="Standard / Installments"
-                                className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.feePlan && <p className="mt-1 text-xs text-danger font-semibold">{errors.feePlan.message}</p>}
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-1 gap-4 md:gap-6">
                         <div className="space-y-2 md:space-y-3">
                             <Label>Exp. Graduation</Label>
                             <Input

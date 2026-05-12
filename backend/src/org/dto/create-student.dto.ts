@@ -48,10 +48,6 @@ export class CreateStudentDto {
   fatherName?: string;
 
   @IsNumber()
-  @IsNotEmpty()
-  fee: number;
-
-  @IsNumber()
   @IsOptional()
   age?: number;
 
@@ -98,10 +94,6 @@ export class CreateStudentDto {
   @IsString()
   @IsNotEmpty()
   gender: string;
-
-  @IsString()
-  @IsNotEmpty()
-  feePlan: string;
 
   @IsEnum(StudentStatus)
   @IsOptional()

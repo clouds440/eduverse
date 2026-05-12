@@ -147,42 +147,43 @@ if (typeof document !== 'undefined') {
         style.innerHTML = `
                 /* Let the surrounding container (e.g. .message-bubble) control white-space.
                     Use inherit so we avoid conflicting pre-wrap rules that cause extra blank lines. */
-                .markdown-content { color: #1f2937; overflow-wrap: anywhere; word-break: break-word; white-space: inherit; }
+                .markdown-content { color: inherit; overflow-wrap: anywhere; word-break: break-word; white-space: inherit; }
             /* Remove paragraph bottom margins to avoid extra space inside message bubbles */
             .markdown-content p { margin: 0 0 0 0; line-height: 1.6; }
             .markdown-content p:last-child { margin-bottom: 0; }
-            .markdown-content strong, .markdown-content b { font-weight: 800; color: var(--foreground) !important; }
-            .markdown-content a { color: #4338ca; text-decoration: underline; font-weight: 700; text-underline-offset: 2px; }
-            .markdown-content a:hover { color: #3730a3; opacity: 0.9; }
+            .markdown-content strong, .markdown-content b { font-weight: 800; color: inherit; }
+            .markdown-content a { color: var(--primary); text-decoration: underline; font-weight: 700; text-underline-offset: 2px; }
+            .markdown-content a:hover { opacity: 0.8; }
             .markdown-content ul, .markdown-content ol { margin: 0 0 0 0; padding-left: 1rem; }
             .markdown-content li { margin: 0 0 0 0; }
             .markdown-content ul { list-style-type: disc; }
             .markdown-content ol { list-style-type: decimal; }
             .markdown-content h1, .markdown-content h2, .markdown-content h3 { 
                 font-weight: 900; 
-                line-height: 1.2; 
-                margin-top: 1.5rem; 
-                margin-bottom: 0.75rem; 
-                color: #111827;
+                line-height: 1;
+                margin-top: 0.75rem;
+                margin-bottom: 0.25rem; 
+                color: inherit;
                 letter-spacing: -0.025em;
             }
             .markdown-content h1 { font-size: 1.5rem; }
             .markdown-content h2 { font-size: 1.25rem; }
             .markdown-content h3 { font-size: 1.125rem; }
             .markdown-content blockquote {
-                border-left: 4px solid #e5e7eb;
+                border-left: 4px solid var(--border-color, #e5e7eb);
                 padding-left: 1rem;
                 font-style: italic;
-                color: #4b5563;
-                margin: 1.5rem 0;
+                color: inherit;
+                margin: 1rem 0;
             }
             .markdown-content code {
-                background-color: rgba(246, 240, 240, 0.8);
+                background-color: var(--muted-bg, rgba(226, 232, 240, 0.5));
                 padding: 0.2rem 0.4rem;
                 border-radius: 0.25rem;
-                font-size: 0.875em;
+                font-size: 0.875rem;
+                font-weight: 700;
                 font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-                color: #7f1d1d;
+                color: var(--primary);
             }
             .markdown-content pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; margin: 0; }
             .markdown-content code { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }

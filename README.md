@@ -25,6 +25,9 @@
    - 9.3 Cohort Management
    - 9.4 Transcript Generation
    - 9.5 Student Promotions
+   - 9.6 Financial Management System
+   - 9.7 Dashboard Insights
+   - 9.8 Copy-Forward System
 ---
 
 ## Overview
@@ -161,6 +164,20 @@ backend/src/
 ├── promotions/            # Student promotions
 │   ├── promotions.service.ts
 │   └── promotions.module.ts
+├── finance/               # Financial management system
+│   ├── finance.controller.ts
+│   ├── finance.service.ts
+│   ├── finance.dto.ts
+│   ├── finance.cron.ts
+│   └── finance.module.ts
+├── insights/              # Dashboard analytics
+│   ├── insights.service.ts
+│   └── insights.module.ts
+├── copy-forward/          # Academic data copying between cycles
+│   ├── copy-forward.controller.ts
+│   ├── copy-forward.service.ts
+│   ├── dto/
+│   └── copy-forward.module.ts
 ├── org/                   # Organization operations
 │   ├── org.controller.ts
 │   ├── org.service.ts
@@ -419,6 +436,10 @@ Organization
 │           ├── Schedules (1:N)
 │           └── Assessments (1:N)
 │
+├── Financial Structures (1:N)
+│     ├── Financial Entries (1:N)
+│     └── Transactions (1:N)
+│
 ├── Chats (1:N)
 ├── Mails (1:N)
 └── Announcements (1:N)
@@ -511,6 +532,31 @@ Audit trail tracking cohort membership changes over time.
 
 ### Academic Entities
 
+#### Teacher
+| Field | Type | Description |
+| ----- | ----- | ----- |
+| id | UUID | Primary key |
+| userId | UUID | Associated user account |
+| organizationId | UUID | Associated organization |
+| subject | String | Subject specialization |
+| designation | String | Job title/designation |
+| education | String | Educational qualification |
+| address | String? | Home address |
+| bloodGroup | String? | Blood type |
+| department | String? | Department |
+| emergencyContact | String? | Emergency contact |
+| joiningDate | DateTime | Date of joining |
+| status | TeacherStatus | Teacher status |
+| createdAt | DateTime | Creation timestamp |
+| updatedAt | DateTime | Last update timestamp |
+
+**Relations:**
+- User (N:1)
+- Organization (N:1)
+- Sections (N:N)
+- FinancialStructures (1:N)
+- FinancialEntries (1:N)
+
 #### Section
 | Field | Type | Description |
 | ----- | ----- | ----- |
@@ -542,7 +588,6 @@ Audit trail tracking cohort membership changes over time.
 | registrationNumber | String | Student registration ID |
 | rollNumber | String | Roll number |
 | fatherName | String? | Father's name |
-| fee | Float | Fee amount |
 | age | Int? | Student age |
 | address | String? | Home address |
 | major | String | Major/field of study |
@@ -553,7 +598,6 @@ Audit trail tracking cohort membership changes over time.
 | bloodGroup | String? | Blood type |
 | department | String? | Department |
 | emergencyContact | String? | Emergency contact |
-| feePlan | String | Fee payment plan |
 | gender | String | Gender |
 | graduationDate | DateTime? | Expected graduation date |
 | status | StudentStatus | Student status |
@@ -568,6 +612,8 @@ Audit trail tracking cohort membership changes over time.
 - AttendanceRecords (1:N)
 - EnrollmentHistory (1:N)
 - CohortMembershipHistory (1:N)
+- FinancialStructures (1:N)
+- FinancialEntries (1:N)
 
 #### Enrollment
 | Field | Type | Description |
@@ -702,6 +748,97 @@ Audit trail tracking cohort membership changes over time.
 - Section (N:1)
 - AcademicCycle (N:1, optional)
 ---
+### Financial Entities
+
+#### FinancialStructure
+Defines recurring or one-time financial obligations for students or teachers (e.g., tuition fees, salaries).
+
+| Field | Type | Description |
+| ----- | ----- | ----- |
+| id | UUID | Primary key |
+| organizationId | UUID | Associated organization |
+| title | String | Structure title (e.g., "Standard Tuition") |
+| description | String? | Description |
+| studentId | UUID? | Associated student (for individual plans) |
+| teacherId | UUID? | Associated teacher (for individual plans) |
+| category | FinanceCategory | TUITION, TRANSPORT, SALARY, BONUS, etc. |
+| amount | Float | Base amount |
+| currency | String | Currency code (default: USD) |
+| billingCycle | BillingCycle | ONCE, MONTHLY, SEMESTER, YEARLY, ACADEMIC_CYCLE |
+| dueDay | Int? | Day of month for billing (null for ONCE) |
+| startDate | DateTime | Start date |
+| endDate | DateTime? | End date (null for indefinite) |
+| isActive | Boolean | Whether structure is active |
+| metadata | JSON? | Additional metadata |
+| createdAt | DateTime | Creation timestamp |
+| updatedAt | DateTime | Last update timestamp |
+
+**Relations:**
+- Organization (N:1)
+- Student (N:1, optional)
+- Teacher (N:1, optional)
+- FinancialEntries (1:N)
+
+#### FinancialEntry
+Represents a specific instance of a financial obligation (e.g., "September 2025 Tuition").
+
+| Field | Type | Description |
+| ----- | ----- | ----- |
+| id | UUID | Primary key |
+| organizationId | UUID | Associated organization |
+| structureId | UUID? | Parent financial structure |
+| title | String | Entry title |
+| studentId | UUID? | Associated student |
+| teacherId | UUID? | Associated teacher |
+| periodStart | DateTime? | Billing period start |
+| periodEnd | DateTime? | Billing period end |
+| dueDate | DateTime | Due date |
+| amount | Float | Total amount due |
+| paidAmount | Float | Amount paid (default: 0) |
+| status | EntryStatus | PENDING, UNVERIFIED, PARTIAL, PAID, OVERDUE, CANCELLED |
+| markedByUser | Boolean | Whether marked as paid by user |
+| markedAt | DateTime? | When user marked as paid |
+| receiptUrl | String? | Receipt image URL |
+| paymentMethod | String? | Payment method |
+| confirmedByAdmin | Boolean | Whether confirmed by admin |
+| confirmedAt | DateTime? | When confirmed |
+| confirmedById | UUID? | Admin who confirmed |
+| source | EntrySource | SYSTEM (auto-generated) or MANUAL |
+| metadata | JSON? | Additional metadata |
+| createdAt | DateTime | Creation timestamp |
+| updatedAt | DateTime | Last update timestamp |
+
+**Relations:**
+- Organization (N:1)
+- FinancialStructure (N:1, optional)
+- Student (N:1, optional)
+- Teacher (N:1, optional)
+- ConfirmedBy (N:1, optional)
+- Transactions (1:N)
+
+#### Transaction
+Records actual financial transactions (payments received or expenses paid).
+
+| Field | Type | Description |
+| ----- | ----- | ----- |
+| id | UUID | Primary key |
+| organizationId | UUID | Associated organization |
+| type | TransactionType | INCOME or EXPENSE |
+| category | FinanceCategory | Transaction category |
+| amount | Float | Transaction amount |
+| currency | String | Currency code (default: USD) |
+| description | String? | Transaction description |
+| relatedEntryId | UUID? | Associated financial entry |
+| paymentMethod | String? | Payment method |
+| referenceNumber | String? | Reference/transaction ID |
+| createdById | UUID | User who created transaction |
+| createdAt | DateTime | Creation timestamp |
+
+**Relations:**
+- Organization (N:1)
+- RelatedEntry (N:1, optional)
+- CreatedBy (N:1)
+---
 
 ## API Design
 ### Authentication Endpoints
@@ -826,6 +963,43 @@ Audit trail tracking cohort membership changes over time.
 | Method | Endpoint | Description |
 | ----- | ----- | ----- |
 | POST | `/org/promotions`  | Promote students between cycles/cohorts |
+### Finance Endpoints
+**Financial Structures**
+
+| Method | Endpoint | Description |
+| ----- | ----- | ----- |
+| POST | `/finance/structures`  | Create financial structure |
+| PATCH | `/finance/structures/:id`  | Update financial structure |
+| GET | `/finance/structures`  | List financial structures (filterable by student/teacher) |
+
+**Financial Entries**
+
+| Method | Endpoint | Description |
+| ----- | ----- | ----- |
+| POST | `/finance/entries/manual`  | Create manual financial entry |
+| GET | `/finance/entries`  | List financial entries (filterable by student/teacher) |
+| PATCH | `/finance/entries/:id/mark-paid`  | Mark entry as paid (user action) |
+| PATCH | `/finance/entries/:id/confirm`  | Confirm payment and create transaction (admin) |
+
+**Transactions & Stats**
+
+| Method | Endpoint | Description |
+| ----- | ----- | ----- |
+| GET | `/finance/transactions`  | List transactions (filterable by student/teacher) |
+| GET | `/finance/stats`  | Get financial statistics (income, expenses, overdue) |
+
+### Insights Endpoints
+
+| Method | Endpoint | Description |
+| ----- | ----- | ----- |
+| GET | `/insights/dashboard`  | Get dashboard insights for current user |
+
+### Copy-Forward Endpoints
+
+| Method | Endpoint | Description |
+| ----- | ----- | ----- |
+| POST | `/org/copy-forward`  | Copy academic data from one cycle to another |
+
 ### Communication Endpoints
 **Chat**
 
@@ -1399,6 +1573,327 @@ The Promotions system enables seamless transition of students between academic c
 
 ---
 
+### 9.6 Financial Management System
+
+#### Overview
+The Financial Management System provides comprehensive tracking of income (student fees) and expenses (teacher salaries) with support for recurring billing structures, payment verification, and transaction history.
+
+#### Core Concepts
+- **FinancialStructure**: Template for recurring financial obligations (tuition, salary, transport, etc.)
+- **FinancialEntry**: Specific instance of a financial obligation (e.g., "September 2025 Tuition")
+- **Transaction**: Actual payment record (income received or expense paid)
+- **Billing Cycles**: ONCE, MONTHLY, SEMESTER, YEARLY, ACADEMIC_CYCLE
+
+#### Financial Structure Features
+
+##### Structure Creation
+- Define recurring or one-time financial obligations
+- Set billing cycle (monthly, semester, yearly, etc.)
+- Assign to individual students/teachers or use as default
+- Set amount, currency, and due day
+- Configure start and end dates
+
+##### Structure Types
+- **Student Structures**: Tuition, transport, library, exam fees, hostel, activity fees
+- **Teacher Structures**: Salary, bonuses, reimbursements
+- **Categories**: TUITION, TRANSPORT, LIBRARY, EXAM, SALARY, BONUS, ADMISSION, HOSTEL, ACTIVITY, REIMBURSEMENT, OTHER
+
+#### Financial Entry Features
+
+##### Entry Generation
+- **System-Generated**: Auto-created from active structures based on billing cycle
+- **Manual Entry**: Ad-hoc charges or payments created by admin
+
+##### Payment Workflow
+1. **PENDING**: Entry created, awaiting payment
+2. **Mark as Paid**: Student/teacher marks entry as paid with receipt
+3. **UNVERIFIED**: Entry marked as paid, awaiting admin confirmation
+4. **Confirm Payment**: Admin verifies receipt, creates transaction record
+5. **PAID**: Entry fully paid and confirmed
+6. **PARTIAL**: Partial payment accepted
+7. **OVERDUE**: Past due date without payment
+
+##### Entry Status Flow
+```
+PENDING → (user marks paid) → UNVERIFIED → (admin confirms) → PAID
+PENDING → (partial payment) → PARTIAL → (admin confirms partial) → PARTIAL → (full payment) → PAID
+PENDING → (past due date) → OVERDUE
+```
+
+#### Transaction Features
+
+##### Transaction Recording
+- Automatically created when admin confirms payment
+- Tracks type (INCOME/EXPENSE), category, amount
+- Links to related financial entry
+- Records payment method and reference number
+
+##### Transaction Types
+- **INCOME**: Student fee payments
+- **EXPENSE**: Teacher salary payments, other expenses
+
+#### Financial Statistics
+
+The system provides comprehensive financial analytics:
+- **Total Expected Income**: Sum of all pending entry amounts
+- **Total Collected Income**: Sum of all paid amounts
+- **Overdue Amount**: Sum of overdue entries
+- **Total Salary Expenses**: Sum of teacher salary entries
+- **Pending Confirmations**: Count of entries awaiting admin verification
+- **Recent Transactions**: Latest 5 transactions
+
+#### Access Control
+
+| Operation | ORG_ADMIN | ORG_MANAGER | TEACHER | STUDENT |
+| --------- | --------- | ----------- | ------- | ------- |
+| Create Structure | ✓ | ✓ | ✗ | ✗ |
+| Update Structure | ✓ | ✓ | ✗ | ✗ |
+| View Structures | ✓ (all) | ✓ (all) | ✓ (own) | ✓ (own) |
+| Create Manual Entry | ✓ | ✓ | ✗ | ✗ |
+| Mark Entry as Paid | ✓ | ✓ | ✓ (own) | ✓ (own) |
+| Confirm Payment | ✓ | ✓ | ✗ | ✗ |
+| View Entries | ✓ (all) | ✓ (all) | ✓ (own) | ✓ (own) |
+| View Transactions | ✓ (all) | ✓ (all) | ✓ (own) | ✓ (own) |
+| View Stats | ✓ (org) | ✓ (org) | ✓ (own) | ✓ (own) |
+
+#### API Endpoints
+
+| Operation | Method | Endpoint | Roles |
+| --------- | ------ | -------- | ----- |
+| Create Structure | POST | `/finance/structures` | ORG_ADMIN, ORG_MANAGER |
+| Update Structure | PATCH | `/finance/structures/:id` | ORG_ADMIN, ORG_MANAGER |
+| List Structures | GET | `/finance/structures` | All (filtered by role) |
+| Create Manual Entry | POST | `/finance/entries/manual` | ORG_ADMIN, ORG_MANAGER |
+| List Entries | GET | `/finance/entries` | All (filtered by role) |
+| Mark as Paid | PATCH | `/finance/entries/:id/mark-paid` | All (own entries only) |
+| Confirm Payment | PATCH | `/finance/entries/:id/confirm` | ORG_ADMIN, ORG_MANAGER |
+| List Transactions | GET | `/finance/transactions` | All (filtered by role) |
+| Get Stats | GET | `/finance/stats` | All (filtered by role) |
+
+#### Business Rules
+1. Financial structures can be assigned to individual students/teachers or used as defaults
+2. Only one structure per category per student/teacher
+3. Entries are auto-generated from active structures based on billing cycle
+4. Users can mark their own entries as paid with receipt upload
+5. Admin must confirm payments before they are recorded as transactions
+6. Partial payments are supported
+7. Historical data preserved even after structures are deactivated
+8. Currency is organization-specific
+
+#### Use Cases
+- **Monthly Tuition Billing**: Auto-generate monthly tuition entries for all students
+- **Salary Payments**: Track teacher salary payments with verification
+- **One-Time Fees**: Create manual entries for admission fees, activity fees
+- **Payment Tracking**: Students mark payments, admins verify receipts
+- **Financial Reports**: View income, expenses, overdue amounts
+- **Individual Plans**: Create custom fee structures for specific students
+
+---
+
+### 9.7 Dashboard Insights
+
+#### Overview
+The Dashboard Insights system provides role-specific analytics and actionable intelligence for administrators, teachers, and students. It aggregates data across the system to present key metrics, trends, and attention items.
+
+#### Insight Types
+
+##### Role-Specific Dashboards
+- **Organization Admin/Manager**: Operational overview, staffing, scheduling, attendance coverage
+- **Teacher**: Teaching command center, upcoming assessments, submissions, student performance
+- **Student**: Personal academic progress, upcoming deadlines, attendance summary
+
+##### Insight Components
+- **Summary Cards**: High-level metrics with trend indicators
+- **Spotlight**: Time-sensitive items requiring immediate attention
+- **Insight Groups**: Categorized items (needs attention, capacity, etc.)
+- **Recent Activity**: Timeline of recent actions and events
+- **Charts**: Visual data representations (trends, distributions, comparisons)
+
+#### Organization Admin Insights
+
+##### Summary Cards
+- **Active Staff**: Total teachers, sections without teachers
+- **Active Students**: Total students, active sections count
+- **Learning Units**: Total courses, sections in delivery
+- **Attendance Coverage**: Scheduled vs marked attendance (14-day window)
+- **Open Mail Threads**: Operational requests awaiting action
+
+##### Spotlight
+- **Next Class**: Upcoming class with time, location, and course details
+
+##### Insight Groups
+- **Needs Attention**: Sections without teachers, sections without schedules, upcoming assessments
+- **Section Hotspots**: Most populated sections with enrollment counts
+
+##### Charts
+- **Enrollment Trend**: Student enrollments over time (30 days)
+- **Attendance Trend**: Attendance coverage over time (30 days)
+- **Mail Status**: Distribution of mail thread statuses
+- **Section Capacity**: Enrollment counts per section
+- **Teacher Workload**: Sections and students per teacher
+
+#### Teacher Insights
+
+##### Summary Cards
+- **My Sections**: Total assigned sections
+- **My Students**: Total unique students across sections
+- **Upcoming Assessments**: Assessments due in next 7 days
+- **Attendance Coverage**: Scheduled vs marked attendance (14-day window)
+- **Pending Submissions**: Recent submissions awaiting review
+
+##### Spotlight
+- **Next Class**: Upcoming class with time, location, and course details
+
+##### Insight Groups
+- **Needs Attention**: Missed attendance sessions, upcoming assessments
+- **At-Risk Students**: Students with low attendance (<75%)
+
+##### Charts
+- **Attendance Trend**: Attendance coverage over time (30 days)
+- **Grade Distribution**: Grade ranges across all assessments
+- **Assessment Completion**: Submission rates per assessment
+- **Student Performance**: Grades and attendance per student
+
+#### Data Sources
+
+Insights aggregate data from:
+- **Academic**: Sections, enrollments, assessments, grades, submissions
+- **Attendance**: Schedules, sessions, records
+- **Personnel**: Teachers, students
+- **Communication**: Mail threads
+- **Financial**: (future integration)
+
+#### Access Control
+
+| Role | Org Stats | Teacher Stats | Student Stats |
+| ----- | --------- | ------------ | ------------- |
+| ORG_ADMIN | ✓ (full) | ✓ (all) | ✓ (all) |
+| ORG_MANAGER | ✓ (full) | ✓ (all) | ✓ (all) |
+| TEACHER | ✗ | ✓ (own) | ✓ (assigned) |
+| STUDENT | ✗ | ✗ | ✓ (own) |
+
+#### API Endpoints
+
+| Operation | Method | Endpoint | Description |
+| --------- | ------ | -------- | ----------- |
+| Get Dashboard Insights | GET | `/insights/dashboard` | Get role-specific insights |
+
+#### Frontend Implementation
+- **Dashboard Page**: `frontend/app/(org)/dashboard/page.tsx`
+- **Features**: 
+  - Role-specific layout and components
+  - Interactive charts with tooltips
+  - Click-through to detailed views
+  - Real-time data refresh
+  - Responsive design for mobile
+
+#### Business Rules
+1. Insights are computed on-demand from current database state
+2. Data filtered by user's organization and role
+3. Teachers see only data for their assigned sections and students
+4. Students see only their own data
+5. Time windows: 14 days for attendance, 30 days for trends
+6. Recent activity limited to most recent 6 items per category
+
+---
+
+### 9.8 Copy-Forward System
+
+#### Overview
+The Copy-Forward system enables efficient setup of new academic cycles by copying sections, schedules, assessments, and course materials from a source cycle to a target cycle. This reduces manual setup time and ensures consistency across academic periods.
+
+#### Copy-Forward Features
+
+##### Data Types to Copy
+- **Sections**: Section names, rooms, course assignments, teacher assignments
+- **Schedules**: Timetable information (day, time, room)
+- **Assessments**: Assessment templates (title, type, marks, weightage)
+- **Course Materials**: Learning resources (links, descriptions)
+
+##### Copy Process
+1. **Select Source Cycle**: Choose the academic cycle to copy from
+2. **Select Target Cycle**: Choose the destination academic cycle
+3. **Choose Data Types**: Toggle which data types to copy
+4. **Execute Copy**: System creates new records in target cycle
+5. **Review Results**: Summary of copied items (sections, schedules, assessments, materials)
+
+##### Data Handling
+- **New IDs**: All copied records receive new primary keys
+- **No Links**: No references back to source cycle records
+- **Teacher Preservation**: Teacher assignments preserved (same teacher IDs)
+- **Course Preservation**: Course assignments preserved (same course IDs)
+- **Cycle Update**: All records linked to target academic cycle
+
+#### Copy Options
+
+| Data Type | Description | Notes |
+| --------- | ----------- | ----- |
+| Sections | Section definitions with teacher assignments | Always copied if selected |
+| Schedules | Timetable information for sections | Optional, requires sections |
+| Assessments | Assessment templates | Optional, requires sections |
+| Course Materials | Learning resources | Optional, requires sections |
+
+#### Access Control
+
+| Operation | ORG_ADMIN | ORG_MANAGER | TEACHER | STUDENT |
+| --------- | --------- | ----------- | ------- | ------- |
+| Copy Forward | ✓ | ✓ | ✗ | ✗ |
+
+#### API Endpoints
+
+| Operation | Method | Endpoint | Description |
+| --------- | ------ | -------- | ----------- |
+| Copy Forward | POST | `/org/copy-forward` | Copy data between cycles |
+
+#### Request Body
+```typescript
+{
+  fromCycleId: string;      // Source academic cycle
+  toCycleId: string;        // Target academic cycle
+  copySchedules: boolean;   // Copy timetable data
+  copyAssessments: boolean; // Copy assessment templates
+  copyMaterials: boolean;   // Copy course materials
+}
+```
+
+#### Response
+```typescript
+{
+  message: string;
+  sectionsCopied: number;
+  schedulesCopied: number;
+  assessmentsCopied: number;
+  materialsCopied: number;
+}
+```
+
+#### Frontend Implementation
+- **Copy-Forward Page**: `frontend/app/(org)/copy-forward/page.tsx`
+- **Features**:
+  - Cycle selection dropdowns
+  - Checkbox toggles for data types
+  - Preview of items to be copied
+  - Progress indicator during copy operation
+  - Success summary with counts
+
+#### Business Rules
+1. Source and target cycles must be different
+2. Both cycles must belong to the same organization
+3. Copy operation is atomic - all items succeed or all fail
+4. Teacher assignments preserved (teachers must exist)
+5. Course assignments preserved (courses must exist)
+6. No data is modified in source cycle
+7. Target cycle data is not deleted (only added)
+8. Duplicate section names allowed in different cycles
+
+#### Use Cases
+- **New Academic Year**: Copy all data from previous year to new year
+- **Semester Setup**: Copy sections and schedules for new semester
+- **Course Replication**: Copy course structure across multiple cycles
+- **Template Reuse**: Copy assessment templates for consistent grading
+
+---
+
 ## Appendix
 ### A. Libraries and Dependencies
 #### Backend Dependencies
@@ -1461,6 +1956,11 @@ NEXT_PUBLIC_API_URL=http://localhost:3000
 | Attendance | PRESENT, ABSENT, LATE, EXCUSED |
 | EnrollmentSource | MANUAL, COHORT |
 | AcademicCycle | isActive: boolean (only one active per org) |
+| FinanceCategory | TUITION, TRANSPORT, LIBRARY, EXAM, SALARY, BONUS, ADMISSION, HOSTEL, ACTIVITY, REIMBURSEMENT, OTHER |
+| BillingCycle | ONCE, MONTHLY, SEMESTER, YEARLY, ACADEMIC_CYCLE |
+| EntryStatus | PENDING, UNVERIFIED, PARTIAL, PAID, OVERDUE, CANCELLED |
+| EntrySource | SYSTEM, MANUAL |
+| TransactionType | INCOME, EXPENSE |
 ---
 
 # System Activity Diagrams
@@ -1682,7 +2182,150 @@ flowchart TD
 
 ---
 
-## 6. Admin User Management Flow
+## 7. Financial Payment Flow
+
+```mermaid
+flowchart TD
+    A[Financial Structure Created] --> B[Billing Cycle Triggered]
+    B --> C[Generate Financial Entry]
+    C --> D[Entry Status: PENDING]
+    
+    D --> E{User marks as paid?}
+    E -->|Yes| F[Upload Receipt]
+    F --> G[Mark Entry as Paid]
+    G --> H[Entry Status: UNVERIFIED]
+    H --> I[Notify Admin]
+    
+    E -->|No| J[Due Date Passed?]
+    J -->|Yes| K[Entry Status: OVERDUE]
+    J -->|No| D
+    
+    I --> L{Admin confirms payment?}
+    L -->|Yes| M[Verify Receipt]
+    M --> N[Create Transaction]
+    N --> O[Update Entry Status]
+    O --> P{Full payment?}
+    P -->|Yes| Q[Entry Status: PAID]
+    P -->|No| R[Entry Status: PARTIAL]
+    
+    L -->|No| S[Reject Payment]
+    S --> T[Entry Status: PENDING]
+    T --> U[Notify User]
+    
+    Q --> V[Payment Complete]
+    R --> W[Await Remaining Payment]
+    W --> E
+```
+
+---
+
+## 8. Copy-Forward Flow
+
+```mermaid
+flowchart TD
+    A[Admin initiates copy-forward] --> B[Select Source Cycle]
+    B --> C[Select Target Cycle]
+    C --> D{Cycles different?}
+    D -->|No| E[Show error]
+    E --> B
+    
+    D -->|Yes| F[Select Data Types]
+    F --> G{Copy Schedules?}
+    F --> H{Copy Assessments?}
+    F --> I{Copy Materials?}
+    
+    G -->|Yes| J[Include Schedules]
+    H -->|Yes| K[Include Assessments]
+    I -->|Yes| L[Include Materials]
+    
+    J --> M[Preview Copy Operation]
+    K --> M
+    L --> M
+    
+    M --> N[Confirm Copy]
+    N --> O[Start Transaction]
+    
+    O --> P[For Each Section]
+    P --> Q[Create New Section]
+    Q --> R[Copy Teacher Assignments]
+    R --> S{Schedules selected?}
+    S -->|Yes| T[Copy Schedules]
+    S -->|No| U[Skip Schedules]
+    
+    T --> V{Assessments selected?}
+    U --> V
+    V -->|Yes| W[Copy Assessments]
+    V -->|No| X[Skip Assessments]
+    
+    W --> Y{Materials selected?}
+    X --> Y
+    Y -->|Yes| Z[Copy Materials]
+    Y -->|No| AA[Skip Materials]
+    
+    Z --> AB[More Sections?]
+    AA --> AB
+    AB -->|Yes| P
+    AB -->|No| AC[Commit Transaction]
+    
+    AC --> AD[Show Results Summary]
+    AD --> AE[Copy Complete]
+```
+
+---
+
+## 9. Dashboard Insights Generation Flow
+
+```mermaid
+flowchart TD
+    A[User requests dashboard] --> B[Authenticate User]
+    B --> C[Get User Role]
+    C --> D{Role Type}
+    
+    D -->|Org Admin/Manager| E[Build Org Admin Insights]
+    D -->|Teacher| F[Build Teacher Insights]
+    D -->|Student| G[Build Student Insights]
+    
+    E --> H[Query Organization Data]
+    H --> I[Calculate Staff Metrics]
+    I --> J[Calculate Student Metrics]
+    J --> K[Calculate Attendance Coverage]
+    K --> L[Identify Sections Without Teachers]
+    L --> M[Identify Sections Without Schedules]
+    M --> N[Get Upcoming Assessments]
+    N --> O[Generate Charts]
+    O --> P[Compile Recent Activity]
+    P --> Q[Return Org Admin Insights]
+    
+    F --> R[Query Teacher Data]
+    R --> S[Get Assigned Sections]
+    S --> T[Calculate Student Count]
+    T --> U[Get Upcoming Assessments]
+    U --> V[Calculate Attendance Coverage]
+    V --> W[Identify Missed Sessions]
+    W --> X[Identify At-Risk Students]
+    X --> Y[Get Recent Submissions]
+    Y --> Z[Generate Charts]
+    Z --> AA[Compile Recent Activity]
+    AA --> AB[Return Teacher Insights]
+    
+    G --> AC[Query Student Data]
+    AC --> AD[Get Enrollments]
+    AD --> AE[Get Upcoming Assessments]
+    AE --> AF[Get Grades]
+    AF --> AG[Calculate GPA]
+    AG --> AH[Get Attendance Records]
+    AH --> AI[Calculate Attendance Rate]
+    AI --> AJ[Compile Personal Stats]
+    AJ --> AK[Return Student Insights]
+    
+    Q --> AL[Render Dashboard]
+    AB --> AL
+    AK --> AL
+```
+
+---
+
+## 10. Admin User Management Flow
 
 ```mermaid
 flowchart TD

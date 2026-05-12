@@ -2,7 +2,7 @@ import React from 'react';
 import { Pencil, Trash2, Eye, UserPen, Check, X, ShieldAlert, CheckCircle2, MessageSquareText, Send, Loader2, Lock } from 'lucide-react';
 import { useAccess } from '@/hooks/useAccess';
 
-export type AdminActionVariant = 'approve' | 'reject' | 'suspend' | 'unsuspend' | 'resolve' | 'reapprove' | 'editMessage' | 'mail' | 'restore';
+export type AdminActionVariant = 'approve' | 'reject' | 'suspend' | 'unsuspend' | 'resolve' | 'reapprove' | 'editMessage' | 'mail' | 'restore' | 'pay' | 'confirm';
 
 export interface AdminAction {
     variant: AdminActionVariant;
@@ -35,7 +35,9 @@ const adminActionConfig: Record<AdminActionVariant, { icon: React.ElementType, c
     resolve: { icon: CheckCircle2, color: 'text-success hover:bg-success/10', defaultTitle: 'Resolve' },
     editMessage: { icon: MessageSquareText, color: 'text-info hover:bg-info/10', defaultTitle: 'Edit Message' },
     mail: { icon: Send, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Send Mail' },
-    restore: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Restore' }
+    restore: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Restore' },
+    pay: { icon: Send, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Mark as Paid' },
+    confirm: { icon: CheckCircle2, color: 'text-success hover:bg-success/10', defaultTitle: 'Confirm Payment' }
 };
 
 export const TableActions: React.FC<TableActionsProps> = ({

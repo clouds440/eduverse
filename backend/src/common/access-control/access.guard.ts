@@ -42,6 +42,11 @@ export class AccessGuard implements CanActivate {
     // If no access level is specified, we default to WRITE
     const effectiveRequired = requiredAccess ?? AccessLevel.WRITE;
 
+    // NONE level explicitly bypasses status-based restrictions (e.g. for settings/logo during PENDING)
+    if (requiredAccess === AccessLevel.NONE) {
+      return true;
+    }
+
     const { user } = context.switchToHttp().getRequest();
 
     if (!user) {

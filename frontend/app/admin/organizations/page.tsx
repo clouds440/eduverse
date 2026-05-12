@@ -331,67 +331,73 @@ export default function OrganizationsPage() {
             { label: 'Contact Email', value: org.email, icon: Mail },
             { label: 'Phone Number', value: org.phone || 'N/A', icon: Phone },
             { label: 'Created At', value: new Date(org.createdAt).toLocaleString(), icon: Calendar },
-            {
-                label: 'Status History',
-                value: org.statusHistory && org.statusHistory.length > 0 ? (
-                    <div className="space-y-4 mt-2 max-h-125 overflow-y-auto pr-6 custom-scrollbar -ml-2">
-                        {[...org.statusHistory].reverse().map((entry, idx) => (
-                            <div key={idx} className="relative pl-8 border-l-2 border-primary/10 last:border-l-0 pb-8 last:pb-2">
-                                <div className="absolute left-2 top-0.5 w-5 h-5 rounded-full bg-card border-4 border-primary/20 flex items-center justify-center shadow-sm">
-                                    <div className={`w-2 h-2 rounded-full ${entry.status === 'APPROVED' ? 'bg-success' :
-                                        entry.status === 'REJECTED' ? 'bg-danger' :
-                                            'bg-warning'
-                                        }`} />
-                                </div>
-
-                                <div className="bg-card-text/5 rounded-lg p-6 border border-card-text/10 shadow-sm relative transition-all hover:bg-card-text/[0.07]">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <span className={`text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-lg shadow-sm ${entry.status === 'APPROVED' ? 'bg-success text-white' :
-                                                entry.status === 'REJECTED' ? 'bg-danger text-white' :
-                                                    'bg-warning text-white'
-                                                }`}>
-                                                {entry.status}
-                                            </span>
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-black opacity-30 tracking-widest leading-none mb-1">Date & Time</span>
-                                                <span className="text-[11px] font-black opacity-60">
-                                                    {new Date(entry.createdAt).toLocaleString()}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col sm:items-end">
-                                            <span className="text-[10px] font-black opacity-30 tracking-widest leading-none mb-1 text-left sm:text-right">Action By</span>
-                                            <span className="text-[11px] font-black opacity-80 tracking-tighter">
-                                                {entry.adminName} <span className="opacity-40 ml-1">({entry.adminRole})</span>
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-4 pt-4 border-t border-card-text/5">
-                                        <MarkdownRenderer
-                                            content={entry.message}
-                                            className="text-sm prose prose-sm max-w-none prose-headings:font-black prose-p:font-bold prose-headings:text-card-text prose-p:text-card-text/80 leading-relaxed"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="p-8 border-2 border-dashed border-card-text/5 rounded-lg flex flex-col items-center justify-center text-center">
-                        <Info className="w-8 h-8 opacity-20 mb-3" />
-                        <p className="text-xs font-black opacity-30 tracking-widest">No history details available</p>
-                    </div>
-                ),
-                icon: Clock,
-            },
         ];
 
         openViewModal({
             title: "Organization Details",
             subtitle: org.name || 'Entity Information',
-            fields: viewFields
+            fields: viewFields,
+            body: (
+                <div className="space-y-6">
+                    <div className="flex items-center gap-3 text-[11px] font-black opacity-80 tracking-[0.25em] uppercase">
+                        <Clock className="w-4 h-4 text-primary" />
+                        Verification Status History
+                    </div>
+
+                    {org.statusHistory && org.statusHistory.length > 0 ? (
+                        <div className="space-y-4 max-h-160 overflow-y-auto pr-6 custom-scrollbar">
+                            {[...org.statusHistory].reverse().map((entry, idx) => (
+                                <div key={idx} className="relative pl-8 border-l-2 border-primary/10 last:border-l-0 pb-10 last:pb-2">
+                                    <div className="absolute left-0 top-0.5 w-5 h-5 rounded-full bg-card border-4 border-primary/20 flex items-center justify-center shadow-sm">
+                                        <div className={`w-2 h-2 rounded-full ${entry.status === OrgStatus.APPROVED ? 'bg-success' :
+                                            entry.status === OrgStatus.REJECTED ? 'bg-danger' :
+                                                'bg-warning'
+                                            }`} />
+                                    </div>
+
+                                    <div className="bg-card-text/[0.03] rounded-2xl p-6 border border-border shadow-sm relative transition-all hover:bg-card-text/[0.05]">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                                            <div className="flex items-center gap-4">
+                                                <span className={`text-[10px] font-black tracking-[0.2em] px-4 py-1.5 rounded-lg shadow-sm ${entry.status === OrgStatus.APPROVED ? 'bg-success text-white' :
+                                                    entry.status === OrgStatus.REJECTED ? 'bg-danger text-white' :
+                                                        'bg-warning text-white'
+                                                    }`}>
+                                                    {entry.status}
+                                                </span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black opacity-30 tracking-widest leading-none mb-1 uppercase">Decision Date</span>
+                                                    <span className="text-xs font-bold opacity-80">
+                                                        {new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col md:items-end">
+                                                <span className="text-[10px] font-black opacity-30 tracking-widest leading-none mb-1 text-left md:text-right uppercase">Reviewed By</span>
+                                                <span className="text-xs font-bold opacity-90 tracking-tight">
+                                                    {entry.adminName} <span className="opacity-40 ml-1 font-black">({entry.adminRole})</span>
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-background/50 rounded-xl p-6 border border-border/50">
+                                            <div className="text-[10px] font-black opacity-20 tracking-[0.2em] uppercase mb-3">Official Communication</div>
+                                            <MarkdownRenderer
+                                                content={entry.message}
+                                                className="text-sm! leading-relaxed"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-12 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-center bg-card-text/[0.02]">
+                            <Clock className="w-10 h-10 opacity-10 mb-4" />
+                            <p className="text-sm font-bold opacity-30 tracking-tight">No verification history available for this entity.</p>
+                        </div>
+                    )}
+                </div>
+            )
         });
     };
 

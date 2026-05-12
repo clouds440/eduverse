@@ -55,7 +55,6 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
             education: initialData.education || '',
             designation: initialData.designation || '',
             subject: initialData.subject || '',
-            salary: initialData.salary?.toString() || '',
             isManager: !!(initialData.user?.role === Role.ORG_MANAGER),
             department: initialData.department || '',
             joiningDate: initialData.joiningDate ? new Date(initialData.joiningDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -72,7 +71,6 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
             education: '',
             designation: '',
             subject: '',
-            salary: '',
             isManager: false,
             department: '',
             joiningDate: new Date().toISOString().split('T')[0],
@@ -94,7 +92,6 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                 education: initialData.education || '',
                 designation: initialData.designation || '',
                 subject: initialData.subject || '',
-                salary: initialData.salary?.toString() || '',
                 isManager: !!(initialData.user?.role === Role.ORG_MANAGER),
                 department: initialData.department || '',
                 joiningDate: initialData.joiningDate ? new Date(initialData.joiningDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -112,11 +109,10 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
     const onSubmit: SubmitHandler<TeacherCreateFormData | TeacherUpdateFormData | TeacherProfileFormData> = async (data) => {
         dispatch({ type: 'UI_START_PROCESSING', payload: 'teacher-submit' });
         try {
-            const { password, salary, ...rest } = data;
+            const { password, ...rest } = data;
 
             const payload: CreateTeacherRequest | UpdateTeacherRequest = {
                 ...rest,
-                salary: salary ? Number(salary) : null,
                 ...(teacherId ? (password ? { password } : {}) : { password })
             };
 
@@ -338,7 +334,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                 </div>
             </div>
 
-            {/* Workplace & Compensation */}
+            {/* Workplace Details */}
             <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
                 <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
                     <div className="flex items-center gap-4">
@@ -348,28 +344,12 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 <ShieldCheck className="w-6 h-6 text-primary" />
                             </div>
                         </div>
-                        <h3 className="text-lg md:text-xl font-black text-foreground">Workplace & Compensation</h3>
+                        <h3 className="text-lg md:text-xl font-black text-foreground">Workplace Details</h3>
                     </div>
                 </div>
 
                 <div className="p-6 md:p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Monthly Salary <span className="text-danger">*</span></Label>
-                            <Input
-                                type="number"
-                                {...register('salary')}
-                                onChange={isProfile ? undefined : register('salary').onChange}
-                                readOnly={isProfile}
-                                value={watch('salary') || ''}
-                                error={!!errors.salary}
-                                disabled={isProfile}
-                                icon={DollarSign}
-                                placeholder="5000"
-                                className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.salary && <p className="mt-1 text-xs text-danger font-semibold">{errors.salary.message}</p>}
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                         <div className="space-y-2 md:space-y-3">
                             <Label>Department</Label>
                             <Input
