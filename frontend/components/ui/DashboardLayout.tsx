@@ -231,12 +231,14 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                         )}
                                         <Mail className="w-4 h-4 shrink-0 text-primary/80" />
                                         {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Mail</span>}
-                                        {/* Always show a mail count; gray when zero */}
-                                        <span className={`ml-auto ${!effectiveExpanded ? 'absolute top-0 -right-0.5' : ''}`}>
-                                            <Badge variant={mailCount.unread > 0 ? 'error' : 'neutral'} size="sm">
-                                                {mailCount.unread > 99 ? '99+' : mailCount.unread}
-                                            </Badge>
-                                        </span>
+                                        {/* Mail Count */}
+                                        {mailCount.unread > 0 && (
+                                            <span className={`ml-auto ${!effectiveExpanded ? 'absolute top-0 -right-0.5' : ''}`}>
+                                                <Badge variant='error' size="sm">
+                                                    {mailCount.unread > 99 ? '99+' : mailCount.unread}
+                                                </Badge>
+                                            </span>
+                                        )}
                                     </Link>
 
                                     {user?.role != Role.STUDENT &&

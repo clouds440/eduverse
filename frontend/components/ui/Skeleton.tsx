@@ -121,7 +121,7 @@ export function SkeletonCard({ className }: { className?: string }) {
 /** Table row skeleton */
 export function SkeletonTableRow({ columns = 4, className }: { columns?: number; className?: string }) {
     return (
-        <div className={cn("flex items-center gap-4 h-16 px-4", className)}>
+        <div className={cn("flex items-center gap-4 h-20 px-4", className)}>
             {Array.from({ length: columns }).map((_, i) => (
                 <Skeleton
                     key={i}
@@ -136,11 +136,11 @@ export function SkeletonTableRow({ columns = 4, className }: { columns?: number;
 /** Multiple table rows */
 export function SkeletonTable({ rows = 5, columns = 4, className }: { rows?: number; columns?: number; className?: string }) {
     return (
-        <div className={cn("divide-y divide-(--border-color) border border-(--border-color) rounded-md", className)}>
+        <div className={cn("divide-y divide-border border border-border rounded-md", className)}>
             {/* Header */}
-            <div className="flex items-center gap-4 h-12 px-4 bg-(--muted-bg)/50">
+            <div className="flex items-center gap-4 h-16 px-4 bg-primary/10">
                 {Array.from({ length: columns }).map((_, i) => (
-                    <Skeleton key={i} className="h-3 flex-1" />
+                    <Skeleton key={i} className="h-4 flex-1" />
                 ))}
             </div>
             {/* Rows */}
