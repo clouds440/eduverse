@@ -32,6 +32,7 @@ interface BrandIconProps {
   forcePlatform?: boolean;
   user?: FlexibleUser | null;
   initialsFallback?: boolean;
+  imageLoading?: 'eager' | 'lazy';
 }
 
 const failedBrandImageUrls = new Set<string>();
@@ -43,6 +44,7 @@ export const BrandIcon = React.memo(function BrandIcon({
   forcePlatform = false,
   user: externalUser,
   initialsFallback = false,
+  imageLoading,
 }: BrandIconProps) {
   const { user: sessionUser } = useAuth();
   const pathname = usePathname();
@@ -94,6 +96,7 @@ export const BrandIcon = React.memo(function BrandIcon({
             fill
             className="object-cover"
             sizes="96px"
+            loading={imageLoading}
             onError={() => {
               if (displayLogo) failedBrandImageUrls.add(displayLogo);
               setFailedSrc(displayLogo);

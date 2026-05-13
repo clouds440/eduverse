@@ -1,29 +1,41 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { marked } from 'marked';
 import { getPublicUrl } from '@/lib/utils';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
+import { getOptimisticImageFallback, resolveOptimisticImageFallback } from '@/lib/optimisticMedia';
+import { AttachmentPreviewCard, getAttachmentPreviewKind } from './AttachmentPreviewCard';
 import Prism from 'prismjs';
-import mermaid from 'mermaid';
-import he from 'he';
-
-// Import Prism components for common languages
-import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-clike'; // Must be loaded first
+import 'prismjs/components/prism-c';
 import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-bash';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-css';
 import 'prismjs/components/prism-markdown';
 import 'prismjs/components/prism-jsx';
 import 'prismjs/components/prism-tsx';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-rust';
+import 'prismjs/components/prism-cpp';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-yaml';
+import 'prismjs/components/prism-sql';
+import mermaid from 'mermaid';
+import he from 'he';
 
 interface MarkdownRendererProps {
     content: string;
     className?: string;
+    attachmentAlign?: 'left' | 'right';
 }
 
 const failedMarkdownImageUrls = new Set<string>();
+const attachmentPreviewRoots = new WeakMap<HTMLElement, Root>();
 
 const escapeHtml = (str?: string) => {
     if (!str) return '';
@@ -37,7 +49,7 @@ const escapeHtml = (str?: string) => {
 
 const escapeRawHtml = (str: string) => str.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '', attachmentAlign = 'left' }: MarkdownRendererProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [, forceUpdate] = React.useState({});
 
@@ -78,8 +90,8 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 const prismLanguage = Prism.languages[language] || Prism.languages.text;
                 const highlighted = Prism.highlight(decodedText, prismLanguage, language);
 
-                return `<div class="code-block-wrapper my-4 relative group max-w-full overflow-hidden flex flex-col border border-border/50 rounded-xl bg-slate-800" style="min-width: 0;">
-                            <div class="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-slate-900/50">
+                return `<div class="code-block-wrapper relative group max-w-full overflow-hidden flex flex-col border border-border/50 rounded-xl bg-slate-800" style="min-width: 0;">
+                            <div class="flex items-center justify-between px-4 py-1 border-b border-white/10 bg-slate-900/50">
                                 <div class="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 group-hover:text-primary transition-colors">${language}</div>
                                 <button class="copy-code-btn p-1.5 rounded-md bg-slate-700/30 hover:bg-slate-700/60 text-slate-400 hover:text-white transition-all flex items-center justify-center border border-white/5" data-code="${escapeHtml(decodedText)}">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="copy-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
@@ -92,7 +104,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
 
             // Override image rendering to use getPublicUrl and graceful fallback
             renderer.image = ({ href, title, text }) => {
-                const resolved = href ? getPublicUrl(href) : '';
+                const resolved = href && /^(blob:|https?:)/i.test(href) ? href : href ? getPublicUrl(href) : '';
                 const url = normalizeSafeUrl(resolved, { allowRelative: true });
                 const alt = escapeHtml(text || title || 'Image');
                 const titleAttr = escapeHtml(title || '');
@@ -107,8 +119,13 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
 
                 if (!url || failedMarkdownImageUrls.has(url)) return placeholder;
 
+                const optimisticSrc = getOptimisticImageFallback(url);
+                const imageSrc = optimisticSrc || url;
+                const remoteSrcAttrs = optimisticSrc ? ` data-final-src="${escapeHtml(url)}"` : '';
+                const placeholderSrcAttrs = optimisticSrc ? ` data-placeholder-src="${escapeHtml(optimisticSrc)}"` : '';
+
                 return `
-                    <img src="${escapeHtml(url)}" alt="${alt}" title="${titleAttr}" class="max-w-full h-auto rounded-lg shadow-sm my-2 border border-border markdown-image" data-failed-url="${escapeHtml(url)}" />
+                    <img src="${escapeHtml(imageSrc)}" alt="${alt}" title="${titleAttr}" class="max-w-full h-auto rounded-lg shadow-sm my-2 border border-border markdown-image" data-failed-url="${escapeHtml(imageSrc)}"${remoteSrcAttrs}${placeholderSrcAttrs} decoding="async" />
                 `;
             };
 
@@ -127,69 +144,13 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 const isExternal = /^[a-z][a-z\d+.-]*:/i.test(safeUrl) || safeUrl.startsWith('www.');
                 const targetAttr = isExternal ? 'target="_blank" rel="noopener noreferrer"' : '';
 
-                // RICH DOCUMENT PREVIEW: Premium card with dedicated download button
-                const docMatch = text.match(/^(📄 PDF:|📝 Doc:|📎 Attachment:)\s*(.*)/);
+                // RICH DOCUMENT PREVIEW: mounted as JSX after markdown parsing.
+                const docMatch = text.match(/^(?:📄|📝|📊|📽️|📦|📎)?\s*(PDF:|DOC:|Doc:|XLS:|PPT:|ARCHIVE:|ZIP:|Attachment:)\s*(.*)/i);
                 if (docMatch) {
                     const type = docMatch[1];
                     const fileName = docMatch[2].trim();
-                    const iconColor = type.includes('PDF') ? '#ef4444' : type.includes('Doc') ? '#3b82f6' : '#64748b';
-                    const iconBg = type.includes('PDF') ? 'rgba(239, 68, 68, 0.1)' : type.includes('Doc') ? 'rgba(59, 130, 246, 0.1)' : 'rgba(100, 116, 139, 0.1)';
-                    const cleanType = type.replace(/[:\s📄📝📎]/g, '').trim();
 
-                    // SVG icon selection based on document type
-                    const getIconSvg = () => {
-                        if (type.includes('PDF')) {
-                            return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6"/><path d="M9 17h6"/><path d="M9 9h1"/></svg>`;
-                        } else if (type.includes('Doc')) {
-                            return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>`;
-                        } else {
-                            return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`;
-                        }
-                    };
-
-                    // Premium card layout with dedicated download button on the right
-                    return `
-                    <div class="doc-preview-card group my-4 no-underline">
-                        <div class="flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/50 shadow-lg hover:shadow-xl hover:border-border/70 transition-all duration-300">
-                            <!-- Left: Document Icon with subtle scaling -->
-                            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 shadow-sm" 
-                                style="background: ${iconBg}; color: ${iconColor};">
-                                ${getIconSvg()}
-                            </div>
-                            
-                            <!-- Middle: File details area -->
-                            <div class="flex-1 min-w-0 space-y-1.5">
-                                <p class="text-sm font-semibold text-foreground truncate tracking-tight">
-                                    ${escapeHtml(fileName)}
-                                </p>
-                                <div class="flex items-center flex-wrap gap-2">
-                                    <span class="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-white shadow-sm" 
-                                        style="background: ${iconColor};">
-                                        ${escapeHtml(cleanType)}
-                                    </span>
-                                    <span class="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
-                                        Secure document
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <!-- Right: Dedicated Download Button (Premium) -->
-                            <a href="${escapeHtml(safeUrl)}" 
-                            download 
-                            ${targetAttr}
-                            class="shrink-0 flex items-center gap-2 px-4! py-2.5! rounded-xl! bg-primary/5! text-primary! font-semibold text-sm border border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md! transition-all duration-300 group/btn no-underline!"
-                            aria-label="Download ${escapeHtml(fileName)}">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover/btn:translate-y-0.5">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                                <span class="hidden sm:inline text-sm font-medium">Download</span>
-                            </a>
-                        </div>
-                    </div>
-                `;
+                    return `<div class="attachment-preview-root" data-file-name="${escapeHtml(fileName)}" data-href="${escapeHtml(safeUrl)}" data-kind="${getAttachmentPreviewKind(type, fileName)}" data-align="${attachmentAlign}"></div>`;
                 }
 
                 return `<a href="${escapeHtml(safeUrl)}" title="${escapeHtml(title || '')}" ${targetAttr}>${text}</a>`;
@@ -215,7 +176,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
             console.error('Markdown parsing error:', error);
             return escapeHtml(content || '');
         }
-    }, [content]);
+    }, [content, attachmentAlign]);
 
     // Cleanup and effects for post-render processing
     useEffect(() => {
@@ -223,11 +184,93 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
 
         const cleanups: Array<() => void> = [];
 
+        // Mount rich attachment previews into markdown placeholders.
+        const mountedAttachmentPlaceholders: HTMLElement[] = [];
+        const attachmentPreviewElements = containerRef.current.querySelectorAll<HTMLElement>('.attachment-preview-root');
+        attachmentPreviewElements.forEach((placeholder) => {
+            const fileName = placeholder.dataset.fileName || 'Attachment';
+            const href = placeholder.dataset.href || '';
+            const kind = placeholder.dataset.kind || 'attachment';
+            const align = placeholder.dataset.align === 'right' ? 'right' : 'left';
+            let root = attachmentPreviewRoots.get(placeholder);
+            if (!root) {
+                root = createRoot(placeholder);
+                attachmentPreviewRoots.set(placeholder, root);
+            }
+
+            root.render(
+                <AttachmentPreviewCard
+                    fileName={fileName}
+                    href={href}
+                    kind={kind === 'pdf' || kind === 'doc' || kind === 'sheet' || kind === 'presentation' || kind === 'archive' ? kind : 'attachment'}
+                    align={align}
+                />
+            );
+            mountedAttachmentPlaceholders.push(placeholder);
+        });
+        cleanups.push(() => {
+            mountedAttachmentPlaceholders.forEach(placeholder => {
+                window.setTimeout(() => {
+                    if (placeholder.isConnected) return;
+                    const root = attachmentPreviewRoots.get(placeholder);
+                    root?.unmount();
+                    attachmentPreviewRoots.delete(placeholder);
+                }, 0);
+            });
+        });
+
         // Handle images
         const images = containerRef.current.querySelectorAll('img.markdown-image');
         images.forEach((img) => {
             const url = img.getAttribute('data-failed-url');
             if (!url) return;
+            const finalSrc = img.getAttribute('data-final-src');
+            const placeholderSrc = img.getAttribute('data-placeholder-src');
+            let cancelled = false;
+
+            if (finalSrc) {
+                if (placeholderSrc) {
+                    (img as HTMLElement).style.backgroundImage = `url("${placeholderSrc.replace(/"/g, '\\"')}")`;
+                    (img as HTMLElement).style.backgroundSize = 'contain';
+                    (img as HTMLElement).style.backgroundPosition = 'center';
+                    (img as HTMLElement).style.backgroundRepeat = 'no-repeat';
+                }
+
+                const preloader = new window.Image();
+                preloader.decoding = 'async';
+                preloader.onload = () => {
+                    const swap = () => {
+                        if (cancelled || !img.isConnected) return;
+                        img.setAttribute('src', finalSrc);
+                        img.setAttribute('data-failed-url', finalSrc);
+                        img.removeAttribute('data-final-src');
+                        img.removeAttribute('data-placeholder-src');
+                        resolveOptimisticImageFallback(finalSrc);
+                        window.setTimeout(() => {
+                            if (!img.isConnected) return;
+                            (img as HTMLElement).style.backgroundImage = '';
+                            (img as HTMLElement).style.backgroundSize = '';
+                            (img as HTMLElement).style.backgroundPosition = '';
+                            (img as HTMLElement).style.backgroundRepeat = '';
+                        }, 250);
+                    };
+
+                    if (typeof preloader.decode === 'function') {
+                        preloader.decode().then(swap).catch(swap);
+                    } else {
+                        swap();
+                    }
+                };
+                preloader.onerror = () => {
+                    // Keep the local blob visible for this session if the remote image is not ready.
+                };
+                preloader.src = finalSrc;
+                cleanups.push(() => {
+                    cancelled = true;
+                    preloader.onload = null;
+                    preloader.onerror = null;
+                });
+            }
 
             const handleError = () => {
                 failedMarkdownImageUrls.add(url);
@@ -291,6 +334,61 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
 
         const currentContainer = containerRef.current;
         currentContainer?.addEventListener('click', handleCopyClick);
+
+        // Drag-to-scroll for code blocks (for regular mouse users)
+        const preElements = currentContainer?.querySelectorAll('.code-block-wrapper pre');
+        preElements?.forEach(pre => {
+            const el = pre as HTMLElement;
+            let isDown = false;
+            let startX = 0;
+            let scrollLeftStart = 0;
+
+            const onMouseDown = (e: MouseEvent) => {
+                // Only activate if the pre is scrollable
+                if (el.scrollWidth <= el.clientWidth) return;
+                isDown = true;
+                el.style.cursor = 'grabbing';
+                el.style.userSelect = 'none';
+                startX = e.pageX - el.offsetLeft;
+                scrollLeftStart = el.scrollLeft;
+            };
+            const onMouseUp = () => {
+                if (!isDown) return;
+                isDown = false;
+                el.style.cursor = 'grab';
+                el.style.userSelect = '';
+            };
+            const onMouseLeave = () => {
+                if (!isDown) return;
+                isDown = false;
+                el.style.cursor = 'grab';
+                el.style.userSelect = '';
+            };
+            const onMouseMove = (e: MouseEvent) => {
+                if (!isDown) return;
+                e.preventDefault();
+                const x = e.pageX - el.offsetLeft;
+                const walk = (x - startX) * 1.5; // multiply for faster scroll feel
+                el.scrollLeft = scrollLeftStart - walk;
+            };
+
+            // Set initial cursor if scrollable
+            if (el.scrollWidth > el.clientWidth) {
+                el.style.cursor = 'grab';
+            }
+
+            el.addEventListener('mousedown', onMouseDown);
+            el.addEventListener('mouseup', onMouseUp);
+            el.addEventListener('mouseleave', onMouseLeave);
+            el.addEventListener('mousemove', onMouseMove);
+
+            cleanups.push(() => {
+                el.removeEventListener('mousedown', onMouseDown);
+                el.removeEventListener('mouseup', onMouseUp);
+                el.removeEventListener('mouseleave', onMouseLeave);
+                el.removeEventListener('mousemove', onMouseMove);
+            });
+        });
 
         return () => {
             cleanups.forEach((cleanup) => cleanup());
@@ -398,7 +496,7 @@ if (typeof document !== 'undefined') {
                 height: auto !important;
             }
 
-            /* PrismJS Theme Overrides - Premium Look */
+            /* PrismJS Theme Overrides - Original Premium Look */
             .token.comment, .token.prolog, .token.doctype, .token.cdata { color: #94a3b8; font-style: italic; }
             .token.punctuation { color: #94a3b8; }
             .token.namespace { opacity: .7; }

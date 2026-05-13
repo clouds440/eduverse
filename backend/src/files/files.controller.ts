@@ -38,6 +38,9 @@ const ALLOWED_MIME_TYPES = new Set<string>([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
   'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
   'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'application/vnd.rar',
   'text/plain',
 ]);
 

@@ -24,7 +24,7 @@ import { formatDistanceToNow } from 'date-fns';
 import {
     Search, Paperclip, MessageSquarePlus, MessageSquareDashed, SendHorizonal as Send, MoreVertical, X, Loader2,
     UserMinus, Trash2, Info, SlidersHorizontal, ChevronLeft, Check, CheckCheck, ArrowDown, Pencil, Reply, ArrowUp, RotateCcw,
-    Lock as LockIcon
+    Lock as LockIcon, FileText, Archive, FileSpreadsheet, Presentation
 } from 'lucide-react';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { Button } from '../ui/Button';
@@ -58,7 +58,13 @@ import {
     updateOnlineUsersFromPresenceState,
     type ChatComposerStateMap,
     type ChatMessageWithMeta,
-    getLongPressHandlers
+    getLongPressHandlers,
+    extractFilesFromClipboard,
+    buildOptimisticAttachmentMarkdown,
+    filterValidFiles,
+    escapeFileName,
+    buildAttachmentMarkdown,
+    getFileTypeInfo
 } from './chatLayoutHelpers';
 
 export function ChatLayout() {
@@ -1027,12 +1033,15 @@ export function ChatLayout() {
             if (!editingMessage) {
                 if (!tempMessageId) {
                     tempMessageId = `temp-${Date.now()}`;
+                    // OPTIMISTIC ATTACHMENTS: Use shared helper for identical local markdown
+                    const optimisticAttachments = buildOptimisticAttachmentMarkdown(filesToSend);
+
                     const optimisticMessage: ChatMessageWithMeta = {
                         id: tempMessageId,
                         chatId,
                         senderId: user.id,
                         organizationId,
-                        content: draftText || 'Sent an attachment',
+                        content: (draftText + optimisticAttachments).trim() || 'Sent an attachment',
                         type: ChatMessageType.TEXT,
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString(),
@@ -1083,27 +1092,7 @@ export function ChatLayout() {
                     filesToSend.map(file => api.files.uploadFile(orgId, 'chat', chatId, file, token))
                 );
 
-                const attachmentLinks = uploadResults.map((res, i) => {
-                    const file = filesToSend[i];
-                    const url = res.url || res.path || '';
-                    const safeName = (file.name || '').replace(/[\\`()\[\]{}]/g, '\\$&');
-                    const isImage = [
-                        'image/jpeg',
-                        'image/jpg',
-                        'image/png',
-                        'image/gif',
-                        'image/webp'
-                    ].includes(file.type);
-
-                    if (isImage) return `\n![${safeName}](${url})`;
-                    if (file.type === 'application/pdf') return `\n[📄 PDF: ${safeName}](${url})`;
-                    if ([
-                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-                    ].includes(file.type)) return `\n[📝 Doc: ${safeName}](${url})`;
-                    return `\n[📎 Attachment: ${safeName}](${url})`;
-                }).join('');
+                const attachmentLinks = buildAttachmentMarkdown(filesToSend, uploadResults);
 
                 finalContent += attachmentLinks;
                 setIsUploading(false);
@@ -1222,23 +1211,8 @@ export function ChatLayout() {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
         if (!chatId) return;
-        const allowedTypes = new Set([
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'application/pdf',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        ]);
-        const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.docx', '.xlsx', '.pptx']);
-        const validFiles = files.filter(file => {
-            const lowerName = file.name.toLowerCase();
-            const hasAllowedExtension = Array.from(allowedExtensions).some(ext => lowerName.endsWith(ext));
-            return allowedTypes.has(file.type) || (!file.type && hasAllowedExtension);
-        });
+
+        const validFiles = filterValidFiles(files);
 
         if (validFiles.length < files.length) {
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Some attachments were skipped because the file type is not allowed.', type: 'info' } });
@@ -1425,7 +1399,7 @@ export function ChatLayout() {
                             {isLastInGroup && <ChatAvatar targetUser={msg.sender} className="w-7 h-7 rounded-full" isOnline={!!(msg.sender?.id && onlineUsers[msg.sender.id])} />}
                         </div>
                     )}
-                    <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] lg:max-w-[65%] min-w-0 ${isMine ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex flex-col min-w-0 ${isMine ? 'items-end' : 'items-start'}`} style={{ maxWidth: 'min(90%, calc(100% - 3.5rem))' }}>
                         <div className={`flex items-end space-x-1.5 relative max-w-full min-w-0 group/content ${isMine ? 'flex-row-reverse space-x-reverse justify-start' : 'flex-row justify-end'}`}>
                             <div className="flex flex-col items-inherit max-w-full min-w-0">
                                 {activeChat?.type === ChatType.GROUP && !isMine && showAvatar && (
@@ -1434,22 +1408,22 @@ export function ChatLayout() {
                                     </span>
                                 )}
                                 {isDeleted ? (
-                                    <div className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed my-1 bg-muted/40 text-muted-foreground border border-border/50 italic ${isMine ? 'rounded-br-none' : 'rounded-bl-none'}`}>
+                                    <div className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed my-1 bg-foreground/20 text-foreground border border-border/50 italic ${isMine ? 'rounded-br-none' : 'rounded-bl-none'}`}>
                                         <div className="flex items-center space-x-2">
-                                            <Trash2 size={13} className="opacity-40" />
-                                            <span>Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name} </span> : null} <sub className='opacity-40 italic not-all-italic'>{formatChatTimestamp(msg.createdAt!)}</sub></span>
+                                            <Trash2 size={15} />
+                                            <span>Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name} </span> : null} <sub className=''>{formatChatTimestamp(msg.createdAt!)}</sub></span>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative`}>
+                                    // Messages Bubble
+                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full overflow-hidden`}>
                                         <div
                                             className={`
-                                                relative p-1.5 rounded-2xl text-[14.5px] leading-relaxed shadow-sm
+                                                relative py-1.5 px-0 rounded-2xl text-[14.5px] leading-relaxed shadow-sm max-w-full overflow-x-auto
                                                 ${isMine
                                                     ? 'bg-primary text-primary rounded-br-sm'
                                                     : 'bg-card text-foreground border border-border rounded-bl-sm shadow-sm'
                                                 }
-                                                ${isSendingMessage && isMine ? 'opacity-70' : ''}
                                                 ${isFailedMessage && isMine ? 'border-danger border-2' : ''}
                                             `}
                                         >
@@ -1472,9 +1446,10 @@ export function ChatLayout() {
                                             })()}
 
                                             <div className={`prose prose-sm mx-2 max-w-full prose-p:mb-0 ${isMine && highlightedMessageId !== msg.id ? 'prose-invert' : 'prose-p:text-foreground!'}`}>
-                                                <MarkdownRenderer content={msg.content} className={`${isMine ? 'text-white!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} />
+                                                <MarkdownRenderer content={msg.content} className={`${isMine ? 'text-white!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} attachmentAlign={isMine ? 'right' : 'left'} />
                                             </div>
 
+                                            {/* Messages Timestamp */}
                                             <div className={`flex items-center mx-2 justify-end space-x-1 mt-0.5 -mb-0.5 text-foreground`}>
                                                 {msg.updatedAt && msg.updatedAt !== msg.createdAt && (
                                                     <span className={`text-[11px] tracking-wide sm:text-[11px] rounded-lg px-1.5 py-0 ${isMine ? 'bg-card/70 text-foreground!' : 'bg-foreground/70 text-background!'}`}>Edited</span>
@@ -1824,6 +1799,7 @@ export function ChatLayout() {
                                     }
                                     className="w-9 h-9 sm:w-10 sm:h-10 transition-transform group-hover/header:scale-105"
                                     isOnline={!!(directChatTarget?.id && onlineUsers[directChatTarget.id])}
+                                    imageLoading="eager"
                                 />
                                 <div className="min-w-0">
                                     <h3 className="font-bold text-[14px] sm:text-[15px] text-foreground leading-tight truncate group-hover/header:text-primary transition-colors">
@@ -2082,34 +2058,53 @@ export function ChatLayout() {
                                         </div>
                                     )}
 
-                                    {/* Staged Files */}
+                                    {/* Staged Files - Premium Card Previews */}
                                     {stagedFiles.length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-1.5 sm:mb-1 mr-2">
-                                            {stagedFiles.map((file, i) => (
-                                                <div key={i} className="group relative flex items-center bg-muted border border-border pl-2 pr-1 py-1 rounded-xl hover:border-primary/30 transition-all">
-                                                    {file instanceof File && file.type.startsWith('image/') && stagedFilePreviewUrls[i] ? (
-                                                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden bg-muted-foreground/10 mr-1.5 sm:mr-2 relative">
-                                                            <Image src={stagedFilePreviewUrls[i]} alt="" fill className="object-cover" unoptimized />
+                                        <div className="flex flex-row gap-1 mb-2 mr-2 scrollbar-thin overflow-x-auto scroll-x-auto">
+                                            {stagedFiles.map((file, i) => {
+                                                const fileInfo = getFileTypeInfo(file.type);
+                                                const isImage = file instanceof File && file.type.startsWith('image/') && stagedFilePreviewUrls[i];
+
+                                                return (
+                                                    <div key={i} className="group relative flex items-center bg-card border border-border/50 p-2 rounded-xl hover:border-primary/40 hover:shadow-md transition-all duration-300 min-w-[200px] max-w-[280px]">
+                                                        {/* Preview Thumbnail */}
+                                                        {isImage && stagedFilePreviewUrls[i] ? (
+                                                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden bg-muted-foreground/10 mr-2.5 relative shadow-sm shrink-0">
+                                                                <Image src={stagedFilePreviewUrls[i]!} alt="" fill className="object-cover" unoptimized />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center mr-2.5 shadow-sm shrink-0"
+                                                                style={{ background: fileInfo.bg, color: fileInfo.color }}>
+                                                                {fileInfo.label === 'ARCHIVE' ? <Archive size={20} strokeWidth={2.5} /> :
+                                                                    fileInfo.label === 'XLS' ? <FileSpreadsheet size={20} strokeWidth={2.5} /> :
+                                                                        fileInfo.label === 'PPT' ? <Presentation size={20} strokeWidth={2.5} /> :
+                                                                            <FileText size={20} strokeWidth={2.5} />}
+                                                            </div>
+                                                        )}
+
+                                                        {/* File Info */}
+                                                        <div className="flex-1 min-w-0 mr-1">
+                                                            <p className="text-[11px] sm:text-[12px] font-bold text-foreground truncate tracking-tight">{file.name || 'Attachment'}</p>
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                <span className="text-[9px] font-black uppercase px-1 py-0.5 rounded-sm text-white" style={{ background: fileInfo.color }}>
+                                                                    {fileInfo.label}
+                                                                </span>
+                                                                <span className="text-[10px] text-muted-foreground font-medium">{(file.size / 1024).toFixed(0)} KB</span>
+                                                            </div>
                                                         </div>
-                                                    ) : (
-                                                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary mr-1.5 sm:mr-2">
-                                                            <Pencil size={14} className="text-primary/80" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex flex-col mr-1 sm:mr-1.5 max-w-16 sm:max-w-20">
-                                                        <span className="text-[11px] sm:text-[13px] font-semibold text-foreground truncate">{file.name || 'Attachment'}</span>
-                                                        <span className="text-[10px] sm:text-[11px] text-muted-foreground">{file.size ? (file.size / 1024).toFixed(0) : '0'} KB</span>
+
+                                                        {/* Remove Button */}
+                                                        <button
+                                                            type="button"
+                                                            title='Remove'
+                                                            onClick={() => removeStagedFile(i)}
+                                                            className="absolute -top-1.5 -right-1.5 p-1 bg-background border border-border text-muted-foreground hover:text-danger rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 z-10"
+                                                        >
+                                                            <X size={12} strokeWidth={3} />
+                                                        </button>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        title='Remove'
-                                                        onClick={() => removeStagedFile(i)}
-                                                        className="p-0.5 text-foreground hover:text-danger rounded-full transition-all"
-                                                    >
-                                                        <X size={12} className="text-primary/80 hover:text-primary" />
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
 
@@ -2121,7 +2116,7 @@ export function ChatLayout() {
                                             id="chat-file-upload"
                                             className="hidden"
                                             onChange={handleFileUpload}
-                                            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.xlsx,.pptx"
+                                            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.xlsx,.pptx,.zip"
                                             multiple
                                         />
 
@@ -2215,6 +2210,18 @@ export function ChatLayout() {
                                                                 }
                                                             }
                                                             handleKeyDown(e);
+                                                        }}
+                                                        onPaste={(e) => {
+                                                            const rawFiles = extractFilesFromClipboard(e.nativeEvent);
+                                                            if (rawFiles.length > 0) {
+                                                                const validFiles = filterValidFiles(rawFiles);
+                                                                if (validFiles.length > 0) {
+                                                                    e.preventDefault();
+                                                                    updateComposerStateForChat(activeChatId, {
+                                                                        stagedFiles: [...stagedFiles, ...validFiles]
+                                                                    });
+                                                                }
+                                                            }
                                                         }}
                                                         onFocus={handleEditorFocus}
                                                         onBlur={() => setTimeout(() => setShowMentionDropdown(false), 200)}

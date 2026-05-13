@@ -36,6 +36,7 @@ export function normalizeSafeUrl(value: string | null | undefined, options: Safe
         }
         if (url.protocol === 'mailto:' && opts.allowMailTo) return url.href;
         if (url.protocol === 'tel:' && opts.allowTel) return url.href;
+        if (url.protocol === 'blob:') return url.href;
     } catch {
         return null;
     }

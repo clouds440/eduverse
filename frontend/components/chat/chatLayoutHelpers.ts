@@ -1,6 +1,7 @@
 import { Chat, ChatMessage, ChatType, User } from '@/types';
 import { RefObject } from 'react';
 import { isToday, isYesterday, format } from 'date-fns';
+import { registerOptimisticImageFallbacks } from '@/lib/optimisticMedia';
 
 export type ChatMessageWithMeta = ChatMessage & {
     readBy?: string[];
@@ -104,6 +105,7 @@ export function reconcileIncomingMessage(
     if (pendingId) {
         const pendingIndex = next.findIndex(message => message.id === pendingId);
         if (pendingIndex > -1) {
+            registerOptimisticImageFallbacks(next[pendingIndex].content, incoming.content);
             next = [...next];
             next[pendingIndex] = normalizedIncoming;
         }
@@ -145,24 +147,138 @@ type FileUploadResult = {
     path?: string;
 };
 
-const OFFICE_FILE_TYPES = new Set([
+export const OFFICE_FILE_TYPES = new Set([
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/msword',
+    'application/vnd.ms-excel',
+    'application/vnd.ms-powerpoint'
 ]);
+
+const WORD_FILE_TYPES = new Set([
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+]);
+
+const SPREADSHEET_FILE_TYPES = new Set([
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+]);
+
+const PRESENTATION_FILE_TYPES = new Set([
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-powerpoint',
+]);
+
+export const ARCHIVE_FILE_TYPES = new Set([
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/x-rar-compressed',
+    'application/vnd.rar',
+]);
+
+/** All MIME types allowed for chat file uploads */
+export const ALLOWED_UPLOAD_TYPES = new Set([
+    // Images
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+    // Documents
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Archives
+    'application/zip', 'application/x-zip-compressed',
+    'application/x-rar-compressed', 'application/vnd.rar',
+]);
+
+/** File extensions allowed as fallback when MIME type is empty */
+const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.docx', '.xlsx', '.pptx', '.zip', '.rar', '.doc', '.ppt', '.xls']);
+
+/**
+ * Filter an array of Files to only those matching allowed chat upload types.
+ * Uses MIME type first, then falls back to extension if MIME is missing.
+ */
+export function filterValidFiles(files: File[]): File[] {
+    return files.filter(file => {
+        if (ALLOWED_UPLOAD_TYPES.has(file.type)) return true;
+        if (!file.type) {
+            const lowerName = file.name.toLowerCase();
+            return Array.from(ALLOWED_EXTENSIONS).some(ext => lowerName.endsWith(ext));
+        }
+        return false;
+    });
+}
+
+/** Escape special markdown characters in a filename */
+export function escapeFileName(name: string): string {
+    return (name || '').replace(/[\\`()\[\]{}]/g, '\\$&');
+}
+
+/**
+ * Get display info for a file (icon color, background, and type label)
+ */
+export function getFileTypeInfo(fileType: string) {
+    const isPdf = fileType === 'application/pdf';
+    const isWord = WORD_FILE_TYPES.has(fileType);
+    const isSpreadsheet = SPREADSHEET_FILE_TYPES.has(fileType);
+    const isPresentation = PRESENTATION_FILE_TYPES.has(fileType);
+    const isArchive = ARCHIVE_FILE_TYPES.has(fileType);
+
+    if (isPdf) return {
+        color: '#ef4444',
+        bg: 'rgba(239, 68, 68, 0.1)',
+        label: 'PDF',
+        tag: '📄 PDF:'
+    };
+    if (isWord) return {
+        color: '#3b82f6',
+        bg: 'rgba(59, 130, 246, 0.1)',
+        label: 'DOC',
+        tag: '📝 DOC:'
+    };
+    if (isSpreadsheet) return {
+        color: '#22c55e',
+        bg: 'rgba(34, 197, 94, 0.1)',
+        label: 'XLS',
+        tag: '📊 XLS:'
+    };
+    if (isPresentation) return {
+        color: '#f97316',
+        bg: 'rgba(249, 115, 22, 0.1)',
+        label: 'PPT',
+        tag: '📽️ PPT:'
+    };
+    if (isArchive) return {
+        color: '#f59e0b',
+        bg: 'rgba(245, 158, 11, 0.1)',
+        label: 'ARCHIVE',
+        tag: '📦 ARCHIVE:'
+    };
+    return {
+        color: '#64748b',
+        bg: 'rgba(100, 116, 139, 0.1)',
+        label: 'FILE',
+        tag: '📎 Attachment:'
+    };
+}
 
 export function buildAttachmentMarkdown(files: File[], uploadResults: FileUploadResult[]): string {
     return uploadResults.map((result, index) => {
         const file = files[index];
         const url = result.url || result.path || '';
+        const safeName = escapeFileName(file.name);
         const isImage = file.type.startsWith('image/');
         const isPdf = file.type === 'application/pdf';
-        const isOffice = OFFICE_FILE_TYPES.has(file.type);
+        const isArchive = ARCHIVE_FILE_TYPES.has(file.type);
+        const fileInfo = getFileTypeInfo(file.type);
 
-        if (isImage) return `\n![${(file.name || '').replace(/[\\`()\[\]{}]/g, '\\$&')}](${url})`;
-        if (isPdf) return `\n[PDF: ${(file.name || '').replace(/[\\`()\[\]{}]/g, '\\$&')}](${url})`;
-        if (isOffice) return `\n[Doc: ${(file.name || '').replace(/[\\`()\[\]{}]/g, '\\$&')}](${url})`;
-        return `\n[Attachment: ${(file.name || '').replace(/[\\`()\[\]{}]/g, '\\$&')}](${url})`;
+        if (isImage) return `\n![${safeName}](${url})`;
+        if (isPdf) return `\n[📄 PDF: ${safeName}](${url})`;
+        if (OFFICE_FILE_TYPES.has(file.type)) return `\n[${fileInfo.tag} ${safeName}](${url})`;
+        if (isArchive) return `\n[📦 ARCHIVE: ${safeName}](${url})`;
+        return `\n[📎 Attachment: ${safeName}](${url})`;
     }).join('');
 }
 
@@ -314,7 +430,7 @@ export function getLongPressHandlers(
         const touch = e.touches[0];
         const dx = touch.clientX - startPosRef.current.x;
         const dy = touch.clientY - startPosRef.current.y;
-        
+
         // Use Manhattan distance for cheaper cancellation check on move
         if (Math.abs(dx) > movementThreshold || Math.abs(dy) > movementThreshold) {
             clearTimer();
@@ -338,4 +454,58 @@ export function getLongPressHandlers(
     };
 
     return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel };
+}
+
+// ── Clipboard paste support ──────────────────────────────────────────────
+
+/** MIME types allowed for clipboard paste in chat */
+const PASTEABLE_MIME_TYPES = new Set([
+    // Images
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg',
+    // Documents
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Archives
+    'application/zip', 'application/x-zip-compressed',
+]);
+
+/**
+ * Extract supported files from a ClipboardEvent.
+ * Returns an array of File objects that match PASTEABLE_MIME_TYPES.
+ * If nothing matches (e.g. plain text paste), returns empty array.
+ */
+export function extractFilesFromClipboard(event: ClipboardEvent): File[] {
+    const items = event.clipboardData?.items;
+    if (!items) return [];
+
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file && PASTEABLE_MIME_TYPES.has(file.type)) {
+                files.push(file);
+            }
+        }
+    }
+    return files;
+}
+
+/**
+ * Build optimistic attachment markdown using local blob URLs.
+ * Tags match the server-side tags so the transition is seamless.
+ */
+export function buildOptimisticAttachmentMarkdown(files: File[]): string {
+    return files.map(file => {
+        const localUrl = URL.createObjectURL(file);
+        const safeName = escapeFileName(file.name);
+        const fileInfo = getFileTypeInfo(file.type);
+        if (file.type.startsWith('image/')) return `\n![${safeName}](${localUrl})`;
+        if (file.type === 'application/pdf') return `\n[📄 PDF: ${safeName}](${localUrl})`;
+        if (OFFICE_FILE_TYPES.has(file.type)) return `\n[${fileInfo.tag} ${safeName}](${localUrl})`;
+        if (ARCHIVE_FILE_TYPES.has(file.type)) return `\n[📦 ARCHIVE: ${safeName}](${localUrl})`;
+        return `\n[📎 Attachment: ${safeName}](${localUrl})`;
+    }).join('');
 }

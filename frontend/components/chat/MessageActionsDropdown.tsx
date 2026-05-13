@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Reply, Copy, Pencil, Download, Trash2, X } from 'lucide-react';
 import { ChatMessage, Role } from '@/types';
 import { JwtPayload } from '@/context/GlobalContext';
@@ -26,6 +26,12 @@ export function MessageContextMenu({
 }: MessageContextMenuProps) {
 
     const ignoreFirstClickRef = useRef(true);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [desktopMenuStyle, setDesktopMenuStyle] = useState<CSSProperties>({
+        left: position.x,
+        top: position.y,
+        visibility: 'hidden',
+    });
 
     useEffect(() => {
         ignoreFirstClickRef.current = true;
@@ -41,19 +47,51 @@ export function MessageContextMenu({
         action();
     };
 
-    const links = Array.from(msg.content.matchAll(/\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g));
+    const links = useMemo(() => Array.from(msg.content.matchAll(/!?\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g)), [msg.content]);
 
-    // Calculate safe coordinates for desktop so it doesn't overflow
-    const menuWidth = 160;
-    const menuHeight = 200; // Estimated height with all actions
-    const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
-    const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 1000;
+    useLayoutEffect(() => {
+        if (isMobile) return;
 
-    const safeX = Math.min(position.x, windowWidth - menuWidth - 10);
-    // If the menu would go off the bottom, open it upwards from the click point
-    const safeY = (position.y + menuHeight > windowHeight - 10)
-        ? Math.max(10, position.y - menuHeight)
-        : position.y;
+        const updateMenuPosition = () => {
+            const menu = menuRef.current;
+            if (!menu) return;
+
+            const margin = 10;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const availableHeight = Math.max(120, viewportHeight - margin * 2);
+            const rect = menu.getBoundingClientRect();
+            const renderedWidth = rect.width || 160;
+            const renderedHeight = rect.height || 0;
+            const visibleHeight = Math.min(renderedHeight, availableHeight);
+
+            const left = Math.min(
+                Math.max(margin, position.x),
+                Math.max(margin, viewportWidth - renderedWidth - margin)
+            );
+            const top = Math.min(
+                Math.max(margin, position.y),
+                Math.max(margin, viewportHeight - visibleHeight - margin)
+            );
+
+            setDesktopMenuStyle({
+                left,
+                top,
+                maxHeight: availableHeight,
+                overflowY: renderedHeight > availableHeight ? 'auto' : 'hidden',
+                visibility: 'visible',
+            });
+        };
+
+        updateMenuPosition();
+        window.addEventListener('resize', updateMenuPosition);
+        window.addEventListener('scroll', updateMenuPosition, true);
+
+        return () => {
+            window.removeEventListener('resize', updateMenuPosition);
+            window.removeEventListener('scroll', updateMenuPosition, true);
+        };
+    }, [isMobile, position.x, position.y, msg.content, isMine, isFailedMessage, user?.role]);
 
     const menuContent = (
         <>
@@ -72,8 +110,8 @@ export function MessageContextMenu({
             )}
             {links.map((match, idx) => {
                 const label = (match[1] || '').trim();
+                const cleanLabel = label.replace(/^(?:📄|📝|📊|📽️|📦|📎)?\s*(?:PDF:|DOC:|Doc:|XLS:|PPT:|ARCHIVE:|ZIP:|Attachment:)\s*/i, '');
                 const displayLabel = (() => {
-                    const cleanLabel = label.replace(/^(📄 PDF: |📝 Doc: |📎 Attachment: )/, '');
                     if (cleanLabel.length <= 16) return cleanLabel;
                     
                     const lastDot = cleanLabel.lastIndexOf('.');
@@ -87,7 +125,7 @@ export function MessageContextMenu({
                 })();
 
                 return (
-                    <button key={idx} onClick={(e) => handleAction(() => onDownload(e, match[2], label || 'download'))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
+                    <button key={idx} onClick={(e) => handleAction(() => onDownload(e, match[2], cleanLabel || 'download'))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
                         <Download size={14} className="mr-3 md:mr-2 opacity-85 text-info" /> {displayLabel}
                     </button>
                 );
@@ -123,8 +161,9 @@ export function MessageContextMenu({
         <>
             <div className="fixed inset-0 z-100" onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
             <div
+                ref={menuRef}
                 className="fixed z-101 w-40 bg-card border border-border rounded-xl shadow-2xl flex flex-col animate-in fade-in duration-75 overflow-hidden py-1"
-                style={{ left: safeX, top: safeY }}
+                style={desktopMenuStyle}
             >
                 {menuContent}
             </div>

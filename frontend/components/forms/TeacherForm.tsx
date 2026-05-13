@@ -36,6 +36,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
 
     const [sections, setSections] = useState<Section[]>([]);
+    const initialIsManager = initialData?.user?.role === Role.ORG_MANAGER || (isProfile && currentUser?.role === Role.ORG_MANAGER);
 
     const {
         register,
@@ -55,7 +56,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
             education: initialData.education || '',
             designation: initialData.designation || '',
             subject: initialData.subject || '',
-            isManager: !!(initialData.user?.role === Role.ORG_MANAGER),
+            isManager: !!initialIsManager,
             department: initialData.department || '',
             joiningDate: initialData.joiningDate ? new Date(initialData.joiningDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             address: initialData.address || '',
@@ -92,7 +93,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                 education: initialData.education || '',
                 designation: initialData.designation || '',
                 subject: initialData.subject || '',
-                isManager: !!(initialData.user?.role === Role.ORG_MANAGER),
+                isManager: !!(initialData.user?.role === Role.ORG_MANAGER || (isProfile && currentUser?.role === Role.ORG_MANAGER)),
                 department: initialData.department || '',
                 joiningDate: initialData.joiningDate ? new Date(initialData.joiningDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                 address: initialData.address || '',
@@ -102,7 +103,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                 sectionIds: initialData.sections?.map(s => s.id) || []
             });
         }
-    }, [initialData, reset]);
+    }, [initialData, reset, isProfile, currentUser?.role]);
 
     const formData = watch();
 
@@ -381,7 +382,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                     <div className={`mt-6 md:mt-8 p-4 md:p-5 bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all select-none ${currentUser?.role !== Role.ORG_ADMIN ? 'cursor-not-allowed' : 'hover:border-primary/30'}`}>
                         <div className={`flex items-start sm:items-center flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto ${currentUser?.role !== Role.ORG_ADMIN ? 'pointer-events-none opacity-70' : ''}`}>
                             <Toggle
-                                checked={formData.isManager || currentUser?.role === Role.ORG_MANAGER}
+                                checked={formData.isManager}
                                 onCheckedChange={(checked) => {
                                     if (currentUser?.role !== Role.ORG_ADMIN) return;
                                     setValue('isManager', checked);
@@ -393,7 +394,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 description="Allow this teacher to manage organization settings, staff, students and finances"
                             />
                         </div>
-                        {formData.isManager || currentUser?.role === Role.ORG_MANAGER && (
+                        {formData.isManager && (
                             <Badge title='' variant='success'>
                                 Manager Privileges Active
                             </Badge>

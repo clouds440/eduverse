@@ -1,0 +1,120 @@
+'use client';
+
+import React from 'react';
+import { Archive, Download, File, FileSpreadsheet, FileText, Paperclip, Presentation } from 'lucide-react';
+import { getFileTypeInfo } from '../chat/chatLayoutHelpers';
+import { downloadFile } from '@/lib/utils';
+
+export type AttachmentPreviewKind = 'pdf' | 'doc' | 'sheet' | 'presentation' | 'archive' | 'attachment';
+
+type AttachmentPreviewCardProps = {
+    fileName: string;
+    href: string;
+    kind: AttachmentPreviewKind;
+    align?: 'left' | 'right';
+};
+
+const MIME_BY_KIND: Record<AttachmentPreviewKind, string> = {
+    pdf: 'application/pdf',
+    doc: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    sheet: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    presentation: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    archive: 'application/zip',
+    attachment: 'application/octet-stream',
+};
+
+const ICON_BY_KIND: Record<AttachmentPreviewKind, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
+    pdf: FileText,
+    doc: FileText,
+    sheet: FileSpreadsheet,
+    presentation: Presentation,
+    archive: Archive,
+    attachment: Paperclip,
+};
+
+const EXTENSION_BY_KIND: Record<AttachmentPreviewKind, string> = {
+    pdf: '.pdf',
+    doc: '.docx',
+    sheet: '.xlsx',
+    presentation: '.pptx',
+    archive: '.zip',
+    attachment: '',
+};
+
+function getDownloadFileName(fileName: string, kind: AttachmentPreviewKind) {
+    const trimmed = fileName.trim() || 'attachment';
+    if (/\.[a-z0-9]{1,10}$/i.test(trimmed)) return trimmed;
+    return `${trimmed}${EXTENSION_BY_KIND[kind]}`;
+}
+
+export function getAttachmentPreviewKind(label: string, fileName = ''): AttachmentPreviewKind {
+    const lowerName = fileName.toLowerCase();
+    if (/\.(ppt|pptx)$/i.test(lowerName)) return 'presentation';
+    if (/\.(xls|xlsx)$/i.test(lowerName)) return 'sheet';
+    if (/\.(doc|docx)$/i.test(lowerName)) return 'doc';
+    if (/pdf/i.test(label)) return 'pdf';
+    if (/ppt|presentation|slide/i.test(label)) return 'presentation';
+    if (/xls|sheet|spreadsheet|excel/i.test(label)) return 'sheet';
+    if (/doc|word/i.test(label)) return 'doc';
+    if (/archive|zip/i.test(label)) return 'archive';
+    return 'attachment';
+}
+
+export function AttachmentPreviewCard({
+    fileName,
+    href,
+    kind,
+    align = 'left',
+}: AttachmentPreviewCardProps) {
+    const isBlob = href.startsWith('blob:');
+    const fileInfo = getFileTypeInfo(MIME_BY_KIND[kind]);
+    const Icon = ICON_BY_KIND[kind] ?? File;
+    const downloadFileName = getDownloadFileName(fileName, kind);
+
+    const handleDownload = async () => {
+        try {
+            await downloadFile(href, downloadFileName);
+        } catch (error) {
+            console.error('Attachment download failed:', error);
+        }
+    };
+
+    return (
+        <div className={`doc-preview-card group no-underline ${align === 'right' ? 'ml-auto' : ''}`}>
+            <div className="flex items-center gap-3 p-3 mt-1 rounded-2xl bg-card border border-border/50 shadow-lg hover:shadow-xl hover:border-border/70 transition-all duration-300">
+                <div
+                    className="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 shadow-sm"
+                    style={{ background: fileInfo.bg, color: fileInfo.color }}
+                >
+                    <Icon className="w-6 h-6" strokeWidth={2} />
+                </div>
+
+                <div className="flex-1 min-w-0 space-y-1.5">
+                    <p className="text-sm font-semibold text-foreground truncate tracking-tight">
+                        {fileName}
+                    </p>
+                    <div className="flex items-center flex-wrap gap-2">
+                        <span
+                            className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-white shadow-sm"
+                            style={{ background: fileInfo.color }}
+                        >
+                            {fileInfo.label}
+                        </span>
+                    </div>
+                </div>
+
+                {!isBlob && (
+                    <button
+                        type="button"
+                        onClick={handleDownload}
+                        className="shrink-0 flex items-center gap-2 px-4! py-2.5! rounded-xl! bg-primary/5! text-primary! font-semibold text-sm border border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md! transition-all duration-300 group/btn no-underline!"
+                        aria-label={`Download ${downloadFileName}`}
+                    >
+                        <Download className="w-4 h-4 transition-transform group-hover/btn:translate-y-0.5" strokeWidth={2.5} />
+                        <span className="hidden sm:inline text-sm font-medium">Download</span>
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}

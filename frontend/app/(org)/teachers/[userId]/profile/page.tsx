@@ -21,8 +21,24 @@ export default function TeacherProfilePage() {
     const profileKey = token && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) ? ['teacher-profile', user?.id] as const : null;
     const { data: fetchedProfile, isLoading: profileLoading, error: profileError, mutate } = useSWR<Teacher>(profileKey);
 
-    // Use fetched profile if available, otherwise use state
-    const effectiveTeacherData = fetchedProfile || teacherData;
+    // Use fetched profile if available, otherwise use state. The profile endpoint
+    // may return the teacher row without a nested user, so merge auth user data for
+    // self-profile form defaults such as role/isManager.
+    const rawTeacherData = fetchedProfile || teacherData;
+    const effectiveTeacherData = rawTeacherData ? {
+        ...rawTeacherData,
+        user: rawTeacherData.user ?? {
+            id: user?.id || rawTeacherData.userId,
+            name: user?.name || '',
+            email: user?.email || '',
+            userName: user?.userName || '',
+            role: user?.role || Role.TEACHER,
+            phone: undefined,
+            avatarUrl: user?.avatarUrl,
+            avatarUpdatedAt: user?.avatarUpdatedAt,
+            organizationId: user?.organizationId ?? user?.orgId ?? null,
+        },
+    } : null;
 
     // Log error for debugging
     if (profileError) {

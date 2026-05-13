@@ -109,17 +109,51 @@ export async function downloadFile(url: string, filename: string): Promise<void>
         const safeUrl = normalizeSafeUrl(url, { allowRelative: true });
         if (!safeUrl) throw new Error('Unsafe download URL');
         const response = await fetch(safeUrl);
+        if (!response.ok) throw new Error(`Download failed with ${response.status}`);
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = blobUrl;
-        a.download = filename;
+        a.download = filenameWithExtension(filename, safeUrl, blob.type || response.headers.get('content-type'));
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(blobUrl);
         document.body.removeChild(a);
+        window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 0);
     } catch (error) {
         console.error('Failed to download file:', error);
         throw error;
     }
+}
+
+const EXTENSION_BY_MIME: Record<string, string> = {
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.ms-powerpoint': '.ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    'application/zip': '.zip',
+    'application/x-zip-compressed': '.zip',
+    'application/x-rar-compressed': '.rar',
+    'application/vnd.rar': '.rar',
+    'text/plain': '.txt',
+};
+
+function filenameWithExtension(filename: string, url: string, contentType: string | null): string {
+    const trimmed = filename.trim() || 'download';
+    if (/\.[a-z0-9]{1,10}$/i.test(trimmed)) return trimmed;
+
+    const normalizedContentType = contentType?.split(';')[0]?.trim().toLowerCase();
+    const extensionFromType = normalizedContentType ? EXTENSION_BY_MIME[normalizedContentType] : '';
+    if (extensionFromType) return `${trimmed}${extensionFromType}`;
+
+    try {
+        const extensionFromUrl = new URL(url, window.location.origin).pathname.match(/\.[a-z0-9]{1,10}$/i)?.[0];
+        if (extensionFromUrl) return `${trimmed}${extensionFromUrl}`;
+    } catch {
+        // Keep the provided filename if the URL cannot be parsed.
+    }
+
+    return trimmed;
 }

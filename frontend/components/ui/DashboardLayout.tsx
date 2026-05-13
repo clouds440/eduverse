@@ -205,7 +205,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
                         >
                             <div className={`w-9 h-9 flex items-center justify-center shrink-0 shadow-inner relative`}>
-                                <BrandIcon variant="user" user={user} size="sm" className="w-9 h-9" />
+                                <BrandIcon variant="user" user={user} size="sm" className="w-9 h-9" imageLoading="eager" />
                             </div>
                             <div className={`overflow-hidden transition-all ml-2 ${!effectiveExpanded ? 'lg:hidden lg:w-0' : 'w-auto'}`}>
                                 <div className="text-xs font-black text-sidebar-text truncate max-w-30">{user.name || user.email}</div>
