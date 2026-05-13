@@ -108,8 +108,6 @@ export function ChatLayout() {
     const [isSending, setIsSending] = useState(false);
     const [chatComposerStates, setChatComposerStates] = useState<ChatComposerStateMap>(() => getCachedComposerStates());
     const [isUploading, setIsUploading] = useState(false);
-    // Live markdown preview - auto-shows when markdown syntax detected
-    const [showMarkdownPreview, setShowMarkdownPreview] = useState(false);
     const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
     const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -1077,8 +1075,9 @@ export function ChatLayout() {
 
             if (filesToSend.length > 0) {
                 setIsUploading(true);
-                const orgId = user?.organizationId ?? user?.orgId;
-                if (!orgId) throw new Error('Organization ID missing');
+                // PLATFORM ADMIN FIX: Platform admins don't have an orgId. 
+                // Fallback to active chat's orgId or 'platform' literal for global/system chats.
+                const orgId = user?.organizationId ?? user?.orgId ?? activeChat?.organizationId ?? 'platform';
 
                 const uploadResults = await Promise.all(
                     filesToSend.map(file => api.files.uploadFile(orgId, 'chat', chatId, file, token))
@@ -1297,7 +1296,6 @@ export function ChatLayout() {
             replyToMessage: null,
             messageDraft: msg.content
         });
-        setShowMarkdownPreview(false);
         requestAnimationFrame(() => {
             const el = document.querySelector('textarea');
             if (el) {
@@ -1443,117 +1441,72 @@ export function ChatLayout() {
                                         </div>
                                     </div>
                                 ) : (
-                                    (() => {
-                                        const imageRegex = /(!\[.*?\]\(.*?\))/g;
-                                        const segments = msg.content.split(imageRegex).filter(s => s.trim() !== '');
-
-                                        return (
-                                            <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative`}>
-                                                {!isDeleted && isDesktop && (
-                                                    <div className={`absolute top-0.5 ${isMine ? '-left-10' : '-right-10'} shrink-0 flex items-center justify-center transition-all z-10
-                                                        opacity-0 group-hover/content:opacity-100 pointer-events-none
-                                                    `}>
-                                                        <div className="w-7 h-7 rounded-full bg-background/60 backdrop-blur-md shadow-lg border border-border/50 flex items-center justify-center">
-                                                            <MoreVertical size={14} className="text-muted-foreground/60" />
+                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative`}>
+                                        <div
+                                            className={`
+                                                relative p-1.5 rounded-2xl text-[14.5px] leading-relaxed shadow-sm
+                                                ${isMine
+                                                    ? 'bg-primary text-primary rounded-br-sm'
+                                                    : 'bg-card text-foreground border border-border rounded-bl-sm shadow-sm'
+                                                }
+                                                ${isSendingMessage && isMine ? 'opacity-70' : ''}
+                                                ${isFailedMessage && isMine ? 'border-danger border-2' : ''}
+                                            `}
+                                        >
+                                            {/* Reply Section inside Bubble */}
+                                            {msg.replyTo && !isDeleted && (() => {
+                                                return (
+                                                    <div
+                                                        onClick={(e) => { e.stopPropagation(); void scrollToMessage(msg.replyTo!.id); }}
+                                                        className={`px-2 py-1 rounded-lg text-[12px] bg-muted text-foreground! border-l-5 max-w-full overflow-hidden cursor-pointer hover:opacity-90 transition-opacity
+                                                                    ${isMineRepliedTo ? 'border-success' : 'broder-border'}`}
+                                                    >
+                                                        <p className="font-semibold mb-0.5 text-[11px] flex items-center opacity-70">
+                                                            {msg.replyTo.sender?.id === user?.id ? 'You' : msg.replyTo.sender?.name || 'Someone'}
+                                                        </p>
+                                                        <div className="truncate line-clamp-1 opacity-70">
+                                                            <MarkdownRenderer content={getTruncatedMessagePreview(msg.replyTo.deletedAt ? 'Message deleted' : msg.replyTo.content, isDesktop ? 400 : 200)} className={`${msg.replyTo.deletedAt ? 'text-muted-foreground!' : 'text-foreground!'}`} />
                                                         </div>
                                                     </div>
-                                                )}
-                                                {segments.map((segment, idx) => {
-                                                    const isImage = segment.match(/^!\[.*?\]\(.*?\)$/);
-                                                    if (isImage) {
-                                                        return (
-                                                            <div key={idx} className={`naked-image-container max-w-full rounded-xl relative ${isSendingMessage && isMine ? 'animate-in fade-in slide-in-from-bottom-1 duration-200' : ''}`}>
-                                                                <div className="relative">
-                                                                    <MarkdownRenderer content={segment} />
-                                                                    <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[11px] px-2 py-0.5 rounded-md flex items-center space-x-1">
-                                                                        <span className="font-medium">{formatChatTimestamp(msg.createdAt)}</span>
-                                                                        {isMine && (
-                                                                            isSendingMessage ? (
-                                                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" strokeWidth={2.5} />
-                                                                            ) : isFailedMessage ? (
-                                                                                <RotateCcw className="w-3.5 h-3.5 text-white/80" strokeWidth={2.5} />
-                                                                            ) : msg.readBy && msg.readBy.length > 0 ? (
-                                                                                <CheckCheck className="w-4 h-4 text-white" strokeWidth={2.5} />
-                                                                            ) : (
-                                                                                <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
-                                                                            )
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return (
-                                                        <div
-                                                            key={idx}
-                                                            className={`
-                                                                relative p-1.5 rounded-2xl text-[14.5px] leading-relaxed shadow-sm
-                                                                ${isMine
-                                                                    ? 'bg-primary text-primary rounded-br-sm'
-                                                                    : 'bg-card text-foreground border border-border rounded-bl-sm shadow-sm'
-                                                                }
-                                                                ${isSendingMessage && isMine ? 'opacity-70' : ''}
-                                                                ${isFailedMessage && isMine ? 'border-danger border-2' : ''}
-                                                            `}
-                                                        >
-                                                            {/* Reply Section inside Bubble */}
-                                                            {msg.replyTo && !isDeleted && (() => {
-                                                                return (
-                                                                    <div
-                                                                        onClick={(e) => { e.stopPropagation(); void scrollToMessage(msg.replyTo!.id); }}
-                                                                        className={`px-2 py-1 rounded-lg text-[12px] bg-muted text-foreground! border-l-5 max-w-full overflow-hidden cursor-pointer hover:opacity-90 transition-opacity
-                                                                                    ${isMineRepliedTo ? 'border-success' : 'broder-border'}`}
-                                                                    >
-                                                                        <p className="font-semibold mb-0.5 text-[11px] flex items-center opacity-70">
-                                                                            {msg.replyTo.sender?.id === user?.id ? 'You' : msg.replyTo.sender?.name || 'Someone'}
-                                                                        </p>
-                                                                        <div className="truncate line-clamp-1 opacity-70">
-                                                                            <MarkdownRenderer content={getTruncatedMessagePreview(msg.replyTo.deletedAt ? 'Message deleted' : msg.replyTo.content, isDesktop ? 400 : 200)} className={`${msg.replyTo.deletedAt ? 'text-muted-foreground!' : 'text-foreground!'}`} />
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })()}
+                                                );
+                                            })()}
 
-                                                            <div className={`prose prose-sm mx-2 max-w-full prose-p:mb-0 ${isMine && highlightedMessageId !== msg.id ? 'prose-invert' : 'prose-p:text-foreground!'}`}>
-                                                                <MarkdownRenderer content={segment} className={`${isMine ? 'text-white!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} />
-                                                            </div>
-
-                                                            <div className={`flex items-center mx-2 justify-end space-x-1 mt-0.5 -mb-0.5 text-foreground`}>
-                                                                {msg.updatedAt && msg.updatedAt !== msg.createdAt && (
-                                                                    <span className={`text-[11px] tracking-wide sm:text-[11px] rounded-lg px-1.5 py-0 ${isMine ? 'bg-card/70 text-foreground!' : 'bg-foreground/70 text-background!'}`}>Edited</span>
-                                                                )}
-                                                                <span className={`text-[11px] tracking-wider sm:text-[11px] font-medium ${isMine ? 'text-white!' : 'text-foreground!'}`}>
-                                                                    {formatChatTimestamp(msg.createdAt)}
-                                                                </span>
-                                                                {isMine && (
-                                                                    isSendingMessage ? (
-                                                                        <Loader2 className="w-3 h-3 animate-spin opacity-80" strokeWidth={2.5} />
-                                                                    ) : isFailedMessage ? (
-                                                                        <span className="ml-1 inline-flex items-center gap-1">
-                                                                            <span className="text-[11px] tracking-wide font-medium text-danger/70">Failed</span>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => { void handleSendMessage(msg); }}
-                                                                                disabled={sendLockRef.current || isSending || isUploading}
-                                                                                className="inline-flex items-center gap-1 rounded-full border border-foreground/30 px-1 py-0.5 text-[9px] hover:bg-primary-foreground/10 disabled:opacity-50 transition-colors"
-                                                                                title="Retry send"
-                                                                            >
-                                                                                <RotateCcw className="w-2.5 h-2.5" strokeWidth={2.5} />
-                                                                            </button>
-                                                                        </span>
-                                                                    ) : msg.readBy && msg.readBy.length > 0 ? (
-                                                                        <CheckCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-chat-tick transform translate-y-px" strokeWidth={2.5} />
-                                                                    ) : (
-                                                                        <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-80 transform text-white! translate-y-px" strokeWidth={2.5} />
-                                                                    )
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
+                                            <div className={`prose prose-sm mx-2 max-w-full prose-p:mb-0 ${isMine && highlightedMessageId !== msg.id ? 'prose-invert' : 'prose-p:text-foreground!'}`}>
+                                                <MarkdownRenderer content={msg.content} className={`${isMine ? 'text-white!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} />
                                             </div>
-                                        );
-                                    })()
+
+                                            <div className={`flex items-center mx-2 justify-end space-x-1 mt-0.5 -mb-0.5 text-foreground`}>
+                                                {msg.updatedAt && msg.updatedAt !== msg.createdAt && (
+                                                    <span className={`text-[11px] tracking-wide sm:text-[11px] rounded-lg px-1.5 py-0 ${isMine ? 'bg-card/70 text-foreground!' : 'bg-foreground/70 text-background!'}`}>Edited</span>
+                                                )}
+                                                <span className={`text-[11px] tracking-wider sm:text-[11px] font-medium ${isMine ? 'text-white!' : 'text-foreground!'}`}>
+                                                    {formatChatTimestamp(msg.createdAt)}
+                                                </span>
+                                                {isMine && (
+                                                    isSendingMessage ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin opacity-80" strokeWidth={2.5} />
+                                                    ) : isFailedMessage ? (
+                                                        <span className="ml-1 inline-flex items-center gap-1">
+                                                            <span className="text-[11px] tracking-wide font-medium text-danger/70">Failed</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => { void handleSendMessage(msg); }}
+                                                                disabled={sendLockRef.current || isSending || isUploading}
+                                                                className="inline-flex items-center gap-1 rounded-full border border-foreground/30 px-1 py-0.5 text-[9px] hover:bg-primary-foreground/10 disabled:opacity-50 transition-colors"
+                                                                title="Retry send"
+                                                            >
+                                                                <RotateCcw className="w-2.5 h-2.5" strokeWidth={2.5} />
+                                                            </button>
+                                                        </span>
+                                                    ) : msg.readBy && msg.readBy.length > 0 ? (
+                                                        <CheckCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-chat-tick transform translate-y-px" strokeWidth={2.5} />
+                                                    ) : (
+                                                        <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-80 transform text-white! translate-y-px" strokeWidth={2.5} />
+                                                    )
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -1897,10 +1850,9 @@ export function ChatLayout() {
                                                 : null;
                                             return (
                                                 <span className="flex items-center gap-2">
-                                                    <span className={isOnline ? 'text-success' : ''}>{status || role}</span>
-                                                    {role && <span className='capitalize text-sm'> - &nbsp;{role}</span>}
-                                                    {!isOnline && <span className="opacity-40">•</span>}
-                                                    {!isOnline && <span className='capitalize'>{role}</span>}
+                                                    <span className={isOnline ? 'text-success' : ''}>{status}</span>
+                                                    {status && <span className="opacity-40">•</span>}
+                                                    <span className='capitalize'>{role}</span>
                                                 </span>
                                             );
                                         })()}
@@ -2161,15 +2113,6 @@ export function ChatLayout() {
                                         </div>
                                     )}
 
-                                    {/* Live Markdown Preview - auto appears when markdown detected */}
-                                    {showMarkdownPreview && messageDraft.trim() && (
-                                        <div className="my-1 px-4 py-3 mx-2 bg-muted rounded-xl border border-border max-h-37.5 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                            <div className="prose prose-sm max-w-none prose-p:text-foreground/80">
-                                                <MarkdownRenderer content={messageDraft} className='text-foreground!' />
-                                            </div>
-                                        </div>
-                                    )}
-
                                     {/* Composer Row */}
                                     <div className={`flex flex-row items-end mb-1.5 sm:mb-2`}>
                                         <input
@@ -2183,7 +2126,7 @@ export function ChatLayout() {
                                         />
 
                                         {/* Main composer container */}
-                                        <div className="flex-1 bg-background border border-border/50 rounded-3xl focus-within:bg-background/60 focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/5 transition-all shadow-sm">
+                                        <div className="flex-1 bg-card border-2 border-border rounded-3xl focus-within:bg-background/60 focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/5 transition-all shadow-sm">
                                             {/* Top row */}
                                             <div className={`flex items-end transition-all duration-500 ease-out ${isComposerExpanded ? 'px-3 pt-2' : 'px-2'}`}>
                                                 {/* Left buttons only in compact mode */}
@@ -2227,10 +2170,6 @@ export function ChatLayout() {
                                                             } else {
                                                                 emitTypingStop();
                                                             }
-
-                                                            // Auto-show markdown preview when markdown syntax detected
-                                                            const hasMarkdown = /[*#\[\]`>_~\-]/.test(newVal);
-                                                            setShowMarkdownPreview(hasMarkdown && newVal.trim().length > 0);
 
                                                             el.style.height = 'auto';
                                                             el.style.height = el.scrollHeight + 'px';

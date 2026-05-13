@@ -9,7 +9,6 @@ import { FinancialStructure, Role } from '@/types';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { Plus } from 'lucide-react';
-import { SkeletonTable } from '@/components/ui/Skeleton';
 import { useGlobal } from '@/context/GlobalContext';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
@@ -125,6 +124,7 @@ export default function StructuresPage() {
         const start = (page - 1) * pageSize;
         return sortedData.slice(start, start + pageSize);
     }, [sortedData, page, pageSize]);
+
 
     if (error) return <div className="text-danger p-6 font-bold">Failed to load structures.</div>;
 

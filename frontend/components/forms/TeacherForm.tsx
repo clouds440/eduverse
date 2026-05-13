@@ -381,7 +381,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                     <div className={`mt-6 md:mt-8 p-4 md:p-5 bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all select-none ${currentUser?.role !== Role.ORG_ADMIN ? 'cursor-not-allowed' : 'hover:border-primary/30'}`}>
                         <div className={`flex items-start sm:items-center flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto ${currentUser?.role !== Role.ORG_ADMIN ? 'pointer-events-none opacity-70' : ''}`}>
                             <Toggle
-                                checked={formData.isManager}
+                                checked={formData.isManager || currentUser?.role === Role.ORG_MANAGER}
                                 onCheckedChange={(checked) => {
                                     if (currentUser?.role !== Role.ORG_ADMIN) return;
                                     setValue('isManager', checked);
@@ -390,12 +390,12 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 disabled={currentUser?.role !== Role.ORG_ADMIN}
                                 size="lg"
                                 label="Administrative Privileges"
-                                description="Allow this teacher to manage school settings and users"
+                                description="Allow this teacher to manage organization settings, staff, students and finances"
                             />
                         </div>
-                        {formData.isManager && (
+                        {formData.isManager || currentUser?.role === Role.ORG_MANAGER && (
                             <Badge title='' variant='success'>
-                                Manager Mode Active
+                                Manager Privileges Active
                             </Badge>
                         )}
                     </div>

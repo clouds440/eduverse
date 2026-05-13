@@ -109,7 +109,7 @@ export default function ContactPage() {
         </div>
         <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.05)_1px,transparent_1px)] bg-size-[64px_64px] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] dark:bg-size-[64px_64px]" />
         <div className="container mx-auto px-6 relative z-10">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             <Reveal>
               <div className="inline-flex items-center gap-2 px-1 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-wider uppercase">
                 <BackButton
@@ -119,20 +119,21 @@ export default function ContactPage() {
                 />
               </div>
             </Reveal>
-            <Reveal delay={100}>
-              <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tight leading-[1.1]">
-                Get in &nbsp;
-                <span className="bg-linear-to-r from-primary via-primary/80 to-success bg-clip-text text-transparent">
-                  Touch
-                </span>
-              </h1>
-            </Reveal>
-            <Reveal delay={200}>
-              <p className="text-xl text-muted-foreground font-medium leading-relaxed max-w-2xl mt-6">
-                Have a question about the platform or need technical assistance?
-                Our administrative team is here to help.
-              </p>
-            </Reveal>
+            <div className="grid grid-cols-1 lg:grid-cols-2 mt-2">
+              <Reveal delay={100}>
+                <h1 className="text-5xl md:text-7xl font-black text-foreground tracking-tight leading-[1.1]">
+                  Get in<span className="bg-linear-to-r from-primary via-primary/80 to-success bg-clip-text text-transparent">
+                    &nbsp;Touch
+                  </span>
+                </h1>
+              </Reveal>
+              <Reveal delay={200}>
+                <p className="text-xl text-muted-foreground font-medium leading-relaxed max-w-2xl mt-2">
+                  Have a question about the platform or need technical assistance?
+                  Our administrative team is here to help.
+                </p>
+              </Reveal>
+            </div>
           </div>
         </div>
       </section>
@@ -140,7 +141,7 @@ export default function ContactPage() {
       {/* Main Content */}
       <section className="pb-18">
         <div className="container mx-auto px-6">
-          <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-8 md:gap-12">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-8 md:gap-12">
 
             {/* Left Side: Info */}
             <div className="lg:col-span-2 space-y-6 md:space-y-8">

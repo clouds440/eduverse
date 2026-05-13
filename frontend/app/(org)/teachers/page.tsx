@@ -14,7 +14,6 @@ import { useGlobal } from '@/context/GlobalContext';
 import { TableActions } from '@/components/ui/TableActions';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { SkeletonTable } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Badge } from '@/components/ui/Badge';
 import { NewMailModal } from '@/components/mail/NewMailModal';
@@ -253,9 +252,6 @@ export default function TeachersPage() {
         }
     ];
 
-    if ((!token && !user) || (isFetching && !fetchedData)) {
-        return <div className="p-4"><SkeletonTable rows={5} columns={5} /></div>;
-    }
 
     if (teachersError) {
         return <ErrorState error={teachersError} onRetry={() => mutateTeachers()} />;

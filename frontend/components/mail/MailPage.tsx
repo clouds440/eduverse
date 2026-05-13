@@ -19,6 +19,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/Button';
 import { BrandIcon } from '@/components/ui/Brand';
+import { Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
 
 interface MailPageProps {
     localStorageKey?: string;
@@ -253,7 +254,24 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     ];
 
     if (authLoading || (!user && !authLoading)) {
-        return <div className="flex items-center justify-center h-full">Loading...</div>;
+        return (
+            <div className="flex flex-col h-full w-full">
+                <div className="bg-card/80 backdrop-blur-2xl p-1 md:p-2 rounded-lg border border-border shadow-xl flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-2 mb-2 shrink-0">
+                        <div className="flex flex-1 items-center gap-2 w-full">
+                            <Skeleton className="h-10 w-full" />
+                        </div>
+                        <div className='flex gap-2 w-full md:w-auto'>
+                            <Skeleton className="h-10 w-32" />
+                            <Skeleton className="h-10 w-24" />
+                        </div>
+                    </div>
+                    <div className="relative overflow-x-hidden flex-1 min-h-0">
+                        <SkeletonTable rows={8} columns={8} />
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     return (

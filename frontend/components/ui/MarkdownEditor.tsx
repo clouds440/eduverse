@@ -145,7 +145,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                                             value: `gen-${key}`,
                                             label: key.toUpperCase(),
                                             icon: key === 'admin' ? PenTool : key === 'role' ? ShieldCheck : key === 'date' ? Calendar : Zap,
-                                            iconClassName: key === 'admin' ? 'text-success' : key === 'role' ? 'text-secondary' : key === 'date' ? 'text-warning' : 'text-danger'
+                                            iconClassName: key === 'admin' ? 'text-success' : key === 'role' ? 'text-foreground' : key === 'date' ? 'text-warning' : 'text-danger'
                                         }))
                                     ]}
                                     value=""

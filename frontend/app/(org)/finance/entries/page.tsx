@@ -7,8 +7,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { FinancialEntry, Role, EntryStatus, FinanceTab } from '@/types';
 import { DataTable } from '@/components/ui/DataTable';
-import { Button } from '@/components/ui/Button';
-import { SkeletonTable } from '@/components/ui/Skeleton';
 import { useGlobal } from '@/context/GlobalContext';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { TableActions } from '@/components/ui/TableActions';
@@ -159,6 +157,7 @@ export default function EntriesPage() {
         const start = (page - 1) * pageSize;
         return sortedAndFilteredEntries.slice(start, start + pageSize);
     }, [sortedAndFilteredEntries, page, pageSize]);
+
 
     if (error) return <div className="text-danger p-6 font-bold">Failed to load entries.</div>;
 

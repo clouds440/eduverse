@@ -90,25 +90,7 @@ function StudentPortalContent() {
         }
     }, [user, studentData, userId, router, dispatch]);
 
-    if (validating || state.auth.loading) {
-        return (
-            <div className="flex flex-col w-full h-full space-y-8 animate-in fade-in duration-500">
-                <div className="flex items-center gap-6 p-6 bg-card border border-border rounded-xl">
-                    <Skeleton className="w-24 h-24 rounded-2xl" />
-                    <div className="space-y-3 flex-1">
-                        <Skeleton className="h-8 w-1/3" />
-                        <Skeleton className="h-4 w-1/4" />
-                    </div>
-                </div>
-                <div className="flex gap-4 border-b border-border pb-4">
-                    {[...Array(5)].map((_, i) => (
-                        <Skeleton key={i} className="h-10 w-24 rounded-lg" />
-                    ))}
-                </div>
-                <DashboardSkeleton />
-            </div>
-        );
-    }
+
 
     if (studentExists === false) {
         return <NotFound page="Student" />;

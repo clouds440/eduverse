@@ -220,6 +220,7 @@ export function SWRProvider({ children }: SWRProviderProps) {
         },
         // Null key pattern: when token is null, don't fetch
         suspense: false,
+        keepPreviousData: true,
     }), [fetcher]);
 
     return (

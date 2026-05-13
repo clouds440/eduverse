@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2 } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Pagination } from './Pagination';
+import { SkeletonTable } from './Skeleton';
 
 export interface Column<T> {
     header: string;
@@ -236,13 +237,8 @@ export function DataTable<T>({
                 </table>
                 {/* Loading Overlay */}
                 {isLoading && (
-                    <div className="absolute inset-0 bg-card/70 backdrop-blur-sm flex items-center justify-center z-20 transition-all duration-300">
-                        <div className="flex flex-col items-center gap-3">
-                            <div className="bg-primary shadow-lg p-3 rounded-full animate-bounce">
-                                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-white animate-spin" />
-                            </div>
-                            <span className="text-primary font-semibold text-[10px] sm:text-xs tracking-[0.2em]">Refreshing Data...</span>
-                        </div>
+                    <div className="absolute inset-0 bg-card/70 backdrop-blur-sm flex z-20 transition-all duration-300">
+                        <SkeletonTable rows={5} columns={5} className="w-full" />
                     </div>
                 )}
             </div>

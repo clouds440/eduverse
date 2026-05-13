@@ -54,7 +54,7 @@ export function DashboardSkeleton() {
                             <Skeleton className="h-8 w-24 rounded-xl" />
                         </div>
                     </div>
-                    <Skeleton className="h-[300px] w-full rounded-2xl" />
+                    <Skeleton className="h-75 w-full rounded-2xl" />
                 </div>
 
                 {/* Right Sidebar List */}

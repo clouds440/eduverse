@@ -15,7 +15,7 @@ export default function AdminPage() {
         refreshInterval: 30000, // 30 seconds for live dashboard feel
     });
 
-    if (loading || insightsLoading) {
+    if (loading || (!insights && insightsLoading)) {
         return <DashboardSkeleton />;
     }
 

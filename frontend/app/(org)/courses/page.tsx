@@ -17,7 +17,6 @@ import { Label } from '@/components/ui/Label';
 import { useGlobal } from '@/context/GlobalContext';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { SkeletonTable } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Toggle } from '@/components/ui/Toggle';
 import { Drawer } from '@/components/ui/Drawer';
@@ -210,9 +209,6 @@ export default function CoursesPage() {
         }
     ];
 
-    if ((!token && !user) || (isFetching && !fetchedData)) {
-        return <div className="p-4"><SkeletonTable rows={5} columns={4} /></div>;
-    }
 
     if (coursesError) {
         return <ErrorState error={coursesError} onRetry={() => mutateCourses()} />;

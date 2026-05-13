@@ -249,8 +249,8 @@ export default function SectionAttendancePage() {
                 </div>
             </div>
 
-            {fetching ? (
-                <div className="flex justify-center p-20 bg-card/50 rounded-xl border border-border backdrop-blur-sm"><Loading size="lg" /></div>
+            {(fetching && (viewMode === 'daily' ? !dailyData : !rangeData)) ? (
+                <div className="flex justify-center p-20 bg-card/50 rounded-xl border border-border backdrop-blur-sm animate-pulse"><Loading size="lg" /></div>
             ) : viewMode === 'daily' ? (
                 dailyData && <AttendanceSheet students={dailyData.students} date={dailyData.date} onSave={handleSaveRecords} isSaving={saving} mode="daily" readOnly={isReadOnly} />
             ) : (

@@ -18,7 +18,6 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
-import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Drawer } from '@/components/ui/Drawer';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Badge } from '@/components/ui/Badge';
@@ -308,9 +307,6 @@ export default function SectionsPage() {
         }
     ];
 
-    if ((!token && !user) || (isFetching && !fetchedData)) {
-        return <div className="p-4"><SkeletonTable rows={5} columns={5} /></div>;
-    }
 
     if (sectionsError) {
         return <ErrorState error={sectionsError} onRetry={() => {

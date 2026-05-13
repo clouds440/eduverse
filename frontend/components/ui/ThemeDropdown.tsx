@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Monitor, Sun, Moon, ChevronDown } from 'lucide-react';
 import { ThemeMode } from '@/types';
+import { useUI } from '@/context/UIContext';
 
 interface ThemeDropdownProps {
     currentMode: ThemeMode;
@@ -12,6 +13,7 @@ interface ThemeDropdownProps {
 }
 
 export function ThemeDropdown({ currentMode, onModeChange, className = '', variant = 'full' }: ThemeDropdownProps) {
+    const { isDesktop } = useUI();
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -41,7 +43,7 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 title={`Theme: ${currentOption.label}`}
-                className={isCompact 
+                className={isCompact
                     ? "relative p-2 text-primary/80 hover:text-primary hover:bg-primary/10 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-primary/20"
                     : "flex items-center justify-between w-full px-4 py-2.5 rounded-xl border border-border/50 bg-card/50 hover:bg-card transition-all text-sm font-medium text-foreground"
                 }
@@ -55,7 +57,7 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
             </button>
 
             {isOpen && (
-                <div className={`absolute right-0 mt-2 bg-card rounded-xl shadow-2xl border border-border/80 overflow-hidden transform origin-top-right animate-in fade-in slide-in-from-top-2 z-100 ${isCompact ? 'w-48' : 'w-full'}`}>
+                <div className={`absolute ${isDesktop ? 'right-0' : 'right-1/2 translate-x-1/2'} mt-2 bg-card rounded-xl shadow-2xl border border-border/80 overflow-hidden transform origin-top-right animate-in fade-in slide-in-from-top-2 z-100 ${isCompact ? 'w-48' : 'w-full'}`}>
                     <div className="p-2">
                         {themeOptions.map(({ mode, label, icon: Icon }) => (
                             <button

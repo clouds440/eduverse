@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Transaction, TransactionType } from '@/types';
 import { DataTable } from '@/components/ui/DataTable';
-import { SkeletonTable } from '@/components/ui/Skeleton';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { Badge } from '@/components/ui/Badge';
 
@@ -104,6 +103,7 @@ export default function TransactionsPage() {
             accessor: (t: Transaction) => <span className="text-xs font-semibold">{t.paymentMethod || 'SYSTEM'}</span>
         }
     ];
+
 
     if (error) return <div className="text-danger p-6 font-bold">Failed to load transactions.</div>;
 

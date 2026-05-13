@@ -44,8 +44,16 @@ export function MessageContextMenu({
     const links = Array.from(msg.content.matchAll(/\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g));
 
     // Calculate safe coordinates for desktop so it doesn't overflow
-    const safeX = Math.min(position.x, typeof window !== 'undefined' ? window.innerWidth - 160 : position.x);
-    const safeY = Math.min(position.y, typeof window !== 'undefined' ? window.innerHeight - 200 : position.y);
+    const menuWidth = 160;
+    const menuHeight = 200; // Estimated height with all actions
+    const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
+    const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 1000;
+
+    const safeX = Math.min(position.x, windowWidth - menuWidth - 10);
+    // If the menu would go off the bottom, open it upwards from the click point
+    const safeY = (position.y + menuHeight > windowHeight - 10)
+        ? Math.max(10, position.y - menuHeight)
+        : position.y;
 
     const menuContent = (
         <>
@@ -64,9 +72,23 @@ export function MessageContextMenu({
             )}
             {links.map((match, idx) => {
                 const label = (match[1] || '').trim();
+                const displayLabel = (() => {
+                    const cleanLabel = label.replace(/^(📄 PDF: |📝 Doc: |📎 Attachment: )/, '');
+                    if (cleanLabel.length <= 16) return cleanLabel;
+                    
+                    const lastDot = cleanLabel.lastIndexOf('.');
+                    // Only treat as extension if it's 1-5 chars long and near the end
+                    if (lastDot !== -1 && cleanLabel.length - lastDot <= 6) {
+                        const name = cleanLabel.substring(0, lastDot);
+                        const ext = cleanLabel.substring(lastDot);
+                        return `${name.substring(0, 10)}...${ext}`;
+                    }
+                    return `${cleanLabel.substring(0, 14)}...`;
+                })();
+
                 return (
                     <button key={idx} onClick={(e) => handleAction(() => onDownload(e, match[2], label || 'download'))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
-                        <Download size={14} className="mr-3 md:mr-2 opacity-85 text-info" /> Download {label}
+                        <Download size={14} className="mr-3 md:mr-2 opacity-85 text-info" /> {displayLabel}
                     </button>
                 );
             })}

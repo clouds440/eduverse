@@ -37,7 +37,7 @@ export default function AttendanceLandingPage() {
                 </div>
 
                 <div className="overflow-y-auto flex-1 pr-2">
-                    {fetching ? (
+                    {(fetching && sections.length === 0) ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 animate-in fade-in duration-500">
                             {[...Array(8)].map((_, i) => (
                                 <div key={i} className="p-4 md:p-6 bg-card border border-border rounded-xl shadow-lg space-y-4">

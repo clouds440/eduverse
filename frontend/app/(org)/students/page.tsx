@@ -15,7 +15,6 @@ import { TableActions } from '@/components/ui/TableActions';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { NewMailModal } from '@/components/mail/NewMailModal';
 import { BrandIcon } from '@/components/ui/Brand';
@@ -309,9 +308,6 @@ export default function StudentsPage() {
         }
     };
 
-    if ((!token && !user) || (isFetching && !fetchedData)) {
-        return <div className="p-4"><SkeletonTable rows={5} columns={5} /></div>;
-    }
 
     return (
         <div className="flex flex-col h-full w-full">

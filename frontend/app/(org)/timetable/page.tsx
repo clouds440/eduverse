@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import { TimetableEntry, Role } from '@/types';
 import { Clock, MapPin } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { Loading } from '@/components/ui/Loading';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const ACADEMIC_DAYS = [1, 2, 3, 4, 5]; // Mon - Fri
@@ -77,7 +77,57 @@ export default function TimetablePage() {
     const timetableKey = token && user ? ['timetable', user.id, user.role] as const : null;
     const { data: entries = [], isLoading: loading, error } = useSWR<TimetableEntry[]>(timetableKey);
 
-    if (loading) return <Loading className="h-full" text="Synchronizing Weekly Ledger..." size="lg" />;
+    const timeSlots = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+
+    if (loading && entries.length === 0) return (
+        <div className="flex flex-col h-full w-full space-y-6 pb-6">
+            <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl border border-border p-4 md:p-6 overflow-hidden flex flex-col flex-1 min-h-0">
+                <div className="mb-6 border-b border-border/50 pb-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <Skeleton className="w-6 h-1 rounded-full" />
+                        <Skeleton className="h-3 w-32" />
+                    </div>
+                    <Skeleton className="h-10 w-64 mb-2" />
+                    <Skeleton className="h-4 w-96" />
+                </div>
+
+                <div className="flex-1 overflow-auto pr-2 scrollbar-hide border border-border/50 rounded-xl bg-muted/5 p-4">
+                    <div className="min-w-200">
+                        {/* Header Skeleton */}
+                        <div className="grid grid-cols-[80px_repeat(5,1fr)] mb-4">
+                            <div className="p-2 border-r border-border/50">
+                                <Skeleton className="h-3 w-12" />
+                            </div>
+                            {ACADEMIC_DAYS.map((_, i) => (
+                                <div key={i} className="p-3 flex flex-col items-center justify-center border-b-2 border-primary/20 bg-primary/5 rounded-t-lg mx-1">
+                                    <Skeleton className="h-4 w-16 mb-1" />
+                                    <Skeleton className="w-4 h-0.5 rounded-full" />
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Body Skeleton */}
+                        {timeSlots.map((_, hourIdx) => (
+                            <div key={hourIdx} className="grid grid-cols-[80px_repeat(5,1fr)] border-b border-border/30 last:border-b-0 min-h-20">
+                                {/* Time Cell Skeleton */}
+                                <div className="flex flex-col items-center justify-center border-r border-border/50 pr-2 md:pr-4 bg-muted/5">
+                                    <Skeleton className="h-6 w-8 mb-1" />
+                                    <Skeleton className="h-2 w-8" />
+                                </div>
+
+                                {/* Day Cells Skeleton */}
+                                {ACADEMIC_DAYS.map((_, dayIdx) => (
+                                    <div key={`${hourIdx}-${dayIdx}`} className="p-2 h-full">
+                                        <Skeleton className="h-full w-full rounded-lg" />
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 
     if (error) return (
         <div className="bg-destructive/10 border border-destructive/20 p-8 rounded-3xl text-destructive text-center">
@@ -85,8 +135,6 @@ export default function TimetablePage() {
             <p className="font-bold opacity-70 tracking-widest text-sm">{error.message || 'Failed to load timetable'}</p>
         </div>
     );
-
-    const timeSlots = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 
     const getEntryForSlot = (day: number, hour: number) => {
         return entries.find(e => {

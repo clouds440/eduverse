@@ -53,7 +53,7 @@ export default function AssessmentDetailPage() {
     const isTeacherOrAdmin = role === Role.TEACHER || role === Role.ORG_ADMIN || role === Role.ORG_MANAGER;
     const safeAssessmentExternalLink = normalizeSafeUrl(assessment?.externalLink, { allowRelative: false });
 
-    if (isLoading) {
+    if (isLoading && !assessmentData) {
         return (
             <div className="flex items-center justify-center p-12 h-[60vh]">
                 <Loading size="lg" />
