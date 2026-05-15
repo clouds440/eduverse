@@ -75,10 +75,14 @@ export class TeacherController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Get('teachers/:id')
-  getTeacher(@OrgId() orgId: string, @Param('id') id: string) {
-    return this.teacherService.getTeacher(orgId, id);
+  getTeacher(
+    @OrgId() orgId: string, 
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.teacherService.getTeacher(orgId, id, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)

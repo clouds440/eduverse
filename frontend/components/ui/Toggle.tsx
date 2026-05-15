@@ -25,34 +25,28 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
             label,
             description,
             size = 'md',
-            onColor = 'bg-primary/70',
-            offColor = 'bg-primary/20',
-            knobColor = 'bg-muted-foreground',
+            onColor = 'bg-primary',
+            offColor = 'bg-slate-700',
+            knobColor = 'bg-white',
             className = '',
             textColor = 'text-foreground',
         },
         ref
     ) => {
         const sizeClasses = {
-            sm: 'h-5 w-9',
-            md: 'h-6 w-11',
-            lg: 'h-7 w-14',
+            sm: 'h-4 w-8',
+            md: 'h-5 w-10',
+            lg: 'h-6 w-12',
         };
 
         const knobSizeClasses = {
-            sm: 'h-3 w-3',
-            md: 'h-4 w-4',
-            lg: 'h-5 w-5',
-        };
-
-        const knobTranslateClasses = {
-            sm: checked ? 'translate-x-5' : 'translate-x-1',
-            md: checked ? 'translate-x-6' : 'translate-x-1',
-            lg: checked ? 'translate-x-8' : 'translate-x-1',
+            sm: 'h-2.5 w-2.5',
+            md: 'h-3.5 w-3.5',
+            lg: 'h-4.5 w-4.5',
         };
 
         return (
-            <div className={`flex items-center w-auto gap-3 ${className}`}>
+            <div className={`flex items-center gap-3 ${className}`}>
                 <button
                     ref={ref}
                     type="button"
@@ -61,31 +55,35 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
                     disabled={disabled}
                     onClick={() => !disabled && onCheckedChange(!checked)}
                     className={`
-                        relative inline-flex items-center rounded-full transition-colors
-                        focus:outline-none
+                        relative inline-flex items-center rounded-full transition-all duration-300
+                        shrink-0
                         ${sizeClasses[size]}
                         ${checked ? onColor : offColor}
-                        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                        ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:brightness-110'}
+                        focus:outline-none focus:ring-2 focus:ring-primary/20
                     `}
                 >
                     <span
                         className={`
-                            inline-block transform rounded-full transition-transform
+                            absolute top-1/2 rounded-full transition-all duration-300 shadow-md
                             ${knobSizeClasses[size]}
                             ${knobColor}
-                            ${knobTranslateClasses[size]}
                         `}
+                        style={{
+                            left: checked ? 'calc(100% - 3px)' : '3px',
+                            transform: `translate(${checked ? '-100%' : '0'}, -50%)`,
+                        }}
                     />
                 </button>
                 {(label || description) && (
-                    <div className="flex flex-col">
+                    <div className="flex flex-col min-w-0">
                         {label && (
-                            <span className={`text-xs font-bold ${textColor} tracking-wider`}>
+                            <span className={`text-[11px] md:text-base font-bold ${textColor} tracking-tight leading-tight truncate`}>
                                 {label}
                             </span>
                         )}
                         {description && (
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-[10px] md:text-sm max-w-auto text-muted-foreground leading-tight">
                                 {description}
                             </span>
                         )}

@@ -56,10 +56,14 @@ export class StudentController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('students/:id')
-  getStudent(@OrgId() orgId: string, @Param('id') id: string) {
-    return this.studentService.getStudent(orgId, id);
+  getStudent(
+    @OrgId() orgId: string, 
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.studentService.getStudent(orgId, id, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)

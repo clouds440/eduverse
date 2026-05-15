@@ -760,8 +760,8 @@ export function ChatLayout() {
             const imgEl = (target.closest && (target.closest('img') as HTMLImageElement | null)) || (target.tagName === 'IMG' ? (target as HTMLImageElement) : null);
             if (!imgEl) return;
 
-            // Ensure the image is inside the messages container and either inside a naked-image-container or message-content
-            if (messagesContainerRef.current && messagesContainerRef.current.contains(imgEl) && (imgEl.closest('.message-content') || imgEl.closest('.naked-image-container'))) {
+            // Ensure the image is inside the messages container and is a markdown image
+            if (messagesContainerRef.current && messagesContainerRef.current.contains(imgEl) && imgEl.classList.contains('markdown-image')) {
                 const imgSrc = imgEl.src;
                 if (imgSrc) setPreviewImageUrl(imgSrc);
             }
@@ -1415,7 +1415,7 @@ export function ChatLayout() {
                                         </div>
                                     </div>
                                 ) : (
-                                    // Messages Bubble
+                                    // Chat Bubble
                                     <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full overflow-hidden`}>
                                         <div
                                             className={`
@@ -1825,10 +1825,10 @@ export function ChatLayout() {
                                                 ? `Last seen ${formatDistanceToNow(new Date(otherParticipant.lastSeenAt), { addSuffix: true })}`
                                                 : null;
                                             return (
-                                                <span className="flex items-center gap-2">
+                                                <span className="flex items-center gap-2 text-[10px] md:text-sm">
                                                     <span className={isOnline ? 'text-success' : ''}>{status}</span>
-                                                    {status && <span className="opacity-40">•</span>}
-                                                    <span className='capitalize'>{role}</span>
+                                                    {status && <span className="opacity-40 hidden md:block">•</span>}
+                                                    <span className='capitalize hidden md:block'>{role}</span>
                                                 </span>
                                             );
                                         })()}

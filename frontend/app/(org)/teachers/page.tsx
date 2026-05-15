@@ -338,7 +338,11 @@ export default function TeachersPage() {
                         isLoading={isFetching}
                         onRowClick={(row) => {
                             if (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) {
-                                router.push(`/teachers/edit/${row.id}`);
+                                if (user?.id === row.userId) {
+                                    router.push(`/teachers/${row.userId}/profile`);
+                                } else {
+                                    router.push(`/teachers/edit/${row.id}`);
+                                }
                             }
                         }}
                         currentPage={page}

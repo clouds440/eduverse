@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Archive, Download, File, FileSpreadsheet, FileText, Paperclip, Presentation } from 'lucide-react';
+import React, { useState } from 'react';
+import { Archive, Download, File, FileSpreadsheet, FileText, Paperclip, Presentation, CheckCircle, Loader2 } from 'lucide-react';
 import { getFileTypeInfo } from '../chat/chatLayoutHelpers';
 import { downloadFile } from '@/lib/utils';
 
@@ -71,11 +71,20 @@ export function AttachmentPreviewCard({
     const Icon = ICON_BY_KIND[kind] ?? File;
     const downloadFileName = getDownloadFileName(fileName, kind);
 
+    const [isDownloading, setIsDownloading] = useState(false);
+    const [downloadSuccess, setDownloadSuccess] = useState(false);
+
     const handleDownload = async () => {
+        if (isDownloading) return;
+        setIsDownloading(true);
         try {
             await downloadFile(href, downloadFileName);
+            setDownloadSuccess(true);
+            setTimeout(() => setDownloadSuccess(false), 2000);
         } catch (error) {
             console.error('Attachment download failed:', error);
+        } finally {
+            setIsDownloading(false);
         }
     };
 
@@ -107,11 +116,26 @@ export function AttachmentPreviewCard({
                     <button
                         type="button"
                         onClick={handleDownload}
-                        className="shrink-0 flex items-center gap-2 px-4! py-2.5! rounded-xl! bg-primary/5! text-primary! font-semibold text-sm border border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md! transition-all duration-300 group/btn no-underline!"
+                        disabled={isDownloading}
+                        className={`shrink-0 flex items-center gap-2 px-4! py-2.5! rounded-xl! font-semibold text-sm border transition-all duration-300 group/btn no-underline! ${
+                            downloadSuccess 
+                                ? 'bg-success/10! text-success! border-success/30 hover:bg-success/20!'
+                                : isDownloading
+                                    ? 'bg-primary/10! text-primary/70! border-primary/20 cursor-wait'
+                                    : 'bg-primary/5! text-primary! border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md!'
+                        }`}
                         aria-label={`Download ${downloadFileName}`}
                     >
-                        <Download className="w-4 h-4 transition-transform group-hover/btn:translate-y-0.5" strokeWidth={2.5} />
-                        <span className="hidden sm:inline text-sm font-medium">Download</span>
+                        {isDownloading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2.5} />
+                        ) : downloadSuccess ? (
+                            <CheckCircle className="w-4 h-4" strokeWidth={2.5} />
+                        ) : (
+                            <Download className="w-4 h-4 transition-transform group-hover/btn:translate-y-0.5" strokeWidth={2.5} />
+                        )}
+                        <span className="hidden sm:inline text-sm font-medium">
+                            {isDownloading ? 'Downloading...' : downloadSuccess ? 'Downloaded' : 'Download'}
+                        </span>
                     </button>
                 )}
             </div>

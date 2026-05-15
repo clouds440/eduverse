@@ -196,7 +196,7 @@ export class TeacherService {
     );
   }
 
-  async getTeacher(orgId: string, id: string) {
+  async getTeacher(orgId: string, id: string, userContext?: { id: string, role: string }) {
     const teacher = await this.prisma.teacher.findFirst({
       where: {
         id,
@@ -219,6 +219,10 @@ export class TeacherService {
       },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
+    
+    if (userContext?.role === Role.TEACHER && teacher.userId !== userContext.id) {
+        throw new ForbiddenException('You do not have permission to view this teacher profile');
+    }
     return teacher;
   }
 

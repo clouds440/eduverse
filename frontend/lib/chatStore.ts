@@ -28,35 +28,14 @@ const cache: { chats: ChatCache; session: ChatSessionStore } = {
     }
 };
 
-// Load from localStorage on module init
+// Load initial session state (in-memory only)
 function loadFromStorage(): ChatSessionStore {
-    if (typeof window === 'undefined') {
-        return { messagesByChat: {}, composerStates: {}, lastReadByChat: {} };
-    }
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            return {
-                messagesByChat: parsed.messagesByChat || {},
-                composerStates: parsed.composerStates || {},
-                lastReadByChat: parsed.lastReadByChat || {}
-            };
-        }
-    } catch (err) {
-        console.warn('Failed to load chat session from storage', err);
-    }
     return { messagesByChat: {}, composerStates: {}, lastReadByChat: {} };
 }
 
-// Save to localStorage
+// Save to storage (disabled per requirements to avoid caching issues)
 function saveToStorage() {
-    if (typeof window === 'undefined') return;
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cache.session));
-    } catch (err) {
-        console.warn('Failed to save chat session to storage', err);
-    }
+    // No-op: we only keep messages in memory for the current session
 }
 
 // Initialize session from storage

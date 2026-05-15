@@ -202,7 +202,7 @@ export class StudentService {
     );
   }
 
-  async getStudent(orgId: string, id: string) {
+  async getStudent(orgId: string, id: string, userContext?: { id: string, role: string }) {
     const student = await this.prisma.student.findFirst({
       where: {
         id,
@@ -233,6 +233,10 @@ export class StudentService {
       },
     });
     if (!student) throw new NotFoundException('Student not found');
+    
+    if (userContext?.role === Role.STUDENT && student.userId !== userContext.id) {
+        throw new ForbiddenException('You do not have permission to view this student profile');
+    }
     return student;
   }
 

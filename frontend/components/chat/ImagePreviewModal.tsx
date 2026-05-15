@@ -30,7 +30,7 @@ export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps)
                     onClick={onClose}
                     className="absolute top-3 sm:top-4 right-3 sm:right-4 p-2 bg-accent/80 hover:bg-accent/70 rounded-full transition-colors shadow-lg"
                 >
-                    <X size={24} className="text-primary/80 hover:text-primary" />
+                    <X size={24} className="text-primary/80 hover:text-primary cursor-pointer" />
                 </button>
             </div>
         </div>

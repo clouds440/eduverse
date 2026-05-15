@@ -125,7 +125,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 const placeholderSrcAttrs = optimisticSrc ? ` data-placeholder-src="${escapeHtml(optimisticSrc)}"` : '';
 
                 return `
-                    <img src="${escapeHtml(imageSrc)}" alt="${alt}" title="${titleAttr}" class="max-w-full h-auto rounded-lg shadow-sm my-2 border border-border markdown-image" data-failed-url="${escapeHtml(imageSrc)}"${remoteSrcAttrs}${placeholderSrcAttrs} decoding="async" />
+                    <img src="${escapeHtml(imageSrc)}" alt="${alt}" title="${titleAttr}" class="max-w-full h-auto rounded-lg shadow-sm my-2 border border-border markdown-image cursor-pointer hover:opacity-90 transition-opacity" data-failed-url="${escapeHtml(imageSrc)}"${remoteSrcAttrs}${placeholderSrcAttrs} decoding="async" />
                 `;
             };
 

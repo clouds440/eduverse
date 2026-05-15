@@ -10,21 +10,29 @@ import { Loading } from '@/components/ui/Loading';
 import { useEffect } from 'react';
 import useSWR from 'swr';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { useParams } from 'next/navigation';
 
 export default function TeacherProfilePage() {
     const { state } = useGlobal();
     const { user, token } = useAuth();
-    const teacherData = state.auth.userProfile as Teacher | null;
+    const params = useParams();
+    const userId = params.userId as string;
+
+    const teacherDataFromState = state.auth.userProfile as Teacher | null;
     const loading = state.auth.loading;
 
+    // SWR: Validation fetch
+    const validationKey = token && userId ? ['validate-teacher', userId] as const : null;
+    const { data: validatedTeacher } = useSWR<Teacher>(validationKey);
+
     // Fetch teacher profile if not already in state
-    const profileKey = token && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) ? ['teacher-profile', user?.id] as const : null;
+    const profileKey = token && validatedTeacher?.id && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) ? ['teacher', validatedTeacher.id] as const : null;
     const { data: fetchedProfile, isLoading: profileLoading, error: profileError, mutate } = useSWR<Teacher>(profileKey);
 
     // Use fetched profile if available, otherwise use state. The profile endpoint
     // may return the teacher row without a nested user, so merge auth user data for
     // self-profile form defaults such as role/isManager.
-    const rawTeacherData = fetchedProfile || teacherData;
+    const rawTeacherData = fetchedProfile || teacherDataFromState;
     const effectiveTeacherData = rawTeacherData ? {
         ...rawTeacherData,
         user: rawTeacherData.user ?? {
@@ -66,7 +74,7 @@ export default function TeacherProfilePage() {
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                         <div className="relative">
                             <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative p-4 bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg group">
+                            <div className="relative p-4 max-w-fit bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg group">
                                 <UserCircle className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
                             </div>
                         </div>

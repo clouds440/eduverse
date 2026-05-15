@@ -3,17 +3,16 @@
 import { useState, useMemo } from 'react';
 import useSWR from 'swr';
 import { useAuth } from '@/context/AuthContext';
-import { useGlobal } from '@/context/GlobalContext';
 import { Loading } from '@/components/ui/Loading';
 import { ErrorState } from '@/components/ui/ErrorState';
 import AttendanceSheet from '@/components/sections/AttendanceSheet';
 import { AttendanceRecord, Role, RangeAttendanceResponse, AttendanceStatus } from '@/types';
 import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { SkeletonTable } from '@/components/ui/Skeleton';
 
 export default function Attendance() {
     const { token, user } = useAuth();
-    const { dispatch } = useGlobal();
 
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
 
@@ -79,8 +78,8 @@ export default function Attendance() {
         return total > 0 ? Math.round((present / total) * 100) : 100;
     }, [records]);
 
-    if (fetching) {
-        return <div className="py-20 flex justify-center"><Loading size="lg" /></div>;
+    if (fetching || fetchingDetail) {
+        return <SkeletonTable rows={4} columns={4} />;
     }
 
     if (attendanceError) {

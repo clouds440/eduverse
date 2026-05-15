@@ -44,12 +44,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         return (
             <button
                 className={`
-          group relative flex justify-center items-center space-x-3 cursor-pointer
+          group relative flex justify-center items-center space-x-3
           rounded-2xl border border-transparent ${px} ${py} text-base font-bold
           focus:outline-none focus:ring-4
           transition-all duration-300 shadow-lg
           ${variantClasses}
-          ${effectiveDisabled ? 'pointer-events-none cursor-not-allowed opacity-90' : ''}
+          ${effectiveDisabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}
           ${className || ''}
         `}
                 disabled={effectiveDisabled}

@@ -29,16 +29,16 @@ function StudentPortalContent() {
     const profile = state.auth.userProfile as Student | null;
     const userId = params.userId as string;
 
+    // SWR: Validation fetch (runs in parallel with data, NOT blocking)
+    const validationKey = token && userId ? ['validate-student', userId] as const : null;
+    const { data: studentData, error: validationError, isLoading: validating } = useSWR<Student>(validationKey);
+
     // SWR: Fetch student profile if not already in state
-    const profileKey = token && user?.role === 'STUDENT' ? ['student-profile', user.id] as const : null;
+    const profileKey = token && user?.role === 'STUDENT' && studentData?.id ? ['student', studentData.id] as const : null;
     const { data: fetchedProfile, isLoading: profileLoading, error: profileError, mutate: mutateProfile } = useSWR<Student>(profileKey);
 
     // Use fetched profile if available, otherwise use state
     const effectiveProfile = fetchedProfile || profile;
-
-    // SWR: Validation fetch (runs in parallel with data, NOT blocking)
-    const validationKey = token && userId ? ['validate-student', userId] as const : null;
-    const { data: studentData, error: validationError, isLoading: validating } = useSWR<Student>(validationKey);
 
     // SWR: Data fetches - lazy loaded per tab
     const shouldFetchData = token && user;

@@ -379,8 +379,8 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                         </div>
                     </div>
 
-                    <div className={`mt-6 md:mt-8 p-4 md:p-5 bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all select-none ${currentUser?.role !== Role.ORG_ADMIN ? 'cursor-not-allowed' : 'hover:border-primary/30'}`}>
-                        <div className={`flex items-start sm:items-center flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto ${currentUser?.role !== Role.ORG_ADMIN ? 'pointer-events-none opacity-70' : ''}`}>
+                    <div className={`mt-6 lg:mt-8 p-4 lg:p-5 bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-2xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 transition-all select-none ${currentUser?.role !== Role.ORG_ADMIN ? 'cursor-not-allowed' : 'hover:border-primary/30'}`}>
+                        <div className={`flex items-start lg:items-center flex-col lg:flex-row gap-3 lg:gap-4 w-full lg:w-auto ${currentUser?.role !== Role.ORG_ADMIN ? 'pointer-events-none opacity-70' : ''}`}>
                             <Toggle
                                 checked={formData.isManager}
                                 onCheckedChange={(checked) => {

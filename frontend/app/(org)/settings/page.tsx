@@ -108,8 +108,10 @@ export default function SettingsPage() {
 
     // Update theme immediately when color changes (real-time preview)
     useEffect(() => {
-        setPrimaryColor(formData.accentColor.primary);
-    }, [formData.accentColor.primary, setPrimaryColor]);
+        if (!redirecting) {
+            setPrimaryColor(formData.accentColor.primary);
+        }
+    }, [formData.accentColor.primary, setPrimaryColor, redirecting]);
 
     const handleLogoReady = useCallback((file: File) => {
         setPendingLogoFile(file);
