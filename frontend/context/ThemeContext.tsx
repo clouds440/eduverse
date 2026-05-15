@@ -14,7 +14,7 @@ interface ThemeContextType {
     refreshTheme: () => void;
 }
 
-const DEFAULT_PRIMARY = '#0052FF'; // Crypto Blue - Coinbase Blue
+const DEFAULT_PRIMARY = '#0052FF'; // Crypto Blue - From theme
 const DEFAULT_SECONDARY = '#5B616E'; // Cool Slate
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
