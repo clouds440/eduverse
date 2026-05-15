@@ -90,15 +90,15 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 const prismLanguage = Prism.languages[language] || Prism.languages.text;
                 const highlighted = Prism.highlight(decodedText, prismLanguage, language);
 
-                return `<div class="code-block-wrapper relative group max-w-full overflow-hidden flex flex-col border border-border/50 rounded-xl bg-slate-800" style="min-width: 0;">
-                            <div class="flex items-center justify-between px-4 py-1 border-b border-white/10 bg-slate-900/50">
-                                <div class="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 group-hover:text-primary transition-colors">${language}</div>
-                                <button class="copy-code-btn p-1.5 rounded-md bg-slate-700/30 hover:bg-slate-700/60 text-slate-400 hover:text-white transition-all flex items-center justify-center border border-white/5" data-code="${escapeHtml(decodedText)}">
+                return `<div class="code-block-wrapper relative group max-w-full my-1.5 overflow-hidden flex flex-col border border-border/30 rounded-xl bg-card/90" style="min-width: 0;">
+                            <div class="flex items-center justify-between px-4 py-1 border-b border-border/10 bg-card/80">
+                                <div class="text-sm tracking-widest text-muted-foreground group-hover:text-primary transition-colors">${language}</div>
+                                <button class="copy-code-btn p-1.5 rounded-md bg-background/30 hover:bg-background/60 text-muted-foreground hover:text-foreground transition-all flex items-center justify-center border border-border" data-code="${escapeHtml(decodedText)}">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="copy-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="check-icon hidden text-emerald-400"><polyline points="20 6 9 17 4 12"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="check-icon hidden text-success"><polyline points="20 6 9 17 4 12"/></svg>
                                 </button>
                             </div>
-                            <pre class="language-${language} p-4 text-slate-100 overflow-x-auto scrollbar-thin max-w-full"><code class="language-${language}">${highlighted}</code></pre>
+                            <pre class="language-${language} p-4 text-foreground/80 overflow-x-auto scrollbar-thin max-w-full"><code class="language-${language}">${highlighted}</code></pre>
                         </div>`;
             };
 
