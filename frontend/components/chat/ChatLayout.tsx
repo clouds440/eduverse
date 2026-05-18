@@ -181,7 +181,26 @@ export function ChatLayout() {
     const sendLockRef = useRef(false);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const typingChatIdRef = useRef<string | null>(null);
+    const activeChatHistoryRef = useRef<string | null>(null);
     const mobileBottomInset = 'env(safe-area-inset-bottom, 0px)';
+
+    const closeActiveChat = useCallback((options?: { useHistoryBack?: boolean }) => {
+        if (options?.useHistoryBack && !isDesktop && activeChatHistoryRef.current) {
+            window.history.back();
+            return;
+        }
+
+        activeChatHistoryRef.current = null;
+        setActiveChatId(null);
+        setTargetMessageId(null);
+        setShowParticipants(false);
+        setContextMenu(null);
+
+        const url = new URL(window.location.href);
+        url.searchParams.delete('id');
+        url.searchParams.delete('msgId');
+        window.history.replaceState({}, '', url.toString());
+    }, [isDesktop]);
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
         messagesEndRef.current?.scrollIntoView({ behavior });
@@ -698,7 +717,7 @@ export function ChatLayout() {
                     type: 'TOAST_ADD',
                     payload: { message: 'You have been removed from this group.', type: 'info' }
                 });
-                setActiveChatId(null);
+                closeActiveChat();
                 setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, isActive: false } : c));
             }
         });
@@ -711,7 +730,7 @@ export function ChatLayout() {
             unsubUpdate();
             unsubRoomLeft();
         };
-    }, [subscribe, activeChatId, token, user, setActiveChatId, isAtBottom, scrollToBottom]);
+    }, [subscribe, activeChatId, token, user, closeActiveChat, isAtBottom, scrollToBottom]);
 
     // 4. Join/Leave rooms, Sync URL, and request presence
     useEffect(() => {
@@ -731,7 +750,12 @@ export function ChatLayout() {
                 const url = new URL(window.location.href);
                 url.searchParams.set('id', activeChatId);
                 url.searchParams.delete('msgId');
-                window.history.replaceState({}, '', url.toString());
+                if (!isDesktop && activeChatHistoryRef.current !== activeChatId) {
+                    window.history.pushState({ eduverseChatId: activeChatId }, '', url.toString());
+                    activeChatHistoryRef.current = activeChatId;
+                } else {
+                    window.history.replaceState({ eduverseChatId: activeChatId }, '', url.toString());
+                }
 
                 return () => {
                     clearTimeout(presenceTimer);
@@ -743,11 +767,28 @@ export function ChatLayout() {
             const url = new URL(window.location.href);
             url.searchParams.set('id', activeChatId);
             url.searchParams.delete('msgId');
-            window.history.replaceState({}, '', url.toString());
+            if (!isDesktop && activeChatHistoryRef.current !== activeChatId) {
+                window.history.pushState({ eduverseChatId: activeChatId }, '', url.toString());
+                activeChatHistoryRef.current = activeChatId;
+            } else {
+                window.history.replaceState({ eduverseChatId: activeChatId }, '', url.toString());
+            }
 
             return () => leaveRoom(`chat:${activeChatId}`);
         }
-    }, [activeChatId, joinRoom, leaveRoom, emit]);
+    }, [activeChatId, isDesktop, joinRoom, leaveRoom, emit]);
+
+    useEffect(() => {
+        if (isDesktop || !activeChatId) return;
+
+        const handlePopState = () => {
+            if (!activeChatHistoryRef.current) return;
+            closeActiveChat();
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [activeChatId, closeActiveChat, isDesktop]);
 
     // 5. Image click handler for thumbnails
     useEffect(() => {
@@ -862,7 +903,7 @@ export function ChatLayout() {
             setChats(prev => prev.filter(c => c.id !== chatId));
             // If the deleted chat was active, clear it
             if (activeChatId === chatId) {
-                setActiveChatId(null);
+                closeActiveChat();
                 setMessages([]);
             }
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Chat removed from view', type: 'success' } });
@@ -924,7 +965,7 @@ export function ChatLayout() {
         result = result.filter(chat => {
             const myParticipant = chat.participants?.find(p => p.userId === user?.id);
             // Check both on participant and on chat (in case of partial updates)
-            const hiddenAt = myParticipant?.hiddenAt || (chat as any).hiddenAt;
+            const hiddenAt = myParticipant?.hiddenAt || (chat as Chat & { hiddenAt?: string | Date | null }).hiddenAt;
             if (!hiddenAt) return true;
 
             const latestMsg = chat.messages?.[0];
@@ -1799,7 +1840,7 @@ export function ChatLayout() {
                                         type='button'
                                         title='Back'
                                         className="p-1.5 -ml-1 text-foreground/60 hover:text-primary hover:bg-muted rounded-xl transition-all active:scale-95"
-                                        onClick={(e) => { e.stopPropagation(); setActiveChatId(null); }}
+                                        onClick={(e) => { e.stopPropagation(); closeActiveChat({ useHistoryBack: true }); }}
                                     >
                                         <ChevronLeft size={22} className="text-primary/80 hover:text-primary" />
                                     </button>
