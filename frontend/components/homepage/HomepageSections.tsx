@@ -25,16 +25,20 @@ export function TrustBar() {
     return (
         <section className="py-6 md:py-8 border-y border-border bg-muted/20 overflow-hidden">
             <div className="container mx-auto px-6">
-                <div className="flex flex-wrap justify-center items-center gap-x-8 gap-y-4 md:gap-x-12 lg:gap-x-16">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-6 sm:flex sm:flex-wrap sm:justify-center sm:items-center sm:gap-x-12 lg:gap-x-16 justify-items-center">
                     {TRUST_METRICS.map((metric, i) => (
-                        <Reveal key={i} delay={i * 80}>
-                            <div className="flex items-center gap-3 group">
-                                <div className="w-9 h-9 rounded-lg bg-primary/8 border border-primary/12 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                        <Reveal
+                            key={i}
+                            delay={i * 80}
+                            className={`w-full ${i === TRUST_METRICS.length - 1 ? "hidden sm:block" : ""}`}
+                        >
+                            <div className="flex items-center gap-3 group w-full max-w-[145px] sm:max-w-none mx-auto">
+                                <div className="w-9 h-9 rounded-lg bg-primary/8 border border-primary/12 flex items-center justify-center group-hover:bg-primary/15 transition-colors shrink-0">
                                     <metric.icon className="w-4 h-4 text-primary/70" />
                                 </div>
-                                <div>
-                                    <p className="text-sm md:text-base font-black text-foreground leading-none">{metric.value}</p>
-                                    <p className="text-[10px] md:text-xs text-muted-foreground font-medium">{metric.label}</p>
+                                <div className="min-w-0">
+                                    <p className="text-sm md:text-base font-black text-foreground leading-none truncate">{metric.value}</p>
+                                    <p className="text-[10px] md:text-xs text-muted-foreground font-medium truncate">{metric.label}</p>
                                 </div>
                             </div>
                         </Reveal>
