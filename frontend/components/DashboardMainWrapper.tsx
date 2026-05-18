@@ -12,7 +12,7 @@ export default function DashboardMainWrapper({ children }: { children: React.Rea
     const segments = pathname?.split('/').filter(Boolean) || [];
     
     // Public routes are: Home (/), Guests (/login, /register), or any root-level path not matching dashboard patterns
-    const isDashboard = segments[0] === 'admin' || (segments.length >= 2 && DASHBOARD_MODULES.includes(segments[1]));
+    const isDashboard = segments[0] === 'admin' || DASHBOARD_MODULES.includes(segments[0]);
     const isGuest = segments.length === 1 && (segments[0] === 'login' || segments[0] === 'register');
     const isHome = segments.length === 0;
     
@@ -28,7 +28,7 @@ export default function DashboardMainWrapper({ children }: { children: React.Rea
     return (
         <main 
             ref={scrollContainerRef}
-            className={`grow relative z-10 w-full flex flex-col pt-16 ${isPublicPage ? 'h-screen overflow-y-auto' : 'h-full overflow-hidden'}`}
+            className={`app-shell-main grow relative z-10 w-full flex flex-col pt-16 ${isPublicPage ? 'h-screen overflow-y-auto' : 'h-full overflow-hidden'}`}
         >
             <div className="grow flex flex-col min-h-0">
                 {children}

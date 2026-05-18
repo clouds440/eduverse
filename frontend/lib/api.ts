@@ -13,7 +13,7 @@ import {
     FinancialStructure, FinancialEntry, Transaction, FinanceStats
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
-import { enqueueMutation, initOfflineQueue } from './offlineQueue';
+import { enqueueMutation } from './offlineQueue';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? '';
 
@@ -38,6 +38,15 @@ interface RequestOptions extends RequestInit {
 
 interface QueryParams {
     [key: string]: string | number | boolean | undefined;
+}
+
+export interface WebPushSubscriptionPayload {
+    endpoint: string;
+    expirationTime?: number | null;
+    keys: {
+        p256dh: string;
+        auth: string;
+    };
 }
 
 interface AuthSessionSummary {
@@ -109,7 +118,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         }
 
         return data;
-    } catch (error: any) {
+    } catch (error: unknown) {
         // For GET requests: serve from IndexedDB cache
         if (isGet && typeof window !== 'undefined') {
             try {
@@ -133,7 +142,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
                     method: rest.method || 'POST',
                     body: bodyStr,
                     token,
-                }).catch(e => console.warn('Failed to queue mutation:', e));
+                }).catch((e) => console.warn('Failed to queue mutation:', e));
             }
         }
 
@@ -431,8 +440,10 @@ export const api = {
             request<void>('/notifications/read-all', { method: 'PATCH', token }),
         clearCategory: (category: 'CHAT' | 'MAIL', token: string) =>
             request<void>(`/notifications/clear-category/${category}`, { method: 'PATCH', token }),
-        subscribeToPush: (subscription: any, token: string) =>
+        subscribeToPush: (subscription: WebPushSubscriptionPayload, token: string) =>
             request<void>('/notifications/push/subscribe', { method: 'POST', body: JSON.stringify(subscription), token }),
+        testPush: (token: string) =>
+            request<void>('/notifications/push/test', { method: 'POST', token }),
     },
 
     announcements: {
@@ -509,7 +520,7 @@ export const api = {
 
     copyForward: {
         execute: (data: CopyForwardDto, token: string) =>
-            request<{ message: string; sectionsCopied: number; details: any }>(`/org/copy-forward`, { method: 'POST', body: JSON.stringify(data), token }),
+            request<{ message: string; sectionsCopied: number; details: unknown }>(`/org/copy-forward`, { method: 'POST', body: JSON.stringify(data), token }),
     },
 
     finance: {

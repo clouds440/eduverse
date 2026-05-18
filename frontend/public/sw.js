@@ -1,4 +1,4 @@
-const VERSION = 'eduverse-v2.0.0';
+const VERSION = 'eduverse-v2.0.1';
 const STATIC_CACHE = `${VERSION}:static`;
 const RUNTIME_CACHE = `${VERSION}:runtime`;
 const IMAGE_CACHE = `${VERSION}:images`;
@@ -133,10 +133,23 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
+  const fallbackData = {
+    title: 'EduVerse Notification',
+    body: 'You have a new update.',
+    url: '/',
+  };
 
-  try {
-    const data = event.data.json();
+  const showPushNotification = async () => {
+    let data = fallbackData;
+
+    if (event.data) {
+      try {
+        data = event.data.json();
+      } catch {
+        data = { ...fallbackData, body: event.data.text() || fallbackData.body };
+      }
+    }
+
     const title = data.title || 'EduVerse Notification';
     const options = {
       body: data.body || '',
@@ -149,10 +162,10 @@ self.addEventListener('push', (event) => {
       },
     };
 
-    event.waitUntil(self.registration.showNotification(title, options));
-  } catch (err) {
-    console.error('Error handling push event:', err);
-  }
+    await self.registration.showNotification(title, options);
+  };
+
+  event.waitUntil(showPushNotification());
 });
 
 self.addEventListener('notificationclick', (event) => {

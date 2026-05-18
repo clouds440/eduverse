@@ -29,8 +29,6 @@ export const notificationsStore = {
 
             cache.items = items;
             cache.unreadCount = inFlightMarkAll ? 0 : (res.unreadCount || cache.items.filter((n: Notification) => !n.isRead).length);
-            // Debug: surface fetch results for investigation
-            try { console.debug('[notificationsStore] fetchAll -> items:', cache.items.length, 'unread:', cache.unreadCount); } catch { }
             notify();
             return cache;
         } catch (err) {

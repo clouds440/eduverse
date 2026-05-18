@@ -8,7 +8,6 @@
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#090d16",
-  "theme_color": "#2563eb",
   "orientation": "portrait-primary",
   "categories": ["education", "productivity", "utilities"],
   "launch_handler": {

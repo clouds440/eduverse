@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { BellRing, BellOff, AlertTriangle, Loader2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { api, type WebPushSubscriptionPayload } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 const urlBase64ToUint8Array = (base64String: string) => {
@@ -14,6 +14,37 @@ const urlBase64ToUint8Array = (base64String: string) => {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray;
+};
+
+const arrayBufferToBase64Url = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+const getSubscriptionKey = (subscription: PushSubscription, keyName: PushEncryptionKeyName) => {
+  const key = subscription.getKey(keyName);
+  return key ? arrayBufferToBase64Url(key) : '';
+};
+
+const serializeSubscription = (subscription: PushSubscription): WebPushSubscriptionPayload => {
+  const json = subscription.toJSON();
+  const endpoint = json.endpoint || subscription.endpoint;
+  const p256dh = json.keys?.p256dh || getSubscriptionKey(subscription, 'p256dh');
+  const auth = json.keys?.auth || getSubscriptionKey(subscription, 'auth');
+
+  if (!endpoint || !p256dh || !auth) {
+    throw new Error('Browser returned an incomplete push subscription.');
+  }
+
+  return {
+    endpoint,
+    expirationTime: json.expirationTime ?? subscription.expirationTime,
+    keys: { p256dh, auth },
+  };
 };
 
 type PushState = 'unsupported' | 'denied' | 'prompt' | 'granted' | 'subscribing' | 'error';
@@ -30,7 +61,14 @@ async function getPushSubscription(registration: ServiceWorkerRegistration) {
   }
 
   const existing = await registration.pushManager.getSubscription();
-  if (existing) return existing;
+  if (existing) {
+    const existingKey = existing.options.applicationServerKey;
+    if (existingKey && arrayBufferToBase64Url(existingKey) !== publicVapidKey) {
+      await existing.unsubscribe();
+    } else {
+      return existing;
+    }
+  }
 
   return registration.pushManager.subscribe({
     userVisibleOnly: true,
@@ -46,6 +84,7 @@ export function PushNotificationBanner() {
   const { token } = useAuth();
   const [pushState, setPushState] = useState<PushState>('unsupported');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isTesting, setIsTesting] = useState(false);
 
   const updatePushState = useCallback((nextState: PushState) => {
     window.setTimeout(() => setPushState(nextState), 0);
@@ -55,11 +94,15 @@ export function PushNotificationBanner() {
     try {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await getPushSubscription(registration);
-      await api.notifications.subscribeToPush(subscription.toJSON(), authToken);
+      await api.notifications.subscribeToPush(serializeSubscription(subscription), authToken);
+      updatePushState('granted');
+      setErrorMessage('');
     } catch (error) {
       console.warn('Silent push sync failed:', error);
+      updatePushState('error');
+      setErrorMessage(error instanceof Error ? error.message : 'Push subscription could not be synced.');
     }
-  }, []);
+  }, [updatePushState]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -76,9 +119,8 @@ export function PushNotificationBanner() {
     if (permission === 'denied') {
       updatePushState('denied');
     } else if (permission === 'granted') {
-      updatePushState('granted');
       // Silently ensure subscription is synced
-      if (token) void syncSubscription(token);
+      if (token) window.setTimeout(() => void syncSubscription(token), 0);
     } else {
       updatePushState('prompt');
     }
@@ -95,13 +137,8 @@ export function PushNotificationBanner() {
     const timeoutId = setTimeout(() => {
       if (!completed) {
         completed = true;
-        // Check if permission was actually granted despite timeout
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          setPushState('granted');
-        } else {
-          setPushState('error');
-          setErrorMessage('Request timed out. Your browser may have blocked the prompt.');
-        }
+        setPushState('error');
+        setErrorMessage('Push setup timed out before the subscription could be saved.');
       }
     }, 7000);
 
@@ -133,8 +170,7 @@ export function PushNotificationBanner() {
       const subscription = await getPushSubscription(registration);
       if (completed) return;
 
-      // Try to sync with backend — but don't block on it
-      await api.notifications.subscribeToPush(subscription.toJSON(), token);
+      await api.notifications.subscribeToPush(serializeSubscription(subscription), token);
 
       completed = true;
       clearTimeout(timeoutId);
@@ -151,12 +187,40 @@ export function PushNotificationBanner() {
     }
   }, [token]);
 
-  // Don't render anything if already granted or unsupported
-  if (pushState === 'granted' || pushState === 'unsupported') return null;
+  const handleTestPush = useCallback(async () => {
+    if (!token || isTesting) return;
+    setIsTesting(true);
+    setErrorMessage('');
+
+    try {
+      await api.notifications.testPush(token);
+    } catch (err: unknown) {
+      setPushState('error');
+      setErrorMessage(err instanceof Error ? err.message : 'Test notification failed.');
+    } finally {
+      setIsTesting(false);
+    }
+  }, [isTesting, token]);
+
+  if (pushState === 'unsupported') return null;
 
   return (
     <div className="px-4 py-3 border-b border-border bg-primary/5">
-      {pushState === 'denied' ? (
+      {pushState === 'granted' ? (
+        <div className="flex items-center gap-2.5">
+          <CheckCircle2 size={16} className="text-success shrink-0" />
+          <p className="text-[11px] text-muted-foreground font-medium flex-1">
+            Push notifications enabled
+          </p>
+          <button
+            onClick={handleTestPush}
+            disabled={isTesting}
+            className="text-[10px] font-bold text-primary hover:underline shrink-0 disabled:opacity-60 cursor-pointer"
+          >
+            {isTesting ? 'Testing...' : 'Test'}
+          </button>
+        </div>
+      ) : pushState === 'denied' ? (
         <div className="flex items-center gap-2.5">
           <BellOff size={16} className="text-muted-foreground shrink-0" />
           <p className="text-[11px] text-muted-foreground font-medium leading-snug">

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { Prisma } from '@prisma/client';
@@ -13,8 +18,19 @@ export interface CreateNotificationDto {
   metadata?: Prisma.JsonValue;
 }
 
+export interface WebPushSubscriptionDto {
+  endpoint?: string;
+  expirationTime?: number | null;
+  keys?: {
+    p256dh?: string;
+    auth?: string;
+  };
+}
+
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
@@ -40,7 +56,7 @@ export class NotificationsService {
       title: dto.title,
       body: dto.body,
       url: dto.actionUrl || '/',
-    }).catch(e => console.error('Failed to send push notification:', e));
+    }).catch((e) => console.error('Failed to send push notification:', e));
 
     return notification;
   }
@@ -123,20 +139,32 @@ export class NotificationsService {
 
   // --- Web Push Integration ---
 
-  async subscribeToPush(userId: string, subscription: any) {
+  async subscribeToPush(userId: string, subscription: WebPushSubscriptionDto) {
+    if (
+      !subscription?.endpoint ||
+      !subscription.keys?.p256dh ||
+      !subscription.keys?.auth
+    ) {
+      throw new BadRequestException('Invalid web push subscription payload.');
+    }
+
     const existing = await this.prisma.webPushSubscription.findUnique({
       where: { endpoint: subscription.endpoint },
     });
 
     if (existing) {
-      if (existing.userId !== userId) {
-        // Same endpoint used by a different user now (e.g. log out and log in as another user on same browser)
-        await this.prisma.webPushSubscription.update({
-          where: { id: existing.id },
-          data: { userId }
-        });
-      }
-      return { success: true, message: 'Subscription already exists or updated.' };
+      await this.prisma.webPushSubscription.update({
+        where: { id: existing.id },
+        data: {
+          userId,
+          p256dh: subscription.keys.p256dh,
+          auth: subscription.keys.auth,
+        },
+      });
+      return {
+        success: true,
+        message: 'Subscription already exists or updated.',
+      };
     }
 
     await this.prisma.webPushSubscription.create({
@@ -151,11 +179,21 @@ export class NotificationsService {
     return { success: true, message: 'Subscribed successfully.' };
   }
 
-  async sendPushNotification(userId: string, payload: { title: string, body?: string, url?: string }) {
+  async sendPushNotification(
+    userId: string,
+    payload: { title: string; body?: string; url?: string },
+  ) {
     // Skip push if user has the app open (foreground)
     if (this.events.isUserOnline(userId)) return;
 
     await this._dispatchPush(userId, payload);
+  }
+
+  async sendTestPushNotification(
+    userId: string,
+    payload: { title: string; body?: string; url?: string },
+  ) {
+    await this._dispatchPush(userId, payload, { force: true });
   }
 
   /**
@@ -163,44 +201,77 @@ export class NotificationsService {
    * Used for chat messages — they are real-time via socket, push is only a fallback
    * for when the user is offline / app is in background.
    */
-  async sendPushOnly(userId: string, payload: { title: string, body?: string, url?: string }) {
+  async sendPushOnly(
+    userId: string,
+    payload: { title: string; body?: string; url?: string },
+  ) {
     // Only send push when user is NOT online (app not in foreground)
     if (this.events.isUserOnline(userId)) return;
 
     await this._dispatchPush(userId, payload);
   }
 
-  private async _dispatchPush(userId: string, payload: { title: string, body?: string, url?: string }) {
-    if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_SUBJECT) {
-      return; // VAPID not configured, silently skip push
+  private async _dispatchPush(
+    userId: string,
+    payload: { title: string; body?: string; url?: string },
+    options: { force?: boolean } = {},
+  ) {
+    if (
+      !process.env.VAPID_PUBLIC_KEY ||
+      !process.env.VAPID_PRIVATE_KEY ||
+      !process.env.VAPID_SUBJECT
+    ) {
+      this.logger.warn('Web push skipped: VAPID keys are not configured.');
+      return;
     }
 
     const subscriptions = await this.prisma.webPushSubscription.findMany({
       where: { userId },
     });
 
-    if (!subscriptions.length) return;
+    if (!subscriptions.length) {
+      this.logger.warn(
+        `Web push skipped: no subscriptions found for user ${userId}.`,
+      );
+      return;
+    }
 
     webpush.setVapidDetails(
       process.env.VAPID_SUBJECT,
       process.env.VAPID_PUBLIC_KEY,
-      process.env.VAPID_PRIVATE_KEY
+      process.env.VAPID_PRIVATE_KEY,
     );
 
     const webpushPayload = JSON.stringify(payload);
 
-    const promises = subscriptions.map(sub => 
-      webpush.sendNotification({
-        endpoint: sub.endpoint,
-        keys: { p256dh: sub.p256dh, auth: sub.auth }
-      }, webpushPayload).catch(err => {
-        if (err.statusCode === 410 || err.statusCode === 404) {
-          // Subscription has expired or is no longer valid, clean it up
-          return this.prisma.webPushSubscription.delete({ where: { id: sub.id } });
-        }
-        console.error('Error sending web push notification:', err);
-      })
+    const promises = subscriptions.map((sub) =>
+      webpush
+        .sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+          },
+          webpushPayload,
+        )
+        .catch((err) => {
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            // Subscription has expired or is no longer valid, clean it up
+            return this.prisma.webPushSubscription.delete({
+              where: { id: sub.id },
+            });
+          }
+          this.logger.error(
+            `Error sending web push notification to ${sub.endpoint}: ${err?.message || err}`,
+            err?.stack,
+          );
+        }),
     );
+
+    if (options.force) {
+      this.logger.log(
+        `Forced test push dispatched to ${subscriptions.length} subscription(s) for user ${userId}.`,
+      );
+    }
 
     await Promise.allSettled(promises);
   }

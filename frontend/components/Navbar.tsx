@@ -42,7 +42,7 @@ export default function Navbar() {
                     >
                         {isDesktop ? (<Menu className="w-6 h-6" />) : (isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />)}
                         {!isDesktop && !isMobileOpen && (chatUnread + mailUnread) > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-danger text-white text-[10px] font-black shadow-sm">
+                            <span className="absolute top-0.5 -right-0.5 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-danger text-white text-[10px] font-black shadow-sm">
                                 {chatUnread + mailUnread > 99 ? '99+' : chatUnread + mailUnread}
                             </span>
                         )}

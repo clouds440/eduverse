@@ -122,7 +122,7 @@ html.pwa-standalone nav {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-html.pwa-standalone main {
+html.pwa-standalone .app-shell-main {
   height: var(--app-height) !important;
   max-height: var(--app-height);
   padding-top: var(--app-nav-height);

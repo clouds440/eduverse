@@ -9,11 +9,17 @@ import {
   Request,
   Query,
 } from '@nestjs/common';
-import { NotificationsService } from './notifications.service';
+import {
+  NotificationsService,
+  type WebPushSubscriptionDto,
+} from './notifications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
-import { Access, AnonymousAccess } from '../common/access-control/access.decorator';
+import {
+  Access,
+  AnonymousAccess,
+} from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 
 @UseGuards(JwtAuthGuard)
@@ -60,14 +66,14 @@ export class NotificationsController {
   @Post('push/subscribe')
   async subscribeToPush(
     @Request() req: AuthenticatedRequest,
-    @Body() subscription: any,
+    @Body() subscription: WebPushSubscriptionDto,
   ) {
     return this.notificationsService.subscribeToPush(req.user.id, subscription);
   }
 
   @Post('push/test')
   async testPushNotification(@Request() req: AuthenticatedRequest) {
-    await this.notificationsService.sendPushNotification(req.user.id, {
+    await this.notificationsService.sendTestPushNotification(req.user.id, {
       title: 'Test Notification',
       body: 'This is a test web push notification from EduVerse!',
       url: '/',
