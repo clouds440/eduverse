@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
 import { Modal } from '@/components/ui/Modal';
-import { getPublicUrl } from '@/lib/utils';
+import { getPublicUrl, formatBytes } from '@/lib/utils';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card';
 
@@ -393,7 +393,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                         </div>
                                         <div className="flex-1">
                                             <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{file.filename}</p>
-                                            <p className="text-xs text-muted-foreground font-medium">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                            <p className="text-xs text-muted-foreground font-medium">{formatBytes(file.size)}</p>
                                         </div>
                                     </a>
                                 ))}

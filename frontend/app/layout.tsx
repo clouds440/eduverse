@@ -21,12 +21,14 @@ export const metadata: Metadata = {
   icons: {
     icon: [{ url: '/assets/eduverse-icon.png' }],
     shortcut: [{ url: '/assets/eduverse-icon.png' }]
-  }
+  },
+  manifest: '/manifest.json'
 };
 
 import Navbar from "@/components/Navbar";
 import { Providers } from "@/components/Providers";
 import DashboardMainWrapper from "@/components/DashboardMainWrapper";
+import { PWAInstallPrompt } from "@/components/ui/PWAInstallPrompt";
 
 export default function RootLayout({
   children,
@@ -54,6 +56,7 @@ export default function RootLayout({
           <DashboardMainWrapper>
             {children}
           </DashboardMainWrapper>
+          <PWAInstallPrompt />
         </Providers>
       </body>
     </html>

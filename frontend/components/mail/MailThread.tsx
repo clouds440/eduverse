@@ -5,7 +5,7 @@ import { Send, Clock, Paperclip, X, FileText, ImageIcon, Download, MessageSquare
 import { MailDetail, MailMessage as MailMessageType, MailActionLog, Attachment, Role } from '@/types';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { MarkdownEditor, MarkdownEditorHandle } from '@/components/ui/MarkdownEditor';
-import { getPublicUrl, downloadFile } from '@/lib/utils';
+import { getPublicUrl, downloadFile, formatBytes } from '@/lib/utils';
 import Image from 'next/image';
 import { BrandIcon } from '@/components/ui/Brand';
 import { ADMIN_REPLY_TEMPLATES } from './MailTemplates';
@@ -53,7 +53,7 @@ function AttachmentPreview({ file }: { file: Attachment }) {
             )}
             <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black text-foreground truncate">{file.filename}</p>
-                <p className="text-[9px] font-bold text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
+                <p className="text-[9px] font-bold text-muted-foreground">{formatBytes(file.size)}</p>
             </div>
             <Download className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
         </button>

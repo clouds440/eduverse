@@ -8,7 +8,7 @@ import { useUI } from '@/context/UIContext';
 import { useSocket } from '@/hooks/useSocket';
 import Image from 'next/image';
 import { api } from '@/lib/api';
-import { getUserColor, downloadFile } from '@/lib/utils';
+import { getUserColor, downloadFile, formatBytes } from '@/lib/utils';
 import {
     getUserChatsCached,
     insertOrUpdateChatFromMessage,
@@ -1419,7 +1419,7 @@ export function ChatLayout() {
                                     <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full overflow-hidden`}>
                                         <div
                                             className={`
-                                                relative py-1.5 px-0 rounded-2xl text-[14.5px] leading-relaxed shadow-sm max-w-full overflow-x-auto
+                                                relative py-1 px-0.5 rounded-2xl text-[14.5px] leading-relaxed shadow-sm max-w-full overflow-x-auto
                                                 ${isMine
                                                     ? 'bg-primary text-primary rounded-br-sm'
                                                     : 'bg-card text-foreground border border-border rounded-bl-sm shadow-sm'
@@ -1432,7 +1432,7 @@ export function ChatLayout() {
                                                 return (
                                                     <div
                                                         onClick={(e) => { e.stopPropagation(); void scrollToMessage(msg.replyTo!.id); }}
-                                                        className={`px-2 py-1 rounded-lg text-[12px] bg-muted text-foreground! border-l-5 max-w-full overflow-hidden cursor-pointer hover:opacity-90 transition-opacity
+                                                        className={`px-2 py-1 rounded-xl text-[12px] bg-muted text-foreground! border-l-5 max-w-full overflow-hidden cursor-pointer hover:opacity-90 transition-opacity
                                                                     ${isMineRepliedTo ? 'border-success' : 'broder-border'}`}
                                                     >
                                                         <p className="font-semibold mb-0.5 text-[11px] flex items-center opacity-70">
@@ -2089,7 +2089,7 @@ export function ChatLayout() {
                                                                 <span className="text-[9px] font-black uppercase px-1 py-0.5 rounded-sm text-white" style={{ background: fileInfo.color }}>
                                                                     {fileInfo.label}
                                                                 </span>
-                                                                <span className="text-[10px] text-muted-foreground font-medium">{(file.size / 1024).toFixed(0)} KB</span>
+                                                                <span className="text-[10px] text-muted-foreground font-medium">{formatBytes(file.size)}</span>
                                                             </div>
                                                         </div>
 

@@ -11,7 +11,7 @@ import { Loading } from '@/components/ui/Loading';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ExternalLinkInput } from '@/components/ui/ExternalLinkInput';
-import { downloadFile } from '@/lib/utils';
+import { downloadFile, formatBytes } from '@/lib/utils';
 
 // Helper function to get file icon based on MIME type
 function getFileIcon(mimeType: string) {
@@ -22,12 +22,7 @@ function getFileIcon(mimeType: string) {
   return FileText;
 }
 
-// Helper function to format file size
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
+
 
 // Helper function to get video embed URL
 function getVideoEmbedUrl(url: string): string {
@@ -219,7 +214,7 @@ export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigne
                             {file.filename}
                           </span>
                           <span className="text-xs text-card-text/30 shrink-0">
-                            {formatFileSize(file.size)}
+                            {formatBytes(file.size)}
                           </span>
                         </button>
                       );
@@ -313,7 +308,7 @@ export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigne
                       >
                         <FileIcon className="w-5 h-5 text-primary shrink-0" />
                         <span className="text-sm text-card-text/70 flex-1 truncate">{file.filename}</span>
-                        <span className="text-xs text-card-text/30">{formatFileSize(file.size)}</span>
+                        <span className="text-xs text-card-text/30">{formatBytes(file.size)}</span>
                         <button
                           onClick={() => handleDownload(file)}
                           className="p-2 text-primary cursor-pointer hover:text-primary/80 hover:bg-primary/10 rounded-lg transition-colors"
@@ -579,7 +574,7 @@ function UploadMaterialModal({
                   >
                     <FileIcon className="w-5 h-5 text-primary shrink-0" />
                     <span className="text-sm text-card-text/70 flex-1 truncate">{file.filename}</span>
-                    <span className="text-xs text-card-text/30">{formatFileSize(file.size)}</span>
+                    <span className="text-xs text-card-text/30">{formatBytes(file.size)}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveExistingFile(file.id)}
@@ -602,7 +597,7 @@ function UploadMaterialModal({
                   >
                     <FileIcon className="w-5 h-5 text-primary shrink-0" />
                     <span className="text-sm text-card-text/70 flex-1 truncate">{file.name}</span>
-                    <span className="text-xs text-card-text/30">{formatFileSize(file.size)}</span>
+                    <span className="text-xs text-card-text/30">{formatBytes(file.size)}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveFile(index)}

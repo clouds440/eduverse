@@ -7,7 +7,7 @@ import useSWR, { mutate } from 'swr';
 import { Assessment, Section, Grade, Submission, Role } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { useParams } from 'next/navigation';
-import { formatDate, getPublicUrl } from '@/lib/utils';
+import { formatDate, getPublicUrl, formatBytes } from '@/lib/utils';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { Modal } from '@/components/ui/Modal';
 import GradingForm from '@/components/forms/GradingForm';
@@ -131,7 +131,7 @@ export default function AssessmentDetailPage() {
                                 <Download className="w-4 h-4" />
                                 <div className="flex flex-col text-left leading-none">
                                     <span className="truncate max-w-50">{file.filename || 'Download File'}</span>
-                                    {file.size && <span className="text-[9px] opacity-70 mt-1 tracking-widest leading-none">{(file.size / 1024 / 1024).toFixed(2)} MB</span>}
+                                    {file.size && <span className="text-[9px] opacity-70 mt-1 tracking-widest leading-none">{formatBytes(file.size)}</span>}
                                 </div>
                             </a>
                         ))}

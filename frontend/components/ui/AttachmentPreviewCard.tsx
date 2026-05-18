@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Archive, Download, File, FileSpreadsheet, FileText, Paperclip, Presentation, CheckCircle, Loader2 } from 'lucide-react';
 import { getFileTypeInfo } from '../chat/chatLayoutHelpers';
-import { downloadFile } from '@/lib/utils';
+import { downloadFile, formatBytes } from '@/lib/utils';
 
 export type AttachmentPreviewKind = 'pdf' | 'doc' | 'sheet' | 'presentation' | 'archive' | 'attachment';
 
@@ -12,6 +12,7 @@ type AttachmentPreviewCardProps = {
     href: string;
     kind: AttachmentPreviewKind;
     align?: 'left' | 'right';
+    fileSize?: number;
 };
 
 const MIME_BY_KIND: Record<AttachmentPreviewKind, string> = {
@@ -65,6 +66,7 @@ export function AttachmentPreviewCard({
     href,
     kind,
     align = 'left',
+    fileSize: initialFileSize,
 }: AttachmentPreviewCardProps) {
     const isBlob = href.startsWith('blob:');
     const fileInfo = getFileTypeInfo(MIME_BY_KIND[kind]);
@@ -73,6 +75,43 @@ export function AttachmentPreviewCard({
 
     const [isDownloading, setIsDownloading] = useState(false);
     const [downloadSuccess, setDownloadSuccess] = useState(false);
+    const [fileSize, setFileSize] = useState<number | undefined>(initialFileSize);
+
+    useEffect(() => {
+        if (initialFileSize !== undefined) {
+            setFileSize(initialFileSize);
+            return;
+        }
+
+        let isMounted = true;
+
+        const fetchSize = async () => {
+            try {
+                if (href.startsWith('blob:')) {
+                    const response = await fetch(href);
+                    const blob = await response.blob();
+                    if (isMounted) {
+                        setFileSize(blob.size);
+                    }
+                    return;
+                }
+
+                const response = await fetch(href, { method: 'HEAD' });
+                const contentLength = response.headers.get('content-length');
+                if (contentLength && isMounted) {
+                    setFileSize(parseInt(contentLength, 10));
+                }
+            } catch (error) {
+                console.error('Failed to fetch file size for attachment:', error);
+            }
+        };
+
+        fetchSize();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [href, initialFileSize]);
 
     const handleDownload = async () => {
         if (isDownloading) return;
@@ -90,7 +129,7 @@ export function AttachmentPreviewCard({
 
     return (
         <div className={`doc-preview-card group no-underline ${align === 'right' ? 'ml-auto' : ''}`}>
-            <div className="flex items-center gap-3 p-3 mt-1 rounded-2xl bg-card border border-border/50 shadow-lg hover:shadow-xl hover:border-border/70 transition-all duration-300">
+            <div className="flex items-center gap-2 p-3 mt-0.5 rounded-2xl bg-card border border-border/50 shadow-lg hover:shadow-xl hover:border-border/70 transition-all duration-300">
                 <div
                     className="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 shadow-sm"
                     style={{ background: fileInfo.bg, color: fileInfo.color }}
@@ -109,6 +148,12 @@ export function AttachmentPreviewCard({
                         >
                             {fileInfo.label}
                         </span>
+                        {fileSize !== undefined && (
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-muted-foreground shadow-sm bg-background/80">
+                                {/* add the size of the file here */}
+                                {formatBytes(fileSize)}
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -117,13 +162,12 @@ export function AttachmentPreviewCard({
                         type="button"
                         onClick={handleDownload}
                         disabled={isDownloading}
-                        className={`shrink-0 flex items-center gap-2 px-4! py-2.5! rounded-xl! font-semibold text-sm border transition-all duration-300 group/btn no-underline! ${
-                            downloadSuccess 
-                                ? 'bg-success/10! text-success! border-success/30 hover:bg-success/20!'
-                                : isDownloading
-                                    ? 'bg-primary/10! text-primary/70! border-primary/20 cursor-wait'
-                                    : 'bg-primary/5! text-primary! border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md!'
-                        }`}
+                        className={`shrink-0 flex items-center cursor-pointer gap-2 px-4! py-2.5! rounded-xl! font-semibold text-sm border transition-all duration-300 group/btn no-underline! ${downloadSuccess
+                            ? 'bg-success/10! text-success! border-success/30 hover:bg-success/20!'
+                            : isDownloading
+                                ? 'bg-primary/10! text-primary/70! border-primary/20 cursor-wait'
+                                : 'bg-primary/5! text-primary! border-primary/20 hover:bg-primary/20! hover:text-primary! hover:border-primary! hover:shadow-md!'
+                            }`}
                         aria-label={`Download ${downloadFileName}`}
                     >
                         {isDownloading ? (
