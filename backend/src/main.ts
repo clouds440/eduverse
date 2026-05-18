@@ -28,13 +28,13 @@ async function bootstrap() {
       }
       const isAllowed =
         allowedOrigins.some((allowed) => origin === allowed) ||
-        /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
         /\.vercel\.app$/.test(origin);
 
       if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
+        callback(null, false);
       }
     },
     credentials: true,
