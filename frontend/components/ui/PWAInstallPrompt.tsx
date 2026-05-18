@@ -13,24 +13,76 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+type NavigatorWithStandalone = Navigator & { standalone?: boolean };
+
+const isStandaloneDisplay = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.matchMedia('(display-mode: fullscreen)').matches ||
+  (navigator as NavigatorWithStandalone).standalone === true;
+
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
 
   useEffect(() => {
+    let removeControllerChange: (() => void) | undefined;
+    let viewportRaf: number | null = null;
+
+    const updateViewportVars = () => {
+      if (viewportRaf !== null) cancelAnimationFrame(viewportRaf);
+
+      viewportRaf = requestAnimationFrame(() => {
+        const viewport = window.visualViewport;
+        const height = viewport?.height || window.innerHeight;
+        const width = viewport?.width || window.innerWidth;
+        const offsetTop = viewport?.offsetTop || 0;
+
+        document.documentElement.style.setProperty('--app-height', `${height}px`);
+        document.documentElement.style.setProperty('--app-width', `${width}px`);
+        document.documentElement.style.setProperty('--app-viewport-top', `${offsetTop}px`);
+        viewportRaf = null;
+      });
+    };
+
+    updateViewportVars();
+    window.addEventListener('resize', updateViewportVars);
+    window.addEventListener('orientationchange', updateViewportVars);
+    window.visualViewport?.addEventListener('resize', updateViewportVars);
+    window.visualViewport?.addEventListener('scroll', updateViewportVars);
+
     // 1. Register Service Worker
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then((registration) => {
-            console.log('PWA Service Worker registered with scope:', registration.scope);
-          })
-          .catch((error) => {
-            console.error('PWA Service Worker registration failed:', error);
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('PWA Service Worker registered with scope:', registration.scope);
+
+          registration.addEventListener('updatefound', () => {
+            const installingWorker = registration.installing;
+            if (!installingWorker) return;
+
+            installingWorker.addEventListener('statechange', () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                installingWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
           });
-      });
+        })
+        .catch((error) => {
+          console.error('PWA Service Worker registration failed:', error);
+        });
+
+      let refreshing = false;
+      const handleControllerChange = () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+      removeControllerChange = () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     }
+
+    document.documentElement.classList.toggle('pwa-standalone', isStandaloneDisplay());
 
     // 2. Check if already dismissed
     if (typeof window !== 'undefined') {
@@ -38,9 +90,7 @@ export function PWAInstallPrompt() {
       if (isDismissed) return;
 
       // 3. Detect Standalone Mode
-      const isStandalone = 
-        window.matchMedia('(display-mode: standalone)').matches ||
-        (navigator as any).standalone === true;
+      const isStandalone = isStandaloneDisplay();
       if (isStandalone) return;
 
       // 4. Handle Standard PWA Install Prompt (Chrome, Edge, Android)
@@ -49,20 +99,44 @@ export function PWAInstallPrompt() {
         setDeferredPrompt(e as BeforeInstallPromptEvent);
         setShowPrompt(true);
       };
+      const handleAppInstalled = () => {
+        setDeferredPrompt(null);
+        setShowPrompt(false);
+        setShowIOSPrompt(false);
+        localStorage.setItem('eduverse-pwa-dismissed', 'true');
+        document.documentElement.classList.add('pwa-standalone');
+      };
 
       window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.addEventListener('appinstalled', handleAppInstalled);
 
       // 5. Handle iOS Custom Prompt Detection
       const isIOSDevice = /ipad|iphone|ipod/.test(navigator.userAgent.toLowerCase());
       if (isIOSDevice && !isStandalone) {
         // Show iOS instructions for installation
-        setShowIOSPrompt(true);
+        window.setTimeout(() => setShowIOSPrompt(true), 0);
       }
 
       return () => {
         window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+        removeControllerChange?.();
+        window.removeEventListener('resize', updateViewportVars);
+        window.removeEventListener('orientationchange', updateViewportVars);
+        window.visualViewport?.removeEventListener('resize', updateViewportVars);
+        window.visualViewport?.removeEventListener('scroll', updateViewportVars);
+        if (viewportRaf !== null) cancelAnimationFrame(viewportRaf);
       };
     }
+
+    return () => {
+      removeControllerChange?.();
+      window.removeEventListener('resize', updateViewportVars);
+      window.removeEventListener('orientationchange', updateViewportVars);
+      window.visualViewport?.removeEventListener('resize', updateViewportVars);
+      window.visualViewport?.removeEventListener('scroll', updateViewportVars);
+      if (viewportRaf !== null) cancelAnimationFrame(viewportRaf);
+    };
   }, []);
 
   const handleInstallClick = async () => {

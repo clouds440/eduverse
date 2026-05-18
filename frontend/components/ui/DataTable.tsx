@@ -64,12 +64,13 @@ export function DataTable<T>({
     // Update widths if columns count changes
     useEffect(() => {
         setColumnWidths(displayColumns.map(c => c.width || 200));
-    }, [displayColumns.length]);
+    }, [displayColumns]);
 
     // Check if column is serial number column
-    const isSerialColumn = (index: number) => showSerialNumber && index === 0;
+    const isSerialColumn = React.useCallback((index: number) => showSerialNumber && index === 0, [showSerialNumber]);
 
     const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
+    const resizeFrameRef = useRef<number | null>(null);
     const tableRef = useRef<HTMLTableElement>(null);
 
     const handleSort = (index: number) => {
@@ -106,16 +107,29 @@ export function DataTable<T>({
         const handleMouseMove = (e: MouseEvent) => {
             if (resizingRef.current !== null) {
                 const { index, startX, startWidth } = resizingRef.current;
-                const diff = e.clientX - startX;
-                setColumnWidths(prev => {
-                    const next = [...prev];
-                    next[index] = Math.max(isSerialColumn(index) ? 40 : 80, startWidth + diff);
-                    return next;
+                const nextWidth = Math.max(isSerialColumn(index) ? 40 : 80, startWidth + e.clientX - startX);
+
+                if (resizeFrameRef.current !== null) {
+                    cancelAnimationFrame(resizeFrameRef.current);
+                }
+
+                resizeFrameRef.current = requestAnimationFrame(() => {
+                    setColumnWidths(prev => {
+                        if (prev[index] === nextWidth) return prev;
+                        const next = [...prev];
+                        next[index] = nextWidth;
+                        return next;
+                    });
+                    resizeFrameRef.current = null;
                 });
             }
         };
 
         const handleMouseUp = () => {
+            if (resizeFrameRef.current !== null) {
+                cancelAnimationFrame(resizeFrameRef.current);
+                resizeFrameRef.current = null;
+            }
             setResizingIndex(null);
             resizingRef.current = null;
             document.body.style.cursor = 'default';
@@ -125,10 +139,14 @@ export function DataTable<T>({
         window.addEventListener('mouseup', handleMouseUp);
 
         return () => {
+            if (resizeFrameRef.current !== null) {
+                cancelAnimationFrame(resizeFrameRef.current);
+                resizeFrameRef.current = null;
+            }
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [resizingIndex]);
+    }, [isSerialColumn, resizingIndex]);
 
     return (
         <div

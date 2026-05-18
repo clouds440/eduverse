@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { BellRing, BellOff, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { BellRing, BellOff, AlertTriangle, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
@@ -18,6 +18,26 @@ const urlBase64ToUint8Array = (base64String: string) => {
 
 type PushState = 'unsupported' | 'denied' | 'prompt' | 'granted' | 'subscribing' | 'error';
 
+const isIOS = () => /ipad|iphone|ipod/.test(navigator.userAgent.toLowerCase());
+const isStandalone = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+async function getPushSubscription(registration: ServiceWorkerRegistration) {
+  const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!publicVapidKey) {
+    throw new Error('Push notifications are not configured for this app.');
+  }
+
+  const existing = await registration.pushManager.getSubscription();
+  if (existing) return existing;
+
+  return registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
+  });
+}
+
 /**
  * Inline push notification banner designed to sit inside NotificationDropdown.
  * NOT a floating modal — renders as a compact, inline element.
@@ -27,41 +47,42 @@ export function PushNotificationBanner() {
   const [pushState, setPushState] = useState<PushState>('unsupported');
   const [errorMessage, setErrorMessage] = useState('');
 
+  const updatePushState = useCallback((nextState: PushState) => {
+    window.setTimeout(() => setPushState(nextState), 0);
+  }, []);
+
+  const syncSubscription = useCallback(async (authToken: string) => {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await getPushSubscription(registration);
+      await api.notifications.subscribeToPush(subscription.toJSON(), authToken);
+    } catch (error) {
+      console.warn('Silent push sync failed:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      setPushState('unsupported');
+      updatePushState('unsupported');
+      return;
+    }
+
+    if (isIOS() && !isStandalone()) {
+      updatePushState('unsupported');
       return;
     }
 
     const permission = Notification.permission;
     if (permission === 'denied') {
-      setPushState('denied');
+      updatePushState('denied');
     } else if (permission === 'granted') {
-      setPushState('granted');
+      updatePushState('granted');
       // Silently ensure subscription is synced
-      if (token) syncSubscription(token);
+      if (token) void syncSubscription(token);
     } else {
-      setPushState('prompt');
+      updatePushState('prompt');
     }
-  }, [token]);
-
-  const syncSubscription = async (authToken: string) => {
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      let subscription = await registration.pushManager.getSubscription();
-      if (!subscription) {
-        const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        if (!publicVapidKey) return;
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
-        });
-      }
-      await api.notifications.subscribeToPush(subscription, authToken);
-    } catch {
-      // Silent sync failure is fine
-    }
-  };
+  }, [syncSubscription, token, updatePushState]);
 
   const handleEnable = useCallback(async () => {
     if (!token) return;
@@ -109,47 +130,24 @@ export function PushNotificationBanner() {
       const registration = await navigator.serviceWorker.ready;
       if (completed) return;
 
-      const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!publicVapidKey) {
-        completed = true;
-        clearTimeout(timeoutId);
-        // Still granted at browser level, just can't sync to backend
-        setPushState('granted');
-        return;
-      }
-
-      let subscription = await registration.pushManager.getSubscription();
-      if (!subscription) {
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
-        });
-      }
+      const subscription = await getPushSubscription(registration);
       if (completed) return;
 
       // Try to sync with backend — but don't block on it
-      try {
-        await api.notifications.subscribeToPush(subscription, token);
-      } catch (syncErr) {
-        console.warn('Backend push sync failed, will retry later:', syncErr);
-      }
+      await api.notifications.subscribeToPush(subscription.toJSON(), token);
 
       completed = true;
       clearTimeout(timeoutId);
       setPushState('granted');
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (completed) return;
       completed = true;
       clearTimeout(timeoutId);
       console.error('Failed to enable push notifications:', err);
 
       // If the browser permission is actually granted, show success anyway
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        setPushState('granted');
-      } else {
-        setPushState('error');
-        setErrorMessage(err?.message || 'An unexpected error occurred.');
-      }
+      setPushState('error');
+      setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
     }
   }, [token]);
 

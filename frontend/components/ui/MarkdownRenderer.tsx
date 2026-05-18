@@ -31,9 +31,13 @@ interface MarkdownRendererProps {
     content: string;
     className?: string;
     attachmentAlign?: 'left' | 'right';
+    compactAttachments?: boolean;
 }
 
 const failedMarkdownImageUrls = new Set<string>();
+let mermaidInitialized = false;
+
+const SAFE_CODE_LANGUAGE_REGEX = /^[a-z0-9_-]+$/i;
 
 const escapeHtml = (str?: string) => {
     if (!str) return '';
@@ -47,24 +51,108 @@ const escapeHtml = (str?: string) => {
 
 const escapeRawHtml = (str: string) => str.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '', attachmentAlign = 'left' }: MarkdownRendererProps) {
+const normalizeCodeLanguage = (lang?: string) => {
+    const firstToken = (lang || '').trim().split(/\s+/)[0] || 'text';
+    return SAFE_CODE_LANGUAGE_REGEX.test(firstToken) ? firstToken : 'text';
+};
+
+const markdownRenderer = new marked.Renderer();
+
+// Custom code block rendering with PrismJS and Mermaid support
+markdownRenderer.code = ({ text, lang }) => {
+    const decodedText = he.decode(text);
+    const language = normalizeCodeLanguage(lang);
+    const languageLabel = escapeHtml((lang || '').trim() || 'text');
+
+    if (language === 'mermaid') {
+        return `<div class="mermaid-outer-container my-4 overflow-auto scrollbar-thin" style="width: 100%; min-width: 0;">
+                    <div class="mermaid-container" style="min-width: 600px; display: flex; justify-content: center; background: #0f172a; padding: 2rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.05);">
+                        <div class="mermaid" style="width: 100%; display: flex; justify-content: center;">${escapeHtml(decodedText)}</div>
+                    </div>
+                </div>`;
+    }
+
+    const prismLanguage = Prism.languages[language] || Prism.languages.text;
+    const highlighted = Prism.highlight(decodedText, prismLanguage, language);
+
+    return `<div class="code-block-wrapper relative group max-w-full my-1.5 overflow-hidden flex flex-col border border-border/30 rounded-xl bg-card/90" style="min-width: 0;">
+                <div class="flex items-center justify-between px-4 py-1 border-b border-border/10 bg-card/80">
+                    <div class="text-sm tracking-widest text-muted-foreground group-hover:text-primary transition-colors">${languageLabel}</div>
+                    <button class="copy-code-btn p-1.5 rounded-md bg-background/30 hover:bg-background/60 text-muted-foreground hover:text-foreground transition-all flex items-center justify-center border border-border" data-code="${escapeHtml(decodedText)}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="copy-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="check-icon hidden text-success"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                </div>
+                <pre class="language-${language} p-4 text-foreground/80 overflow-x-auto scrollbar-thin max-w-full"><code class="language-${language}">${highlighted}</code></pre>
+            </div>`;
+};
+
+// Override image rendering to use getPublicUrl and graceful fallback
+markdownRenderer.image = ({ href, title, text }) => {
+    const resolved = href && /^(blob:|https?:)/i.test(href) ? href : href ? getPublicUrl(href) : '';
+    const url = normalizeSafeUrl(resolved, { allowRelative: true });
+    const alt = escapeHtml(text || title || 'Image');
+    const titleAttr = escapeHtml(title || '');
+
+    const placeholder = `
+        <div class="text-center relative w-32 h-32 border border-border rounded-md bg-card/40 flex flex-col items-center justify-center">
+            <div class="absolute top-1 left-1 text-[10px] text-muted-foreground max-w-full truncate px-1">${alt}</div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image-off-icon lucide-image-off text-foreground"><line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
+            <span class="italic text-[10px] text-muted-foreground mt-1">Couldn't load image</span>
+        </div>
+    `;
+
+    if (!url || failedMarkdownImageUrls.has(url)) return placeholder;
+
+    const optimisticSrc = getOptimisticImageFallback(url);
+    const imageSrc = optimisticSrc || url;
+    const remoteSrcAttrs = optimisticSrc ? ` data-final-src="${escapeHtml(url)}"` : '';
+    const placeholderSrcAttrs = optimisticSrc ? ` data-placeholder-src="${escapeHtml(optimisticSrc)}"` : '';
+
+    return `
+        <img src="${escapeHtml(imageSrc)}" alt="${alt}" title="${titleAttr}" class="max-w-full h-auto rounded-lg shadow-sm my-1 markdown-image cursor-pointer hover:opacity-90 transition-opacity" data-failed-url="${escapeHtml(imageSrc)}"${remoteSrcAttrs}${placeholderSrcAttrs} decoding="async" />
+    `;
+};
+
+// Override link rendering
+markdownRenderer.link = ({ href, title, text }) => {
+    if (!href) return `<a title="${escapeHtml(title || '')}">${text}</a>`;
+
+    let url = href;
+    if (href.startsWith('/uploads/') || href.startsWith('uploads/') || href.includes('/chat-files/') || href.includes('/mail-files/')) {
+        url = getPublicUrl(href);
+    }
+
+    const safeUrl = normalizeSafeUrl(url, { allowRelative: true, allowMailTo: true, allowTel: true });
+    if (!safeUrl) return `<span>${text}</span>`;
+
+    const isExternal = /^[a-z][a-z\d+.-]*:/i.test(safeUrl) || safeUrl.startsWith('www.');
+    const targetAttr = isExternal ? 'target="_blank" rel="noopener noreferrer"' : '';
+
+    return `<a href="${escapeHtml(safeUrl)}" title="${escapeHtml(title || '')}" ${targetAttr}>${text}</a>`;
+};
+
+export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '', attachmentAlign = 'left', compactAttachments = false }: MarkdownRendererProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [, forceUpdate] = React.useState({});
 
     // Initialize mermaid
     useEffect(() => {
-        mermaid.initialize({
-            startOnLoad: false,
-            theme: 'dark', // Always use dark theme for diagrams
-            securityLevel: 'loose',
-            fontFamily: 'inherit',
-            themeVariables: {
-                background: '#0f172a',
-                primaryColor: '#4f46e5',
-                secondaryColor: '#1e293b',
-                tertiaryColor: '#192231'
-            }
-        });
+        if (!mermaidInitialized) {
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: 'dark', // Always use dark theme for diagrams
+                securityLevel: 'strict',
+                fontFamily: 'inherit',
+                themeVariables: {
+                    background: '#0f172a',
+                    primaryColor: '#4f46e5',
+                    secondaryColor: '#1e293b',
+                    tertiaryColor: '#192231'
+                }
+            });
+            mermaidInitialized = true;
+        }
     }, []);
 
     // 1. Extract special document attachment links before compiling markdown.
@@ -113,81 +201,6 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
     const htmlContent = useMemo(() => {
         if (!cleanedContent) return '';
         try {
-            const renderer = new marked.Renderer();
-
-            // Custom code block rendering with PrismJS and Mermaid support
-            renderer.code = ({ text, lang }) => {
-                const decodedText = he.decode(text);
-
-                if (lang === 'mermaid') {
-                    return `<div class="mermaid-outer-container my-4 overflow-auto scrollbar-thin" style="width: 100%; min-width: 0;">
-                                <div class="mermaid-container" style="min-width: 600px; display: flex; justify-content: center; background: #0f172a; padding: 2rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.05);">
-                                    <div class="mermaid" style="width: 100%; display: flex; justify-content: center;">${decodedText}</div>
-                                </div>
-                            </div>`;
-                }
-
-                const language = lang || 'text';
-                const prismLanguage = Prism.languages[language] || Prism.languages.text;
-                const highlighted = Prism.highlight(decodedText, prismLanguage, language);
-
-                return `<div class="code-block-wrapper relative group max-w-full my-1.5 overflow-hidden flex flex-col border border-border/30 rounded-xl bg-card/90" style="min-width: 0;">
-                            <div class="flex items-center justify-between px-4 py-1 border-b border-border/10 bg-card/80">
-                                <div class="text-sm tracking-widest text-muted-foreground group-hover:text-primary transition-colors">${language}</div>
-                                <button class="copy-code-btn p-1.5 rounded-md bg-background/30 hover:bg-background/60 text-muted-foreground hover:text-foreground transition-all flex items-center justify-center border border-border" data-code="${escapeHtml(decodedText)}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="copy-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="check-icon hidden text-success"><polyline points="20 6 9 17 4 12"/></svg>
-                                </button>
-                            </div>
-                            <pre class="language-${language} p-4 text-foreground/80 overflow-x-auto scrollbar-thin max-w-full"><code class="language-${language}">${highlighted}</code></pre>
-                        </div>`;
-            };
-
-            // Override image rendering to use getPublicUrl and graceful fallback
-            renderer.image = ({ href, title, text }) => {
-                const resolved = href && /^(blob:|https?:)/i.test(href) ? href : href ? getPublicUrl(href) : '';
-                const url = normalizeSafeUrl(resolved, { allowRelative: true });
-                const alt = escapeHtml(text || title || 'Image');
-                const titleAttr = escapeHtml(title || '');
-
-                const placeholder = `
-                    <div class="text-center relative w-32 h-32 border border-border rounded-md bg-card/40 flex flex-col items-center justify-center">
-                        <div class="absolute top-1 left-1 text-[10px] text-muted-foreground max-w-full truncate px-1">${alt}</div>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image-off-icon lucide-image-off text-foreground"><line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
-                        <span class="italic text-[10px] text-muted-foreground mt-1">Couldn't load image</span>
-                    </div>
-                `;
-
-                if (!url || failedMarkdownImageUrls.has(url)) return placeholder;
-
-                const optimisticSrc = getOptimisticImageFallback(url);
-                const imageSrc = optimisticSrc || url;
-                const remoteSrcAttrs = optimisticSrc ? ` data-final-src="${escapeHtml(url)}"` : '';
-                const placeholderSrcAttrs = optimisticSrc ? ` data-placeholder-src="${escapeHtml(optimisticSrc)}"` : '';
-
-                return `
-                    <img src="${escapeHtml(imageSrc)}" alt="${alt}" title="${titleAttr}" class="max-w-full h-auto rounded-lg shadow-sm my-1 markdown-image cursor-pointer hover:opacity-90 transition-opacity" data-failed-url="${escapeHtml(imageSrc)}"${remoteSrcAttrs}${placeholderSrcAttrs} decoding="async" />
-                `;
-            };
-
-            // Override link rendering
-            renderer.link = ({ href, title, text }) => {
-                if (!href) return `<a title="${escapeHtml(title || '')}">${text}</a>`;
-
-                let url = href;
-                if (href.startsWith('/uploads/') || href.startsWith('uploads/') || href.includes('/chat-files/') || href.includes('/mail-files/')) {
-                    url = getPublicUrl(href);
-                }
-
-                const safeUrl = normalizeSafeUrl(url, { allowRelative: true, allowMailTo: true, allowTel: true });
-                if (!safeUrl) return `<span>${text}</span>`;
-
-                const isExternal = /^[a-z][a-z\d+.-]*:/i.test(safeUrl) || safeUrl.startsWith('www.');
-                const targetAttr = isExternal ? 'target="_blank" rel="noopener noreferrer"' : '';
-
-                return `<a href="${escapeHtml(safeUrl)}" title="${escapeHtml(title || '')}" ${targetAttr}>${text}</a>`;
-            };
-
             const markdown = escapeRawHtml(cleanedContent.replace(/\n+$/g, ''));
 
             if (typeof window !== 'undefined') {
@@ -202,7 +215,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
             return marked.parse(markdown, {
                 breaks: true,
                 gfm: true,
-                renderer,
+                renderer: markdownRenderer,
             }) as string;
         } catch (error) {
             console.error('Markdown parsing error:', error);
@@ -392,7 +405,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
     }, [htmlContent]);
 
     return (
-        <div className="flex flex-col gap-2 w-full">
+        <div className="flex flex-col w-full">
             {htmlContent && (
                 <div
                     ref={containerRef}
@@ -407,7 +420,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 />
             )}
             {attachments.length > 0 && (
-                <div className={`flex flex-col gap-1.5 ${attachmentAlign === 'right' ? 'items-end' : 'items-start'} w-full mt-1.5`}>
+                <div className={`flex flex-col gap-1 ${attachmentAlign === 'right' ? 'items-end' : 'items-start'} w-full mt-1`}>
                     {attachments.map((att, idx) => (
                         <AttachmentPreviewCard
                             key={idx}
@@ -415,6 +428,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                             href={att.href}
                             kind={att.kind}
                             align={attachmentAlign}
+                            compact={compactAttachments}
                         />
                     ))}
                 </div>

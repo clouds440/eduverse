@@ -13,6 +13,7 @@ type AttachmentPreviewCardProps = {
     kind: AttachmentPreviewKind;
     align?: 'left' | 'right';
     fileSize?: number;
+    compact?: boolean;
 };
 
 const MIME_BY_KIND: Record<AttachmentPreviewKind, string> = {
@@ -67,6 +68,7 @@ export function AttachmentPreviewCard({
     kind,
     align = 'left',
     fileSize: initialFileSize,
+    compact = false,
 }: AttachmentPreviewCardProps) {
     const isBlob = href.startsWith('blob:');
     const fileInfo = getFileTypeInfo(MIME_BY_KIND[kind]);
@@ -127,14 +129,47 @@ export function AttachmentPreviewCard({
         }
     };
 
+    if (compact) {
+        return (
+            <div className={`doc-preview-card no-underline w-full max-w-72 min-w-0 ${align === 'right' ? 'ml-auto' : ''}`}>
+                <div className="flex items-center gap-2 p-1.5 mt-0.5 rounded-xl bg-card/90 border border-border/50 shadow-md transition-all duration-300 min-w-0">
+                    <div
+                        className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg shadow-sm"
+                        style={{ background: fileInfo.bg, color: fileInfo.color }}
+                    >
+                        <Icon className="w-4 h-4" strokeWidth={2} />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                        <p className="text-xs font-semibold text-foreground truncate tracking-tight">
+                            {fileName}
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                            <span
+                                className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-md text-white shadow-xs"
+                                style={{ background: fileInfo.color }}
+                            >
+                                {fileInfo.label}
+                            </span>
+                            {fileSize !== undefined && (
+                                <span className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-md text-muted-foreground shadow-xs bg-background/50 border border-border/30">
+                                    {formatBytes(fileSize)}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className={`doc-preview-card group no-underline ${align === 'right' ? 'ml-auto' : ''}`}>
-            <div className="flex items-center gap-2 p-3 mt-0.5 rounded-2xl bg-card border border-border/50 shadow-lg hover:shadow-xl hover:border-border/70 transition-all duration-300">
+        <div className={`doc-preview-card group no-underline w-full max-w-96 min-w-0 ${align === 'right' ? 'ml-auto' : ''}`}>
+            <div className="flex items-center gap-2 p-2.5 sm:p-3 mt-0.5 rounded-2xl bg-card/95 border-2 border-border/70 shadow-lg shadow-foreground/5 hover:shadow-xl hover:shadow-foreground/10 hover:border-primary/30 transition-all duration-300 backdrop-blur-sm min-w-0">
                 <div
-                    className="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 shadow-sm"
+                    className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 shadow-sm ring-1 ring-white/10"
                     style={{ background: fileInfo.bg, color: fileInfo.color }}
                 >
-                    <Icon className="w-6 h-6" strokeWidth={2} />
+                    <Icon className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2} />
                 </div>
 
                 <div className="flex-1 min-w-0 space-y-1.5">
@@ -149,7 +184,7 @@ export function AttachmentPreviewCard({
                             {fileInfo.label}
                         </span>
                         {fileSize !== undefined && (
-                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-muted-foreground shadow-sm bg-background/80">
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-muted-foreground shadow-sm bg-background/80 border border-border/40">
                                 {/* add the size of the file here */}
                                 {formatBytes(fileSize)}
                             </span>
@@ -162,7 +197,7 @@ export function AttachmentPreviewCard({
                         type="button"
                         onClick={handleDownload}
                         disabled={isDownloading}
-                        className={`shrink-0 flex items-center cursor-pointer gap-2 px-4! py-2.5! rounded-xl! font-semibold text-sm border transition-all duration-300 group/btn no-underline! ${downloadSuccess
+                        className={`shrink-0 flex items-center cursor-pointer gap-2 px-2.5! sm:px-4! py-2.5! rounded-xl! font-semibold text-sm border transition-all duration-300 group/btn no-underline! ${downloadSuccess
                             ? 'bg-success/10! text-success! border-success/30 hover:bg-success/20!'
                             : isDownloading
                                 ? 'bg-primary/10! text-primary/70! border-primary/20 cursor-wait'

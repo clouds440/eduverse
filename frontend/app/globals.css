@@ -4,6 +4,10 @@
 @variant dark (&:where(.dark, .dark *));
 
 :root {
+  --app-height: 100dvh;
+  --app-width: 100vw;
+  --app-viewport-top: 0px;
+  --app-nav-height: calc(4rem + env(safe-area-inset-top, 0px));
   --font-geist-sans: var(--font-dm-sans), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: var(--font-jetbrains-mono), "Cascadia Code", "Fira Code", Consolas, monospace;
   --background: #e2e8f0;
@@ -83,7 +87,46 @@ body {
   color: var(--foreground);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
   overscroll-behavior-y: none;
+  touch-action: manipulation;
+}
+
+html.pwa-standalone,
+html.pwa-standalone body {
+  height: var(--app-height);
+  min-height: var(--app-height);
+  max-height: var(--app-height);
+  width: var(--app-width);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html.pwa-standalone body {
+  position: fixed;
+  inset: 0;
+  user-select: none;
+}
+
+html.pwa-standalone input,
+html.pwa-standalone textarea,
+html.pwa-standalone [contenteditable="true"] {
+  user-select: text;
+}
+
+html.pwa-standalone nav {
+  top: var(--app-viewport-top);
+  height: var(--app-nav-height);
+  min-height: var(--app-nav-height);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+html.pwa-standalone main {
+  height: var(--app-height) !important;
+  max-height: var(--app-height);
+  padding-top: var(--app-nav-height);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Custom Utilities */

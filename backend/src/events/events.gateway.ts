@@ -54,6 +54,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server!: Server;
 
   private readonly onlineConnectionCounts = new Map<string, number>();
+  private readonly foregroundConnectionCounts = new Map<string, number>();
 
   constructor(
     private readonly wsGuard: WsJwtGuard,
@@ -107,6 +108,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       await client.join(`org:${user.organizationId}`);
     }
 
+    client.data.isForeground = true;
+    this.setUserForegroundState(user.id, true);
     this.setUserOnlineState(user, true);
 
     client.emit('connected', {
@@ -122,6 +125,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDisconnect(client: Socket): void {
     const user = client.data.user as SocketUser | undefined;
     if (user) {
+      const isForeground = client.data.isForeground !== false;
+      if (isForeground) {
+        this.setUserForegroundState(user.id, false);
+      }
       this.setUserOnlineState(user, false);
     }
 
@@ -230,6 +237,22 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  @SubscribeMessage('app:visibility')
+  handleAppVisibility(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { isForeground?: boolean },
+  ): void {
+    if (!client.data.user) return;
+
+    const user = client.data.user as SocketUser;
+    const wasForeground = client.data.isForeground !== false;
+    const isForeground = data?.isForeground !== false;
+    if (wasForeground === isForeground) return;
+
+    client.data.isForeground = isForeground;
+    this.setUserForegroundState(user.id, isForeground);
+  }
+
   /**
    * Force a specific user to leave a room (e.g., when they are removed from a chat).
    */
@@ -253,10 +276,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   /**
-   * Check if a user has at least one active WebSocket connection (app in foreground).
+   * Check if a user has at least one active foreground app connection.
    */
   isUserOnline(userId: string): boolean {
-    return (this.onlineConnectionCounts.get(userId) || 0) > 0;
+    return (this.foregroundConnectionCounts.get(userId) || 0) > 0;
   }
 
   /**
@@ -332,5 +355,18 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }).catch(err => {
       console.error('Failed to emit presence to chat rooms:', err);
     });
+  }
+
+  private setUserForegroundState(userId: string, isForeground: boolean): void {
+    const previousCount = this.foregroundConnectionCounts.get(userId) || 0;
+    const nextCount = isForeground
+      ? previousCount + 1
+      : Math.max(0, previousCount - 1);
+
+    if (nextCount === 0) {
+      this.foregroundConnectionCounts.delete(userId);
+    } else {
+      this.foregroundConnectionCounts.set(userId, nextCount);
+    }
   }
 }

@@ -138,8 +138,24 @@ export function formatChatDateLabel(dateStr: string): string {
 export function getTruncatedMessagePreview(content: string | undefined, max: number): string {
     if (!content) return '';
 
-    const cleaned = content.replace(/!\[.*?\]\(.*?\)/g, '[Image]').trim();
-    return cleaned.length > max ? `${cleaned.slice(0, max)}...` : cleaned;
+    // Extract all attachment links so they don't get truncated and broken in half
+    const markdownLinkRegex = /\[(?:📄|📝|📊|📽️|📦|📎)?\s*(?:PDF:|DOC:|Doc:|XLS:|PPT:|ARCHIVE:|ZIP:|Attachment:)\s*[^\]]+\]\([^)]+\)/gi;
+    const attachmentLinks: string[] = [];
+    
+    // Replace all document attachments with empty space in the text portion, but keep links intact
+    const textWithoutAttachments = content.replace(markdownLinkRegex, (match) => {
+        attachmentLinks.push(match);
+        return '';
+    });
+
+    // Clean inline images and standard formatting
+    const cleanedText = textWithoutAttachments.replace(/!\[.*?\]\(.*?\)/g, '[Image]').trim();
+    
+    // Truncate only the text portion
+    const truncatedText = cleanedText.length > max ? `${cleanedText.slice(0, max)}...` : cleanedText;
+
+    // Return the truncated text followed by the intact attachment links (which the MarkdownRenderer will cleanly render)
+    return [truncatedText, ...attachmentLinks].filter(Boolean).join(' ');
 }
 
 type FileUploadResult = {

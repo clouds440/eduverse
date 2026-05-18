@@ -72,6 +72,9 @@ export function useSocket(options: UseSocketOptions) {
             socketSingleton.on('connect', () => {
                 connected = true;
                 setIsConnected(true);
+                socketSingleton?.emit('app:visibility', {
+                    isForeground: typeof document === 'undefined' ? true : document.visibilityState === 'visible',
+                });
             });
             socketSingleton.on('disconnect', () => {
                 connected = false;
@@ -91,8 +94,17 @@ export function useSocket(options: UseSocketOptions) {
             if (orgId) socketSingleton.emit('joinRoom', { roomId: `org:${orgId}` });
         }
 
+        const handleVisibilityChange = () => {
+            socketSingleton?.emit('app:visibility', {
+                isForeground: document.visibilityState === 'visible',
+            });
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         return () => {
             // Do not disconnect singleton here; keep it alive for other consumers.
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [token, userId, userRole, orgId, enabled]);
 
