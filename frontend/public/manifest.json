@@ -1,15 +1,23 @@
 {
   "name": "EduVerse",
   "short_name": "EduVerse",
-  "description": "Manage your school efficiently",
+  "description": "The Future of Education",
   "id": "/?source=pwa",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
   "background_color": "#090d16",
   "orientation": "portrait-primary",
-  "categories": ["education", "productivity", "utilities"],
+  "categories": [
+    "education",
+    "productivity",
+    "utilities"
+  ],
   "launch_handler": {
     "client_mode": "navigate-existing"
   },
@@ -33,21 +41,39 @@
       "short_name": "Timetable",
       "description": "View your schedule and classes",
       "url": "/timetable",
-      "icons": [{ "src": "/assets/shortcut-timetable.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+      "icons": [
+        {
+          "src": "/assets/shortcut-timetable.svg",
+          "sizes": "512x512",
+          "type": "image/svg+xml"
+        }
+      ]
     },
     {
       "name": "Open Chats",
       "short_name": "Chats",
       "description": "Send a message",
       "url": "/chat",
-      "icons": [{ "src": "/assets/shortcut-chats.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+      "icons": [
+        {
+          "src": "/assets/shortcut-chats.svg",
+          "sizes": "512x512",
+          "type": "image/svg+xml"
+        }
+      ]
     },
     {
       "name": "Check Mail",
       "short_name": "Mail",
       "description": "Read your inbox",
       "url": "/mail",
-      "icons": [{ "src": "/assets/shortcut-mail.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+      "icons": [
+        {
+          "src": "/assets/shortcut-mail.svg",
+          "sizes": "512x512",
+          "type": "image/svg+xml"
+        }
+      ]
     }
   ]
 }
