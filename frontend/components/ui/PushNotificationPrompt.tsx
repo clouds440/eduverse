@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2, PowerOff } from 'lucide-react';
 import { api, type WebPushSubscriptionPayload } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
@@ -54,10 +54,9 @@ const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-async function getPushSubscription(registration: ServiceWorkerRegistration) {
-  const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+async function getPushSubscription(registration: ServiceWorkerRegistration, publicVapidKey: string) {
   if (!publicVapidKey) {
-    throw new Error('Push notifications are not configured for this app.');
+    throw new Error('Push notifications are not configured.');
   }
 
   const existing = await registration.pushManager.getSubscription();
@@ -85,15 +84,27 @@ export function PushNotificationBanner() {
   const [pushState, setPushState] = useState<PushState>('unsupported');
   const [errorMessage, setErrorMessage] = useState('');
   const [isTesting, setIsTesting] = useState(false);
+  const [isUnsubscribing, setIsUnsubscribing] = useState(false);
 
   const updatePushState = useCallback((nextState: PushState) => {
     window.setTimeout(() => setPushState(nextState), 0);
   }, []);
 
+  const getPublicVapidKey = useCallback(async (authToken: string) => {
+    const bundledKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (bundledKey) return bundledKey;
+
+    const config = await api.notifications.getPushConfig(authToken);
+    if (config.publicKey) return config.publicKey;
+
+    throw new Error('Push notifications are not configured.');
+  }, []);
+
   const syncSubscription = useCallback(async (authToken: string) => {
     try {
       const registration = await navigator.serviceWorker.ready;
-      const subscription = await getPushSubscription(registration);
+      const publicVapidKey = await getPublicVapidKey(authToken);
+      const subscription = await getPushSubscription(registration, publicVapidKey);
       await api.notifications.subscribeToPush(serializeSubscription(subscription), authToken);
       updatePushState('granted');
       setErrorMessage('');
@@ -102,7 +113,7 @@ export function PushNotificationBanner() {
       updatePushState('error');
       setErrorMessage(error instanceof Error ? error.message : 'Push subscription could not be synced.');
     }
-  }, [updatePushState]);
+  }, [getPublicVapidKey, updatePushState]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -167,7 +178,10 @@ export function PushNotificationBanner() {
       const registration = await navigator.serviceWorker.ready;
       if (completed) return;
 
-      const subscription = await getPushSubscription(registration);
+      const publicVapidKey = await getPublicVapidKey(token);
+      if (completed) return;
+
+      const subscription = await getPushSubscription(registration, publicVapidKey);
       if (completed) return;
 
       await api.notifications.subscribeToPush(serializeSubscription(subscription), token);
@@ -185,7 +199,7 @@ export function PushNotificationBanner() {
       setPushState('error');
       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
     }
-  }, [token]);
+  }, [getPublicVapidKey, token]);
 
   const handleTestPush = useCallback(async () => {
     if (!token || isTesting) return;
@@ -201,6 +215,30 @@ export function PushNotificationBanner() {
       setIsTesting(false);
     }
   }, [isTesting, token]);
+
+  const handleUnsubscribe = useCallback(async () => {
+    if (!token || isUnsubscribing) return;
+    setIsUnsubscribing(true);
+    setErrorMessage('');
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (subscription) {
+        const endpoint = subscription.endpoint;
+        await subscription.unsubscribe();
+        await api.notifications.unsubscribeFromPush(endpoint, token);
+      }
+
+      setPushState(Notification.permission === 'denied' ? 'denied' : 'prompt');
+    } catch (err: unknown) {
+      setPushState('error');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to turn off push notifications.');
+    } finally {
+      setIsUnsubscribing(false);
+    }
+  }, [isUnsubscribing, token]);
 
   if (pushState === 'unsupported') return null;
 
@@ -218,6 +256,15 @@ export function PushNotificationBanner() {
             className="text-[10px] font-bold text-primary hover:underline shrink-0 disabled:opacity-60 cursor-pointer"
           >
             {isTesting ? 'Testing...' : 'Test'}
+          </button>
+          <button
+            onClick={handleUnsubscribe}
+            disabled={isUnsubscribing}
+            className="inline-flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-danger shrink-0 disabled:opacity-60 cursor-pointer"
+            title="Turn off push notifications"
+          >
+            <PowerOff size={12} />
+            {isUnsubscribing ? 'Turning off...' : 'Off'}
           </button>
         </div>
       ) : pushState === 'denied' ? (

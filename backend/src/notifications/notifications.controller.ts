@@ -12,6 +12,7 @@ import {
 import {
   NotificationsService,
   type WebPushSubscriptionDto,
+  type WebPushUnsubscribeDto,
 } from './notifications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
@@ -63,12 +64,28 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(id, req.user.id);
   }
 
+  @Get('push/config')
+  getPushConfig() {
+    return this.notificationsService.getPushConfig();
+  }
+
   @Post('push/subscribe')
   async subscribeToPush(
     @Request() req: AuthenticatedRequest,
     @Body() subscription: WebPushSubscriptionDto,
   ) {
     return this.notificationsService.subscribeToPush(req.user.id, subscription);
+  }
+
+  @Post('push/unsubscribe')
+  async unsubscribeFromPush(
+    @Request() req: AuthenticatedRequest,
+    @Body() subscription: WebPushUnsubscribeDto,
+  ) {
+    return this.notificationsService.unsubscribeFromPush(
+      req.user.id,
+      subscription,
+    );
   }
 
   @Post('push/test')

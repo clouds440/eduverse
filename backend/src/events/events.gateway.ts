@@ -35,16 +35,27 @@ interface SocketUser {
  */
 @WebSocketGateway({
   cors: {
-    origin:
-      (process.env.FRONTEND_URL || '')
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      const allowedOrigins = (process.env.FRONTEND_URL || '')
         .split(',')
         .map((url) => url.trim())
-        .filter(Boolean).length > 0
-        ? (process.env.FRONTEND_URL || '')
-            .split(',')
-            .map((url) => url.trim())
-            .filter(Boolean)
-        : '*',
+        .filter(Boolean);
+
+      const isAllowed =
+        allowedOrigins.some((allowed) => origin === allowed) ||
+        /^https?:\/\/localhost(:\d+)?$/.test(origin) ||
+        /\.vercel\.app$/.test(origin);
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     credentials: true,
   },
   namespace: '/',

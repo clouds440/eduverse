@@ -151,18 +151,26 @@ self.addEventListener('push', (event) => {
     }
 
     const title = data.title || 'EduVerse Notification';
+    const tag = data.tag || data.url || `eduverse-${Date.now()}`;
     const options = {
       body: data.body || '',
       icon: '/assets/eduverse-icon.png',
       badge: '/assets/eduverse-icon.png',
-      tag: data.tag || data.url || 'eduverse-notification',
-      renotify: false,
+      tag: tag,
+      renotify: true,
       data: {
         url: data.url || '/',
       },
     };
 
-    await self.registration.showNotification(title, options);
+    console.log('[SW] Showing push notification:', title, options);
+
+    try {
+      await self.registration.showNotification(title, options);
+      console.log('[SW] Notification displayed successfully.');
+    } catch (error) {
+      console.error('[SW] Error displaying notification:', error);
+    }
   };
 
   event.waitUntil(showPushNotification());

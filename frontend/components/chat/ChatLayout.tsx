@@ -1878,7 +1878,7 @@ export function ChatLayout() {
                                                 ? `Last seen ${formatDistanceToNow(new Date(otherParticipant.lastSeenAt), { addSuffix: true })}`
                                                 : null;
                                             return (
-                                                <span className="flex items-center gap-2 text-[10px] md:text-sm">
+                                                <span className="flex items-center gap-2 text-[10px]">
                                                     <span className={isOnline ? 'text-success' : ''}>{status}</span>
                                                     {status && <span className="opacity-40 hidden md:block">•</span>}
                                                     <span className='capitalize hidden md:block'>{role}</span>

@@ -15,12 +15,12 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Public } from '../common/decorators/public.decorator';
-import { AccessLevel } from 'src/common/access-control/access-level.enum';
-import { Access } from 'src/common/access-control/access.decorator';
+import { AccessLevel } from '../common/access-control/access-level.enum';
+import { Access } from '../common/access-control/access.decorator';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Public()
   @Post('register')
@@ -36,9 +36,9 @@ export class AuthController {
   ) {
     // Extract IP from request (handle proxy scenarios)
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-               req.headers['x-real-ip'] ||
-               req.ip ||
-               'unknown';
+      req.headers['x-real-ip'] ||
+      req.ip ||
+      'unknown';
     return this.authService.login(loginDto, ip);
   }
 

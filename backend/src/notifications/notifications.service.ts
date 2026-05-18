@@ -27,6 +27,10 @@ export interface WebPushSubscriptionDto {
   };
 }
 
+export interface WebPushUnsubscribeDto {
+  endpoint?: string;
+}
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -139,6 +143,17 @@ export class NotificationsService {
 
   // --- Web Push Integration ---
 
+  getPushConfig() {
+    return {
+      publicKey: process.env.VAPID_PUBLIC_KEY || null,
+      configured: Boolean(
+        process.env.VAPID_PUBLIC_KEY &&
+        process.env.VAPID_PRIVATE_KEY &&
+        process.env.VAPID_SUBJECT,
+      ),
+    };
+  }
+
   async subscribeToPush(userId: string, subscription: WebPushSubscriptionDto) {
     if (
       !subscription?.endpoint ||
@@ -177,6 +192,24 @@ export class NotificationsService {
     });
 
     return { success: true, message: 'Subscribed successfully.' };
+  }
+
+  async unsubscribeFromPush(
+    userId: string,
+    subscription: WebPushUnsubscribeDto,
+  ) {
+    if (!subscription?.endpoint) {
+      throw new BadRequestException('Invalid web push unsubscribe payload.');
+    }
+
+    await this.prisma.webPushSubscription.deleteMany({
+      where: {
+        userId,
+        endpoint: subscription.endpoint,
+      },
+    });
+
+    return { success: true, message: 'Unsubscribed successfully.' };
   }
 
   async sendPushNotification(

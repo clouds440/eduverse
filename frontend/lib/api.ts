@@ -49,6 +49,11 @@ export interface WebPushSubscriptionPayload {
     };
 }
 
+export interface WebPushConfigResponse {
+    publicKey: string | null;
+    configured: boolean;
+}
+
 interface AuthSessionSummary {
     id: string;
     userId: string;
@@ -440,8 +445,12 @@ export const api = {
             request<void>('/notifications/read-all', { method: 'PATCH', token }),
         clearCategory: (category: 'CHAT' | 'MAIL', token: string) =>
             request<void>(`/notifications/clear-category/${category}`, { method: 'PATCH', token }),
+        getPushConfig: (token: string) =>
+            request<WebPushConfigResponse>('/notifications/push/config', { token }),
         subscribeToPush: (subscription: WebPushSubscriptionPayload, token: string) =>
             request<void>('/notifications/push/subscribe', { method: 'POST', body: JSON.stringify(subscription), token }),
+        unsubscribeFromPush: (endpoint: string, token: string) =>
+            request<void>('/notifications/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }), token }),
         testPush: (token: string) =>
             request<void>('/notifications/push/test', { method: 'POST', token }),
     },
