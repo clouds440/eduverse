@@ -30,7 +30,7 @@ export function TrustBar() {
                         <Reveal
                             key={i}
                             delay={i * 80}
-                            className={`w-full ${i === TRUST_METRICS.length - 1 ? "hidden sm:block" : ""}`}
+                            className={`w-full sm:w-auto ${i === TRUST_METRICS.length - 1 ? "hidden sm:block" : ""}`}
                         >
                             <div className="flex items-center gap-3 group w-full max-w-[145px] sm:max-w-none mx-auto">
                                 <div className="w-9 h-9 rounded-lg bg-primary/8 border border-primary/12 flex items-center justify-center group-hover:bg-primary/15 transition-colors shrink-0">
