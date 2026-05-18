@@ -1496,6 +1496,26 @@ export class ChatService {
       isTyping: false,
     });
 
+    // Send push-only notifications to offline participants (no DB Notification record).
+    // Chat messages are real-time via WebSocket; push is just a fallback for background/offline users.
+    const senderName = newMessage.sender?.name || 'Someone';
+    const chatName = newMessage.chat?.name;
+    const pushTitle = newMessage.chat?.type === 'GROUP'
+      ? `${senderName} in ${chatName || 'a group'}`
+      : senderName;
+    const pushBody = dto.content.length > 80
+      ? dto.content.substring(0, 80) + '...'
+      : dto.content;
+
+    for (const p of activeParticipants) {
+      if (p.userId === user.id) continue; // Don't push to sender
+      this.notifications.sendPushOnly(p.userId, {
+        title: pushTitle,
+        body: pushBody,
+        url: `/chat?id=${chatId}`,
+      }).catch(e => console.error('Chat push failed:', e));
+    }
+
     return newMessage;
   }
 

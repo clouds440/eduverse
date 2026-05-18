@@ -9,6 +9,7 @@ import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 import notificationsStore from '@/lib/notificationsStore';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
+import { PushNotificationBanner } from '@/components/ui/PushNotificationPrompt';
 
 export function NotificationDropdown() {
     const { token, user } = useAuth();
@@ -122,6 +123,8 @@ export function NotificationDropdown() {
                             </button>
                         )}
                     </div>
+
+                    <PushNotificationBanner />
 
                     <div className="max-h-100 overflow-y-auto custom-scrollbar">
                         {isLoading ? (

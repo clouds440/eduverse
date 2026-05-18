@@ -12,6 +12,12 @@ interface ThemeDropdownProps {
     variant?: 'full' | 'compact';
 }
 
+const themeOptions = [
+    { mode: ThemeMode.SYSTEM, label: 'System', icon: Monitor },
+    { mode: ThemeMode.LIGHT, label: 'Light', icon: Sun },
+    { mode: ThemeMode.DARK, label: 'Dark', icon: Moon }
+];
+
 export function ThemeDropdown({ currentMode, onModeChange, className = '', variant = 'full' }: ThemeDropdownProps) {
     const { isDesktop } = useUI();
     const [isOpen, setIsOpen] = useState(false);
@@ -27,12 +33,6 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-
-    const themeOptions = [
-        { mode: ThemeMode.SYSTEM, label: 'System', icon: Monitor },
-        { mode: ThemeMode.LIGHT, label: 'Light', icon: Sun },
-        { mode: ThemeMode.DARK, label: 'Dark', icon: Moon }
-    ];
 
     const currentOption = themeOptions.find(opt => opt.mode === currentMode) || themeOptions[0];
     const isCompact = variant === 'compact';

@@ -253,6 +253,13 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   /**
+   * Check if a user has at least one active WebSocket connection (app in foreground).
+   */
+  isUserOnline(userId: string): boolean {
+    return (this.onlineConnectionCounts.get(userId) || 0) > 0;
+  }
+
+  /**
    * Emit an event to a specific user by their userId.
    */
   emitToUser(userId: string, event: string, data: unknown): void {

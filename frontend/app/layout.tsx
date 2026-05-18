@@ -22,7 +22,12 @@ export const metadata: Metadata = {
     icon: [{ url: '/assets/eduverse-icon.png' }],
     shortcut: [{ url: '/assets/eduverse-icon.png' }]
   },
-  manifest: '/manifest.json'
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'EduVerse',
+  },
 };
 
 import Navbar from "@/components/Navbar";

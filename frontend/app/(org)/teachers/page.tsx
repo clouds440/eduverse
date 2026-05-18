@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { UserPlus, BadgeCheck } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -62,7 +62,7 @@ export default function TeachersPage() {
         return 10;
     });
 
-    const teacherParams: TeacherParams = {
+    const teacherParams = useMemo<TeacherParams>(() => ({
         page,
         limit: pageSize,
         search: searchTerm,
@@ -70,10 +70,13 @@ export default function TeachersPage() {
         sortOrder,
         status: isDeletedView ? undefined : (statusFilter || (showEmeritus ? undefined : 'ACTIVE,SUSPENDED,ON_LEAVE')),
         deleted: isDeletedView,
-    };
+    }), [page, pageSize, searchTerm, sortBy, sortOrder, statusFilter, showEmeritus, isDeletedView]);
 
     // SWR for teachers data - replaces usePaginatedData
-    const teachersKey = token ? ['teachers', teacherParams] as const : null;
+    const teachersKey = useMemo(() => {
+        if (!token) return null;
+        return ['teachers', teacherParams] as const;
+    }, [token, teacherParams]);
     const { data: fetchedData, isLoading: isFetching, error: teachersError, mutate: mutateTeachers } = useSWR<
         { data: Teacher[]; totalPages: number; totalRecords: number }
     >(teachersKey);
@@ -134,7 +137,7 @@ export default function TeachersPage() {
         }
     };
 
-    const columns: Column<Teacher>[] = [
+    const columns = useMemo<Column<Teacher>[]>(() => [
         {
             header: 'Teacher',
             sortable: true,
@@ -250,7 +253,7 @@ export default function TeachersPage() {
                 />
             )
         }
-    ];
+    ], [isDeletedView, router, handleRestore]);
 
 
     if (teachersError) {

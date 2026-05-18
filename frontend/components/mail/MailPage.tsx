@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { MessageSquare, ArrowUpRight, CheckCircle2, XCircle, Tag, Calendar, Filter, Clock, MailPlus, Hash } from 'lucide-react';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
@@ -59,14 +59,17 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     };
 
     // SWR for mails data
-    const mailsKey = token ? ['mails', {
-        page,
-        limit: pageSize,
-        search: searchQuery,
-        status: statusFilter || undefined,
-        sortBy,
-        sortOrder,
-    }] as const : null;
+    const mailsKey = useMemo(() => {
+        if (!token) return null;
+        return ['mails', {
+            page,
+            limit: pageSize,
+            search: searchQuery,
+            status: statusFilter || undefined,
+            sortBy,
+            sortOrder,
+        }] as const;
+    }, [token, page, pageSize, searchQuery, statusFilter, sortBy, sortOrder]);
 
     const { data: paginatedData, isLoading: fetching } = useSWR<PaginatedResponse<MailItem>>(mailsKey);
 
@@ -129,7 +132,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
         updateFilters('page', '1');
     };
 
-    const columns: Column<MailItem>[] = [
+    const columns = useMemo<Column<MailItem>[]>(() => [
         {
             header: 'Subject',
             sortable: true,
@@ -251,7 +254,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                 </div>
             )
         }
-    ];
+    ], []);
 
     if (authLoading || (!user && !authLoading)) {
         return (

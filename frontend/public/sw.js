@@ -1,7 +1,8 @@
 // Minimal service worker for PWA installability requirements
-const CACHE_NAME = 'eduverse-v1';
+const CACHE_NAME = 'eduverse-v1.1';
 const ASSETS_TO_CACHE = [
   '/',
+  '/offline',
   '/assets/eduverse-icon.png',
   '/assets/eduverse-logo.png'
 ];
@@ -32,12 +33,12 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass-through fetch handler satisfying PWA install conditions.
-  // Standard network-first approach for index/dynamic files to keep PWA fully updated.
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
-        return caches.match('/');
+        return caches.match('/offline').then(response => {
+           return response || caches.match('/');
+        });
       })
     );
     return;
@@ -49,6 +50,50 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
       return fetch(event.request);
+    })
+  );
+});
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+    const title = data.title || 'EduVerse Notification';
+    const options = {
+      body: data.body || '',
+      icon: '/assets/eduverse-icon.png',
+      badge: '/assets/eduverse-icon.png',
+      data: {
+        url: data.url || '/',
+      },
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch (err) {
+    console.error('Error handling push event:', err);
+  }
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const urlToOpen = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Check if there is already a window/tab open with the target URL
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        // If so, just focus it.
+        if (client.url.includes(urlToOpen) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // If not, then open the target URL in a new window/tab.
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(urlToOpen);
+      }
     })
   );
 });

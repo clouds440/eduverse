@@ -12,6 +12,8 @@ import {
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats
 } from '@/types';
+import { get as idbGet, set as idbSet } from 'idb-keyval';
+import { enqueueMutation, initOfflineQueue } from './offlineQueue';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? '';
 
@@ -71,33 +73,72 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         ...(rest.headers as Record<string, string> ?? {}),
     };
 
-    // Note: SWR handles request deduplication with dedupingInterval.
-    // We keep AbortSignal support for explicit cancellation when needed.
-    const response = await fetch(`${apiBaseUrl}${endpoint}`, { ...rest, headers, signal });
+    const isGet = !rest.method || rest.method.toUpperCase() === 'GET';
+    const cacheKey = `eduverse-cache:${endpoint}`;
 
-    if (response.status === 401 && unauthorizedHandler) {
-        unauthorizedHandler(token);
-    }
+    try {
+        const response = await fetch(`${apiBaseUrl}${endpoint}`, { ...rest, headers, signal });
 
-    if (!response.ok) {
-        let message = `Request failed with status ${response.status}`;
-        try {
-            const contentType = response.headers.get('content-type');
-            if (contentType?.includes('application/json')) {
-                const data = await response.json();
-                message = Array.isArray(data.message) ? data.message[0] : data.message || message;
-            } else {
-                const text = await response.text();
-                if (text && text.length < 200) message = text;
-            }
-        } catch (error) {
-            console.error('Error parsing error response:', error);
+        if (response.status === 401 && unauthorizedHandler) {
+            unauthorizedHandler(token);
         }
-        throw new Error(message);
-    }
 
-    if (response.status === 204) return null as T;
-    return response.json() as Promise<T>;
+        if (!response.ok) {
+            let message = `Request failed with status ${response.status}`;
+            try {
+                const contentType = response.headers.get('content-type');
+                if (contentType?.includes('application/json')) {
+                    const data = await response.json();
+                    message = Array.isArray(data.message) ? data.message[0] : data.message || message;
+                } else {
+                    const text = await response.text();
+                    if (text && text.length < 200) message = text;
+                }
+            } catch (error) {
+                console.error('Error parsing error response:', error);
+            }
+            throw new Error(message);
+        }
+
+        if (response.status === 204) return null as T;
+        
+        const data = await response.json() as T;
+
+        if (isGet && typeof window !== 'undefined') {
+            idbSet(cacheKey, data).catch(err => console.warn('Failed to cache data', err));
+        }
+
+        return data;
+    } catch (error: any) {
+        // For GET requests: serve from IndexedDB cache
+        if (isGet && typeof window !== 'undefined') {
+            try {
+                const cachedData = await idbGet<T>(cacheKey);
+                if (cachedData) {
+                    console.info(`[Offline] Serving ${endpoint} from cache`);
+                    return cachedData;
+                }
+            } catch (idbErr) {
+                console.error('Failed to read from cache', idbErr);
+            }
+        }
+
+        // For mutation requests: queue for retry when online
+        if (!isGet && typeof window !== 'undefined' && !navigator.onLine && token) {
+            const bodyStr = typeof rest.body === 'string' ? rest.body : undefined;
+            // Only queue JSON mutations (not file uploads)
+            if (bodyStr !== undefined || !rest.body) {
+                await enqueueMutation({
+                    endpoint,
+                    method: rest.method || 'POST',
+                    body: bodyStr,
+                    token,
+                }).catch(e => console.warn('Failed to queue mutation:', e));
+            }
+        }
+
+        throw error;
+    }
 }
 
 // --- FIX 3: Consolidated FormData upload helper ---
@@ -390,6 +431,8 @@ export const api = {
             request<void>('/notifications/read-all', { method: 'PATCH', token }),
         clearCategory: (category: 'CHAT' | 'MAIL', token: string) =>
             request<void>(`/notifications/clear-category/${category}`, { method: 'PATCH', token }),
+        subscribeToPush: (subscription: any, token: string) =>
+            request<void>('/notifications/push/subscribe', { method: 'POST', body: JSON.stringify(subscription), token }),
     },
 
     announcements: {

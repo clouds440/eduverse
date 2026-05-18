@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Users, Mail, MessageSquare, Calendar, UserPlus, Lock } from 'lucide-react';
@@ -173,7 +173,7 @@ export default function PlatformAdminsPage() {
 
     const platformAdmins = paginatedData?.data || [];
 
-    const columns: Column<PlatformAdmin>[] = [
+    const columns = useMemo<Column<PlatformAdmin>[]>(() => [
         {
             header: 'Administrator',
             sortable: true,
@@ -236,7 +236,7 @@ export default function PlatformAdminsPage() {
                 )
             }
         }
-    ];
+    ], [user?.id, actionLoading, operatingAdmin]);
 
     if (loading || (!user && !loading)) {
         return (

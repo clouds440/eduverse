@@ -1,5 +1,5 @@
 {
-  "name": "EduVerse School Management",
+  "name": "EduVerse",
   "short_name": "EduVerse",
   "description": "Manage your school efficiently",
   "start_url": "/",
@@ -19,6 +19,29 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "View Timetable",
+      "short_name": "Timetable",
+      "description": "View your schedule and classes",
+      "url": "/timetable",
+      "icons": [{ "src": "/assets/shortcut-timetable.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Open Chats",
+      "short_name": "Chats",
+      "description": "Send a message",
+      "url": "/chat",
+      "icons": [{ "src": "/assets/shortcut-chats.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Check Mail",
+      "short_name": "Mail",
+      "description": "Read your inbox",
+      "url": "/mail",
+      "icons": [{ "src": "/assets/shortcut-mail.svg", "sizes": "512x512", "type": "image/svg+xml" }]
     }
   ]
 }

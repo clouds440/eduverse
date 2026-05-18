@@ -76,6 +76,7 @@ model User {
   createdAnnouncements  Announcement[]     @relation("CreatedAnnouncements")
   confirmedFinancialEntries FinancialEntry[] @relation("AdminConfirmations")
   createdTransactions       Transaction[]    @relation("UserTransactions")
+  pushSubscriptions         WebPushSubscription[]
 
   @@index([organizationId])
   @@index([role])
@@ -944,4 +945,18 @@ model Transaction {
   @@index([organizationId])
   @@index([relatedEntryId])
   @@index([createdById])
+}
+
+model WebPushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

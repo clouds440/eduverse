@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
+  Body,
   Param,
   UseGuards,
   Request,
@@ -53,5 +55,23 @@ export class NotificationsController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.notificationsService.markAsRead(id, req.user.id);
+  }
+
+  @Post('push/subscribe')
+  async subscribeToPush(
+    @Request() req: AuthenticatedRequest,
+    @Body() subscription: any,
+  ) {
+    return this.notificationsService.subscribeToPush(req.user.id, subscription);
+  }
+
+  @Post('push/test')
+  async testPushNotification(@Request() req: AuthenticatedRequest) {
+    await this.notificationsService.sendPushNotification(req.user.id, {
+      title: 'Test Notification',
+      body: 'This is a test web push notification from EduVerse!',
+      url: '/',
+    });
+    return { success: true, message: 'Test notification dispatched' };
   }
 }

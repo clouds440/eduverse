@@ -1335,6 +1335,15 @@ export function ChatLayout() {
         }
     }, []);
 
+    const activeParticipantsOnline = useMemo(() => {
+        if (!activeChat?.participants) return {};
+        const statuses: Record<string, boolean> = {};
+        for (const p of activeChat.participants) {
+            statuses[p.userId] = !!onlineUsers[p.userId];
+        }
+        return statuses;
+    }, [activeChat?.participants, onlineUsers]);
+
     const renderedMessages = useMemo(() => messages.map((msg, i) => {
         const showDateSep = i === 0 || formatChatDateLabel(msg.createdAt) !== formatChatDateLabel(messages[i - 1].createdAt);
 
@@ -1396,7 +1405,7 @@ export function ChatLayout() {
                 >
                     {!isMine && (
                         <div className="w-7 shrink-0 mr-2 flex flex-col justify-end mb-1">
-                            {isLastInGroup && <ChatAvatar targetUser={msg.sender} className="w-7 h-7 rounded-full" isOnline={!!(msg.sender?.id && onlineUsers[msg.sender.id])} />}
+                            {isLastInGroup && <ChatAvatar targetUser={msg.sender} className="w-7 h-7 rounded-full" isOnline={!!(msg.sender?.id && activeParticipantsOnline[msg.sender.id])} />}
                         </div>
                     )}
                     <div className={`flex flex-col min-w-0 ${isMine ? 'items-end' : 'items-start'}`} style={{ maxWidth: 'min(90%, calc(100% - 3.5rem))' }}>
@@ -1489,7 +1498,7 @@ export function ChatLayout() {
                 </div>
             </div>
         );
-    }), [messages, user, user?.id, user?.role, contextMenu, highlightedMessageId, isDesktop, activeChat?.type, scrollToMessage, isSending, isUploading, handleReply, handleCopyText, handleEditMessage, handleDownload, handleDeleteMessage, handleSendMessage, onlineUsers]);
+    }), [messages, user, user?.id, user?.role, contextMenu, highlightedMessageId, isDesktop, activeChat?.type, scrollToMessage, isSending, isUploading, handleReply, handleCopyText, handleEditMessage, handleDownload, handleDeleteMessage, handleSendMessage, activeParticipantsOnline]);
 
     if (!user) return null;
 

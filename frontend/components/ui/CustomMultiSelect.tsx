@@ -23,7 +23,7 @@ export interface CustomMultiSelectProps {
     error?: boolean;
 }
 
-export const CustomMultiSelect = React.memo(function CustomMultiSelect({
+function CustomMultiSelectComponent({
     options,
     values,
     onChange,
@@ -256,4 +256,36 @@ export const CustomMultiSelect = React.memo(function CustomMultiSelect({
             )}
         </div>
     );
-});
+}
+
+function areMultiSelectPropsEqual(
+    prevProps: CustomMultiSelectProps,
+    nextProps: CustomMultiSelectProps
+) {
+    if (prevProps.placeholder !== nextProps.placeholder) return false;
+    if (prevProps.icon !== nextProps.icon) return false;
+    if (prevProps.className !== nextProps.className) return false;
+    if (prevProps.disabled !== nextProps.disabled) return false;
+    if (prevProps.error !== nextProps.error) return false;
+    if (prevProps.onChange !== nextProps.onChange) return false;
+
+    // Compare values array length and contents
+    if (prevProps.values.length !== nextProps.values.length) return false;
+    for (let i = 0; i < prevProps.values.length; i++) {
+        if (prevProps.values[i] !== nextProps.values[i]) return false;
+    }
+
+    // Compare options array length and contents
+    if (prevProps.options.length !== nextProps.options.length) return false;
+    for (let i = 0; i < prevProps.options.length; i++) {
+        const a = prevProps.options[i];
+        const b = nextProps.options[i];
+        if (a.value !== b.value || a.label !== b.label || a.icon !== b.icon) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+export const CustomMultiSelect = React.memo(CustomMultiSelectComponent, areMultiSelectPropsEqual);

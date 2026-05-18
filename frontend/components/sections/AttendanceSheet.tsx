@@ -142,6 +142,76 @@ export default function AttendanceSheet({
         }
     };
 
+    const attendanceColumns = useMemo(() => [
+        {
+            header: 'Student',
+            accessor: (student: SectionAttendanceStudent) => (
+                <div className="flex items-center gap-3">
+                    <BrandIcon
+                        variant="user"
+                        size="sm"
+                        user={{ avatarUrl: student.avatarUrl, name: student.name }}
+                        className="w-8 h-8 shadow-sm"
+                    />
+                    <div>
+                        <div className="font-bold text-foreground">{student.name}</div>
+                        <div className="text-[10px] text-muted-foreground tracking-wide font-mono mt-0.5">
+                            Roll: {student.rollNumber || student.registrationNumber}
+                        </div>
+                    </div>
+                </div>
+            ),
+            width: 280,
+        },
+        {
+            header: 'Status',
+            accessor: (student: SectionAttendanceStudent) => {
+                const status = localRecords[student.studentId];
+                return (
+                    <div className="inline-flex flex-wrap justify-center gap-2">
+                        <button
+                            disabled={readOnly}
+                            onClick={() => handleStatusChange(student.studentId, AttendanceStatus.PRESENT)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${getStatusButtonClass(status === AttendanceStatus.PRESENT, AttendanceStatus.PRESENT)}`}
+                            title="Present"
+                        >
+                            <Check className="w-3.5 h-3.5" />
+                            <span className="hidden xs:inline">P</span>
+                        </button>
+                        <button
+                            disabled={readOnly}
+                            onClick={() => handleStatusChange(student.studentId, AttendanceStatus.ABSENT)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${getStatusButtonClass(status === AttendanceStatus.ABSENT, AttendanceStatus.ABSENT)}`}
+                            title="Absent"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                            <span className="hidden xs:inline">A</span>
+                        </button>
+                        <button
+                            disabled={readOnly}
+                            onClick={() => handleStatusChange(student.studentId, AttendanceStatus.LATE)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${getStatusButtonClass(status === AttendanceStatus.LATE, AttendanceStatus.LATE)}`}
+                            title="Late"
+                        >
+                            <Clock className="w-3.5 h-3.5" />
+                            <span className="hidden xs:inline">L</span>
+                        </button>
+                        <button
+                            disabled={readOnly}
+                            onClick={() => handleStatusChange(student.studentId, AttendanceStatus.EXCUSED)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${getStatusButtonClass(status === AttendanceStatus.EXCUSED, AttendanceStatus.EXCUSED)}`}
+                            title="Excused"
+                        >
+                            <FileWarning className="w-3.5 h-3.5" />
+                            <span className="hidden xs:inline">E</span>
+                        </button>
+                    </div>
+                );
+            },
+            width: 300,
+        },
+    ], [localRecords, readOnly, handleStatusChange, getStatusButtonClass]);
+
     const sessionById = useMemo(
         () => new Map((rangeData?.sessions || []).map((session) => [session.id, session] as const)),
         [rangeData],
@@ -169,6 +239,68 @@ export default function AttendanceSheet({
                 }),
             }));
     }, [rangeData]);
+    
+    const monthlyStudentsAnalytics = useMemo(() => {
+        const analytics = new Map<string, {
+            recordsBySessionId: Map<string, any>;
+            officialTotal: number;
+            present: number;
+            absent: number;
+            late: number;
+            excused: number;
+            officialPercentage: number;
+            overallTotal: number;
+            overallPercentage: number;
+        }>();
+
+        displayRangeStudents.forEach((student) => {
+            const recordsBySessionId = new Map<string, any>();
+            let officialTotal = 0;
+            let present = 0;
+            let absent = 0;
+            let late = 0;
+            let excused = 0;
+            let overallTotal = 0;
+            let overallPresent = 0;
+
+            student.records.forEach((record) => {
+                recordsBySessionId.set(record.sessionId, record);
+                if (record.status !== null) {
+                    const session = sessionById.get(record.sessionId);
+                    if (session && !session.isAdhoc) {
+                        officialTotal++;
+                        if (record.status === AttendanceStatus.PRESENT) present++;
+                        else if (record.status === AttendanceStatus.ABSENT) absent++;
+                        else if (record.status === AttendanceStatus.LATE) late++;
+                        else if (record.status === AttendanceStatus.EXCUSED) excused++;
+                    }
+
+                    overallTotal++;
+                    if (record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.LATE) {
+                        overallPresent++;
+                    }
+                }
+            });
+
+            const officialPresent = present + late;
+            const officialPercentage = officialTotal > 0 ? Math.round((officialPresent / officialTotal) * 100) : 100;
+            const overallPercentage = overallTotal > 0 ? Math.round((overallPresent / overallTotal) * 100) : 100;
+
+            analytics.set(student.studentId, {
+                recordsBySessionId,
+                officialTotal,
+                present,
+                absent,
+                late,
+                excused,
+                officialPercentage,
+                overallTotal,
+                overallPercentage,
+            });
+        });
+
+        return analytics;
+    }, [displayRangeStudents, sessionById]);
 
     const getSessionLabel = (session: NonNullable<RangeAttendanceResponse['sessions']>[number]) => {
         const start = session.startTime || session.schedule?.startTime;
@@ -251,29 +383,28 @@ export default function AttendanceSheet({
                         </thead>
                         <tbody className="divide-y divide-border/60">
                             {displayRangeStudents.map((student, sIdx) => {
-                                const recordsBySessionId = new Map(
-                                    student.records.map((record) => [record.sessionId, record] as const),
-                                );
-
-                                const officialRecords = student.records.filter((record) => {
-                                    const session = sessionById.get(record.sessionId);
-                                    return session && !session.isAdhoc && record.status !== null;
-                                });
-
-                                const markedRecords = student.records.filter(r => r.status !== null);
-
-                                const officialTotal = officialRecords.length;
-                                const present = officialRecords.filter(r => r.status === AttendanceStatus.PRESENT).length;
-                                const absent = officialRecords.filter(r => r.status === AttendanceStatus.ABSENT).length;
-                                const late = officialRecords.filter(r => r.status === AttendanceStatus.LATE).length;
-                                const excused = officialRecords.filter(r => r.status === AttendanceStatus.EXCUSED).length;
-
-                                const officialPresent = present + late;
-                                const officialPercentage = officialTotal > 0 ? Math.round((officialPresent / officialTotal) * 100) : 100;
-
-                                const overallTotal = markedRecords.length;
-                                const overallPresent = markedRecords.filter(r => r.status === AttendanceStatus.PRESENT || r.status === AttendanceStatus.LATE).length;
-                                const overallPercentage = overallTotal > 0 ? Math.round((overallPresent / overallTotal) * 100) : 100;
+                                const stats = monthlyStudentsAnalytics.get(student.studentId) || {
+                                    recordsBySessionId: new Map<string, any>(),
+                                    officialTotal: 0,
+                                    present: 0,
+                                    absent: 0,
+                                    late: 0,
+                                    excused: 0,
+                                    officialPercentage: 100,
+                                    overallTotal: 0,
+                                    overallPercentage: 100,
+                                };
+                                const {
+                                    recordsBySessionId,
+                                    officialTotal,
+                                    present,
+                                    absent,
+                                    late,
+                                    excused,
+                                    officialPercentage,
+                                    overallTotal,
+                                    overallPercentage,
+                                } = stats;
 
                                 return (
                                     <tr key={student.studentId} className="group hover:bg-muted/5 transition-all duration-150">
@@ -435,75 +566,7 @@ export default function AttendanceSheet({
 
             <DataTable
                 data={students}
-                columns={[
-                    {
-                        header: 'Student',
-                        accessor: (student) => (
-                            <div className="flex items-center gap-3">
-                                <BrandIcon
-                                    variant="user"
-                                    size="sm"
-                                    user={{ avatarUrl: student.avatarUrl, name: student.name }}
-                                    className="w-8 h-8 shadow-sm"
-                                />
-                                <div>
-                                    <div className="font-bold text-foreground">{student.name}</div>
-                                    <div className="text-[10px] text-muted-foreground tracking-wide font-mono mt-0.5">
-                                        Roll: {student.rollNumber || student.registrationNumber}
-                                    </div>
-                                </div>
-                            </div>
-                        ),
-                        width: 280,
-                    },
-                    {
-                        header: 'Status',
-                        accessor: (student) => {
-                            const status = localRecords[student.studentId];
-                            return (
-                                <div className="inline-flex flex-wrap justify-center gap-2">
-                                    <button
-                                        disabled={readOnly}
-                                        onClick={() => handleStatusChange(student.studentId, AttendanceStatus.PRESENT)}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${getStatusButtonClass(status === AttendanceStatus.PRESENT, AttendanceStatus.PRESENT)}`}
-                                        title="Present"
-                                    >
-                                        <Check className="w-3.5 h-3.5" />
-                                        <span className="hidden xs:inline">P</span>
-                                    </button>
-                                    <button
-                                        disabled={readOnly}
-                                        onClick={() => handleStatusChange(student.studentId, AttendanceStatus.ABSENT)}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${getStatusButtonClass(status === AttendanceStatus.ABSENT, AttendanceStatus.ABSENT)}`}
-                                        title="Absent"
-                                    >
-                                        <X className="w-3.5 h-3.5" />
-                                        <span className="hidden xs:inline">A</span>
-                                    </button>
-                                    <button
-                                        disabled={readOnly}
-                                        onClick={() => handleStatusChange(student.studentId, AttendanceStatus.LATE)}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${getStatusButtonClass(status === AttendanceStatus.LATE, AttendanceStatus.LATE)}`}
-                                        title="Late"
-                                    >
-                                        <Clock className="w-3.5 h-3.5" />
-                                        <span className="hidden xs:inline">L</span>
-                                    </button>
-                                    <button
-                                        disabled={readOnly}
-                                        onClick={() => handleStatusChange(student.studentId, AttendanceStatus.EXCUSED)}
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${getStatusButtonClass(status === AttendanceStatus.EXCUSED, AttendanceStatus.EXCUSED)}`}
-                                        title="Excused"
-                                    >
-                                        <FileWarning className="w-3.5 h-3.5" />
-                                        <span className="hidden xs:inline">E</span>
-                                    </button>
-                                </div>
-                            );
-                        },
-                        width: 300,
-                    },
-                ]}
+                columns={attendanceColumns}
                 keyExtractor={(student) => student.studentId}
                 currentPage={1}
                 totalPages={1}

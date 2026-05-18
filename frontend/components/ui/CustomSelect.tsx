@@ -229,4 +229,39 @@ function CustomSelectComponent<T extends string = string>({
     );
 }
 
-export const CustomSelect = React.memo(CustomSelectComponent) as typeof CustomSelectComponent;
+function areEqual<T extends string = string>(
+    prevProps: CustomSelectProps<T>,
+    nextProps: CustomSelectProps<T>
+) {
+    if (prevProps.value !== nextProps.value) return false;
+    if (prevProps.placeholder !== nextProps.placeholder) return false;
+    if (prevProps.icon !== nextProps.icon) return false;
+    if (prevProps.className !== nextProps.className) return false;
+    if (prevProps.disabled !== nextProps.disabled) return false;
+    if (prevProps.required !== nextProps.required) return false;
+    if (prevProps.error !== nextProps.error) return false;
+    if (prevProps.searchable !== nextProps.searchable) return false;
+    if (prevProps.onChange !== nextProps.onChange) return false;
+
+    // Compare options length
+    if (prevProps.options.length !== nextProps.options.length) return false;
+
+    // Shallow compare each option's properties
+    for (let i = 0; i < prevProps.options.length; i++) {
+        const a = prevProps.options[i];
+        const b = nextProps.options[i];
+        if (
+            a.value !== b.value ||
+            a.label !== b.label ||
+            a.badge !== b.badge ||
+            a.icon !== b.icon ||
+            a.iconClassName !== b.iconClassName
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+export const CustomSelect = React.memo(CustomSelectComponent, areEqual) as typeof CustomSelectComponent;

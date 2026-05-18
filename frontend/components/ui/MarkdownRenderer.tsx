@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
 import { marked } from 'marked';
 import { getPublicUrl } from '@/lib/utils';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { getOptimisticImageFallback, resolveOptimisticImageFallback } from '@/lib/optimisticMedia';
-import { AttachmentPreviewCard, getAttachmentPreviewKind } from './AttachmentPreviewCard';
+import { AttachmentPreviewCard, getAttachmentPreviewKind, type AttachmentPreviewKind } from './AttachmentPreviewCard';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-clike'; // Must be loaded first
 import 'prismjs/components/prism-c';
@@ -35,7 +34,6 @@ interface MarkdownRendererProps {
 }
 
 const failedMarkdownImageUrls = new Set<string>();
-const attachmentPreviewRoots = new WeakMap<HTMLElement, Root>();
 
 const escapeHtml = (str?: string) => {
     if (!str) return '';
@@ -69,13 +67,56 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
         });
     }, []);
 
+    // 1. Extract special document attachment links before compiling markdown.
+    // This allows rendering AttachmentPreviewCard components natively inside the standard React reconciliation loop.
+    const { attachments, cleanedContent } = useMemo(() => {
+        const extracted: { fileName: string; href: string; kind: AttachmentPreviewKind }[] = [];
+        const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+        let finalCleanedContent = content || '';
+        let match;
+        const matchesToReplace: string[] = [];
+
+        markdownLinkRegex.lastIndex = 0;
+
+        while ((match = markdownLinkRegex.exec(content || '')) !== null) {
+            const fullLinkMarkdown = match[0];
+            const text = match[1];
+            const href = match[2];
+
+            const docMatch = text.match(/^(?:📄|📝|📊|📽️|📦|📎)?\s*(PDF:|DOC:|Doc:|XLS:|PPT:|ARCHIVE:|ZIP:|Attachment:)\s*(.*)/i);
+            if (docMatch) {
+                const type = docMatch[1];
+                const fileName = docMatch[2].trim();
+                const resolved = href && /^(blob:|https?:)/i.test(href) ? href : href ? getPublicUrl(href) : '';
+                const safeUrl = normalizeSafeUrl(resolved, { allowRelative: true });
+
+                if (safeUrl) {
+                    const kind = getAttachmentPreviewKind(type, fileName);
+                    extracted.push({
+                        fileName,
+                        href: safeUrl,
+                        kind
+                    });
+                    matchesToReplace.push(fullLinkMarkdown);
+                }
+            }
+        }
+
+        matchesToReplace.forEach(m => {
+            finalCleanedContent = finalCleanedContent.replace(m, '');
+        });
+
+        return { attachments: extracted, cleanedContent: finalCleanedContent.trim() };
+    }, [content]);
+
+    // 2. Parse the remaining text without document attachment markup
     const htmlContent = useMemo(() => {
+        if (!cleanedContent) return '';
         try {
             const renderer = new marked.Renderer();
 
             // Custom code block rendering with PrismJS and Mermaid support
             renderer.code = ({ text, lang }) => {
-                // Decode entities from escapeRawHtml to get clean text for processing
                 const decodedText = he.decode(text);
 
                 if (lang === 'mermaid') {
@@ -144,19 +185,10 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 const isExternal = /^[a-z][a-z\d+.-]*:/i.test(safeUrl) || safeUrl.startsWith('www.');
                 const targetAttr = isExternal ? 'target="_blank" rel="noopener noreferrer"' : '';
 
-                // RICH DOCUMENT PREVIEW: mounted as JSX after markdown parsing.
-                const docMatch = text.match(/^(?:📄|📝|📊|📽️|📦|📎)?\s*(PDF:|DOC:|Doc:|XLS:|PPT:|ARCHIVE:|ZIP:|Attachment:)\s*(.*)/i);
-                if (docMatch) {
-                    const type = docMatch[1];
-                    const fileName = docMatch[2].trim();
-
-                    return `<div class="attachment-preview-root" data-file-name="${escapeHtml(fileName)}" data-href="${escapeHtml(safeUrl)}" data-kind="${getAttachmentPreviewKind(type, fileName)}" data-align="${attachmentAlign}"></div>`;
-                }
-
                 return `<a href="${escapeHtml(safeUrl)}" title="${escapeHtml(title || '')}" ${targetAttr}>${text}</a>`;
             };
 
-            const markdown = escapeRawHtml((content || '').replace(/\n+$/g, ''));
+            const markdown = escapeRawHtml(cleanedContent.replace(/\n+$/g, ''));
 
             if (typeof window !== 'undefined') {
                 const failedMap = (window as Window & { __eduverseFailedMarkdownImages?: Record<string, boolean> }).__eduverseFailedMarkdownImages;
@@ -174,50 +206,15 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
             }) as string;
         } catch (error) {
             console.error('Markdown parsing error:', error);
-            return escapeHtml(content || '');
+            return escapeHtml(cleanedContent);
         }
-    }, [content, attachmentAlign]);
+    }, [cleanedContent]);
 
     // Cleanup and effects for post-render processing
     useEffect(() => {
         if (!containerRef.current) return;
 
         const cleanups: Array<() => void> = [];
-
-        // Mount rich attachment previews into markdown placeholders.
-        const mountedAttachmentPlaceholders: HTMLElement[] = [];
-        const attachmentPreviewElements = containerRef.current.querySelectorAll<HTMLElement>('.attachment-preview-root');
-        attachmentPreviewElements.forEach((placeholder) => {
-            const fileName = placeholder.dataset.fileName || 'Attachment';
-            const href = placeholder.dataset.href || '';
-            const kind = placeholder.dataset.kind || 'attachment';
-            const align = placeholder.dataset.align === 'right' ? 'right' : 'left';
-            let root = attachmentPreviewRoots.get(placeholder);
-            if (!root) {
-                root = createRoot(placeholder);
-                attachmentPreviewRoots.set(placeholder, root);
-            }
-
-            root.render(
-                <AttachmentPreviewCard
-                    fileName={fileName}
-                    href={href}
-                    kind={kind === 'pdf' || kind === 'doc' || kind === 'sheet' || kind === 'presentation' || kind === 'archive' ? kind : 'attachment'}
-                    align={align}
-                />
-            );
-            mountedAttachmentPlaceholders.push(placeholder);
-        });
-        cleanups.push(() => {
-            mountedAttachmentPlaceholders.forEach(placeholder => {
-                window.setTimeout(() => {
-                    if (placeholder.isConnected) return;
-                    const root = attachmentPreviewRoots.get(placeholder);
-                    root?.unmount();
-                    attachmentPreviewRoots.delete(placeholder);
-                }, 0);
-            });
-        });
 
         // Handle images
         const images = containerRef.current.querySelectorAll('img.markdown-image');
@@ -344,7 +341,6 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
             let scrollLeftStart = 0;
 
             const onMouseDown = (e: MouseEvent) => {
-                // Only activate if the pre is scrollable
                 if (el.scrollWidth <= el.clientWidth) return;
                 isDown = true;
                 el.style.cursor = 'grabbing';
@@ -368,11 +364,10 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 if (!isDown) return;
                 e.preventDefault();
                 const x = e.pageX - el.offsetLeft;
-                const walk = (x - startX) * 1.5; // multiply for faster scroll feel
+                const walk = (x - startX) * 1.5;
                 el.scrollLeft = scrollLeftStart - walk;
             };
 
-            // Set initial cursor if scrollable
             if (el.scrollWidth > el.clientWidth) {
                 el.style.cursor = 'grab';
             }
@@ -397,17 +392,34 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
     }, [htmlContent]);
 
     return (
-        <div
-            ref={containerRef}
-            className={`markdown-content ${className}`}
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
-            dir="auto"
-            style={{
-                lineHeight: '1.6',
-                wordBreak: 'break-word',
-                overflowWrap: 'anywhere'
-            }}
-        />
+        <div className="flex flex-col gap-2 w-full">
+            {htmlContent && (
+                <div
+                    ref={containerRef}
+                    className={`markdown-content ${className}`}
+                    dangerouslySetInnerHTML={{ __html: htmlContent }}
+                    dir="auto"
+                    style={{
+                        lineHeight: '1.6',
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere'
+                    }}
+                />
+            )}
+            {attachments.length > 0 && (
+                <div className={`flex flex-col gap-1.5 ${attachmentAlign === 'right' ? 'items-end' : 'items-start'} w-full mt-1.5`}>
+                    {attachments.map((att, idx) => (
+                        <AttachmentPreviewCard
+                            key={idx}
+                            fileName={att.fileName}
+                            href={att.href}
+                            kind={att.kind}
+                            align={attachmentAlign}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
     );
 });
 
@@ -494,6 +506,7 @@ if (typeof document !== 'undefined') {
                 max-width: 100% !important;
                 width: 100% !important;
                 height: auto !important;
+                color: inherit !important;
             }
 
             /* PrismJS Theme Overrides - Original Premium Look */
