@@ -13,7 +13,7 @@ export default function AdminChangePasswordPage() {
         if (!token) return;
         const res = await api.auth.changePassword(oldPassword, newPassword, token);
         // This will update the GlobalState and user object
-        login(res.access_token);
+        await login(res.access_token);
     };
 
     return (
