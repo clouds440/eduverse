@@ -27,6 +27,7 @@ Applied:
 13. `SEC-08`: added low-risk baseline browser security headers (`nosniff`, strict referrer policy, frame denial, and narrow permissions policy). Full CSP remains deferred until deployment origins are confirmed.
 14. `SEC-10`: hardened the client device ID by preferring `crypto.randomUUID()`, falling back to `crypto.getRandomValues()`, validating stored IDs before reuse, URL-encoding the cookie value, and adding `Secure` when running on HTTPS.
 15. `PERF-10`: added `prefers-reduced-motion` handling for global decorative animation classes.
+16. `SEC-01` phase 1: moved session persistence from `localStorage` to an HttpOnly backend cookie, added cookie-backed `/auth/session` hydration, removed persisted bearer tokens from the offline queue, and kept access tokens in memory only for compatibility with existing request/socket call sites.
 
 Skipped or partially skipped:
 
@@ -40,6 +41,27 @@ Skipped or partially skipped:
 8. `PERF-04` was skipped because replacing eager `limit: 1000` fetches with remote search changes modal/form UX and requires backend search/pagination contracts for each selector.
 9. `PERF-08` scroll throttling was skipped because chat scrolling/read receipts are delicate; the observer leak was fixed, but scroll behavior should be profiled before changing read-state timing.
 10. `PERF-10` full visual redesign remains skipped because global background visuals are design-facing and should be changed with visual QA; reduced-motion handling was implemented as a low-risk accessibility/performance improvement.
+
+## SEC-01 Next Phase: Full HttpOnly Request Mode
+
+Current state after phase 1:
+
+- The durable browser session is the HttpOnly `eduverse_access_token` cookie set by the backend.
+- The frontend no longer reads or writes `localStorage.token`.
+- `/auth/session` validates the cookie and returns a short-lived in-memory access token so existing `api.*(token)` calls, socket auth, and route guards keep working.
+- Offline mutation replay no longer stores bearer tokens in IndexedDB.
+
+Remaining work to fully remove JS-readable bearer tokens:
+
+1. Change `frontend/lib/api.ts` and all API wrappers so authenticated requests rely on `credentials: 'include'` by default instead of passing a `token` argument.
+2. Replace `useAuth().token` as a data-fetch enable flag with an `isAuthenticated` boolean/session state so pages do not need the raw token to decide whether to fetch.
+3. Update SWR provider keys/fetchers to use cookie-backed requests and remove token parameters from fetcher closures.
+4. Update Socket.IO authentication to use cookie-backed handshake auth or a backend-issued short-lived socket ticket endpoint, then stop passing the access token through `socket.auth`.
+5. Update upload helpers, notification helpers, chat/mail stores, and offline replay to call cookie-authenticated endpoints only.
+6. Remove `access_token` from `/auth/session` responses once no frontend path needs it; return only server-trusted user/session data.
+7. Stop returning `access_token` from login/change-password responses after all immediate post-login flows consume server-returned user/session data instead.
+8. Add CSRF protection before relying exclusively on cookie auth for mutating requests if the auth cookie ever needs `SameSite=None` for cross-site deployments.
+9. Verify login, reload session restore, logout, revoked sessions, password change, registration logo upload, sockets, push notifications, file uploads, offline replay, and 401 redirects.
 
 Verification after implementation:
 

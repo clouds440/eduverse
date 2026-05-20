@@ -44,7 +44,9 @@ The system encompasses:
 - **Attendance Tracking**: Schedule management and attendance recording
 - **Communication Systems**: Real-time chat, internal mail, notifications, and announcements
 - **File Management**: Document and media uploads with cloud storage integration
-- **Security Features**: Password strength validation, multi-device session management
+- **Security Features**: Password strength validation, multi-device session management, password reset flow, contact email verification
+- **Audit Trail**: Complete tracking of administrative actions and security events
+- **Live Deployment**: Production instance available at https://eduversepak.cloud
 ### Technology Stack Summary
 | Layer | Technology |
 | ----- | ----- |
@@ -55,6 +57,8 @@ The system encompasses:
 | Authentication | JWT with Passport.js |
 | File Storage | Cloudinary |
 | Password Validation | zxcvbn (password strength library) |
+| Email Service | Resend API |
+| Production URL | https://eduversepak.cloud |
 ---
 
 ## Goals and Non-Goals
@@ -67,6 +71,8 @@ The system encompasses:
 - **Password Security**: Real-time password strength validation to enforce security standards
 - **Session Security**: Multi-device session management with suspicious activity detection
 - **Audit Trail**: Complete tracking of administrative actions and data changes
+- **Password Recovery**: Secure password reset flow with email verification
+- **Contact Email Verification**: Organization contact email verification for security communications
 ### Non-Goals
 - **Mobile Native Applications**: Current scope is web-only (responsive design)
 - **Payment Processing**: Fee management is data-only; no payment gateway integration
@@ -266,9 +272,93 @@ User Login Request
 │  Return Token + Role    │
 └─────────────────────────┘
 ```
+
+#### 1.1 Password Reset Flow
+```
+User Requests Password Reset
+       │
+       ▼
+┌─────────────────────────┐
+│  Validate Email         │
+│  (Org Admin Only)       │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Check Contact Email    │
+│  Verification Status    │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Generate Reset Token   │
+│  (30 min expiration)    │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Send Reset Link Email  │
+│  to Contact Email       │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Log Audit Event        │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Return Generic Message │
+└─────────────────────────┘
+```
+
+#### 1.2 Contact Email Verification Flow
+```
+Organization Registration
+       │
+       ▼
+┌─────────────────────────┐
+│  Create Org & User      │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Generate 6-Digit Code  │
+│  (10 min expiration)    │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Send Verification Email │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  User Enters Code        │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Validate Code           │
+│  (Max 5 attempts)       │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Mark Email Verified     │
+└───────────┬─────────────┘
+            │
+            ▼
+┌─────────────────────────┐
+│  Log Audit Event        │
+└─────────────────────────┘
+```
 #### 2. Organization Lifecycle Flow
 ```
 Registration (PENDING)
+       │
+       ▼
+Contact Email Verification Required
        │
        ▼
 Platform Admin Review
@@ -326,6 +416,11 @@ WebSocket Connection (Socket.IO)
 | location | String | Physical location |
 | type | String | Organization type |
 | contactEmail | String | Primary contact email |
+| contactEmailVerifiedAt | DateTime? | When contact email was verified |
+| contactEmailVerificationCodeHash | String? | Hashed verification code |
+| contactEmailVerificationExpiresAt | DateTime? | Verification code expiration |
+| contactEmailVerificationAttempts | Int | Number of verification attempts |
+| lastVerificationSentAt | DateTime? | Last time verification was sent |
 | phone | String? | Contact phone |
 | status | Enum | PENDING, APPROVED, REJECTED, SUSPENDED |
 | statusHistory | JSON | Audit trail of status changes |
@@ -339,6 +434,7 @@ WebSocket Connection (Socket.IO)
 | email | String | Unique email address |
 | password | String | Bcrypt hashed password |
 | role | Enum | SUPER_ADMIN, PLATFORM_ADMIN, ORG_ADMIN, ORG_MANAGER, TEACHER, STUDENT |
+| status | Enum | ACTIVE, SUSPENDED, ON_LEAVE, ALUMNI, EMERITUS, DELETED |
 | isFirstLogin | Boolean | Force password change flag |
 | organizationId | UUID? | Associated organization |
 | name | String? | Display name |
@@ -358,7 +454,46 @@ WebSocket Connection (Socket.IO)
 | ip | String? | IP address |
 | token | String | JWT token |
 | isActive | Boolean | Session validity |
+| lastSeenAt | DateTime | Last activity timestamp |
 | expiresAt | DateTime | Token expiration |
+### Security Entities
+
+#### PasswordResetToken
+Stores password reset tokens for secure password recovery.
+
+| Field | Type | Description |
+| ----- | ----- | ----- |
+| id | UUID | Primary key |
+| userId | UUID | Associated user |
+| tokenHash | String | Hashed reset token |
+| expiresAt | DateTime | Token expiration |
+| usedAt | DateTime? | When token was used |
+| createdAt | DateTime | Creation timestamp |
+| ip | String? | Request IP address |
+| userAgent | String? | Request user agent |
+
+**Relations:**
+- User (N:1)
+
+#### AuditLog
+Comprehensive audit trail for security events and administrative actions.
+
+| Field | Type | Description |
+| ----- | ----- | ----- |
+| id | UUID | Primary key |
+| action | String | Action performed (e.g., password_reset_requested, contact_email_verified) |
+| actorUserId | UUID? | User who performed the action |
+| targetUserId | UUID? | User affected by the action |
+| organizationId | UUID? | Associated organization |
+| ip | String? | Request IP address |
+| userAgent | String? | Request user agent |
+| sessionId | String? | Associated session |
+| details | JSON? | Additional action details |
+| createdAt | DateTime | Creation timestamp |
+
+**Relations:**
+- Organization (N:1, optional)
+
 ### Academic Entities
 #### Course → Section → Enrollment
 ```
@@ -848,6 +983,10 @@ Records actual financial transactions (payments received or expenses paid).
 | POST | `/auth/login`  | Authenticate user, return JWT |
 | POST | `/auth/logout`  | Invalidate current session |
 | POST | `/auth/change-password`  | Update user password |
+| POST | `/auth/forgot-password`  | Initiate password reset flow |
+| POST | `/auth/reset-password`  | Complete password reset with token |
+| POST | `/auth/contact-email/resend-verification`  | Resend contact email verification code |
+| POST | `/auth/contact-email/verify`  | Verify contact email with code |
 | PATCH | `/auth/profile`  | Update user profile |
 | GET | `/auth/sessions`  | List active sessions |
 | DELETE | `/auth/sessions/:id`  | Revoke specific session |
@@ -2732,12 +2871,40 @@ flowchart TD
 
 ---
 
+## Environment Variables
+
+### Required Environment Variables
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Secret key for JWT token signing |
+| `CLOUDINARY_URL` | Cloudinary API URL for file storage |
+| `FRONTEND_URL` | Frontend application URL (for email links) |
+| `SUPER_ADMIN_USERNAME` | Super admin username for initial setup |
+| `SUPER_ADMIN_PASSWORD` | Super admin password for initial setup |
+| `PORT` | Backend server port |
+| `BCRYPT_ROUNDS` | Number of bcrypt rounds for password hashing |
+
+### Recommended Environment Variables
+| Variable | Description |
+|----------|-------------|
+| `THROTTLE_TTL` | Rate limiting time-to-live in milliseconds |
+| `THROTTLE_LIMIT` | Maximum requests per TTL window |
+| `RESEND_API_KEY` | Resend API key for email sending |
+| `RESEND_FROM_EMAIL` | Sender email address for system emails |
+| `AUTH_COOKIE_DOMAIN` | Domain for authentication cookies |
+| `AUTH_COOKIE_SECURE` | Whether auth cookies should be secure (HTTPS only) |
+| `AUTH_COOKIE_SAME_SITE` | Same-site cookie policy (lax, strict, none) |
+
 ## Main Activities Summary
 
 | Activity | Description | Key Files |
 |----------|-------------|-----------|
 | **Authentication** | Login, register, role-based routing | `login/page.tsx`, `register/page.tsx` |
 | **Password Strength** | Real-time password validation | `PasswordStrength.tsx`, `ChangePasswordForm.tsx` |
+| **Password Reset** | Secure password recovery via email | `forgot-password/page.tsx`, `reset-password/page.tsx` |
+| **Contact Email Verification** | Organization email verification for security | `auth.service.ts`, `org.service.ts` |
+| **Audit Logging** | Security event tracking | `auth.service.ts`, AuditLog model |
 | **Chat Messaging** | Real-time messaging with attachments | `ChatLayout.tsx`, `ChatMessage.tsx` |
 | **Mail System** | Inbox, compose, read mail | `mail/page.tsx`, `NewMailModal.tsx` |
 | **Theme Settings** | Light/dark mode, color customization | `ThemeContext.tsx`, `settings/page.tsx` |
@@ -2751,6 +2918,18 @@ flowchart TD
 | **Cohort Management** | Student grouping, bulk enrollment | `cohorts/page.tsx`, `cohorts/[id]/page.tsx` |
 | **Student Promotions** | Move students between cycles/cohorts | `promotions/page.tsx`, `promotions.service.ts` |
 | **Transcripts** | Generate student academic records | `transcripts/page.tsx`, `transcripts.service.ts` |
+
+## Live Deployment
+
+The School Management System is deployed and available at: **https://eduversepak.cloud**
+
+This production instance includes all features documented in this technical design document, including:
+- Multi-tenant organization management
+- Complete academic lifecycle tracking
+- Real-time communication systems
+- Financial management
+- Security features including password reset and email verification
+- Audit logging for compliance and security monitoring
 
 ---
 

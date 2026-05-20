@@ -9,6 +9,7 @@ import { PLATFORM_NAME, DASHBOARD_MODULES } from '@/lib/constants';
 import { clearChatSession } from '@/lib/chatStore';
 import { disconnectSocket } from '@/hooks/useSocket';
 import { Loading } from '@/components/ui/Loading';
+import { decodeAuthToken } from '@/lib/authSession';
 
 export type { JwtPayload };
 
@@ -31,28 +32,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = React.useCallback(async () => {
         const currentToken = token;
-        localStorage.removeItem('token');
         localStorage.removeItem('themeMode');
         clearChatSession();
         disconnectSocket();
         dispatch({ type: 'AUTH_LOGOUT' });
         router.replace('/login');
-        if (currentToken) {
-            api.auth.logout(currentToken).catch(() => { });
-        }
+        api.auth.logout(currentToken || undefined).catch(() => { });
     }, [token, router, dispatch]);
 
     const processToken = React.useCallback((t: string) => {
         try {
-            const base64Url = t.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(
-                atob(base64)
-                    .split('')
-                    .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                    .join('')
-            );
-            const decoded = JSON.parse(jsonPayload) as JwtPayload;
+            const decoded = decodeAuthToken(t);
 
             if (decoded.exp && decoded.exp * 1000 < Date.now()) {
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Your session has expired. Please log in again.', type: 'info' } });
@@ -60,12 +50,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            if (decoded.name) {
-                decoded.userName = decoded.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-            }
-            if (decoded.sub && !decoded.id) decoded.id = decoded.sub;
-
-            localStorage.setItem('token', t);
             dispatch({ type: 'AUTH_SET_SESSION', payload: { user: decoded, token: t } });
         } catch (error) {
             console.warn('Invalid token', error);
@@ -76,11 +60,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Register global 401 handler
     useEffect(() => {
         setUnauthorizedHandler((failedToken) => {
-            const currentToken = localStorage.getItem('token');
-            // Only trigger if the failure was for our actual current token
+            // Only trigger if the failure was for our actual current in-memory token
             // This prevents race conditions when switching accounts
-            if (currentToken && (!failedToken || failedToken === currentToken)) {
-                localStorage.removeItem('token');
+            if (token && (!failedToken || failedToken === token)) {
                 clearChatSession();
                 disconnectSocket();
                 dispatch({ type: 'AUTH_LOGOUT' });
@@ -88,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 router.replace('/login');
             }
         });
-    }, [dispatch, router]);
+    }, [dispatch, router, token]);
 
     useEffect(() => {
         if (!loading) {

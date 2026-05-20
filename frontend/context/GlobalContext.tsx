@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect, useCallback } from 'react';
 import { AdminStats, Role, Organization, Teacher, Student, Section, Course, ThemeMode } from '@/types';
 import { Toast, ToastType } from '@/components/ui/Toast';
+import { api } from '@/lib/api';
+import { decodeAuthToken } from '@/lib/authSession';
 
 // --- Types ---
 
@@ -242,8 +244,8 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
 
     // Initial auth sync
     useEffect(() => {
-        const storedToken = localStorage.getItem('token');
         const storedSidebarState = localStorage.getItem('edu-sidebar-expanded');
+        let cancelled = false;
 
         if (storedSidebarState !== null) {
             const isExpanded = storedSidebarState === 'true';
@@ -252,37 +254,37 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        if (storedToken) {
+        localStorage.removeItem('token');
+
+        const hydrateSession = async () => {
             try {
-                const base64Url = storedToken.split('.')[1];
-                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(
-                    atob(base64)
-                        .split('')
-                        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                        .join('')
-                );
-                const decoded = JSON.parse(jsonPayload) as JwtPayload;
+                const session = await api.auth.session();
+                const sessionToken = session.access_token;
 
-                // Simple exp check
+                if (!sessionToken) {
+                    if (!cancelled) dispatch({ type: 'AUTH_SET_LOADING', payload: false });
+                    return;
+                }
+
+                const decoded = decodeAuthToken(sessionToken);
+
                 if (decoded.exp * 1000 < Date.now()) {
-                    localStorage.removeItem('token');
-                    dispatch({ type: 'AUTH_LOGOUT' });
+                    if (!cancelled) dispatch({ type: 'AUTH_LOGOUT' });
                 } else {
-                    if (decoded.name && !decoded.userName) {
-                        decoded.userName = decoded.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+                    if (!cancelled) {
+                        dispatch({ type: 'AUTH_SET_SESSION', payload: { user: decoded, token: sessionToken } });
                     }
-                    if (decoded.sub && !decoded.id) decoded.id = decoded.sub;
-
-                    dispatch({ type: 'AUTH_SET_SESSION', payload: { user: decoded, token: storedToken } });
                 }
             } catch {
-                localStorage.removeItem('token');
-                dispatch({ type: 'AUTH_SET_LOADING', payload: false });
+                if (!cancelled) dispatch({ type: 'AUTH_SET_LOADING', payload: false });
             }
-        } else {
-            dispatch({ type: 'AUTH_SET_LOADING', payload: false });
-        }
+        };
+
+        void hydrateSession();
+
+        return () => {
+            cancelled = true;
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

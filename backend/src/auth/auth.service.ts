@@ -354,6 +354,9 @@ export class AuthService {
 
     // Update the session in database if it exists
     if (currentToken) {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
       await this.prisma.session.updateMany({
         where: {
           userId,
@@ -363,6 +366,7 @@ export class AuthService {
         data: {
           token: newToken,
           lastSeenAt: new Date(),
+          expiresAt,
         },
       });
 
@@ -432,7 +436,7 @@ export class AuthService {
     });
   }
 
-  async getSessions(userId: string) {
+  async getSessions(userId: string, currentToken?: string) {
     const sessions = await this.prisma.session.findMany({
       where: {
         userId,
@@ -443,7 +447,10 @@ export class AuthService {
       },
     });
 
-    return sessions;
+    return sessions.map(({ token, ...session }) => ({
+      ...session,
+      isCurrent: !!currentToken && token === currentToken,
+    }));
   }
 
   async revokeSession(

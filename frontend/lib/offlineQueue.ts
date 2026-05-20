@@ -11,9 +11,10 @@ export interface QueuedMutation {
   endpoint: string;
   method: string;
   body?: string;
-  token: string;
   timestamp: number;
 }
+
+type LegacyQueuedMutation = QueuedMutation & { token?: string };
 
 const QUEUE_PREFIX = 'eduverse-mutation-queue:';
 
@@ -39,8 +40,22 @@ export async function getQueuedMutations(): Promise<QueuedMutation[]> {
   
   const entries: QueuedMutation[] = [];
   for (const key of queueKeys) {
-    const entry = await get<QueuedMutation>(key as string);
-    if (entry) entries.push(entry);
+    const entry = await get<LegacyQueuedMutation>(key as string);
+    if (entry) {
+      if ('token' in entry) {
+        const sanitizedEntry: QueuedMutation = {
+          id: entry.id,
+          endpoint: entry.endpoint,
+          method: entry.method,
+          body: entry.body,
+          timestamp: entry.timestamp,
+        };
+        await set(key as string, sanitizedEntry);
+        entries.push(sanitizedEntry);
+      } else {
+        entries.push(entry);
+      }
+    }
   }
   
   return entries.sort((a, b) => a.timestamp - b.timestamp);
@@ -62,11 +77,11 @@ export async function replayMutations(apiBaseUrl: string): Promise<void> {
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${mutation.token}`,
       };
 
       const response = await fetch(`${apiBaseUrl}${mutation.endpoint}`, {
         method: mutation.method,
+        credentials: 'include',
         headers,
         body: mutation.body || undefined,
       });

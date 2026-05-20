@@ -18,12 +18,12 @@ interface Session {
     deviceId: string;
     deviceName: string;
     os: string;
-    token: string;
     lastSeenAt: string;
     expiresAt: string;
     createdAt: string;
     ip?: string | null;
     location?: string | null;
+    isCurrent?: boolean;
 }
 
 interface SessionManagementProps {
@@ -32,7 +32,7 @@ interface SessionManagementProps {
 }
 
 export default function SessionManagement({ userId }: SessionManagementProps) {
-    const { token, user } = useAuth();
+    const { token, user, logout } = useAuth();
     const { dispatch } = useGlobal();
     const [sessions, setSessions] = useState<Session[]>([]);
     const [loading, setLoading] = useState(false);
@@ -67,9 +67,7 @@ export default function SessionManagement({ userId }: SessionManagementProps) {
             const result = await api.auth.revokeSession(sessionId, token);
             if (result.shouldLogout) {
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Logging out...', type: 'success' } });
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                window.location.href = '/login';
+                logout();
                 return;
             }
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Session revoked successfully', type: 'success' } });
@@ -115,8 +113,7 @@ export default function SessionManagement({ userId }: SessionManagementProps) {
     };
 
     const isCurrentSession = (session: Session) => {
-        // Compare the session token with the current token
-        return session.token === token;
+        return session.isCurrent === true;
     };
 
     return (

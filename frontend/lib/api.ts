@@ -60,12 +60,12 @@ interface AuthSessionSummary {
     deviceId: string;
     deviceName: string;
     os: string;
-    token: string;
     lastSeenAt: string;
     expiresAt: string;
     createdAt: string;
     ip?: string | null;
     location?: string | null;
+    isCurrent?: boolean;
     shouldLogout?: boolean;
 }
 
@@ -88,10 +88,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     };
 
     const isGet = !rest.method || rest.method.toUpperCase() === 'GET';
+    const canUseOfflineCache = isGet && endpoint !== '/auth/session';
     const cacheKey = `eduverse-cache:${endpoint}`;
 
     try {
-        const response = await fetch(`${apiBaseUrl}${endpoint}`, { ...rest, headers, signal });
+        const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+            ...rest,
+            credentials: 'include',
+            headers,
+            signal,
+        });
 
         if (response.status === 401 && unauthorizedHandler) {
             unauthorizedHandler(token);
@@ -118,14 +124,14 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         
         const data = await response.json() as T;
 
-        if (isGet && typeof window !== 'undefined') {
+        if (canUseOfflineCache && typeof window !== 'undefined') {
             idbSet(cacheKey, data).catch(err => console.warn('Failed to cache data', err));
         }
 
         return data;
     } catch (error: unknown) {
         // For GET requests: serve from IndexedDB cache
-        if (isGet && typeof window !== 'undefined') {
+        if (canUseOfflineCache && typeof window !== 'undefined') {
             try {
                 const cachedData = await idbGet<T>(cacheKey);
                 if (cachedData) {
@@ -138,7 +144,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         }
 
         // For mutation requests: queue for retry when online
-        if (!isGet && typeof window !== 'undefined' && !navigator.onLine && token) {
+        if (!isGet && typeof window !== 'undefined' && !navigator.onLine) {
             const bodyStr = typeof rest.body === 'string' ? rest.body : undefined;
             // Only queue JSON mutations (not file uploads)
             if (bodyStr !== undefined || !rest.body) {
@@ -146,7 +152,6 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
                     endpoint,
                     method: rest.method || 'POST',
                     body: bodyStr,
-                    token,
                 }).catch((e) => console.warn('Failed to queue mutation:', e));
             }
         }
@@ -180,6 +185,8 @@ export const api = {
             request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
         login: (data: LoginRequest) =>
             request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+        session: () =>
+            request<AuthResponse>('/auth/session'),
         forgotPassword: (email: string) =>
             request<MessageResponse>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
         resetPassword: (token: string, password: string) =>
@@ -188,7 +195,7 @@ export const api = {
             request<MessageResponse>('/auth/contact-email/resend-verification', { method: 'POST', token }),
         verifyContactEmail: (code: string, token: string) =>
             request<MessageResponse>('/auth/contact-email/verify', { method: 'POST', body: JSON.stringify({ code }), token }),
-        logout: (token: string) =>
+        logout: (token?: string) =>
             request<void>('/auth/logout', { method: 'POST', token }).catch(e => console.warn('Logout failed', e)),
         changePassword: (oldPassword: string, newPassword: string, token: string) =>
             request<{ access_token: string, role: string }>('/auth/change-password', {

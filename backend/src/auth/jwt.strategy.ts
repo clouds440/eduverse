@@ -7,6 +7,32 @@ import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 
+export const AUTH_COOKIE_NAME = 'eduverse_access_token';
+
+export function extractJwtFromRequest(req: Request): string | null {
+  const bearerToken = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+  if (bearerToken) return bearerToken;
+
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return null;
+
+  const cookies = cookieHeader.split(';');
+  for (const cookie of cookies) {
+    const [rawName, ...rawValue] = cookie.trim().split('=');
+    if (rawName === AUTH_COOKIE_NAME) {
+      const value = rawValue.join('=');
+      if (!value) return null;
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return value;
+      }
+    }
+  }
+
+  return null;
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -14,7 +40,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private prisma: PrismaService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: extractJwtFromRequest,
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET') || '',
       passReqToCallback: true,
@@ -31,7 +57,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     // Check if the session exists and is active
-    const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+    const token = extractJwtFromRequest(req);
     let activeSessionId: string | undefined;
     if (token) {
       const session = await this.prisma.session.findFirst({

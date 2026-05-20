@@ -310,25 +310,23 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             // Prevent fetching if component has unmounted
             if (!mounted) return;
 
-            // Check if token is still valid (not cleared from localStorage)
-            const currentToken = localStorage.getItem('token');
-            if (!currentToken) return;
+            if (!token) return;
 
-            if (currentToken && (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER || user?.role === Role.TEACHER || user?.role === Role.STUDENT)) {
+            if (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER || user?.role === Role.TEACHER || user?.role === Role.STUDENT) {
                 // Fetch Org Data
-                api.org.getOrgData(currentToken)
+                api.org.getOrgData(token)
                     .then((data: Organization) => {
                         if (mounted) dispatch({ type: 'STATS_SET_ORG_DATA', payload: data });
                     })
                     .catch((err) => console.error('Failed to fetch org data:', err));
 
                 // Fetch Mail Stats
-                api.mail.getUnreadCount(currentToken)
+                api.mail.getUnreadCount(token)
                     .then(data => { if (mounted) dispatch({ type: 'STATS_SET_MAIL', payload: data }); })
                     .catch(err => console.error('Failed to fetch mail stats:', err));
 
                 // Fetch Chat Stats
-                api.chat.getUnreadCount(currentToken)
+                api.chat.getUnreadCount(token)
                     .then(data => { if (mounted) dispatch({ type: 'STATS_SET_CHAT', payload: data }); })
                     .catch(err => console.error('Failed to fetch chat stats:', err));
             }
