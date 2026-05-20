@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -70,7 +71,7 @@ export function ChatLayout() {
     const { dispatch } = useGlobal();
     const dispatchRef = useRef(dispatch);
     useEffect(() => { dispatchRef.current = dispatch; }, [dispatch]);
-    const { isDesktop } = useUI();
+    const { isDesktop, mounted } = useUI();
     const { subscribe, joinRoom, leaveRoom, emit } = useSocket({ token, userId: user?.id, enabled: !!token });
     const searchParams = useSearchParams();
     const initialChatId = searchParams.get('id');
@@ -1052,6 +1053,52 @@ export function ChatLayout() {
             }
         }
     }, [mentionSelectedIndex, showMentionDropdown]);
+
+    const renderMentionDropdown = (placement: 'desktop' | 'mobile') => {
+        if (!showMentionDropdown || filteredMembers.length === 0) return null;
+
+        const isMobile = placement === 'mobile';
+
+        return (
+            <div
+                className={[
+                    isMobile
+                        ? 'fixed inset-x-3 mx-auto max-w-md'
+                        : 'absolute bottom-full left-0 mb-2 w-64 max-w-[calc(100vw-2rem)]',
+                    'bg-card border border-border rounded-xl shadow-2xl z-500 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200'
+                ].join(' ')}
+                style={isMobile ? { bottom: `calc(${composerHeight}px + 0.5rem)` } : undefined}
+            >
+                <div className="p-1.5 sm:p-2 border-b border-border">
+                    <p className="text-[10px] sm:text-[11px] font-bold text-muted-foreground tracking-wider px-2">
+                        Group Members
+                    </p>
+                </div>
+                <div
+                    ref={mentionDropdownRef}
+                    className="max-h-56 sm:max-h-60 overflow-y-auto py-1 custom-scrollbar"
+                >
+                    {filteredMembers.map((member, idx) => (
+                        <button
+                            key={member.userId}
+                            type="button"
+                            onPointerDown={(e) => {
+                                e.preventDefault();
+                                handleSelectMember(member);
+                            }}
+                            className={`mention-item w-full flex items-center space-x-2 sm:space-x-3 px-2.5 sm:px-3 py-2 transition-colors ${idx === mentionSelectedIndex ? 'bg-primary/10' : 'hover:bg-muted'}`}
+                        >
+                            <ChatAvatar targetUser={member.user} className="w-7 h-7" isOnline={!!onlineUsers[member.userId]} />
+                            <div className="text-left min-w-0 flex-1">
+                                <p className="text-[12px] sm:text-[13px] font-semibold text-foreground truncate">{member.user?.name}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground capitalize truncate">{member.user?.role?.toLowerCase().replace('_', ' ')}</p>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        );
+    };
 
     const handleSendMessage = useCallback(async (retryMessage?: ChatMessageWithMeta) => {
         const chatId = activeChatId;
@@ -2284,36 +2331,7 @@ export function ChatLayout() {
                                                         className={`w-full bg-transparent px-2 sm:px-3 py-2.5 border-none text-[14px] sm:text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 resize-none max-h-60 leading-relaxed transition-[height] duration-500 ease-out`}
                                                     />
 
-                                                    {/* Mention Dropdown */}
-                                                    {showMentionDropdown && filteredMembers.length > 0 && (
-                                                        <div className="absolute bottom-full left-0 mb-2 w-[min(14rem,calc(100vw-2rem))] sm:w-64 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                                            <div className="p-1.5 sm:p-2 border-b border-border">
-                                                                <p className="text-[10px] sm:text-[11px] font-bold text-muted-foreground tracking-wider px-2">Group Members</p>
-                                                            </div>
-                                                            <div
-                                                                ref={mentionDropdownRef}
-                                                                className="max-h-48 sm:max-h-60 overflow-y-auto py-1 custom-scrollbar"
-                                                            >
-                                                                {filteredMembers.map((member, idx) => (
-                                                                    <button
-                                                                        key={member.userId}
-                                                                        type="button"
-                                                                        onMouseDown={(e) => {
-                                                                            e.preventDefault(); // Prevents textarea from losing focus
-                                                                            handleSelectMember(member);
-                                                                        }}
-                                                                        className={`mention-item w-full flex items-center space-x-2 sm:space-x-3 px-2.5 sm:px-3 py-1.5 sm:py-2 transition-colors ${idx === mentionSelectedIndex ? 'bg-primary/10' : 'hover:bg-muted'}`}
-                                                                    >
-                                                                        <ChatAvatar targetUser={member.user} className="w-6 h-6 sm:w-7 sm:h-7" isOnline={!!onlineUsers[member.userId]} />
-                                                                        <div className="text-left min-w-0">
-                                                                            <p className="text-[12px] sm:text-[13px] font-semibold text-foreground truncate">{member.user?.name}</p>
-                                                                            <p className="text-[10px] sm:text-[11px] text-muted-foreground capitalize">{member.user?.role?.toLowerCase().replace('_', ' ')}</p>
-                                                                        </div>
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                    {isDesktop && renderMentionDropdown('desktop')}
                                                 </div>
                                             </div>
 
@@ -2456,6 +2474,11 @@ export function ChatLayout() {
                     onDownload={handleDownload}
                     onDeleteMessage={handleDeleteMessage}
                 />
+            )}
+
+            {mounted && !isDesktop && createPortal(
+                renderMentionDropdown('mobile'),
+                document.body
             )}
         </div>
     );
