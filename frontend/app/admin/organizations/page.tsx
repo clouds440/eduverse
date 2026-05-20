@@ -302,7 +302,7 @@ export default function OrganizationsPage() {
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
                                 onClick={() => handleSendMail(row)}
-                                className="py-2 px-3 bg-card/5 hover:bg-card/10 text-muted-foreground hover:text-primary rounded-lg transition-all cursor-pointer"
+                                className="py-2 px-3 bg-card/5 border border-primary/20 hover:bg-primary/10 text-muted-foreground hover:text-primary rounded-lg transition-all cursor-pointer"
                                 title="Send Mail"
                             >
                                 <Send className="w-4 h-4" />

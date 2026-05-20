@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
 import { getSiteUrl } from "@/lib/site";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/themeBootstrap";
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -80,10 +82,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="min-h-full">
+    <html lang="en" className="min-h-full" suppressHydrationWarning>
+      <head>
+        <link rel="preload" as="image" href="/assets/eduverse-icon.png" />
+        <link rel="preload" as="image" href="/assets/eduverse.png" />
+      </head>
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased h-screen flex flex-col bg-theme-bg transition-colors duration-500 overflow-hidden`}
       >
+        <Script id="eduverse-theme-bootstrap" strategy="beforeInteractive">
+          {THEME_BOOTSTRAP_SCRIPT}
+        </Script>
         <Providers>
           <div className="fixed inset-0 z-[-1] pointer-events-none overflow-hidden">
             {/* Branded Atmospheric Gradient */}

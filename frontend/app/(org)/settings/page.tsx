@@ -17,6 +17,7 @@ import { ThemeMode } from '@/types';
 import SessionManagement from '@/components/SessionManagement';
 import { Loading } from '@/components/ui/Loading';
 import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
+import { getPrimaryColorError, getSafePrimaryColor, isPrimaryColorAllowed } from '@/lib/themeColor';
 
 export default function SettingsPage() {
     const { token, user } = useAuth();
@@ -82,7 +83,7 @@ export default function SettingsPage() {
                     contactEmail: data.contactEmail || '',
                     phone: data.phone || '',
                     accentColor: {
-                        primary: data.accentColor?.primary || '#4f46e5',
+                        primary: getSafePrimaryColor(data.accentColor?.primary || '#4f46e5'),
                         mode: (data.accentColor?.mode as ThemeMode) || ThemeMode.SYSTEM
                     }
                 });
@@ -109,7 +110,9 @@ export default function SettingsPage() {
     // Update theme immediately when color changes (real-time preview)
     useEffect(() => {
         if (!redirecting) {
-            setPrimaryColor(formData.accentColor.primary);
+            if (isPrimaryColorAllowed(formData.accentColor.primary)) {
+                setPrimaryColor(formData.accentColor.primary);
+            }
         }
     }, [formData.accentColor.primary, setPrimaryColor, redirecting]);
 
@@ -117,7 +120,24 @@ export default function SettingsPage() {
         setPendingLogoFile(file);
     }, []);
 
-    const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; general?: string }>({});
+    const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; accentColor?: string; general?: string }>({});
+
+    const handlePrimaryColorChange = (newPrimary: string) => {
+        const colorError = getPrimaryColorError(newPrimary);
+        if (colorError) {
+            setFormErrors((prev) => ({ ...prev, accentColor: colorError }));
+            return;
+        }
+
+        setFormErrors((prev) => ({ ...prev, accentColor: undefined }));
+        setFormData({
+            ...formData,
+            accentColor: {
+                ...formData.accentColor,
+                primary: getSafePrimaryColor(newPrimary),
+            },
+        });
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -144,6 +164,11 @@ export default function SettingsPage() {
             newErrors.contactEmail = 'Contact email is required';
             hasError = true;
         }
+        const colorError = getPrimaryColorError(formData.accentColor.primary);
+        if (colorError) {
+            newErrors.accentColor = colorError;
+            hasError = true;
+        }
 
         if (hasError) {
             setFormErrors(newErrors);
@@ -156,7 +181,7 @@ export default function SettingsPage() {
             const payload = {
                 ...formData,
                 accentColor: {
-                    primary: formData.accentColor.primary
+                    primary: getSafePrimaryColor(formData.accentColor.primary)
                 }
             };
 
@@ -326,16 +351,16 @@ export default function SettingsPage() {
                                         type="color"
                                         value={formData.accentColor.primary}
                                         onChange={(e) => {
-                                            const newPrimary = e.target.value;
-                                            setFormData({ ...formData, accentColor: { ...formData.accentColor, primary: newPrimary } });
+                                            handlePrimaryColorChange(e.target.value);
                                         }}
-                                        className="w-full h-12 rounded-xl border border-border/50 cursor-pointer"
+                                        className={`w-full h-12 rounded-xl border cursor-pointer ${formErrors.accentColor ? 'border-danger' : 'border-border/50'}`}
                                     />
                                     <p className="text-[10px] text-muted-foreground mt-1 font-semibold tracking-wider leading-none">HEX: {formData.accentColor.primary}</p>
+                                    {formErrors.accentColor && <p className="mt-2 text-xs text-danger font-semibold leading-relaxed">{formErrors.accentColor}</p>}
                                 </div>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2 leading-relaxed font-medium">
-                                Pick accent color.
+                                Pick an accent color with enough contrast on both light and dark backgrounds.
                             </p>
 
                             <div className="mt-4 space-y-2">

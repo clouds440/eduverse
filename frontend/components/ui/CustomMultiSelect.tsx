@@ -46,13 +46,14 @@ function CustomMultiSelectComponent({
     const selectedOptions = useMemo(() => options.filter(opt => valuesSet.has(opt.value)), [options, valuesSet]);
 
     // Filtered options based on search term
-    const filteredOptions = useMemo(() => {
+    const visibleOptions = useMemo(() => {
         if (!searchTerm) return options;
         const lowSearch = searchTerm.toLowerCase();
         return options.filter(opt =>
             opt.label.toLowerCase().includes(lowSearch)
         );
     }, [options, searchTerm]);
+    const visibleOptionsCount = visibleOptions.length;
 
     const updateCoords = useCallback(() => {
         if (containerRef.current) {
@@ -101,12 +102,10 @@ function CustomMultiSelectComponent({
         };
     }, [isOpen, updateCoords]);
 
-    const filteredOptionsCount = filteredOptions.length;
-
     useLayoutEffect(() => {
         if (!isOpen) return;
         updateCoords();
-    }, [filteredOptionsCount, isOpen, searchTerm, updateCoords]);
+    }, [visibleOptionsCount, isOpen, searchTerm, updateCoords]);
 
     // Clear search term when closed
     useEffect(() => {
@@ -231,10 +230,10 @@ function CustomMultiSelectComponent({
                     </div>
 
                     <div className="max-h-56 sm:max-h-64 overflow-y-auto custom-scrollbar">
-                        {filteredOptions.length === 0 ? (
+                        {visibleOptions.length === 0 ? (
                             <div className="px-4 py-3 sm:py-4 text-sm sm:text-base text-muted-foreground text-center">No options found</div>
                         ) : (
-                            filteredOptions.map((option) => {
+                            visibleOptions.map((option) => {
                                 const isSelected = valuesSet.has(option.value);
                                 return (
                                     <button

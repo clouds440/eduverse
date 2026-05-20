@@ -34,7 +34,7 @@ const adminActionConfig: Record<AdminActionVariant, { icon: React.ElementType, c
     reapprove: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Re-approve' },
     resolve: { icon: CheckCircle2, color: 'text-success hover:bg-success/10', defaultTitle: 'Resolve' },
     editMessage: { icon: MessageSquareText, color: 'text-info hover:bg-info/10', defaultTitle: 'Edit Message' },
-    mail: { icon: Send, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Send Mail' },
+    mail: { icon: Send, color: 'text-primary border border-primary/20 hover:bg-primary/10', defaultTitle: 'Send Mail' },
     restore: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Restore' },
     pay: { icon: Send, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Mark as Paid' },
     confirm: { icon: CheckCircle2, color: 'text-success hover:bg-success/10', defaultTitle: 'Confirm Payment' }

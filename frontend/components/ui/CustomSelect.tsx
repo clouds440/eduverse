@@ -46,13 +46,14 @@ function CustomSelectComponent<T extends string = string>({
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const selectedOption = useMemo(() => options.find(opt => opt.value === value), [options, value]);
-    const filteredOptions = useMemo(() => {
+    const visibleOptions = useMemo(() => {
         if (!searchable || !searchTerm) return options;
         const lowSearch = searchTerm.toLowerCase();
         return options.filter(opt =>
             opt.label.toLowerCase().includes(lowSearch)
         );
     }, [options, searchTerm, searchable]);
+    const visibleOptionsCount = visibleOptions.length;
 
     // Clear search term when closed
     useEffect(() => {
@@ -92,12 +93,10 @@ function CustomSelectComponent<T extends string = string>({
         }
     }, [isOpen, updateCoords]);
 
-    const filteredOptionsCount = filteredOptions.length;
-
     useLayoutEffect(() => {
         if (!isOpen) return;
         updateCoords();
-    }, [filteredOptionsCount, isOpen, searchTerm, updateCoords]);
+    }, [visibleOptionsCount, isOpen, searchTerm, updateCoords]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -213,10 +212,10 @@ function CustomSelectComponent<T extends string = string>({
                     )}
 
                     <div className="overflow-y-auto flex-1 custom-scrollbar">
-                        {filteredOptions.length === 0 ? (
+                        {visibleOptions.length === 0 ? (
                             <div className="px-4 py-4 text-sm sm:text-base text-muted-foreground text-center text-balance">{searchable ? `No results found for "${searchTerm}"` : 'No options available'}</div>
                         ) : (
-                            filteredOptions.map((option) => (
+                            visibleOptions.map((option) => (
                                 <button
                                     key={option.value}
                                     type="button"

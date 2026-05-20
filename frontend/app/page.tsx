@@ -1,4 +1,3 @@
-'use client';
 // app/page.tsx — Eduverse Homepage
 import { HeroButtons } from '@/components/HeroButtons';
 import { DashboardMockup } from '@/components/homepage/DashboardMockup';
@@ -49,37 +48,28 @@ export default function HomePage() {
                         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
                             {/* Left content */}
                             <div className="space-y-8 text-center lg:text-left">
-                                <Reveal delay={100}>
-                                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-wider uppercase">
+                                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-wider uppercase">
                                         <Layers className="w-3.5 h-3.5" />
                                         <span>Education Operating System</span>
-                                    </div>
-                                </Reveal>
+                                </div>
 
-                                <Reveal delay={200}>
-                                    <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-black tracking-tight text-foreground leading-[1.05]">
+                                <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-black tracking-tight text-foreground leading-[1.05]">
                                         The Infrastructure for{' '}
                                         <span className="bg-linear-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent">
                                             Modern Institutions
                                         </span>
-                                    </h1>
-                                </Reveal>
+                                </h1>
 
-                                <Reveal delay={300}>
-                                    <p className="text-lg md:text-xl text-muted-foreground font-medium max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                                <p className="text-lg md:text-xl text-muted-foreground font-medium max-w-xl mx-auto lg:mx-0 leading-relaxed">
                                         Centralize academic operations, real-time communication, and institutional intelligence
                                         across every role in your organization. From enrollment to transcripts — one platform, zero silos.
-                                    </p>
-                                </Reveal>
+                                </p>
 
-                                <Reveal delay={400}>
-                                    <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-2">
+                                <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-2">
                                         <HeroButtons />
-                                    </div>
-                                </Reveal>
+                                </div>
 
-                                <Reveal delay={500}>
-                                    <div className="flex flex-wrap justify-center lg:justify-start items-center gap-6 pt-2">
+                                <div className="flex flex-wrap justify-center lg:justify-start items-center gap-6 pt-2">
                                         <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
                                             <ShieldCheck className="w-4 h-4 text-success" />
                                             <span>Enterprise Security</span>
@@ -94,15 +84,12 @@ export default function HomePage() {
                                             <Users className="w-4 h-4 text-info" />
                                             <span>6-Tier RBAC</span>
                                         </div>
-                                    </div>
-                                </Reveal>
+                                </div>
                             </div>
 
                             {/* Right — Dashboard Mockup */}
                             <div className="relative hidden lg:block py-10 px-2">
-                                <Reveal delay={600}>
-                                    <DashboardMockup />
-                                </Reveal>
+                                <DashboardMockup />
                             </div>
                         </div>
                     </div>

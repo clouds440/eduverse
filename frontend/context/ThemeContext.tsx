@@ -3,6 +3,19 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useGlobal } from './GlobalContext';
 import { ThemeMode } from '@/types';
+import {
+    DEFAULT_PRIMARY,
+    DEFAULT_SECONDARY,
+    THEME_PRIMARY_STORAGE_KEY,
+    adjustBrightness,
+    getContrastColor,
+    getDerivedSecondaryColor,
+    getSafePrimaryColor,
+    hexToRgb,
+    isBlueShade,
+    isColorTooBright,
+    isPrimaryColorAllowed,
+} from '@/lib/themeColor';
 
 interface ThemeContextType {
     primaryColor: string;
@@ -14,14 +27,14 @@ interface ThemeContextType {
     refreshTheme: () => void;
 }
 
-const DEFAULT_PRIMARY = '#0052FF'; // Crypto Blue - From theme
-const DEFAULT_SECONDARY = '#5B616E'; // Cool Slate
-
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const { state } = useGlobal();
-    const [primaryColor, setPrimaryColorState] = useState(DEFAULT_PRIMARY);
+    const [primaryColor, setPrimaryColorState] = useState(() => {
+        if (typeof window === 'undefined') return DEFAULT_PRIMARY;
+        return getSafePrimaryColor(window.localStorage.getItem(THEME_PRIMARY_STORAGE_KEY));
+    });
     const [secondaryColor, setSecondaryColor] = useState(DEFAULT_SECONDARY);
     const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
         if (typeof window !== 'undefined') {
@@ -29,19 +42,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             if (saved === ThemeMode.DARK || saved === ThemeMode.LIGHT || saved === ThemeMode.SYSTEM) {
                 return saved as ThemeMode;
             }
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            return prefersDark ? ThemeMode.DARK : ThemeMode.LIGHT;
         }
-        // Default to system preference if no saved value exists
-        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        return prefersDark ? ThemeMode.DARK : ThemeMode.LIGHT;
+        return ThemeMode.SYSTEM;
     });
 
     const applyTheme = useCallback((primary: string, secondary: string, mode?: ThemeMode) => {
         const root = document.documentElement;
+        const safePrimary = getSafePrimaryColor(primary);
+        const safeSecondary = secondary || getDerivedSecondaryColor(safePrimary, mode || ThemeMode.LIGHT);
 
         // Base Colors
-        root.style.setProperty('--primary', primary);
+        root.style.setProperty('--primary', safePrimary);
         root.style.setProperty('--primary-hover', '#003ECB'); // Primary Hover
-        root.style.setProperty('--secondary', secondary);
+        root.style.setProperty('--secondary', safeSecondary);
         root.style.setProperty('--neutral', '#8A919E'); // Neutral
         root.style.setProperty('--success', '#019256'); // Success
         root.style.setProperty('--warning', '#d89436'); // Warning
@@ -49,14 +64,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         root.style.setProperty('--info', '#1e4dc5'); // Info
 
         // RGB for opacity support (used for shadow)
-        const primaryRgb = hexToRgb(primary);
+        const primaryRgb = hexToRgb(safePrimary);
 
         // Text Contrast (Automatic black/white text based on background)
-        const primaryText = getContrastColor(primary);
-        const secondaryText = getContrastColor(secondary);
+        const primaryText = getContrastColor(safePrimary);
+        const secondaryText = getContrastColor(safeSecondary);
 
         // Chat tick color (white if primary is blue shade, else blue)
-        const chatTickColor = isBlueShade(primary) ? '#ffffff' : '#0952C8';
+        const chatTickColor = isBlueShade(safePrimary) ? '#ffffff' : '#0952C8';
 
         // Global foreground (text) color depends on mode
         // Global foreground (text) color depends on mode
@@ -68,7 +83,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 
         // Chat bubble background (dimmer version of primary if too bright)
-        const chatBubbleBg = isColorTooBright(primary) ? adjustBrightness(primary, isDark ? -60 : -25) : primary;
+        const chatBubbleBg = isColorTooBright(safePrimary) ? adjustBrightness(safePrimary, isDark ? -60 : -25) : safePrimary;
 
         // 1. Core Backgrounds & Foregrounds - Crypto Blue Design System
         if (isDark) {
@@ -128,17 +143,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const setThemeColors = useCallback((primary: string, secondary: string) => {
-        setPrimaryColorState(primary);
+        const safePrimary = getSafePrimaryColor(primary);
+        setPrimaryColorState(safePrimary);
         setSecondaryColor(secondary);
     }, []);
 
     // Save primary only; secondary is computed
     const setPrimaryColor = useCallback((primary: string) => {
         const mode = themeMode;
+        const safePrimary = getSafePrimaryColor(primary);
         // Compute secondary based on mode
-        const computedSecondary = mode === ThemeMode.DARK ? adjustBrightness(primary, -85) : adjustBrightness(primary, 90);
-        setPrimaryColorState(primary);
+        const computedSecondary = getDerivedSecondaryColor(safePrimary, mode);
+        setPrimaryColorState(safePrimary);
         setSecondaryColor(computedSecondary);
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(THEME_PRIMARY_STORAGE_KEY, safePrimary);
+        }
     }, [themeMode]);
 
     // Preview-only: set theme mode locally (no DB persistence). Settings form will persist on save.
@@ -148,7 +168,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('themeMode', mode);
         }
         // recompute secondary from current primary
-        const computedSecondary = mode === ThemeMode.DARK ? adjustBrightness(primaryColor, -85) : adjustBrightness(primaryColor, 90);
+        const computedSecondary = getDerivedSecondaryColor(primaryColor, mode);
         setSecondaryColor(computedSecondary);
     }, [primaryColor]);
 
@@ -156,11 +176,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         // Read org data from GlobalContext
         const orgData = state.stats.orgData;
         if (orgData?.accentColor?.primary) {
-            const primary = orgData.accentColor.primary;
+            const primary = getSafePrimaryColor(orgData.accentColor.primary);
             const mode = themeMode ?? ThemeMode.SYSTEM;
-            const secondary = orgData.accentColor.secondary || (mode === ThemeMode.DARK ? adjustBrightness(primary, -85) : adjustBrightness(primary, 90));
+            const secondary = orgData.accentColor.secondary || getDerivedSecondaryColor(primary, mode);
             setPrimaryColorState(primary);
             setSecondaryColor(secondary);
+            if (typeof window !== 'undefined' && isPrimaryColorAllowed(primary)) {
+                window.localStorage.setItem(THEME_PRIMARY_STORAGE_KEY, primary);
+            }
         } else {
             // Fallback to defaults if no org data or no primary color
             setThemeColors(DEFAULT_PRIMARY, DEFAULT_SECONDARY);
@@ -231,66 +254,6 @@ export function useTheme() {
         throw new Error('useTheme must be used within a ThemeProvider');
     }
     return context;
-}
-
-// --- Utilities ---
-
-function hexToRgb(hex: string) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-    } : null;
-}
-
-function getBrightness(hex: string) {
-    const rgb = hexToRgb(hex);
-    if (!rgb) return 0;
-    return (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
-}
-
-function getContrastColor(hex: string) {
-    const yiq = getBrightness(hex);
-    return (yiq >= 128) ? '#111827' : '#ffffff';
-}
-
-function isColorTooBright(hex: string, threshold: number = 100): boolean {
-    return getBrightness(hex) > threshold;
-}
-
-function isBlueShade(hex: string): boolean {
-    const rgb = hexToRgb(hex);
-    if (!rgb) return false;
-    // Check if blue is the dominant color
-    return rgb.b > rgb.r && rgb.b > rgb.g;
-}
-
-// Utility to darken/lighten hex colors
-function adjustBrightness(hex: string, percent: number) {
-    if (!hex || hex[0] !== '#') return hex;
-
-    // Normalize 3-digit hex to 6-digit
-    let processedHex = hex.slice(1);
-    if (processedHex.length === 3) {
-        processedHex = processedHex.split('').map(c => c + c).join('');
-    }
-
-    let r = parseInt(processedHex.slice(0, 2), 16);
-    let g = parseInt(processedHex.slice(2, 4), 16);
-    let b = parseInt(processedHex.slice(4, 6), 16);
-
-    const amount = Math.floor(255 * (percent / 100));
-
-    r = Math.min(255, Math.max(0, r + amount));
-    g = Math.min(255, Math.max(0, g + amount));
-    b = Math.min(255, Math.max(0, b + amount));
-
-    const rr = r.toString(16).padStart(2, '0');
-    const gg = g.toString(16).padStart(2, '0');
-    const bb = b.toString(16).padStart(2, '0');
-
-    return `#${rr}${gg}${bb}`;
 }
 
 
