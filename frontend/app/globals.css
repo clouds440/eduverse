@@ -93,6 +93,15 @@ body {
   touch-action: manipulation;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-blob,
+  .animate-pulse,
+  .animate-pulse-orange,
+  .animate-float {
+    animation: none !important;
+  }
+}
+
 html.pwa-standalone,
 html.pwa-standalone body {
   height: var(--app-height);

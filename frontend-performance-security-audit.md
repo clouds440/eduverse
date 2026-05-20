@@ -24,19 +24,22 @@ Applied:
 10. `PERF-07`: removed unnecessary `unoptimized` from saved avatar/logo images; kept it only where blob/data previews require it.
 11. `PERF-08`: cleaned up the read-only banner `ResizeObserver`.
 12. `PERF-09`: memoized the SWR fetcher and config object.
+13. `SEC-08`: added low-risk baseline browser security headers (`nosniff`, strict referrer policy, frame denial, and narrow permissions policy). Full CSP remains deferred until deployment origins are confirmed.
+14. `SEC-10`: hardened the client device ID by preferring `crypto.randomUUID()`, falling back to `crypto.getRandomValues()`, validating stored IDs before reuse, URL-encoding the cookie value, and adding `Secure` when running on HTTPS.
+15. `PERF-10`: added `prefers-reduced-motion` handling for global decorative animation classes.
 
 Skipped or partially skipped:
 
 1. `SEC-01` was skipped because moving JWT storage from `localStorage` to `HttpOnly` cookies requires backend/session endpoint changes and would break login/API auth if done frontend-only.
-2. `SEC-04` CSP/header hardening was skipped because the current deployment origins, socket origins, iframe/video policy, and image hosts need confirmation; an incorrect CSP can silently break chat, uploads, videos, and remote images.
+2. `SEC-04`/full CSP hardening remains skipped because the current deployment origins, socket origins, iframe/video policy, and image hosts need confirmation; an incorrect CSP can silently break chat, uploads, videos, and remote images.
 3. `SEC-06` was only partially addressed for chat/avatar SVG rejection. A full upload policy was skipped because backend upload limits and accepted file contracts are not visible from the frontend and strict frontend-only limits could break existing assessment/material/mail workflows.
 4. `SEC-07` backend room authorization was skipped because it must be enforced and tested in the backend socket gateway; frontend changes cannot prove room access control.
-5. `SEC-09` was skipped because removing chat/draft persistence changes chat resume behavior and needs a product decision or IndexedDB/sessionStorage replacement plan.
-6. `SEC-10` was skipped because the client device ID appears to be display/session metadata; hardening it safely requires confirming whether backend session management trusts it.
-7. `PERF-02` was skipped with `SEC-09` because it shares the same chat persistence behavior.
+5. `SEC-09`/`PERF-02` no longer need implementation in the current tree because `frontend/lib/chatStore.ts` now keeps message/composer state in memory only and `saveToStorage()` is a no-op.
+6. Server-trusted device/session hardening remains skipped for `SEC-10`; the frontend now only hardens the soft client-generated metadata.
+7. `PERF-02` deeper IndexedDB/sessionStorage redesign remains skipped because the current memory-only chat session avoids synchronous large `localStorage` writes.
 8. `PERF-04` was skipped because replacing eager `limit: 1000` fetches with remote search changes modal/form UX and requires backend search/pagination contracts for each selector.
 9. `PERF-08` scroll throttling was skipped because chat scrolling/read receipts are delicate; the observer leak was fixed, but scroll behavior should be profiled before changing read-state timing.
-10. `PERF-10` was skipped because global background visuals are design-facing and should be changed with visual QA.
+10. `PERF-10` full visual redesign remains skipped because global background visuals are design-facing and should be changed with visual QA; reduced-motion handling was implemented as a low-risk accessibility/performance improvement.
 
 Verification after implementation:
 
