@@ -57,6 +57,7 @@ function CustomSelectComponent<T extends string = string>({
 
     // Clear search term when closed
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Preserve dropdown search reset behavior; moving this into close handlers previously caused runtime regressions.
         if (!isOpen) setSearchTerm("");
     }, [isOpen]);
 

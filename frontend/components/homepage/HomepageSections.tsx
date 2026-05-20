@@ -5,7 +5,7 @@ import { PLATFORM_NAME } from '@/lib/constants';
 import {
     Users, GraduationCap, BookOpen, CalendarCheck, BarChart3, MessageSquare,
     ShieldCheck, Zap, Globe, ArrowRight, Lock, Server, FileText,
-    Megaphone, ClipboardList, RefreshCw, Layers, Network,
+    ClipboardList, RefreshCw, Layers, Network,
     Fingerprint, Eye, Activity, Database
 } from 'lucide-react';
 

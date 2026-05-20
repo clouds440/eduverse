@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
-import { Role, CourseMaterial } from '@/types';
-import { FileText, Download, Trash2, Plus, Upload, X, FileImage, FileCode, Archive, Edit, Eye, PlayCircle, Globe } from 'lucide-react';
+import { ApiError, Role, CourseMaterial } from '@/types';
+import { FileText, Download, Trash2, Plus, Upload, X, FileImage, FileCode, Archive, Edit, Eye, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Loading } from '@/components/ui/Loading';
 import { Modal } from '@/components/ui/Modal';
@@ -48,7 +48,7 @@ interface CourseMaterialsProps {
   isTeacherAssigned?: boolean;
 }
 
-export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigned = false }: CourseMaterialsProps) {
+export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = false }: CourseMaterialsProps) {
   const { token } = useAuth();
   const { dispatch } = useGlobal();
   const dispatchRef = useRef(dispatch);
@@ -66,9 +66,11 @@ export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigne
     try {
       const data = await api.courseMaterials.getMaterials(sectionId, token);
       setMaterials(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch materials:', error);
-      const message = error?.response?.data?.message || error?.message || 'Failed to load materials';
+      const apiError = error as ApiError;
+      const rawMessage = apiError.response?.data?.message || apiError.message || 'Failed to load materials';
+      const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
       dispatchRef.current({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
     } finally {
       setIsLoading(false);
@@ -234,6 +236,7 @@ export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigne
                           <div className="w-full aspect-video rounded-lg overflow-hidden border border-border shadow-sm bg-black">
                             <iframe
                               src={getVideoEmbedUrl(link)}
+                              title="Embedded video"
                               className="w-full h-full"
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
@@ -334,6 +337,7 @@ export default memo(function CourseMaterials({ sectionId, role, isTeacherAssigne
                           <iframe
                             src={getVideoEmbedUrl(link)}
                             className="w-full h-full"
+                            title="Embedded video"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
                           ></iframe>

@@ -7,7 +7,7 @@ import { Users, Calendar, GraduationCap, AlertCircle, BookOpen } from 'lucide-re
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
-import { Role, AcademicCycle, Student, Section } from '@/types';
+import { ApiError, Role, AcademicCycle, Student, Section } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
@@ -72,14 +72,15 @@ export default function CreateCohortPage() {
         try {
             if (!token) return;
 
-            await api.cohorts.createCohort(formData as any, token);
+            await api.cohorts.createCohort(formData, token);
             mutate((key) => Array.isArray(key) && key[0] === 'cohorts');
 
             window.dispatchEvent(new Event('stats-updated'));
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort created successfully', type: 'success' } });
             router.push('/cohorts');
-        } catch (error: any) {
-            const message = error?.response?.data?.message || error?.message || 'Failed to create cohort';
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            const message = apiError.response?.data?.message || apiError.message || 'Failed to create cohort';
             const newErrors: typeof formErrors = {};
 
             if (Array.isArray(message)) {

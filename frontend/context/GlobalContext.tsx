@@ -86,7 +86,7 @@ export interface GlobalState {
 
 // --- Actions ---
 
-type Action =
+export type GlobalAction =
     | { type: 'AUTH_SET_SESSION'; payload: { user: JwtPayload; token: string } }
     | { type: 'AUTH_LOGOUT' }
     | { type: 'AUTH_UPDATE_USER'; payload: Partial<JwtPayload> }
@@ -143,7 +143,7 @@ const initialState: GlobalState = {
 
 // --- Reducer ---
 
-function globalReducer(state: GlobalState, action: Action): GlobalState {
+function globalReducer(state: GlobalState, action: GlobalAction): GlobalState {
     switch (action.type) {
         case 'AUTH_SET_SESSION':
             return {
@@ -234,7 +234,7 @@ function globalReducer(state: GlobalState, action: Action): GlobalState {
 
 interface GlobalContextType {
     state: GlobalState;
-    dispatch: React.Dispatch<Action>;
+    dispatch: React.Dispatch<GlobalAction>;
 }
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);

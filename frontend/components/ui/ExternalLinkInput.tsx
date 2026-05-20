@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Label } from '@/components/ui/Label';
 import { Input } from '@/components/ui/Input';
 import { Toggle } from '@/components/ui/Toggle';
 import { PlayCircle, X, Youtube, Globe } from 'lucide-react';
+import Image from 'next/image';
 
 interface ExternalLinkInputProps {
     value: string;
@@ -15,6 +15,21 @@ interface ExternalLinkInputProps {
     error?: string;
 }
 
+const extractThumbnail = (url: string): string | null => {
+    if (!url) return null;
+
+    if (url.includes('youtube.com/watch?v=')) {
+        const videoId = url.split('v=')[1]?.split('&')[0];
+        return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
+    }
+    if (url.includes('youtu.be/')) {
+        const videoId = url.split('youtu.be/')[1]?.split('?')[0];
+        return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
+    }
+
+    return null;
+};
+
 export function ExternalLinkInput({
     value,
     onChange,
@@ -23,40 +38,7 @@ export function ExternalLinkInput({
     disabled = false,
     error
 }: ExternalLinkInputProps) {
-    const [thumbnail, setThumbnail] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (isVideo && value) {
-            const thumb = extractThumbnail(value);
-            setThumbnail(thumb);
-        } else {
-            setThumbnail(null);
-        }
-    }, [value, isVideo]);
-
-    const extractThumbnail = (url: string): string | null => {
-        if (!url) return null;
-
-        // YouTube
-        if (url.includes('youtube.com/watch?v=')) {
-            const videoId = url.split('v=')[1]?.split('&')[0];
-            return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
-        }
-        if (url.includes('youtu.be/')) {
-            const videoId = url.split('youtu.be/')[1]?.split('?')[0];
-            return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
-        }
-
-        // Vimeo (requires API, but we can try a basic approach)
-        if (url.includes('vimeo.com/')) {
-            const videoId = url.split('vimeo.com/')[1]?.split('?')[0];
-            // Vimeo thumbnails require their API, so we'll return null for now
-            // Could be enhanced with oEmbed API later
-            return null;
-        }
-
-        return null;
-    };
+    const thumbnail = isVideo ? extractThumbnail(value) : null;
 
     const getVideoPlatform = (url: string): string => {
         if (url.includes('youtube') || url.includes('youtu.be')) return 'YouTube';
@@ -66,7 +48,6 @@ export function ExternalLinkInput({
 
     const handleClear = () => {
         onChange('');
-        setThumbnail(null);
     };
 
     return (
@@ -112,10 +93,13 @@ export function ExternalLinkInput({
             {isVideo && thumbnail && (
                 <div className="relative group">
                     <div className="relative rounded-lg overflow-hidden border border-border shadow-sm">
-                        <img
+                        <Image
                             src={thumbnail}
                             alt="Video thumbnail"
-                            className="w-full h-72 object-cover"
+                            width={480}
+                            height={270}
+                            objectFit="cover"
+                            className="w-full h-auto group-hover:scale-105 transition-transform"
                         />
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <PlayCircle className="w-12 h-12 text-white" />

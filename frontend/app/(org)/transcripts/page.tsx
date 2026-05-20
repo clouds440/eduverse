@@ -3,21 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { AcademicCycle, Student, Transcript, Role, ApiError } from '@/types';
+import { AcademicCycle, Student, Transcript, Role } from '@/types';
 import useSWR from 'swr';
 import { Loading } from '@/components/ui/Loading';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { GraduationCap, Printer, Search, User } from 'lucide-react';
+import { GraduationCap, Printer, Search } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useGlobal } from '@/context/GlobalContext';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { BrandIcon } from '@/components/ui/Brand';
-import { Card } from '@/components/ui/Card';
 
 export default function TranscriptsPage() {
     const { token, user } = useAuth();
-    const { dispatch } = useGlobal();
 
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [selectedCycleId, setSelectedCycleId] = useState<string>('');

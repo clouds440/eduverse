@@ -1,6 +1,6 @@
 'use client';
 import { Reveal } from '@/components/ui/Reveal';
-import { Target, Eye, Heart, Shield, Users, Zap, Globe } from 'lucide-react';
+import { Target, Eye, Heart, Shield, Globe } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 export default function AboutPage() {

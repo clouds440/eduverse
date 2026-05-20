@@ -15,6 +15,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
+import type { SVGProps } from 'react';
 
 // Color palette for charts
 export const COLORS = {
@@ -86,7 +87,7 @@ export function InsightLineChart({ data, height = 300, color = COLORS.primary, t
 
 // Bar Chart Component
 interface BarChartProps {
-  data: Array<{ [key: string]: any }>;
+  data: Array<Record<string, string | number | null | undefined>>;
   dataKey: string;
   nameKey: string;
   height?: number;
@@ -136,7 +137,7 @@ export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, c
             fill={color}
             radius={[4, 4, 0, 0]}
             isAnimationActive={false}
-            {...(disableHover ? { activeShape: (props: any) => <rect {...props} /> } as any : {})}
+            {...(disableHover ? { activeShape: (props: SVGProps<SVGRectElement>) => <rect {...props} /> } : {})}
           />
         </BarChart>
       </ResponsiveContainer>

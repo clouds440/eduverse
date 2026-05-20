@@ -23,14 +23,13 @@ import { Chat, ChatMessage, ChatParticipant, ChatType, ChatMessageType, Paginate
 import { formatDistanceToNow } from 'date-fns';
 import {
     Search, Paperclip, MessageSquarePlus, MessageSquareDashed, SendHorizonal as Send, MoreVertical, X, Loader2,
-    UserMinus, Trash2, Info, SlidersHorizontal, ChevronLeft, Check, CheckCheck, ArrowDown, Pencil, Reply, ArrowUp, RotateCcw,
+    UserMinus, Trash2, Info, SlidersHorizontal, ChevronLeft, Check, CheckCheck, ArrowDown, ArrowUp, RotateCcw,
     Lock as LockIcon, FileText, Archive, FileSpreadsheet, Presentation
 } from 'lucide-react';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
-import { Toggle } from '../ui/Toggle';
 import { NewChatModal } from './NewChatModal';
 import { ChatSettingsModal } from './ChatSettingsModal';
 import { MessageContextMenu } from './MessageActionsDropdown';
@@ -62,7 +61,6 @@ import {
     extractFilesFromClipboard,
     buildOptimisticAttachmentMarkdown,
     filterValidFiles,
-    escapeFileName,
     buildAttachmentMarkdown,
     getFileTypeInfo
 } from './chatLayoutHelpers';
@@ -1414,7 +1412,7 @@ export function ChatLayout() {
         const isDeleted = !!msg.deletedAt;
         const isSendingMessage = msg.clientStatus === 'sending';
         const isFailedMessage = msg.clientStatus === 'failed';
-        const isMineRepliedTo = msg.replyTo?.senderId === user?.id;
+        // const isMineRepliedTo = msg.replyTo?.senderId === user?.id;
 
         return (
             <div key={msg.id}>

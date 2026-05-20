@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Users, Mail, MessageSquare, Calendar, UserPlus, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
-import { PlatformAdmin, PaginatedResponse, Role } from '@/types';
+import { ApiError, PlatformAdmin, PaginatedResponse, Role } from '@/types';
 import { TableActions } from '@/components/ui/TableActions';
 import { ModalForm } from '@/components/ui/ModalForm';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -122,8 +122,9 @@ export default function PlatformAdminsPage() {
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Platform Admin updated successfully', type: 'success' } });
             }
             setIsAdminModalOpen(false);
-        } catch (err: any) {
-            const message = err?.response?.data?.message || err?.message || 'Failed to save admin';
+        } catch (err: unknown) {
+            const apiError = err as ApiError;
+            const message = apiError.response?.data?.message || apiError.message || 'Failed to save admin';
             const newErrors: typeof formErrors = {};
 
             if (Array.isArray(message)) {

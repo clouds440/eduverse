@@ -46,7 +46,7 @@ export default function TransactionsPage() {
 
     const sortedData = React.useMemo(() => {
         if (!transactions) return [];
-        let result = [...transactions];
+        const result = [...transactions];
         result.sort((a: Transaction, b: Transaction) => {
             const valA = a[sortBy as keyof Transaction];
             const valB = b[sortBy as keyof Transaction];

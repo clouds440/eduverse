@@ -6,7 +6,7 @@ import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { User, Mail, Lock, BookOpen, DollarSign, Phone, Plus, ShieldCheck, UserX, CalendarClock, MapPin, UserLock } from 'lucide-react';
+import { User, Mail, Lock, BookOpen, Phone, Plus, ShieldCheck, UserX, CalendarClock, MapPin, UserLock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
 import { Section, Teacher, TeacherStatus, Role, CreateTeacherRequest, UpdateTeacherRequest } from '@/types';

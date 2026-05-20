@@ -20,15 +20,13 @@ import { MarkdownEditor } from '@/components/ui/MarkdownEditor';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { PLATFORM_NAME } from '@/lib/constants';
-import { MailCategory, Role } from '@/types';
+import { ApiError, MailCategory, Role } from '@/types';
 import { Reveal } from '@/components/ui/Reveal';
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return 'Failed to send message. Please try again.';
+function getErrorMessage(error: unknown, fallback = 'Failed to send message. Please try again.') {
+  const apiError = error as ApiError;
+  const message = apiError.response?.data?.message || apiError.message || fallback;
+  return Array.isArray(message) ? message.join(', ') : message;
 }
 
 export default function ContactPage() {
@@ -76,8 +74,8 @@ export default function ContactPage() {
       setIsSuccess(true);
       setSubject('');
       setMessage('');
-    } catch (err: any) {
-      const message = err?.response?.data?.message || err?.message || 'Failed to send message. Please try again.';
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
       const newErrors: typeof formErrors = {};
 
       if (Array.isArray(message)) {

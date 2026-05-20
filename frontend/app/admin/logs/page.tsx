@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { Building2, Clipboard, Clock, Filter, Monitor, ScrollText, ShieldAlert, UserRound } from 'lucide-react';
-import { api } from '@/lib/api';
 import { AuditLogItem, PaginatedResponse, Role } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';

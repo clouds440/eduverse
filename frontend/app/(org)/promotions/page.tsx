@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type Dispatch } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { AcademicCycle, Cohort, Role, ApiError } from '@/types';
@@ -9,7 +9,7 @@ import { Loading } from '@/components/ui/Loading';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { ArrowRight, Copy, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useGlobal } from '@/context/GlobalContext';
+import { useGlobal, type GlobalAction } from '@/context/GlobalContext';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Toggle } from '@/components/ui/Toggle';
 
@@ -75,7 +75,7 @@ export default function PromotionsPage() {
     );
 }
 
-function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[], token: string, dispatch: any }) {
+function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[], token: string, dispatch: Dispatch<GlobalAction> }) {
     const [fromCycleId, setFromCycleId] = useState('');
     const [toCycleId, setToCycleId] = useState('');
     const [options, setOptions] = useState({ copySchedules: true, copyAssessments: false, copyMaterials: false });
@@ -162,7 +162,7 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[],
     );
 }
 
-function PromotionView({ cycles, cohorts, token, dispatch }: { cycles: AcademicCycle[], cohorts: Cohort[], token: string, dispatch: any }) {
+function PromotionView({ cycles, cohorts, token, dispatch }: { cycles: AcademicCycle[], cohorts: Cohort[], token: string, dispatch: Dispatch<GlobalAction> }) {
     const [originCohortId, setOriginCohortId] = useState('');
     const [targetCycleId, setTargetCycleId] = useState('');
     const [targetCohortId, setTargetCohortId] = useState('');

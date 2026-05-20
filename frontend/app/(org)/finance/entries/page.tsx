@@ -11,7 +11,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { TableActions } from '@/components/ui/TableActions';
 import { FinanceStatusBadge } from '@/components/finance/FinanceStatusBadge';
-import { CheckCircle, AlertCircle, ArrowUpCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { ClaimPaidModal } from './ClaimPaidModal';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
 
@@ -141,7 +141,7 @@ export default function EntriesPage() {
     ];
 
     const sortedAndFilteredEntries = useMemo(() => {
-        let result = [...filteredEntries];
+        const result = [...filteredEntries];
         result.sort((a: FinancialEntry, b: FinancialEntry) => {
             const valA = a[sortBy as keyof FinancialEntry];
             const valB = b[sortBy as keyof FinancialEntry];

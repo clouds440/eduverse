@@ -8,7 +8,7 @@ import { Toggle } from '@/components/ui/Toggle';
 import { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
-import { Role } from '@/types';
+import { ApiError, Role } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
@@ -70,14 +70,15 @@ export default function CreateAcademicCyclePage() {
         try {
             if (!token) return;
 
-            await api.academicCycles.createCycle(formData as any, token);
+            await api.academicCycles.createCycle(formData, token);
             mutate((key) => Array.isArray(key) && key[0] === 'academicCycles');
 
             window.dispatchEvent(new Event('stats-updated'));
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Academic Cycle created successfully', type: 'success' } });
             router.push('/academic-cycles');
-        } catch (error: any) {
-            const message = error?.response?.data?.message || error?.message || 'Failed to create academic cycle';
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            const message = apiError.response?.data?.message || apiError.message || 'Failed to create academic cycle';
             const newErrors: typeof formErrors = {};
 
             if (Array.isArray(message)) {
@@ -120,7 +121,7 @@ export default function CreateAcademicCyclePage() {
                         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-all duration-700" />
                         <h3 className="text-lg font-black tracking-tight mb-4 relative z-10">Academic Period</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed relative z-10 mb-6">
-                            Academic cycles represent time-bound periods like semesters, trimesters, or full academic years. They organize your institution's academic timeline.
+                            Academic cycles represent time-bound periods like semesters, trimesters, or full academic years. They organize your institution&apos;s academic timeline.
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">

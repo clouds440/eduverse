@@ -1,29 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { Cohort, Student, Section, Role } from '@/types';
-import { useParams, useRouter } from 'next/navigation';
+import { Cohort, Student, Section } from '@/types';
+import { useParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { Loading } from '@/components/ui/Loading';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { Button } from '@/components/ui/Button';
-import { ChevronLeft, Users, BookOpen, GraduationCap } from 'lucide-react';
-import { useGlobal } from '@/context/GlobalContext';
+import { Users, BookOpen, GraduationCap } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/Brand';
 import { Badge } from '@/components/ui/Badge';
 
 export default function CohortDetailPage() {
-    const { token, user } = useAuth();
+    const { token } = useAuth();
     const { id } = useParams() as { id: string };
-    const router = useRouter();
-    const { dispatch } = useGlobal();
 
     const cohortKey = token ? ['cohort', id] as const : null;
     const { data: cohort, isLoading, error } = useSWR<Cohort>(cohortKey, async () => {
-        if (!token) return null as any;
+        if (!token) throw new Error('Authentication required');
         return api.cohorts.getCohort(id, token);
     });
 

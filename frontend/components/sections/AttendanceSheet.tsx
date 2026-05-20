@@ -20,6 +20,8 @@ interface AttendanceSheetProps {
     rangeData?: RangeAttendanceResponse;
 }
 
+type AttendanceRangeRecord = RangeAttendanceResponse['students'][number]['records'][number];
+
 export default function AttendanceSheet({
     students: initialStudents,
     date,
@@ -242,7 +244,7 @@ export default function AttendanceSheet({
     
     const monthlyStudentsAnalytics = useMemo(() => {
         const analytics = new Map<string, {
-            recordsBySessionId: Map<string, any>;
+            recordsBySessionId: Map<string, AttendanceRangeRecord>;
             officialTotal: number;
             present: number;
             absent: number;
@@ -254,7 +256,7 @@ export default function AttendanceSheet({
         }>();
 
         displayRangeStudents.forEach((student) => {
-            const recordsBySessionId = new Map<string, any>();
+            const recordsBySessionId = new Map<string, AttendanceRangeRecord>();
             let officialTotal = 0;
             let present = 0;
             let absent = 0;
@@ -384,7 +386,7 @@ export default function AttendanceSheet({
                         <tbody className="divide-y divide-border/60">
                             {displayRangeStudents.map((student, sIdx) => {
                                 const stats = monthlyStudentsAnalytics.get(student.studentId) || {
-                                    recordsBySessionId: new Map<string, any>(),
+                                    recordsBySessionId: new Map<string, AttendanceRangeRecord>(),
                                     officialTotal: 0,
                                     present: 0,
                                     absent: 0,

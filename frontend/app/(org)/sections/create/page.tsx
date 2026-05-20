@@ -7,7 +7,7 @@ import { Calendar, MapPin, Hash, AlertCircle, LibraryBig, Network, Layers } from
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
-import { Course, Role, PaginatedResponse, AcademicCycle, Cohort } from '@/types';
+import { ApiError, Course, Role, PaginatedResponse, AcademicCycle, Cohort } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
@@ -34,10 +34,10 @@ export default function CreateSectionPage() {
     const courses = coursesData?.data || [];
 
     const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
-    const { data: cyclesData } = useSWR<{ data: any[] }>(cyclesKey);
+    const { data: cyclesData } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
 
     const cohortsKey = token ? ['cohorts', { limit: 500 }] as const : null;
-    const { data: cohortsData } = useSWR<{ data: any[] }>(cohortsKey);
+    const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
 
     useEffect(() => {
         if (!user) return;
@@ -75,14 +75,15 @@ export default function CreateSectionPage() {
         try {
             if (!token) return;
 
-            await api.org.createSection(formData as any, token);
+            await api.org.createSection(formData, token);
             mutate((key) => Array.isArray(key) && key[0] === 'sections');
 
             window.dispatchEvent(new Event('stats-updated'));
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Section created successfully', type: 'success' } });
             router.push('/sections');
-        } catch (error: any) {
-            const message = error?.response?.data?.message || error?.message || 'Failed to create section';
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            const message = apiError.response?.data?.message || apiError.message || 'Failed to create section';
             const newErrors: typeof formErrors = {};
 
             if (Array.isArray(message)) {

@@ -108,7 +108,7 @@ export default function StructuresPage() {
 
     const sortedData = React.useMemo(() => {
         if (!structures) return [];
-        let result = [...structures];
+        const result = [...structures];
         result.sort((a: FinancialStructure, b: FinancialStructure) => {
             const valA = a[sortBy as keyof FinancialStructure];
             const valB = b[sortBy as keyof FinancialStructure];

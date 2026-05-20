@@ -31,11 +31,17 @@ type AuthenticatedRequest = {
   headers: {
     authorization?: string;
     cookie?: string;
+    host?: string;
+    origin?: string;
     'x-forwarded-for'?: string;
+    'x-forwarded-host'?: string;
+    'x-forwarded-proto'?: string;
     'x-real-ip'?: string;
     'user-agent'?: string;
   };
 };
+
+type CookieRequest = Pick<AuthenticatedRequest, 'headers'>;
 
 @Controller('auth')
 export class AuthController {
@@ -55,7 +61,7 @@ export class AuthController {
   @Post('login')
   async login(
     @Body() loginDto: LoginDto,
-    @Request() req: { ip?: string; headers: { 'x-forwarded-for'?: string; 'x-real-ip'?: string } },
+    @Request() req: AuthenticatedRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
     // Extract IP from request (handle proxy scenarios)
@@ -64,7 +70,7 @@ export class AuthController {
       req.ip ||
       'unknown';
     const result = await this.authService.login(loginDto, ip);
-    this.setAuthCookie(res, result.access_token, loginDto.rememberMe === true);
+    this.setAuthCookie(res, result.access_token, loginDto.rememberMe === true, req);
     return result;
   }
 
@@ -129,7 +135,7 @@ export class AuthController {
     @Request()
     req: {
       user: { id: string };
-      headers: { authorization?: string; cookie?: string };
+      headers: AuthenticatedRequest['headers'];
     },
     @Body() body: Record<string, string>,
     @Res({ passthrough: true }) res: Response,
@@ -141,7 +147,7 @@ export class AuthController {
       body.newPassword,
       token,
     );
-    this.setAuthCookie(res, result.access_token, true);
+    this.setAuthCookie(res, result.access_token, true, req);
     return result;
   }
 
@@ -153,7 +159,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const token = this.getAuthToken(req);
-    this.clearAuthCookie(res);
+    this.clearAuthCookie(res, req);
     return this.authService.logout(req.user.id, token);
   }
 
@@ -229,36 +235,74 @@ export class AuthController {
     return extractJwtFromRequest(req as ExpressRequest) || undefined;
   }
 
-  private setAuthCookie(res: Response, token: string, rememberMe: boolean) {
+  private setAuthCookie(
+    res: Response,
+    token: string,
+    rememberMe: boolean,
+    req?: CookieRequest,
+  ) {
+    const secure = this.isCookieSecure(req);
+
     res.cookie(AUTH_COOKIE_NAME, token, {
       httpOnly: true,
-      secure: this.isCookieSecure(),
-      sameSite: this.getCookieSameSite(),
+      secure,
+      sameSite: this.getCookieSameSite(req, secure),
       domain: process.env.AUTH_COOKIE_DOMAIN || undefined,
       path: '/',
       maxAge: (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000,
     });
   }
 
-  private clearAuthCookie(res: Response) {
+  private clearAuthCookie(res: Response, req?: CookieRequest) {
+    const secure = this.isCookieSecure(req);
+
     res.clearCookie(AUTH_COOKIE_NAME, {
       httpOnly: true,
-      secure: this.isCookieSecure(),
-      sameSite: this.getCookieSameSite(),
+      secure,
+      sameSite: this.getCookieSameSite(req, secure),
       domain: process.env.AUTH_COOKIE_DOMAIN || undefined,
       path: '/',
     });
   }
 
-  private isCookieSecure() {
-    return process.env.AUTH_COOKIE_SECURE
-      ? process.env.AUTH_COOKIE_SECURE === 'true'
-      : process.env.NODE_ENV === 'production';
+  private isCookieSecure(req?: CookieRequest) {
+    if (process.env.AUTH_COOKIE_SECURE) {
+      return process.env.AUTH_COOKIE_SECURE === 'true';
+    }
+
+    const forwardedProto = req?.headers['x-forwarded-proto']
+      ?.split(',')[0]
+      ?.trim()
+      ?.toLowerCase();
+
+    return forwardedProto === 'https' || process.env.NODE_ENV === 'production';
   }
 
-  private getCookieSameSite(): 'lax' | 'strict' | 'none' {
+  private getCookieSameSite(
+    req?: CookieRequest,
+    secure = this.isCookieSecure(req),
+  ): 'lax' | 'strict' | 'none' {
     const value = process.env.AUTH_COOKIE_SAME_SITE?.toLowerCase();
-    return value === 'strict' || value === 'none' ? value : 'lax';
+    if (value === 'strict') return 'strict';
+    if (value === 'none') return secure ? 'none' : 'lax';
+    if (value === 'lax') return 'lax';
+
+    return this.isCrossOriginAuthRequest(req) && secure ? 'none' : 'lax';
+  }
+
+  private isCrossOriginAuthRequest(req?: CookieRequest) {
+    const origin = req?.headers.origin;
+    const host =
+      req?.headers['x-forwarded-host']?.split(',')[0]?.trim() ||
+      req?.headers.host;
+
+    if (!origin || !host) return false;
+
+    try {
+      return new URL(origin).hostname !== host.split(':')[0];
+    } catch {
+      return false;
+    }
   }
 
   private getRequestMeta(req: {

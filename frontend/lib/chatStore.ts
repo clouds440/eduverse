@@ -11,8 +11,6 @@ type ChatCache = {
 
 const CHAT_CACHE_TTL_MS = 3 * 1000; // 3 seconds - keep UI responsive to new messages
 
-const STORAGE_KEY = 'chat_session_store';
-
 type ChatSessionStore = {
     messagesByChat: Record<string, ChatMessageWithMeta[]>;
     composerStates: ChatComposerStateMap;

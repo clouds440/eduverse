@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { usePathname } from 'next/navigation';
 import { Search } from 'lucide-react';
@@ -18,7 +18,7 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', delay = 
     const pathname = usePathname();
     const [prevValue, setPrevValue] = useState(value);
     const [prevPathname, setPrevPathname] = useState(pathname);
-    const [prevDebouncedValue, setPrevDebouncedValue] = useState(debouncedValue);
+    const prevDebouncedValueRef = useRef(debouncedValue);
 
     // Sync from parent prop or route change in render (React Compiler preferred pattern)
     if (value !== prevValue || pathname !== prevPathname) {
@@ -30,11 +30,11 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', delay = 
 
     // Trigger parent onChange only when debounced value changes. This is to prevent the parent component from re-rendering unnecessarily.
     useEffect(() => {
-        if (debouncedValue !== prevDebouncedValue) {
-            setPrevDebouncedValue(debouncedValue);
+        if (debouncedValue !== prevDebouncedValueRef.current) {
+            prevDebouncedValueRef.current = debouncedValue;
             onChange(debouncedValue);
         }
-    }, [debouncedValue, prevDebouncedValue, onChange]);
+    }, [debouncedValue, onChange]);
 
     return (
         <div className={cn("relative group", className)}>

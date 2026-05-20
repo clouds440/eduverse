@@ -31,6 +31,16 @@ export const setUnauthorizedHandler = (handler: (failedToken?: string) => void) 
     unauthorizedHandler = handler;
 };
 
+export class ApiRequestError extends Error {
+    status: number;
+
+    constructor(message: string, status: number) {
+        super(message);
+        this.name = 'ApiRequestError';
+        this.status = status;
+    }
+}
+
 interface RequestOptions extends RequestInit {
     token?: string;
     signal?: AbortSignal;
@@ -117,7 +127,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
             } catch (error) {
                 console.error('Error parsing error response:', error);
             }
-            throw new Error(message);
+            throw new ApiRequestError(message, response.status);
         }
 
         if (response.status === 204) return null as T;

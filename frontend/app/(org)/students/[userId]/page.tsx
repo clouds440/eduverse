@@ -31,7 +31,7 @@ function StudentPortalContent() {
 
     // SWR: Validation fetch (runs in parallel with data, NOT blocking)
     const validationKey = token && userId ? ['validate-student', userId] as const : null;
-    const { data: studentData, error: validationError, isLoading: validating } = useSWR<Student>(validationKey);
+    const { data: studentData, error: validationError } = useSWR<Student>(validationKey);
 
     // SWR: Fetch student profile if not already in state
     const profileKey = token && user?.role === 'STUDENT' && studentData?.id ? ['student', studentData.id] as const : null;

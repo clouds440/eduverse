@@ -60,8 +60,8 @@ export default function ChangePasswordForm({
             if (onSuccess) {
                 onSuccess();
             }
-        } catch (err: any) {
-            const message = err?.response?.data?.message || err?.message || 'Failed to change password';
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to change password';
             if (message.toLowerCase().includes('old password') || message.toLowerCase().includes('current password')) {
                 setErrors({ oldPassword: message });
             } else {

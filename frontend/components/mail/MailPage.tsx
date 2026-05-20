@@ -34,7 +34,9 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     const pathname = usePathname();
     const getRowClassName = useMailRowClassName();
 
-    const [selectedMailId, setSelectedMailId] = useState<string | null>(null);
+    const routeMailId = searchParams.get('mailId');
+    const [manualSelectedMailId, setManualSelectedMailId] = useState<string | null>(null);
+    const selectedMailId = manualSelectedMailId || routeMailId;
     const [newMailOpen, setNewMailOpen] = useState(false);
 
     const [pageSize, setPageSize] = useState<number>(() => {
@@ -97,13 +99,6 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     }, [authLoading, token]);
 
     useEffect(() => {
-        const mid = searchParams.get('mailId');
-        if (mid) {
-            setSelectedMailId(mid);
-        }
-    }, [searchParams]);
-
-    useEffect(() => {
         const unsubs = [
             subscribe('unread:update', () => mutateCache(matchesCacheKeyPrefix('mails'))),
             subscribe('mail:new', () => mutateCache(matchesCacheKeyPrefix('mails'))),
@@ -117,7 +112,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     }, [subscribe, mailsKey]);
 
     const handleMailClick = (mail: MailItem) => {
-        setSelectedMailId(mail.id);
+        setManualSelectedMailId(mail.id);
         try {
             const { items } = notificationsStore.getAll();
             const notif = items.find(n => n.metadata?.mailId === mail.id || (n.actionUrl && n.actionUrl.includes(mail.id)) || n.metadata?.entityId === mail.id);
@@ -362,7 +357,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                 isOpen={!!selectedMailId}
                 mailId={selectedMailId}
                 onClose={() => {
-                    setSelectedMailId(null);
+                    setManualSelectedMailId(null);
                     const params = new URLSearchParams(searchParams.toString());
                     params.delete('mailId');
                     const query = params.toString();

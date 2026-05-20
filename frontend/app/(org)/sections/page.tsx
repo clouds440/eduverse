@@ -10,7 +10,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Section, Role, ApiError, AcademicCycle, Course, PaginatedResponse, Student, Cohort } from '@/types';
+import { Section, Role, AcademicCycle, Course, PaginatedResponse, Student, Cohort } from '@/types';
 import { TableActions } from '@/components/ui/TableActions';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -140,7 +140,7 @@ export default function SectionsPage() {
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Academic Cycle is required', type: 'error' } });
                 return;
             }
-            await api.org.updateSection(editingSection.id, editFormData as any, token);
+            await api.org.updateSection(editingSection.id, editFormData, token);
 
             // Handle student enrollment changes
             const currentlyEnrolledIds = editingSection.students?.map(s => s.id) || [];
@@ -309,7 +309,7 @@ export default function SectionsPage() {
 
 
     if (sectionsError) {
-        return <ErrorState error={sectionsError} onRetry={() => {
+        return <ErrorState error={sectionsError + (coursesError ? ' ' + coursesError : '')} onRetry={() => {
             mutateSections();
             mutateCourses();
         }} />;

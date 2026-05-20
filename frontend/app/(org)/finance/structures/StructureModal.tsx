@@ -133,7 +133,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                 </div>
 
                 <div className="space-y-2">
-                    <Label>Title (e.g. "Monthly Tuition Fee")</Label>
+                    <Label>Title (e.g. &quot;Monthly Tuition Fee&quot;)</Label>
                     <Input required value={title} onChange={e => setTitle(e.target.value)} />
                 </div>
 

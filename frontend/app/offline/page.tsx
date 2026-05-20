@@ -19,11 +19,11 @@ export default function OfflinePage() {
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-black text-foreground mb-3 relative z-10 tracking-tight">
-          You're Offline
+          You&apos;re Offline
         </h1>
         
         <p className="text-muted-foreground font-medium mb-8 relative z-10 leading-relaxed text-sm sm:text-base">
-          It looks like you've lost your internet connection. We couldn't reach the server. Please check your network and try again.
+          It looks like you&apos;ve lost your internet connection. We couldn&apos;t reach the server. Please check your network and try again.
         </p>
 
         <Button 
