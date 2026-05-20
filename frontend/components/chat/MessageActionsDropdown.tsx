@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { Reply, Copy, Pencil, Download, Trash2, X } from 'lucide-react';
 import { ChatMessage, Role } from '@/types';
 import { JwtPayload } from '@/context/GlobalContext';
+import { getFloatingPosition } from '@/lib/floatingPosition';
 
 interface MessageContextMenuProps {
     msg: ChatMessage;
@@ -56,29 +57,18 @@ export function MessageContextMenu({
             const menu = menuRef.current;
             if (!menu) return;
 
-            const margin = 10;
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const availableHeight = Math.max(120, viewportHeight - margin * 2);
             const rect = menu.getBoundingClientRect();
-            const renderedWidth = rect.width || 160;
-            const renderedHeight = rect.height || 0;
-            const visibleHeight = Math.min(renderedHeight, availableHeight);
-
-            const left = Math.min(
-                Math.max(margin, position.x),
-                Math.max(margin, viewportWidth - renderedWidth - margin)
-            );
-            const top = Math.min(
-                Math.max(margin, position.y),
-                Math.max(margin, viewportHeight - visibleHeight - margin)
-            );
+            const nextPosition = getFloatingPosition({
+                point: position,
+                floatingRect: { width: rect.width || 160, height: rect.height || 0 },
+                margin: 10,
+            });
 
             setDesktopMenuStyle({
-                left,
-                top,
-                maxHeight: availableHeight,
-                overflowY: renderedHeight > availableHeight ? 'auto' : 'hidden',
+                left: nextPosition.left,
+                top: nextPosition.top,
+                maxHeight: nextPosition.maxHeight,
+                overflowY: nextPosition.overflowY,
                 visibility: 'visible',
             });
         };

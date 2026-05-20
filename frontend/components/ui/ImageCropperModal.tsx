@@ -85,7 +85,7 @@ export function ImageCropperModal({
   };
 
   return (
-    <ModalOverlay isOpen={true} maxWidth="max-w-2xl" className="bg-card rounded-lg flex flex-col p-0">
+    <ModalOverlay isOpen={true} maxWidth="max-w-4xl" className="bg-card rounded-lg flex flex-col p-0">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
         <h3 className="text-base font-bold text-foreground tracking-tight leading-none">Crop Logo Image</h3>
@@ -99,7 +99,7 @@ export function ImageCropperModal({
       </div>
 
       {/* Cropper */}
-      <div className="relative bg-card" style={{ height: 480 }}>
+      <div className="relative bg-card" style={{ height: 580 }}>
         <Cropper
           image={imageSrc}
           crop={crop}
@@ -167,7 +167,7 @@ export function ImageCropperModal({
           icon={Check}
           className="flex-1 tracking-widest btn-haptic"
         >
-          {confirming ? "Processing..." : "Use This Crop"}
+          {confirming ? "Processing..." : "Crop"}
         </Button>
       </div>
     </ModalOverlay>

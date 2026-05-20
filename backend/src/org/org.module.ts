@@ -12,6 +12,8 @@ import { AttendanceModule } from '../attendance/attendance.module';
 import { CoursesModule } from '../courses/courses.module';
 import { SectionsModule } from '../sections/sections.module';
 import { UserModule } from '../users/user.module';
+import { AuthModule } from '../auth/auth.module';
+import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { UserModule } from '../users/user.module';
     CoursesModule,
     SectionsModule,
     UserModule,
+    AuthModule,
+    SecurityModule,
   ],
   controllers: [OrgController],
   providers: [OrgService, RemindersService],

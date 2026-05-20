@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import { getSiteUrl } from "@/lib/site";
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -17,10 +18,20 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  description: "Manage your school efficiently",
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: 'EduVerse',
+    template: '%s | EduVerse',
+  },
+  description: "Manage schools, institutes, students, teachers, courses, attendance, communication, and academic records in one secure education platform.",
+  applicationName: 'EduVerse',
+  alternates: {
+    canonical: '/',
+  },
   icons: {
-    icon: [{ url: '/assets/eduverse-icon.png' }],
-    shortcut: [{ url: '/assets/eduverse-icon.png' }]
+    icon: [{ url: '/assets/eduverse-icon.png', type: 'image/png', sizes: '512x512' }],
+    shortcut: [{ url: '/assets/eduverse-icon.png', type: 'image/png', sizes: '512x512' }],
+    apple: [{ url: '/assets/eduverse-icon.png', type: 'image/png', sizes: '512x512' }],
   },
   manifest: '/manifest.json',
   appleWebApp: {
@@ -28,6 +39,34 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'EduVerse',
   },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    siteName: 'EduVerse',
+    title: 'EduVerse',
+    description: "Manage schools, institutes, students, teachers, courses, attendance, communication, and academic records in one secure education platform.",
+    images: [
+      {
+        url: '/assets/eduverse-icon.png',
+        width: 512,
+        height: 512,
+        alt: 'EduVerse',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'EduVerse',
+    description: "Manage schools, institutes, students, teachers, courses, attendance, communication, and academic records in one secure education platform.",
+    images: ['/assets/eduverse-icon.png'],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#090d16' },
+  ],
 };
 
 import Navbar from "@/components/Navbar";

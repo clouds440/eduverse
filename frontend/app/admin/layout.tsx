@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
-import { Building, Mail, Users, MessageSquare } from 'lucide-react';
+import { Building, Mail, Users, MessageSquare, ScrollText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import statsStore from '@/lib/statsStore';
 import { Role } from '@/types';
@@ -89,6 +89,12 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 href: '/admin/platform-admins',
                 icon: Users,
                 badge: stats?.PLATFORM_ADMINS
+            });
+            adminLinks.push({
+                id: 'AUDIT_LOGS',
+                label: 'Audit Logs',
+                href: '/admin/logs',
+                icon: ScrollText,
             });
         }
 

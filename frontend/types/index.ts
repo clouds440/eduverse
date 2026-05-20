@@ -118,6 +118,9 @@ export interface Organization {
     type: OrganizationType;
     email: string;
     contactEmail: string;
+    contactEmailVerifiedAt?: string | null;
+    contactEmailVerificationExpiresAt?: string | null;
+    lastVerificationSentAt?: string | null;
     phone?: string;
     logoUrl?: string | null;
     avatarUpdatedAt?: string | null;
@@ -143,6 +146,11 @@ export interface LoginRequest {
     email: string;
     password: string;
     rememberMe?: boolean;
+    deviceId?: string;
+    deviceName?: string;
+    deviceType?: string;
+    browser?: string;
+    os?: string;
 }
 
 export interface AuthResponse {
@@ -153,6 +161,24 @@ export interface AuthResponse {
     message?: string;
     avatarUrl?: string | null;
     avatarUpdatedAt?: string | null;
+}
+
+export interface MessageResponse {
+    message: string;
+}
+
+export interface AuditLogItem {
+    id: string;
+    action: string;
+    message: string;
+    actor: { id: string; name: string | null; email: string; role: string } | null;
+    target: { id: string; name: string | null; email: string; role: string } | null;
+    organization: { id: string; name: string; logoUrl: string | null; avatarUpdatedAt: string | null } | null;
+    ip: string | null;
+    userAgent: string | null;
+    sessionId: string | null;
+    details: Record<string, unknown> | null;
+    createdAt: string;
 }
 
 export interface UpdateOrgSettingsRequest {
@@ -964,4 +990,3 @@ export interface CopyForwardDto {
         copyMaterials: boolean;
     };
 }
-

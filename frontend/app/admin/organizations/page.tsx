@@ -17,12 +17,12 @@ import { DataTable, Column } from '@/components/ui/DataTable';
 import { DataField, useUI } from '@/context/UIContext';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { MarkdownEditor } from '@/components/ui/MarkdownEditor';
-import useSWR, { mutate } from 'swr';
+import useSWR, { mutate as mutateCache } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Loading } from '@/components/ui/Loading';
 import { NewMailModal } from '@/components/mail/NewMailModal';
-import { Drawer } from '@/components/ui/Drawer';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 interface AdminOrgParams {
     page: number;
@@ -77,7 +77,7 @@ export default function OrganizationsPage() {
         ...orgParams,
         status: orgParams.status === 'ALL' ? undefined : orgParams.status
     }] as const : null;
-    const { data: fetchedData, isLoading: isFetching } = useSWR<
+    const { data: fetchedData, error: fetchError, isLoading: isFetching, mutate: retryOrganizations } = useSWR<
         { data: Organization[]; totalPages: number; totalRecords: number; counts?: Record<string, number> }
     >(orgsKey);
 
@@ -112,7 +112,7 @@ export default function OrganizationsPage() {
             dispatch({ type: 'UI_START_PROCESSING', payload: `approve-${id}` });
             await api.admin.approveOrganization(id, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: `${name} approved successfully`, type: 'success' } });
-            mutate(matchesCacheKeyPrefix('admin-organizations'));
+            mutateCache(matchesCacheKeyPrefix('admin-organizations'));
             // Also refresh admin stats
             if (token) {
                 statsStore.fetchAll(token).then(({ admin }) => {
@@ -144,11 +144,11 @@ export default function OrganizationsPage() {
             if (modalMode === 'REJECT') {
                 await api.admin.rejectOrganization(operatingOrg.id, reason, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: `${operatingOrg.name} rejected`, type: 'info' } });
-                mutate(matchesCacheKeyPrefix('admin-organizations'));
+                mutateCache(matchesCacheKeyPrefix('admin-organizations'));
             } else if (modalMode === 'SUSPEND') {
                 await api.admin.suspendOrganization(operatingOrg.id, reason, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: `${operatingOrg.name} suspended`, type: 'info' } });
-                mutate(matchesCacheKeyPrefix('admin-organizations'));
+                mutateCache(matchesCacheKeyPrefix('admin-organizations'));
             } else {
                 if (activeStatusTab === OrgStatus.REJECTED) {
                     await api.admin.rejectOrganization(operatingOrg.id, reason, token);
@@ -156,7 +156,7 @@ export default function OrganizationsPage() {
                     await api.admin.suspendOrganization(operatingOrg.id, reason, token);
                 }
                 dispatch({ type: 'TOAST_ADD', payload: { message: `Status message updated for ${operatingOrg.name}`, type: 'success' } });
-                mutate(matchesCacheKeyPrefix('admin-organizations'));
+                mutateCache(matchesCacheKeyPrefix('admin-organizations'));
             }
             setIsModalOpen(false);
             setOperatingOrg(null);
@@ -320,6 +320,18 @@ export default function OrganizationsPage() {
 
     if ((loading || (!user && !loading)) || (isFetching && !fetchedData)) {
         return <Loading className="h-full" text="Loading Organizations..." size="lg" icon={Building2} />;
+    }
+
+    if (fetchError && !fetchedData) {
+        return (
+            <ErrorState
+                error={fetchError}
+                onRetry={() => retryOrganizations()}
+                className="min-h-80"
+                title="Unable to load organizations"
+                description="The organization list could not be fetched."
+            />
+        );
     }
 
     const handleViewOrg = (org: Organization) => {

@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallba
 import { createPortal } from "react-dom";
 import { LucideIcon, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
 
 export interface DropdownOption<T extends string = string> {
     value: T;
@@ -40,11 +41,18 @@ function CustomSelectComponent<T extends string = string>({
 }: CustomSelectProps<T>) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
-    const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+    const [coords, setCoords] = useState<FloatingPosition | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const selectedOption = useMemo(() => options.find(opt => opt.value === value), [options, value]);
+    const filteredOptions = useMemo(() => {
+        if (!searchable || !searchTerm) return options;
+        const lowSearch = searchTerm.toLowerCase();
+        return options.filter(opt =>
+            opt.label.toLowerCase().includes(lowSearch)
+        );
+    }, [options, searchTerm, searchable]);
 
     // Clear search term when closed
     useEffect(() => {
@@ -54,27 +62,42 @@ function CustomSelectComponent<T extends string = string>({
     const updateCoords = useCallback(() => {
         if (containerRef.current) {
             const rect = containerRef.current.getBoundingClientRect();
-            setCoords({
-                top: rect.bottom + window.scrollY,
-                left: rect.left + window.scrollX,
-                width: rect.width
-            });
+            const dropdownRect = dropdownRef.current?.getBoundingClientRect();
+            setCoords(getFloatingPosition({
+                anchorRect: rect,
+                floatingRect: dropdownRect
+                    ? { width: dropdownRect.width, height: dropdownRect.height }
+                    : { width: rect.width, height: searchable ? 360 : 320 },
+                matchAnchorWidth: true,
+                preferredPlacement: 'bottom',
+                margin: 8,
+                gap: 8,
+            }));
         }
-    }, []);
+    }, [searchable]);
 
     useLayoutEffect(() => {
         if (isOpen) {
             updateCoords();
+            const frameId = window.requestAnimationFrame(updateCoords);
 
             // Use a passive scroll listener for better performance
             window.addEventListener('scroll', updateCoords, { passive: true, capture: true });
             window.addEventListener('resize', updateCoords, { passive: true });
+            return () => {
+                window.cancelAnimationFrame(frameId);
+                window.removeEventListener('scroll', updateCoords, { capture: true });
+                window.removeEventListener('resize', updateCoords);
+            };
         }
-        return () => {
-            window.removeEventListener('scroll', updateCoords, { capture: true });
-            window.removeEventListener('resize', updateCoords);
-        };
     }, [isOpen, updateCoords]);
+
+    const filteredOptionsCount = filteredOptions.length;
+
+    useLayoutEffect(() => {
+        if (!isOpen) return;
+        updateCoords();
+    }, [filteredOptionsCount, isOpen, searchTerm, updateCoords]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -88,14 +111,6 @@ function CustomSelectComponent<T extends string = string>({
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
-
-    const filteredOptions = useMemo(() => {
-        if (!searchable || !searchTerm) return options;
-        const lowSearch = searchTerm.toLowerCase();
-        return options.filter(opt =>
-            opt.label.toLowerCase().includes(lowSearch)
-        );
-    }, [options, searchTerm, searchable]);
 
     const handleSelect = useCallback((val: T) => {
         onChange(val);
@@ -163,13 +178,18 @@ function CustomSelectComponent<T extends string = string>({
                 <div
                     ref={dropdownRef}
                     style={{
-                        position: 'absolute',
-                        top: coords.top + 8,
+                        position: 'fixed',
+                        top: coords.top,
                         left: coords.left,
                         width: coords.width,
+                        maxHeight: coords.maxHeight,
+                        overflowY: 'hidden',
                         zIndex: 9999
                     }}
-                    className="py-2 bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl max-h-80 sm:max-h-96 flex flex-col animate-in fade-in zoom-in duration-100"
+                    className={cn(
+                        "py-2 bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-100",
+                        coords.placement === 'top' ? 'origin-bottom' : 'origin-top'
+                    )}
                 >
                     {searchable && (
                         <div className="px-3 sm:px-4 pb-2 sm:pb-3 border-b border-border/50">

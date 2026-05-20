@@ -15,6 +15,11 @@ model Organization {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   contactEmail    String
+  contactEmailVerifiedAt DateTime?
+  contactEmailVerificationCodeHash String?
+  contactEmailVerificationExpiresAt DateTime?
+  contactEmailVerificationAttempts Int @default(0)
+  lastVerificationSentAt DateTime?
   phone           String?
   status          OrgStatus      @default(PENDING)
   statusHistory   Json? // Stores array of { status, message, adminName, adminRole, createdAt }
@@ -37,6 +42,7 @@ model Organization {
   financialStructures FinancialStructure[]
   financialEntries    FinancialEntry[]
   transactions        Transaction[]
+  auditLogs           AuditLog[]
 
   @@index([status])
   @@index([type])
@@ -77,9 +83,48 @@ model User {
   confirmedFinancialEntries FinancialEntry[] @relation("AdminConfirmations")
   createdTransactions       Transaction[]    @relation("UserTransactions")
   pushSubscriptions         WebPushSubscription[]
+  passwordResetTokens       PasswordResetToken[]
 
   @@index([organizationId])
   @@index([role])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  ip        String?
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  action         String
+  actorUserId    String?
+  targetUserId   String?
+  organizationId String?
+  ip             String?
+  userAgent      String?
+  sessionId      String?
+  details        Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([action])
+  @@index([actorUserId])
+  @@index([targetUserId])
+  @@index([organizationId])
+  @@index([createdAt])
 }
 
 model Session {

@@ -11,11 +11,12 @@ import { ModalForm } from '@/components/ui/ModalForm';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useGlobal } from '@/context/GlobalContext';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import useSWR, { mutate } from 'swr';
+import useSWR, { mutate as mutateCache } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { Button } from '@/components/ui/Button';
 import PasswordStrength from '@/components/ui/PasswordStrength';
 import { Input } from '@/components/ui/Input';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 interface PlatformAdminParams {
     page: number;
@@ -57,7 +58,7 @@ export default function PlatformAdminsPage() {
 
     // SWR for platform admins data - replaces usePaginatedData
     const adminsKey = token ? ['platform-admins', adminParams] as const : null;
-    const { data: fetchedData, isLoading: fetching } = useSWR<
+    const { data: fetchedData, error: fetchError, isLoading: fetching, mutate: retryAdmins } = useSWR<
         PaginatedResponse<PlatformAdmin>
     >(adminsKey);
 
@@ -109,7 +110,7 @@ export default function PlatformAdminsPage() {
             dispatch({ type: 'UI_START_PROCESSING', payload: 'platform-admin-submit' });
             if (adminModalMode === 'CREATE') {
                 await api.admin.createPlatformAdmin(adminFormData, token);
-                mutate(matchesCacheKeyPrefix('platform-admins'));
+                mutateCache(matchesCacheKeyPrefix('platform-admins'));
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Platform Admin created successfully', type: 'success' } });
             } else if (operatingAdmin) {
                 await api.admin.updatePlatformAdmin(operatingAdmin.id, {
@@ -117,7 +118,7 @@ export default function PlatformAdminsPage() {
                     phone: adminFormData.phone,
                     ...(adminFormData.password ? { password: adminFormData.password } : {})
                 }, token);
-                mutate(matchesCacheKeyPrefix('platform-admins'));
+                mutateCache(matchesCacheKeyPrefix('platform-admins'));
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Platform Admin updated successfully', type: 'success' } });
             }
             setIsAdminModalOpen(false);
@@ -160,7 +161,7 @@ export default function PlatformAdminsPage() {
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: `platform-admin-delete-${operatingAdmin.id}` });
             await api.admin.deletePlatformAdmin(operatingAdmin.id, token);
-            mutate(matchesCacheKeyPrefix('platform-admins'));
+            mutateCache(matchesCacheKeyPrefix('platform-admins'));
             dispatch({ type: 'TOAST_ADD', payload: { message: `${operatingAdmin.name} deleted successfully`, type: 'success' } });
             setIsDeleteModalOpen(false);
             setOperatingAdmin(null);
@@ -243,6 +244,18 @@ export default function PlatformAdminsPage() {
             <div className="flex flex-1 items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
+        );
+    }
+
+    if (fetchError && !fetchedData) {
+        return (
+            <ErrorState
+                error={fetchError}
+                onRetry={() => retryAdmins()}
+                className="min-h-80"
+                title="Unable to load platform admins"
+                description="The platform admin list could not be fetched."
+            />
         );
     }
 

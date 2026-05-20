@@ -160,7 +160,9 @@ export default function SettingsPage() {
                 }
             };
 
-            await api.org.updateSettings(payload, token);
+            const updatedSettings = await api.org.updateSettings(payload, token) as Organization;
+            setOrgData((prev) => prev ? { ...prev, ...updatedSettings } : updatedSettings);
+            dispatch({ type: 'STATS_SET_ORG_DATA', payload: updatedSettings });
 
             // 1b. Save per-user themeMode to user profile
             try {
@@ -179,6 +181,9 @@ export default function SettingsPage() {
             }
 
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Settings updated successfully!', type: 'success' } });
+            if (updatedSettings.contactEmailVerifiedAt === null) {
+                dispatch({ type: 'TOAST_ADD', payload: { message: 'Contact email changed. A new verification code has been sent.', type: 'info' } });
+            }
         } catch (error: any) {
             const message = error?.response?.data?.message || error?.message || 'Failed to update settings. Please try again.';
             const newErrors: typeof formErrors = {};

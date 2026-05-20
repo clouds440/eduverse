@@ -15,6 +15,7 @@ type FetcherKey =
     | readonly ['teachers', object]
     | readonly ['courses', object]
     | readonly ['admin-organizations', object]
+    | readonly ['admin-audit-logs', object]
     | readonly ['platform-admins', object]
     | readonly ['mails', object]
     | readonly ['admin-mails', object]
@@ -75,6 +76,8 @@ function createFetcher(token: string | null) {
                     return await api.org.getCourses(token, args[0] as object) as T;
                 case 'admin-organizations':
                     return await api.admin.getOrganizations(token, args[0] as object) as T;
+                case 'admin-audit-logs':
+                    return await api.admin.getAuditLogs(token, args[0] as object) as T;
                 case 'platform-admins':
                     return await api.admin.getPlatformAdmins(token, args[0] as object) as T;
                 case 'academicCycles':

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
 import {
     LayoutDashboard, Users, BookOpen, GraduationCap,
@@ -18,6 +18,8 @@ import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useAuth, JwtPayload } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { useSocket } from '@/hooks/useSocket';
+import { Button } from '@/components/ui/Button';
+import { VerificationCodeInput } from '@/components/ui/VerificationCodeInput';
 
 // Status Message Components
 const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: JwtPayload | null }) => {
@@ -152,6 +154,137 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
     }
 
     return null;
+};
+
+const ContactEmailVerificationBanner = ({
+    compact = false,
+    contactEmail,
+    lastVerificationSentAt,
+    onVerified,
+}: {
+    compact?: boolean;
+    contactEmail?: string;
+    lastVerificationSentAt?: string | null;
+    onVerified: () => Promise<void>;
+}) => {
+    const { token } = useAuth();
+    const { state, dispatch } = useGlobal();
+    const [code, setCode] = useState('');
+    const [error, setError] = useState('');
+    const [cooldownSeconds, setCooldownSeconds] = useState(0);
+    const verificationCooldownSeconds = 60;
+
+    useEffect(() => {
+        const updateCooldown = () => {
+            if (!lastVerificationSentAt) {
+                setCooldownSeconds(0);
+                return;
+            }
+            const sentAt = new Date(lastVerificationSentAt).getTime();
+            const elapsedSeconds = Math.floor((Date.now() - sentAt) / 1000);
+            setCooldownSeconds(Math.max(0, verificationCooldownSeconds - elapsedSeconds));
+        };
+
+        updateCooldown();
+        const interval = window.setInterval(updateCooldown, 1000);
+        return () => window.clearInterval(interval);
+    }, [lastVerificationSentAt]);
+
+    const resendCode = async () => {
+        if (!token || cooldownSeconds > 0 || state.ui.processing['contact-email-resend']) return;
+        setError('');
+        dispatch({ type: 'UI_START_PROCESSING', payload: 'contact-email-resend' });
+        try {
+            const response = await api.auth.resendContactEmailVerification(token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: response.message, type: 'success' } });
+            await onVerified();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Unable to resend verification code.';
+            setError(message);
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'contact-email-resend' });
+        }
+    };
+
+    const verifyCode = async (event: React.FormEvent) => {
+        event.preventDefault();
+        if (!token || state.ui.processing['contact-email-verify']) return;
+        setError('');
+        dispatch({ type: 'UI_START_PROCESSING', payload: 'contact-email-verify' });
+        try {
+            const response = await api.auth.verifyContactEmail(code, token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: response.message, type: 'success' } });
+            setCode('');
+            await onVerified();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unable to verify contact email.');
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'contact-email-verify' });
+        }
+    };
+
+    return (
+        <div className={`${compact ? 'max-w-3xl mx-auto my-10 p-8 rounded-lg text-center' : 'mx-6 my-6 p-4 rounded-xl'} bg-warning/10 border border-warning shadow-sm animate-in fade-in slide-in-from-top-4 duration-500`}>
+            <div className={`${compact ? 'flex flex-col items-center' : 'grid grid-cols-1 xl:grid-cols-[1fr_auto] xl:items-center'} gap-5`}>
+                <div className={`${compact ? 'flex flex-col items-center text-center' : 'flex items-start'} gap-4`}>
+                    <div className="p-2 bg-warning/10 rounded-lg">
+                        <Mail className={`${compact ? 'w-10 h-10' : 'w-5 h-5'} text-warning`} />
+                    </div>
+                    <div>
+                        <p className={`${compact ? 'text-3xl' : 'text-base'} font-black text-warning leading-tight`}>Verify your contact email</p>
+                        <p className="text-sm text-warning mt-1 font-medium">
+                            Your contact email is used for password recovery and important organization communication.
+                        </p>
+                        {contactEmail && <p className="text-xs text-warning/80 mt-2 font-bold">{contactEmail}</p>}
+                        {error && <p className="text-xs text-danger mt-2 font-bold">{error}</p>}
+                    </div>
+                </div>
+
+                <form className={`${compact ? 'w-full max-w-md' : 'w-full xl:w-auto'} flex flex-col items-stretch sm:items-center gap-3`} onSubmit={verifyCode}>
+                    <VerificationCodeInput
+                        id="contact-code"
+                        value={code}
+                        onChange={(next) => {
+                            setCode(next);
+                            if (error) setError('');
+                        }}
+                        disabled={state.ui.processing['contact-email-verify']}
+                        error={!!error}
+                    />
+                    <div className="flex flex-row gap-2">
+                        <Button
+                            type="submit"
+                            variant="warning"
+                            icon={CheckCircle}
+                            loadingId="contact-email-verify"
+                            loadingText="Verifying..."
+                            px="px-4"
+                            py="py-2.5"
+                            disabled={code.length !== 6}
+                            className="whitespace-nowrap"
+                        >
+                            Verify
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            icon={RefreshCw}
+                            onClick={resendCode}
+                            loadingId="contact-email-resend"
+                            loadingText="Sending..."
+                            px="px-4"
+                            py="py-2.5"
+                            disabled={cooldownSeconds > 0}
+                            className="whitespace-nowrap"
+                        >
+                            {cooldownSeconds > 0 ? `Resend in ${cooldownSeconds}s` : 'Resend Code'}
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
 };
 
 export default function OrgLayout({ children }: { children: React.ReactNode }) {
@@ -338,6 +471,12 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     // Check if the current route is allowed for non-approved organizations
     const allowedSubPaths = ['settings', 'change-password', 'mail', 'contact'];
     const isAllowedRoute = allowedSubPaths.some(sub => pathname.startsWith(`/${sub}`));
+    const contactEmailUnverified = user?.role === Role.ORG_ADMIN && orgData && !orgData.contactEmailVerifiedAt;
+    const refreshOrgData = async () => {
+        if (!token) return;
+        const data = await api.org.getOrgData(token);
+        dispatch({ type: 'STATS_SET_ORG_DATA', payload: data });
+    };
 
     return (
         <DashboardLayout
@@ -361,7 +500,15 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
                     </Link>
                 </div>
             )}
-            {!isApproved && !isAllowedRoute ? (
+            {contactEmailUnverified && (
+                <ContactEmailVerificationBanner
+                    contactEmail={orgData?.contactEmail}
+                    lastVerificationSentAt={orgData?.lastVerificationSentAt}
+                    onVerified={refreshOrgData}
+                    compact={!isAllowedRoute}
+                />
+            )}
+            {contactEmailUnverified && !isAllowedRoute ? null : !isApproved && !isAllowedRoute ? (
                 <StatusOverlay orgData={orgData} user={user} />
             ) : (
                 children

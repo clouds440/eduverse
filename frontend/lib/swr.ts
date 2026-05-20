@@ -7,6 +7,7 @@
 export type CacheKeyPrefix =
     | 'platform-admins'
     | 'admin-organizations'
+    | 'admin-audit-logs'
     | 'mails'
     | 'teachers'
     | 'students'

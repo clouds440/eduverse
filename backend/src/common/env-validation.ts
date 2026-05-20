@@ -30,7 +30,12 @@ export function validateEnv() {
   }
 
   // Log optional but recommended envs
-  const recommendedEnvs = ['THROTTLE_TTL', 'THROTTLE_LIMIT'];
+  const recommendedEnvs = [
+    'THROTTLE_TTL',
+    'THROTTLE_LIMIT',
+    'RESEND_API_KEY',
+    'RESEND_FROM_EMAIL',
+  ];
   const missingRecommended = recommendedEnvs.filter((env) => !process.env[env]);
   if (missingRecommended.length > 0) {
     logger.warn(

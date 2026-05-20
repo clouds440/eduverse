@@ -59,6 +59,22 @@ export class AdminController {
     });
   }
 
+  @Roles(Role.SUPER_ADMIN)
+  @Get('audit-logs')
+  async getAuditLogs(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('action') action?: string,
+  ) {
+    return this.adminService.getAuditLogs({
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
+      search,
+      action,
+    });
+  }
+
   @Roles(Role.SUPER_ADMIN, Role.PLATFORM_ADMIN)
   @Patch('organizations/:id/approve')
   approveOrganization(@Param('id') id: string, @User() admin: UserEntity) {

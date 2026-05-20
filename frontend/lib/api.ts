@@ -10,7 +10,7 @@ import {
     ThemeMode, SectionSchedule, TimetableEntry, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto,
-    FinancialStructure, FinancialEntry, Transaction, FinanceStats
+    FinancialStructure, FinancialEntry, Transaction, FinanceStats, MessageResponse, AuditLogItem
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -180,6 +180,14 @@ export const api = {
             request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
         login: (data: LoginRequest) =>
             request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+        forgotPassword: (email: string) =>
+            request<MessageResponse>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+        resetPassword: (token: string, password: string) =>
+            request<MessageResponse>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+        resendContactEmailVerification: (token: string) =>
+            request<MessageResponse>('/auth/contact-email/resend-verification', { method: 'POST', token }),
+        verifyContactEmail: (code: string, token: string) =>
+            request<MessageResponse>('/auth/contact-email/verify', { method: 'POST', body: JSON.stringify({ code }), token }),
         logout: (token: string) =>
             request<void>('/auth/logout', { method: 'POST', token }).catch(e => console.warn('Logout failed', e)),
         changePassword: (oldPassword: string, newPassword: string, token: string) =>
@@ -214,6 +222,8 @@ export const api = {
             request<AdminStats>('/admin/stats', { token }),
         getPlatformAdmins: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc' } = {}) =>
             request<PaginatedResponse<PlatformAdmin>>(`/admin/platform-admins${buildQueryString(params)}`, { token }),
+        getAuditLogs: (token: string, params: { page?: number, limit?: number, search?: string, action?: string } = {}) =>
+            request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> }>(`/admin/audit-logs${buildQueryString(params)}`, { token }),
         createPlatformAdmin: (data: Partial<PlatformAdmin> & { password?: string }, token: string) =>
             request<PlatformAdmin>('/admin/platform-admins', { method: 'POST', body: JSON.stringify(data), token }),
         updatePlatformAdmin: (id: string, data: Partial<PlatformAdmin>, token: string) =>
@@ -226,7 +236,7 @@ export const api = {
         getOrgData: (token: string) =>
             request<Organization>('/org/settings', { token }),
         updateSettings: (data: UpdateOrgSettingsRequest, token: string) =>
-            request<void>('/org/settings', { method: 'PATCH', body: JSON.stringify(data), token }),
+            request<Organization>('/org/settings', { method: 'PATCH', body: JSON.stringify(data), token }),
         reapply: (token: string) =>
             request<void>('/org/reapply', { method: 'PATCH', token }),
 

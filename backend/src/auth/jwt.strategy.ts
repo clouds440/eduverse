@@ -32,6 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // Check if the session exists and is active
     const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+    let activeSessionId: string | undefined;
     if (token) {
       const session = await this.prisma.session.findFirst({
         where: {
@@ -46,6 +47,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           'Session expired or revoked. Please log in again.',
         );
       }
+      activeSessionId = session.id;
 
       // Update lastSeenAt for the session
       await this.prisma.session.update({
@@ -56,11 +58,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       id: user.id,
+      email: user.email,
       role: user.role,
       status: user.status,
       organizationId: user.organizationId,
       organizationStatus: user.organization?.status,
       name: user.name,
+      sessionId: activeSessionId,
     };
   }
 }

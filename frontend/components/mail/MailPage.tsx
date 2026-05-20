@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { MessageSquare, ArrowUpRight, CheckCircle2, XCircle, Tag, Calendar, Filter, Clock, MailPlus, Hash } from 'lucide-react';
-import useSWR, { mutate } from 'swr';
+import useSWR, { mutate as mutateCache } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { api } from '@/lib/api';
 import { MailItem, MailStatus, PaginatedResponse } from '@/types';
@@ -20,6 +20,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/Button';
 import { BrandIcon } from '@/components/ui/Brand';
 import { Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 interface MailPageProps {
     localStorageKey?: string;
@@ -71,7 +72,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
         }] as const;
     }, [token, page, pageSize, searchQuery, statusFilter, sortBy, sortOrder]);
 
-    const { data: paginatedData, isLoading: fetching } = useSWR<PaginatedResponse<MailItem>>(mailsKey);
+    const { data: paginatedData, error: fetchError, isLoading: fetching, mutate: retryMails } = useSWR<PaginatedResponse<MailItem>>(mailsKey);
 
     // Sync stats when data loads
     useEffect(() => {
@@ -104,10 +105,10 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
 
     useEffect(() => {
         const unsubs = [
-            subscribe('unread:update', () => mutate(matchesCacheKeyPrefix('mails'))),
-            subscribe('mail:new', () => mutate(matchesCacheKeyPrefix('mails'))),
-            subscribe('mail:message', () => mutate(matchesCacheKeyPrefix('mails'))),
-            subscribe('mail:update', () => mutate(matchesCacheKeyPrefix('mails')))
+            subscribe('unread:update', () => mutateCache(matchesCacheKeyPrefix('mails'))),
+            subscribe('mail:new', () => mutateCache(matchesCacheKeyPrefix('mails'))),
+            subscribe('mail:message', () => mutateCache(matchesCacheKeyPrefix('mails'))),
+            subscribe('mail:update', () => mutateCache(matchesCacheKeyPrefix('mails')))
         ];
 
         return () => {
@@ -277,6 +278,18 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
         );
     }
 
+    if (fetchError && !paginatedData) {
+        return (
+            <ErrorState
+                error={fetchError}
+                onRetry={() => retryMails()}
+                className="min-h-80"
+                title="Unable to load mail"
+                description="The mail list could not be fetched."
+            />
+        );
+    }
+
     return (
         <div className="flex flex-col h-full w-full">
             <div className="bg-card/80 backdrop-blur-2xl p-1 md:p-2 rounded-lg border border-border shadow-xl flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -355,14 +368,14 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                     const query = params.toString();
                     router.replace(`${pathname}${query ? `?${query}` : ''}`, { scroll: false });
                 }}
-                onUpdate={() => mutate(matchesCacheKeyPrefix('mails'))}
+                onUpdate={() => mutateCache(matchesCacheKeyPrefix('mails'))}
             />
 
             <NewMailModal
                 isOpen={newMailOpen}
                 onClose={() => setNewMailOpen(false)}
                 onSuccess={() => {
-                    mutate(matchesCacheKeyPrefix('mails'));
+                    mutateCache(matchesCacheKeyPrefix('mails'));
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent', type: 'success' } });
                 }}
             />

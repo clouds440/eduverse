@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Role, OrgStatus, TeacherStatus, StudentStatus } from '../common/enums';
@@ -10,13 +11,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { FilesService } from '../files/files.service';
 import { UserService } from '../users/user.service';
+import { AuthService } from '../auth/auth.service';
+import { EmailService } from '../security/email.service';
 
 @Injectable()
 export class OrgService {
+  private readonly logger = new Logger(OrgService.name);
+
   constructor(
     private readonly filesService: FilesService,
     private readonly prisma: PrismaService,
     private readonly userService: UserService,
+    private readonly authService: AuthService,
+    private readonly emailService: EmailService,
   ) {}
 
   private async getOrganizationById(orgId: string) {
@@ -37,6 +44,9 @@ export class OrgService {
       location: org.location,
       type: org.type,
       contactEmail: org.contactEmail,
+      contactEmailVerifiedAt: org.contactEmailVerifiedAt,
+      contactEmailVerificationExpiresAt: org.contactEmailVerificationExpiresAt,
+      lastVerificationSentAt: org.lastVerificationSentAt,
       phone: org.phone,
       logoUrl: org.logoUrl,
       avatarUpdatedAt: org.avatarUpdatedAt,
@@ -48,15 +58,37 @@ export class OrgService {
   }
 
   async updateSettings(orgId: string, data: UpdateSettingsDto) {
-    return this.prisma.organization.update({
+    const currentOrg = await this.getOrganizationById(orgId);
+    const contactEmailChanged =
+      data.contactEmail &&
+      data.contactEmail.toLowerCase() !== currentOrg.contactEmail.toLowerCase();
+    const oldVerifiedContactEmail = contactEmailChanged && currentOrg.contactEmailVerifiedAt
+      ? currentOrg.contactEmail
+      : null;
+
+    const updatedOrg = await this.prisma.organization.update({
       where: { id: orgId },
-      data,
+      data: {
+        ...data,
+        ...(contactEmailChanged
+          ? {
+              contactEmailVerifiedAt: null,
+              contactEmailVerificationCodeHash: null,
+              contactEmailVerificationExpiresAt: null,
+              contactEmailVerificationAttempts: 0,
+              lastVerificationSentAt: null,
+            }
+          : {}),
+      },
       select: {
         id: true,
         name: true,
         location: true,
         type: true,
         contactEmail: true,
+        contactEmailVerifiedAt: true,
+        contactEmailVerificationExpiresAt: true,
+        lastVerificationSentAt: true,
         phone: true,
         logoUrl: true,
         avatarUpdatedAt: true,
@@ -65,6 +97,70 @@ export class OrgService {
         statusHistory: true,
         createdAt: true,
       },
+    });
+
+    if (contactEmailChanged) {
+      if (oldVerifiedContactEmail) {
+        await this.sendContactEmailChangeNotification(
+          oldVerifiedContactEmail,
+          currentOrg.name,
+          updatedOrg.contactEmail,
+        );
+      }
+
+      const admin = await this.prisma.user.findFirst({
+        where: { organizationId: orgId, role: Role.ORG_ADMIN },
+        select: { id: true },
+      });
+      await this.authService.issueContactEmailVerification(orgId, {
+        targetUserId: admin?.id,
+        organizationId: orgId,
+        details: { reason: 'contact_email_changed' },
+      });
+    }
+
+    return updatedOrg;
+  }
+
+  private async sendContactEmailChangeNotification(
+    oldContactEmail: string,
+    organizationName: string,
+    newContactEmail: string,
+  ) {
+    try {
+      await this.emailService.send({
+        to: oldContactEmail,
+        subject: 'Your EduVerse contact email was changed',
+        text: [
+          `The verified contact email for ${organizationName} was changed to ${newContactEmail}.`,
+          'Password reset links will not be sent to the new contact email until it is verified.',
+          'If you did not make this change, please contact EduVerse support immediately.',
+        ].join('\n\n'),
+        html: `
+          <p>The verified contact email for <strong>${this.escapeHtml(organizationName)}</strong> was changed to <strong>${this.escapeHtml(newContactEmail)}</strong>.</p>
+          <p>Password reset links will not be sent to the new contact email until it is verified.</p>
+          <p>If you did not make this change, please contact EduVerse support immediately.</p>
+        `,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to send contact email change notification to ${oldContactEmail}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      );
+    }
+  }
+
+  private escapeHtml(value: string) {
+    return value.replace(/[&<>"']/g, (char) => {
+      const entities: Record<string, string> = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+      };
+      return entities[char];
     });
   }
 

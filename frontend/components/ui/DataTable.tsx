@@ -32,6 +32,7 @@ interface DataTableProps<T> {
     disableZebra?: boolean;
     maxHeight?: string; // e.g., '500px' or 'calc(100vh - 300px)'
     showSerialNumber?: boolean;
+    tableLayout?: 'auto' | 'fixed';
 }
 
 export function DataTable<T>({
@@ -51,7 +52,8 @@ export function DataTable<T>({
     getRowClassName,
     disableZebra = false,
     maxHeight,
-    showSerialNumber = true
+    showSerialNumber = true,
+    tableLayout = 'auto'
 }: DataTableProps<T>) {
     // Add serial number column if enabled
     const displayColumns = React.useMemo(() => showSerialNumber
@@ -156,7 +158,7 @@ export function DataTable<T>({
             <div className={`flex-1 min-h-0 overflow-x-auto scrollbar-thin scrollbar-thumb-border`}>
                 <table
                     ref={tableRef}
-                    className="w-full text-left text-xs sm:text-sm text-foreground table-auto"
+                    className={`w-full text-left text-xs sm:text-sm text-foreground ${tableLayout === 'fixed' ? 'table-fixed' : 'table-auto'}`}
                     style={{ minWidth: columnWidths.reduce((a, b) => a + b, 0) }}
                 >
                     <thead className="bg-primary/10 text-[10px] sm:text-[11px] tracking-wider font-semibold opacity-95 border-b border-border/50 select-none sticky top-0 z-100 backdrop-blur-xl shadow-md">

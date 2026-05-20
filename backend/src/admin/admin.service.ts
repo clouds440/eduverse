@@ -252,6 +252,168 @@ export class AdminService {
     };
   }
 
+  async getAuditLogs(
+    options: PaginationOptions & {
+      action?: string;
+    },
+  ) {
+    const { skip, take, search } = getPaginationOptions({
+      ...options,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    });
+
+    const matchingUserIds = search
+      ? (
+          await this.prisma.user.findMany({
+            where: {
+              OR: [
+                { id: { contains: search, mode: 'insensitive' } },
+                { name: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+            select: { id: true },
+          })
+        ).map((matchedUser) => matchedUser.id)
+      : [];
+
+    const where: Prisma.AuditLogWhereInput = {
+      ...(options.action && options.action !== 'ALL'
+        ? { action: { contains: options.action, mode: 'insensitive' } }
+        : {}),
+      ...(search
+        ? {
+            OR: [
+              { organizationId: { contains: search, mode: 'insensitive' } },
+              {
+                organization: {
+                  OR: [
+                    { id: { contains: search, mode: 'insensitive' } },
+                    { name: { contains: search, mode: 'insensitive' } },
+                  ],
+                },
+              },
+              ...(matchingUserIds.length
+                ? [
+                    { actorUserId: { in: matchingUserIds } },
+                    { targetUserId: { in: matchingUserIds } },
+                  ]
+                : []),
+            ],
+          }
+        : {}),
+    };
+
+    const [logs, totalRecords, actions] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          organization: { select: { id: true, name: true, logoUrl: true, avatarUpdatedAt: true } },
+        },
+      }),
+      this.prisma.auditLog.count({ where }),
+      this.prisma.auditLog.groupBy({
+        by: ['action'],
+        _count: { _all: true },
+        orderBy: { action: 'asc' },
+      }),
+    ]);
+
+    const userIds = Array.from(
+      new Set(
+        logs
+          .flatMap((log) => [log.actorUserId, log.targetUserId])
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+
+    const users = userIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, name: true, email: true, role: true },
+        })
+      : [];
+    const userMap = new Map(users.map((user) => [user.id, user]));
+
+    const mappedLogs = logs.map((log) => {
+      const actor = log.actorUserId ? userMap.get(log.actorUserId) : null;
+      const target = log.targetUserId ? userMap.get(log.targetUserId) : null;
+      return {
+        id: log.id,
+        action: log.action,
+        message: this.humanizeAuditLog(log.action, {
+          actorName: actor?.name || actor?.email || null,
+          targetName: target?.name || target?.email || null,
+          organizationName: log.organization?.name || null,
+          details: log.details,
+        }),
+        actor,
+        target,
+        organization: log.organization,
+        ip: log.ip,
+        userAgent: log.userAgent,
+        sessionId: log.sessionId,
+        details: log.details,
+        createdAt: log.createdAt,
+      };
+    });
+
+    return {
+      ...formatPaginatedResponse(
+        mappedLogs,
+        totalRecords,
+        options.page,
+        options.limit,
+      ),
+      counts: Object.fromEntries(
+        actions.map((entry) => [entry.action, entry._count._all]),
+      ),
+    };
+  }
+
+  private humanizeAuditLog(
+    action: string,
+    context: {
+      actorName?: string | null;
+      targetName?: string | null;
+      organizationName?: string | null;
+      details?: Prisma.JsonValue;
+    },
+  ) {
+    const actor = context.actorName || 'Someone';
+    const target = context.targetName || 'an account';
+    const org = context.organizationName || 'an organization';
+    const details = context.details as Record<string, unknown> | null;
+    const reason = typeof details?.reason === 'string' ? details.reason.replace(/_/g, ' ') : null;
+
+    switch (action) {
+      case 'contact_email_verification_requested':
+        return `A verification code was sent for ${org}'s contact email.`;
+      case 'contact_email_verified':
+        return `${org}'s contact email was verified.`;
+      case 'contact_email_verification_failed':
+        return `${actor} failed contact email verification for ${org}${reason ? ` because ${reason}` : ''}.`;
+      case 'password_reset_requested':
+        return `A password reset was requested.`;
+      case 'password_reset_completed':
+        return `${target}'s password reset was completed and active sessions were revoked.`;
+      case 'password_reset_failed':
+        return `A password reset attempt failed for ${target}${reason ? ` because ${reason}` : ''}.`;
+      case 'excessive_reset_attempts':
+        return `Excessive password reset attempts were detected.`;
+      default:
+        return action
+          .split('_')
+          .filter(Boolean)
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+    }
+  }
+
   // --- Platform Admins ---
   async getPlatformAdmins(options: PaginationOptions) {
     const { skip, take, search } = getPaginationOptions(options);

@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } fr
 import { createPortal } from "react-dom";
 import { LucideIcon, ChevronDown, X, Check } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
 
 export interface MultiSelectOption {
     value: string;
@@ -34,8 +35,7 @@ function CustomMultiSelectComponent({
 }: CustomMultiSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
-    const [coords, setCoords] = useState<{ top: number; left: number; width: number; isMobile?: boolean } | null>(null);
-    const [isFlipped, setIsFlipped] = useState(false);
+    const [coords, setCoords] = useState<(FloatingPosition & { isMobile?: boolean }) | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -54,52 +54,59 @@ function CustomMultiSelectComponent({
         );
     }, [options, searchTerm]);
 
-    const updateCoords = useCallback((recalculateFlip = false) => {
+    const updateCoords = useCallback(() => {
         if (containerRef.current) {
             const rect = containerRef.current.getBoundingClientRect();
-            const windowHeight = window.innerHeight;
-            const dropdownHeight = 350;
-
             const isMobile = window.innerWidth <= 640;
-            const shouldFlip = !isMobile && (rect.bottom + dropdownHeight > windowHeight) && (rect.top > dropdownHeight);
-
-            if (recalculateFlip) {
-                setIsFlipped(shouldFlip);
-            }
-
             if (isMobile) {
                 const margin = 16;
                 setCoords({
-                    top: rect.bottom + window.scrollY,
-                    left: margin + window.scrollX,
+                    top: rect.bottom + 8,
+                    left: margin,
                     width: window.innerWidth - margin * 2,
-                    isMobile: true
+                    maxHeight: Math.max(160, window.innerHeight - rect.bottom - margin - 8),
+                    placement: 'bottom',
+                    overflowY: 'hidden',
+                    isMobile: true,
                 });
             } else {
-                setCoords({
-                    top: (isFlipped ? rect.top - dropdownHeight - 8 : rect.bottom) + window.scrollY,
-                    left: rect.left + window.scrollX,
-                    width: rect.width,
-                });
+                const dropdownRect = dropdownRef.current?.getBoundingClientRect();
+                setCoords(getFloatingPosition({
+                    anchorRect: rect,
+                    floatingRect: dropdownRect
+                        ? { width: dropdownRect.width, height: dropdownRect.height }
+                        : { width: rect.width, height: 350 },
+                    matchAnchorWidth: true,
+                    preferredPlacement: 'bottom',
+                    margin: 8,
+                    gap: 8,
+                }));
             }
         }
-    }, [isFlipped]);
+    }, []);
 
     useLayoutEffect(() => {
         if (!isOpen) return;
 
-        const syncCoords = () => updateCoords(false);
-        const frameId = window.requestAnimationFrame(() => updateCoords(true));
+        updateCoords();
+        const frameId = window.requestAnimationFrame(updateCoords);
 
-        window.addEventListener('scroll', syncCoords, { passive: true, capture: true });
-        window.addEventListener('resize', syncCoords, { passive: true });
+        window.addEventListener('scroll', updateCoords, { passive: true, capture: true });
+        window.addEventListener('resize', updateCoords, { passive: true });
 
         return () => {
             window.cancelAnimationFrame(frameId);
-            window.removeEventListener('scroll', syncCoords, { capture: true });
-            window.removeEventListener('resize', syncCoords);
+            window.removeEventListener('scroll', updateCoords, { capture: true });
+            window.removeEventListener('resize', updateCoords);
         };
     }, [isOpen, updateCoords]);
+
+    const filteredOptionsCount = filteredOptions.length;
+
+    useLayoutEffect(() => {
+        if (!isOpen) return;
+        updateCoords();
+    }, [filteredOptionsCount, isOpen, searchTerm, updateCoords]);
 
     // Clear search term when closed
     useEffect(() => {
@@ -194,13 +201,15 @@ function CustomMultiSelectComponent({
                 <div
                     ref={dropdownRef}
                     style={{
-                        position: 'absolute',
-                        top: coords.top + 8,
+                        position: 'fixed',
+                        top: coords.top,
                         left: coords.left,
                         width: coords.width,
+                        maxHeight: coords.maxHeight,
+                        overflowY: 'hidden',
                         zIndex: 9999
                     }}
-                    className={`py-2 bg-linear-to-br from-background to-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl max-h-[60vh] sm:max-h-[70vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-100 ${coords.isMobile ? '' : ''}`}
+                    className={`py-2 bg-linear-to-br from-background to-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-100 ${coords.placement === 'top' ? 'origin-bottom' : 'origin-top'}`}
                 >
                     <div className="px-3 sm:px-4 pb-2 sm:pb-3 border-b border-border/50">
                         <div className="relative">
