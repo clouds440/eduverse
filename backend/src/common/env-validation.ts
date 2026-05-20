@@ -43,4 +43,36 @@ export function validateEnv() {
     );
     missingRecommended.forEach((env) => logger.warn(` - ${env}`));
   }
+
+  warnAboutAuthCookieConfig(logger);
+}
+
+function warnAboutAuthCookieConfig(logger: Logger) {
+  const frontendUrls = (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  const isHttpsFrontend = frontendUrls.some((url) => {
+    try {
+      return new URL(url).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  });
+
+  const sameSite = process.env.AUTH_COOKIE_SAME_SITE?.toLowerCase();
+  const secure = process.env.AUTH_COOKIE_SECURE;
+
+  if (isHttpsFrontend && secure === 'false') {
+    logger.warn(
+      'AUTH_COOKIE_SECURE=false can prevent auth cookies from working with an HTTPS frontend.',
+    );
+  }
+
+  if (isHttpsFrontend && sameSite && sameSite !== 'none') {
+    logger.warn(
+      'Cross-origin HTTPS frontends usually need AUTH_COOKIE_SAME_SITE=none for session restore after refresh.',
+    );
+  }
 }

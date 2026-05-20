@@ -275,7 +275,13 @@ export class AuthController {
       ?.trim()
       ?.toLowerCase();
 
-    return forwardedProto === 'https' || process.env.NODE_ENV === 'production';
+    const originProto = this.getOriginProtocol(req);
+
+    return (
+      forwardedProto === 'https' ||
+      originProto === 'https:' ||
+      process.env.NODE_ENV === 'production'
+    );
   }
 
   private getCookieSameSite(
@@ -302,6 +308,17 @@ export class AuthController {
       return new URL(origin).hostname !== host.split(':')[0];
     } catch {
       return false;
+    }
+  }
+
+  private getOriginProtocol(req?: CookieRequest) {
+    const origin = req?.headers.origin;
+    if (!origin) return null;
+
+    try {
+      return new URL(origin).protocol;
+    } catch {
+      return null;
     }
   }
 
