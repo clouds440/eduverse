@@ -468,8 +468,8 @@ export const api = {
             request<void>('/notifications/push/subscribe', { method: 'POST', body: JSON.stringify(subscription), token }),
         unsubscribeFromPush: (endpoint: string, token: string) =>
             request<void>('/notifications/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint }), token }),
-        testPush: (token: string) =>
-            request<void>('/notifications/push/test', { method: 'POST', token }),
+        testPush: (token: string, endpoint?: string) =>
+            request<void>('/notifications/push/test', { method: 'POST', body: JSON.stringify({ endpoint }), token }),
     },
 
     announcements: {

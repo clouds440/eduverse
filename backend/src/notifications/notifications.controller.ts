@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   NotificationsService,
+  type WebPushTestDto,
   type WebPushSubscriptionDto,
   type WebPushUnsubscribeDto,
 } from './notifications.service';
@@ -89,12 +90,19 @@ export class NotificationsController {
   }
 
   @Post('push/test')
-  async testPushNotification(@Request() req: AuthenticatedRequest) {
-    await this.notificationsService.sendTestPushNotification(req.user.id, {
-      title: 'Test Notification',
-      body: 'This is a test web push notification from EduVerse!',
-      url: '/',
-    });
+  async testPushNotification(
+    @Request() req: AuthenticatedRequest,
+    @Body() body: WebPushTestDto,
+  ) {
+    await this.notificationsService.sendTestPushNotification(
+      req.user.id,
+      {
+        title: 'Test Notification',
+        body: 'This is a test web push notification from EduVerse!',
+        url: '/',
+      },
+      body?.endpoint,
+    );
     return { success: true, message: 'Test notification dispatched' };
   }
 }

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Organization, Role, OrgStatus, Teacher, Student } from '@/types';
+import { Organization, Role, OrgStatus } from '@/types';
 import Link from 'next/link';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useAuth, JwtPayload } from '@/context/AuthContext';
@@ -20,6 +20,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { useSocket } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/Button';
 import { VerificationCodeInput } from '@/components/ui/VerificationCodeInput';
+import { Badge } from '@/components/ui/Badge';
 
 // Status Message Components
 const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: JwtPayload | null }) => {
@@ -236,7 +237,15 @@ const ContactEmailVerificationBanner = ({
                         <p className="text-sm text-warning mt-1 font-medium">
                             Your contact email is used for password recovery and important organization communication.
                         </p>
-                        {contactEmail && <p className="text-xs text-warning/80 mt-2 font-bold">{contactEmail}</p>}
+                        {contactEmail && (
+                            <div className={`mt-2 flex flex-wrap items-center ${compact ? 'justify-center' : ''} gap-2`}>
+                                <p className="text-xs text-warning/80 font-bold break-all">{contactEmail}</p>
+                                <Badge variant="warning" size="sm" icon={ShieldAlert}>Unverified</Badge>
+                            </div>
+                        )}
+                        <Link href="/settings#contact-email" className="inline-flex mt-2 text-xs font-black text-warning hover:underline">
+                            Incorrect contact email? Change now
+                        </Link>
                         {error && <p className="text-xs text-danger mt-2 font-bold">{error}</p>}
                     </div>
                 </div>

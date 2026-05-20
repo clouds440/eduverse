@@ -18,6 +18,7 @@ import SessionManagement from '@/components/SessionManagement';
 import { Loading } from '@/components/ui/Loading';
 import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
 import { getPrimaryColorError, getSafePrimaryColor, isPrimaryColorAllowed } from '@/lib/themeColor';
+import { Badge } from '@/components/ui/Badge';
 
 export default function SettingsPage() {
     const { token, user } = useAuth();
@@ -32,8 +33,8 @@ export default function SettingsPage() {
     // Scroll to section if hash is present
     useEffect(() => {
         const hash = window.location.hash;
-        if (hash === '#sessions' && !redirecting && !loading) {
-            const element = document.getElementById('sessions');
+        if ((hash === '#sessions' || hash === '#contact-email') && !redirecting && !loading) {
+            const element = document.getElementById(hash.slice(1));
             if (element) {
                 element.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
@@ -209,8 +210,9 @@ export default function SettingsPage() {
             if (updatedSettings.contactEmailVerifiedAt === null) {
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Contact email changed. A new verification code has been sent.', type: 'info' } });
             }
-        } catch (error: any) {
-            const message = error?.response?.data?.message || error?.message || 'Failed to update settings. Please try again.';
+        } catch (error: unknown) {
+            const errorWithResponse = error as { response?: { data?: { message?: string | string[] } }; message?: string };
+            const message = errorWithResponse.response?.data?.message || errorWithResponse.message || 'Failed to update settings. Please try again.';
             const newErrors: typeof formErrors = {};
 
             if (Array.isArray(message)) {
@@ -391,8 +393,15 @@ export default function SettingsPage() {
                             {formErrors.location && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.location}</p>}
                         </div>
 
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Contact Email</Label>
+                        <div id="contact-email" className="space-y-2 scroll-mt-24">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Contact Email</Label>
+                                {orgData?.contactEmailVerifiedAt ? (
+                                    <Badge variant="success" size="sm" icon={CheckCircle}>Verified</Badge>
+                                ) : (
+                                    <Badge variant="warning" size="sm" icon={TriangleAlert}>Unverified</Badge>
+                                )}
+                            </div>
                             <Input
                                 type="email"
                                 name="contactEmail"

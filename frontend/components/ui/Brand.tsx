@@ -233,7 +233,7 @@ export const Brand = React.memo(function Brand({
 export function BrandLogoIcon() {
   return (
     <div className={`relative flex items-center justify-center w-full h-full`}>
-      <Image src="/assets/eduverse-icon.png" alt="Eduverse" fill className="object-contain" sizes="96px" />
+      <Image src="/assets/eduverse-icon-192.png" alt="Eduverse" fill className="object-contain" sizes="96px" />
     </div>
   )
 }

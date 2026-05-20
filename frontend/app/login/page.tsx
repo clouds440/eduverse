@@ -88,7 +88,7 @@ export default function LoginPage() {
           <div className="text-center mb-10">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-2">
                   <Image 
-                      src={'/assets/eduverse-icon.png'}
+                      src={'/assets/eduverse-icon-192.png'}
                       alt='Eduverse Logo'
                       className="object-cover"
                       width={64}

@@ -10,6 +10,7 @@ import { clearChatSession } from '@/lib/chatStore';
 import { disconnectSocket } from '@/hooks/useSocket';
 import { Loading } from '@/components/ui/Loading';
 import { decodeAuthToken } from '@/lib/authSession';
+import { unsubscribeCurrentWebPushSubscription } from '@/lib/webPush';
 
 export type { JwtPayload };
 
@@ -32,6 +33,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = React.useCallback(async () => {
         const currentToken = token;
+        if (currentToken) {
+            unsubscribeCurrentWebPushSubscription(currentToken).catch(() => { });
+        }
         localStorage.removeItem('themeMode');
         clearChatSession();
         disconnectSocket();

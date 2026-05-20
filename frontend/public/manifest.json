@@ -2,9 +2,12 @@
   "name": "EduVerse",
   "short_name": "EduVerse",
   "description": "The Future of Education",
+  "version": "2.0.2",
   "id": "/?source=pwa",
   "start_url": "/",
   "scope": "/",
+  "background_color": "#363B47",
+  "theme_color": "#0E599C",
   "display": "standalone",
   "display_override": [
     "window-controls-overlay",
@@ -22,8 +25,8 @@
   },
   "icons": [
     {
-      "src": "/assets/eduverse-icon.png",
-      "sizes": "512x512",
+      "src": "/assets/eduverse-icon-192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },

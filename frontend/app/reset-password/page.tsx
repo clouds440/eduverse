@@ -84,7 +84,7 @@ export default function ResetPasswordPage() {
         <div className="glass-card rounded-3xl p-8 sm:p-10 lg:p-12 shadow-2xl animate-fade-in-up">
           <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-2">
-              <Image src="/assets/eduverse-icon.png" alt="Eduverse Logo" className="object-cover" width={64} height={64} />
+              <Image src="/assets/eduverse-icon-192.png" alt="Eduverse Logo" className="object-cover" width={64} height={64} />
             </div>
             <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-3">Set New Password</h1>
             <p className="text-muted-foreground font-medium text-sm sm:text-base">Choose a new password for your organization admin account.</p>

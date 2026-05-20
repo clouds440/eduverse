@@ -31,6 +31,10 @@ export interface WebPushUnsubscribeDto {
   endpoint?: string;
 }
 
+export interface WebPushTestDto {
+  endpoint?: string;
+}
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -225,8 +229,9 @@ export class NotificationsService {
   async sendTestPushNotification(
     userId: string,
     payload: { title: string; body?: string; url?: string },
+    endpoint?: string,
   ) {
-    await this._dispatchPush(userId, payload, { force: true });
+    await this._dispatchPush(userId, payload, { force: true, endpoint });
   }
 
   /**
@@ -247,7 +252,7 @@ export class NotificationsService {
   private async _dispatchPush(
     userId: string,
     payload: { title: string; body?: string; url?: string },
-    options: { force?: boolean } = {},
+    options: { force?: boolean; endpoint?: string } = {},
   ) {
     if (
       !process.env.VAPID_PUBLIC_KEY ||
@@ -259,7 +264,10 @@ export class NotificationsService {
     }
 
     const subscriptions = await this.prisma.webPushSubscription.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(options.endpoint ? { endpoint: options.endpoint } : {}),
+      },
     });
 
     if (!subscriptions.length) {

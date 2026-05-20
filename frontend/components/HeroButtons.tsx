@@ -25,7 +25,7 @@ export function HeroButtons() {
                                     ? `/teachers/${user.id}`
                                     : `/students/${user.id}`
                     }
-                    className="bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary/80 hover:-translate-y-0.5 transition-all shadow-lg"
+                    className="bg-primary text-white px-8 py-3 text-center rounded-lg font-semibold hover:bg-primary/80 hover:-translate-y-0.5 transition-all shadow-lg"
                 >
                     Go to Your Dashboard
                 </Link>
@@ -37,13 +37,13 @@ export function HeroButtons() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
                 href="/register"
-                className="bg-primary text-white px-8 py-3 rounded-lg font-semibold hover:bg-primary/80 hover:-translate-y-0.5 transition-all shadow-lg"
+                className="bg-primary text-white px-8 py-3 text-center rounded-lg font-semibold hover:bg-primary/80 hover:-translate-y-0.5 transition-all shadow-lg"
             >
                 Start Free Trial
             </Link>
             <Link
                 href="#features"
-                className="flex space-x-2 bg-card/80 backdrop-blur-sm text-foreground px-8 py-3 rounded-lg font-semibold border border-border hover:bg-card/80 hover:-translate-y-0.5 transition-all shadow-lg"
+                className="flex space-x-2 text-center bg-card/80 backdrop-blur-sm text-foreground px-8 py-3 rounded-lg font-semibold border border-border hover:bg-card/80 hover:-translate-y-0.5 transition-all shadow-lg"
             >
                 <BookOpen className='w-5 h-5 text-foreground mt-0.5' />
                 <span>

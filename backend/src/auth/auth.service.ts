@@ -2,6 +2,7 @@ import {
   BadRequestException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -20,6 +21,10 @@ import { EmailService } from '../security/email.service';
 import { ConfigService } from '@nestjs/config';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import {
+  NOTIFICATIONS_SERVICE,
+  type NotificationCreator,
+} from '../notifications/notifications.tokens';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -42,7 +47,9 @@ export class AuthService {
     private prisma: PrismaService,
     private emailService: EmailService,
     private configService: ConfigService,
-  ) { }
+    @Inject(NOTIFICATIONS_SERVICE)
+    private notificationsService: NotificationCreator,
+  ) {}
 
   async register(registerDto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({
@@ -225,20 +232,18 @@ export class AuthService {
 
         // Send notification if country changed (suspicious activity)
         if (countryChanged) {
-          await this.prisma.notification.create({
-            data: {
-              userId: user.id,
-              title: 'Suspicious Activity Detected',
-              body: `Your account was accessed from a new location (${location}). Previous location: ${existingSession.location}. If this wasn't you, please revoke this session in your settings.`,
-              type: 'SECURITY',
-              actionUrl: '/settings#sessions',
-              metadata: {
-                deviceId: loginDto.deviceId,
-                deviceName: loginDto.deviceName,
-                previousLocation: existingSession.location,
-                newLocation: location,
-                loginTime: new Date().toISOString(),
-              },
+          await this.notificationsService.createNotification({
+            userId: user.id,
+            title: 'Suspicious Activity Detected',
+            body: `Your account was accessed from a new location (${location}). Previous location: ${existingSession.location}. If this wasn't you, please revoke this session in your settings.`,
+            type: 'SECURITY',
+            actionUrl: '/settings#sessions',
+            metadata: {
+              deviceId: loginDto.deviceId,
+              deviceName: loginDto.deviceName,
+              previousLocation: existingSession.location,
+              newLocation: location,
+              loginTime: new Date().toISOString(),
             },
           });
         }
@@ -271,20 +276,18 @@ export class AuthService {
 
         // Send notification if this is a new device (but not on first ever login)
         if (isNewDevice && !isFirstLogin) {
-          await this.prisma.notification.create({
-            data: {
-              userId: user.id,
-              title: 'New Device Login',
-              body: `A new device (${loginDto.deviceName || 'Unknown Device'}) has logged into your account from ${location || 'Unknown Location'} (IP: ${ip}). If this wasn't you, please revoke this session in your settings.`,
-              type: 'SECURITY',
-              actionUrl: '/settings#sessions',
-              metadata: {
-                deviceId: loginDto.deviceId,
-                deviceName: loginDto.deviceName,
-                ip,
-                location,
-                loginTime: new Date().toISOString(),
-              },
+          await this.notificationsService.createNotification({
+            userId: user.id,
+            title: 'New Device Login',
+            body: `A new device (${loginDto.deviceName || 'Unknown Device'}) has logged into your account from ${location || 'Unknown Location'} (IP: ${ip}). If this wasn't you, please revoke this session in your settings.`,
+            type: 'SECURITY',
+            actionUrl: '/settings#sessions',
+            metadata: {
+              deviceId: loginDto.deviceId,
+              deviceName: loginDto.deviceName,
+              ip,
+              location,
+              loginTime: new Date().toISOString(),
             },
           });
         }
@@ -770,14 +773,12 @@ export class AuthService {
       organizationId: resetToken.user.organizationId ?? undefined,
     });
 
-    await this.prisma.notification.create({
-      data: {
-        userId: resetToken.userId,
-        title: 'Password reset completed',
-        body: 'Your organization admin password was reset. All active sessions were signed out.',
-        type: 'SECURITY',
-        actionUrl: '/settings#sessions',
-      },
+    await this.notificationsService.createNotification({
+      userId: resetToken.userId,
+      title: 'Password reset completed',
+      body: 'Your organization admin password was reset. All active sessions were signed out.',
+      type: 'SECURITY',
+      actionUrl: '/settings#sessions',
     });
 
     return { message: 'Password reset successful. Please sign in with your new password.' };

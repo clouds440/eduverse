@@ -464,7 +464,7 @@ export class AdminService {
       role: Role.PLATFORM_ADMIN,
       name: data.name,
       phone: data.phone,
-      avatarUrl: '/assets/eduverse-icon.png',
+      avatarUrl: '/assets/eduverse-icon-192.png',
     });
   }
 

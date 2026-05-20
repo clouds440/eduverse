@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Role } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../security/email.service';
+import type { NotificationCreator } from '../notifications/notifications.tokens';
 import { AuthService } from './auth.service';
 
 const genericForgotMessage =
@@ -78,6 +79,7 @@ describe('AuthService forgotPassword', () => {
       prisma as unknown as PrismaService,
       emailService as unknown as EmailService,
       configService as unknown as ConfigService,
+      { createNotification: jest.fn() } as NotificationCreator,
     );
   });
 

@@ -1,4 +1,4 @@
-const VERSION = 'eduverse-v2.0.1';
+const VERSION = 'eduverse-v2.0.2';
 const STATIC_CACHE = `${VERSION}:static`;
 const RUNTIME_CACHE = `${VERSION}:runtime`;
 const IMAGE_CACHE = `${VERSION}:images`;
@@ -7,7 +7,7 @@ const APP_SHELL = [
   '/',
   '/offline',
   '/manifest.json',
-  '/assets/eduverse-icon.png',
+  '/assets/eduverse-icon-192.png',
   '/assets/eduverse-logo.png',
   '/assets/chat-doodle.svg',
   '/assets/shortcut-timetable.svg',
@@ -154,8 +154,8 @@ self.addEventListener('push', (event) => {
     const tag = data.tag || data.url || `eduverse-${Date.now()}`;
     const options = {
       body: data.body || '',
-      icon: '/assets/eduverse-icon.png',
-      badge: '/assets/eduverse-icon.png',
+      icon: '/assets/eduverse-icon-192.png',
+      badge: '/assets/eduverse-icon-192.png',
       tag: tag,
       renotify: true,
       data: {

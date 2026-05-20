@@ -2166,7 +2166,7 @@ export function ChatLayout() {
                                     )}
 
                                     {/* Composer Row */}
-                                    <div className={`flex flex-row items-end mb-1.5 sm:mb-2`}>
+                                    <div className={`flex flex-row items-end mb-1.5 sm:mb-2 min-w-0 max-w-full`}>
                                         <input
                                             title="Upload File"
                                             type="file"
@@ -2178,9 +2178,9 @@ export function ChatLayout() {
                                         />
 
                                         {/* Main composer container */}
-                                        <div className="flex-1 bg-card/95 border-2 border-border/70 rounded-3xl focus-within:bg-background/70 focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/10 transition-all shadow-lg shadow-foreground/5 backdrop-blur-sm">
+                                        <div className="flex-1 min-w-0 max-w-full bg-card/95 border-2 border-border/70 rounded-3xl focus-within:bg-background/70 focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/10 transition-all shadow-lg shadow-foreground/5 backdrop-blur-sm">
                                             {/* Top row */}
-                                            <div className={`flex items-end transition-all duration-500 ease-out ${isComposerExpanded ? 'px-3 pt-2' : 'px-2'}`}>
+                                            <div className={`flex items-end min-w-0 transition-all duration-500 ease-out ${isComposerExpanded ? 'px-3 pt-2' : 'px-2'}`}>
                                                 {/* Left buttons only in compact mode */}
                                                 {!isComposerExpanded && (
                                                     <div className="flex items-center gap-0.5 sm:gap-1 pb-2 sm:pb-2.5">
@@ -2196,7 +2196,7 @@ export function ChatLayout() {
                                                 )}
 
                                                 {/* Textarea */}
-                                                <div className="relative flex-1">
+                                                <div className="relative flex-1 min-w-0">
                                                     <textarea
                                                         ref={textareaRef}
                                                         rows={1}
@@ -2288,7 +2288,7 @@ export function ChatLayout() {
 
                                                     {/* Mention Dropdown */}
                                                     {showMentionDropdown && filteredMembers.length > 0 && (
-                                                        <div className="absolute bottom-full left-0 mb-2 w-56 sm:w-64 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                        <div className="absolute bottom-full left-0 mb-2 w-[min(14rem,calc(100vw-2rem))] sm:w-64 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
                                                             <div className="p-1.5 sm:p-2 border-b border-border">
                                                                 <p className="text-[10px] sm:text-[11px] font-bold text-muted-foreground tracking-wider px-2">Group Members</p>
                                                             </div>

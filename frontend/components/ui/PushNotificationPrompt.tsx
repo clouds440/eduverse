@@ -2,78 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2, PowerOff } from 'lucide-react';
-import { api, type WebPushSubscriptionPayload } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-
-const urlBase64ToUint8Array = (base64String: string) => {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-};
-
-const arrayBufferToBase64Url = (buffer: ArrayBuffer) => {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-};
-
-const getSubscriptionKey = (subscription: PushSubscription, keyName: PushEncryptionKeyName) => {
-  const key = subscription.getKey(keyName);
-  return key ? arrayBufferToBase64Url(key) : '';
-};
-
-const serializeSubscription = (subscription: PushSubscription): WebPushSubscriptionPayload => {
-  const json = subscription.toJSON();
-  const endpoint = json.endpoint || subscription.endpoint;
-  const p256dh = json.keys?.p256dh || getSubscriptionKey(subscription, 'p256dh');
-  const auth = json.keys?.auth || getSubscriptionKey(subscription, 'auth');
-
-  if (!endpoint || !p256dh || !auth) {
-    throw new Error('Browser returned an incomplete push subscription.');
-  }
-
-  return {
-    endpoint,
-    expirationTime: json.expirationTime ?? subscription.expirationTime,
-    keys: { p256dh, auth },
-  };
-};
+import { supportsWebPush, syncWebPushSubscription, unsubscribeCurrentWebPushSubscription } from '@/lib/webPush';
 
 type PushState = 'unsupported' | 'denied' | 'prompt' | 'granted' | 'subscribing' | 'error';
-
-const isIOS = () => /ipad|iphone|ipod/.test(navigator.userAgent.toLowerCase());
-const isStandalone = () =>
-  window.matchMedia('(display-mode: standalone)').matches ||
-  (navigator as Navigator & { standalone?: boolean }).standalone === true;
-
-async function getPushSubscription(registration: ServiceWorkerRegistration, publicVapidKey: string) {
-  if (!publicVapidKey) {
-    throw new Error('Push notifications are not configured.');
-  }
-
-  const existing = await registration.pushManager.getSubscription();
-  if (existing) {
-    const existingKey = existing.options.applicationServerKey;
-    if (existingKey && arrayBufferToBase64Url(existingKey) !== publicVapidKey) {
-      await existing.unsubscribe();
-    } else {
-      return existing;
-    }
-  }
-
-  return registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicVapidKey),
-  });
-}
 
 /**
  * Inline push notification banner designed to sit inside NotificationDropdown.
@@ -90,22 +23,9 @@ export function PushNotificationBanner() {
     window.setTimeout(() => setPushState(nextState), 0);
   }, []);
 
-  const getPublicVapidKey = useCallback(async (authToken: string) => {
-    const bundledKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (bundledKey) return bundledKey;
-
-    const config = await api.notifications.getPushConfig(authToken);
-    if (config.publicKey) return config.publicKey;
-
-    throw new Error('Push notifications are not configured.');
-  }, []);
-
   const syncSubscription = useCallback(async (authToken: string) => {
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const publicVapidKey = await getPublicVapidKey(authToken);
-      const subscription = await getPushSubscription(registration, publicVapidKey);
-      await api.notifications.subscribeToPush(serializeSubscription(subscription), authToken);
+      await syncWebPushSubscription(authToken);
       updatePushState('granted');
       setErrorMessage('');
     } catch (error) {
@@ -113,15 +33,10 @@ export function PushNotificationBanner() {
       updatePushState('error');
       setErrorMessage(error instanceof Error ? error.message : 'Push subscription could not be synced.');
     }
-  }, [getPublicVapidKey, updatePushState]);
+  }, [updatePushState]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      updatePushState('unsupported');
-      return;
-    }
-
-    if (isIOS() && !isStandalone()) {
+    if (!supportsWebPush()) {
       updatePushState('unsupported');
       return;
     }
@@ -175,16 +90,8 @@ export function PushNotificationBanner() {
       }
 
       // Permission granted — subscribe to PushManager
-      const registration = await navigator.serviceWorker.ready;
+      await syncWebPushSubscription(token);
       if (completed) return;
-
-      const publicVapidKey = await getPublicVapidKey(token);
-      if (completed) return;
-
-      const subscription = await getPushSubscription(registration, publicVapidKey);
-      if (completed) return;
-
-      await api.notifications.subscribeToPush(serializeSubscription(subscription), token);
 
       completed = true;
       clearTimeout(timeoutId);
@@ -199,7 +106,7 @@ export function PushNotificationBanner() {
       setPushState('error');
       setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred.');
     }
-  }, [getPublicVapidKey, token]);
+  }, [token]);
 
   const handleTestPush = useCallback(async () => {
     if (!token || isTesting) return;
@@ -207,7 +114,8 @@ export function PushNotificationBanner() {
     setErrorMessage('');
 
     try {
-      await api.notifications.testPush(token);
+      const payload = await syncWebPushSubscription(token);
+      await api.notifications.testPush(token, payload.endpoint);
     } catch (err: unknown) {
       setPushState('error');
       setErrorMessage(err instanceof Error ? err.message : 'Test notification failed.');
@@ -222,14 +130,7 @@ export function PushNotificationBanner() {
     setErrorMessage('');
 
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-
-      if (subscription) {
-        const endpoint = subscription.endpoint;
-        await subscription.unsubscribe();
-        await api.notifications.unsubscribeFromPush(endpoint, token);
-      }
+      await unsubscribeCurrentWebPushSubscription(token);
 
       setPushState(Notification.permission === 'denied' ? 'denied' : 'prompt');
     } catch (err: unknown) {

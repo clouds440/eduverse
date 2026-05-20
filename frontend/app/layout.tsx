@@ -31,9 +31,9 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   icons: {
-    icon: [{ url: '/assets/eduverse-icon.png', type: 'image/png', sizes: '512x512' }],
-    shortcut: [{ url: '/assets/eduverse-icon.png', type: 'image/png', sizes: '512x512' }],
-    apple: [{ url: '/assets/eduverse-icon.png', type: 'image/png', sizes: '512x512' }],
+    icon: [{ url: '/assets/eduverse-icon-192.png', type: 'image/png', sizes: '192x192' }],
+    shortcut: [{ url: '/assets/eduverse-icon-192.png', type: 'image/png', sizes: '192x192' }],
+    apple: [{ url: '/assets/eduverse-icon-192.png', type: 'image/png', sizes: '192x192' }],
   },
   manifest: '/manifest.json',
   appleWebApp: {
@@ -49,9 +49,9 @@ export const metadata: Metadata = {
     description: "Manage schools, institutes, students, teachers, courses, attendance, communication, and academic records in one secure education platform.",
     images: [
       {
-        url: '/assets/eduverse-icon.png',
-        width: 512,
-        height: 512,
+        url: '/assets/eduverse-icon-192.png',
+        width: 192,
+        height: 192,
         alt: 'EduVerse',
       },
     ],
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     card: 'summary',
     title: 'EduVerse',
     description: "Manage schools, institutes, students, teachers, courses, attendance, communication, and academic records in one secure education platform.",
-    images: ['/assets/eduverse-icon.png'],
+    images: ['/assets/eduverse-icon-192.png'],
   },
 };
 
@@ -84,7 +84,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="min-h-full" suppressHydrationWarning>
       <head>
-        <link rel="preload" as="image" href="/assets/eduverse-icon.png" />
+        <link rel="preload" as="image" href="/assets/eduverse-icon-192.png" />
         <link rel="preload" as="image" href="/assets/eduverse.png" />
       </head>
       <body
