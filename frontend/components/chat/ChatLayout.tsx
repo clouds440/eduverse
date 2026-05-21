@@ -1514,7 +1514,7 @@ export function ChatLayout() {
                                     <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full overflow-hidden`}>
                                         <div
                                             className={`
-                                                relative py-1.5 px-1 rounded-2xl text-[14.5px] leading-relaxed max-w-full overflow-hidden backdrop-blur-sm transition-shadow duration-200
+                                                relative py-1 pb-1 rounded-2xl text-[14.5px] leading-relaxed max-w-full overflow-hidden backdrop-blur-sm transition-shadow duration-200
                                                 ${isMine
                                                     ? 'bg-primary text-primary-foreground rounded-br-sm shadow-lg shadow-primary/20 ring-1 ring-primary-foreground/10'
                                                     : 'bg-card/95 text-foreground border border-border/70 rounded-bl-sm shadow-md shadow-foreground/5 ring-1 ring-background/60'

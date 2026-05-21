@@ -109,7 +109,7 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
                         maxHeight: coords.maxHeight,
                         overflowY: coords.overflowY,
                     }}
-                    className={`bg-card rounded-xl shadow-2xl border border-border/80 overflow-hidden transform animate-in fade-in zoom-in duration-100 z-[9999] ${coords.placement === 'top' ? 'origin-bottom' : 'origin-top'}`}
+                    className={`${isCompact ? '-translate-x-18' : ''} bg-card rounded-xl shadow-2xl border border-border/80 overflow-hidden transform animate-in fade-in zoom-in duration-100 z-[9999] ${coords.placement === 'top' ? 'origin-bottom' : 'origin-top'}`}
                 >
                     <div className="p-2">
                         {themeOptions.map(({ mode, label, icon: Icon }) => (
