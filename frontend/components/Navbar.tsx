@@ -30,6 +30,7 @@ export default function Navbar() {
             <div className="flex space-x-2">
                 {isDashboard && (
                     <button
+                        type="button"
                         onClick={() => {
                             if (isDesktop) {
                                 toggleSidebar();

@@ -17,6 +17,8 @@ interface ModalFormProps {
     showCancel?: boolean;
     showSubmit?: boolean;
     maxWidth?: string;
+    modalClassName?: string;
+    bodyClassName?: string;
     feedback?: ReactNode;
     requireWrite?: boolean;
 }
@@ -34,6 +36,8 @@ export function ModalForm({
     showCancel = true,
     showSubmit = true,
     maxWidth = 'max-w-lg',
+    modalClassName = 'animate-scale-in',
+    bodyClassName = '',
     feedback,
     requireWrite
 }: ModalFormProps) {
@@ -70,7 +74,8 @@ export function ModalForm({
             onClose={onClose}
             title={title}
             maxWidth={maxWidth}
-            className="animate-scale-in"
+            className={modalClassName}
+            bodyClassName={bodyClassName}
             footer={footer}
         >
             <div className="flex flex-col h-full">
