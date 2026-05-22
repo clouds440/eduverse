@@ -1,6 +1,6 @@
 import { api } from './api';
 import { Chat, ChatMessage } from '@/types';
-import { ChatComposerStateMap, ChatMessageWithMeta } from '@/components/chat/chatLayoutHelpers';
+import { ChatComposerState, ChatComposerStateMap, ChatMessageWithMeta } from '@/components/chat/chatLayoutHelpers';
 
 type ChatCache = {
     data: Chat[] | null;
@@ -10,6 +10,27 @@ type ChatCache = {
 };
 
 const CHAT_CACHE_TTL_MS = 3 * 1000; // 3 seconds - keep UI responsive to new messages
+const COMPOSER_STORAGE_KEY = 'eduverse-chat-composer-v1';
+const COMPOSER_DB_NAME = 'eduverse-chat-composer';
+const COMPOSER_DB_VERSION = 1;
+const COMPOSER_FILE_STORE = 'stagedFiles';
+let lastComposerFileSignature = '';
+
+type SerializedComposerState = Omit<ChatComposerState, 'stagedFiles'> & {
+    stagedFileIds: string[];
+};
+
+type SerializedComposerStateMap = Record<string, SerializedComposerState>;
+
+type StoredComposerFile = {
+    id: string;
+    chatId: string;
+    name: string;
+    type: string;
+    size: number;
+    lastModified: number;
+    file: File;
+};
 
 type ChatSessionStore = {
     messagesByChat: Record<string, ChatMessageWithMeta[]>;
@@ -26,7 +47,174 @@ const cache: { chats: ChatCache; session: ChatSessionStore } = {
     }
 };
 
-// Load initial session state (in-memory only)
+function canUseBrowserStorage() {
+    return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+function getComposerFileId(chatId: string, file: File, index: number) {
+    return [
+        chatId,
+        index,
+        file.name,
+        file.size,
+        file.lastModified,
+        file.type || 'application/octet-stream',
+    ].join('::');
+}
+
+function openComposerDb(): Promise<IDBDatabase | null> {
+    if (typeof window === 'undefined' || !('indexedDB' in window)) return Promise.resolve(null);
+
+    return new Promise((resolve) => {
+        const request = window.indexedDB.open(COMPOSER_DB_NAME, COMPOSER_DB_VERSION);
+
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(COMPOSER_FILE_STORE)) {
+                const store = db.createObjectStore(COMPOSER_FILE_STORE, { keyPath: 'id' });
+                store.createIndex('chatId', 'chatId', { unique: false });
+            }
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => {
+            console.error('Failed to open chat composer IndexedDB:', request.error);
+            resolve(null);
+        };
+    });
+}
+
+async function readComposerFiles(ids: string[]): Promise<File[]> {
+    const db = await openComposerDb();
+    if (!db || ids.length === 0) return [];
+
+    return new Promise((resolve) => {
+        const tx = db.transaction(COMPOSER_FILE_STORE, 'readonly');
+        const store = tx.objectStore(COMPOSER_FILE_STORE);
+        const filesById = new Map<string, File>();
+
+        ids.forEach((id) => {
+            const request = store.get(id);
+            request.onsuccess = () => {
+                const stored = request.result as StoredComposerFile | undefined;
+                if (stored?.file) filesById.set(id, stored.file);
+            };
+        });
+
+        tx.oncomplete = () => {
+            db.close();
+            resolve(ids.map((id) => filesById.get(id)).filter((file): file is File => !!file));
+        };
+        tx.onerror = () => {
+            console.error('Failed to read staged composer files:', tx.error);
+            db.close();
+            resolve([]);
+        };
+    });
+}
+
+async function writeComposerFiles(states: ChatComposerStateMap, serialized: SerializedComposerStateMap) {
+    const db = await openComposerDb();
+    if (!db) return;
+
+    return new Promise<void>((resolve) => {
+        const tx = db.transaction(COMPOSER_FILE_STORE, 'readwrite');
+        const store = tx.objectStore(COMPOSER_FILE_STORE);
+        const activeIds = new Set<string>();
+
+        Object.entries(states).forEach(([chatId, state]) => {
+            state.stagedFiles.forEach((file, index) => {
+                if (!(file instanceof File)) return;
+
+                const id = getComposerFileId(chatId, file, index);
+                activeIds.add(id);
+                store.put({
+                    id,
+                    chatId,
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    lastModified: file.lastModified,
+                    file,
+                } satisfies StoredComposerFile);
+            });
+        });
+
+        Object.values(serialized).forEach((state) => {
+            state.stagedFileIds.forEach((id) => activeIds.add(id));
+        });
+
+        const cursorRequest = store.openCursor();
+        cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (!cursor) return;
+            const value = cursor.value as StoredComposerFile;
+            if (!activeIds.has(value.id)) cursor.delete();
+            cursor.continue();
+        };
+
+        tx.oncomplete = () => {
+            db.close();
+            resolve();
+        };
+        tx.onerror = () => {
+            console.error('Failed to persist staged composer files:', tx.error);
+            db.close();
+            resolve();
+        };
+    });
+}
+
+function serializeComposerStates(states: ChatComposerStateMap): SerializedComposerStateMap {
+    return Object.fromEntries(
+        Object.entries(states)
+            .map(([chatId, state]) => {
+                const stagedFileIds = state.stagedFiles
+                    .map((file, index) => file instanceof File ? getComposerFileId(chatId, file, index) : '')
+                    .filter(Boolean);
+
+                return [chatId, {
+                    messageDraft: state.messageDraft,
+                    replyToMessage: state.replyToMessage,
+                    editingMessage: state.editingMessage,
+                    mentionedUsers: state.mentionedUsers,
+                    stagedFileIds,
+                } satisfies SerializedComposerState];
+            })
+            .filter(([, state]) => {
+                const composerState = state as SerializedComposerState;
+                return Boolean(
+                    composerState.messageDraft ||
+                    composerState.replyToMessage ||
+                    composerState.editingMessage ||
+                    composerState.mentionedUsers.length > 0 ||
+                    composerState.stagedFileIds.length > 0
+                );
+            })
+    );
+}
+
+function saveComposerStatesToStorage(states: ChatComposerStateMap) {
+    if (!canUseBrowserStorage()) return;
+
+    try {
+        const serialized = serializeComposerStates(states);
+        const fileSignature = Object.values(serialized)
+            .flatMap((state) => state.stagedFileIds)
+            .sort()
+            .join('|');
+
+        window.localStorage.setItem(COMPOSER_STORAGE_KEY, JSON.stringify(serialized));
+        if (fileSignature !== lastComposerFileSignature) {
+            lastComposerFileSignature = fileSignature;
+            void writeComposerFiles(states, serialized);
+        }
+    } catch (error) {
+        console.error('Failed to persist chat composer state:', error);
+    }
+}
+
+// Load initial session state (messages stay in-memory only)
 function loadFromStorage(): ChatSessionStore {
     return { messagesByChat: {}, composerStates: {}, lastReadByChat: {} };
 }
@@ -172,7 +360,7 @@ export function getCachedComposerState(chatId: string) {
 
 export function setCachedComposerState(chatId: string, state: ChatComposerStateMap[string]) {
     cache.session.composerStates[chatId] = state;
-    saveToStorage();
+    saveComposerStatesToStorage(cache.session.composerStates);
 }
 
 export function getCachedComposerStates(): ChatComposerStateMap {
@@ -181,7 +369,40 @@ export function getCachedComposerStates(): ChatComposerStateMap {
 
 export function setCachedComposerStates(states: ChatComposerStateMap) {
     cache.session.composerStates = states;
-    saveToStorage();
+    saveComposerStatesToStorage(states);
+}
+
+export async function hydrateCachedComposerStates(): Promise<ChatComposerStateMap> {
+    if (!canUseBrowserStorage()) return cache.session.composerStates;
+
+    try {
+        const raw = window.localStorage.getItem(COMPOSER_STORAGE_KEY);
+        if (!raw) return cache.session.composerStates;
+
+        const serialized = JSON.parse(raw) as SerializedComposerStateMap;
+        const hydratedEntries = await Promise.all(
+            Object.entries(serialized).map(async ([chatId, state]) => {
+                const stagedFiles = await readComposerFiles(state.stagedFileIds || []);
+                return [chatId, {
+                    messageDraft: state.messageDraft || '',
+                    stagedFiles,
+                    replyToMessage: state.replyToMessage || null,
+                    editingMessage: state.editingMessage || null,
+                    mentionedUsers: state.mentionedUsers || [],
+                } satisfies ChatComposerState] as const;
+            })
+        );
+
+        cache.session.composerStates = Object.fromEntries(hydratedEntries);
+        lastComposerFileSignature = Object.values(serialized)
+            .flatMap((state) => state.stagedFileIds || [])
+            .sort()
+            .join('|');
+        return cache.session.composerStates;
+    } catch (error) {
+        console.error('Failed to hydrate chat composer state:', error);
+        return cache.session.composerStates;
+    }
 }
 
 // Clear all session data (for logout)
@@ -192,4 +413,15 @@ export function clearChatSession() {
         lastReadByChat: {}
     };
     saveToStorage();
+    if (canUseBrowserStorage()) {
+        lastComposerFileSignature = '';
+        window.localStorage.removeItem(COMPOSER_STORAGE_KEY);
+        void openComposerDb().then((db) => {
+            if (!db) return;
+            const tx = db.transaction(COMPOSER_FILE_STORE, 'readwrite');
+            tx.objectStore(COMPOSER_FILE_STORE).clear();
+            tx.oncomplete = () => db.close();
+            tx.onerror = () => db.close();
+        });
+    }
 }

@@ -18,7 +18,8 @@ import {
     getCachedMessages,
     setCachedMessages,
     getCachedComposerStates,
-    setCachedComposerStates
+    setCachedComposerStates,
+    hydrateCachedComposerStates
 } from '@/lib/chatStore';
 import { Chat, ChatMessage, ChatParticipant, ChatType, ChatMessageType, PaginatedResponse, Role, User, ChatParticipantRole } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -112,6 +113,7 @@ export function ChatLayout() {
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [chatComposerStates, setChatComposerStates] = useState<ChatComposerStateMap>(() => getCachedComposerStates());
+    const [isComposerStateHydrated, setIsComposerStateHydrated] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
@@ -425,10 +427,29 @@ export function ChatLayout() {
         }
     }, [activeChatId, fetchInitialMessages, targetMessageId, scrollToBottom]);
 
-    // Sync chatComposerStates to cache whenever it changes
     useEffect(() => {
+        let cancelled = false;
+
+        hydrateCachedComposerStates().then((hydratedStates) => {
+            if (cancelled) return;
+            setChatComposerStates((currentStates) => ({
+                ...hydratedStates,
+                ...currentStates,
+            }));
+            setIsComposerStateHydrated(true);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // Sync chatComposerStates to persistent composer cache whenever it changes.
+    // Message/chat lists intentionally stay out of durable storage.
+    useEffect(() => {
+        if (!isComposerStateHydrated) return;
         setCachedComposerStates(chatComposerStates);
-    }, [chatComposerStates]);
+    }, [chatComposerStates, isComposerStateHydrated]);
 
     // Sync messages state to cache whenever it changes
     useEffect(() => {
@@ -2158,7 +2179,7 @@ export function ChatLayout() {
                                                         });
                                                     }
                                                 }}
-                                                className="p-1 text-muted-foreground border border-primary/40 hover:text-primary hover:bg-primary/40 rounded-full transition-colors"
+                                                className="absolute top-2 right-2 p-1 text-muted-foreground border border-primary/40 hover:text-primary hover:bg-primary/40 rounded-full transition-colors"
                                             >
                                                 <X size={14} className="text-primary/80 hover:text-primary" />
                                             </button>

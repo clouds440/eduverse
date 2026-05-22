@@ -512,7 +512,6 @@ if (typeof document !== 'undefined') {
                 margin-inline: calc(var(--markdown-edge-offset) * -1);
                 object-fit: contain;
             }
-            .markdown-content .code-block-wrapper,
             .markdown-content .mermaid-outer-container,
             .markdown-content blockquote,
             .markdown-content ul,
@@ -520,6 +519,11 @@ if (typeof document !== 'undefined') {
                 width: calc(100% + (var(--markdown-edge-offset) * 2));
                 max-width: calc(100% + (var(--markdown-edge-offset) * 2));
                 margin-inline: calc(var(--markdown-edge-offset) * -1);
+            }
+            .markdown-content .code-block-wrapper {
+                width: calc(99.25% + (var(--markdown-edge-offset) * 2) - 0.75rem);
+                max-width: calc(100% + (var(--markdown-edge-offset) * 2) - 0.75rem);
+                margin-inline: auto;
             }
             .markdown-content ul,
             .markdown-content ol {
