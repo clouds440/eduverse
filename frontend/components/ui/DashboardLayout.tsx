@@ -183,7 +183,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                 </div>
 
                 {/* Branded Sidebar Footer */}
-                <div className={`px-3 border-t border-border shrink-0 relative`}>
+                <div className={`px-3 pb-[env(safe-area-inset-bottom,0px)] border-t border-border shrink-0 relative`}>
                     {/* Toggle button sitting on top of border */}
                     <button
                         onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
@@ -200,23 +200,9 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                         )}
                     </button>
 
-                    {user && (
-                        <div className={`flex items-center mt-2 cursor-pointer ${!effectiveExpanded ? 'lg:justify-center' : 'mb-4 space-x-3 px-1'} mb-4`}
-                            onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
-                        >
-                            <div className={`w-9 h-9 flex items-center justify-center shrink-0 shadow-inner relative`}>
-                                <BrandIcon variant="user" user={user} size="sm" className="w-9 h-9" imageLoading="eager" />
-                            </div>
-                            <div className={`overflow-hidden transition-all ml-2 ${!effectiveExpanded ? 'lg:hidden lg:w-0' : 'w-auto'}`}>
-                                <div className="text-xs font-black text-sidebar-text truncate max-w-30">{user.name || user.email}</div>
-                                <div className="text-[9px] font-bold text-sidebar-text/60 tracking-tighter leading-none mt-0.5">{user.designation || user.role?.replace('_', ' ')}</div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Collapsible bottom links */}
                     <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isBottomSectionCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'}`}>
-                        <div className="space-y-2 pb-4">
+                        <div className="space-y-2 pb-3 pt-4">
                             {user?.role !== Role.SUPER_ADMIN && user?.role !== Role.PLATFORM_ADMIN && (
                                 <>
                                     <Link
@@ -291,6 +277,20 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             </button>
                         </div>
                     </div>
+
+                    {user && (
+                        <div className={`flex items-center mt-2 cursor-pointer ${!effectiveExpanded ? 'lg:justify-center' : 'space-x-3 px-1'} mb-4`}
+                            onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
+                        >
+                            <div className={`w-9 h-9 flex items-center justify-center shrink-0 shadow-inner relative`}>
+                                <BrandIcon variant="user" user={user} size="sm" className="w-9 h-9" imageLoading="eager" />
+                            </div>
+                            <div className={`overflow-hidden transition-all ml-2 ${!effectiveExpanded ? 'lg:hidden lg:w-0' : 'w-auto'}`}>
+                                <div className="text-xs font-black text-sidebar-text truncate max-w-30">{user.name || user.email}</div>
+                                <div className="text-[9px] font-bold text-sidebar-text/60 tracking-tighter leading-none mt-0.5">{user.designation || user.role?.replace('_', ' ')}</div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </aside>
 
