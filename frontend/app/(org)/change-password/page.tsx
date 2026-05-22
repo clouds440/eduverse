@@ -13,7 +13,7 @@ export default function OrganizationChangePasswordPage() {
     const handleSubmit = async (oldPassword: string, newPassword: string) => {
         if (!token) return;
         const res = await api.auth.changePassword(oldPassword, newPassword, token);
-        login(res.access_token);
+        await login(res.access_token);
     };
 
     return (

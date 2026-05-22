@@ -1,12 +1,29 @@
 'use client';
 
-import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Send, Clock, Paperclip, X, FileText, ImageIcon, Download, MessageSquare } from 'lucide-react';
+import React, {
+    forwardRef,
+    memo,
+    useCallback,
+    useImperativeHandle,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
+import {
+    Clock,
+    Download,
+    FileText,
+    ImageIcon,
+    MessageSquare,
+    Paperclip,
+    Send,
+    X,
+} from 'lucide-react';
+import Image from 'next/image';
 import { MailDetail, MailMessage as MailMessageType, MailActionLog, Attachment, Role } from '@/types';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { MarkdownEditor, MarkdownEditorHandle } from '@/components/ui/MarkdownEditor';
 import { getPublicUrl, downloadFile, formatBytes } from '@/lib/utils';
-import Image from 'next/image';
 import { BrandIcon } from '@/components/ui/Brand';
 import { ADMIN_REPLY_TEMPLATES } from './MailTemplates';
 import { Button } from '@/components/ui/Button';
@@ -18,18 +35,67 @@ interface MailThreadProps {
     currentUserRole?: string;
     onReply: (content: string, files?: File[]) => Promise<void>;
     isClosed?: boolean;
+    closedMessage?: string;
 }
 
 export interface MailThreadHandle {
     scrollToReply: () => void;
 }
 
-function AttachmentPreview({ file }: { file: Attachment }) {
+type TimelineItem =
+    | { type: 'message'; data: MailMessageType; time: string }
+    | { type: 'action'; data: MailActionLog; time: string };
+
+interface ReplyComposerHandle {
+    scrollToReply: () => void;
+}
+
+const ADMIN_TEMPLATE_OPTIONS = ADMIN_REPLY_TEMPLATES.map((template: { name: string; content: string }) => ({
+    label: template.name,
+    content: template.content,
+}));
+
+function formatDateTime(value: string) {
+    return new Date(value).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function formatRole(role?: string | null) {
+    return role ? role.replace(/_/g, ' ') : '';
+}
+
+function getPriorityVariant(priority: string): 'neutral' | 'info' | 'warning' | 'error' {
+    if (priority === 'URGENT') return 'error';
+    if (priority === 'HIGH') return 'warning';
+    if (priority === 'LOW') return 'neutral';
+    return 'info';
+}
+
+function getRecipientLabel(mail: MailDetail) {
+    if (mail.assignees.length > 0) {
+        if (mail.assignees.length > 3) {
+            return `${mail.assignees.slice(0, 2).map((assignee) => assignee.name || assignee.email).join(', ')} and ${mail.assignees.length - 2} others`;
+        }
+
+        return mail.assignees.map((assignee) => assignee.name || assignee.email).join(', ');
+    }
+
+    if (mail.targetRole === 'ORG_STAFF') return 'All employees';
+    if (mail.targetRole === Role.PLATFORM_ADMIN || mail.targetRole === Role.SUPER_ADMIN) return 'Platform administrative team';
+
+    return formatRole(mail.targetRole) || 'Platform support team';
+}
+
+const AttachmentPreview = memo(function AttachmentPreview({ file }: { file: Attachment }) {
     const isImage = file.mimeType.startsWith('image/');
     const url = getPublicUrl(file.path);
 
-    const handleDownload = async (e: React.MouseEvent) => {
-        e.preventDefault();
+    const handleDownload = async (event: React.MouseEvent) => {
+        event.preventDefault();
         try {
             await downloadFile(url, file.filename);
         } catch (error) {
@@ -39,290 +105,361 @@ function AttachmentPreview({ file }: { file: Attachment }) {
 
     return (
         <button
+            type="button"
             onClick={handleDownload}
-            className="flex items-center gap-2 p-2 bg-card/50 border border-border/5 rounded-full hover:bg-card/60 hover:shadow-sm transition-all group max-w-sm cursor-pointer"
+            className="group flex w-full max-w-sm items-center gap-3 rounded-xl border border-border/60 bg-background/70 p-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
         >
             {isImage ? (
-                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-border/10 relative shadow-sm hover:scale-105 transition-transform duration-300">
-                    <Image src={url} alt={file.filename} fill className="object-cover" sizes="(max-width: 768px) 100vw, 300px" />
+                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted">
+                    <Image src={url} alt={file.filename} fill className="object-cover" sizes="44px" />
                 </div>
             ) : (
-                <div className="w-10 h-10 bg-card/5 rounded-full flex items-center justify-center shrink-0 border border-border/10 shadow-sm">
-                    <FileText className="w-5 h-5 text-primary" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-primary/10 text-primary">
+                    <FileText className="h-5 w-5" />
                 </div>
             )}
             <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black text-foreground truncate">{file.filename}</p>
-                <p className="text-[9px] font-bold text-muted-foreground">{formatBytes(file.size)}</p>
+                <p className="truncate text-xs font-bold text-foreground">{file.filename}</p>
+                <p className="text-[11px] font-semibold text-muted-foreground">{formatBytes(file.size)}</p>
             </div>
-            <Download className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
+            <Download className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
         </button>
     );
-}
+});
 
-function MessageBubble({ message, isOwn }: { message: MailMessageType; isOwn: boolean }) {
+const MessageBubble = memo(function MessageBubble({ message, isOwn }: { message: MailMessageType; isOwn: boolean }) {
+    const senderName = message.sender?.name || message.sender?.email || 'Unknown sender';
+
     return (
-        <div className="flex gap-3">
-            <BrandIcon variant="user" size="sm" user={message.sender} className={`w-8 h-8 ${isOwn ? 'ring-2 ring-primary/20' : ''}`} />
-            <div className="flex-1 max-w-[90%]">
-                <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[11px] font-black text-foreground">
-                        {message.sender?.name || message.sender?.email}
-                    </span>
+        <article className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : ''}`}>
+            <BrandIcon
+                variant="user"
+                size="sm"
+                user={message.sender}
+                className={`mt-1 h-9 w-9 shrink-0 border border-border/70 shadow-sm ${isOwn ? 'ring-2 ring-primary/20' : ''}`}
+            />
+
+            <div className={`min-w-0 max-w-[calc(100%-3rem)] sm:max-w-[82%] lg:max-w-[72%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col`}>
+                <div className={`mb-1.5 flex max-w-full flex-wrap items-center gap-2 ${isOwn ? 'justify-end text-right' : ''}`}>
+                    <span className="truncate text-xs font-black text-foreground">{senderName}</span>
                     {message.sender?.role && (
-                        <span className="text-[9px] font-bold text-muted-foreground tracking-widest">
-                            {message.sender.role.replace('_', ' ')}
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            {formatRole(message.sender.role)}
                         </span>
                     )}
                     {isOwn && (
-                        <Badge variant="primary" size="sm" className="tracking-tighter py-0 h-4">You</Badge>
+                        <Badge variant="primary" size="sm" className="h-5">You</Badge>
                     )}
                 </div>
-                <div className={`inline-block text-foreground! p-4 rounded-lg shadow-sm ${isOwn ? 'bg-primary/10 border border-border/50' : 'bg-card border border-border'} text-left w-full`}>
-                    <MarkdownRenderer content={message.content} className="text-sm text-foreground!" />
+
+                <div
+                    className={`w-full rounded-2xl border p-4 shadow-sm ${
+                        isOwn
+                            ? 'rounded-tr-md border-primary/20 bg-primary/10'
+                            : 'rounded-tl-md border-border/70 bg-card/90'
+                    }`}
+                >
+                    <MarkdownRenderer
+                        content={message.content}
+                        className="text-sm font-medium text-foreground"
+                        attachmentAlign={isOwn ? 'right' : 'left'}
+                        compactAttachments
+                    />
 
                     {message.files && message.files.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-border flex flex-col gap-2">
-                            {message.files.map(file => (
+                        <div className={`mt-4 flex flex-col gap-2 border-t border-border/60 pt-3 ${isOwn ? 'items-end' : 'items-start'}`}>
+                            {message.files.map((file) => (
                                 <AttachmentPreview key={file.id} file={file} />
                             ))}
                         </div>
                     )}
                 </div>
-                <div className="flex items-center gap-1 mt-1">
-                    <Clock className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-[9px] text-muted-foreground font-bold tracking-tighter">
-                        {new Date(message.createdAt).toLocaleString()}
-                    </span>
+
+                <div className={`mt-1.5 flex items-center gap-1 text-[10px] font-bold text-muted-foreground ${isOwn ? 'justify-end' : ''}`}>
+                    <Clock className="h-3 w-3" />
+                    <time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time>
                 </div>
+            </div>
+        </article>
+    );
+});
+
+const ActionLogItem = memo(function ActionLogItem({ log }: { log: MailActionLog }) {
+    const actionLabel = useMemo(() => {
+        switch (log.action) {
+            case 'CREATED':
+                return 'created this mail';
+            case 'STATUS_CHANGED': {
+                const details = log.details as Record<string, unknown> | null | undefined;
+                const from = String(details?.statusFrom || '').replace(/_/g, ' ');
+                const to = String(details?.statusTo || '').replace(/_/g, ' ');
+                return from && to ? `changed status from ${from} to ${to}` : 'changed the status';
+            }
+            case 'ASSIGNED':
+                return 'assigned this mail';
+            case 'UPDATED':
+                return 'updated this mail';
+            default:
+                return log.action.toLowerCase().replace(/_/g, ' ');
+        }
+    }, [log.action, log.details]);
+
+    return (
+        <div className="flex justify-center px-2">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+                <span className="truncate">
+                    <span className="font-black text-foreground">{log.performer?.name || 'System'}</span> {actionLabel}
+                </span>
+                <time className="hidden shrink-0 font-bold sm:inline" dateTime={log.createdAt}>
+                    {formatDateTime(log.createdAt)}
+                </time>
             </div>
         </div>
     );
-}
+});
 
-function ActionLogItem({ log }: { log: MailActionLog }) {
-    const getActionLabel = (action: string) => {
-        switch (action) {
-            case 'CREATED': return 'sent this mail';
-            case 'STATUS_CHANGED': {
-                const from = (log.details as Record<string, string>)?.statusFrom || '';
-                const to = (log.details as Record<string, string>)?.statusTo || '';
-                return `changed status from ${from.replace('_', ' ')} to ${to.replace('_', ' ')}`;
-            }
-            case 'ASSIGNED': return 'assigned this mail';
-            case 'MESSAGE_SENT': return 'sent a message';
-            case 'UPDATED': return 'updated this mail';
-            default: return action.toLowerCase().replace('_', ' ');
-        }
-    };
+const ThreadTimeline = memo(function ThreadTimeline({
+    timeline,
+    currentUserId,
+}: {
+    timeline: TimelineItem[];
+    currentUserId: string;
+}) {
+    if (timeline.length === 0) {
+        return (
+            <div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-card/40 p-8 text-center text-muted-foreground">
+                <MessageSquare className="mb-3 h-10 w-10 opacity-30" />
+                <p className="text-sm font-black">No messages yet</p>
+            </div>
+        );
+    }
 
     return (
-        <div className="flex items-center gap-2 py-2 px-4 bg-card/50 rounded-lg border border-border/50 mx-8">
-            <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
-            <span className="text-[10px] text-muted-foreground font-medium">
-                <span className="font-black text-foreground">{log.performer?.name || 'System'}</span>
-                {' '}{getActionLabel(log.action)}
-            </span>
-            <span className="text-[9px] text-muted-foreground ml-auto font-bold">
-                {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+        <div className="space-y-5">
+            {timeline.map((item) =>
+                item.type === 'message' ? (
+                    <MessageBubble
+                        key={`msg-${item.data.id}`}
+                        message={item.data}
+                        isOwn={item.data.senderId === currentUserId}
+                    />
+                ) : (
+                    <ActionLogItem key={`log-${item.data.id}`} log={item.data} />
+                )
+            )}
         </div>
     );
-}
+});
+
+const ReplyComposer = forwardRef<ReplyComposerHandle, {
+    isPlatformAdmin: boolean;
+    orgData: Record<string, string>;
+    onReply: (content: string, files?: File[]) => Promise<void>;
+}>(function ReplyComposer({ isPlatformAdmin, orgData, onReply }, ref) {
+    const [replyContent, setReplyContent] = useState('');
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [sending, setSending] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const replyAreaRef = useRef<HTMLDivElement>(null);
+    const editorRef = useRef<MarkdownEditorHandle>(null);
+
+    useImperativeHandle(ref, () => ({
+        scrollToReply: () => {
+            replyAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            window.setTimeout(() => editorRef.current?.focus(), 250);
+        },
+    }));
+
+    const handleSend = useCallback(async () => {
+        if ((!replyContent.trim() && selectedFiles.length === 0) || sending) return;
+
+        try {
+            setSending(true);
+            await onReply(replyContent, selectedFiles);
+            setReplyContent('');
+            setSelectedFiles([]);
+        } finally {
+            setSending(false);
+        }
+    }, [onReply, replyContent, selectedFiles, sending]);
+
+    const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files ? Array.from(event.target.files) : [];
+        const validFiles = files.filter((file) => file.type.startsWith('image/') || file.type === 'application/pdf');
+        setSelectedFiles((current) => [...current, ...validFiles].slice(0, 3));
+        event.target.value = '';
+    }, []);
+
+    const removeFile = useCallback((index: number) => {
+        setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    }, []);
+
+    return (
+        <div ref={replyAreaRef} className="border-t border-border/70 bg-background/80 px-4 py-4 backdrop-blur sm:px-5">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Reply</h3>
+                    <p className="text-[11px] font-semibold text-muted-foreground">Images and PDFs, up to 3 files.</p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-card/80 px-3 py-2 text-xs font-black text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary sm:w-auto"
+                >
+                    <Paperclip className="h-4 w-4" />
+                    Attach
+                </button>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*,.pdf"
+                    multiple
+                />
+            </div>
+
+            {selectedFiles.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                    {selectedFiles.map((file, index) => (
+                        <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-border/70 bg-card/80 px-3 py-2">
+                            {file.type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0 text-primary" /> : <FileText className="h-4 w-4 shrink-0 text-primary" />}
+                            <span className="max-w-48 truncate text-xs font-bold text-foreground">{file.name}</span>
+                            <button
+                                type="button"
+                                onClick={() => removeFile(index)}
+                                className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                                title="Remove file"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <MarkdownEditor
+                ref={editorRef}
+                value={replyContent}
+                onChange={setReplyContent}
+                placeholder="Write a reply..."
+                rows={4}
+                templates={isPlatformAdmin ? ADMIN_TEMPLATE_OPTIONS : []}
+                orgData={orgData}
+            />
+
+            <div className="mt-3 flex justify-end">
+                <Button
+                    type="button"
+                    onClick={handleSend}
+                    isLoading={sending}
+                    loadingId="reply-submit"
+                    icon={Send}
+                    px="px-5"
+                    py="py-2.5"
+                    className="w-full text-xs sm:w-auto"
+                    disabled={!replyContent.trim() && selectedFiles.length === 0}
+                >
+                    Send Reply
+                </Button>
+            </div>
+        </div>
+    );
+});
+
+ReplyComposer.displayName = 'ReplyComposer';
 
 export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
-    ({ mail, currentUserId, currentUserRole, onReply, isClosed }, ref) => {
-        const [replyContent, setReplyContent] = useState('');
-        const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-        const [sending, setSending] = useState(false);
-        const fileInputRef = useRef<HTMLInputElement>(null);
-        const replyAreaRef = useRef<HTMLDivElement>(null);
-        const editorRef = useRef<MarkdownEditorHandle>(null);
-
-        useImperativeHandle(ref, () => ({
-            scrollToReply: () => {
-                replyAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                setTimeout(() => editorRef.current?.focus(), 500); // Wait for scroll
-            }
-        }));
-
+    ({ mail, currentUserId, currentUserRole, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.' }, ref) => {
+        const composerRef = useRef<ReplyComposerHandle>(null);
         const isPlatformAdmin = currentUserRole === Role.PLATFORM_ADMIN || currentUserRole === Role.SUPER_ADMIN;
 
-        const orgData = isPlatformAdmin ? {
-            name: mail.organization?.name || mail.creator.name || 'User',
-            id: mail.organization?.id || mail.creator.id,
-            admin: 'Platform Support Team',
-            role: currentUserRole || 'Administrator',
-            date: new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }),
-            signature: 'EduVerse @ Support Team'
-        } : {};
+        useImperativeHandle(ref, () => ({
+            scrollToReply: () => composerRef.current?.scrollToReply(),
+        }));
 
-        const handleSend = async () => {
-            if ((!replyContent.trim() && selectedFiles.length === 0) || sending) return;
-            try {
-                setSending(true);
-                await onReply(replyContent, selectedFiles);
-                setReplyContent('');
-                setSelectedFiles([]);
-            } finally {
-                setSending(false);
-            }
-        };
+        const timeline = useMemo<TimelineItem[]>(() => {
+            return [
+                ...mail.messages.map((message): TimelineItem => ({ type: 'message', data: message, time: message.createdAt })),
+                ...mail.actionLogs
+                    .filter((log) => log.action !== 'MESSAGE_SENT')
+                    .map((log): TimelineItem => ({ type: 'action', data: log, time: log.createdAt })),
+            ].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+        }, [mail.actionLogs, mail.messages]);
 
-        const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            if (e.target.files) {
-                const filesArray = Array.from(e.target.files);
-                const validFiles = filesArray.filter(file =>
-                    file.type.startsWith('image/') || file.type === 'application/pdf'
-                );
-                setSelectedFiles(prev => [...prev, ...validFiles].slice(0, 3));
-            }
-        };
+        const recipientLabel = useMemo(() => getRecipientLabel(mail), [mail]);
+        const orgData = useMemo<Record<string, string>>(() => {
+            if (!isPlatformAdmin) return {} as Record<string, string>;
 
-        const removeFile = (index: number) => {
-            setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-        };
-
-        type TimelineItem =
-            | { type: 'message'; data: MailMessageType; time: string }
-            | { type: 'action'; data: MailActionLog; time: string };
-
-        const timeline: TimelineItem[] = [
-            ...mail.messages.map((m): TimelineItem => ({ type: 'message', data: m, time: m.createdAt })),
-            ...mail.actionLogs
-                .filter(l => l.action !== 'MESSAGE_SENT')
-                .map((l): TimelineItem => ({ type: 'action', data: l, time: l.createdAt })),
-        ].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+            return {
+                name: mail.organization?.name || mail.creator.name || 'User',
+                id: mail.organization?.id || mail.creator.id,
+                admin: 'Platform Support Team',
+                role: currentUserRole || 'Administrator',
+                date: new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }),
+                signature: 'EduVerse Support Team',
+            } satisfies Record<string, string>;
+        }, [currentUserRole, isPlatformAdmin, mail.creator.id, mail.creator.name, mail.organization?.id, mail.organization?.name]);
 
         return (
-            <div className="flex flex-col h-full">
-                <div className="px-6 py-2 bg-card/5 border-b border-border flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="flex -space-x-2">
-                            <BrandIcon variant="user" size="sm" user={mail.creator} className="border-2 border-border shadow-sm" />
-                            {mail.assignees.length > 0 ? (
-                                mail.assignees.slice(0, 2).map((a) => (
-                                    <BrandIcon key={a.id} variant="user" size="sm" user={a} className="border-2 border-border shadow-sm" />
-                                ))
-                            ) : (
-                                <div className="w-8 h-8 rounded-full bg-primary/10 border-2 border-border flex items-center justify-center text-primary text-[10px] font-black shadow-sm font-mono">
-                                    {mail.targetRole ? 'GRP' : 'ALL'}
-                                </div>
-                            )}
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black text-muted-foreground tracking-widest leading-none mb-1">Conversation Between</p>
-                            <p className="text-sm font-bold text-foreground">
-                                {mail.creator.name || mail.creator.email}
-                                <span className="mx-2 text-muted-foreground">→</span>
+            <div className="flex h-full min-h-0 flex-col bg-background/40">
+                <div className="shrink-0 border-b border-border/70 bg-card/75 px-4 py-3 backdrop-blur sm:px-5">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex shrink-0 -space-x-2">
+                                <BrandIcon variant="user" size="sm" user={mail.creator} className="h-9 w-9 border-2 border-background shadow-sm" />
                                 {mail.assignees.length > 0 ? (
-                                    mail.assignees.length > 3
-                                        ? `${mail.assignees.slice(0, 2).map(a => a.name || a.email).join(', ')} and ${mail.assignees.length - 2} others`
-                                        : mail.assignees.map(a => a.name || a.email).join(', ')
-                                ) : mail.targetRole === 'ORG_STAFF' ? 'All Employees' :
-                                    mail.targetRole === Role.PLATFORM_ADMIN || mail.targetRole === Role.SUPER_ADMIN ? 'Platform Administrative Team' :
-                                        (mail.targetRole?.replace('_', ' ') || 'Platform Support Team')}
-                            </p>
+                                    mail.assignees.slice(0, 2).map((assignee) => (
+                                        <BrandIcon key={assignee.id} variant="user" size="sm" user={assignee} className="h-9 w-9 border-2 border-background shadow-sm" />
+                                    ))
+                                ) : (
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-background bg-warning/10 text-[10px] font-black text-warning shadow-sm">
+                                        GRP
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Conversation</p>
+                                <p className="truncate text-sm font-black text-foreground">
+                                    {mail.creator.name || mail.creator.email}
+                                    <span className="mx-2 text-muted-foreground">to</span>
+                                    {recipientLabel}
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-[10px] font-black text-muted-foreground tracking-widest leading-none mb-1">Priority</p>
-                        <Badge
-                            variant={mail.priority === 'URGENT' ? 'error' : mail.priority === 'HIGH' ? 'warning' : 'info'}
-                            size="sm"
-                            className="uppercase"
-                        >
-                            {mail.priority}
-                        </Badge>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={getPriorityVariant(mail.priority)} size="sm" className="uppercase">
+                                {mail.priority}
+                            </Badge>
+                            <span className="rounded-md bg-muted/50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                {timeline.filter((item) => item.type === 'message').length} messages
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-6 py-6 px-4 custom-scrollbar min-h-75">
-                    {timeline.length === 0 && (
-                        <div className="flex items-center justify-center py-12 text-muted-foreground">
-                            <MessageSquare className="w-12 h-12 opacity-10 mb-2" />
-                            <p className="text-sm font-medium">No messages yet</p>
-                        </div>
-                    )}
-                    {timeline.map((item, i) =>
-                        item.type === 'message' ? (
-                            <MessageBubble
-                                key={`msg-${item.data.id}`}
-                                message={item.data}
-                                isOwn={item.data.senderId === currentUserId}
-                            />
-                        ) : (
-                            <ActionLogItem key={`log-${i}`} log={item.data} />
-                        )
-                    )}
-
-                    {!isClosed && <div ref={replyAreaRef} className="pt-4 mt-8 border-t border-border">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xs font-black text-muted-foreground tracking-widest">Post a Reply</h3>
-
-                            <div className="flex items-center gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors p-1"
-                                >
-                                    <Paperclip className="w-4 h-4" />
-                                    <span className="text-[10px] font-black tracking-widest">Attach Files</span>
-                                </button>
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleFileChange}
-                                    className="hidden"
-                                    accept="image/*,.pdf"
-                                    multiple
-                                />
-                            </div>
-                        </div>
-
-                        {selectedFiles.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-4 animate-in fade-in slide-in-from-top-1">
-                                {selectedFiles.map((file, i) => (
-                                    <div key={i} className="flex items-center gap-2 bg-card/5 border border-border px-3 py-1.5 rounded-lg">
-                                        {file.type.startsWith('image/') ? <ImageIcon className="w-3 h-3 text-primary/80" /> : <FileText className="w-3 h-3 text-primary/80" />}
-                                        <span className="text-[10px] font-bold text-foreground truncate max-w-37.5">{file.name}</span>
-                                        <button onClick={() => removeFile(i)} className="p-0.5 hover:bg-card/10 rounded-full text-primary/80 transition-colors">
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <MarkdownEditor
-                            ref={editorRef}
-                            value={replyContent}
-                            onChange={setReplyContent}
-                            placeholder="Write a reply..."
-                            rows={5}
-                            templates={isPlatformAdmin ? ADMIN_REPLY_TEMPLATES.map((t: { name: string; content: string }) => ({ label: t.name, content: t.content })) : []}
-                            orgData={orgData as Record<string, string>}
-                        />
-
-                        <div className="flex items-center justify-end mt-3">
-                            <Button
-                                onClick={handleSend}
-                                isLoading={sending}
-                                loadingId="reply-submit"
-                                className="flex items-center gap-2 px-8 py-2.5 bg-primary text-foreground rounded-lg font-black text-xs tracking-widest hover:bg-primary/80 transition-all border-none shadow-lg shadow-primary/20"
-                                icon={Send}
-                            >
-                                SEND REPLY
-                            </Button>
-                        </div>
-                    </div>}
+                <div className="flex-1 overflow-y-auto px-3 py-5 custom-scrollbar sm:px-5">
+                    <ThreadTimeline timeline={timeline} currentUserId={currentUserId} />
 
                     {isClosed && (
-                        <div className="border-t border-border py-6 text-center bg-card/5 rounded-b-lg font-black text-muted-foreground text-[10px] tracking-widest">
-                            This mail is closed — no further replies
+                        <div className="mt-6 rounded-2xl border border-border/70 bg-muted/30 px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-muted-foreground">
+                            {closedMessage}
                         </div>
                     )}
                 </div>
+
+                {!isClosed && (
+                    <ReplyComposer
+                        ref={composerRef}
+                        isPlatformAdmin={isPlatformAdmin}
+                        orgData={orgData}
+                        onReply={onReply}
+                    />
+                )}
             </div>
         );
     }

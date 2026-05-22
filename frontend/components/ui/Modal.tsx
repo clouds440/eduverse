@@ -14,6 +14,7 @@ interface ModalProps {
     customHeader?: ReactNode;
     footer?: ReactNode;
     className?: string; // For the inner modal card
+    bodyClassName?: string;
 }
 
 export function ModalOverlay({
@@ -66,7 +67,8 @@ export function Modal({
     maxWidth = 'max-w-4xl',
     customHeader,
     footer,
-    className = ''
+    className = '',
+    bodyClassName = ''
 }: ModalProps) {
     return (
         <ModalOverlay isOpen={isOpen} maxWidth={maxWidth} className={className}>
@@ -92,7 +94,7 @@ export function Modal({
                 )
             )}
 
-            <div className="overflow-y-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 custom-scrollbar flex-1 relative">
+            <div className={`overflow-y-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 custom-scrollbar flex-1 relative ${bodyClassName}`}>
                 {children}
             </div>
 

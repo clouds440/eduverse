@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Monitor, Sun, Moon, ChevronDown } from 'lucide-react';
 import { ThemeMode } from '@/types';
-import { useUI } from '@/context/UIContext';
+import { FloatingPosition, getFloatingPosition } from '@/lib/floatingPosition';
 
 interface ThemeDropdownProps {
     currentMode: ThemeMode;
@@ -19,14 +20,21 @@ const themeOptions = [
 ];
 
 export function ThemeDropdown({ currentMode, onModeChange, className = '', variant = 'full' }: ThemeDropdownProps) {
-    const { isDesktop } = useUI();
     const [isOpen, setIsOpen] = useState(false);
+    const [coords, setCoords] = useState<FloatingPosition | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Handle outside click to close dropdown
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            const target = event.target as Node;
+            if (
+                containerRef.current &&
+                !containerRef.current.contains(target) &&
+                dropdownRef.current &&
+                !dropdownRef.current.contains(target)
+            ) {
                 setIsOpen(false);
             }
         };
@@ -36,9 +44,43 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
 
     const currentOption = themeOptions.find(opt => opt.mode === currentMode) || themeOptions[0];
     const isCompact = variant === 'compact';
+    const dropdownWidth = isCompact ? 192 : undefined;
+
+    const updateCoords = useCallback(() => {
+        if (!containerRef.current) return;
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const dropdownRect = dropdownRef.current?.getBoundingClientRect();
+        setCoords(getFloatingPosition({
+            anchorRect: rect,
+            floatingRect: dropdownRect
+                ? { width: dropdownRect.width, height: dropdownRect.height }
+                : { width: dropdownWidth || rect.width, height: 156 },
+            matchAnchorWidth: !isCompact,
+            preferredPlacement: 'bottom',
+            margin: 8,
+            gap: 8,
+        }));
+    }, [dropdownWidth, isCompact]);
+
+    useLayoutEffect(() => {
+        if (!isOpen) return;
+
+        updateCoords();
+        const frameId = window.requestAnimationFrame(updateCoords);
+
+        window.addEventListener('scroll', updateCoords, { passive: true, capture: true });
+        window.addEventListener('resize', updateCoords, { passive: true });
+
+        return () => {
+            window.cancelAnimationFrame(frameId);
+            window.removeEventListener('scroll', updateCoords, { capture: true });
+            window.removeEventListener('resize', updateCoords);
+        };
+    }, [isOpen, updateCoords]);
 
     return (
-        <div className={`relative ${className}`} ref={dropdownRef}>
+        <div className={`relative ${className}`} ref={containerRef}>
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
@@ -56,8 +98,19 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
                 {!isCompact && <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />}
             </button>
 
-            {isOpen && (
-                <div className={`absolute ${isDesktop ? 'right-0' : 'right-1/2 translate-x-1/2'} mt-2 bg-card rounded-xl shadow-2xl border border-border/80 overflow-hidden transform origin-top-right animate-in fade-in slide-in-from-top-2 z-100 ${isCompact ? 'w-48' : 'w-full'}`}>
+            {isOpen && coords && createPortal(
+                <div
+                    ref={dropdownRef}
+                    style={{
+                        position: 'fixed',
+                        top: coords.top,
+                        left: coords.left,
+                        width: coords.width ?? dropdownWidth,
+                        maxHeight: coords.maxHeight,
+                        overflowY: coords.overflowY,
+                    }}
+                    className={`${isCompact ? '-translate-x-18' : ''} bg-card rounded-xl shadow-2xl border border-border/80 overflow-hidden transform animate-in fade-in zoom-in duration-100 z-[9999] ${coords.placement === 'top' ? 'origin-bottom' : 'origin-top'}`}
+                >
                     <div className="p-2">
                         {themeOptions.map(({ mode, label, icon: Icon }) => (
                             <button
@@ -79,7 +132,8 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
                             </button>
                         ))}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

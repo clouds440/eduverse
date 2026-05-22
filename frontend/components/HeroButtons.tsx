@@ -43,11 +43,13 @@ export function HeroButtons() {
             </Link>
             <Link
                 href="#features"
-                className="flex space-x-2 text-center bg-card/80 backdrop-blur-sm text-foreground px-8 py-3 rounded-lg font-semibold border border-border hover:bg-card/80 hover:-translate-y-0.5 transition-all shadow-lg"
+                className="flex text-center bg-card/80 backdrop-blur-sm text-foreground px-8 py-3 rounded-lg font-semibold border border-border hover:bg-card/80 hover:-translate-y-0.5 transition-all shadow-lg"
             >
-                <BookOpen className='w-5 h-5 text-foreground mt-0.5' />
-                <span>
-                    Learn More
+                <span className="flex space-x-2 mx-auto">
+                    <BookOpen className='w-5 h-5 text-foreground mt-0.5' />
+                    <span>
+                        Learn More
+                    </span>
                 </span>
             </Link>
         </div>

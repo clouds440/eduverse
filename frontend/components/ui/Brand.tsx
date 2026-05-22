@@ -207,6 +207,7 @@ export const Brand = React.memo(function Brand({
             <Image
               src="/assets/eduverse.png"
               alt={PLATFORM_NAME}
+              loading="eager"
               fill
               className="dark:invert object-contain transition-all duration-300"
               priority={size === 'hero' || size === 'xl'}
@@ -233,7 +234,13 @@ export const Brand = React.memo(function Brand({
 export function BrandLogoIcon() {
   return (
     <div className={`relative flex items-center justify-center w-full h-full`}>
-      <Image src="/assets/eduverse-icon-192.png" alt="Eduverse" fill className="object-contain" sizes="96px" />
+      <Image 
+        src="/assets/eduverse-icon-192.png"
+        alt="Eduverse"
+        loading="eager"
+        fill
+        className="object-contain"
+        sizes="96px" />
     </div>
   )
 }

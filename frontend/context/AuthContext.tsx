@@ -18,7 +18,7 @@ interface AuthContextType {
     token: string | null;
     user: JwtPayload | null;
     loading: boolean;
-    login: (token: string) => void;
+    login: (token?: string | null) => Promise<void>;
     logout: () => void;
     updateUser: (data: Partial<JwtPayload>) => void;
 }
@@ -49,17 +49,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const decoded = decodeAuthToken(t);
 
             if (decoded.exp && decoded.exp * 1000 < Date.now()) {
-                dispatch({ type: 'TOAST_ADD', payload: { message: 'Your session has expired. Please log in again.', type: 'info' } });
-                logout();
-                return;
+                return false;
             }
 
             dispatch({ type: 'AUTH_SET_SESSION', payload: { user: decoded, token: t } });
+            return true;
         } catch (error) {
             console.warn('Invalid token', error);
-            logout();
+            return false;
         }
-    }, [logout, dispatch]);
+    }, [dispatch]);
 
     // Register global 401 handler
     useEffect(() => {
@@ -188,7 +187,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user, loading, pathname]);
 
-    const login = (newToken: string) => processToken(newToken);
+    const login = React.useCallback(async (newToken?: string | null) => {
+        if (newToken && processToken(newToken)) return;
+
+        const session = await api.auth.session();
+        if (session.access_token && processToken(session.access_token)) return;
+
+        throw new Error('Login succeeded, but the browser did not restore the session cookie.');
+    }, [processToken]);
     const updateUser = (data: Partial<JwtPayload>) => dispatch({ type: 'AUTH_UPDATE_USER', payload: data });
 
     return (

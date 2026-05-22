@@ -456,6 +456,44 @@ export class AuthService {
     }));
   }
 
+  async validateSessionToken(token: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(
+        token,
+        {
+          secret: this.configService.get<string>('JWT_SECRET') || '',
+        },
+      );
+
+      if (!payload.sub) return false;
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true },
+      });
+      if (!user) return false;
+
+      const session = await this.prisma.session.findFirst({
+        where: {
+          userId: user.id,
+          token,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (!session) return false;
+
+      await this.prisma.session.update({
+        where: { id: session.id },
+        data: { lastSeenAt: new Date() },
+      });
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async revokeSession(
     userId: string,
     sessionId: string,

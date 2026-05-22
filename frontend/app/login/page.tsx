@@ -42,7 +42,7 @@ export default function LoginPage() {
         os: deviceInfo?.os,
       };
       const res = await api.auth.login(loginPayload);
-      login(res.access_token || '');
+      await login(res.access_token);
     } catch (err: unknown) {
       const message = err instanceof Error ? err?.message : 'Login failed';
       const msgStr = Array.isArray(message) ? message[0] : message;

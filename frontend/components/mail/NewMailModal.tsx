@@ -1,5 +1,8 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { AlertCircle, Paperclip, X, FileText, ImageIcon, User, Users } from 'lucide-react';
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { AlertCircle, FileText, ImageIcon, Paperclip, User, Users, X } from 'lucide-react';
 import { ModalForm } from '@/components/ui/ModalForm';
 import { MarkdownEditor } from '@/components/ui/MarkdownEditor';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -18,8 +21,6 @@ interface NewMailModalProps {
     initialTargetId?: string;
     initialSubject?: string;
 }
-
-// ── Category groups by communication context ─────────────────────────────────
 
 const PLATFORM_CATEGORIES = [
     { value: MailCategory.ACCOUNT_STATUS, label: 'Account Status' },
@@ -57,10 +58,6 @@ const UNIVERSAL_CATEGORIES = [
     { value: MailCategory.OTHER, label: 'Other' },
 ];
 
-/**
- * Returns the correct subset of categories based on the sender's role
- * and the selected recipients' roles.
- */
 function getCategoriesForContext(
     senderRole: Role | undefined,
     recipientRoles: string[],
@@ -70,33 +67,23 @@ function getCategoriesForContext(
     if (senderRole && recipientRoles.length > 0) {
         const recipientUpper = recipientRoles[0].toUpperCase();
 
-        // Sender is platform-level (Super/Platform Admin)
         if (senderRole === Role.SUPER_ADMIN || senderRole === Role.PLATFORM_ADMIN) {
-            if (recipientUpper === Role.ORG_ADMIN) {
-                base = [...PLATFORM_TO_ORG_CATEGORIES, ...UNIVERSAL_CATEGORIES];
-            } else {
-                base = [...PLATFORM_CATEGORIES, ...UNIVERSAL_CATEGORIES];
-            }
-        }
-        // Sender is org-level admin/manager
-        else if (senderRole === Role.ORG_ADMIN || senderRole === Role.ORG_MANAGER) {
-            if (recipientUpper === Role.SUPER_ADMIN || recipientUpper === Role.PLATFORM_ADMIN) {
-                base = [...PLATFORM_CATEGORIES, ...UNIVERSAL_CATEGORIES];
-            } else {
-                base = [...ORG_ADMIN_TO_STAFF_CATEGORIES, ...UNIVERSAL_CATEGORIES];
-            }
-        }
-        // Sender is a teacher
-        else if (senderRole === Role.TEACHER) {
+            base = recipientUpper === Role.ORG_ADMIN
+                ? [...PLATFORM_TO_ORG_CATEGORIES, ...UNIVERSAL_CATEGORIES]
+                : [...PLATFORM_CATEGORIES, ...UNIVERSAL_CATEGORIES];
+        } else if (senderRole === Role.ORG_ADMIN || senderRole === Role.ORG_MANAGER) {
+            base = recipientUpper === Role.SUPER_ADMIN || recipientUpper === Role.PLATFORM_ADMIN
+                ? [...PLATFORM_CATEGORIES, ...UNIVERSAL_CATEGORIES]
+                : [...ORG_ADMIN_TO_STAFF_CATEGORIES, ...UNIVERSAL_CATEGORIES];
+        } else if (senderRole === Role.TEACHER) {
             base = [...TEACHER_CATEGORIES, ...UNIVERSAL_CATEGORIES];
         }
     }
 
-    // Unique by value
-    const seen = new Set();
-    return base.filter(c => {
-        if (seen.has(c.value)) return false;
-        seen.add(c.value);
+    const seen = new Set<string>();
+    return base.filter((category) => {
+        if (seen.has(category.value)) return false;
+        seen.add(category.value);
         return true;
     });
 }
@@ -108,12 +95,71 @@ const PRIORITIES = [
     { value: 'URGENT', label: 'Urgent' },
 ];
 
+const MEGA_GROUPS = ['ROLE:ORG_STAFF', 'ROLE:PLATFORM_ADMIN'];
+const ADMIN_TEMPLATE_OPTIONS = ADMIN_REPLY_TEMPLATES.map((template) => ({
+    label: template.name,
+    content: template.content,
+}));
+
+function formatRole(role?: string) {
+    return role ? role.replace(/_/g, ' ') : 'Unknown role';
+}
+
+function resolveTargetSelection(incomingIds: string[], previousIds: string[], targets: MailTarget[]) {
+    const targetMap = new Map(targets.map((target) => [target.id, target]));
+    const addedIds = incomingIds.filter((id) => !previousIds.includes(id));
+    let finalIds = [...incomingIds];
+    let feedback = '';
+
+    for (const addedId of addedIds) {
+        const addedTarget = targetMap.get(addedId);
+        if (!addedTarget) continue;
+
+        const activeTargetsList = finalIds.map((id) => targetMap.get(id)).filter(Boolean) as MailTarget[];
+
+        if (activeTargetsList.length > 1 && MEGA_GROUPS.includes(addedId)) {
+            finalIds = [addedId];
+            feedback = `Targeting ${addedTarget.label} clears the other selections.`;
+            break;
+        }
+
+        const activeMegaGroup = finalIds.find((id) => MEGA_GROUPS.includes(id) && id !== addedId);
+        if (activeMegaGroup) {
+            finalIds = finalIds.filter((id) => !MEGA_GROUPS.includes(id));
+        }
+
+        if (addedTarget.type === 'ROLE') {
+            if (addedTarget.role === Role.TEACHER || addedTarget.role === Role.ORG_MANAGER) {
+                finalIds = finalIds.filter((id) => id !== 'ROLE:ORG_STAFF');
+            }
+
+            finalIds = finalIds.filter((id) => {
+                if (id === addedId) return true;
+                const target = targetMap.get(id);
+                return !(target?.type === 'USER' && target.role === addedTarget.role);
+            });
+        } else if (addedTarget.type === 'USER') {
+            const groupSelected = finalIds.some((id) => {
+                const target = targetMap.get(id);
+                return target?.type === 'ROLE' && target.role === addedTarget.role;
+            });
+
+            if (groupSelected) {
+                finalIds = finalIds.filter((id) => id !== addedId);
+                feedback = `${addedTarget.label} is already included in the selected group.`;
+            }
+        }
+    }
+
+    return { finalIds, feedback };
+}
+
 export function NewMailModal({
     isOpen,
     onClose,
     onSuccess,
     initialTargetId,
-    initialSubject
+    initialSubject,
 }: NewMailModalProps) {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
@@ -131,159 +177,143 @@ export function NewMailModal({
     const [info, setInfo] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const targetMap = useMemo(() => new Map(targets.map((target) => [target.id, target])), [targets]);
     const selectedTargets = useMemo(
-        () => targets.filter(t => targetIds.includes(t.id)),
-        [targets, targetIds]
+        () => targetIds.map((id) => targetMap.get(id)).filter(Boolean) as MailTarget[],
+        [targetIds, targetMap],
     );
 
     const isPlatformAdmin = user?.role === Role.PLATFORM_ADMIN || user?.role === Role.SUPER_ADMIN;
     const primaryTarget = selectedTargets[0];
-    const isTargetingPlatform = selectedTargets.some(t => t.role === Role.PLATFORM_ADMIN || t.role === Role.SUPER_ADMIN);
+    const isTargetingPlatform = selectedTargets.some((target) => target.role === Role.PLATFORM_ADMIN || target.role === Role.SUPER_ADMIN);
     const showNoReply = (isPlatformAdmin || user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) &&
         !(user?.role !== Role.SUPER_ADMIN && user?.role !== Role.PLATFORM_ADMIN && isTargetingPlatform);
 
-    const orgData: Record<string, string> = isPlatformAdmin ? {
-        name: primaryTarget?.label || 'User',
-        id: primaryTarget?.id || 'ID',
-        admin: user?.name || 'Administrator',
-        role: user?.role || 'Platform Admin',
-        date: new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }),
-        signature: 'EduVerse Support'
-    } : {};
+    const todayLabel = useMemo(() => new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }), []);
+    const orgData = useMemo<Record<string, string>>(() => {
+        if (!isPlatformAdmin) return {} as Record<string, string>;
 
-    // Fetch contactable users when modal opens
-    React.useEffect(() => {
-        if (isOpen && token) {
-            setSearching(true);
-            api.mail.getContactableUsers(token)
-                .then(data => {
-                    setTargets(data);
-                    if (initialTargetId) {
-                        // Call the handler to ensure categories etc. are updated
-                        handleTargetChange(initialTargetId, data);
-                    }
-                    if (initialSubject) setSubject(initialSubject);
-                })
-                .catch(console.error)
-                .finally(() => setSearching(false));
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, token, initialTargetId, initialSubject]);
+        return {
+            name: primaryTarget?.label || 'User',
+            id: primaryTarget?.id || 'ID',
+            admin: user?.name || 'Administrator',
+            role: user?.role || 'Platform Admin',
+            date: todayLabel,
+            signature: 'EduVerse Support',
+        } satisfies Record<string, string>;
+    }, [isPlatformAdmin, primaryTarget?.id, primaryTarget?.label, todayLabel, user?.name, user?.role]);
 
-    React.useEffect(() => {
-        if (error || info) {
-            const timer = setTimeout(() => {
-                setError('');
-                setInfo('');
-            }, 3500);
-            return () => clearTimeout(timer);
-        }
-    }, [error, info]);
-
-    // Compute context-aware categories based on the FIRST selected target
     const availableCategories = useMemo(
-        () => getCategoriesForContext(user?.role as Role | undefined, selectedTargets.map(t => t.role || '')),
-        [user?.role, selectedTargets]
+        () => getCategoriesForContext(user?.role as Role | undefined, selectedTargets.map((target) => target.role || '')),
+        [selectedTargets, user?.role],
     );
 
-    // When recipients change, auto-reset category to first valid option if needed
-    const handleTargetChange = React.useCallback((newTargetIds: string | string[], overrideTargets?: MailTarget[]) => {
-        const currentTargets = overrideTargets || targets;
-        const incomingIds = typeof newTargetIds === 'string' ? [newTargetIds] : newTargetIds;
-        const addedIds = incomingIds.filter(id => !targetIds.includes(id));
-        let finalIds = [...incomingIds];
-        let feedback = '';
+    const targetOptions = useMemo(
+        () => targets.map((target) => ({
+            value: target.id,
+            label: target.type === 'ROLE' ? `${target.label} group` : target.label,
+            icon: target.type === 'ROLE' ? Users : User,
+        })),
+        [targets],
+    );
 
-        const MEGA_GROUPS = ['ROLE:ORG_STAFF', 'ROLE:PLATFORM_ADMIN'];
+    const templateOptions = useMemo(() => isPlatformAdmin ? ADMIN_TEMPLATE_OPTIONS : [], [isPlatformAdmin]);
 
-        for (const addedId of addedIds) {
-            const addedTarget = currentTargets.find(t => t.id === addedId);
-            if (!addedTarget) continue;
+    useEffect(() => {
+        if (!isOpen || !token) return;
 
-            const activeTargetsList = currentTargets.filter(t => finalIds.includes(t.id));
+        let cancelled = false;
+        setSearching(true);
 
-            // 1. Mega Group Exclusivity (All Staff / Platform Team)
-            if (activeTargetsList.length > 1 && MEGA_GROUPS.includes(addedId)) {
-                finalIds = [addedId];
-                feedback = `Targeting ${addedTarget.label} cancels all other selections.`;
-                break;
-            }
+        api.mail.getContactableUsers(token)
+            .then((data) => {
+                if (cancelled) return;
 
-            // 2. If something else is added while a Mega Group is present, remove the Mega Group
-            const activeMegaGroup = finalIds.find(id => MEGA_GROUPS.includes(id) && id !== addedId);
-            if (activeMegaGroup) {
-                finalIds = finalIds.filter(id => !MEGA_GROUPS.includes(id));
-            }
+                setTargets(data);
+                if (initialTargetId) {
+                    const { finalIds, feedback } = resolveTargetSelection([initialTargetId], [], data);
+                    setTargetIds(finalIds);
+                    setInfo(feedback);
 
-            // 3. Regular Group vs Sub-Group / User Exclusivity
-            if (addedTarget.type === 'ROLE') {
-                if (addedTarget.role === Role.TEACHER || addedTarget.role === Role.ORG_MANAGER) {
-                    finalIds = finalIds.filter(id => id !== 'ROLE:ORG_STAFF');
+                    const nextTargets = finalIds
+                        .map((id) => data.find((target) => target.id === id))
+                        .filter(Boolean) as MailTarget[];
+                    const nextCategories = getCategoriesForContext(user?.role as Role | undefined, nextTargets.map((target) => target.role || ''));
+                    setCategory((current) => nextCategories.some((item) => item.value === current)
+                        ? current
+                        : nextCategories[0]?.value || MailCategory.GENERAL_INQUIRY);
                 }
+                if (initialSubject) setSubject(initialSubject);
+            })
+            .catch((err) => {
+                console.error(err);
+                if (!cancelled) setError('Unable to load recipients.');
+            })
+            .finally(() => {
+                if (!cancelled) setSearching(false);
+            });
 
-                // Unselect individual users of that role
-                finalIds = finalIds.filter(id => {
-                    if (id === addedId) return true;
-                    const t = currentTargets.find(x => x.id === id);
-                    if (t?.type === 'USER' && t.role === addedTarget.role) return false;
-                    return true;
-                });
-            } else if (addedTarget.type === 'USER') {
-                const groupSelected = finalIds.some(id => {
-                    const t = currentTargets.find(x => x.id === id);
-                    return t?.type === 'ROLE' && t.role === addedTarget.role;
-                });
+        return () => {
+            cancelled = true;
+        };
+    }, [initialSubject, initialTargetId, isOpen, token, user?.role]);
 
-                if (groupSelected) {
-                    finalIds = finalIds.filter(id => id !== addedId);
-                    feedback = `User ${addedTarget.label} is already included in the selected group.`;
-                }
-            }
-        }
+    useEffect(() => {
+        if (!error && !info) return;
 
-        if (feedback) setInfo(feedback);
-        else setInfo('');
+        const timer = window.setTimeout(() => {
+            setError('');
+            setInfo('');
+        }, 3500);
+
+        return () => window.clearTimeout(timer);
+    }, [error, info]);
+
+    const handleTargetChange = useCallback((newTargetIds: string[]) => {
+        const { finalIds, feedback } = resolveTargetSelection(newTargetIds, targetIds, targets);
+        const nextTargets = finalIds.map((id) => targetMap.get(id)).filter(Boolean) as MailTarget[];
+        const nextCategories = getCategoriesForContext(user?.role as Role | undefined, nextTargets.map((target) => target.role || ''));
 
         setError('');
-
+        setInfo(feedback);
         setTargetIds(finalIds);
-        const newTargets = currentTargets.filter(t => finalIds.includes(t.id));
-        const newCategories = getCategoriesForContext(user?.role as Role | undefined, newTargets.map(t => t.role || ''));
+        setCategory((current) => nextCategories.some((item) => item.value === current)
+            ? current
+            : nextCategories[0]?.value || MailCategory.GENERAL_INQUIRY);
+    }, [targetIds, targetMap, targets, user?.role]);
 
-        if (!newCategories.some(c => c.value === category)) {
-            setCategory(newCategories[0]?.value || MailCategory.GENERAL_INQUIRY);
+    const handleCategoryChange = useCallback((value: string) => {
+        setCategory(value);
+    }, []);
+
+    const handlePriorityChange = useCallback((value: string) => {
+        setPriority(value);
+    }, []);
+
+    const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+        const filesArray = event.target.files ? Array.from(event.target.files) : [];
+        const validFiles = filesArray.filter((file) => file.type.startsWith('image/') || file.type === 'application/pdf');
+
+        if (validFiles.length < filesArray.length) {
+            setError('Only images and PDF files are allowed.');
         }
-    }, [targets, targetIds, user?.role, category]);
 
+        setSelectedFiles((current) => [...current, ...validFiles].slice(0, 5));
+        event.target.value = '';
+    }, []);
 
+    const removeFile = useCallback((index: number) => {
+        setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    }, []);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const filesArray = Array.from(e.target.files);
-            const validFiles = filesArray.filter(file =>
-                file.type.startsWith('image/') || file.type === 'application/pdf'
-            );
-
-            if (validFiles.length < filesArray.length) {
-                setError('Only images and PDF files are allowed');
-            }
-
-            setSelectedFiles(prev => [...prev, ...validFiles].slice(0, 5));
-        }
-    };
-
-    const removeFile = (index: number) => {
-        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = useCallback(async (event: FormEvent) => {
+        event.preventDefault();
         if (!subject.trim() || !message.trim()) {
-            setError('Subject and message are required');
+            setError('Subject and message are required.');
             return;
         }
         if (targetIds.length === 0) {
-            setError('Please select at least one recipient');
+            setError('Please select at least one recipient.');
             return;
         }
         if (!token) {
@@ -296,9 +326,8 @@ export function NewMailModal({
             setError('');
             dispatch({ type: 'UI_START_PROCESSING', payload: 'new-mail-submit' });
 
-            // Separate Roles from individual User IDs
-            const roleTarget = selectedTargets.find(t => t.type === 'ROLE');
-            const individualIds = selectedTargets.filter(t => t.type === 'USER').map(t => t.id);
+            const roleTarget = selectedTargets.find((target) => target.type === 'ROLE');
+            const individualIds = selectedTargets.filter((target) => target.type === 'USER').map((target) => target.id);
 
             const response = await api.mail.createMail({
                 subject,
@@ -307,7 +336,7 @@ export function NewMailModal({
                 message,
                 assigneeIds: individualIds.length > 0 ? individualIds : undefined,
                 targetRole: roleTarget?.role || undefined,
-                noReply
+                noReply,
             }, token);
 
             if (selectedFiles.length > 0) {
@@ -316,9 +345,9 @@ export function NewMailModal({
 
                 if (messageId) {
                     await Promise.all(
-                        selectedFiles.map(file =>
-                            api.files.uploadFile(orgId, 'MAIL_MESSAGE', messageId, file, token)
-                        )
+                        selectedFiles.map((file) =>
+                            api.files.uploadFile(orgId, 'MAIL_MESSAGE', messageId, file, token),
+                        ),
                     );
                 }
             }
@@ -329,15 +358,16 @@ export function NewMailModal({
             setMessage('');
             setTargetIds([]);
             setSelectedFiles([]);
+            setNoReply(false);
             onSuccess?.();
             onClose();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to send mail');
+            setError(err instanceof Error ? err.message : 'Failed to send mail.');
         } finally {
             setSubmitting(false);
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'new-mail-submit' });
         }
-    };
+    }, [category, dispatch, message, noReply, onClose, onSuccess, priority, selectedFiles, selectedTargets, subject, targetIds.length, token]);
 
     return (
         <ModalForm
@@ -348,130 +378,163 @@ export function NewMailModal({
             submitText="Send Mail"
             isSubmitting={submitting}
             loadingId="new-mail-submit"
-            maxWidth="max-w-7xl"
+            maxWidth="max-w-6xl"
+            bodyClassName="px-4 py-4 sm:px-5 md:px-6 md:py-5"
             feedback={
                 error ? (
-                    <div className="flex items-center gap-3 p-3 bg-danger/10 border border-danger/20 rounded-lg text-danger animate-shake">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        <p className="text-[11px] font-bold tracking-wider">{error}</p>
+                    <div className="flex items-start gap-3 rounded-xl border border-danger/20 bg-danger/10 p-3 text-danger">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <p className="text-xs font-bold leading-relaxed">{error}</p>
                     </div>
                 ) : info ? (
-                    <div className="flex items-center gap-3 p-3 bg-info/10 border border-info/20 rounded-lg text-info animate-in fade-in slide-in-from-top-1">
-                        <AlertCircle className="w-4 h-4 shrink-0 opacity-70" />
-                        <p className="text-[11px] font-bold tracking-wider">{info}</p>
+                    <div className="flex items-start gap-3 rounded-xl border border-info/20 bg-info/10 p-3 text-info">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <p className="text-xs font-bold leading-relaxed">{info}</p>
                     </div>
                 ) : null
             }
         >
-            <div>
-                <div className="grid grid-cols-1 gap-3">
-                    {/* Left Column: Basic Info */}
-                    <div className="space-y-3">
+            <div className="space-y-5">
+                <div>
+                    <label htmlFor="mail-subject" className="mb-2 block text-xs font-black uppercase tracking-widest text-muted-foreground">
+                        Subject
+                    </label>
+                    <input
+                        id="mail-subject"
+                        type="text"
+                        value={subject}
+                        onChange={(event) => setSubject(event.target.value)}
+                        placeholder="Briefly summarize the mail"
+                        className="w-full rounded-xl border border-border/60 bg-background/80 px-4 py-3 text-base font-bold text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
+                    />
+                </div>
+
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <section className="space-y-4 rounded-2xl border border-border/70 bg-background/45 p-4">
                         <div>
-                            <label className="block text-xs font-black text-muted-foreground tracking-widest mb-3">Subject</label>
-                            <input
-                                type="text"
-                                value={subject}
-                                onChange={(e) => setSubject(e.target.value)}
-                                placeholder="Explain your issue briefly"
-                                className="w-full px-5 py-4 rounded-2xl bg-card/5 border border-border focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none text-foreground font-bold text-base"
-                            />
+                            <h3 className="text-sm font-black text-foreground">Recipients and settings</h3>
+                            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                Choose people or groups, then set the routing details.
+                            </p>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-black text-muted-foreground tracking-widest mb-3">Recipients</label>
+                            <label className="mb-2 block text-xs font-black uppercase tracking-widest text-muted-foreground">
+                                Recipients
+                            </label>
                             <CustomMultiSelect
                                 values={targetIds}
                                 onChange={handleTargetChange}
-                                options={targets.map(t => ({
-                                    value: t.id,
-                                    label: t.type === 'ROLE' ? `[GROUP] ${t.label}` : t.label,
-                                    icon: t.type === 'ROLE' ? Users : User
-                                }))}
+                                options={targetOptions}
                                 className="w-full"
-                                placeholder={searching ? "Loading recipients..." : "Select one or more recipients..."}
+                                placeholder={searching ? 'Loading recipients...' : 'Select recipients...'}
+                                disabled={searching}
                             />
-                            {targetIds.length > 0 && (
-                                <div className="mt-3 space-y-2">
-                                    {selectedTargets.map(t => (
-                                        <div key={t.id} className="text-[10px] font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg tracking-wider block">
-                                            {t.type === 'USER'
-                                                ? `User: ${t.email} - ${t.role?.replace('_', ' ')} - ${t.description}`
-                                                : `Group: ${t.label} - ${t.description}`
-                                            }
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+
+                            <div className="mt-3 max-h-36 overflow-y-auto rounded-xl border border-border/60 bg-card/50 p-2 custom-scrollbar">
+                                {selectedTargets.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {selectedTargets.map((target) => (
+                                            <div key={target.id} className="flex min-w-0 items-start gap-2 rounded-lg bg-background/70 px-3 py-2">
+                                                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                                    {target.type === 'ROLE' ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-xs font-black text-foreground">{target.label}</p>
+                                                    <p className="truncate text-[11px] font-semibold text-muted-foreground">
+                                                        {target.type === 'USER'
+                                                            ? `${target.email || 'No email'} - ${formatRole(target.role)}`
+                                                            : target.description || 'Recipient group'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="px-2 py-3 text-center text-xs font-semibold text-muted-foreground">
+                                        No recipients selected.
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
                             <div>
-                                <label className="block text-xs font-black text-muted-foreground tracking-widest mb-3">Category</label>
+                                <label className="mb-2 block text-xs font-black uppercase tracking-widest text-muted-foreground">
+                                    Category
+                                </label>
                                 <CustomSelect
                                     value={category}
-                                    onChange={(val) => setCategory(val)}
+                                    onChange={handleCategoryChange}
                                     options={availableCategories}
                                     className="w-full"
                                     placeholder="Select category"
                                 />
                             </div>
+
                             <div>
-                                <label className="block text-xs font-black text-muted-foreground tracking-widest mb-3">Priority</label>
+                                <label className="mb-2 block text-xs font-black uppercase tracking-widest text-muted-foreground">
+                                    Priority
+                                </label>
                                 <CustomSelect
                                     value={priority}
-                                    onChange={(val) => setPriority(val)}
+                                    onChange={handlePriorityChange}
                                     options={PRIORITIES}
                                     className="w-full"
                                     placeholder="Select priority"
                                 />
                             </div>
-                            {/* No Reply Option for Admins/Managers */}
-                            {showNoReply && (
-                                <div
-                                    className="px-4 py-3 select-none hover:bg-card border border-border cursor-pointer rounded-2xl mt-3"
-                                    onClick={() => setNoReply(!noReply)}
-                                >
-                                    <Toggle
-                                        checked={noReply}
-                                        onCheckedChange={setNoReply}
-                                        label="No Reply"
-                                        description="Recipients cannot reply to this mail"
-                                    />
-                                </div>
-                            )}
                         </div>
-                    </div>
 
-                    {/* Right Column: Message & Files */}
-                    <div className="space-y-6 flex flex-col h-full">
-                        <div className="pt-2">
-                            <div className="flex items-center justify-between mb-3">
-                                <label className="text-xs font-black text-muted-foreground tracking-widest">Attachments</label>
-                                <span className="text-[10px] font-black text-primary bg-primary/20 px-2 py-0.5 rounded-full">{selectedFiles.length} / 5</span>
+                        {showNoReply && (
+                            <div className="rounded-xl border border-border/70 bg-card/50 p-3">
+                                <Toggle
+                                    checked={noReply}
+                                    onCheckedChange={setNoReply}
+                                    label="No Reply"
+                                    description="Recipients can read this mail but cannot respond."
+                                />
+                            </div>
+                        )}
+
+                        <div>
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                                <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                                    Attachments
+                                </label>
+                                <span className="rounded-md bg-primary/10 px-2 py-1 text-[10px] font-black text-primary">
+                                    {selectedFiles.length} / 5
+                                </span>
                             </div>
 
-                            <div className="flex flex-wrap gap-2 min-h-11 p-3 bg-card/5 border border-dashed border-border rounded-lg">
-                                {selectedFiles.map((file, i) => (
-                                    <div key={i} className="flex items-center gap-2 bg-card border border-border pl-3 pr-2 py-1.5 rounded-lg shadow-sm animate-in fade-in zoom-in duration-200">
-                                        <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
-                                            {file.type.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                                        </div>
-                                        <span className="text-[11px] font-bold text-foreground max-w-25 truncate select-none">{file.name}</span>
-                                        <button type="button" onClick={() => removeFile(i)} className="p-1 text-muted-foreground hover:text-dangerhover:bg-ddanger0 rounded-full transition-colors ml-1">
-                                            <X className="w-3 h-3" />
-                                        </button>
+                            <div className="flex min-h-24 flex-col gap-2 rounded-xl border border-dashed border-border/70 bg-card/40 p-3">
+                                {selectedFiles.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedFiles.map((file, index) => (
+                                            <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border/70 bg-background/80 px-3 py-2">
+                                                {file.type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0 text-primary" /> : <FileText className="h-4 w-4 shrink-0 text-primary" />}
+                                                <span className="max-w-44 truncate text-xs font-bold text-foreground">{file.name}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeFile(index)}
+                                                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                                                    title="Remove file"
+                                                >
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
+                                )}
 
                                 {selectedFiles.length < 5 && (
                                     <button
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="h-8.5 flex items-center gap-2 px-4 border border-dashed border-border rounded-2xl text-muted-foreground hover:border-primary hover:text-primary hover:bg-card/80 transition-all group"
+                                        className="flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-background/70 px-4 py-2.5 text-xs font-black text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
                                     >
-                                        <Paperclip className="w-3.5 h-3.5" />
-                                        <span className="text-[10px] font-black tracking-wider">Add File</span>
+                                        <Paperclip className="h-4 w-4" />
+                                        Add images or PDFs
                                     </button>
                                 )}
                             </div>
@@ -485,19 +548,26 @@ export function NewMailModal({
                                 multiple
                             />
                         </div>
+                    </section>
 
-                        <div className="flex-1">
-                            <label className="block text-xs font-black text-muted-foreground tracking-widest mb-3">Detailed Message</label>
-                            <MarkdownEditor
-                                value={message}
-                                onChange={setMessage}
-                                placeholder="Describe your issue in detail..."
-                                rows={8}
-                                templates={isPlatformAdmin ? ADMIN_REPLY_TEMPLATES.map(t => ({ label: t.name, content: t.content })) : []}
-                                orgData={orgData}
-                            />
+                    <section className="flex min-h-0 flex-col rounded-2xl border border-border/70 bg-background/45 p-4">
+                        <div className="mb-3">
+                            <h3 className="text-sm font-black text-foreground">Message</h3>
+                            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                Markdown is supported for structure, links, and lists.
+                            </p>
                         </div>
-                    </div>
+
+                        <MarkdownEditor
+                            value={message}
+                            onChange={setMessage}
+                            placeholder="Write the full message..."
+                            rows={10}
+                            templates={templateOptions}
+                            orgData={orgData}
+                            className="min-h-80"
+                        />
+                    </section>
                 </div>
             </div>
         </ModalForm>

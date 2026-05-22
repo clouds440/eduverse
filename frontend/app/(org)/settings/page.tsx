@@ -1,11 +1,27 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import type { ChangeEvent, FormEvent, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings, Save, CheckCircle, Mail, MapPin, Phone, School, RefreshCw, AlertCircle, TriangleAlert } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import {
+    AlertCircle,
+    Building2,
+    CheckCircle,
+    Mail,
+    MapPin,
+    Palette,
+    Phone,
+    RefreshCw,
+    Save,
+    School,
+    Settings,
+    ShieldCheck,
+    TriangleAlert,
+} from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { Organization, Role } from '@/types';
+import { Organization, Role, ThemeMode } from '@/types';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useGlobal } from '@/context/GlobalContext';
@@ -13,24 +29,69 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/context/ThemeContext';
-import { ThemeMode } from '@/types';
 import SessionManagement from '@/components/SessionManagement';
 import { Loading } from '@/components/ui/Loading';
 import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
 import { getPrimaryColorError, getSafePrimaryColor, isPrimaryColorAllowed } from '@/lib/themeColor';
 import { Badge } from '@/components/ui/Badge';
 
+function SettingsSection({
+    icon: Icon,
+    title,
+    description,
+    children,
+}: {
+    icon: LucideIcon;
+    title: string;
+    description?: string;
+    children: ReactNode;
+}) {
+    return (
+        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+            <div className="flex items-start gap-3 border-b border-border/60 bg-background/45 px-4 py-4 sm:px-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
+                    <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                    <h2 className="text-base font-black text-foreground">{title}</h2>
+                    {description && <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">{description}</p>}
+                </div>
+            </div>
+            <div className="p-4 sm:p-5">
+                {children}
+            </div>
+        </section>
+    );
+}
+
+function FieldError({ children }: { children?: string }) {
+    if (!children) return null;
+    return <p className="mt-1.5 text-xs font-semibold text-danger">{children}</p>;
+}
+
 export default function SettingsPage() {
     const { token, user } = useAuth();
     const router = useRouter();
     const { dispatch } = useGlobal();
+    const { setPrimaryColor, setThemeMode, themeMode } = useTheme();
     const [loading, setLoading] = useState(false);
     const [reapplying, setReapplying] = useState(false);
     const [orgData, setOrgData] = useState<Organization | null>(null);
     const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
     const [redirecting, setRedirecting] = useState(user?.role === Role.ORG_ADMIN ? false : true);
+    const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; accentColor?: string; general?: string }>({});
 
-    // Scroll to section if hash is present
+    const [formData, setFormData] = useState({
+        name: '',
+        location: '',
+        contactEmail: '',
+        phone: '',
+        accentColor: {
+            primary: '#4f46e5',
+            mode: ThemeMode.SYSTEM,
+        },
+    });
+
     useEffect(() => {
         const hash = window.location.hash;
         if ((hash === '#sessions' || hash === '#contact-email') && !redirecting && !loading) {
@@ -41,39 +102,26 @@ export default function SettingsPage() {
         }
     }, [redirecting, loading]);
 
-    const [formData, setFormData] = useState({
-        name: '',
-        location: '',
-        contactEmail: '',
-        phone: '',
-        accentColor: {
-            primary: '#4f46e5',
-            mode: ThemeMode.SYSTEM
-        }
-    });
-
     useEffect(() => {
         if (!token || !user) return;
 
-        // Preserve hash from URL for scrolling
         const hash = typeof window !== 'undefined' ? window.location.hash : '';
 
-        // Redirect based on role
         if (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN) {
             router.push(`/admin/settings${hash}`);
             return;
-        } else if (user.role === Role.ORG_MANAGER || user.role === Role.TEACHER) {
+        }
+        if (user.role === Role.ORG_MANAGER || user.role === Role.TEACHER) {
             router.push(`/teachers/${user.id}/profile${hash}`);
             return;
-        } else if (user.role === Role.STUDENT) {
+        }
+        if (user.role === Role.STUDENT) {
             router.push(`/students/${user.id}?tab=profile${hash}`);
             return;
         }
 
-        // Only ORG_ADMIN continues to org settings
-        if (user.role !== Role.ORG_ADMIN) {
-            return;
-        }
+        if (user.role !== Role.ORG_ADMIN) return;
+
         setLoading(true);
         api.org.getOrgData(token)
             .then((data: Organization) => {
@@ -85,8 +133,8 @@ export default function SettingsPage() {
                     phone: data.phone || '',
                     accentColor: {
                         primary: getSafePrimaryColor(data.accentColor?.primary || '#4f46e5'),
-                        mode: (data.accentColor?.mode as ThemeMode) || ThemeMode.SYSTEM
-                    }
+                        mode: (data.accentColor?.mode as ThemeMode) || ThemeMode.SYSTEM,
+                    },
                 });
             })
             .catch((err) => {
@@ -100,52 +148,43 @@ export default function SettingsPage() {
             });
     }, [token, dispatch, user, router]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
-
-    // Live preview helpers
-    // We'll use ThemeContext to preview primary and mode
-    const { setPrimaryColor, setThemeMode, themeMode } = useTheme();
-
-    // Update theme immediately when color changes (real-time preview)
     useEffect(() => {
-        if (!redirecting) {
-            if (isPrimaryColorAllowed(formData.accentColor.primary)) {
-                setPrimaryColor(formData.accentColor.primary);
-            }
+        if (!redirecting && isPrimaryColorAllowed(formData.accentColor.primary)) {
+            setPrimaryColor(formData.accentColor.primary);
         }
     }, [formData.accentColor.primary, setPrimaryColor, redirecting]);
+
+    const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = event.target;
+        setFormData((current) => ({ ...current, [name]: value }));
+    };
 
     const handleLogoReady = useCallback((file: File) => {
         setPendingLogoFile(file);
     }, []);
 
-    const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; accentColor?: string; general?: string }>({});
-
     const handlePrimaryColorChange = (newPrimary: string) => {
         const colorError = getPrimaryColorError(newPrimary);
         if (colorError) {
-            setFormErrors((prev) => ({ ...prev, accentColor: colorError }));
+            setFormErrors((current) => ({ ...current, accentColor: colorError }));
             return;
         }
 
-        setFormErrors((prev) => ({ ...prev, accentColor: undefined }));
-        setFormData({
-            ...formData,
+        setFormErrors((current) => ({ ...current, accentColor: undefined }));
+        setFormData((current) => ({
+            ...current,
             accentColor: {
-                ...formData.accentColor,
+                ...current.accentColor,
                 primary: getSafePrimaryColor(newPrimary),
             },
-        });
+        }));
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (event: FormEvent) => {
+        event.preventDefault();
         if (!token) return;
         setFormErrors({});
 
-        // validation
         let hasError = false;
         const newErrors: typeof formErrors = {};
 
@@ -178,31 +217,26 @@ export default function SettingsPage() {
 
         dispatch({ type: 'UI_START_PROCESSING', payload: 'settings-submit' });
         try {
-            // 1. Save text settings — send only primary for accentColor (no secondary)
             const payload = {
                 ...formData,
                 accentColor: {
-                    primary: getSafePrimaryColor(formData.accentColor.primary)
-                }
+                    primary: getSafePrimaryColor(formData.accentColor.primary),
+                },
             };
 
             const updatedSettings = await api.org.updateSettings(payload, token) as Organization;
-            setOrgData((prev) => prev ? { ...prev, ...updatedSettings } : updatedSettings);
+            setOrgData((current) => current ? { ...current, ...updatedSettings } : updatedSettings);
             dispatch({ type: 'STATS_SET_ORG_DATA', payload: updatedSettings });
 
-            // 1b. Save per-user themeMode to user profile
             try {
                 await api.auth.updateProfile({ themeMode: formData.accentColor.mode }, token);
-            } catch (e) {
-                // non-blocking — inform user but continue
-                console.warn('Failed to save user themeMode', e);
+            } catch (error) {
+                console.warn('Failed to save user themeMode', error);
             }
 
-            // 2. Upload logo if one was selected
             if (pendingLogoFile) {
                 const logoRes = await api.org.uploadLogo(pendingLogoFile, token);
-                // Update local org data so the avatar reflects the new URL
-                setOrgData((prev: Organization | null) => prev ? { ...prev, logoUrl: logoRes.logoUrl, avatarUpdatedAt: logoRes.avatarUpdatedAt } : prev);
+                setOrgData((current) => current ? { ...current, logoUrl: logoRes.logoUrl, avatarUpdatedAt: logoRes.avatarUpdatedAt } : current);
                 setPendingLogoFile(null);
             }
 
@@ -213,26 +247,26 @@ export default function SettingsPage() {
         } catch (error: unknown) {
             const errorWithResponse = error as { response?: { data?: { message?: string | string[] } }; message?: string };
             const message = errorWithResponse.response?.data?.message || errorWithResponse.message || 'Failed to update settings. Please try again.';
-            const newErrors: typeof formErrors = {};
+            const nextErrors: typeof formErrors = {};
 
             if (Array.isArray(message)) {
-                message.forEach((m: string) => {
-                    const msg = m.toLowerCase();
-                    if (msg.includes('name')) newErrors.name = m;
-                    else if (msg.includes('location')) newErrors.location = m;
-                    else if (msg.includes('email')) newErrors.contactEmail = m;
-                    else if (msg.includes('phone')) newErrors.phone = m;
-                    else newErrors.general = m;
+                message.forEach((item: string) => {
+                    const msg = item.toLowerCase();
+                    if (msg.includes('name')) nextErrors.name = item;
+                    else if (msg.includes('location')) nextErrors.location = item;
+                    else if (msg.includes('email')) nextErrors.contactEmail = item;
+                    else if (msg.includes('phone')) nextErrors.phone = item;
+                    else nextErrors.general = item;
                 });
             } else {
-                const msgStr = message;
-                if (msgStr.toLowerCase().includes('name')) newErrors.name = msgStr;
-                else if (msgStr.toLowerCase().includes('location')) newErrors.location = msgStr;
-                else if (msgStr.toLowerCase().includes('email')) newErrors.contactEmail = msgStr;
-                else if (msgStr.toLowerCase().includes('phone')) newErrors.phone = msgStr;
-                else newErrors.general = msgStr;
+                const msg = message.toLowerCase();
+                if (msg.includes('name')) nextErrors.name = message;
+                else if (msg.includes('location')) nextErrors.location = message;
+                else if (msg.includes('email')) nextErrors.contactEmail = message;
+                else if (msg.includes('phone')) nextErrors.phone = message;
+                else nextErrors.general = message;
             }
-            setFormErrors(newErrors);
+            setFormErrors(nextErrors);
             console.error('Failed to update settings', error);
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'settings-submit' });
@@ -255,203 +289,282 @@ export default function SettingsPage() {
         }
     };
 
-
     if (loading || redirecting) {
         return (
-            <div className="flex justify-center items-center h-64">
+            <div className="flex h-64 items-center justify-center">
                 <Loading size="md" />
             </div>
         );
     }
 
     return (
-        <div className="flex flex-1 flex-col max-w-7xl mx-auto w-full">
-            <div className="mb-6 md:mb-8">
-                <div className="mt-2 flex items-center gap-4 md:gap-6">
-                    <div className="relative p-3 md:p-4 bg-linear-to-br from-primary/10 to-primary/5 backdrop-blur-xl rounded-2xl border border-primary/20 shadow-xl">
-                        <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                        <Settings className="w-8 h-8 md:w-10 md:h-10 text-primary relative z-10" />
+        <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 pb-8">
+            <div className="flex flex-col p-2 lg:p-0 gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-card text-primary shadow-sm md:h-14 md:w-14">
+                        <Settings className="h-6 w-6 md:h-7 md:w-7" />
                     </div>
-                    <div>
-                        <h1 className="text-3xl md:text-5xl font-black text-foreground tracking-tight">Settings</h1>
-                        <p className="text-muted-foreground font-semibold opacity-70 mt-1 tracking-wider text-xs md:text-sm">Organization Profile & Configuration</p>
+                    <div className="min-w-0">
+                        <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">Organization Settings</h1>
+                        <p className="mt-1 text-sm font-semibold text-muted-foreground">Identity, contact, appearance, and account security.</p>
                     </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    {orgData?.status && (
+                        <Badge
+                            variant={orgData.status === 'APPROVED' ? 'success' : orgData.status === 'REJECTED' ? 'error' : 'warning'}
+                            size="md"
+                            dot
+                        >
+                            {orgData.status.replace('_', ' ')}
+                        </Badge>
+                    )}
+                    {orgData?.contactEmailVerifiedAt ? (
+                        <Badge variant="success" size="md" icon={ShieldCheck}>Contact verified</Badge>
+                    ) : (
+                        <Badge variant="warning" size="md" icon={TriangleAlert}>Contact unverified</Badge>
+                    )}
                 </div>
             </div>
 
-            <div className="bg-linear-to-br from-card/80 via-card/60 to-card/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 p-6 md:p-10 mb-10 text-card-foreground">
-                {orgData?.status === 'REJECTED' && (
-                    <div className="mb-6 md:mb-8 p-4 md:p-6 bg-destructive/10 border border-destructive/20 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
-                        <div className="flex items-center gap-3 md:gap-4">
-                            <div className="p-3 bg-destructive/20 rounded-xl text-destructive">
-                                <TriangleAlert className="w-5 h-5 md:w-6 md:h-6" />
+            {orgData?.status === 'REJECTED' && (
+                <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-danger sm:p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger/10">
+                                <TriangleAlert className="h-5 w-5" />
                             </div>
-                            <div>
-                                <h4 className="text-base md:text-lg font-black text-destructive leading-tight">Your application was rejected</h4>
-                                <div className="mt-2">
-                                    <MarkdownRenderer
-                                        content={orgData?.statusHistory && orgData.statusHistory.length > 0
-                                            ? orgData.statusHistory[orgData.statusHistory.length - 1].message
-                                            : 'Please correct the details below and re-submit for review.'}
-                                        className="text-xs md:text-sm text-muted-foreground! font-medium prose prose-red dark:prose-invert prose-sm max-w-none opacity-80"
-                                    />
-                                </div>
+                            <div className="min-w-0">
+                                <h2 className="text-base font-black">Application rejected</h2>
+                                <MarkdownRenderer
+                                    content={orgData?.statusHistory && orgData.statusHistory.length > 0
+                                        ? orgData.statusHistory[orgData.statusHistory.length - 1].message
+                                        : 'Please correct the details below and re-submit for review.'}
+                                    className="mt-1 text-sm font-semibold text-danger/80"
+                                />
                             </div>
                         </div>
                         <Button
                             onClick={handleReapply}
                             disabled={reapplying}
                             icon={RefreshCw}
-                            variant="primary"
+                            variant="danger"
+                            className="w-full shrink-0 lg:w-auto"
                         >
                             Re-submit for Review
                         </Button>
                     </div>
-                )}
+                </div>
+            )}
 
-
-                <form onSubmit={handleSubmit} className="space-y-6 md:space-y-8" noValidate>
-                    {/* Logo section */}
-                    <div className="flex flex-col items-center gap-2 pb-6 border-b border-border/50">
-                        <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Organization Logo</Label>
-                        <PhotoUploadPicker
-                            currentImageUrl={orgData?.logoUrl}
-                            onFileReady={handleLogoReady}
-                            type="org"
-                            hint="Click to change logo — saved when you click Save Settings"
-                        />
-                        {pendingLogoFile && (
-                            <p className="text-xs text-primary font-semibold flex items-center gap-1">
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                New logo ready — will upload on save
-                            </p>
-                        )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 pt-6">
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Organization Name</Label>
-                            <Input
-                                type="text"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleChange}
-                                required
-                                icon={School}
-                                placeholder="School Name"
-                                error={!!formErrors.name}
-                                className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
-                            />
-                            {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Primary Accent Color</Label>
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1">
-                                    <input
-                                        type="color"
-                                        value={formData.accentColor.primary}
-                                        onChange={(e) => {
-                                            handlePrimaryColorChange(e.target.value);
-                                        }}
-                                        className={`w-full h-12 rounded-xl border cursor-pointer ${formErrors.accentColor ? 'border-danger' : 'border-border/50'}`}
+            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                    <div className="space-y-6">
+                        <SettingsSection
+                            icon={Building2}
+                            title="Organization Profile"
+                            description="These details identify the organization across dashboards, emails, and internal records."
+                        >
+                            <div className="grid gap-5 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="settings-name" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Organization Name</Label>
+                                    <Input
+                                        id="settings-name"
+                                        type="text"
+                                        name="name"
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                        required
+                                        icon={School}
+                                        placeholder="School Name"
+                                        error={!!formErrors.name}
+                                        className="h-12 border-border/60 bg-background/70 font-medium"
                                     />
-                                    <p className="text-[10px] text-muted-foreground mt-1 font-semibold tracking-wider leading-none">HEX: {formData.accentColor.primary}</p>
-                                    {formErrors.accentColor && <p className="mt-2 text-xs text-danger font-semibold leading-relaxed">{formErrors.accentColor}</p>}
+                                    <FieldError>{formErrors.name}</FieldError>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="settings-location" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Location</Label>
+                                    <Input
+                                        id="settings-location"
+                                        type="text"
+                                        name="location"
+                                        value={formData.location}
+                                        onChange={handleChange}
+                                        required
+                                        icon={MapPin}
+                                        placeholder="City, State"
+                                        error={!!formErrors.location}
+                                        className="h-12 border-border/60 bg-background/70 font-medium"
+                                    />
+                                    <FieldError>{formErrors.location}</FieldError>
+                                </div>
+
+                                <div id="contact-email" className="space-y-2 scroll-mt-24">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Label htmlFor="settings-contact-email" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Contact Email</Label>
+                                    </div>
+                                    <Input
+                                        id="settings-contact-email"
+                                        type="email"
+                                        name="contactEmail"
+                                        value={formData.contactEmail}
+                                        onChange={handleChange}
+                                        icon={Mail}
+                                        placeholder="contact@example.com"
+                                        error={!!formErrors.contactEmail}
+                                        className="h-12 border-border/60 bg-background/70 font-medium"
+                                    />
+                                    <FieldError>{formErrors.contactEmail}</FieldError>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="settings-phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Phone Number</Label>
+                                    <Input
+                                        id="settings-phone"
+                                        type="text"
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleChange}
+                                        icon={Phone}
+                                        placeholder="+1 (555) 000-0000"
+                                        error={!!formErrors.phone}
+                                        className="h-12 border-border/60 bg-background/70 font-medium"
+                                    />
+                                    <FieldError>{formErrors.phone}</FieldError>
                                 </div>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-2 leading-relaxed font-medium">
-                                Pick an accent color with enough contrast on both light and dark backgrounds.
-                            </p>
+                        </SettingsSection>
 
-                            <div className="mt-4 space-y-2">
-                                <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Theme Mode</Label>
-                                <ThemeDropdown
-                                    currentMode={themeMode}
-                                    onModeChange={(mode) => {
-                                        setFormData({ ...formData, accentColor: { ...formData.accentColor, mode } });
-                                        setThemeMode(mode);
-                                    }}
-                                />
+                        <SettingsSection
+                            icon={Palette}
+                            title="Appearance"
+                            description="Choose the primary accent and preferred theme for this workspace."
+                        >
+                            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.65fr)]">
+                                <div className="space-y-3">
+                                    <Label htmlFor="settings-primary-color" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Primary Accent Color</Label>
+                                    <div className="flex items-center gap-3 h-30 rounded-2xl border border-border/70 bg-background/70 p-3">
+                                        <input
+                                            id="settings-primary-color"
+                                            type="color"
+                                            value={formData.accentColor.primary}
+                                            onChange={(event) => handlePrimaryColorChange(event.target.value)}
+                                            className={`h-12 w-16 shrink-0 cursor-pointer rounded-xl border bg-transparent p-1 ${formErrors.accentColor ? 'border-danger' : 'border-border/70'}`}
+                                            title="Primary accent color"
+                                        />
+                                        <div className="min-w-0 flex-1">
+                                            <FieldError>{formErrors.accentColor}</FieldError>
+                                            <p className="font-mono text-sm font-black uppercase text-foreground">{formData.accentColor.primary}</p>
+                                            <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">
+                                                Contrast is checked before saving.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Theme Mode</Label>
+                                    <ThemeDropdown
+                                        currentMode={themeMode}
+                                        onModeChange={(mode) => {
+                                            setFormData((current) => ({ ...current, accentColor: { ...current.accentColor, mode } }));
+                                            setThemeMode(mode);
+                                        }}
+                                    />
+                                    <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Preview</p>
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: formData.accentColor.primary }} />
+                                            <span className="h-3 w-12 rounded-full bg-muted" />
+                                            <span className="h-3 w-8 rounded-full bg-foreground/20" />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Location</Label>
-                            <Input
-                                type="text"
-                                name="location"
-                                value={formData.location}
-                                onChange={handleChange}
-                                required
-                                icon={MapPin}
-                                placeholder="City, State"
-                                error={!!formErrors.location}
-                                className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
-                            />
-                            {formErrors.location && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.location}</p>}
-                        </div>
-
-                        <div id="contact-email" className="space-y-2 scroll-mt-24">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Contact Email</Label>
-                                {orgData?.contactEmailVerifiedAt ? (
-                                    <Badge variant="success" size="sm" icon={CheckCircle}>Verified</Badge>
-                                ) : (
-                                    <Badge variant="warning" size="sm" icon={TriangleAlert}>Unverified</Badge>
-                                )}
-                            </div>
-                            <Input
-                                type="email"
-                                name="contactEmail"
-                                value={formData.contactEmail}
-                                onChange={handleChange}
-                                icon={Mail}
-                                placeholder="contact@example.com"
-                                error={!!formErrors.contactEmail}
-                                className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
-                            />
-                            {formErrors.contactEmail && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.contactEmail}</p>}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold tracking-wider text-muted-foreground opacity-70">Phone Number</Label>
-                            <Input
-                                type="text"
-                                name="phone"
-                                value={formData.phone}
-                                onChange={handleChange}
-                                icon={Phone}
-                                placeholder="+1 (555) 000-0000"
-                                error={!!formErrors.phone}
-                                className="h-12 md:h-14 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
-                            />
-                            {formErrors.phone && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.phone}</p>}
-                        </div>
+                        </SettingsSection>
                     </div>
 
-                    {formErrors.general && (
-                        <div className="p-4 bg-danger/10 border border-danger/30 text-danger rounded-xl flex items-center text-sm font-medium animate-shake">
-                            <AlertCircle className="w-5 h-5 mr-3 shrink-0" />
-                            {formErrors.general}
-                        </div>
-                    )}
+                    <aside className="space-y-6 xl:sticky xl:top-4">
+                        <SettingsSection
+                            icon={School}
+                            title="Logo"
+                            description="Upload a square organization mark."
+                        >
+                            <div className="flex flex-col items-center gap-3">
+                                <PhotoUploadPicker
+                                    currentImageUrl={orgData?.logoUrl}
+                                    updatedAt={orgData?.avatarUpdatedAt}
+                                    onFileReady={handleLogoReady}
+                                    type="org"
+                                    sizeClassName="h-32 w-32"
+                                    hint="Saved when you click Save Settings"
+                                />
+                                {pendingLogoFile && (
+                                    <p className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-black text-primary">
+                                        <CheckCircle className="h-3.5 w-3.5" />
+                                        New logo ready
+                                    </p>
+                                )}
+                            </div>
+                        </SettingsSection>
 
-                    <div className="pt-4 border-t border-border/50 flex justify-end">
+                        <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm sm:p-5">
+                            <div className="flex items-start gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
+                                    <ShieldCheck className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-black text-foreground">Contact Verification</h2>
+                                    <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">
+                                        Password recovery uses the verified contact email.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-3">
+                                {orgData?.contactEmailVerifiedAt ? (
+                                    <div className="flex items-center gap-2 text-success">
+                                        <CheckCircle className="h-4 w-4" />
+                                        <span className="text-sm font-black">Verified</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 text-warning">
+                                        <TriangleAlert className="h-4 w-4" />
+                                        <span className="text-sm font-black">Verification pending</span>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+                    </aside>
+                </div>
+
+                {formErrors.general && (
+                    <div className="flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm font-semibold text-danger">
+                        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                        <span>{formErrors.general}</span>
+                    </div>
+                )}
+
+                <div className="sticky bottom-3 z-20 rounded-2xl border border-border/70 bg-card/95 p-3 shadow-2xl backdrop-blur-xl">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 px-3">
+                            <p className="text-sm font-black text-foreground">Save organization settings</p>
+                            <p className="text-xs font-semibold text-muted-foreground">Logo, profile, and appearance changes are applied together.</p>
+                        </div>
                         <Button
                             type="submit"
                             loadingId="settings-submit"
-                            className="h-12 md:h-14 px-8 md:px-10 font-semibold shadow-lg hover:shadow-xl transition-shadow"
+                            className="h-12 w-full px-6 text-sm sm:w-auto"
                             icon={Save}
                         >
-                            SAVE SETTINGS
+                            Save Settings
                         </Button>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
 
-            <div id="sessions">
+            <div id="sessions" className="scroll-mt-24">
                 <SessionManagement userId={user?.id} />
             </div>
         </div>

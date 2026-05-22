@@ -105,13 +105,20 @@ export class AuthController {
     };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Get('session')
-  getSession(
+  async getSession(
     @Request() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const token = this.getAuthToken(req);
     if (!token) {
+      return { access_token: null };
+    }
+
+    const isValidSession = await this.authService.validateSessionToken(token);
+    if (!isValidSession) {
+      this.clearAuthCookie(res, req);
       return { access_token: null };
     }
 
