@@ -191,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (newToken && processToken(newToken)) return;
 
         const session = await api.auth.session();
-        if (session.access_token && processToken(session.access_token)) return;
+        if (session?.access_token && processToken(session.access_token)) return;
 
         throw new Error('Login succeeded, but the browser did not restore the session cookie.');
     }, [processToken]);

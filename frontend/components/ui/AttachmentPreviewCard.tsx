@@ -131,8 +131,8 @@ export function AttachmentPreviewCard({
 
     if (compact) {
         return (
-            <div className={`doc-preview-card no-underline w-full max-w-72 min-w-0 ${align === 'right' ? 'ml-auto' : ''}`}>
-                <div className="flex items-center gap-2 p-1.5 mt-0.5 rounded-xl bg-card/90 border border-border/50 shadow-md transition-all duration-300 min-w-0">
+            <div className={`doc-preview-card no-underline w-full max-w-full min-w-0 ${align === 'right' ? 'ml-auto' : ''}`}>
+                <div className="flex items-center gap-2 p-1.5 mt-0.5 mx-1.5 rounded-xl bg-card/90 border border-border/50 transition-all duration-300 min-w-0">
                     <div
                         className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg shadow-sm"
                         style={{ background: fileInfo.bg, color: fileInfo.color }}
@@ -163,8 +163,8 @@ export function AttachmentPreviewCard({
     }
 
     return (
-        <div className={`doc-preview-card group no-underline w-full max-w-96 min-w-0 ${align === 'right' ? 'ml-auto' : ''}`}>
-            <div className="flex items-center gap-2 p-2.5 sm:p-3 mt-0.5 rounded-2xl bg-card/95 border-2 border-border/70 shadow-lg shadow-foreground/5 hover:shadow-xl hover:shadow-foreground/10 hover:border-primary/30 transition-all duration-300 backdrop-blur-sm min-w-0">
+        <div className={`doc-preview-card group no-underline w-full max-w-full min-w-0 ${align === 'right' ? 'ml-auto' : ''}`}>
+            <div className="flex items-center gap-2 p-2.5 sm:p-3 rounded-2xl bg-card/95 border-2 border-border/70 mx-1 hover:border-primary/30 transition-all duration-300 backdrop-blur-sm min-w-0">
                 <div
                     className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 shadow-sm ring-1 ring-white/10"
                     style={{ background: fileInfo.bg, color: fileInfo.color }}

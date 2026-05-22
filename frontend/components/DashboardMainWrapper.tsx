@@ -28,7 +28,7 @@ export default function DashboardMainWrapper({ children }: { children: React.Rea
     return (
         <main 
             ref={scrollContainerRef}
-            className={`app-shell-main grow relative z-10 w-full flex flex-col pt-16 ${isPublicPage ? 'h-screen overflow-y-auto' : 'h-full overflow-hidden'}`}
+            className={`app-shell-main grow relative z-10 w-full flex flex-col pt-16 ${isPublicPage ? 'h-[var(--app-height)] overflow-y-auto' : 'h-full overflow-hidden'}`}
         >
             <div className="grow flex flex-col min-h-0">
                 {children}

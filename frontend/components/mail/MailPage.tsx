@@ -206,6 +206,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
         },
         {
             header: 'Category',
+            badge: true,
             accessor: (row: MailItem) => (
                 <span className="flex items-center gap-2 text-[10px] font-black tracking-widest text-primary bg-card/50 px-2 py-1 rounded-lg border border-primary">
                     <Tag className="w-3 h-3" />
@@ -217,14 +218,17 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
             header: 'Status',
             sortable: true,
             sortKey: 'status',
+            badge: true,
             accessor: (row: MailItem) => <MailStatusBadge status={row.status} />
         },
         {
             header: 'Priority',
+            badge: true,
             accessor: (row: MailItem) => <MailPriorityBadge priority={row.priority} />
         },
         {
             header: 'Messages',
+            badge: true,
             accessor: (row: MailItem) => (
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5 px-3 py-1 bg-muted rounded-full text-[10px] font-black text-muted-foreground min-w-7.5 justify-center">

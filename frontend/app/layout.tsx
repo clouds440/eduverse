@@ -65,6 +65,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#090d16' },
@@ -88,7 +92,7 @@ export default function RootLayout({
         <link rel="preload" as="image" href="/assets/eduverse.png" />
       </head>
       <body
-        className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased h-screen flex flex-col bg-theme-bg transition-colors duration-500 overflow-hidden`}
+        className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased h-[var(--app-height)] flex flex-col bg-theme-bg transition-colors duration-500 overflow-hidden`}
       >
         <Script id="eduverse-theme-bootstrap" strategy="beforeInteractive">
           {THEME_BOOTSTRAP_SCRIPT}

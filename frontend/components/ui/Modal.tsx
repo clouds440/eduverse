@@ -21,7 +21,7 @@ export function ModalOverlay({
     isOpen,
     children,
     maxWidth = 'max-w-4xl',
-    className = 'mb-3'
+    className = ''
 }: {
     isOpen: boolean;
     children: ReactNode;
@@ -49,8 +49,8 @@ export function ModalOverlay({
     if (!isOpen || !mounted) return null;
 
     return createPortal(
-        <div className="fixed inset-0 z-200 flex items-start justify-center bg-black/60 backdrop-blur-sm transition-all duration-300 p-3 sm:p-4 md:p-6 pt-[5vh] sm:pt-[8vh]">
-            <div className={`bg-linear-to-br from-card/95 via-card/90 to-card/95 backdrop-blur-xl rounded-2xl shadow-[0_30px_70px_rgba(0,0,0,0.3)] w-full ${maxWidth} transform transition-all border border-border/50 animate-scale-in flex flex-col max-h-[85vh] overflow-hidden ${className}`}>
+        <div className="fixed inset-0 z-200 flex items-center justify-center overflow-y-auto bg-black/60 p-2 backdrop-blur-sm transition-all duration-300 sm:p-4 md:p-6">
+            <div className={`bg-linear-to-br from-card/95 via-card/90 to-card/95 backdrop-blur-xl rounded-2xl shadow-[0_30px_70px_rgba(0,0,0,0.3)] w-full ${maxWidth} transform transition-all border border-border/50 animate-scale-in flex flex-col max-h-[calc(100vh-1rem)] max-h-[calc(100dvh-1rem)] overflow-hidden sm:max-h-[calc(100vh-2rem)] sm:max-h-[calc(100dvh-2rem)] md:max-h-[calc(100vh-3rem)] md:max-h-[calc(100dvh-3rem)] ${className}`}>
                 {children}
             </div>
         </div>,

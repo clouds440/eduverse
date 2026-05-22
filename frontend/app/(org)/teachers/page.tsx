@@ -169,6 +169,7 @@ export default function TeachersPage() {
             header: 'Status',
             sortable: true,
             sortKey: 'status',
+            badge: true,
             accessor: (row: Teacher) => {
                 const status = row.status || TeacherStatus.ACTIVE;
                 const config: Record<TeacherStatus, { label: string; variant: 'success' | 'error' | 'warning' | 'secondary' | 'neutral' }> = {
@@ -200,6 +201,7 @@ export default function TeachersPage() {
         {
             header: 'Assigned Sections',
             sortable: false,
+            badge: true,
             accessor: (row: Teacher) => {
                 const sectionsList = row.sections || [];
                 return sectionsList.length > 0 ? (

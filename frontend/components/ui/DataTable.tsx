@@ -10,6 +10,11 @@ export interface Column<T> {
     sortKey?: string; // Key to send to backend for sorting
     width?: number;
     sticky?: 'left' | 'right';
+    /**
+     * On mobile cards, render this column as a compact chip near the title
+     * instead of a full detail field.
+     */
+    badge?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -33,6 +38,11 @@ interface DataTableProps<T> {
     maxHeight?: string; // e.g., '500px' or 'calc(100vh - 300px)'
     showSerialNumber?: boolean;
     tableLayout?: 'auto' | 'fixed';
+    /**
+     * Mobile cards show only this many non-badge detail fields by default.
+     * Remaining fields are revealed per card.
+     */
+    mobileDetailLimit?: number;
 }
 
 export function DataTable<T>({
@@ -53,7 +63,8 @@ export function DataTable<T>({
     disableZebra = false,
     maxHeight,
     showSerialNumber = true,
-    tableLayout = 'auto'
+    tableLayout = 'auto',
+    mobileDetailLimit = 2
 }: DataTableProps<T>) {
     // Add serial number column if enabled
     const displayColumns = React.useMemo(() => showSerialNumber
@@ -62,6 +73,7 @@ export function DataTable<T>({
 
     const [columnWidths, setColumnWidths] = useState<number[]>(displayColumns.map(c => c.width || 200));
     const [resizingIndex, setResizingIndex] = useState<number | null>(null);
+    const [expandedMobileRows, setExpandedMobileRows] = useState<Set<string>>(() => new Set());
 
     // Update widths if columns count changes
     useEffect(() => {
@@ -82,6 +94,9 @@ export function DataTable<T>({
     ), []);
 
     const isActionsColumn = React.useCallback((column: Column<T>) => column.header === 'Actions', []);
+    const isRenderableBadgeValue = React.useCallback((value: React.ReactNode) => (
+        value !== null && value !== undefined && value !== false && value !== ''
+    ), []);
 
     const mobileColumns = React.useMemo(
         () => displayColumns.filter((column, index) => !isSerialColumn(index)),
@@ -89,7 +104,7 @@ export function DataTable<T>({
     );
 
     const mobilePrimaryColumn = React.useMemo(
-        () => mobileColumns.find((column) => !isActionsColumn(column)) || mobileColumns[0],
+        () => mobileColumns.find((column) => !isActionsColumn(column) && !column.badge) || mobileColumns.find((column) => !isActionsColumn(column)) || mobileColumns[0],
         [isActionsColumn, mobileColumns],
     );
 
@@ -98,10 +113,21 @@ export function DataTable<T>({
         [isActionsColumn, mobileColumns],
     );
 
-    const mobileDetailColumns = React.useMemo(
-        () => mobileColumns.filter((column) => column !== mobilePrimaryColumn && column !== mobileActionsColumn),
+    const mobileBadgeColumns = React.useMemo(
+        () => mobileColumns.filter((column) => column.badge && column !== mobilePrimaryColumn && column !== mobileActionsColumn),
         [mobileActionsColumn, mobileColumns, mobilePrimaryColumn],
     );
+
+    const mobileDetailColumns = React.useMemo(
+        () => mobileColumns.filter((column) => column !== mobilePrimaryColumn && column !== mobileActionsColumn && !column.badge),
+        [mobileActionsColumn, mobileColumns, mobilePrimaryColumn],
+    );
+
+    const getMobileVisibleDetails = React.useCallback((rowKey: string) => (
+        expandedMobileRows.has(rowKey)
+            ? mobileDetailColumns
+            : mobileDetailColumns.slice(0, mobileDetailLimit)
+    ), [expandedMobileRows, mobileDetailColumns, mobileDetailLimit]);
 
     const handleSort = (index: number) => {
         const column = displayColumns[index];
@@ -207,33 +233,59 @@ export function DataTable<T>({
                     </div>
                 ) : (
                     data.map((row, rowIndex) => {
+                        const rowKey = keyExtractor(row);
+                        const isExpanded = expandedMobileRows.has(rowKey);
                         const primaryContent = mobilePrimaryColumn
                             ? getCellContent(mobilePrimaryColumn, row, rowIndex)
                             : null;
                         const actionsContent = mobileActionsColumn
                             ? getCellContent(mobileActionsColumn, row, rowIndex)
                             : null;
+                        const visibleDetailColumns = getMobileVisibleDetails(rowKey);
+                        const hiddenDetailCount = Math.max(0, mobileDetailColumns.length - visibleDetailColumns.length);
+                        const badgeItems = mobileBadgeColumns
+                            .map((column) => ({
+                                column,
+                                content: getCellContent(column, row, rowIndex),
+                            }))
+                            .filter((item) => isRenderableBadgeValue(item.content));
 
                         return (
                             <article
-                                key={keyExtractor(row)}
+                                key={rowKey}
                                 onClick={() => onRowClick && onRowClick(row)}
                                 className={`
-                                    rounded-2xl border border-border/50 bg-card/80 p-4 shadow-sm ring-1 ring-foreground/5 transition-colors
+                                    rounded-2xl border border-border/50 bg-card/80 p-3.5 shadow-sm ring-1 ring-foreground/5 transition-colors
                                     ${onRowClick ? 'cursor-pointer active:bg-primary/5' : ''}
                                     ${getRowClassName ? getRowClassName(row) : ''}
                                 `}
                             >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2.5">
+                                    <div className="min-w-0 flex-1 space-y-2">
                                         {showSerialNumber && (
-                                            <p className="mb-1 text-[10px] font-black tracking-[0.2em] text-muted-foreground/60">
+                                            <p className="text-[10px] font-black tracking-[0.2em] text-muted-foreground/60">
                                                 #{(currentPage - 1) * pageSize + rowIndex + 1}
                                             </p>
                                         )}
                                         <div className="min-w-0 text-sm font-semibold text-foreground">
                                             {primaryContent}
                                         </div>
+                                        {badgeItems.length > 0 && (
+                                            <div className="flex max-w-full flex-wrap gap-1.5 overflow-hidden">
+                                                {badgeItems.map(({ column, content }) => (
+                                                    <div
+                                                        key={column.header}
+                                                        className="inline-flex max-w-full min-w-0 items-center rounded-full border border-border/50 bg-background/60 px-2 py-1 text-[10px] font-bold leading-none text-foreground/80"
+                                                        title={column.header}
+                                                        aria-label={`${column.header}: ${typeof content === 'string' || typeof content === 'number' ? content : ''}`}
+                                                    >
+                                                        <div className="min-w-0 max-w-[10rem] truncate text-foreground">
+                                                            {content}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                     {actionsContent && (
                                         <div
@@ -245,19 +297,36 @@ export function DataTable<T>({
                                     )}
                                 </div>
 
-                                {mobileDetailColumns.length > 0 && (
-                                    <div className="mt-4 grid grid-cols-1 gap-3">
-                                        {mobileDetailColumns.map((column) => (
-                                            <div key={column.header} className="rounded-xl border border-border/40 bg-background/35 p-3">
-                                                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                                {visibleDetailColumns.length > 0 && (
+                                    <div className="mt-3 grid grid-cols-1 gap-2">
+                                        {visibleDetailColumns.map((column) => (
+                                            <div key={column.header} className="rounded-xl border border-border/35 bg-background/35 p-2.5">
+                                                <p className="mb-1 text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                                                     {column.header}
                                                 </p>
-                                                <div className="min-w-0 text-xs font-semibold text-foreground/85 wrap-break-word">
+                                                <div className="min-w-0 text-xs font-semibold leading-relaxed text-foreground/85 wrap-break-word">
                                                     {getCellContent(column, row, rowIndex)}
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
+                                )}
+                                {hiddenDetailCount > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            setExpandedMobileRows(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(rowKey)) next.delete(rowKey);
+                                                else next.add(rowKey);
+                                                return next;
+                                            });
+                                        }}
+                                        className="mt-2 w-full rounded-xl border border-border/40 bg-background/40 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                    >
+                                        {isExpanded ? 'Show less' : `Show ${hiddenDetailCount} more`}
+                                    </button>
                                 )}
                             </article>
                         );

@@ -7,6 +7,7 @@
   --app-height: 100dvh;
   --app-width: 100vw;
   --app-viewport-top: 0px;
+  --app-keyboard-inset: 0px;
   --app-nav-height: calc(4rem + env(safe-area-inset-top, 0px));
   --font-geist-sans: var(--font-dm-sans), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: var(--font-jetbrains-mono), "Cascadia Code", "Fira Code", Consolas, monospace;
@@ -102,8 +103,7 @@ body {
   }
 }
 
-html.pwa-standalone,
-html.pwa-standalone body {
+html.pwa-standalone {
   height: var(--app-height);
   min-height: var(--app-height);
   max-height: var(--app-height);
@@ -114,7 +114,16 @@ html.pwa-standalone body {
 
 html.pwa-standalone body {
   position: fixed;
-  inset: 0;
+  top: var(--app-viewport-top);
+  left: 0;
+  right: auto;
+  bottom: auto;
+  height: var(--app-height);
+  min-height: var(--app-height);
+  max-height: var(--app-height);
+  width: var(--app-width);
+  overflow: hidden;
+  overscroll-behavior: none;
   user-select: none;
 }
 
@@ -136,6 +145,10 @@ html.pwa-standalone .app-shell-main {
   max-height: var(--app-height);
   padding-top: var(--app-nav-height);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html.pwa-standalone.virtual-keyboard-open .app-shell-main {
+  padding-bottom: 0;
 }
 
 /* Custom Utilities */

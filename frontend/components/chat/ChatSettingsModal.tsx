@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { UserPlus, UserMinus, Shield, Loader2, Save, Lock, Unlock } from 'lucide-react';
 import { Chat, User, Role, ChatParticipantRole, ChatType } from '@/types';
 import { api } from '@/lib/api';
@@ -60,9 +60,13 @@ export function ChatSettingsModal({
         }
     }, [isOpen, chat]);
 
-    if (!isOpen) return null;
-
     const isGroupAdmin = currentUser.role === Role.ORG_ADMIN || chat.creatorId === currentUser.id;
+    const activeParticipants = useMemo(
+        () => chat.participants?.filter(p => p.isActive) || [],
+        [chat.participants]
+    );
+
+    if (!isOpen) return null;
 
     const handleSave = async () => {
         if (!name.trim()) return;
@@ -148,17 +152,18 @@ export function ChatSettingsModal({
             onClose={onClose}
             maxWidth="max-w-2xl"
             title={`${(chat.name || 'Chat').replace(/[()`]/g, '\\$&')} Settings`}
-            subtitle="Members and group settings"
+            subtitle={`${activeParticipants.length} members`}
+            bodyClassName="py-5 md:py-6 lg:py-6"
             footer={
                 isGroupAdmin && (
-                    <div className="p-3 sm:p-4 bg-card/5 border-t border-border flex justify-end space-x-2 sm:space-x-3">
-                        <Button variant="secondary" onClick={onClose} py="py-1.5 sm:py-2" px="px-3 sm:px-4">Done</Button>
+                    <div className="flex justify-end space-x-2 sm:space-x-3">
+                        <Button variant="secondary" onClick={onClose} py="py-2" px="px-4">Done</Button>
                         <Button
                             variant="primary"
                             onClick={handleSave}
                             disabled={isSaving || !name.trim()}
                             icon={Save}
-                            py="py-1.5 sm:py-2"
+                            py="py-2"
                             px="px-4 sm:px-6"
                             isLoading={isSaving}
                         >
@@ -168,49 +173,52 @@ export function ChatSettingsModal({
                 )
             }
         >
-            <div className="space-y-6 sm:space-y-8">
+            <div className="space-y-5">
                 {/* Identification Section */}
-                <div className="space-y-4 sm:space-y-6">
-                    <div className="flex flex-col items-center">
-                        <PhotoUploadPicker
-                            currentImageUrl={avatarUrl}
-                            onFileReady={handleAvatarUpload}
-                            type="org"
-                            disabled={!isGroupAdmin || isUploading}
-                            hint={isGroupAdmin ? "Click to change group picture (256x256 recommended)" : "Only admins can change picture"}
-                        />
-                        {isUploading && (
-                            <div className="mt-2 flex items-center text-[10px] text-primary font-bold animate-pulse">
-                                <Loader2 size={12} className="mr-1.5 animate-spin" />
-                                UPLOADING...
-                            </div>
-                        )}
-                    </div>
+                <div className="rounded-2xl border border-border/60 bg-background/45 p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="flex flex-col items-center sm:items-start shrink-0">
+                            <PhotoUploadPicker
+                                currentImageUrl={avatarUrl}
+                                onFileReady={handleAvatarUpload}
+                                type="org"
+                                disabled={!isGroupAdmin || isUploading}
+                                hint={isGroupAdmin ? "Change group picture" : "Only admins can change picture"}
+                            />
+                            {isUploading && (
+                                <div className="mt-2 flex items-center text-[10px] text-primary font-bold animate-pulse">
+                                    <Loader2 size={12} className="mr-1.5 animate-spin" />
+                                    UPLOADING...
+                                </div>
+                            )}
+                        </div>
 
-                    <div className="space-y-3 sm:space-y-4">
-                        <div>
-                            <label className="text-[11px] font-black text-muted-foreground tracking-widest mb-1.5 block ml-1">Group Name</label>
+                        <div className="flex-1 min-w-0 space-y-2">
+                            <label className="text-[10px] font-black text-muted-foreground tracking-widest block">Group Name</label>
                             <Input
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder="Enter group name"
                                 disabled={!isGroupAdmin}
-                                className="font-bold text-foreground bg-card/5 focus:bg-card/10"
+                                className="font-bold text-foreground bg-card/60 focus:bg-card/80"
                             />
+                            <p className="text-[11px] text-muted-foreground font-medium">
+                                Keep names short so they stay readable in the chat header.
+                            </p>
                         </div>
                     </div>
                 </div>
 
                 {/* Read-Only Mode Toggle - Only for group chats */}
                 {isGroupAdmin && chat.type === ChatType.GROUP && (
-                    <div className="flex items-center justify-between p-3 rounded-lg border border-border/10 bg-card/30">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-border/60 bg-card/45">
                         <div className="flex items-center space-x-3">
-                            <div className={`p-2 rounded-2xl ${readOnly ? 'bg-primary/10 text-primary' : 'bg-muted/10 text-muted-foreground'}`}>
+                            <div className={`p-2.5 rounded-xl ${readOnly ? 'bg-primary/10 text-primary' : 'bg-muted/40 text-muted-foreground'}`}>
                                 {readOnly ? <Lock size={16} /> : <Unlock size={16} />}
                             </div>
                             <div>
-                                <p className="text-xs font-bold text-foreground">Read-Only Mode</p>
-                                <p className="text-[10px] text-muted-foreground">Only admins and moderators can send messages</p>
+                                <p className="text-sm font-black text-foreground">Read-Only Mode</p>
+                                <p className="text-[11px] text-muted-foreground font-medium">Only admins and moderators can send messages</p>
                             </div>
                         </div>
                         <Toggle
@@ -221,16 +229,15 @@ export function ChatSettingsModal({
                     </div>
                 )}
 
-                <div className="h-px bg-border" />
-
                 {/* Participants Section */}
-                <div className="space-y-3 sm:space-y-4">
+                <div className="space-y-3">
                     <div className="flex items-center justify-between">
                         <label className="text-[11px] font-black text-muted-foreground tracking-widest block ml-1">Participants</label>
                         {isGroupAdmin && (
                             <button
+                                type="button"
                                 onClick={() => { onAddParticipants(); }}
-                                className="text-[10px] font-black text-primary/90 cursor-pointer hover:text-primary flex items-center bg-primary/10  hover:bg-primary/20 px-3 py-2 rounded-lg transition-all"
+                                className="text-[10px] font-black text-primary cursor-pointer flex items-center gap-1.5 bg-primary/10 hover:bg-primary/20 px-3 py-2 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                             >
                                 <UserPlus size={12} />
                                 ADD NEW
@@ -238,12 +245,12 @@ export function ChatSettingsModal({
                         )}
                     </div>
 
-                    <div className="space-y-2 max-h-60 sm:max-h-75 overflow-y-auto pr-2 custom-scrollbar">
-                        {chat.participants?.filter(p => p.isActive).map(p => {
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                        {activeParticipants.map(p => {
                             const participantRole = p.role || ChatParticipantRole.MEMBER;
                             const isCreator = p.userId === chat.creatorId;
                             return (
-                                <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border border-border/10 bg-card/30 group/item transition-all hover:bg-card/80 hover:border-border hover:shadow-sm">
+                                <div key={p.id} className="flex items-center justify-between gap-3 p-2.5 rounded-2xl border border-border/50 bg-card/35 group/item transition-colors hover:bg-card/75">
                                     <div className="flex items-center space-x-2 sm:space-x-3">
                                         <BrandIcon variant="user" user={p.user} size="sm" className="w-7 h-7 sm:w-8 sm:h-8" initialsFallback />
                                         <div className="min-w-0">
@@ -268,12 +275,12 @@ export function ChatSettingsModal({
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center space-x-1">
+                                    <div className="flex items-center space-x-1 shrink-0">
                                         {isGroupAdmin && !isCreator && p.userId !== currentUser.id && (
                                             <select
                                                 value={participantRole}
                                                 onChange={(e) => handleUpdateParticipantRole(p.userId, e.target.value as 'ADMIN' | 'MOD' | 'MEMBER')}
-                                                className="text-[8px] sm:text-[9px] font-bold bg-card/50 border border-border/30 rounded-lg px-1 sm:px-1.5 py-0.5 sm:py-1 focus:outline-none focus:border-primary/50"
+                                                className="text-[9px] font-bold bg-background/70 border border-border/50 rounded-lg px-1.5 py-1 focus:outline-none focus:border-primary/50"
                                             >
                                                 <option value="MEMBER">Member</option>
                                                 <option value="MOD">Mod</option>
@@ -282,8 +289,9 @@ export function ChatSettingsModal({
                                         )}
                                         {isGroupAdmin && p.userId !== currentUser.id && p.userId !== chat.creatorId && (
                                             <button
+                                                type="button"
                                                 onClick={() => handleRemoveParticipant(p.userId, p.user?.name || 'this participant')}
-                                                className="p-1 sm:p-1.5 text-muted-foreground hover:text-danger cursor-pointer hover:bg-danger/10 rounded-lg transition-all"
+                                                className="p-1.5 text-muted-foreground hover:text-danger cursor-pointer hover:bg-danger/10 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30"
                                                 title="Remove from group"
                                             >
                                                 <UserMinus size={12} />

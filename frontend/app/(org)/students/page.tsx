@@ -142,6 +142,7 @@ export default function StudentsPage() {
             header: 'Status',
             sortable: true,
             sortKey: 'status',
+            badge: true,
             accessor: (row: Student) => {
                 const status = row.status || StudentStatus.ACTIVE;
                 const config: Record<StudentStatus, { label: string; variant: 'success' | 'error' | 'secondary' | 'neutral' }> = {
@@ -180,6 +181,7 @@ export default function StudentsPage() {
         {
             header: 'Cohort',
             sortable: false,
+            badge: true,
             accessor: (row: Student) => row.cohort?.name || <span className="text-muted-foreground/30 italic">Independent</span>
         },
         {

@@ -28,28 +28,75 @@ export function PWAInstallPrompt() {
   useEffect(() => {
     let removeControllerChange: (() => void) | undefined;
     let viewportRaf: number | null = null;
+    let settleTimers: number[] = [];
+    let handleBeforeInstallPrompt: ((event: Event) => void) | undefined;
+    let handleAppInstalled: (() => void) | undefined;
+    const addMediaQueryListener = (query: MediaQueryList, handler: () => void) => {
+      if ('addEventListener' in query) {
+        query.addEventListener('change', handler);
+        return () => query.removeEventListener('change', handler);
+      }
+
+      const legacyQuery = query as MediaQueryList & {
+        addListener: (listener: () => void) => void;
+        removeListener: (listener: () => void) => void;
+      };
+      legacyQuery.addListener(handler);
+      return () => legacyQuery.removeListener(handler);
+    };
 
     const updateViewportVars = () => {
       if (viewportRaf !== null) cancelAnimationFrame(viewportRaf);
 
       viewportRaf = requestAnimationFrame(() => {
+        const root = document.documentElement;
         const viewport = window.visualViewport;
-        const height = viewport?.height || window.innerHeight;
-        const width = viewport?.width || window.innerWidth;
-        const offsetTop = viewport?.offsetTop || 0;
+        const height = Math.round(viewport?.height || window.innerHeight);
+        const width = Math.round(viewport?.width || window.innerWidth);
+        const offsetTop = Math.round(viewport?.offsetTop || 0);
+        const keyboardInset = Math.max(0, Math.round(window.innerHeight - height - offsetTop));
+        const isStandalone = isStandaloneDisplay();
 
-        document.documentElement.style.setProperty('--app-height', `${height}px`);
-        document.documentElement.style.setProperty('--app-width', `${width}px`);
-        document.documentElement.style.setProperty('--app-viewport-top', `${offsetTop}px`);
+        root.style.setProperty('--app-height', `${height}px`);
+        root.style.setProperty('--app-width', `${width}px`);
+        root.style.setProperty('--app-viewport-top', `${offsetTop}px`);
+        root.style.setProperty('--app-keyboard-inset', `${keyboardInset}px`);
+        root.classList.toggle('pwa-standalone', isStandalone);
+        root.classList.toggle('virtual-keyboard-open', isStandalone && keyboardInset > 80);
+
+        if (isStandalone) {
+          if (window.scrollX !== 0 || window.scrollY !== 0) {
+            window.scrollTo(0, 0);
+          }
+          root.scrollTop = 0;
+          document.body.scrollTop = 0;
+        }
+
         viewportRaf = null;
       });
     };
 
+    const settleViewportVars = () => {
+      updateViewportVars();
+      settleTimers.forEach((timer) => window.clearTimeout(timer));
+      settleTimers = [
+        window.setTimeout(updateViewportVars, 80),
+        window.setTimeout(updateViewportVars, 250),
+        window.setTimeout(updateViewportVars, 500),
+      ];
+    };
+
     updateViewportVars();
     window.addEventListener('resize', updateViewportVars);
-    window.addEventListener('orientationchange', updateViewportVars);
+    window.addEventListener('orientationchange', settleViewportVars);
+    window.addEventListener('focusin', settleViewportVars);
+    window.addEventListener('focusout', settleViewportVars);
     window.visualViewport?.addEventListener('resize', updateViewportVars);
     window.visualViewport?.addEventListener('scroll', updateViewportVars);
+    const standaloneQuery = window.matchMedia('(display-mode: standalone)');
+    const fullscreenQuery = window.matchMedia('(display-mode: fullscreen)');
+    const removeStandaloneQueryListener = addMediaQueryListener(standaloneQuery, updateViewportVars);
+    const removeFullscreenQueryListener = addMediaQueryListener(fullscreenQuery, updateViewportVars);
 
     // 1. Register Service Worker
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
@@ -82,59 +129,54 @@ export function PWAInstallPrompt() {
       removeControllerChange = () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     }
 
-    document.documentElement.classList.toggle('pwa-standalone', isStandaloneDisplay());
-
     // 2. Check if already dismissed
     if (typeof window !== 'undefined') {
       const isDismissed = localStorage.getItem('eduverse-pwa-dismissed') === 'true';
-      if (isDismissed) return;
 
       // 3. Detect Standalone Mode
       const isStandalone = isStandaloneDisplay();
-      if (isStandalone) return;
 
       // 4. Handle Standard PWA Install Prompt (Chrome, Edge, Android)
-      const handleBeforeInstallPrompt = (e: Event) => {
-        e.preventDefault();
-        setDeferredPrompt(e as BeforeInstallPromptEvent);
-        setShowPrompt(true);
-      };
-      const handleAppInstalled = () => {
-        setDeferredPrompt(null);
-        setShowPrompt(false);
-        setShowIOSPrompt(false);
-        localStorage.setItem('eduverse-pwa-dismissed', 'true');
-        document.documentElement.classList.add('pwa-standalone');
-      };
+      if (!isDismissed && !isStandalone) {
+        handleBeforeInstallPrompt = (e: Event) => {
+          e.preventDefault();
+          setDeferredPrompt(e as BeforeInstallPromptEvent);
+          setShowPrompt(true);
+        };
+        handleAppInstalled = () => {
+          setDeferredPrompt(null);
+          setShowPrompt(false);
+          setShowIOSPrompt(false);
+          localStorage.setItem('eduverse-pwa-dismissed', 'true');
+          document.documentElement.classList.add('pwa-standalone');
+          updateViewportVars();
+        };
 
-      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.addEventListener('appinstalled', handleAppInstalled);
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.addEventListener('appinstalled', handleAppInstalled);
 
-      // 5. Handle iOS Custom Prompt Detection
-      const isIOSDevice = /ipad|iphone|ipod/.test(navigator.userAgent.toLowerCase());
-      if (isIOSDevice && !isStandalone) {
-        // Show iOS instructions for installation
-        window.setTimeout(() => setShowIOSPrompt(true), 0);
+        // 5. Handle iOS Custom Prompt Detection
+        const isIOSDevice = /ipad|iphone|ipod/.test(navigator.userAgent.toLowerCase());
+        if (isIOSDevice) {
+          // Show iOS instructions for installation
+          window.setTimeout(() => setShowIOSPrompt(true), 0);
+        }
       }
-
-      return () => {
-        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        window.removeEventListener('appinstalled', handleAppInstalled);
-        removeControllerChange?.();
-        window.removeEventListener('resize', updateViewportVars);
-        window.removeEventListener('orientationchange', updateViewportVars);
-        window.visualViewport?.removeEventListener('resize', updateViewportVars);
-        window.visualViewport?.removeEventListener('scroll', updateViewportVars);
-        if (viewportRaf !== null) cancelAnimationFrame(viewportRaf);
-      };
     }
 
     return () => {
+      if (handleBeforeInstallPrompt) window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      if (handleAppInstalled) window.removeEventListener('appinstalled', handleAppInstalled);
       removeControllerChange?.();
       window.removeEventListener('resize', updateViewportVars);
-      window.removeEventListener('orientationchange', updateViewportVars);
+      window.removeEventListener('orientationchange', settleViewportVars);
+      window.removeEventListener('focusin', settleViewportVars);
+      window.removeEventListener('focusout', settleViewportVars);
       window.visualViewport?.removeEventListener('resize', updateViewportVars);
       window.visualViewport?.removeEventListener('scroll', updateViewportVars);
+      removeStandaloneQueryListener();
+      removeFullscreenQueryListener();
+      settleTimers.forEach((timer) => window.clearTimeout(timer));
       if (viewportRaf !== null) cancelAnimationFrame(viewportRaf);
     };
   }, []);

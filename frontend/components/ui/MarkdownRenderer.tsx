@@ -95,7 +95,7 @@ markdownRenderer.image = ({ href, title, text }) => {
     const titleAttr = escapeHtml(title || '');
 
     const placeholder = `
-        <div class="text-center relative w-32 h-32 border border-border rounded-md bg-card/40 flex flex-col items-center justify-center">
+        <div class="text-center relative w-32 h-32 border border-border rounded-xl bg-card/40 flex flex-col items-center justify-center">
             <div class="absolute top-1 left-1 text-[10px] text-muted-foreground max-w-full truncate px-1">${alt}</div>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image-off-icon lucide-image-off text-foreground"><line x1="2" x2="22" y1="2" y2="22"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><line x1="13.5" x2="6" y1="13.5" y2="21"/><line x1="18" x2="21" y1="12" y2="15"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg>
             <span class="italic text-[10px] text-muted-foreground mt-1">Couldn't load image</span>
@@ -110,7 +110,7 @@ markdownRenderer.image = ({ href, title, text }) => {
     const placeholderSrcAttrs = optimisticSrc ? ` data-placeholder-src="${escapeHtml(optimisticSrc)}"` : '';
 
     return `
-        <img src="${escapeHtml(imageSrc)}" alt="${alt}" title="${titleAttr}" class="max-w-full h-auto rounded-lg shadow-sm my-1 markdown-image cursor-pointer hover:opacity-90 transition-opacity" data-failed-url="${escapeHtml(imageSrc)}"${remoteSrcAttrs}${placeholderSrcAttrs} decoding="async" />
+        <img src="${escapeHtml(imageSrc)}" alt="${alt}" title="${titleAttr}" class="h-auto rounded-lg shadow-sm my-1 markdown-image cursor-pointer hover:opacity-90 transition-opacity" data-failed-url="${escapeHtml(imageSrc)}"${remoteSrcAttrs}${placeholderSrcAttrs} decoding="async" />
     `;
 };
 
@@ -420,7 +420,10 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 />
             )}
             {attachments.length > 0 && (
-                <div className={`flex flex-col gap-1 ${attachmentAlign === 'right' ? 'items-end' : 'items-start'} w-full mt-1`}>
+                <div
+                    className={`markdown-attachments flex flex-col gap-1 ${attachmentAlign === 'right' ? 'items-end' : 'items-start'} w-full mt-1`}
+                    style={{ ['--markdown-edge-offset' as string]: '0.5rem' }}
+                >
                     {attachments.map((att, idx) => (
                         <AttachmentPreviewCard
                             key={idx}
@@ -444,19 +447,20 @@ if (typeof document !== 'undefined') {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-            .markdown-content { color: inherit; overflow-wrap: anywhere; word-break: break-word; white-space: inherit; }
-            .markdown-content p { margin: 0 0 0 0; line-height: 1.6; }
-            .markdown-content p:last-child { margin-bottom: 0; }
+            .markdown-content { --markdown-edge-offset: 0.5rem; color: inherit; overflow-wrap: anywhere; word-break: break-word; white-space: inherit; }
+            .markdown-content p { margin: 4px; line-height: 1.6; }
+            .markdown-content p:last-child { margin-bottom: 1; }
             .markdown-content strong, .markdown-content b { font-weight: 800; color: inherit; }
             .markdown-content a { color: cyan; background: rgba(50, 60, 100, 0.4); border-radius: 3px; padding: 1px 4px; text-decoration: underline; font-weight: 700; text-underline-offset: 2px; }
             .markdown-content a:hover { opacity: 0.8; }
-            .markdown-content ul, .markdown-content ol { margin: 0 0 0 0; padding-left: 1rem; }
-            .markdown-content li { margin: 0 0 0 0; }
+            .markdown-content ul, .markdown-content ol { margin: 2px; padding-left: 1rem; }
+            .markdown-content li { margin: 4px; }
             .markdown-content ul { list-style-type: disc; }
             .markdown-content ol { list-style-type: decimal; }
             .markdown-content h1, .markdown-content h2, .markdown-content h3 { 
                 font-weight: 900; 
                 line-height: 1.2;
+               
                 margin-top: 1.25rem;
                 margin-bottom: 0.5rem; 
                 color: inherit;
@@ -498,7 +502,30 @@ if (typeof document !== 'undefined') {
                 max-width: 100%;
                 overflow-x: auto;
             }
-            .markdown-content img { margin: 0; display: block; }
+            .markdown-content img { margin: 2px 0 0 0; display: block; }
+            .markdown-content img.markdown-image {
+                width: calc(100% + (var(--markdown-edge-offset) * 2));
+                max-width: calc(100% + (var(--markdown-edge-offset) * 2));
+                max-height: min(25rem, 55vh);
+                height: auto;
+                border-radius: 1rem;
+                margin-inline: calc(var(--markdown-edge-offset) * -1);
+                object-fit: contain;
+            }
+            .markdown-content .code-block-wrapper,
+            .markdown-content .mermaid-outer-container,
+            .markdown-content blockquote,
+            .markdown-content ul,
+            .markdown-content ol {
+                width: calc(100% + (var(--markdown-edge-offset) * 2));
+                max-width: calc(100% + (var(--markdown-edge-offset) * 2));
+                margin-inline: calc(var(--markdown-edge-offset) * -1);
+            }
+            .markdown-content ul,
+            .markdown-content ol {
+                padding-left: calc(1rem + var(--markdown-edge-offset));
+                padding-right: var(--markdown-edge-offset);
+            }
             
             /* Mermaid Specifics */
             .mermaid-container {
@@ -545,6 +572,12 @@ if (typeof document !== 'undefined') {
                 display: block;
                 max-width: 380px;
                 text-decoration: none !important;
+            }
+            .markdown-attachments {
+                width: calc(100% + (var(--markdown-edge-offset) * 2));
+                max-width: calc(100% + (var(--markdown-edge-offset) * 2));
+                margin-inline: calc(var(--markdown-edge-offset) * -1);
+                padding: 0 1px;
             }
             .doc-preview-card p {
                 margin: 0 !important;

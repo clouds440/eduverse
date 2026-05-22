@@ -109,10 +109,10 @@ export default function ContactPage() {
         <div className="container mx-auto px-6 relative z-10">
           <div className="max-w-6xl mx-auto">
             <Reveal>
-              <div className="inline-flex items-center gap-2 px-1 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-wider uppercase">
+              <div className="inline-flex items-center gap-2 px-1 py-1 rounded-full bg-primary/20 border border-primary/20 text-primary text-xs font-bold tracking-wider uppercase">
                 <BackButton
                   showHome
-                  className='bg-transparent hover:bg-primary/40 rounded-full'
+                  className='bg-secondary/20 hover:bg-secondary/60 rounded-full'
                   homeClasses='rounded-full'
                 />
               </div>
@@ -138,6 +138,7 @@ export default function ContactPage() {
 
       {/* Main Content */}
       <section className="pb-18">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.05)_1px,transparent_1px)] bg-size-[64px_64px] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] dark:bg-size-[64px_64px]" />
         <div className="container mx-auto px-6">
           <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-8 md:gap-12">
 

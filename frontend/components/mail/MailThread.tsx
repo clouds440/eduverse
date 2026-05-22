@@ -36,6 +36,7 @@ interface MailThreadProps {
     onReply: (content: string, files?: File[]) => Promise<void>;
     isClosed?: boolean;
     closedMessage?: string;
+    onMobileComposerOpenChange?: (open: boolean) => void;
 }
 
 export interface MailThreadHandle {
@@ -66,13 +67,6 @@ function formatDateTime(value: string) {
 
 function formatRole(role?: string | null) {
     return role ? role.replace(/_/g, ' ') : '';
-}
-
-function getPriorityVariant(priority: string): 'neutral' | 'info' | 'warning' | 'error' {
-    if (priority === 'URGENT') return 'error';
-    if (priority === 'HIGH') return 'warning';
-    if (priority === 'LOW') return 'neutral';
-    return 'info';
 }
 
 function getRecipientLabel(mail: MailDetail) {
@@ -256,7 +250,10 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
     isPlatformAdmin: boolean;
     orgData: Record<string, string>;
     onReply: (content: string, files?: File[]) => Promise<void>;
-}>(function ReplyComposer({ isPlatformAdmin, orgData, onReply }, ref) {
+    className?: string;
+    onCancel?: () => void;
+    onSent?: () => void;
+}>(function ReplyComposer({ isPlatformAdmin, orgData, onReply, className = '', onCancel, onSent }, ref) {
     const [replyContent, setReplyContent] = useState('');
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [sending, setSending] = useState(false);
@@ -279,10 +276,11 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
             await onReply(replyContent, selectedFiles);
             setReplyContent('');
             setSelectedFiles([]);
+            onSent?.();
         } finally {
             setSending(false);
         }
-    }, [onReply, replyContent, selectedFiles, sending]);
+    }, [onReply, onSent, replyContent, selectedFiles, sending]);
 
     const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files ? Array.from(event.target.files) : [];
@@ -296,21 +294,33 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
     }, []);
 
     return (
-        <div ref={replyAreaRef} className="border-t border-border/70 bg-background/80 px-4 py-4 backdrop-blur sm:px-5">
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+        <div ref={replyAreaRef} className={`border-t border-border/70 bg-background/90 px-3 py-3 backdrop-blur sm:px-5 sm:py-4 ${className}`}>
+            <div className="mb-2 flex items-center justify-between gap-2 sm:mb-3">
+                <div className="min-w-0">
                     <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Reply</h3>
-                    <p className="text-[11px] font-semibold text-muted-foreground">Images and PDFs, up to 3 files.</p>
+                    <p className="hidden text-[11px] font-semibold text-muted-foreground sm:block">Images and PDFs, up to 3 files.</p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-card/80 px-3 py-2 text-xs font-black text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary sm:w-auto"
-                >
-                    <Paperclip className="h-4 w-4" />
-                    Attach
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-card/80 px-3 py-2 text-xs font-black text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                    >
+                        <Paperclip className="h-4 w-4" />
+                        Attach
+                    </button>
+                    {onCancel && (
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-card/80 text-muted-foreground transition-colors hover:border-danger/40 hover:text-danger sm:hidden"
+                            title="Hide reply composer"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
                 <input
                     type="file"
                     ref={fileInputRef}
@@ -372,13 +382,24 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
 ReplyComposer.displayName = 'ReplyComposer';
 
 export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
-    ({ mail, currentUserId, currentUserRole, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.' }, ref) => {
+    ({ mail, currentUserId, currentUserRole, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.', onMobileComposerOpenChange }, ref) => {
         const composerRef = useRef<ReplyComposerHandle>(null);
+        const [mobileComposerOpen, setMobileComposerOpen] = useState(false);
         const isPlatformAdmin = currentUserRole === Role.PLATFORM_ADMIN || currentUserRole === Role.SUPER_ADMIN;
 
+        const updateMobileComposerOpen = useCallback((open: boolean) => {
+            setMobileComposerOpen(open);
+            onMobileComposerOpenChange?.(open);
+        }, [onMobileComposerOpenChange]);
+
+        const scrollToReplyComposer = useCallback(() => {
+            updateMobileComposerOpen(true);
+            window.setTimeout(() => composerRef.current?.scrollToReply(), 50);
+        }, [updateMobileComposerOpen]);
+
         useImperativeHandle(ref, () => ({
-            scrollToReply: () => composerRef.current?.scrollToReply(),
-        }));
+            scrollToReply: scrollToReplyComposer,
+        }), [scrollToReplyComposer]);
 
         const timeline = useMemo<TimelineItem[]>(() => {
             return [
@@ -405,10 +426,10 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
 
         return (
             <div className="flex h-full min-h-0 flex-col bg-background/40">
-                <div className="shrink-0 border-b border-border/70 bg-card/75 px-4 py-3 backdrop-blur sm:px-5">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="shrink-0 border-b border-border/70 bg-card/75 px-3 py-2 backdrop-blur sm:px-5 sm:py-3">
+                    <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
-                            <div className="flex shrink-0 -space-x-2">
+                            <div className="hidden shrink-0 -space-x-2 sm:flex">
                                 <BrandIcon variant="user" size="sm" user={mail.creator} className="h-9 w-9 border-2 border-background shadow-sm" />
                                 {mail.assignees.length > 0 ? (
                                     mail.assignees.slice(0, 2).map((assignee) => (
@@ -422,27 +443,18 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
                             </div>
 
                             <div className="min-w-0">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Conversation</p>
-                                <p className="truncate text-sm font-black text-foreground">
+                                <p className="hidden text-[10px] font-black uppercase tracking-widest text-muted-foreground sm:block">Conversation</p>
+                                <p className="truncate text-xs font-black text-foreground sm:text-sm">
                                     {mail.creator.name || mail.creator.email}
                                     <span className="mx-2 text-muted-foreground">to</span>
                                     {recipientLabel}
                                 </p>
                             </div>
                         </div>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant={getPriorityVariant(mail.priority)} size="sm" className="uppercase">
-                                {mail.priority}
-                            </Badge>
-                            <span className="rounded-md bg-muted/50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                {timeline.filter((item) => item.type === 'message').length} messages
-                            </span>
-                        </div>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-3 py-5 custom-scrollbar sm:px-5">
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 custom-scrollbar sm:px-5 sm:py-5">
                     <ThreadTimeline timeline={timeline} currentUserId={currentUserId} />
 
                     {isClosed && (
@@ -453,12 +465,17 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
                 </div>
 
                 {!isClosed && (
-                    <ReplyComposer
-                        ref={composerRef}
-                        isPlatformAdmin={isPlatformAdmin}
-                        orgData={orgData}
-                        onReply={onReply}
-                    />
+                    <div className={`${mobileComposerOpen ? 'block' : 'hidden'} shrink-0 sm:block`}>
+                        <ReplyComposer
+                            ref={composerRef}
+                            isPlatformAdmin={isPlatformAdmin}
+                            orgData={orgData}
+                            onReply={onReply}
+                            className="max-h-[52vh] overflow-y-auto custom-scrollbar sm:max-h-none sm:overflow-visible"
+                            onCancel={() => updateMobileComposerOpen(false)}
+                            onSent={() => updateMobileComposerOpen(false)}
+                        />
+                    </div>
                 )}
             </div>
         );

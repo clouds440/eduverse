@@ -8,6 +8,7 @@ import {
     Hash,
     Loader2,
     MessageSquare,
+    MoreHorizontal,
     Tag,
     User,
     X,
@@ -48,6 +49,8 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
     const { dispatch } = useGlobal();
     const [mail, setMail] = useState<MailDetail | null>(null);
     const [loading, setLoading] = useState(false);
+    const [mobileComposerOpen, setMobileComposerOpen] = useState(false);
+    const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
     const requestRef = useRef(0);
     const threadRef = useRef<MailThreadHandle>(null);
 
@@ -89,7 +92,14 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
         requestRef.current += 1;
         setMail(null);
         setLoading(false);
+        setMobileComposerOpen(false);
+        setMobileActionsOpen(false);
     }, [fetchMailDetails, isOpen, mailId]);
+
+    useEffect(() => {
+        setMobileComposerOpen(false);
+        setMobileActionsOpen(false);
+    }, [mailId]);
 
     useEffect(() => {
         if (!mailId || !isOpen) return;
@@ -160,8 +170,19 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
     }, [dispatch, mail, onUpdate, token]);
 
     const handleScrollToReply = useCallback(() => {
+        setMobileActionsOpen(false);
         threadRef.current?.scrollToReply();
     }, []);
+
+    const handleMobileComposerOpenChange = useCallback((open: boolean) => {
+        setMobileComposerOpen(open);
+        if (open) setMobileActionsOpen(false);
+    }, []);
+
+    const handleMobileStatusUpdate = useCallback((status: MailStatus) => {
+        setMobileActionsOpen(false);
+        void handleStatusUpdate(status);
+    }, [handleStatusUpdate]);
 
     const isClosed = mail?.status === MailStatus.CLOSED || mail?.status === MailStatus.RESOLVED;
     const isNoReply = mail?.status === MailStatus.NO_REPLY;
@@ -173,10 +194,10 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
             isOpen={isOpen}
             onClose={onClose}
             maxWidth="max-w-6xl"
-            className="h-[calc(100vh-1.5rem)] max-h-[calc(100vh-1.5rem)] sm:h-[88vh] sm:max-h-[88vh] mb-0"
+            className="h-[calc(100vh-1rem)] h-[calc(100dvh-1rem)] max-h-[calc(100vh-1rem)] max-h-[calc(100dvh-1rem)] sm:h-[88vh] sm:max-h-[88vh]"
             bodyClassName="p-0! overflow-hidden"
             customHeader={
-                <div className="shrink-0 border-b border-border/70 bg-card/90 px-4 py-4 backdrop-blur-xl sm:px-5">
+                <div className="shrink-0 border-b border-border/70 bg-card/90 px-3 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                             <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -184,18 +205,26 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                                     <>
                                         <MailStatusBadge status={mail.status} />
                                         <MailPriorityBadge priority={mail.priority} />
+                                        <span
+                                            className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground"
+                                            title={`${mail.messages.length} messages`}
+                                        >
+                                            <MessageSquare className="h-3.5 w-3.5" />
+                                            <span>{mail.messages.length}</span>
+                                            <span className="hidden sm:inline">messages</span>
+                                        </span>
                                     </>
                                 ) : (
                                     <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Mail details</span>
                                 )}
                             </div>
 
-                            <h2 className="line-clamp-2 text-xl font-black leading-tight tracking-tight text-foreground sm:text-2xl">
+                            <h2 className="line-clamp-1 text-base font-black leading-tight tracking-tight text-foreground sm:line-clamp-2 sm:text-2xl">
                                 {mail?.subject || 'Loading mail'}
                             </h2>
 
                             {mail && (
-                                <div className="mt-3 flex flex-wrap gap-2">
+                                <div className="mt-3 hidden flex-wrap gap-2 sm:flex">
                                     <DetailChip icon={Tag}>{formatLabel(mail.category)}</DetailChip>
                                     <DetailChip icon={Hash}>{mail.id.slice(0, 8)}</DetailChip>
                                     <DetailChip icon={User}>{mail.creator.name || mail.creator.email}</DetailChip>
@@ -214,7 +243,7 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                     </div>
 
                     {mail && (
-                        <div className="mt-4 flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="mt-4 hidden flex-col gap-2 border-t border-border/60 pt-4 sm:flex sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex flex-row gap-2 w-full sm:w-auto">
                                 {!replyLocked && (
                                     <Button
@@ -279,26 +308,113 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                 </div>
             }
         >
-            <div className="h-full min-h-0 bg-background/50">
+            <div className="flex h-full min-h-0 flex-col bg-background/50">
                 {loading && !mail ? (
                     <div className="flex h-full min-h-80 flex-col items-center justify-center gap-3 text-muted-foreground">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         <p className="text-sm font-black uppercase tracking-widest">Loading mail</p>
                     </div>
                 ) : mail ? (
-                    <MailThread
-                        ref={threadRef}
-                        mail={mail}
-                        currentUserId={user?.id || ''}
-                        currentUserRole={user?.role}
-                        onReply={handleReply}
-                        isClosed={replyLocked}
-                        closedMessage={
-                            isNoReply
-                                ? 'This is a no-reply mail. Replies are disabled.'
-                                : 'This thread is closed. No further replies can be sent.'
-                        }
-                    />
+                    <>
+                        <div className="min-h-0 flex-1">
+                            <MailThread
+                                ref={threadRef}
+                                mail={mail}
+                                currentUserId={user?.id || ''}
+                                currentUserRole={user?.role}
+                                onReply={handleReply}
+                                isClosed={replyLocked}
+                                closedMessage={
+                                    isNoReply
+                                        ? 'This is a no-reply mail. Replies are disabled.'
+                                        : 'This thread is closed. No further replies can be sent.'
+                                }
+                                onMobileComposerOpenChange={handleMobileComposerOpenChange}
+                            />
+                        </div>
+
+                        {!mobileComposerOpen && (canManageStatus || !replyLocked) && (
+                            <div className="shrink-0 border-t border-border/70 bg-card/95 p-2 backdrop-blur-xl sm:hidden">
+                                {mobileActionsOpen && canManageStatus && (
+                                    <div className="mb-2 rounded-2xl border border-border/70 bg-background/95 p-2 shadow-xl">
+                                        <div className="flex flex-col gap-2">
+                                            {mail.status === MailStatus.OPEN && (
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => handleMobileStatusUpdate(MailStatus.IN_PROGRESS)}
+                                                    icon={ArrowUpRight}
+                                                    variant="warning"
+                                                    loadingId="status-progress"
+                                                    px="px-4"
+                                                    py="py-2"
+                                                    className="w-full rounded-xl text-xs shadow-sm"
+                                                >
+                                                    Mark In Progress
+                                                </Button>
+                                            )}
+
+                                            <Button
+                                                type="button"
+                                                onClick={() => handleMobileStatusUpdate(MailStatus.RESOLVED)}
+                                                icon={CheckCircle2}
+                                                variant="success"
+                                                loadingId="status-resolve"
+                                                px="px-4"
+                                                py="py-2"
+                                                className="w-full rounded-xl text-xs shadow-sm"
+                                            >
+                                                Resolve
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                onClick={() => handleMobileStatusUpdate(MailStatus.CLOSED)}
+                                                icon={XCircle}
+                                                variant="danger"
+                                                loadingId="status-close"
+                                                px="px-4"
+                                                py="py-2"
+                                                className="w-full rounded-xl text-xs shadow-sm"
+                                            >
+                                                Close
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className={`${!replyLocked && canManageStatus ? 'grid-cols-2' : 'grid-cols-1'} grid gap-2`}>
+                                    {!replyLocked && (
+                                        <Button
+                                            type="button"
+                                            onClick={handleScrollToReply}
+                                            icon={MessageSquare}
+                                            variant="primary"
+                                            px="px-4"
+                                            py="py-2"
+                                            className="w-full rounded-xl text-xs shadow-sm"
+                                        >
+                                            Reply
+                                        </Button>
+                                    )}
+
+                                    {canManageStatus && (
+                                        <Button
+                                            type="button"
+                                            onClick={() => setMobileActionsOpen((open) => !open)}
+                                            icon={MoreHorizontal}
+                                            variant="secondary"
+                                            px="px-4"
+                                            py="py-2"
+                                            className="w-full rounded-xl text-xs shadow-sm"
+                                            aria-expanded={mobileActionsOpen}
+                                        >
+                                            Actions
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </>
                 ) : (
                     <div className="flex h-full min-h-80 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                         <MessageSquare className="h-10 w-10 opacity-30" />

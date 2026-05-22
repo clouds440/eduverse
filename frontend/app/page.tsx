@@ -69,7 +69,7 @@ export default function HomePage() {
                                         <HeroButtons />
                                 </div>
 
-                                <div className="flex flex-wrap justify-center lg:justify-start items-center gap-6 pt-2">
+                                <div className="flex flex-wrap justify-center lg:justify-start items-center gap-4 lg:gap-6 pt-2">
                                         <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
                                             <ShieldCheck className="w-4 h-4 text-success" />
                                             <span>Enterprise Security</span>
@@ -77,10 +77,10 @@ export default function HomePage() {
                                         <div className="w-1 h-1 bg-border rounded-full" />
                                         <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
                                             <Zap className="w-4 h-4 text-warning" />
-                                            <span>Real-Time WebSockets</span>
+                                            <span>Real-Time Updates</span>
                                         </div>
-                                        <div className="w-1 h-1 bg-border rounded-full" />
-                                        <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
+                                        <div className="hidden lg:flex w-1 h-1 bg-border rounded-full" />
+                                        <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground font-medium">
                                             <Users className="w-4 h-4 text-info" />
                                             <span>6-Tier RBAC</span>
                                         </div>
@@ -128,7 +128,7 @@ export default function HomePage() {
             ═══════════════════════════════════════ */}
             <section className="py-24 md:py-32 bg-muted/10 relative overflow-hidden">
                 <div className="absolute inset-0">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[500px] bg-primary/5 rounded-full blur-[200px]" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-225 h-125 bg-primary/5 rounded-full blur-[200px]" />
                 </div>
                 <div className="container mx-auto px-6 relative z-10">
                     <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
@@ -200,14 +200,14 @@ export default function HomePage() {
                         <div className="flex flex-col sm:flex-row gap-5 justify-center pt-6">
                             <Link
                                 href="/register"
-                                className="group px-10 py-5 bg-primary text-primary-foreground rounded-2xl font-black text-lg hover:bg-primary-hover shadow-2xl shadow-primary/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                                className="group px-10 py-3 bg-primary text-primary-foreground rounded-2xl font-black text-lg hover:bg-primary-hover shadow-2xl shadow-primary/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                             >
                                 Start Free Trial
                                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                             </Link>
                             <Link
                                 href="/login"
-                                className="px-10 py-5 bg-muted/60 text-foreground backdrop-blur-md rounded-2xl font-black text-lg hover:bg-muted border border-border transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                                className="px-10 py-3 bg-muted/60 text-foreground backdrop-blur-md rounded-2xl font-black text-lg hover:bg-muted border border-border transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <BookOpen className="w-5 h-5" />
                                 View Demo
