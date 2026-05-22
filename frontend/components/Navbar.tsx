@@ -85,7 +85,7 @@ export default function Navbar() {
                     </div>
                 )}
 
-                <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
+                <div className="flex min-w-auto flex-1 items-center justify-end gap-1 sm:gap-2">
                     <ThemeDropdown
                         currentMode={themeMode}
                         onModeChange={(mode) => setThemeMode(mode)}
@@ -99,7 +99,7 @@ export default function Navbar() {
                             <NotificationDropdown />
                         </div>
                     ) : (
-                        <div className="ml-1 flex min-w-0 items-center rounded-full border border-border/70 bg-card/55 p-1 shadow-sm">
+                        <div className="ml-1 flex min-w-0 overflow-hidden items-center rounded-full border border-border/70 bg-card/55 p-1 shadow-sm">
                             <Link
                                 href="/login"
                                 className={`flex h-9 items-center gap-1.5 rounded-full px-2.5 sm:px-4 text-xs sm:text-sm font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${pathname === '/login'
