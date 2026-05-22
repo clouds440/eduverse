@@ -1927,7 +1927,7 @@ export function ChatLayout() {
                             <button
                                 type="button"
                                 id="participants-toggle"
-                                className="flex items-center space-x-2 sm:space-x-3 min-w-0 cursor-pointer group/header rounded-2xl -ml-1 px-1.5 py-1 hover:bg-card/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0 cursor-pointer group/header rounded-2xl -ml-1 px-1.5 py-1 text-left hover:bg-card/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                                 onClick={() => setShowParticipants(!showParticipants)}
                             >
                                 {!isDesktop && (
@@ -1948,7 +1948,7 @@ export function ChatLayout() {
                                     isOnline={!!(directChatTarget?.id && onlineUsers[directChatTarget.id])}
                                     imageLoading="eager"
                                 />
-                                <div className="min-w-0">
+                                <div className="flex min-w-0 flex-col items-start">
                                     <h3 className="font-black text-[14px] sm:text-[15px] text-foreground leading-tight truncate group-hover/header:text-primary transition-colors">
                                         {activeChat.type === ChatType.GROUP ? activeChat.name : activeChat.participants?.find(p => p.userId !== user.id)?.user?.name || 'Unknown'}
                                     </h3>
@@ -1975,7 +1975,7 @@ export function ChatLayout() {
                                                 <span className="flex items-center gap-2 text-[10px]">
                                                     <span className={isOnline ? 'text-success' : ''}>{status}</span>
                                                     {status && <span className="opacity-40 hidden md:block">•</span>}
-                                                    <span className='capitalize hidden md:block'>{role}</span>
+                                                    <span className={`capitalize ${status && 'hidden md:block'}`}>{role}</span>
                                                 </span>
                                             );
                                         })()}
