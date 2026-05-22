@@ -239,6 +239,8 @@ interface GlobalContextType {
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
 
+const SESSION_HYDRATION_TIMEOUT_MS = 3000;
+
 export function GlobalProvider({ children }: { children: ReactNode }) {
     const [state, dispatch] = useReducer(globalReducer, initialState);
 
@@ -246,6 +248,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const storedSidebarState = localStorage.getItem('edu-sidebar-expanded');
         let cancelled = false;
+        let sessionController: AbortController | null = null;
 
         if (storedSidebarState !== null) {
             const isExpanded = storedSidebarState === 'true';
@@ -257,9 +260,14 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('token');
 
         const hydrateSession = async () => {
+            sessionController = new AbortController();
+            const timeoutId = window.setTimeout(() => {
+                sessionController?.abort();
+            }, SESSION_HYDRATION_TIMEOUT_MS);
+
             try {
-                const session = await api.auth.session();
-                const sessionToken = session.access_token;
+                const session = await api.auth.session({ signal: sessionController.signal });
+                const sessionToken = session?.access_token;
 
                 if (!sessionToken) {
                     if (!cancelled) dispatch({ type: 'AUTH_SET_LOADING', payload: false });
@@ -275,8 +283,13 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
                         dispatch({ type: 'AUTH_SET_SESSION', payload: { user: decoded, token: sessionToken } });
                     }
                 }
-            } catch {
+            } catch (error) {
+                if (process.env.NODE_ENV !== 'production') {
+                    console.info('Auth session unavailable; continuing without a signed-in user.', error);
+                }
                 if (!cancelled) dispatch({ type: 'AUTH_SET_LOADING', payload: false });
+            } finally {
+                window.clearTimeout(timeoutId);
             }
         };
 
@@ -284,6 +297,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
 
         return () => {
             cancelled = true;
+            sessionController?.abort();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);

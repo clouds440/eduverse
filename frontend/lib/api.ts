@@ -41,6 +41,13 @@ export class ApiRequestError extends Error {
     }
 }
 
+export class ApiNetworkError extends ApiRequestError {
+    constructor(message = 'Unable to reach the server') {
+        super(message, 0);
+        this.name = 'ApiNetworkError';
+    }
+}
+
 interface RequestOptions extends RequestInit {
     token?: string;
     signal?: AbortSignal;
@@ -89,7 +96,6 @@ function buildQueryString(params: QueryParams): string {
 
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { token, signal, ...rest } = options;
-    const apiBaseUrl = getApiBaseUrl();
 
     const headers: HeadersInit = {
         ...(rest.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -102,6 +108,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     const cacheKey = `eduverse-cache:${endpoint}`;
 
     try {
+        const apiBaseUrl = getApiBaseUrl();
         const response = await fetch(`${apiBaseUrl}${endpoint}`, {
             ...rest,
             credentials: 'include',
@@ -144,7 +151,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         if (canUseOfflineCache && typeof window !== 'undefined') {
             try {
                 const cachedData = await idbGet<T>(cacheKey);
-                if (cachedData) {
+                if (cachedData !== undefined) {
                     console.info(`[Offline] Serving ${endpoint} from cache`);
                     return cachedData;
                 }
@@ -166,7 +173,19 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
             }
         }
 
-        throw error;
+        if (error instanceof ApiRequestError) {
+            throw error;
+        }
+
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw new ApiNetworkError('Request timed out');
+        }
+
+        if (error instanceof Error) {
+            throw new ApiNetworkError(error.message || 'Unable to reach the server');
+        }
+
+        throw new ApiNetworkError();
     }
 }
 
@@ -195,8 +214,8 @@ export const api = {
             request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
         login: (data: LoginRequest) =>
             request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-        session: () =>
-            request<AuthResponse>('/auth/session'),
+        session: (options: Pick<RequestOptions, 'signal'> = {}) =>
+            request<AuthResponse | null>('/auth/session', options),
         forgotPassword: (email: string) =>
             request<MessageResponse>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
         resetPassword: (token: string, password: string) =>
