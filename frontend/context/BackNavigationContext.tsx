@@ -169,18 +169,12 @@ export function BackNavigationProvider({ children }: { children: React.ReactNode
             return;
         }
 
-        if (armedRef.current) {
-            if (routeKeyRef.current !== sentinelRouteKeyRef.current || !isInPageBackSentinelState(window.history.state)) {
-                armedRef.current = false;
-                sentinelRouteKeyRef.current = null;
-                return;
-            }
-
-            armedRef.current = false;
-            sentinelRouteKeyRef.current = null;
-            suppressNextPopRef.current = true;
-            window.history.back();
-        }
+        // Do not auto-call history.back() when transient UI closes normally.
+        // A sidebar link tap, modal action, or in-app navigation may close the
+        // last entry immediately before a route transition; cleaning the
+        // sentinel here can swallow that navigation on mobile.
+        armedRef.current = false;
+        sentinelRouteKeyRef.current = null;
     }, [armHistorySentinel, entryCount, isMobileBackEnabled]);
 
     const value = useMemo<BackNavigationContextType>(() => ({
