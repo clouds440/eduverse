@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Monitor, Sun, Moon, ChevronDown } from 'lucide-react';
 import { ThemeMode } from '@/types';
 import { FloatingPosition, getFloatingPosition } from '@/lib/floatingPosition';
+import { useBackStackEntry } from '@/context/BackNavigationContext';
 
 interface ThemeDropdownProps {
     currentMode: ThemeMode;
@@ -24,6 +25,13 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
     const [coords, setCoords] = useState<FloatingPosition | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useBackStackEntry({
+        enabled: isOpen,
+        label: 'Theme menu',
+        priority: 30,
+        onBack: () => setIsOpen(false),
+    });
 
     // Handle outside click to close dropdown
     useEffect(() => {

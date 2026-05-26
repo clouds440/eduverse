@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
 import { Building, Mail, Users, MessageSquare, ScrollText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -70,7 +70,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         };
     }, [subscribe, fetchStats, token, dispatch]);
 
-    const links = (): SidebarLink[] => {
+    const links = useMemo<SidebarLink[]>(() => {
         const adminLinks: SidebarLink[] = [
             {
                 id: 'ORGANIZATIONS',
@@ -117,13 +117,13 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         });
 
         return adminLinks;
-    };
+    }, [chatStats, stats, user?.role]);
 
-    const bottomLinks: SidebarLink[] = [];
+    const bottomLinks = useMemo<SidebarLink[]>(() => [], []);
 
     return (
         <DashboardLayout
-            links={links()}
+            links={links}
             bottomLinks={bottomLinks}
         >
             {children}

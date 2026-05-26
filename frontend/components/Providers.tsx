@@ -5,6 +5,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { UIProvider } from "@/context/UIContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { GlobalProvider } from "@/context/GlobalContext";
+import { BackNavigationProvider } from "@/context/BackNavigationContext";
 import { SWRProvider } from "@/components/providers/SWRProvider";
 import { initOfflineQueue } from '@/lib/offlineQueue';
 import { API_BASE_URL } from '@/lib/api';
@@ -20,10 +21,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <AuthProvider>
                 <SWRProvider>
                     <ThemeProvider>
-                        <UIProvider>
-                            <PushSubscriptionSync />
-                            {children}
-                        </UIProvider>
+                        <BackNavigationProvider>
+                            <UIProvider>
+                                <PushSubscriptionSync />
+                                {children}
+                            </UIProvider>
+                        </BackNavigationProvider>
                     </ThemeProvider>
                 </SWRProvider>
             </AuthProvider>

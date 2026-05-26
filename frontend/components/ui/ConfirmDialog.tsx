@@ -27,7 +27,7 @@ export function ConfirmDialog({
     children,
 }: ConfirmDialogProps & { children?: React.ReactNode }) {
     return (
-        <ModalOverlay isOpen={isOpen} maxWidth="max-w-md" className="p-6 sm:p-8 md:p-10 animate-scale-in">
+        <ModalOverlay isOpen={isOpen} onBack={onClose} backLabel="Confirmation dialog" maxWidth="max-w-md" className="p-6 sm:p-8 md:p-10 animate-scale-in">
             <h3 className="text-xl sm:text-2xl font-black mb-3 sm:mb-4 leading-tight">{title}</h3>
             <p className="opacity-70 text-base sm:text-lg mb-6 sm:mb-8 md:mb-10 leading-relaxed font-medium">{description}</p>
 

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Pagination } from './Pagination';
 import { Skeleton, SkeletonTable } from './Skeleton';
+import { useBackStackEntry } from '@/context/BackNavigationContext';
 
 export interface Column<T> {
     header: string;
@@ -74,6 +75,13 @@ export function DataTable<T>({
     const [columnWidths, setColumnWidths] = useState<number[]>(displayColumns.map(c => c.width || 200));
     const [resizingIndex, setResizingIndex] = useState<number | null>(null);
     const [expandedMobileRows, setExpandedMobileRows] = useState<Set<string>>(() => new Set());
+
+    useBackStackEntry({
+        enabled: expandedMobileRows.size > 0,
+        label: 'Expanded table rows',
+        priority: 10,
+        onBack: () => setExpandedMobileRows(new Set()),
+    });
 
     // Update widths if columns count changes
     useEffect(() => {

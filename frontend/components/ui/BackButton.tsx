@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Home } from 'lucide-react';
 import { Button } from './Button';
+import { useBackNavigation } from '@/context/BackNavigationContext';
 
 interface BackButtonProps {
     showHome?: boolean;
@@ -18,9 +19,10 @@ export function BackButton({
     homeClasses = ""
 }: BackButtonProps) {
     const router = useRouter();
+    const { goBack } = useBackNavigation();
 
     const handleBack = () => {
-        router.back();
+        goBack();
     };
 
     const handleHome = () => {

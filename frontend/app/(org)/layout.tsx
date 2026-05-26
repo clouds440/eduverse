@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
 import {
     LayoutDashboard, Users, BookOpen, GraduationCap,
@@ -372,7 +372,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
         };
     }, [token, user?.role, user?.id, dispatch, subscribe]);
 
-    const links = (): SidebarLink[] => {
+    const links = useMemo<SidebarLink[]>(() => {
         const orgLinks: SidebarLink[] = [];
 
         if (!isApproved) {
@@ -449,9 +449,9 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
         }
 
         return orgLinks;
-    };
+    }, [chatStats, isApproved, user]);
 
-    const bottomLinks: SidebarLink[] = [
+    const bottomLinks = useMemo<SidebarLink[]>(() => [
         {
             id: 'MAIL',
             label: 'Mail',
@@ -459,7 +459,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             icon: Mail,
             badge: state.stats.mail && state.stats.mail.unread > 0 ? `${state.stats.mail.unread}` : undefined
         }
-    ];
+    ], [state.stats.mail]);
 
     // Determine high-level dashboard pages for padding
     const isOrgAdmin = pathname === '/overview';
@@ -487,7 +487,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <DashboardLayout
-            links={links()}
+            links={links}
             bottomLinks={bottomLinks}
             showPadding={showPadding}
         >

@@ -28,6 +28,7 @@ import {
     UserMinus, Trash2, Info, SlidersHorizontal, ChevronLeft, Check, CheckCheck, ArrowDown, ArrowUp, RotateCcw,
     Lock as LockIcon, FileText, Archive, FileSpreadsheet, Presentation
 } from 'lucide-react';
+import { isInPageBackSentinelState, useBackNavigation, useBackStackEntry } from '@/context/BackNavigationContext';
 import { MarkdownRenderer } from '../ui/MarkdownRenderer';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -73,6 +74,7 @@ export function ChatLayout() {
     const dispatchRef = useRef(dispatch);
     useEffect(() => { dispatchRef.current = dispatch; }, [dispatch]);
     const { isDesktop, mounted } = useUI();
+    const { goBack } = useBackNavigation();
     const { subscribe, joinRoom, leaveRoom, emit } = useSocket({ token, userId: user?.id, enabled: !!token });
     const searchParams = useSearchParams();
     const initialChatId = searchParams.get('id');
@@ -175,6 +177,10 @@ export function ChatLayout() {
     const mentionDropdownRef = useRef<HTMLDivElement>(null);
     const observerRef = useRef<ResizeObserver | null>(null);
     const readOnlyBannerObserverRef = useRef<ResizeObserver | null>(null);
+    const scrollFrameRef = useRef<number | null>(null);
+    const unreadSinceScrollRef = useRef(unreadSinceScroll);
+    const activeChatIdRef = useRef(activeChatId);
+    const tokenRef = useRef(token);
 
     const [composerHeight, setComposerHeight] = useState(0);
     const [readOnlyBannerHeight, setReadOnlyBannerHeight] = useState(0);
@@ -185,8 +191,8 @@ export function ChatLayout() {
     const activeChatHistoryRef = useRef<string | null>(null);
     const mobileBottomInset = 'env(safe-area-inset-bottom, 0px)';
 
-    const closeActiveChat = useCallback((options?: { useHistoryBack?: boolean }) => {
-        if (options?.useHistoryBack && !isDesktop && activeChatHistoryRef.current) {
+    const closeActiveChat = useCallback((options?: { fromHistory?: boolean }) => {
+        if (!options?.fromHistory && !isDesktop && isInPageBackSentinelState(window.history.state)) {
             window.history.back();
             return;
         }
@@ -261,23 +267,43 @@ export function ChatLayout() {
         }
     }, [token, activeChatId]);
 
-    const handleScroll = () => {
-        if (!messagesContainerRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    useEffect(() => {
+        unreadSinceScrollRef.current = unreadSinceScroll;
+    }, [unreadSinceScroll]);
 
-        // Use a dynamic threshold for "at bottom"
-        const atBottom = distanceFromBottom < 50;
-        setIsAtBottom(atBottom);
-        setShowScrollToBottom(distanceFromBottom > clientHeight * 1.5);
+    useEffect(() => {
+        activeChatIdRef.current = activeChatId;
+    }, [activeChatId]);
 
-        if (atBottom && unreadSinceScroll > 0) {
-            setUnreadSinceScroll(0);
-            if (activeChatId && token) {
-                markAsReadGuard(activeChatId, '', token);
+    useEffect(() => {
+        tokenRef.current = token;
+    }, [token]);
+
+    const handleScroll = useCallback(() => {
+        if (scrollFrameRef.current !== null) return;
+
+        scrollFrameRef.current = window.requestAnimationFrame(() => {
+            scrollFrameRef.current = null;
+            if (!messagesContainerRef.current) return;
+
+            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+            const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+            const atBottom = distanceFromBottom < 50;
+            const shouldShowScrollToBottom = distanceFromBottom > clientHeight * 1.5;
+
+            setIsAtBottom(prev => prev === atBottom ? prev : atBottom);
+            setShowScrollToBottom(prev => prev === shouldShowScrollToBottom ? prev : shouldShowScrollToBottom);
+
+            if (atBottom && unreadSinceScrollRef.current > 0) {
+                setUnreadSinceScroll(0);
+                const chatId = activeChatIdRef.current;
+                const authToken = tokenRef.current;
+                if (chatId && authToken) {
+                    markAsReadGuard(chatId, '', authToken);
+                }
             }
-        }
-    };
+        });
+    }, []);
 
     // Click outside to close participants
     useEffect(() => {
@@ -338,6 +364,9 @@ export function ChatLayout() {
 
     useEffect(() => {
         return () => {
+            if (scrollFrameRef.current !== null) {
+                window.cancelAnimationFrame(scrollFrameRef.current);
+            }
             if (observerRef.current) {
                 observerRef.current.disconnect();
             }
@@ -750,7 +779,7 @@ export function ChatLayout() {
             unsubUpdate();
             unsubRoomLeft();
         };
-    }, [subscribe, activeChatId, token, user, closeActiveChat, isAtBottom, scrollToBottom]);
+    }, [subscribe, activeChatId, token, user, closeActiveChat, isAtBottom, scrollToBottom, updateMessagesWithReadStatus]);
 
     // 4. Join/Leave rooms, Sync URL, and request presence
     useEffect(() => {
@@ -798,17 +827,40 @@ export function ChatLayout() {
         }
     }, [activeChatId, isDesktop, joinRoom, leaveRoom, emit]);
 
-    useEffect(() => {
-        if (isDesktop || !activeChatId) return;
+    useBackStackEntry({
+        enabled: mounted && !isDesktop && !!activeChatId,
+        label: 'Active chat',
+        priority: 40,
+        onBack: () => closeActiveChat({ fromHistory: true }),
+    });
 
-        const handlePopState = () => {
-            if (!activeChatHistoryRef.current) return;
-            closeActiveChat();
-        };
+    useBackStackEntry({
+        enabled: mounted && !isDesktop && !!chatMenuOpenId,
+        label: 'Chat menu',
+        priority: 70,
+        onBack: () => setChatMenuOpenId(null),
+    });
 
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, [activeChatId, closeActiveChat, isDesktop]);
+    useBackStackEntry({
+        enabled: mounted && !isDesktop && showParticipants,
+        label: 'Participants panel',
+        priority: 80,
+        onBack: () => setShowParticipants(false),
+    });
+
+    useBackStackEntry({
+        enabled: mounted && !isDesktop && showMentionDropdown,
+        label: 'Mention picker',
+        priority: 90,
+        onBack: () => setShowMentionDropdown(false),
+    });
+
+    useBackStackEntry({
+        enabled: mounted && !isDesktop && !!contextMenu,
+        label: 'Message actions',
+        priority: 120,
+        onBack: () => setContextMenu(null),
+    });
 
     // 5. Image click handler for thumbnails
     useEffect(() => {
@@ -1147,12 +1199,13 @@ export function ChatLayout() {
                     // OPTIMISTIC ATTACHMENTS: Use shared helper for identical local markdown
                     const optimisticAttachments = buildOptimisticAttachmentMarkdown(filesToSend);
 
+                    const optimisticContent = (optimisticAttachments + (draftText ? `\n${draftText}` : '')).trim();
                     const optimisticMessage: ChatMessageWithMeta = {
                         id: tempMessageId,
                         chatId,
                         senderId: user.id,
                         organizationId,
-                        content: (draftText + optimisticAttachments).trim() || 'Sent an attachment',
+                        content: optimisticContent || 'Sent an attachment',
                         type: ChatMessageType.TEXT,
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString(),
@@ -1205,7 +1258,7 @@ export function ChatLayout() {
 
                 const attachmentLinks = buildAttachmentMarkdown(filesToSend, uploadResults);
 
-                finalContent += attachmentLinks;
+                finalContent = (attachmentLinks + (draftText ? `\n${draftText}` : '')).trim();
                 setIsUploading(false);
             }
 
@@ -1264,7 +1317,7 @@ export function ChatLayout() {
             sendLockRef.current = false;
             setIsSending(false);
         }
-    }, [messageDraft, stagedFiles, replyToMessage, mentionedUsers, token, user, activeChatId, isSending, isUploading, editingMessage, scrollToBottom, updateComposerStateForChat, emitTypingStop]);
+    }, [messageDraft, stagedFiles, replyToMessage, mentionedUsers, token, user, activeChatId, activeChat?.organizationId, isSending, isUploading, editingMessage, scrollToBottom, updateComposerStateForChat, emitTypingStop]);
 
     const handleDeleteMessage = useCallback((messageId: string) => {
         if (!token || !activeChatId) return;
@@ -1505,7 +1558,7 @@ export function ChatLayout() {
         const isDeleted = !!msg.deletedAt;
         const isSendingMessage = msg.clientStatus === 'sending';
         const isFailedMessage = msg.clientStatus === 'failed';
-        // const isMineRepliedTo = msg.replyTo?.senderId === user?.id;
+        const isMineRepliedTo = msg.replyTo?.senderId === user?.id;
 
         currentDateMessages.push(
             <div key={msg.id}>
@@ -1526,14 +1579,14 @@ export function ChatLayout() {
                             }
                         }
                     }, touchTimerRef, touchStartPosRef, touchHasTriggeredRef)}
-                    className={`flex ${isMine ? 'justify-end' : 'justify-start'} group/msg relative ${isLastInGroup ? 'mb-4' : 'mb-1'} px-3 md:px-5 -mx-3 md:-mx-5 transition-colors ${highlightedMessageId === msg.id || contextMenu?.msg.id === msg.id ? 'bg-primary/40 rounded-xl' : ''}`}
+                    className={`flex ${isMine ? 'justify-end' : 'justify-start'} group/msg relative ${isLastInGroup ? 'mb-4' : 'mb-0.5'} px-3 md:px-5 -mx-3 md:-mx-5 transition-colors ${highlightedMessageId === msg.id || contextMenu?.msg.id === msg.id ? 'bg-primary/25 rounded-xl' : ''}`}
                 >
                     {!isMine && (
                         <div className="w-7 shrink-0 mr-2 flex flex-col justify-end mb-1">
                             {isLastInGroup && <ChatAvatar targetUser={msg.sender} className="w-7 h-7 rounded-full" isOnline={!!(msg.sender?.id && activeParticipantsOnline[msg.sender.id])} />}
                         </div>
                     )}
-                    <div className={`flex flex-col min-w-0 ${isMine ? 'items-end' : 'items-start'}`} style={{ maxWidth: isMine ? 'min(97%, calc(100% - 0.75rem))' : 'min(97%, calc(100% - 2.5rem))' }}>
+                    <div className={`flex flex-col min-w-0 ${isMine ? 'items-end' : 'items-start'}`} style={{ maxWidth: isMine ? 'min(94%, calc(100% - 0.75rem))' : 'min(94%, calc(100% - 2.5rem))' }}>
                         <div className={`flex items-end space-x-1.5 relative max-w-full min-w-0 group/content ${isMine ? 'flex-row-reverse space-x-reverse justify-start' : 'flex-row justify-end'}`}>
                             <div className="flex flex-col items-inherit max-w-full min-w-0">
                                 {activeChat?.type === ChatType.GROUP && !isMine && showAvatar && (
@@ -1550,13 +1603,13 @@ export function ChatLayout() {
                                     </div>
                                 ) : (
                                     // Chat Bubble
-                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full overflow-hidden`}>
+                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full rounded-2xl`}>
                                         <div
                                             className={`
                                                 relative pb-1 rounded-2xl text-[14.5px] leading-relaxed max-w-full overflow-hidden backdrop-blur-sm transition-shadow duration-200
                                                 ${isMine
-                                                    ? 'bg-primary text-primary-foreground rounded-br-sm shadow-lg shadow-primary/20 ring-1 ring-primary/10'
-                                                    : 'bg-card text-foreground border border-border/70 rounded-bl-sm shadow-md shadow-foreground/5 ring-1 ring-background'
+                                                    ? 'bg-primary text-primary-foreground rounded-br-sm shadow-lg shadow-primary/20'
+                                                    : 'bg-card text-foreground rounded-bl-sm shadow-md shadow-foreground/5'
                                                 }
                                                 ${isFailedMessage && isMine ? 'border-danger border shadow-danger/20' : ''}
                                             `}
@@ -1566,16 +1619,16 @@ export function ChatLayout() {
                                                 return (
                                                     <div
                                                         onClick={(e) => { e.stopPropagation(); void scrollToMessage(msg.replyTo!.id); }}
-                                                        className={`m-0.5 px-2.5 py-1.5 min-w-25 mb-1 rounded-xl border border-border text-[12px] bg-background/80 text-foreground! max-w-full overflow-hidden truncate cursor-pointer hover:opacity-90 transition-opacity shadow-inner`}
+                                                        className={`m-0.5 px-2.5 py-1.5 min-w-25 mb-1 rounded-xl border border-border text-sm bg-background/90 text-foreground/70! max-w-full overflow-hidden truncate cursor-pointer hover:opacity-90 transition-opacity shadow-inner`}
                                                     >
-                                                    <div className="border-t-3 border-border -translate-y-1 mx-auto"></div>
-                                                        <p className="font-semibold mb-0.5 text-[11px] flex items-center opacity-70">
+                                                        <div className={`border-b-3 mt-px ${isMineRepliedTo ? 'border-primary' : 'border-foreground/70'} max-w-[85%] -translate-y-1 mx-auto`}></div>
+                                                        <p className="font-semibold mb-0.5 text-xs flex items-center opacity-70">
                                                             {msg.replyTo.sender?.id === user?.id ? 'You:' : msg.replyTo.sender?.name + ':' || 'Someone'}
                                                         </p>
                                                         <div className="truncate line-clamp-1 opacity-70">
                                                             <MarkdownRenderer
                                                                 content={getTruncatedMessagePreview(msg.replyTo.deletedAt ? 'Message deleted' : msg.replyTo.content, isDesktop ? 400 : 200)}
-                                                                className={`${msg.replyTo.deletedAt ? 'text-muted-foreground!' : 'text-foreground!'}`}
+                                                                className={`${msg.replyTo.deletedAt ? 'text-muted-foreground!' : 'text-foreground/80!'}`}
                                                                 compactAttachments
                                                             />
                                                         </div>
@@ -1584,7 +1637,7 @@ export function ChatLayout() {
                                             })()}
 
                                             <div className={`prose prose-sm mx-2 max-w-full prose-p:mb-0 ${isMine && highlightedMessageId !== msg.id ? 'prose-invert' : 'prose-p:text-foreground!'}`}>
-                                                <MarkdownRenderer content={msg.content} className={`${isMine ? 'text-primary-foreground!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} attachmentAlign={isMine ? 'right' : 'left'} />
+                                                <MarkdownRenderer content={msg.content} className={`${isMine ? 'text-primary-foreground!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} attachmentAlign={isMine ? 'right' : 'left'} attachmentsFirst />
                                             </div>
 
                                             {/* Messages Timestamp */}
@@ -1631,7 +1684,7 @@ export function ChatLayout() {
 
         flushCurrentDateSection();
         return sections;
-    }, [messages, user, user?.id, user?.role, contextMenu, highlightedMessageId, isDesktop, activeChat?.type, scrollToMessage, isSending, isUploading, handleReply, handleCopyText, handleEditMessage, handleDownload, handleDeleteMessage, handleSendMessage, activeParticipantsOnline]);
+    }, [messages, user?.id, contextMenu?.msg.id, highlightedMessageId, isDesktop, activeChat?.type, scrollToMessage, isSending, isUploading, handleSendMessage, activeParticipantsOnline]);
 
     if (!user) return null;
 
@@ -1915,7 +1968,7 @@ export function ChatLayout() {
             {/* ===== CHAT PANEL ===== */}
             <div className={`
             ${!activeChatId && !isDesktop ? 'hidden' : 'flex'} 
-            flex-1 min-w-0 flex-col h-full relative overflow-hidden chat-bg-pattern bg-background
+            flex-1 min-w-0 flex-col h-full relative overflow-hidden chat-bg-pattern bg-background/80
             ${!isDesktop && activeChatId ? 'animate-in slide-in-from-right duration-300 ease-out' : ''}
         `}>
                 {activeChat ? (
@@ -1934,7 +1987,7 @@ export function ChatLayout() {
                                     <span
                                         title='Back'
                                         className="p-1.5 -ml-1 text-foreground/60 hover:text-primary hover:bg-muted rounded-xl transition-all active:scale-95"
-                                        onClick={(e) => { e.stopPropagation(); closeActiveChat({ useHistoryBack: true }); }}
+                                        onClick={(e) => { e.stopPropagation(); goBack(); }}
                                     >
                                         <ChevronLeft size={22} className="text-primary/80 hover:text-primary" />
                                     </span>

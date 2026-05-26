@@ -3,6 +3,7 @@
 import React, { createContext, useContext } from 'react';
 import { usePathname } from 'next/navigation';
 import { useGlobal, ModalConfig, DataField } from './GlobalContext';
+import { useBackStackEntry } from './BackNavigationContext';
 
 export type { DataField };
 
@@ -42,6 +43,13 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     React.useEffect(() => {
         dispatch({ type: 'UI_SET_MOBILE_SIDEBAR', payload: false });
     }, [pathname, dispatch]);
+
+    useBackStackEntry({
+        enabled: mounted && !isDesktop && isMobileOpen,
+        label: 'Mobile sidebar',
+        priority: 20,
+        onBack: () => dispatch({ type: 'UI_SET_MOBILE_SIDEBAR', payload: false }),
+    });
 
     const toggleSidebar = () => {
         const newState = !isExpanded;

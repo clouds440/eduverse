@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { LucideIcon, ChevronDown, X, Check } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
+import { useBackStackEntry } from "@/context/BackNavigationContext";
 
 export interface MultiSelectOption {
     value: string;
@@ -38,6 +39,13 @@ function CustomMultiSelectComponent({
     const [coords, setCoords] = useState<(FloatingPosition & { isMobile?: boolean }) | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useBackStackEntry({
+        enabled: isOpen,
+        label: placeholder,
+        priority: 35,
+        onBack: () => setIsOpen(false),
+    });
 
     // Use a Set for O(1) lookups
     const valuesSet = useMemo(() => new Set(values), [values]);

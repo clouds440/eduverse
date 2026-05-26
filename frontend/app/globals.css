@@ -89,6 +89,7 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   overscroll-behavior-y: none;
   touch-action: manipulation;
@@ -124,12 +125,14 @@ html.pwa-standalone body {
   width: var(--app-width);
   overflow: hidden;
   overscroll-behavior: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
 html.pwa-standalone input,
 html.pwa-standalone textarea,
 html.pwa-standalone [contenteditable="true"] {
+  -webkit-user-select: none;
   user-select: text;
 }
 
@@ -502,8 +505,9 @@ html.pwa-standalone.virtual-keyboard-open .app-shell-main {
   .chat-bg-pattern {
     background-image: var(--chat-doodle);
     background-size: cover;
+    background-blend-mode: overlay;
     background-position: center;
-    background-attachment: fixed;
+    background-attachment: scroll;
   }
 
   /* --- Slide-in from right (for participants panel) --- */

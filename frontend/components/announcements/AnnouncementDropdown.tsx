@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { CreateAnnouncementModal } from './CreateAnnouncementModal';
 import { BrandIcon } from '@/components/ui/Brand';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
+import { useBackStackEntry } from '@/context/BackNavigationContext';
 
 export function AnnouncementDropdown() {
     const { token, user } = useAuth();
@@ -27,6 +28,13 @@ export function AnnouncementDropdown() {
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const hasAutoOpened = useRef(false);
+
+    useBackStackEntry({
+        enabled: isOpen,
+        label: 'Announcements',
+        priority: 30,
+        onBack: () => setIsOpen(false),
+    });
 
     const markAllAsSeen = useCallback((currentAnnouncements: Announcement[]) => {
         setUnreadCount(0);

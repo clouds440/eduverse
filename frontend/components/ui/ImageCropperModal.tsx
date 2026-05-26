@@ -85,7 +85,7 @@ export function ImageCropperModal({
   };
 
   return (
-    <ModalOverlay isOpen={true} maxWidth="max-w-4xl" className="bg-card rounded-lg flex flex-col p-0">
+    <ModalOverlay isOpen={true} onBack={onCancel} backLabel="Image cropper" maxWidth="max-w-4xl" className="bg-card rounded-lg flex flex-col p-0">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
         <h3 className="text-base font-bold text-foreground tracking-tight leading-none">Crop Logo Image</h3>

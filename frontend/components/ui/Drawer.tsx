@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, ReactNode } from 'react';
 import { Filter, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './Button';
+import { useBackStackEntry } from '@/context/BackNavigationContext';
 
 interface DrawerProps {
     children: ReactNode;
@@ -25,6 +26,13 @@ export function Drawer({
     const [isOpen, setIsOpen] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
+
+    useBackStackEntry({
+        enabled: isOpen,
+        label,
+        priority: 50,
+        onBack: () => setIsOpen(false),
+    });
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

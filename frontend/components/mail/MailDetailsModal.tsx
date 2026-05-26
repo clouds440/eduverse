@@ -23,6 +23,7 @@ import { MailThread, MailThreadHandle } from '@/components/mail/MailThread';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { useSocket } from '@/hooks/useSocket';
+import { useBackStackEntry } from '@/context/BackNavigationContext';
 
 interface MailDetailsModalProps {
     mailId: string | null;
@@ -183,6 +184,20 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
         setMobileActionsOpen(false);
         void handleStatusUpdate(status);
     }, [handleStatusUpdate]);
+
+    useBackStackEntry({
+        enabled: isOpen && mobileActionsOpen,
+        label: 'Mail actions',
+        priority: 130,
+        onBack: () => setMobileActionsOpen(false),
+    });
+
+    useBackStackEntry({
+        enabled: isOpen && mobileComposerOpen,
+        label: 'Mail composer',
+        priority: 125,
+        onBack: () => setMobileComposerOpen(false),
+    });
 
     const isClosed = mail?.status === MailStatus.CLOSED || mail?.status === MailStatus.RESOLVED;
     const isNoReply = mail?.status === MailStatus.NO_REPLY;

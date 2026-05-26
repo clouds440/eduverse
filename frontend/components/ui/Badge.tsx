@@ -39,9 +39,9 @@ const dotColors: Record<BadgeVariant, string> = {
 };
 
 const sizeStyles: Record<BadgeSize, string> = {
-    xs: "h-3 px-1 text-[10px] gap-1",
-    sm: "h-5 px-1.5 text-[11px] gap-1",
-    md: "h-6 px-2 text-[12px] gap-1.5",
+    xs: "min-w-4 h-4 px-1 text-[10px] gap-1",
+    sm: "min-w-5 h-5 px-1.5 text-[11px] gap-1",
+    md: "min-w-6 h-6 px-2 text-[12px] gap-1.5",
 };
 
 export function Badge({
@@ -56,8 +56,8 @@ export function Badge({
     return (
         <span
             className={cn(
-                "inline-flex items-center justify-center font-medium whitespace-nowrap",
-                "rounded-md select-none shrink-0",
+                "inline-flex items-center justify-center font-semibold leading-none whitespace-nowrap",
+                "rounded-md border border-current/10 shadow-xs select-none shrink-0",
                 sizeStyles[size],
                 variantStyles[variant],
                 className,

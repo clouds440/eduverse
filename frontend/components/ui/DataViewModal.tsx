@@ -26,7 +26,7 @@ interface DataViewModalProps {
 
 export function DataViewModal({ isOpen, onClose, title, subtitle, fields, body, bodyClassName, actions }: DataViewModalProps) {
     return (
-        <ModalOverlay isOpen={isOpen} maxWidth="max-w-4xl" className="animate-scale-in p-0">
+        <ModalOverlay isOpen={isOpen} onBack={onClose} backLabel={title || 'Details'} maxWidth="max-w-4xl" className="animate-scale-in p-0">
             {/* Header */}
             <div className="px-8 py-5 border-b border-card-text/10 bg-card-text/5 flex items-center justify-between shrink-0">
                 <div>

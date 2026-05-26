@@ -10,6 +10,7 @@ import Link from 'next/link';
 import notificationsStore from '@/lib/notificationsStore';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { PushNotificationBanner } from '@/components/ui/PushNotificationPrompt';
+import { useBackStackEntry } from '@/context/BackNavigationContext';
 
 export function NotificationDropdown() {
     const { token, user } = useAuth();
@@ -21,6 +22,13 @@ export function NotificationDropdown() {
     const [isLoading, setIsLoading] = useState(true);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useBackStackEntry({
+        enabled: isOpen,
+        label: 'Notifications',
+        priority: 30,
+        onBack: () => setIsOpen(false),
+    });
 
     // Fetch notifications initially via notificationsStore
     useEffect(() => {

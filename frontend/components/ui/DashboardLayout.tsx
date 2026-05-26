@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { LogOut, Key, Mail, MessageCircleQuestionMark, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useUI } from '@/context/UIContext';
@@ -43,10 +43,11 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
     const { isExpanded, isMobileOpen, isDesktop, mounted, setIsMobileOpen, modalConfig, closeViewModal } = useUI();
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    const router = useRouter();
     const [isBottomSectionCollapsed, setIsBottomSectionCollapsed] = useState(true);
 
     const mailCount = state.stats.mail || { unread: 0, total: 0 };
+    const changePasswordHref = user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN ? '/admin/change-password' : '/change-password';
+    const closeMobileSidebar = React.useCallback(() => setIsMobileOpen(false), [setIsMobileOpen]);
 
     const activeLink = React.useMemo(() => {
         const allLinks = [...links, ...bottomLinks];
@@ -138,15 +139,11 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             <Link
                                 key={link.id}
                                 href={link.href}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    setIsMobileOpen(false);
-                                    router.push(link.href);
-                                }}
+                                onClick={closeMobileSidebar}
                                 className={`
-                                    flex items-center rounded-md transition-all group relative hover:bg-primary/10
+                                    flex items-center rounded-lg transition-colors group relative hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35
                                     ${isActive
-                                        ? 'bg-primary/30 text-primary shadow-[0_8px_16px_var(--shadow-color)]'
+                                        ? 'bg-primary/20 text-primary shadow-sm ring-1 ring-primary/20'
                                         : 'text-sidebar-text/70 hover:text-foreground/70 hover:text-sidebar-text'
                                     }
                                     ${!effectiveExpanded ? 'lg:justify-center p-3' : 'px-4 py-3 space-x-3'}
@@ -183,17 +180,18 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                 </div>
 
                 {/* Branded Sidebar Footer */}
-                <div className={`px-3 pb-[env(safe-area-inset-bottom,0px)] border-t border-border shrink-0 relative`}>
+                <div className={`px-3 pb-[env(safe-area-inset-bottom,0px)] border-t ${isBottomSectionCollapsed ? '' : 'bg-card'} border-border shrink-0 relative`}>
                     {/* Toggle button sitting on top of border */}
                     <button
+                        type="button"
                         onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
                         className={`absolute -top-3 left-1/2 -translate-x-1/2 px-1 py-0 rounded-md text-sidebar-text/60 bg-background hover:bg-card transition-all shadow-sm`}
                         title={isBottomSectionCollapsed ? "Show more" : "Show less"}
                     >
                         {isBottomSectionCollapsed ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronUp className="w-4 h-4 shrink-0" />}
                         {isBottomSectionCollapsed && mailCount.unread > 0 && (
-                            <span className="absolute -top-3.5 -right-2">
-                                <Badge variant="error" size="sm">
+                            <span className="absolute -top-2.5 -right-2">
+                                <Badge variant="error" size="xs">
                                     {mailCount.unread > 9 ? '9+' : mailCount.unread}
                                 </Badge>
                             </span>
@@ -207,11 +205,8 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                 <>
                                     <Link
                                         href="/mail"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            router.push('/mail');
-                                        }}
-                                        className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 relative ${pathname.includes('/mail') ? 'bg-primary/30 text-primary' : 'bg-background hover:text-foreground/70'}`}
+                                        onClick={closeMobileSidebar}
+                                        className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/mail') ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
                                         title="Mail"
                                     >
                                         {pathname.includes('/mail') && (
@@ -232,11 +227,8 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                     {user?.role != Role.STUDENT &&
                                         <Link
                                             href="/contact"
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                router.push('/contact');
-                                            }}
-                                            className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 relative ${pathname === '/contact' ? 'bg-primary/30 text-primary' : 'bg-background hover:text-foreground/70'}`}
+                                            onClick={closeMobileSidebar}
+                                            className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname === '/contact' ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
                                             title="Contact Us"
                                         >
                                             {pathname === '/contact' && (
@@ -249,12 +241,9 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             )}
 
                             <Link
-                                href={user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN ? '/admin/change-password' : '/change-password'}
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    router.push(user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN ? '/admin/change-password' : '/change-password');
-                                }}
-                                className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-md text-sidebar-text/60 transition-colors py-3 relative ${pathname.includes('/change-password') ? 'bg-primary/30 text-primary' : 'bg-background hover:text-foreground/70'}`}
+                                href={changePasswordHref}
+                                onClick={closeMobileSidebar}
+                                className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/change-password') ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
                                 title="Change Password"
                             >
                                 {pathname.includes('/change-password') && (

@@ -32,6 +32,7 @@ interface MarkdownRendererProps {
     className?: string;
     attachmentAlign?: 'left' | 'right';
     compactAttachments?: boolean;
+    attachmentsFirst?: boolean;
 }
 
 const failedMarkdownImageUrls = new Set<string>();
@@ -132,7 +133,7 @@ markdownRenderer.link = ({ href, title, text }) => {
     return `<a href="${escapeHtml(safeUrl)}" title="${escapeHtml(title || '')}" ${targetAttr}>${text}</a>`;
 };
 
-export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '', attachmentAlign = 'left', compactAttachments = false }: MarkdownRendererProps) {
+export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '', attachmentAlign = 'left', compactAttachments = false, attachmentsFirst = false }: MarkdownRendererProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [, forceUpdate] = React.useState({});
 
@@ -404,8 +405,27 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
         };
     }, [htmlContent]);
 
+    const renderedAttachmentCards = attachments.length > 0 ? (
+        <div
+            className={`markdown-attachments flex flex-col gap-1 ${attachmentAlign === 'right' ? 'items-end' : 'items-start'} w-full ${attachmentsFirst ? 'mt-0.5 mb-0' : 'mt-1'}`}
+            style={{ ['--markdown-edge-offset' as string]: '0.5rem' }}
+        >
+            {attachments.map((att, idx) => (
+                <AttachmentPreviewCard
+                    key={idx}
+                    fileName={att.fileName}
+                    href={att.href}
+                    kind={att.kind}
+                    align={attachmentAlign}
+                    compact={compactAttachments}
+                />
+            ))}
+        </div>
+    ) : null;
+
     return (
-        <div className="flex flex-col w-full">
+        <div className={`markdown-renderer flex flex-col w-full ${attachmentsFirst ? 'markdown-renderer-attachments-first' : ''}`}>
+            {attachmentsFirst && renderedAttachmentCards}
             {htmlContent && (
                 <div
                     ref={containerRef}
@@ -419,23 +439,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                     }}
                 />
             )}
-            {attachments.length > 0 && (
-                <div
-                    className={`markdown-attachments flex flex-col gap-1 ${attachmentAlign === 'right' ? 'items-end' : 'items-start'} w-full mt-1`}
-                    style={{ ['--markdown-edge-offset' as string]: '0.5rem' }}
-                >
-                    {attachments.map((att, idx) => (
-                        <AttachmentPreviewCard
-                            key={idx}
-                            fileName={att.fileName}
-                            href={att.href}
-                            kind={att.kind}
-                            align={attachmentAlign}
-                            compact={compactAttachments}
-                        />
-                    ))}
-                </div>
-            )}
+            {!attachmentsFirst && renderedAttachmentCards}
         </div>
     );
 });
@@ -450,6 +454,14 @@ if (typeof document !== 'undefined') {
             .markdown-content { --markdown-edge-offset: 0.5rem; color: inherit; overflow-wrap: anywhere; word-break: break-word; white-space: inherit; }
             .markdown-content p { margin: 4px; line-height: 1.6; }
             .markdown-content p:last-child { margin-bottom: 1; }
+            .markdown-renderer-attachments-first > .markdown-content:first-child p:first-child,
+            .markdown-renderer-attachments-first > .markdown-attachments + .markdown-content p:first-child {
+                margin-top: 1px;
+            }
+            .markdown-renderer-attachments-first > .markdown-attachments + .markdown-content p:first-child {
+                margin-bottom: 1px;
+                line-height: 1.35;
+            }
             .markdown-content strong, .markdown-content b { font-weight: 800; color: inherit; }
             .markdown-content a { color: cyan; background: rgba(50, 60, 100, 0.4); border-radius: 3px; padding: 1px 4px; text-decoration: underline; font-weight: 700; text-underline-offset: 2px; }
             .markdown-content a:hover { opacity: 0.8; }
@@ -511,6 +523,16 @@ if (typeof document !== 'undefined') {
                 border-radius: 1rem;
                 margin-inline: calc(var(--markdown-edge-offset) * -1);
                 object-fit: contain;
+            }
+            .markdown-renderer-attachments-first .markdown-content p:has(img.markdown-image) {
+                margin-bottom: 1px;
+                line-height: 1.35;
+            }
+            .markdown-renderer-attachments-first .markdown-content img.markdown-image + br {
+                display: none;
+            }
+            .markdown-renderer-attachments-first .markdown-content p:has(img.markdown-image) + p {
+                margin-top: 1px;
             }
             .markdown-content .mermaid-outer-container,
             .markdown-content blockquote,

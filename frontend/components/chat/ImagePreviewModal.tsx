@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { X } from 'lucide-react';
+import { useBackStackEntry } from '@/context/BackNavigationContext';
 
 interface ImagePreviewModalProps {
     imageUrl: string;
@@ -9,6 +10,13 @@ interface ImagePreviewModalProps {
 }
 
 export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps) {
+    useBackStackEntry({
+        enabled: true,
+        label: 'Image preview',
+        priority: 110,
+        onBack: onClose,
+    });
+
     return (
         <div
             className="absolute w-full h-full z-50 flex items-center justify-center bg-accent/90 backdrop-blur-sm"

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { LucideIcon, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
+import { useBackStackEntry } from "@/context/BackNavigationContext";
 
 export interface DropdownOption<T extends string = string> {
     value: T;
@@ -44,6 +45,13 @@ function CustomSelectComponent<T extends string = string>({
     const [coords, setCoords] = useState<FloatingPosition | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useBackStackEntry({
+        enabled: isOpen,
+        label: placeholder,
+        priority: 35,
+        onBack: () => setIsOpen(false),
+    });
 
     const selectedOption = useMemo(() => options.find(opt => opt.value === value), [options, value]);
     const visibleOptions = useMemo(() => {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pencil, Trash2, Eye, UserPen, Check, X, ShieldAlert, CheckCircle2, MessageSquareText, Send, Loader2, Lock } from 'lucide-react';
 import { useAccess } from '@/hooks/useAccess';
+import { cn } from '@/lib/utils';
 
 export type AdminActionVariant = 'approve' | 'reject' | 'suspend' | 'unsuspend' | 'resolve' | 'reapprove' | 'editMessage' | 'mail' | 'restore' | 'pay' | 'confirm';
 
@@ -56,6 +57,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
     const { canWrite } = useAccess();
     // Select the appropriate icon based on variant
     const EditIcon = variant === 'user' ? UserPen : Pencil;
+    const actionButtonClass = "inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-lg border px-2.5 text-sm shadow-xs transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50";
 
     return (
         <div className={`flex gap-1 items-center ${className}`}>
@@ -65,7 +67,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
                         e.stopPropagation();
                         onView();
                     }}
-                    className="text-primary cursor-pointer hover:text-primary px-3 py-2.5 hover:bg-primary/10 border border-primary/20 rounded-lg transition-all shadow-xs active:scale-95 group relative flex items-center gap-2"
+                    className={cn(actionButtonClass, "cursor-pointer border-primary/25 text-primary hover:bg-primary/10")}
                     title="View"
                 >
                     <Eye className="w-4 h-4" />
@@ -79,7 +81,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
                         e.stopPropagation();
                         onEdit();
                     }}
-                    className={`text-primary cursor-pointer hover:text-primary px-3 py-2.5 hover:bg-primary/10 border border-primary/20 rounded-lg transition-all shadow-xs active:scale-95 group relative flex items-center gap-2 ${!canWrite ? 'opacity-70 bg-muted/30 border-muted text-muted-foreground' : ''}`}
+                    className={cn(actionButtonClass, "cursor-pointer border-primary/25 text-primary hover:bg-primary/10", !canWrite && "border-muted bg-muted/30 text-muted-foreground opacity-70")}
                     title={canWrite ? editTitle : `${editTitle} (Read-only)`}
                 >
                     <div className="flex items-center gap-2">
@@ -106,7 +108,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
                             action.onClick();
                         }}
                         disabled={action.disabled || action.loading || !canWrite}
-                        className={`${config.color} cursor-pointer px-3 py-2.5 border border-current/20 rounded-lg transition-all shadow-xs active:scale-95 disabled:opacity-50 group relative flex items-center gap-2`}
+                        className={cn(actionButtonClass, config.color, "cursor-pointer border-current/20")}
                         title={!canWrite ? `${label} (Permission Denied)` : label}
                     >
                         {action.loading ? (
@@ -121,12 +123,13 @@ export const TableActions: React.FC<TableActionsProps> = ({
 
             {onDelete && (
                 <button
+                    type="button"
                     onClick={(e) => {
                         e.stopPropagation();
                         onDelete();
                     }}
                     disabled={isDeleting || !canWrite}
-                    className={`text-danger cursor-pointer hover:bg-danger/20 px-3 py-2.5 border border-danger rounded-lg transition-all shadow-xs active:scale-95 disabled:opacity-50 group flex items-center gap-2 ${!canWrite ? 'hidden' : ''}`}
+                    className={cn(actionButtonClass, "cursor-pointer border-danger/30 text-danger hover:bg-danger/15", !canWrite && "hidden")}
                     title={canWrite ? deleteTitle : `${deleteTitle} (Permission Denied)`}
                 >
                     {isDeleting ? (

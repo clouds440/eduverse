@@ -2,6 +2,9 @@
 
 import React, { ReactNode, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useBackStackEntry } from '@/context/BackNavigationContext';
+
+let modalBodyLockCount = 0;
 
 interface ModalProps {
     isOpen: boolean;
@@ -15,18 +18,26 @@ interface ModalProps {
     footer?: ReactNode;
     className?: string; // For the inner modal card
     bodyClassName?: string;
+    backLabel?: string;
+    backPriority?: number;
 }
 
 export function ModalOverlay({
     isOpen,
     children,
     maxWidth = 'max-w-4xl',
-    className = ''
+    className = '',
+    onBack,
+    backLabel = 'Modal',
+    backPriority = 100,
 }: {
     isOpen: boolean;
     children: ReactNode;
     maxWidth?: string;
     className?: string;
+    onBack?: () => void;
+    backLabel?: string;
+    backPriority?: number;
 }) {
     const [mounted, setMounted] = useState(false);
 
@@ -36,15 +47,25 @@ export function ModalOverlay({
     }, []);
 
     useEffect(() => {
-        if (mounted && isOpen) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = 'unset';
-        }
+        if (!mounted || !isOpen) return;
+
+        modalBodyLockCount += 1;
+        document.body.style.overflow = 'hidden';
+
         return () => {
-            document.body.style.overflow = 'unset';
+            modalBodyLockCount = Math.max(0, modalBodyLockCount - 1);
+            if (modalBodyLockCount === 0) {
+                document.body.style.overflow = 'unset';
+            }
         };
     }, [isOpen, mounted]);
+
+    useBackStackEntry({
+        enabled: mounted && isOpen && !!onBack,
+        label: backLabel,
+        priority: backPriority,
+        onBack: onBack || (() => { }),
+    });
 
     if (!isOpen || !mounted) return null;
 
@@ -71,7 +92,7 @@ export function Modal({
     bodyClassName = ''
 }: ModalProps) {
     return (
-        <ModalOverlay isOpen={isOpen} maxWidth={maxWidth} className={className}>
+        <ModalOverlay isOpen={isOpen} maxWidth={maxWidth} className={className} onBack={onClose} backLabel={typeof title === 'string' ? title : 'Modal'}>
             {customHeader !== undefined ? (
                 customHeader
             ) : (
