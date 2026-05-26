@@ -1,23 +1,22 @@
 'use client';
 
-import { mutate } from 'swr';
+import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { User, Mail, Lock, BookOpen, Phone, Plus, ShieldCheck, UserX, CalendarClock, MapPin, UserLock } from 'lucide-react';
+import { User, Mail, Lock, BookOpen, Phone, Plus, ShieldCheck, UserX, CalendarClock, MapPin, UserLock, BriefcaseBusiness } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
 import { Section, Teacher, TeacherStatus, Role, CreateTeacherRequest, UpdateTeacherRequest } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { Label } from '@/components/ui/Label';
-import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
-import { useForm, SubmitHandler } from 'react-hook-form';
+import { FormActions, FormField, FormGrid, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
+import { useForm, SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { teacherCreateSchema, teacherUpdateSchema, teacherProfileSchema, TeacherCreateFormData, TeacherUpdateFormData, TeacherProfileFormData } from '@/lib/schemas';
 import { Toggle } from '@/components/ui/Toggle';
@@ -29,83 +28,142 @@ interface TeacherFormProps {
     isProfile?: boolean;
 }
 
+const TEACHER_STATUS_OPTIONS = [
+    { value: TeacherStatus.ACTIVE, label: 'Active', icon: ShieldCheck },
+    { value: TeacherStatus.SUSPENDED, label: 'Suspended', icon: UserX },
+    { value: TeacherStatus.ON_LEAVE, label: 'On Leave', icon: CalendarClock },
+    { value: TeacherStatus.EMERITUS, label: 'Emeritus', icon: UserLock },
+];
+
+function todayInputValue() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function dateInputValue(value?: string | Date | null, fallback = '') {
+    return value ? new Date(value).toISOString().split('T')[0] : fallback;
+}
+
+function getTeacherDefaults(initialData?: Teacher, initialIsManager = false) {
+    return initialData ? {
+        name: initialData.user?.name || '',
+        phone: initialData.user?.phone || '',
+        email: initialData.user?.email || '',
+        password: '',
+        education: initialData.education || '',
+        designation: initialData.designation || '',
+        subject: initialData.subject || '',
+        isManager: !!initialIsManager,
+        department: initialData.department || '',
+        joiningDate: dateInputValue(initialData.joiningDate, todayInputValue()),
+        address: initialData.address || '',
+        emergencyContact: initialData.emergencyContact || '',
+        bloodGroup: initialData.bloodGroup || '',
+        status: initialData.status as TeacherStatus || TeacherStatus.ACTIVE,
+        sectionIds: initialData.sections?.map(s => s.id) || [],
+    } : {
+        name: '',
+        phone: '',
+        email: '',
+        password: '',
+        education: '',
+        designation: '',
+        subject: '',
+        isManager: false,
+        department: '',
+        joiningDate: todayInputValue(),
+        address: '',
+        emergencyContact: '',
+        bloodGroup: '',
+        status: TeacherStatus.ACTIVE,
+        sectionIds: [],
+    };
+}
+
+function teacherStatusIcon(status?: TeacherStatus) {
+    if (status === TeacherStatus.ACTIVE) return ShieldCheck;
+    if (status === TeacherStatus.SUSPENDED) return UserX;
+    if (status === TeacherStatus.EMERITUS) return UserLock;
+    return CalendarClock;
+}
+
 export default function TeacherForm({ teacherId, initialData, isProfile }: TeacherFormProps) {
     const { token, user: currentUser, updateUser } = useAuth();
     const router = useRouter();
     const { dispatch } = useGlobal();
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
 
-    const [sections, setSections] = useState<Section[]>([]);
     const initialIsManager = initialData?.user?.role === Role.ORG_MANAGER || (isProfile && currentUser?.role === Role.ORG_MANAGER);
+    const resolver = useMemo(
+        () => zodResolver(isProfile ? teacherProfileSchema : (teacherId ? teacherUpdateSchema : teacherCreateSchema)),
+        [isProfile, teacherId]
+    );
+    const defaultValues = useMemo(
+        () => getTeacherDefaults(initialData, initialIsManager),
+        [initialData, initialIsManager]
+    );
 
     const {
+        control,
         register,
         handleSubmit,
         setValue,
-        watch,
         trigger,
         reset,
         formState: { errors },
     } = useForm({
-        resolver: zodResolver(isProfile ? teacherProfileSchema : (teacherId ? teacherUpdateSchema : teacherCreateSchema)),
-        defaultValues: initialData ? {
-            name: initialData.user?.name || '',
-            phone: initialData.user?.phone || '',
-            email: initialData.user?.email || '',
-            password: '',
-            education: initialData.education || '',
-            designation: initialData.designation || '',
-            subject: initialData.subject || '',
-            isManager: !!initialIsManager,
-            department: initialData.department || '',
-            joiningDate: initialData.joiningDate ? new Date(initialData.joiningDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            address: initialData.address || '',
-            emergencyContact: initialData.emergencyContact || '',
-            bloodGroup: initialData.bloodGroup || '',
-            status: initialData.status as TeacherStatus || TeacherStatus.ACTIVE,
-            sectionIds: initialData.sections?.map(s => s.id) || []
-        } : {
-            name: '',
-            phone: '',
-            email: '',
-            password: '',
-            education: '',
-            designation: '',
-            subject: '',
-            isManager: false,
-            department: '',
-            joiningDate: new Date().toISOString().split('T')[0],
-            address: '',
-            emergencyContact: '',
-            bloodGroup: '',
-            status: TeacherStatus.ACTIVE,
-            sectionIds: []
-        }
+        resolver,
+        defaultValues,
     });
 
     useEffect(() => {
         if (initialData) {
-            reset({
-                name: initialData.user?.name || '',
-                phone: initialData.user?.phone || '',
-                email: initialData.user?.email || '',
-                password: '',
-                education: initialData.education || '',
-                designation: initialData.designation || '',
-                subject: initialData.subject || '',
-                isManager: !!(initialData.user?.role === Role.ORG_MANAGER || (isProfile && currentUser?.role === Role.ORG_MANAGER)),
-                department: initialData.department || '',
-                joiningDate: initialData.joiningDate ? new Date(initialData.joiningDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                address: initialData.address || '',
-                emergencyContact: initialData.emergencyContact || '',
-                bloodGroup: initialData.bloodGroup || '',
-                status: initialData.status as TeacherStatus || TeacherStatus.ACTIVE,
-                sectionIds: initialData.sections?.map(s => s.id) || []
-            });
+            reset(getTeacherDefaults(initialData, initialData.user?.role === Role.ORG_MANAGER || (isProfile && currentUser?.role === Role.ORG_MANAGER)));
         }
     }, [initialData, reset, isProfile, currentUser?.role]);
 
-    const formData = watch();
+    const watchedStatus = useWatch({ control, name: 'status' }) as TeacherStatus | undefined;
+    const watchedIsManager = useWatch({ control, name: 'isManager' }) as boolean | undefined;
+    const watchedSectionIds = useWatch({ control, name: 'sectionIds' }) as string[] | undefined;
+
+    const { data: sectionsData } = useSWR<{ data: Section[] }>(token ? ['sections', { limit: 1000 }] as const : null);
+    const sectionOptions = useMemo(() => (sectionsData?.data || []).map(section => ({
+        value: section.id,
+        label: `${section.name} ${section.course?.name ? `(${section.course.name})` : ''}`,
+    })), [sectionsData?.data]);
+
+    const isManagerLocked = currentUser?.role !== Role.ORG_ADMIN;
+    const isStatusLocked = isProfile || (
+        currentUser?.role === Role.ORG_MANAGER &&
+        (initialData?.user?.role === Role.ORG_MANAGER || currentUser?.id === initialData?.userId)
+    );
+    const editableClass = isProfile ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS;
+    const currentUserAvatarUrl = isProfile ? currentUser?.avatarUrl : '';
+
+    const handleStatusChange = useCallback((value: string) => {
+        if (isProfile) return;
+        setValue('status', value as TeacherStatus);
+        trigger('status');
+    }, [isProfile, setValue, trigger]);
+
+    const handleManagerChange = useCallback((checked: boolean) => {
+        if (currentUser?.role !== Role.ORG_ADMIN) return;
+        setValue('isManager', checked);
+        trigger('isManager');
+    }, [currentUser?.role, setValue, trigger]);
+
+    const handleSectionsChange = useCallback((values: string[]) => {
+        if (isProfile) return;
+        setValue('sectionIds', values);
+        trigger('sectionIds');
+    }, [isProfile, setValue, trigger]);
+
+    const handlePhotoReady = useCallback((file: File) => {
+        setPendingPhoto(file);
+    }, []);
+
+    const handleCancel = useCallback(() => {
+        router.back();
+    }, [router]);
 
     const onSubmit: SubmitHandler<TeacherCreateFormData | TeacherUpdateFormData | TeacherProfileFormData> = async (data) => {
         dispatch({ type: 'UI_START_PROCESSING', payload: 'teacher-submit' });
@@ -114,7 +172,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
 
             const payload: CreateTeacherRequest | UpdateTeacherRequest = {
                 ...rest,
-                ...(teacherId ? (password ? { password } : {}) : { password })
+                ...(teacherId ? (password ? { password } : {}) : { password }),
             };
 
             let savedTeacher: Teacher;
@@ -126,7 +184,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                 savedTeacher = await api.org.createTeacher(payload as CreateTeacherRequest, token!);
             }
 
-            // Sync global auth state if the updated teacher is the current user
+            // Sync global auth state if the updated teacher is the current user.
             if ((isProfile || teacherId === initialData?.id) && currentUser?.id === savedTeacher.userId) {
                 updateUser({
                     name: savedTeacher.user.name,
@@ -138,11 +196,11 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
             if (pendingPhoto && savedTeacher.userId) {
                 try {
                     const updatedUser = await api.org.uploadAvatar(savedTeacher.userId, pendingPhoto, token!);
-                    // Sync local auth state if the updated user is the current user
+                    // Sync local auth state if the updated user is the current user.
                     if (currentUser?.id === savedTeacher.userId) {
                         updateUser({
                             avatarUrl: updatedUser.avatarUrl,
-                            avatarUpdatedAt: updatedUser.avatarUpdatedAt?.toString()
+                            avatarUpdatedAt: updatedUser.avatarUpdatedAt?.toString(),
                         });
                     }
                 } catch {
@@ -158,7 +216,6 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                 router.push('/teachers');
             }
 
-            // Invalidate all teacher lists (paginated, filtered, etc.)
             mutate(matchesCacheKeyPrefix('teachers'));
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to save teacher';
@@ -166,363 +223,260 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
             if (Array.isArray(message)) {
                 message.forEach((m: string) => dispatch({ type: 'TOAST_ADD', payload: { message: m, type: 'error' } }));
             } else {
-                dispatch({ type: 'TOAST_ADD', payload: { message: message, type: 'error' } });
+                dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
             }
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'teacher-submit' });
         }
     };
 
-    useEffect(() => {
-        if (token) {
-            api.org.getSections(token).then(res => setSections(res.data || [])).catch(console.error);
-        }
-    }, [token]);
-
-    const handlePhotoReady = useCallback((file: File) => {
-        setPendingPhoto(file);
-    }, []);
-
-    const currentUserAvatarUrl = isProfile ? currentUser?.avatarUrl : '';
-
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 md:space-y-12" noValidate>
-            {/* Mandatory Information */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                <div className="p-6 md:p-8">
-                    <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start mb-8 md:mb-10">
-                        <div className="shrink-0 group relative mx-auto md:mx-0">
-                            <PhotoUploadPicker
-                                onFileReady={handlePhotoReady}
-                                type="user"
-                                currentImageUrl={initialData?.user?.avatarUrl || currentUserAvatarUrl}
-                                updatedAt={initialData?.user?.avatarUpdatedAt}
-                            />
-                            <p className="mt-3 text-xs text-center font-semibold tracking-wider text-muted-foreground group-hover:text-primary transition-colors">
-                                {teacherId ? 'Update Photo' : 'Upload Photo'}
-                            </p>
-                        </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+            <FormSection
+                title="Account & Credentials"
+                description="Core identity, sign-in details, and current account availability."
+                icon={User}
+            >
+                <div className="flex flex-col gap-5 lg:flex-row lg:gap-6">
+                    <div className="flex shrink-0 flex-col items-center border-b border-border/60 pb-5 lg:w-44 lg:border-b-0 lg:border-r lg:pr-6">
+                        <PhotoUploadPicker
+                            onFileReady={handlePhotoReady}
+                            type="user"
+                            currentImageUrl={initialData?.user?.avatarUrl || currentUserAvatarUrl}
+                            updatedAt={initialData?.user?.avatarUpdatedAt}
+                            hint={teacherId ? 'Update photo before saving changes.' : 'Add a square profile photo.'}
+                            sizeClassName="h-28 w-28"
+                        />
+                    </div>
 
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 w-full">
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Full Name</Label>
+                    <div className="flex-1 space-y-5">
+                        <FormGrid>
+                            <FormField label="Full Name" error={errors.name?.message}>
                                 <Input
                                     type="text"
                                     {...register('name')}
-                                    onChange={isProfile ? undefined : register('name').onChange}
                                     readOnly={isProfile}
-                                    value={watch('name') || ''}
                                     error={!!errors.name}
                                     disabled={isProfile}
                                     icon={User}
                                     placeholder="Dr. Sarah Wilson"
-                                    className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
+                                    className={editableClass}
                                 />
-                                {errors.name && <p className="mt-1 text-xs text-danger font-semibold">{errors.name.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Status</Label>
+                            <FormField label="Status" error={errors.status?.message}>
                                 <CustomSelect
-                                    options={[
-                                        { value: TeacherStatus.ACTIVE, label: 'Active', icon: ShieldCheck },
-                                        { value: TeacherStatus.SUSPENDED, label: 'Suspended', icon: UserX },
-                                        { value: TeacherStatus.ON_LEAVE, label: 'On Leave', icon: CalendarClock },
-                                        { value: TeacherStatus.EMERITUS, label: 'Emeritus', icon: UserLock }
-                                    ]}
-                                    value={formData.status}
-                                    onChange={(val) => {
-                                        if (isProfile) return;
-                                        setValue('status', val as TeacherStatus);
-                                        trigger('status');
-                                    }}
+                                    options={TEACHER_STATUS_OPTIONS}
+                                    value={watchedStatus || TeacherStatus.ACTIVE}
+                                    onChange={handleStatusChange}
                                     error={!!errors.status}
-                                    disabled={isProfile || (
-                                        currentUser?.role === Role.ORG_MANAGER &&
-                                        (initialData?.user?.role === Role.ORG_MANAGER || currentUser?.id === initialData?.userId)
-                                    )}
-                                    icon={
-                                        formData.status === TeacherStatus.ACTIVE ? ShieldCheck :
-                                            formData.status === TeacherStatus.SUSPENDED ? UserX :
-                                                formData.status === TeacherStatus.EMERITUS ? UserLock : CalendarClock
-                                    }
+                                    disabled={isStatusLocked}
+                                    icon={teacherStatusIcon(watchedStatus)}
                                 />
-                                {errors.status && <p className="mt-1 text-xs text-danger font-semibold">{errors.status.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Email Address</Label>
+                            <FormField label="Email Address" error={errors.email?.message}>
                                 <Input
                                     type="email"
                                     {...register('email')}
-                                    onChange={(!!teacherId || isProfile) ? undefined : register('email').onChange}
                                     readOnly={!!teacherId || isProfile}
-                                    value={watch('email') || ''}
                                     error={!!errors.email}
                                     disabled={!!teacherId || isProfile}
                                     icon={Mail}
                                     placeholder="sarah.wilson@school.com"
-                                    className={teacherId || isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
+                                    className={teacherId || isProfile ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                                 />
-                                {errors.email && <p className="mt-1 text-xs text-danger font-semibold">{errors.email.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Account Password</Label>
+                            <FormField label="Account Password" error={errors.password?.message}>
                                 <Input
                                     type="password"
                                     {...register('password')}
                                     error={!!errors.password}
                                     icon={Lock}
-                                    placeholder={teacherId ? "Leave blank to keep current" : "Min 8 chars, 1 upper, 1 lower, 1 num"}
-                                    className="font-medium"
+                                    placeholder={teacherId ? 'Leave blank to keep current' : 'Min 8 chars, 1 upper, 1 lower, 1 num'}
+                                    className={FORM_INPUT_CLASS}
                                 />
-                                {errors.password && <p className="mt-1 text-xs text-danger font-semibold">{errors.password.message}</p>}
-                            </div>
-                        </div>
-                    </div>
+                            </FormField>
+                        </FormGrid>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Education / Degree <span className="text-danger">*</span></Label>
-                            <Input
-                                type="text"
-                                {...register('education')}
-                                onChange={isProfile ? undefined : register('education').onChange}
-                                readOnly={isProfile}
-                                value={watch('education') || ''}
-                                error={!!errors.education}
-                                disabled={isProfile}
-                                icon={BookOpen}
-                                placeholder="Ph.D. in Computer Science"
-                                className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.education && <p className="mt-1 text-xs text-danger font-semibold">{errors.education.message}</p>}
-                        </div>
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Designation <span className="text-danger">*</span></Label>
-                            <Input
-                                type="text"
-                                {...register('designation')}
-                                onChange={isProfile ? undefined : register('designation').onChange}
-                                readOnly={isProfile}
-                                value={watch('designation') || ''}
-                                error={!!errors.designation}
-                                disabled={isProfile}
-                                icon={User}
-                                placeholder="Senior Faculty / HOD"
-                                className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.designation && <p className="mt-1 text-xs text-danger font-semibold">{errors.designation.message}</p>}
-                        </div>
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Subject Expertise <span className="text-danger">*</span></Label>
-                            <Input
-                                type="text"
-                                {...register('subject')}
-                                onChange={isProfile ? undefined : register('subject').onChange}
-                                readOnly={isProfile}
-                                value={watch('subject') || ''}
-                                error={!!errors.subject}
-                                disabled={isProfile}
-                                icon={BookOpen}
-                                placeholder="Mathematics / AI / Physics"
-                                className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.subject && <p className="mt-1 text-xs text-danger font-semibold">{errors.subject.message}</p>}
-                        </div>
+                        <FormGrid columns={3}>
+                            <FormField label="Education / Degree" required error={errors.education?.message}>
+                                <Input
+                                    type="text"
+                                    {...register('education')}
+                                    readOnly={isProfile}
+                                    error={!!errors.education}
+                                    disabled={isProfile}
+                                    icon={BookOpen}
+                                    placeholder="Ph.D. in Computer Science"
+                                    className={editableClass}
+                                />
+                            </FormField>
+
+                            <FormField label="Designation" required error={errors.designation?.message}>
+                                <Input
+                                    type="text"
+                                    {...register('designation')}
+                                    readOnly={isProfile}
+                                    error={!!errors.designation}
+                                    disabled={isProfile}
+                                    icon={User}
+                                    placeholder="Senior Faculty / HOD"
+                                    className={editableClass}
+                                />
+                            </FormField>
+
+                            <FormField label="Subject Expertise" required error={errors.subject?.message}>
+                                <Input
+                                    type="text"
+                                    {...register('subject')}
+                                    readOnly={isProfile}
+                                    error={!!errors.subject}
+                                    disabled={isProfile}
+                                    icon={BookOpen}
+                                    placeholder="Mathematics / AI / Physics"
+                                    className={editableClass}
+                                />
+                            </FormField>
+                        </FormGrid>
                     </div>
                 </div>
-            </div>
+            </FormSection>
 
-            {/* Workplace Details */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative p-3 bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg">
-                                <ShieldCheck className="w-6 h-6 text-primary" />
-                            </div>
-                        </div>
-                        <h3 className="text-lg md:text-xl font-black text-foreground">Workplace Details</h3>
-                    </div>
-                </div>
+            <FormSection
+                title="Workplace Details"
+                description="Department placement, joining date, and administrative access."
+                icon={BriefcaseBusiness}
+            >
+                <FormGrid>
+                    <FormField label="Department" error={errors.department?.message}>
+                        <Input
+                            type="text"
+                            {...register('department')}
+                            error={!!errors.department}
+                            icon={BookOpen}
+                            placeholder="Computer Science"
+                            className={FORM_INPUT_CLASS}
+                        />
+                    </FormField>
 
-                <div className="p-6 md:p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Department</Label>
-                            <Input
-                                type="text"
-                                {...register('department')}
-                                error={!!errors.department}
-                                icon={BookOpen}
-                                placeholder="Computer Science"
-                                className="font-medium"
-                            />
-                            {errors.department && <p className="mt-1 text-xs text-danger font-semibold">{errors.department.message}</p>}
-                        </div>
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Joining Date</Label>
-                            <Input
-                                type="date"
-                                {...register('joiningDate')}
-                                onChange={isProfile ? undefined : register('joiningDate').onChange}
-                                readOnly={isProfile}
-                                value={watch('joiningDate') || ''}
-                                error={!!errors.joiningDate}
-                                disabled={isProfile}
-                                className={isProfile ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.joiningDate && <p className="mt-1 text-xs text-danger font-semibold">{errors.joiningDate.message}</p>}
-                        </div>
-                    </div>
+                    <FormField label="Joining Date" error={errors.joiningDate?.message}>
+                        <Input
+                            type="date"
+                            {...register('joiningDate')}
+                            readOnly={isProfile}
+                            error={!!errors.joiningDate}
+                            disabled={isProfile}
+                            className={isProfile ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
+                        />
+                    </FormField>
+                </FormGrid>
 
-                    <div className={`mt-6 lg:mt-8 p-4 lg:p-5 bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-2xl flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 transition-all select-none ${currentUser?.role !== Role.ORG_ADMIN ? 'cursor-not-allowed' : 'hover:border-primary/30'}`}>
-                        <div className={`flex items-start lg:items-center flex-col lg:flex-row gap-3 lg:gap-4 w-full lg:w-auto ${currentUser?.role !== Role.ORG_ADMIN ? 'pointer-events-none opacity-70' : ''}`}>
+                <div className={`mt-5 rounded-lg border border-primary/20 bg-primary/5 p-4 transition-colors ${isManagerLocked ? 'cursor-not-allowed' : 'hover:border-primary/35'}`}>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className={isManagerLocked ? 'pointer-events-none opacity-70' : ''}>
                             <Toggle
-                                checked={formData.isManager}
-                                onCheckedChange={(checked) => {
-                                    if (currentUser?.role !== Role.ORG_ADMIN) return;
-                                    setValue('isManager', checked);
-                                    trigger('isManager');
-                                }}
-                                disabled={currentUser?.role !== Role.ORG_ADMIN}
+                                checked={!!watchedIsManager}
+                                onCheckedChange={handleManagerChange}
+                                disabled={isManagerLocked}
                                 size="lg"
                                 label="Administrative Privileges"
                                 description="Allow this teacher to manage organization settings, staff, students and finances"
                             />
                         </div>
-                        {formData.isManager && (
-                            <Badge title='' variant='success'>
+                        {watchedIsManager && (
+                            <Badge title="" variant="success">
                                 Manager Privileges Active
                             </Badge>
                         )}
                     </div>
                 </div>
-            </div>
+            </FormSection>
 
-            {/* Assignments */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative p-3 bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg">
-                                <Plus className="w-6 h-6 text-primary" />
-                            </div>
-                        </div>
-                        <h3 className="text-lg md:text-xl font-black text-foreground">Section Assignments</h3>
+            <FormSection
+                title="Section Assignments"
+                description="Attach this teacher to the sections they can manage."
+                icon={Plus}
+            >
+                <FormField
+                    label="Assign to Sections"
+                    error={errors.sectionIds?.message}
+                    helper="Teacher will be able to manage students and grading for selected sections."
+                    className="max-w-2xl"
+                >
+                    <CustomMultiSelect
+                        options={sectionOptions}
+                        values={watchedSectionIds || []}
+                        onChange={handleSectionsChange}
+                        placeholder="Choose one or more sections..."
+                        error={!!errors.sectionIds}
+                        disabled={isProfile}
+                    />
+                </FormField>
+            </FormSection>
+
+            <FormSection
+                title="Personal Details"
+                description="Contact, emergency, and residential information."
+                icon={Phone}
+            >
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div className="space-y-4">
+                        <FormField label="Contact Phone" required error={errors.phone?.message}>
+                            <Input
+                                type="text"
+                                {...register('phone')}
+                                error={!!errors.phone}
+                                icon={Phone}
+                                placeholder="+1 555-0123"
+                                className={FORM_INPUT_CLASS}
+                            />
+                        </FormField>
+
+                        <FormField label="Emergency Contact" error={errors.emergencyContact?.message}>
+                            <Input
+                                type="text"
+                                {...register('emergencyContact')}
+                                error={!!errors.emergencyContact}
+                                icon={Phone}
+                                placeholder="Name - Relation - Phone"
+                                className={FORM_INPUT_CLASS}
+                            />
+                        </FormField>
+
+                        <FormField label="Blood Group" error={errors.bloodGroup?.message}>
+                            <Input
+                                type="text"
+                                {...register('bloodGroup')}
+                                error={!!errors.bloodGroup}
+                                icon={Plus}
+                                placeholder="O+, A-, etc."
+                                className={FORM_INPUT_CLASS}
+                            />
+                        </FormField>
                     </div>
-                </div>
 
-                <div className="p-6 md:p-8">
-                    <div className="space-y-2 md:space-y-3 max-w-2xl">
-                        <Label>Assign to Sections</Label>
-                        <CustomMultiSelect
-                            options={sections.map(s => ({
-                                value: s.id,
-                                label: `${s.name} ${s.course?.name ? `(${s.course.name})` : ''}`
-                            }))}
-                            values={formData.sectionIds || []}
-                            onChange={(vals) => {
-                                if (isProfile) return;
-                                setValue('sectionIds', vals);
-                                trigger('sectionIds');
-                            }}
-                            placeholder="Choose one or more sections..."
-                            error={!!errors.sectionIds}
-                            disabled={isProfile}
+                    <FormField label="Residential Address" error={errors.address?.message}>
+                        <Textarea
+                            {...register('address')}
+                            error={!!errors.address}
+                            icon={MapPin}
+                            placeholder="123 Education Lane, Learning City"
+                            className="min-h-40 font-medium"
                         />
-                        {errors.sectionIds && <p className="mt-1 text-xs text-danger font-semibold">{errors.sectionIds.message}</p>}
-                        <p className="text-xs text-muted-foreground font-medium pt-2">
-                            Teacher will be able to manage students and grading for selected sections.
-                        </p>
-                    </div>
+                    </FormField>
                 </div>
-            </div>
+            </FormSection>
 
-            {/* Personal Details */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative p-3 bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg">
-                                <User className="w-6 h-6 text-primary" />
-                            </div>
-                        </div>
-                        <h3 className="text-lg md:text-xl font-black text-foreground">Personal Details</h3>
-                    </div>
-                </div>
-
-                <div className="p-6 md:p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                        <div className="space-y-4 md:space-y-6">
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Contact Phone <span className="text-danger">*</span></Label>
-                                <Input
-                                    type="text"
-                                    {...register('phone')}
-                                    error={!!errors.phone}
-                                    icon={Phone}
-                                    placeholder="+1 555-0123"
-                                    className="font-medium"
-                                />
-                                {errors.phone && <p className="mt-1 text-xs text-danger font-semibold">{errors.phone.message}</p>}
-                            </div>
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Emergency Contact</Label>
-                                <Input
-                                    type="text"
-                                    {...register('emergencyContact')}
-                                    error={!!errors.emergencyContact}
-                                    icon={Phone}
-                                    placeholder="Name - Relation - Phone"
-                                    className="font-medium"
-                                />
-                                {errors.emergencyContact && <p className="mt-1 text-xs text-danger font-semibold">{errors.emergencyContact.message}</p>}
-                            </div>
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Blood Group</Label>
-                                <Input
-                                    type="text"
-                                    {...register('bloodGroup')}
-                                    error={!!errors.bloodGroup}
-                                    icon={Plus}
-                                    placeholder="O+, A-, etc."
-                                    className="font-medium"
-                                />
-                                {errors.bloodGroup && <p className="mt-1 text-xs text-danger font-semibold">{errors.bloodGroup.message}</p>}
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Residential Address</Label>
-                            <div>
-                                <Textarea
-                                    {...register('address')}
-                                    error={!!errors.address}
-                                    icon={MapPin}
-                                    placeholder="123 Education Lane, Learning City"
-                                    className="min-h-32 md:min-h-40 font-medium"
-                                />
-                            </div>
-                            {errors.address && <p className="mt-1 text-xs text-danger font-semibold">{errors.address.message}</p>}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-6 border-t border-border/50">
-                <Button type="button" variant="secondary" onClick={() => router.back()} className="w-full sm:w-auto h-12 font-semibold">
-                    Cancel
-                </Button>
-                <Button type="submit" loadingId="teacher-submit" loadingText="Saving..." className="w-full sm:w-auto h-12 font-semibold">
-                    {isProfile ? 'Update Profile' : (teacherId ? 'Update Faculty Member' : 'Create Faculty Account')}
-                </Button>
-            </div>
+            <FormActions
+                onCancel={handleCancel}
+                loadingId="teacher-submit"
+                loadingText="Saving..."
+                title={isProfile ? 'Save profile changes' : 'Save faculty record'}
+                description="Photo, account, assignment, and contact changes are applied together."
+                submitText={isProfile ? 'Update Profile' : (teacherId ? 'Update Faculty Member' : 'Create Faculty Account')}
+            />
         </form>
     );
 }

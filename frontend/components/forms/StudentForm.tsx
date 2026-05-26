@@ -3,21 +3,20 @@
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, DollarSign } from 'lucide-react';
+import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, CalendarClock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
 import { Section, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, Cohort, AcademicCycle } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { Label } from '@/components/ui/Label';
-import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
-import { useForm, SubmitHandler } from 'react-hook-form';
+import { FormActions, FormField, FormGrid, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
+import { useForm, SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { studentCreateSchema, studentUpdateSchema, studentProfileSchema, StudentCreateFormData, StudentUpdateFormData, StudentProfileFormData } from '@/lib/schemas';
 
@@ -27,94 +26,164 @@ interface StudentFormProps {
     isProfile?: boolean;
 }
 
+const STUDENT_STATUS_OPTIONS = [
+    { value: StudentStatus.ACTIVE, label: 'Active', icon: ShieldCheck },
+    { value: StudentStatus.SUSPENDED, label: 'Suspended', icon: UserX },
+    { value: StudentStatus.ALUMNI, label: 'Alumni', icon: GraduationCap },
+];
+
+const GENDER_OPTIONS = [
+    { value: 'Male', label: 'Male' },
+    { value: 'Female', label: 'Female' },
+    { value: 'Other', label: 'Other' },
+];
+
+function todayInputValue() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function dateInputValue(value?: string | Date | null, fallback = '') {
+    return value ? new Date(value).toISOString().split('T')[0] : fallback;
+}
+
+function getStudentDefaults(initialData?: Student) {
+    return initialData ? {
+        name: initialData.user?.name || '',
+        email: initialData.user?.email || '',
+        password: '',
+        registrationNumber: initialData.registrationNumber || '',
+        rollNumber: initialData.rollNumber || '',
+        admissionDate: dateInputValue(initialData.admissionDate, todayInputValue()),
+        status: initialData.status as StudentStatus || StudentStatus.ACTIVE,
+        sectionIds: initialData.enrollments?.filter(e => e.source !== 'COHORT').map(e => e.section.id) || [],
+        major: initialData.major || '',
+        department: initialData.department || '',
+        fatherName: initialData.fatherName || '',
+        age: initialData.age?.toString() || '',
+        gender: initialData.gender || '',
+        graduationDate: dateInputValue(initialData.graduationDate),
+        phone: initialData.user?.phone || '',
+        emergencyContact: initialData.emergencyContact || '',
+        bloodGroup: initialData.bloodGroup || '',
+        address: initialData.address || '',
+        cohortId: initialData.cohortId || '',
+    } : {
+        name: '',
+        email: '',
+        password: '',
+        registrationNumber: '',
+        rollNumber: '',
+        admissionDate: todayInputValue(),
+        status: StudentStatus.ACTIVE,
+        sectionIds: [],
+        major: '',
+        department: '',
+        fatherName: '',
+        age: '',
+        gender: '',
+        graduationDate: '',
+        phone: '',
+        emergencyContact: '',
+        bloodGroup: '',
+        address: '',
+        cohortId: '',
+    };
+}
+
+function studentStatusIcon(status?: StudentStatus) {
+    if (status === StudentStatus.ACTIVE) return ShieldCheck;
+    if (status === StudentStatus.SUSPENDED) return UserX;
+    return GraduationCap;
+}
+
 export default function StudentForm({ studentId, initialData, isProfile }: StudentFormProps) {
     const { token, user: currentUser, updateUser } = useAuth();
     const router = useRouter();
     const { dispatch } = useGlobal();
-
-    const [sections, setSections] = useState<Section[]>([]);
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
 
+    const resolver = useMemo(
+        () => zodResolver(isProfile ? studentProfileSchema : (studentId ? studentUpdateSchema : studentCreateSchema)),
+        [isProfile, studentId]
+    );
+    const defaultValues = useMemo(() => getStudentDefaults(initialData), [initialData]);
+
     const {
+        control,
         register,
         handleSubmit,
         setValue,
-        watch,
         trigger,
         reset,
         formState: { errors },
     } = useForm({
-        resolver: zodResolver(isProfile ? studentProfileSchema : (studentId ? studentUpdateSchema : studentCreateSchema)),
-        defaultValues: initialData ? {
-            name: initialData.user?.name || '',
-            email: initialData.user?.email || '',
-            password: '',
-            registrationNumber: initialData.registrationNumber || '',
-            rollNumber: initialData.rollNumber || '',
-            admissionDate: initialData.admissionDate ? new Date(initialData.admissionDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            status: initialData.status as StudentStatus || StudentStatus.ACTIVE,
-            sectionIds: initialData.enrollments?.map(e => e.section.id) || [],
-            major: initialData.major || '',
-            department: initialData.department || '',
-            fatherName: initialData.fatherName || '',
-            age: initialData.age?.toString() || '',
-            gender: initialData.gender || '',
-            graduationDate: initialData.graduationDate ? new Date(initialData.graduationDate).toISOString().split('T')[0] : '',
-            phone: initialData.user?.phone || '',
-            emergencyContact: initialData.emergencyContact || '',
-            bloodGroup: initialData.bloodGroup || '',
-            address: initialData.address || '',
-            cohortId: initialData.cohortId || ''
-        } : {
-            name: '',
-            email: '',
-            password: '',
-            registrationNumber: '',
-            rollNumber: '',
-            admissionDate: new Date().toISOString().split('T')[0],
-            status: StudentStatus.ACTIVE,
-            sectionIds: [],
-            major: '',
-            department: '',
-            fatherName: '',
-            age: '',
-            gender: '',
-            graduationDate: '',
-            phone: '',
-            emergencyContact: '',
-            bloodGroup: '',
-            address: '',
-            cohortId: ''
-        }
+        resolver,
+        defaultValues,
     });
 
     useEffect(() => {
         if (initialData) {
-            reset({
-                name: initialData.user?.name || '',
-                email: initialData.user?.email || '',
-                password: '',
-                registrationNumber: initialData.registrationNumber || '',
-                rollNumber: initialData.rollNumber || '',
-                admissionDate: initialData.admissionDate ? new Date(initialData.admissionDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-                status: initialData.status as StudentStatus || StudentStatus.ACTIVE,
-                sectionIds: initialData.enrollments?.map(e => e.section.id) || [],
-                major: initialData.major || '',
-                department: initialData.department || '',
-                fatherName: initialData.fatherName || '',
-                age: initialData.age?.toString() || '',
-                gender: initialData.gender || '',
-                graduationDate: initialData.graduationDate ? new Date(initialData.graduationDate).toISOString().split('T')[0] : '',
-                phone: initialData.user?.phone || '',
-                emergencyContact: initialData.emergencyContact || '',
-                bloodGroup: initialData.bloodGroup || '',
-                address: initialData.address || '',
-                cohortId: initialData.cohortId || ''
-            });
+            reset(getStudentDefaults(initialData));
         }
     }, [initialData, reset]);
 
-    const formData = watch();
+    const watchedStatus = useWatch({ control, name: 'status' }) as StudentStatus | undefined;
+    const watchedSectionIds = useWatch({ control, name: 'sectionIds' }) as string[] | undefined;
+    const watchedCohortId = useWatch({ control, name: 'cohortId' }) as string | undefined;
+    const watchedGender = useWatch({ control, name: 'gender' }) as string | undefined;
+
+    const { data: sectionsData } = useSWR<{ data: Section[] }>(token ? ['sections', { limit: 1000 }] as const : null);
+    const { data: cohortsData } = useSWR<{ data: (Cohort & { academicCycle?: AcademicCycle })[] }>(token ? ['cohorts', { limit: 500 }] as const : null);
+
+    const sectionOptions = useMemo(() => (sectionsData?.data || []).map(section => ({
+        value: section.id,
+        label: `${section.name} ${section.course?.name ? `(${section.course.name})` : ''}`,
+    })), [sectionsData?.data]);
+
+    const cohortOptions = useMemo(() => [
+        { label: 'No Cohort', value: '' },
+        ...(cohortsData?.data?.map(cohort => ({
+            value: cohort.id,
+            label: `${cohort.name} (${cohort.academicCycle?.name || 'No Cycle'})`,
+        })) || []),
+    ], [cohortsData?.data]);
+
+    const isWatchMode = !isProfile && currentUser?.role === Role.TEACHER;
+    const identityLocked = isProfile || isWatchMode;
+    const registrationLocked = isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN);
+    const currentUserAvatarUrl = isProfile ? currentUser?.avatarUrl : '';
+
+    const handleStatusChange = useCallback((value: string) => {
+        if (isProfile || isWatchMode) return;
+        setValue('status', value as StudentStatus);
+        trigger('status');
+    }, [isProfile, isWatchMode, setValue, trigger]);
+
+    const handleCohortChange = useCallback((value: string) => {
+        if (isProfile || isWatchMode) return;
+        setValue('cohortId', value);
+        trigger('cohortId');
+    }, [isProfile, isWatchMode, setValue, trigger]);
+
+    const handleSectionsChange = useCallback((values: string[]) => {
+        if (isProfile || isWatchMode) return;
+        setValue('sectionIds', values);
+        trigger('sectionIds');
+    }, [isProfile, isWatchMode, setValue, trigger]);
+
+    const handleGenderChange = useCallback((value: string) => {
+        if (isProfile || isWatchMode) return;
+        setValue('gender', value);
+        trigger('gender');
+    }, [isProfile, isWatchMode, setValue, trigger]);
+
+    const handlePhotoReady = useCallback((file: File) => {
+        setPendingPhoto(file);
+    }, []);
+
+    const handleCancel = useCallback(() => {
+        router.back();
+    }, [router]);
 
     const onSubmit: SubmitHandler<StudentCreateFormData | StudentUpdateFormData | StudentProfileFormData> = async (data) => {
         dispatch({ type: 'UI_START_PROCESSING', payload: 'student-submit' });
@@ -124,7 +193,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             const payload: CreateStudentRequest | UpdateStudentRequest = {
                 ...rest,
                 age: age ? Number(age) : null,
-                ...(studentId ? (password ? { password } : {}) : { password })
+                ...(studentId ? (password ? { password } : {}) : { password }),
             };
 
             let savedStudent: Student;
@@ -136,7 +205,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                 savedStudent = await api.org.createStudent(payload as CreateStudentRequest, token!);
             }
 
-            // Sync global auth state if the updated student is the current user
+            // Sync global auth state if the updated student is the current user.
             if ((isProfile || studentId === initialData?.id) && currentUser?.id === savedStudent.userId) {
                 updateUser({
                     name: savedStudent.user.name,
@@ -148,11 +217,11 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             if (pendingPhoto && savedStudent.userId) {
                 try {
                     const updatedUser = await api.org.uploadAvatar(savedStudent.userId, pendingPhoto, token!);
-                    // Sync local auth state if the updated user is the current user
+                    // Sync local auth state if the updated user is the current user.
                     if (currentUser?.id === savedStudent.userId) {
                         updateUser({
                             avatarUrl: updatedUser.avatarUrl,
-                            avatarUpdatedAt: updatedUser.avatarUpdatedAt?.toString()
+                            avatarUpdatedAt: updatedUser.avatarUpdatedAt?.toString(),
                         });
                     }
                 } catch {
@@ -168,7 +237,6 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                 router.push('/students');
             }
 
-            // Invalidate all student lists
             mutate(matchesCacheKeyPrefix('students'));
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to save student';
@@ -176,443 +244,308 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             if (Array.isArray(message)) {
                 message.forEach((m: string) => dispatch({ type: 'TOAST_ADD', payload: { message: m, type: 'error' } }));
             } else {
-                dispatch({ type: 'TOAST_ADD', payload: { message: message, type: 'error' } });
+                dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
             }
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'student-submit' });
         }
     };
 
-    const { data: cohortsData } = useSWR<{ data: (Cohort & { academicCycle?: AcademicCycle })[] }>(token ? ['cohorts', { limit: 500 }] : null);
-
-    useEffect(() => {
-        if (token) {
-            api.org.getSections(token).then(res => setSections(res.data || [])).catch(console.error);
-        }
-    }, [token]);
-
-    const handlePhotoReady = useCallback((file: File) => {
-        setPendingPhoto(file);
-    }, []);
-
-    const isWatchMode = !isProfile && currentUser?.role === Role.TEACHER;
-    const currentUserAvatarUrl = isProfile ? currentUser?.avatarUrl : '';
-
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 md:space-y-12" noValidate>
-            {/* Enrollment Details */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                <div className="p-6 md:p-8">
-                    <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start mb-8 md:mb-10">
-                        <div className="shrink-0 group relative mx-auto md:mx-0">
-                            <PhotoUploadPicker
-                                onFileReady={handlePhotoReady}
-                                type="user"
-                                currentImageUrl={initialData?.user?.avatarUrl || currentUserAvatarUrl}
-                                updatedAt={initialData?.user?.avatarUpdatedAt}
-                                disabled={isWatchMode}
-                            />
-                            {!isWatchMode && (
-                                <p className="mt-3 text-xs text-center font-semibold tracking-wider text-muted-foreground group-hover:text-primary transition-colors">
-                                    {studentId ? 'Update Photo' : 'Upload Photo'}
-                                </p>
-                            )}
-                        </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+            <FormSection
+                title="Enrollment & Account"
+                description="Student identity, login credentials, admission status, and enrollment numbers."
+                icon={GraduationCap}
+            >
+                <div className="flex flex-col gap-5 lg:flex-row lg:gap-6">
+                    <div className="flex shrink-0 flex-col items-center border-b border-border/60 pb-5 lg:w-44 lg:border-b-0 lg:border-r lg:pr-6">
+                        <PhotoUploadPicker
+                            onFileReady={handlePhotoReady}
+                            type="user"
+                            currentImageUrl={initialData?.user?.avatarUrl || currentUserAvatarUrl}
+                            updatedAt={initialData?.user?.avatarUpdatedAt}
+                            disabled={isWatchMode}
+                            hint={isWatchMode ? 'Photo is locked in read-only mode.' : studentId ? 'Update photo before saving changes.' : 'Add a square profile photo.'}
+                            sizeClassName="h-28 w-28"
+                        />
+                    </div>
 
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 w-full">
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Full Name</Label>
+                    <div className="flex-1 space-y-5">
+                        <FormGrid>
+                            <FormField label="Full Name" error={errors.name?.message}>
                                 <Input
                                     type="text"
                                     {...register('name')}
-                                    onChange={(isProfile || isWatchMode) ? undefined : register('name').onChange}
-                                    readOnly={isProfile || isWatchMode}
-                                    value={watch('name') || ''}
+                                    readOnly={identityLocked}
                                     error={!!errors.name}
-                                    disabled={isProfile || isWatchMode}
+                                    disabled={identityLocked}
                                     icon={User}
                                     placeholder="Alex Johnson"
-                                    className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
+                                    className={identityLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                                 />
-                                {errors.name && <p className="mt-1 text-xs text-danger font-semibold">{errors.name.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Account Email</Label>
+                            <FormField label="Account Email" error={errors.email?.message}>
                                 <Input
                                     type="email"
                                     {...register('email')}
-                                    onChange={(!!studentId || isProfile || isWatchMode) ? undefined : register('email').onChange}
-                                    readOnly={!!studentId || isProfile || isWatchMode}
-                                    value={watch('email') || ''}
+                                    readOnly={!!studentId || identityLocked}
                                     error={!!errors.email}
-                                    disabled={!!studentId || isProfile || isWatchMode}
+                                    disabled={!!studentId || identityLocked}
                                     icon={Mail}
                                     placeholder="alex.j@example.com"
-                                    className={studentId || isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
+                                    className={studentId || identityLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                                 />
-                                {errors.email && <p className="mt-1 text-xs text-danger font-semibold">{errors.email.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Login Password</Label>
+                            <FormField label="Login Password" error={errors.password?.message}>
                                 <Input
                                     type="password"
                                     {...register('password')}
                                     error={!!errors.password}
                                     disabled={isWatchMode}
                                     icon={Lock}
-                                    placeholder={studentId ? "Leave blank to keep current" : "Min 8 chars, 1 upper, 1 lower, 1 num"}
-                                    className="font-medium"
+                                    placeholder={studentId ? 'Leave blank to keep current' : 'Min 8 chars, 1 upper, 1 lower, 1 num'}
+                                    className={FORM_INPUT_CLASS}
                                 />
-                                {errors.password && <p className="mt-1 text-xs text-danger font-semibold">{errors.password.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Registration Number <span className="text-danger">*</span></Label>
+                            <FormField label="Registration Number" required error={errors.registrationNumber?.message}>
                                 <Input
                                     type="text"
                                     {...register('registrationNumber')}
-                                    onChange={(isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN)) ? undefined : register('registrationNumber').onChange}
-                                    readOnly={isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN)}
-                                    value={watch('registrationNumber') || ''}
+                                    readOnly={registrationLocked}
                                     error={!!errors.registrationNumber}
-                                    disabled={isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN)}
+                                    disabled={registrationLocked}
                                     icon={Hash}
                                     placeholder="ST-2026-001"
-                                    className={isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN) ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
+                                    className={registrationLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                                 />
-                                {errors.registrationNumber && <p className="mt-1 text-xs text-danger font-semibold">{errors.registrationNumber.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Roll Number <span className="text-danger">*</span></Label>
+                            <FormField label="Roll Number" required error={errors.rollNumber?.message}>
                                 <Input
                                     type="text"
                                     {...register('rollNumber')}
-                                    onChange={(isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN)) ? undefined : register('rollNumber').onChange}
-                                    readOnly={isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN)}
-                                    value={watch('rollNumber') || ''}
+                                    readOnly={registrationLocked}
                                     error={!!errors.rollNumber}
-                                    disabled={isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN)}
+                                    disabled={registrationLocked}
                                     icon={Hash}
                                     placeholder="2026-001"
-                                    className={isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN) ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
+                                    className={registrationLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                                 />
-                                {errors.rollNumber && <p className="mt-1 text-xs text-danger font-semibold">{errors.rollNumber.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Admission Date</Label>
+                            <FormField label="Admission Date" error={errors.admissionDate?.message}>
                                 <Input
                                     type="date"
                                     {...register('admissionDate')}
-                                    onChange={(isProfile || isWatchMode) ? undefined : register('admissionDate').onChange}
-                                    readOnly={isProfile || isWatchMode}
-                                    value={watch('admissionDate') || ''}
+                                    readOnly={identityLocked}
                                     error={!!errors.admissionDate}
-                                    disabled={isProfile || isWatchMode}
-                                    className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
+                                    disabled={identityLocked}
+                                    className={identityLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                                 />
-                                {errors.admissionDate && <p className="mt-1 text-xs text-danger font-semibold">{errors.admissionDate.message}</p>}
-                            </div>
+                            </FormField>
 
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Student Status</Label>
+                            <FormField label="Student Status" error={errors.status?.message}>
                                 <CustomSelect
-                                    options={[
-                                        { value: StudentStatus.ACTIVE, label: 'Active', icon: ShieldCheck },
-                                        { value: StudentStatus.SUSPENDED, label: 'Suspended', icon: UserX },
-                                        { value: StudentStatus.ALUMNI, label: 'Alumni', icon: GraduationCap }
-                                    ]}
-                                    value={formData.status}
-                                    onChange={(val) => {
-                                        if (isProfile || isWatchMode) return;
-                                        setValue('status', val as StudentStatus);
-                                        trigger('status');
-                                    }}
+                                    options={STUDENT_STATUS_OPTIONS}
+                                    value={watchedStatus || StudentStatus.ACTIVE}
+                                    onChange={handleStatusChange}
                                     error={!!errors.status}
-                                    disabled={isProfile || isWatchMode}
-                                    icon={
-                                        formData.status === StudentStatus.ACTIVE ? ShieldCheck :
-                                            formData.status === StudentStatus.SUSPENDED ? UserX : GraduationCap
-                                    }
+                                    disabled={identityLocked}
+                                    icon={studentStatusIcon(watchedStatus)}
                                 />
-                                {errors.status && <p className="mt-1 text-xs text-danger font-semibold">{errors.status.message}</p>}
-                            </div>
-                        </div>
-                    </div>
+                            </FormField>
+                        </FormGrid>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Major / Program <span className="text-danger">*</span></Label>
+                        <FormGrid>
+                            <FormField label="Major / Program" required error={errors.major?.message}>
+                                <Input
+                                    type="text"
+                                    {...register('major')}
+                                    readOnly={identityLocked}
+                                    error={!!errors.major}
+                                    disabled={identityLocked}
+                                    icon={GraduationCap}
+                                    placeholder="Computer Science"
+                                    className={identityLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
+                                />
+                            </FormField>
+
+                            <FormField label="Department" error={errors.department?.message}>
+                                <Input
+                                    type="text"
+                                    {...register('department')}
+                                    readOnly={identityLocked}
+                                    error={!!errors.department}
+                                    disabled={identityLocked}
+                                    icon={BookOpen}
+                                    placeholder="Engineering & Tech"
+                                    className={identityLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
+                                />
+                            </FormField>
+                        </FormGrid>
+                    </div>
+                </div>
+            </FormSection>
+
+            <FormSection
+                title="Academic Placement"
+                description="Cohort and individual section placement."
+                icon={Users}
+            >
+                <FormGrid className="items-start">
+                    <FormField label="Enroll in Cohort" error={errors.cohortId?.message}>
+                        <CustomSelect
+                            options={cohortOptions}
+                            value={watchedCohortId || ''}
+                            onChange={handleCohortChange}
+                            placeholder="Select a cohort..."
+                            error={!!errors.cohortId}
+                            disabled={identityLocked}
+                            icon={Users}
+                        />
+                    </FormField>
+
+                    <FormField label="Enroll in Individual Sections" error={errors.sectionIds?.message}>
+                        <CustomMultiSelect
+                            options={sectionOptions}
+                            values={watchedSectionIds || []}
+                            onChange={handleSectionsChange}
+                            placeholder="Select one or more sections..."
+                            error={!!errors.sectionIds}
+                            disabled={identityLocked}
+                        />
+                    </FormField>
+                </FormGrid>
+            </FormSection>
+
+            <FormSection
+                title="Expected Progress"
+                description="Projected graduation timeline for the learner."
+                icon={CalendarClock}
+            >
+                <FormGrid columns={1}>
+                    <FormField label="Exp. Graduation" error={errors.graduationDate?.message} className="max-w-xl">
+                        <Input
+                            type="date"
+                            {...register('graduationDate')}
+                            readOnly={identityLocked}
+                            error={!!errors.graduationDate}
+                            disabled={identityLocked}
+                            className={identityLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
+                        />
+                    </FormField>
+                </FormGrid>
+            </FormSection>
+
+            <FormSection
+                title="Personal Profile"
+                description="Guardian, demographic, contact, and residential information."
+                icon={User}
+            >
+                <FormGrid columns={3} className="mb-5">
+                    <FormField label="Father / Guardian Name" error={errors.fatherName?.message}>
+                        <Input
+                            type="text"
+                            {...register('fatherName')}
+                            error={!!errors.fatherName}
+                            disabled={isWatchMode}
+                            icon={User}
+                            placeholder="Michael Johnson"
+                            className={isWatchMode ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
+                        />
+                    </FormField>
+
+                    <FormField label="Current Age" error={errors.age?.message}>
+                        <Input
+                            type="number"
+                            {...register('age')}
+                            error={!!errors.age}
+                            disabled={isWatchMode}
+                            icon={User}
+                            placeholder="16"
+                            className={isWatchMode ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
+                        />
+                    </FormField>
+
+                    <FormField label="Gender Identification" required error={errors.gender?.message}>
+                        <CustomSelect
+                            options={GENDER_OPTIONS}
+                            value={watchedGender || ''}
+                            onChange={handleGenderChange}
+                            error={!!errors.gender}
+                            disabled={identityLocked}
+                            icon={Users}
+                            placeholder="Gender"
+                        />
+                    </FormField>
+                </FormGrid>
+
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div className="space-y-4">
+                        <FormField label="Contact Phone" error={errors.phone?.message}>
                             <Input
                                 type="text"
-                                {...register('major')}
-                                onChange={(isProfile || isWatchMode) ? undefined : register('major').onChange}
-                                readOnly={isProfile || isWatchMode}
-                                value={watch('major') || ''}
-                                error={!!errors.major}
-                                disabled={isProfile || isWatchMode}
-                                icon={GraduationCap}
-                                placeholder="Computer Science"
-                                className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.major && <p className="mt-1 text-xs text-danger font-semibold">{errors.major.message}</p>}
-                        </div>
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Department</Label>
-                            <Input
-                                type="text"
-                                {...register('department')}
-                                onChange={(isProfile || isWatchMode) ? undefined : register('department').onChange}
-                                readOnly={isProfile || isWatchMode}
-                                value={watch('department') || ''}
-                                error={!!errors.department}
-                                disabled={isProfile || isWatchMode}
-                                icon={BookOpen}
-                                placeholder="Engineering & Tech"
-                                className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.department && <p className="mt-1 text-xs text-danger font-semibold">{errors.department.message}</p>}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Academic Placement */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative p-3 bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg">
-                                <Plus className="w-6 h-6 text-primary" />
-                            </div>
-                        </div>
-                        <h3 className="text-lg md:text-xl font-black text-foreground">Academic Placement</h3>
-                    </div>
-                </div>
-
-                <div className="p-6 md:p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Enroll in Cohort</Label>
-                            <CustomSelect
-                                options={[
-                                    { label: 'No Cohort', value: '' },
-                                    ...(cohortsData?.data?.map((c: Cohort) => ({
-                                        value: c.id,
-                                        label: `${c.name} (${c.academicCycle?.name || 'No Cycle'})`
-                                    })) || [])
-                                ]}
-                                value={formData.cohortId || ''}
-                                onChange={(val) => {
-                                    if (isProfile || isWatchMode) return;
-                                    setValue('cohortId', val);
-                                    trigger('cohortId');
-                                }}
-                                placeholder="Select a cohort..."
-                                error={!!errors.cohortId}
-                                disabled={isProfile || isWatchMode}
-                                icon={Users}
-                            />
-                            {errors.cohortId && <p className="mt-1 text-xs text-danger font-semibold">{errors.cohortId.message}</p>}
-                        </div>
-
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Enroll in Individual Sections</Label>
-                            <CustomMultiSelect
-                                options={sections.map(s => ({
-                                    value: s.id,
-                                    label: `${s.name} ${s.course?.name ? `(${s.course.name})` : ''}`
-                                }))}
-                                values={formData.sectionIds || []}
-                                onChange={(vals) => {
-                                    if (isProfile || isWatchMode) return;
-                                    setValue('sectionIds', vals);
-                                    trigger('sectionIds');
-                                }}
-                                placeholder="Select one or more sections..."
-                                error={!!errors.sectionIds}
-                                disabled={isProfile || isWatchMode}
-                            />
-                            {errors.sectionIds && <p className="mt-1 text-xs text-danger font-semibold">{errors.sectionIds.message}</p>}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Profile & Contact */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative p-3 bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg">
-                                <DollarSign className="w-6 h-6 text-primary" />
-                            </div>
-                        </div>
-                        <h3 className="text-lg md:text-xl font-black text-foreground">Expected Progress</h3>
-                    </div>
-                </div>
-
-                <div className="p-6 md:p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-1 gap-4 md:gap-6">
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Exp. Graduation</Label>
-                            <Input
-                                type="date"
-                                {...register('graduationDate')}
-                                onChange={(isProfile || isWatchMode) ? undefined : register('graduationDate').onChange}
-                                readOnly={isProfile || isWatchMode}
-                                value={watch('graduationDate') || ''}
-                                error={!!errors.graduationDate}
-                                disabled={isProfile || isWatchMode}
-                                className={isProfile || isWatchMode ? 'opacity-70 cursor-not-allowed bg-muted/40' : 'font-medium'}
-                            />
-                            {errors.graduationDate && <p className="mt-1 text-xs text-danger font-semibold">{errors.graduationDate.message}</p>}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Profile & Contact */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
-                    <div className="flex items-center gap-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative p-3 bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg">
-                                <User className="w-6 h-6 text-primary" />
-                            </div>
-                        </div>
-                        <h3 className="text-lg md:text-xl font-black text-foreground">Personal Profile</h3>
-                    </div>
-                </div>
-
-                <div className="p-6 md:p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Father / Guardian Name</Label>
-                            <Input
-                                type="text"
-                                {...register('fatherName')}
-                                error={!!errors.fatherName}
+                                {...register('phone')}
+                                error={!!errors.phone}
                                 disabled={isWatchMode}
-                                icon={User}
-                                placeholder="Michael Johnson"
-                                className="font-medium"
+                                icon={Phone}
+                                placeholder="+1 555-0100"
+                                className={isWatchMode ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                             />
-                            {errors.fatherName && <p className="mt-1 text-xs text-danger font-semibold">{errors.fatherName.message}</p>}
-                        </div>
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Current Age</Label>
+                        </FormField>
+
+                        <FormField label="Emergency Contact" error={errors.emergencyContact?.message}>
                             <Input
-                                type="number"
-                                {...register('age')}
-                                error={!!errors.age}
+                                type="text"
+                                {...register('emergencyContact')}
+                                error={!!errors.emergencyContact}
                                 disabled={isWatchMode}
-                                icon={User}
-                                placeholder="16"
-                                className="font-medium"
+                                icon={Phone}
+                                placeholder="Relationship - Phone"
+                                className={isWatchMode ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                             />
-                            {errors.age && <p className="mt-1 text-xs text-danger font-semibold">{errors.age.message}</p>}
-                        </div>
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Gender Identification <span className="text-danger">*</span></Label>
-                            <CustomSelect
-                                options={[
-                                    { value: 'Male', label: 'Male' },
-                                    { value: 'Female', label: 'Female' },
-                                    { value: 'Other', label: 'Other' }
-                                ]}
-                                value={formData.gender || ''}
-                                onChange={(val) => {
-                                    if (isProfile || isWatchMode) return;
-                                    setValue('gender', val);
-                                    trigger('gender');
-                                }}
-                                error={!!errors.gender}
-                                disabled={isProfile || isWatchMode}
-                                icon={Users}
-                                placeholder="Gender"
+                        </FormField>
+
+                        <FormField label="Blood Group" error={errors.bloodGroup?.message}>
+                            <Input
+                                type="text"
+                                {...register('bloodGroup')}
+                                error={!!errors.bloodGroup}
+                                disabled={isWatchMode}
+                                icon={Plus}
+                                placeholder="A+, B-, etc."
+                                className={isWatchMode ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                             />
-                            {errors.gender && <p className="mt-1 text-xs text-danger font-semibold">{errors.gender.message}</p>}
-                        </div>
+                        </FormField>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                        <div className="space-y-4 md:space-y-6">
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Contact Phone</Label>
-                                <Input
-                                    type="text"
-                                    {...register('phone')}
-                                    error={!!errors.phone}
-                                    disabled={isWatchMode}
-                                    icon={Phone}
-                                    placeholder="+1 555-0100"
-                                    className="font-medium"
-                                />
-                                {errors.phone && <p className="mt-1 text-xs text-danger font-semibold">{errors.phone.message}</p>}
-                            </div>
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Emergency Contact</Label>
-                                <Input
-                                    type="text"
-                                    {...register('emergencyContact')}
-                                    error={!!errors.emergencyContact}
-                                    disabled={isWatchMode}
-                                    icon={Phone}
-                                    placeholder="Relationship - Phone"
-                                    className="font-medium"
-                                />
-                                {errors.emergencyContact && <p className="mt-1 text-xs text-danger font-semibold">{errors.emergencyContact.message}</p>}
-                            </div>
-                            <div className="space-y-2 md:space-y-3">
-                                <Label>Blood Group</Label>
-                                <Input
-                                    type="text"
-                                    {...register('bloodGroup')}
-                                    error={!!errors.bloodGroup}
-                                    disabled={isWatchMode}
-                                    icon={Plus}
-                                    placeholder="A+, B-, etc."
-                                    className="font-medium"
-                                />
-                                {errors.bloodGroup && <p className="mt-1 text-xs text-danger font-semibold">{errors.bloodGroup.message}</p>}
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 md:space-y-3">
-                            <Label>Residential Address</Label>
-                            <div>
-                                <Textarea
-                                    {...register('address')}
-                                    disabled={isWatchMode}
-                                    error={!!errors.address}
-                                    icon={MapPin}
-                                    placeholder="123 Education Lane, Learning City"
-                                    className="min-h-32 md:min-h-40 font-medium"
-                                />
-                            </div>
-                            {errors.address && <p className="mt-1 text-xs text-danger font-semibold">{errors.address.message}</p>}
-                        </div>
-                    </div>
+                    <FormField label="Residential Address" error={errors.address?.message}>
+                        <Textarea
+                            {...register('address')}
+                            disabled={isWatchMode}
+                            error={!!errors.address}
+                            icon={MapPin}
+                            placeholder="123 Education Lane, Learning City"
+                            className="min-h-40 font-medium"
+                        />
+                    </FormField>
                 </div>
-            </div>
+            </FormSection>
 
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-6 border-t border-border/50">
-                <Button type="button" variant="secondary" onClick={() => router.back()} className="w-full sm:w-auto h-12 font-semibold">
-                    {isWatchMode ? 'Go Back' : 'Cancel'}
-                </Button>
-                {!isWatchMode && (
-                    <Button type="submit" loadingId="student-submit" loadingText="Saving..." className="w-full sm:w-auto h-12 font-semibold">
-                        {isProfile ? 'Update Profile' : (studentId ? 'Update Student Record' : 'Register Student')}
-                    </Button>
-                )}
-            </div>
+            <FormActions
+                onCancel={handleCancel}
+                cancelText={isWatchMode ? 'Go Back' : 'Cancel'}
+                showSubmit={!isWatchMode}
+                loadingId="student-submit"
+                loadingText="Saving..."
+                title={isWatchMode ? 'Student record' : 'Save student record'}
+                description={isWatchMode ? 'This record is open in read-only mode.' : 'Photo, enrollment, academic, and contact changes are applied together.'}
+                submitText={isProfile ? 'Update Profile' : (studentId ? 'Update Student Record' : 'Register Student')}
+            />
         </form>
     );
 }

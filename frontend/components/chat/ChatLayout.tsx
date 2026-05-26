@@ -1579,7 +1579,7 @@ export function ChatLayout() {
                             }
                         }
                     }, touchTimerRef, touchStartPosRef, touchHasTriggeredRef)}
-                    className={`flex ${isMine ? 'justify-end' : 'justify-start'} group/msg relative ${isLastInGroup ? 'mb-4' : 'mb-0.5'} px-3 md:px-5 -mx-3 md:-mx-5 transition-colors ${highlightedMessageId === msg.id || contextMenu?.msg.id === msg.id ? 'bg-primary/25 rounded-xl' : ''}`}
+                    className={`flex ${isMine ? 'justify-end' : 'justify-start'} group/msg relative ${isLastInGroup ? 'mb-4' : 'mb-1'} px-3 md:px-5 -mx-3 md:-mx-5 transition-colors ${highlightedMessageId === msg.id || contextMenu?.msg.id === msg.id ? 'bg-primary/25 rounded-xl' : ''}`}
                 >
                     {!isMine && (
                         <div className="w-7 shrink-0 mr-2 flex flex-col justify-end mb-1">
@@ -1603,10 +1603,10 @@ export function ChatLayout() {
                                     </div>
                                 ) : (
                                     // Chat Bubble
-                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full rounded-2xl`}>
+                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full rounded-xl`}>
                                         <div
                                             className={`
-                                                relative pb-1 rounded-2xl text-[14.5px] leading-relaxed max-w-full overflow-hidden backdrop-blur-sm transition-shadow duration-200
+                                                relative pb-1 rounded-xl text-[14.5px] leading-relaxed max-w-full overflow-hidden backdrop-blur-sm transition-shadow duration-200
                                                 ${isMine
                                                     ? 'bg-primary text-primary-foreground rounded-br-sm shadow-lg shadow-primary/20'
                                                     : 'bg-card text-foreground rounded-bl-sm shadow-md shadow-foreground/5'
@@ -1968,7 +1968,7 @@ export function ChatLayout() {
             {/* ===== CHAT PANEL ===== */}
             <div className={`
             ${!activeChatId && !isDesktop ? 'hidden' : 'flex'} 
-            flex-1 min-w-0 flex-col h-full relative overflow-hidden chat-bg-pattern bg-background/80
+            flex-1 min-w-0 flex-col h-full relative overflow-hidden chat-bg-pattern bg-background/65
             ${!isDesktop && activeChatId ? 'animate-in slide-in-from-right duration-300 ease-out' : ''}
         `}>
                 {activeChat ? (

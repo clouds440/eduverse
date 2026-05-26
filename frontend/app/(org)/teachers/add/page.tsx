@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { UserPlus } from 'lucide-react';
 import { Role } from '@/types';
 import TeacherForm from '@/components/forms/TeacherForm';
+import { FormPageHeader, FormPageShell } from '@/components/ui/FormLayout';
 
 export default function AddTeacherPage() {
     const { user } = useAuth();
@@ -19,22 +20,13 @@ export default function AddTeacherPage() {
     }, [user, router]);
 
     return (
-        <div className="flex flex-col">
-            <div className="mb-6">
-                <div className="flex items-center gap-5">
-                    <div className="p-4 bg-primary/10 backdrop-blur-md ml-2 rounded-lg md:rounded-lg border border-border shadow-xl shrink-0">
-                        <UserPlus className="w-8 h-8 md:w-10 md:h-10 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-black tracking-tight text-foreground mb-2">Add Faculty Member</h1>
-                        <p className="text-sm font-bold text-muted-foreground tracking-widest">Create a new teacher account for your organization</p>
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-card rounded-lg shadow-[0_8px_30px_var(--shadow-color)] border border-border p-6 md:p-12 mb-10">
-                <TeacherForm />
-            </div>
-        </div>
+        <FormPageShell>
+            <FormPageHeader
+                title="Add Faculty Member"
+                description="Create a new teacher account for your organization."
+                icon={UserPlus}
+            />
+            <TeacherForm />
+        </FormPageShell>
     );
 }

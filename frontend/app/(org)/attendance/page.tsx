@@ -3,124 +3,167 @@
 import useSWR from 'swr';
 import { Section, PaginatedResponse } from '@/types';
 import { useAuth } from '@/context/AuthContext';
-import { CheckCircle, Users, ChevronRight } from 'lucide-react';
+import { CheckCircle, Users, ChevronRight, BookOpen, Rows3, Search } from 'lucide-react';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Input } from '@/components/ui/Input';
+import { useMemo, useState } from 'react';
+
+function SectionRowsSkeleton() {
+    return (
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+            <div className="grid grid-cols-[48px_minmax(220px,1.3fr)_minmax(180px,1fr)_120px_120px] border-b border-border/70 bg-background text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                {[...Array(5)].map((_, index) => (
+                    <div key={index} className="border-r border-border/70 px-3 py-2 last:border-r-0">
+                        <Skeleton className="h-3 w-full" />
+                    </div>
+                ))}
+            </div>
+            {[...Array(8)].map((_, index) => (
+                <div key={index} className="grid grid-cols-[48px_minmax(220px,1.3fr)_minmax(180px,1fr)_120px_120px] border-b border-border/50 last:border-b-0">
+                    <div className="border-r border-border/50 px-3 py-3"><Skeleton className="h-4 w-5" /></div>
+                    <div className="border-r border-border/50 px-3 py-3"><Skeleton className="h-4 w-42" /></div>
+                    <div className="border-r border-border/50 px-3 py-3"><Skeleton className="h-4 w-32" /></div>
+                    <div className="border-r border-border/50 px-3 py-3"><Skeleton className="h-4 w-16" /></div>
+                    <div className="px-3 py-3"><Skeleton className="h-4 w-20" /></div>
+                </div>
+            ))}
+        </div>
+    );
+}
 
 export default function AttendanceLandingPage() {
     const { token, user } = useAuth();
+    const [searchTerm, setSearchTerm] = useState('');
 
-    // SWR for sections assigned to current user
     const sectionsKey = token ? ['sections', { my: true, limit: 100 }] as const : null;
     const { data: sectionsData, isLoading: fetching } = useSWR<PaginatedResponse<Section>>(sectionsKey);
-    const sections = sectionsData?.data || [];
+    const sections = useMemo(() => sectionsData?.data || [], [sectionsData?.data]);
+
+    const filteredSections = useMemo(() => {
+        if (!searchTerm) return sections;
+        const term = searchTerm.toLowerCase();
+        return sections.filter(section =>
+            section.name.toLowerCase().includes(term) ||
+            (section.course?.name || '').toLowerCase().includes(term)
+        );
+    }, [sections, searchTerm]);
 
     if (!user) {
         return (
-            <div className="flex flex-col h-full items-center justify-center p-8 text-center bg-card rounded-lg shadow-xl border border-border">
-                <p className="text-lg">Attendance portal is restricted to authorized academic personnel.</p>
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/80 p-8 text-center shadow-sm">
+                <p className="text-sm font-semibold text-muted-foreground">Attendance portal is restricted to authorized academic personnel.</p>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-4 md:p-6 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="p-3 bg-primary/10 rounded-lg w-fit">
-                        <CheckCircle className="w-8 h-8 text-primary" />
+        <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 pb-8">
+            <div className="flex flex-col gap-4 p-2 lg:flex-row lg:items-end lg:justify-between lg:p-0">
+                <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-card text-primary shadow-sm md:h-14 md:w-14">
+                        <CheckCircle className="h-6 w-6 md:h-7 md:w-7" />
                     </div>
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-black tracking-tighter text-foreground">Attendance Portal</h1>
-                        <p className="text-muted-foreground mt-1 text-sm font-bold tracking-widest">Select a class to manage daily attendance</p>
+                    <div className="min-w-0">
+                        <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">Attendance Portal</h1>
+                        <p className="mt-1 text-sm font-semibold text-muted-foreground">Open a section workbook to mark daily attendance or review trends.</p>
                     </div>
                 </div>
 
-                <div className="overflow-y-auto flex-1 pr-2">
-                    {(fetching && sections.length === 0) ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 animate-in fade-in duration-500">
-                            {[...Array(8)].map((_, i) => (
-                                <div key={i} className="p-4 md:p-6 bg-card border border-border rounded-xl shadow-lg space-y-4">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <Skeleton className="h-6 w-24 rounded-full" />
-                                        <Skeleton className="h-4 w-12 rounded-md" />
-                                    </div>
-                                    <Skeleton className="h-8 w-full" />
-                                    <div className="space-y-2">
-                                        <Skeleton className="h-3 w-2/3" />
-                                        <Skeleton className="h-1 w-full rounded-full" />
-                                    </div>
-                                    <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between">
-                                        <div className="space-y-1">
-                                            <Skeleton className="h-2 w-16" />
-                                            <Skeleton className="h-3 w-12" />
-                                        </div>
-                                        <Skeleton className="w-8 h-8 rounded-xl" />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : sections.length === 0 ? (
-                        <div className="text-center py-16 bg-muted/20 border border-border/50 rounded-xl border-dashed">
-                            <p className="text-muted-foreground font-medium">No active sections assigned to you.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                            {sections.map((section) => {
-                                const studentCount = section.studentsCount || section.students?.length || 0;
-                                const attendanceRate = studentCount > 0 ? 85 + (section.name.length % 15) : 100;
-
-                                return (
-                                    <Link
-                                        key={section.id}
-                                        href={`/attendance/${section.id}`}
-                                        className="group p-4 md:p-6 bg-card border border-border rounded-xl shadow-lg hover:shadow-xl hover:border-primary/50 transition-all duration-300 relative overflow-hidden flex flex-col justify-between"
-                                    >
-                                        <div className="relative z-10">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="flex items-center gap-2 px-2 py-1 bg-primary/10 rounded-full border border-primary/20">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                                                    <span className="text-[9px] font-black tracking-widest text-primary">{section.course?.name || 'Course'}</span>
-                                                </div>
-                                                <div className="text-[10px] font-black text-success tracking-tighter bg-success/10 px-2 py-1 rounded-md">Active</div>
-                                            </div>
-
-                                            <h3 className="text-lg md:text-xl font-black tracking-tighter mb-3 text-foreground group-hover:text-primary transition-colors leading-tight">{section.name}</h3>
-
-                                            <div className="space-y-3">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                                        <Users className="w-4 h-4 text-primary/70" />
-                                                        <p className="text-[10px] font-black tracking-widest">{studentCount} Students</p>
-                                                    </div>
-                                                    <p className="text-[10px] font-black text-primary italic">{attendanceRate}% Avg</p>
-                                                </div>
-
-                                                <div className="h-1 w-full bg-muted/30 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-primary group-hover:bg-primary/80 transition-all duration-500 ease-out"
-                                                        style={{ width: `${attendanceRate}%` }}
-                                                    ></div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-4 pt-4 border-t border-border/50 flex items-center justify-between relative z-10">
-                                            <div className="flex flex-col">
-                                                <p className="text-[9px] font-black tracking-[0.2em] text-muted-foreground/60 leading-none mb-1">Session Management</p>
-                                                <p className="text-[10px] font-black text-primary">Open Ledger</p>
-                                            </div>
-                                            <div className="w-8 h-8 rounded-xl bg-primary/5 flex items-center justify-center group-hover:bg-primary transition-all duration-300 border border-primary/10 group-hover:scale-110 shadow-sm">
-                                                <ChevronRight className="w-4 h-4 text-primary group-hover:text-primary-foreground" />
-                                            </div>
-                                        </div>
-                                    </Link>
-                                );
-                            })}
-                        </div>
-                    )}
+                <div className="relative w-full sm:max-w-xs">
+                    <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        placeholder="Search sections..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        className="h-11 border-border/60 bg-background/70 pl-10 text-sm font-medium"
+                    />
                 </div>
             </div>
+
+            {fetching && sections.length === 0 ? (
+                <SectionRowsSkeleton />
+            ) : filteredSections.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border/70 bg-card/80 px-6 py-16 text-center shadow-sm">
+                    <Rows3 className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                    <p className="mt-3 text-sm font-black text-foreground">No sections found</p>
+                    <p className="mt-1 text-xs font-semibold text-muted-foreground">Try a different search or check your assigned sections.</p>
+                </div>
+            ) : (
+                <>
+                    <section className="hidden overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm md:block">
+                        <div className="grid grid-cols-[48px_minmax(240px,1.3fr)_minmax(180px,1fr)_120px_140px] border-b border-border/70 bg-background text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                            <div className="border-r border-border/70 px-3 py-2 text-center">#</div>
+                            <div className="border-r border-border/70 px-3 py-2">Section</div>
+                            <div className="border-r border-border/70 px-3 py-2">Course</div>
+                            <div className="border-r border-border/70 px-3 py-2 text-center">Students</div>
+                            <div className="px-3 py-2 text-center">Workbook</div>
+                        </div>
+
+                        {filteredSections.map((section, index) => {
+                            const studentCount = section.studentsCount || section.students?.length || 0;
+                            return (
+                                <Link
+                                    key={section.id}
+                                    href={`/attendance/${section.id}`}
+                                    className="group grid grid-cols-[48px_minmax(240px,1.3fr)_minmax(180px,1fr)_120px_140px] border-b border-border/50 bg-card transition-colors last:border-b-0 hover:bg-background/60"
+                                >
+                                    <div className="border-r border-border/50 px-3 py-3 text-center font-mono text-xs font-bold text-muted-foreground">
+                                        {index + 1}
+                                    </div>
+                                    <div className="min-w-0 border-r border-border/50 px-3 py-3">
+                                        <p className="truncate text-sm font-black text-foreground group-hover:text-primary">{section.name}</p>
+                                        <p className="mt-0.5 truncate text-[10px] font-semibold text-muted-foreground">Section workbook</p>
+                                    </div>
+                                    <div className="min-w-0 border-r border-border/50 px-3 py-3">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <BookOpen className="h-4 w-4 shrink-0 text-primary" />
+                                            <span className="truncate text-sm font-semibold text-foreground">{section.course?.name || 'Course'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="border-r border-border/50 px-3 py-3 text-center">
+                                        <span className="inline-flex min-w-12 items-center justify-center gap-1 rounded-md bg-background px-2 py-1 font-mono text-xs font-black text-foreground">
+                                            <Users className="h-3 w-3 text-primary" />
+                                            {studentCount}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-center px-3 py-3">
+                                        <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-black text-primary">
+                                            Open
+                                            <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                                        </span>
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </section>
+
+                    <div className="grid gap-3 md:hidden">
+                        {filteredSections.map((section) => {
+                            const studentCount = section.studentsCount || section.students?.length || 0;
+                            return (
+                                <Link
+                                    key={section.id}
+                                    href={`/attendance/${section.id}`}
+                                    className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm transition-colors active:bg-background/60"
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="truncate text-base font-black text-foreground">{section.name}</p>
+                                            <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">{section.course?.name || 'Course'}</p>
+                                        </div>
+                                        <ChevronRight className="h-5 w-5 shrink-0 text-primary" />
+                                    </div>
+                                    <div className="mt-3 flex items-center gap-2 text-xs font-black text-muted-foreground">
+                                        <Users className="h-4 w-4 text-primary" />
+                                        {studentCount} students
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </>
+            )}
         </div>
     );
 }

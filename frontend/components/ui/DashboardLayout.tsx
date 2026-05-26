@@ -286,7 +286,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
                 {/* Universal Content Wrapper - This is the ONLY scrollable area (unless in app-like routes) */}
-                <div className={`flex-1 min-h-0 w-full ${showPadding ? 'px-0.75 md:px-2 py-1 md:py-2 bg-background' : 'p-0 bg-card'} ${pathname.includes('/chat') || pathname.includes('/mail') ? 'overflow-hidden' : 'overflow-y-auto'} custom-scrollbar flex flex-col`}>
+                <div className={`flex-1 min-h-0 w-full ${showPadding ? 'px-0.75 md:px-2 py-1 md:py-2 bg-background' : 'p-0 bg-card'} ${pathname.includes('/chat') || pathname.includes('/mail') ? 'overflow-hidden' : 'overflow-y-auto p-2'} custom-scrollbar flex flex-col`}>
                     {user?.accessLevel === 1 && <ReadOnlyBanner />}
                     {children}
                 </div>

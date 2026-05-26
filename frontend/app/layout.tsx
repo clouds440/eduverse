@@ -92,7 +92,7 @@ export default function RootLayout({
         <link rel="preload" as="image" href="/assets/eduverse.png" />
       </head>
       <body
-        className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased h-[var(--app-height)] flex flex-col bg-theme-bg transition-colors duration-500 overflow-hidden`}
+        className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased h-(--app-height) flex flex-col bg-theme-bg transition-colors duration-500 overflow-hidden`}
       >
         <Script id="eduverse-theme-bootstrap" strategy="beforeInteractive">
           {THEME_BOOTSTRAP_SCRIPT}

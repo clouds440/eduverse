@@ -27,22 +27,65 @@ export class CohortsService {
     });
     if (!cycle) throw new NotFoundException('Academic cycle not found in this organization');
 
-    return this.prisma.cohort.create({
-      data: {
-        name: dto.name,
-        organizationId: orgId,
-        academicCycleId: dto.academicCycleId,
-        students: {
-          connect: dto.studentIds?.map(id => ({ id })) || [],
+    return this.prisma.$transaction(async (tx) => {
+      const cohort = await tx.cohort.create({
+        data: {
+          name: dto.name,
+          organizationId: orgId,
+          academicCycleId: dto.academicCycleId,
+          sections: {
+            connect: dto.sectionIds?.map(id => ({ id })) || [],
+          },
         },
-        sections: {
-          connect: dto.sectionIds?.map(id => ({ id })) || [],
+        include: {
+          sections: { select: { id: true, academicCycleId: true } },
         },
-      },
-      include: {
-        academicCycle: { select: { id: true, name: true } },
-        _count: { select: { students: true, sections: true } },
-      },
+      });
+
+      if (dto.studentIds?.length) {
+        const students = await tx.student.findMany({
+          where: { id: { in: dto.studentIds }, organizationId: orgId },
+        });
+
+        if (students.length !== dto.studentIds.length) {
+          throw new BadRequestException('Some students not found in this organization');
+        }
+
+        for (const student of students) {
+          if (student.cohortId) {
+            await this.removeCohortEnrollments(tx, student.id, student.cohortId);
+            await tx.cohortMembershipHistory.updateMany({
+              where: { studentId: student.id, cohortId: student.cohortId, leftAt: null },
+              data: { leftAt: new Date() },
+            });
+          }
+
+          await tx.student.update({
+            where: { id: student.id },
+            data: { cohortId: cohort.id },
+          });
+
+          await tx.cohortMembershipHistory.create({
+            data: {
+              studentId: student.id,
+              cohortId: cohort.id,
+              academicCycleId: cohort.academicCycleId,
+            },
+          });
+
+          for (const section of cohort.sections) {
+            await this.autoEnrollStudent(tx, student.id, section.id, section.academicCycleId || cohort.academicCycleId);
+          }
+        }
+      }
+
+      return tx.cohort.findUnique({
+        where: { id: cohort.id },
+        include: {
+          academicCycle: { select: { id: true, name: true } },
+          _count: { select: { students: true, sections: true } },
+        },
+      });
     });
   }
 
@@ -107,24 +150,110 @@ export class CohortsService {
   async updateCohort(orgId: string, id: string, dto: UpdateCohortDto) {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id, organizationId: orgId },
+      include: {
+        students: { select: { id: true } },
+        sections: { select: { id: true, academicCycleId: true } },
+      },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
 
-    return this.prisma.cohort.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        students: dto.studentIds ? {
-          set: dto.studentIds.map(id => ({ id })),
-        } : undefined,
-        sections: dto.sectionIds ? {
-          set: dto.sectionIds.map(id => ({ id })),
-        } : undefined,
-      },
-      include: {
-        academicCycle: { select: { id: true, name: true } },
-        _count: { select: { students: true, sections: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const previousStudentIds = new Set(cohort.students.map(student => student.id));
+      const previousSectionIds = new Set(cohort.sections.map(section => section.id));
+      const nextStudentIds = dto.studentIds ? new Set(dto.studentIds) : previousStudentIds;
+      const nextSectionIds = dto.sectionIds ? new Set(dto.sectionIds) : previousSectionIds;
+
+      const removedStudentIds = [...previousStudentIds].filter(studentId => !nextStudentIds.has(studentId));
+      const addedStudentIds = [...nextStudentIds].filter(studentId => !previousStudentIds.has(studentId));
+      const removedSectionIds = [...previousSectionIds].filter(sectionId => !nextSectionIds.has(sectionId));
+      const addedSectionIds = [...nextSectionIds].filter(sectionId => !previousSectionIds.has(sectionId));
+
+      await tx.cohort.update({
+        where: { id },
+        data: {
+          name: dto.name,
+          sections: dto.sectionIds ? {
+            set: dto.sectionIds.map(sectionId => ({ id: sectionId })),
+          } : undefined,
+        },
+      });
+
+      for (const studentId of removedStudentIds) {
+        await this.removeCohortEnrollments(tx, studentId, id);
+        await tx.student.update({
+          where: { id: studentId },
+          data: { cohortId: null },
+        });
+        await tx.cohortMembershipHistory.updateMany({
+          where: { studentId, cohortId: id, leftAt: null },
+          data: { leftAt: new Date() },
+        });
+      }
+
+      if (removedSectionIds.length > 0) {
+        await this.removeCohortSectionEnrollments(tx, removedSectionIds);
+      }
+
+      let currentStudents = cohort.students;
+      if (addedStudentIds.length > 0) {
+        const addedStudents = await tx.student.findMany({
+          where: { id: { in: addedStudentIds }, organizationId: orgId },
+        });
+        if (addedStudents.length !== addedStudentIds.length) {
+          throw new BadRequestException('Some students not found in this organization');
+        }
+
+        for (const student of addedStudents) {
+          if (student.cohortId && student.cohortId !== id) {
+            await this.removeCohortEnrollments(tx, student.id, student.cohortId);
+            await tx.cohortMembershipHistory.updateMany({
+              where: { studentId: student.id, cohortId: student.cohortId, leftAt: null },
+              data: { leftAt: new Date() },
+            });
+          }
+
+          await tx.student.update({
+            where: { id: student.id },
+            data: { cohortId: id },
+          });
+
+          await tx.cohortMembershipHistory.create({
+            data: {
+              studentId: student.id,
+              cohortId: id,
+              academicCycleId: cohort.academicCycleId,
+            },
+          });
+        }
+
+        currentStudents = [
+          ...cohort.students.filter(student => !removedStudentIds.includes(student.id)),
+          ...addedStudents.map(student => ({ id: student.id })),
+        ];
+      } else if (removedStudentIds.length > 0) {
+        currentStudents = cohort.students.filter(student => !removedStudentIds.includes(student.id));
+      }
+
+      const sectionsForEnrollment = await tx.section.findMany({
+        where: { id: { in: [...nextSectionIds] } },
+        select: { id: true, academicCycleId: true },
+      });
+      const addedSections = sectionsForEnrollment.filter(section => addedSectionIds.includes(section.id));
+
+      for (const student of currentStudents) {
+        const targetSections = addedStudentIds.includes(student.id) ? sectionsForEnrollment : addedSections;
+        for (const section of targetSections) {
+          await this.autoEnrollStudent(tx, student.id, section.id, section.academicCycleId || cohort.academicCycleId);
+        }
+      }
+
+      return tx.cohort.findUnique({
+        where: { id },
+        include: {
+          academicCycle: { select: { id: true, name: true } },
+          _count: { select: { students: true, sections: true } },
+        },
+      });
     });
   }
 
@@ -175,6 +304,7 @@ export class CohortsService {
     await this.prisma.$transaction(async (tx) => {
       // If student was in another cohort, close that membership
       if (student.cohortId) {
+        await this.removeCohortEnrollments(tx, studentId, student.cohortId);
         await tx.cohortMembershipHistory.updateMany({
           where: { studentId, cohortId: student.cohortId, leftAt: null },
           data: { leftAt: new Date() },
@@ -227,6 +357,7 @@ export class CohortsService {
       for (const student of students) {
         // Close old membership if exists
         if (student.cohortId && student.cohortId !== cohortId) {
+          await this.removeCohortEnrollments(tx, student.id, student.cohortId);
           await tx.cohortMembershipHistory.updateMany({
             where: { studentId: student.id, cohortId: student.cohortId, leftAt: null },
             data: { leftAt: new Date() },
@@ -512,6 +643,72 @@ export class CohortsService {
         academicCycleId,
         source: EnrollmentSource.COHORT,
       },
+    });
+  }
+
+  private async removeCohortEnrollments(
+    tx: Prisma.TransactionClient,
+    studentId: string,
+    cohortId: string,
+  ) {
+    const cohortEnrollments = await tx.enrollment.findMany({
+      where: {
+        studentId,
+        source: EnrollmentSource.COHORT,
+        isExcludedFromCohort: false,
+        section: { cohortId },
+      },
+      select: { id: true, sectionId: true },
+    });
+
+    if (cohortEnrollments.length === 0) return;
+
+    await tx.enrollmentHistory.updateMany({
+      where: {
+        studentId,
+        sectionId: { in: cohortEnrollments.map(enrollment => enrollment.sectionId) },
+        source: EnrollmentSource.COHORT,
+        removedAt: null,
+      },
+      data: { removedAt: new Date() },
+    });
+
+    await tx.enrollment.deleteMany({
+      where: { id: { in: cohortEnrollments.map(enrollment => enrollment.id) } },
+    });
+  }
+
+  private async removeCohortSectionEnrollments(
+    tx: Prisma.TransactionClient,
+    sectionIds: string[],
+  ) {
+    if (sectionIds.length === 0) return;
+
+    const cohortEnrollments = await tx.enrollment.findMany({
+      where: {
+        sectionId: { in: sectionIds },
+        source: EnrollmentSource.COHORT,
+        isExcludedFromCohort: false,
+      },
+      select: { id: true, studentId: true, sectionId: true },
+    });
+
+    if (cohortEnrollments.length === 0) return;
+
+    for (const enrollment of cohortEnrollments) {
+      await tx.enrollmentHistory.updateMany({
+        where: {
+          studentId: enrollment.studentId,
+          sectionId: enrollment.sectionId,
+          source: EnrollmentSource.COHORT,
+          removedAt: null,
+        },
+        data: { removedAt: new Date() },
+      });
+    }
+
+    await tx.enrollment.deleteMany({
+      where: { id: { in: cohortEnrollments.map(enrollment => enrollment.id) } },
     });
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefixStartsWith } from '@/lib/swr';
@@ -14,9 +14,25 @@ import AttendanceSheet from '@/components/sections/AttendanceSheet';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft, CalendarDays, BarChart3, Edit3, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import Link from 'next/link';
+import { CalendarDays, BarChart3, Edit3, ChevronLeft, ChevronRight, Clock, Table2 } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { cn } from '@/lib/utils';
+
+function parseDateInput(dateStr: string) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+}
+
+function formatDateInput(dateValue: Date) {
+    const year = dateValue.getFullYear();
+    const month = String(dateValue.getMonth() + 1).padStart(2, '0');
+    const day = String(dateValue.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function getDayOfWeek(dateStr: string) {
+    return parseDateInput(dateStr).getDay();
+}
 
 export default function SectionAttendancePage() {
     const { sectionId } = useParams() as { sectionId: string };
@@ -29,16 +45,23 @@ export default function SectionAttendancePage() {
     const paramScheduleId = searchParams.get('scheduleId');
 
     const [date, setDate] = useState<string>(paramDate || new Date().toISOString().split('T')[0]);
-    const [viewMode, setViewMode] = useState<'daily' | 'monthly'>(paramScheduleId ? 'daily' : 'daily');
+    const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const [saving, setSaving] = useState(false);
-
     const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(paramScheduleId);
     const [adhocTime, setAdhocTime] = useState({ start: '09:00', end: '10:00' });
 
     const isStudent = user?.role === Role.STUDENT;
     const isReadOnly = isStudent;
+    const selectedDayLabel = useMemo(
+        () => parseDateInput(date).toLocaleDateString('en-US', { weekday: 'long' }),
+        [date]
+    );
+    const selectedDateLabel = useMemo(
+        () => parseDateInput(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        [date]
+    );
 
     useEffect(() => {
         if (isStudent && viewMode !== 'monthly') {
@@ -46,20 +69,16 @@ export default function SectionAttendancePage() {
         }
     }, [isStudent, viewMode]);
 
-    // SWR for section data
     const sectionKey = token ? ['attendance-section', sectionId] as const : null;
     const { data: section, error: sectionError } = useSWR<Section>(sectionKey);
 
-    // Set default schedule when section loads
     useEffect(() => {
         if (section && !paramScheduleId && section.schedules) {
-            const todayDay = new Date().getDay();
-            const matched = section.schedules.find((schedule: SectionSchedule) => schedule.day === todayDay);
+            const matched = section.schedules.find((schedule: SectionSchedule) => schedule.day === getDayOfWeek(date));
             if (matched) setSelectedScheduleId(matched.id);
         }
-    }, [section, paramScheduleId]);
+    }, [section, paramScheduleId, date]);
 
-    // Redirect on section fetch error
     useEffect(() => {
         if (sectionError) {
             console.error('Failed to fetch section', sectionError);
@@ -67,11 +86,9 @@ export default function SectionAttendancePage() {
         }
     }, [sectionError, router]);
 
-    // SWR for daily attendance
     const dailyKey = token && viewMode === 'daily' ? ['attendance-daily', sectionId, date, selectedScheduleId || undefined] as const : null;
     const { data: dailyData, isLoading: dailyLoading } = useSWR<SectionAttendanceResponse>(dailyKey);
 
-    // SWR for monthly attendance
     const monthlyStart = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
     const monthlyEnd = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0];
     const monthlyKey = token && viewMode === 'monthly' ? ['attendance-monthly', sectionId, monthlyStart, monthlyEnd] as const : null;
@@ -79,7 +96,30 @@ export default function SectionAttendancePage() {
 
     const fetching = viewMode === 'daily' ? dailyLoading : monthlyLoading;
 
-    // SWR handles data fetching - no need for manual effect triggers
+    const scheduleOptions = useMemo(() => [
+        ...(section?.schedules?.filter((schedule: SectionSchedule) => schedule.day === getDayOfWeek(date)) || []).map((schedule: SectionSchedule) => ({
+            value: schedule.id,
+            label: `${schedule.startTime} - ${schedule.endTime} (${schedule.room || 'Main Room'})`,
+        })),
+        { value: 'adhoc', label: 'Ad-hoc Session' },
+    ], [date, section?.schedules]);
+
+    const syncScheduleForDate = useCallback((nextDate: string) => {
+        if (!section?.schedules) return;
+        const matches = section.schedules.filter((schedule: SectionSchedule) => schedule.day === getDayOfWeek(nextDate));
+        setSelectedScheduleId(matches.length > 0 ? matches[0].id : null);
+    }, [section?.schedules]);
+
+    const handleDateChange = useCallback((nextDate: string) => {
+        setDate(nextDate);
+        syncScheduleForDate(nextDate);
+    }, [syncScheduleForDate]);
+
+    const handleDateStep = useCallback((direction: 'prev' | 'next') => {
+        const nextDate = parseDateInput(date);
+        nextDate.setDate(nextDate.getDate() + (direction === 'next' ? 1 : -1));
+        handleDateChange(formatDateInput(nextDate));
+    }, [date, handleDateChange]);
 
     const handleSaveRecords = async (records: { studentId: string; status: AttendanceStatus }[]) => {
         if (!token || !dailyData) return;
@@ -99,12 +139,11 @@ export default function SectionAttendancePage() {
             }
             await api.org.markAttendance(sessionId as string, records, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Attendance saved successfully', type: 'success' } });
-            // Invalidate all attendance-related cache keys for this section
             mutate(matchesCacheKeyPrefixStartsWith('attendance-'));
         } catch (error: unknown) {
             dispatch({
                 type: 'TOAST_ADD',
-                payload: { message: (error as ApiError)?.message || 'Failed to save attendance', type: 'error' }
+                payload: { message: (error as ApiError)?.message || 'Failed to save attendance', type: 'error' },
             });
         } finally {
             setSaving(false);
@@ -119,138 +158,176 @@ export default function SectionAttendancePage() {
             } else {
                 setCurrentMonth(prev => prev - 1);
             }
+        } else if (currentMonth === 11) {
+            setCurrentMonth(0);
+            setCurrentYear(prev => prev + 1);
         } else {
-            if (currentMonth === 11) {
-                setCurrentMonth(0);
-                setCurrentYear(prev => prev + 1);
-            } else {
-                setCurrentMonth(prev => prev + 1);
-            }
+            setCurrentMonth(prev => prev + 1);
         }
     };
 
     if (!user || (user.role !== Role.TEACHER && user.role !== Role.ORG_MANAGER && user.role !== Role.ORG_ADMIN && user.role !== Role.STUDENT)) return null;
 
     const monthName = new Date(currentYear, currentMonth, 1).toLocaleString('default', { month: 'long' });
-
-    const getDayOfWeek = (dateStr: string) => {
-        const [y, m, d] = dateStr.split('-').map(Number);
-        return new Date(y, m - 1, d).getDay();
-    };
+    const studentCount = dailyData?.students.length || rangeData?.students.length || section?.studentsCount || section?.students?.length || 0;
+    const sessionCount = rangeData?.sessions.length || 0;
 
     return (
-        <div className="flex flex-col h-full w-full space-y-6 pb-12">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-6 overflow-hidden">
-                <Link href="/attendance" className="inline-flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground hover:text-primary transition-colors mb-6">
-                    <ArrowLeft className="w-4 h-4" /> Back to Sections
-                </Link>
+        <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 pb-8">
+            <div className="flex flex-col gap-3 p-2 lg:p-0">
+                <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+                    <div className="flex flex-col gap-4 border-b border-border/60 bg-background/45 p-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="min-w-0">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <Badge variant="primary" dot size="md">
+                                    {section?.course?.name || 'Course'}
+                                </Badge>
+                                <Badge variant="secondary" size="md" icon={Table2}>
+                                    {studentCount} students
+                                </Badge>
+                                {viewMode === 'monthly' && (
+                                    <Badge variant="info" size="md">
+                                        {sessionCount} sessions
+                                    </Badge>
+                                )}
+                            </div>
+                            <h1 className="truncate text-2xl font-black tracking-tight text-foreground md:text-3xl">
+                                {section?.name || 'Loading Section...'}
+                            </h1>
+                            <p className="mt-1 text-xs font-semibold text-muted-foreground">Attendance workbook with daily marking and monthly review.</p>
+                        </div>
 
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                    <div>
-                        <Badge variant="primary" dot className="mb-2 tracking-widest uppercase">
-                            {section?.course?.name || 'Course'}
-                        </Badge>
-                        <h1 className="text-3xl font-black tracking-tighter text-foreground">{section?.name || 'Loading Section...'}</h1>
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className="grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-background p-1">
                             {!isStudent && (
-                                <Button
-                                    variant={viewMode === 'daily' ? 'primary' : 'secondary'}
-                                    icon={Edit3}
+                                <button
+                                    type="button"
                                     onClick={() => setViewMode('daily')}
-                                    className="text-[10px] font-black"
+                                    className={cn(
+                                        'flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition-colors',
+                                        viewMode === 'daily' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-card'
+                                    )}
                                 >
-                                    Marking Mode
-                                </Button>
+                                    <Edit3 className="h-4 w-4" />
+                                    Mark
+                                </button>
                             )}
-                            <Button
-                                variant={viewMode === 'monthly' ? 'primary' : 'secondary'}
-                                icon={BarChart3}
+                            <button
+                                type="button"
                                 onClick={() => setViewMode('monthly')}
-                                className="text-[10px] font-black"
+                                className={cn(
+                                    'flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition-colors',
+                                    viewMode === 'monthly' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-card',
+                                    isStudent && 'col-span-2'
+                                )}
                             >
-                                Overview Mode
-                            </Button>
+                                <BarChart3 className="h-4 w-4" />
+                                Overview
+                            </button>
                         </div>
                     </div>
 
-                    <div className="w-full lg:w-auto bg-muted/20 p-4 rounded-xl border border-border grid grid-cols-1 md:grid-cols-2 lg:flex lg:items-center gap-6">
+                    <div className="grid gap-3 p-3 lg:grid-cols-[minmax(300px,360px)_minmax(280px,1fr)] xl:grid-cols-[minmax(330px,380px)_minmax(320px,1fr)_minmax(300px,360px)] xl:items-start">
                         {viewMode === 'daily' ? (
                             <>
-                                <div className="flex items-center gap-4">
-                                    <Label htmlFor="datePicker" className="whitespace-nowrap font-black text-[10px] tracking-widest flex items-center gap-2">
-                                        <CalendarDays className="w-4 h-4 text-primary" /> Target Date:
+                                <div className="min-w-0 space-y-2">
+                                    <Label htmlFor="datePicker" className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                                        <CalendarDays className="h-4 w-4 text-primary" />
+                                        Date
                                     </Label>
-                                    <Input
-                                        id="datePicker"
-                                        type="date"
-                                        value={date}
-                                        onChange={(e) => {
-                                            setDate(e.target.value);
-                                            // Reset selected slot when date changes to first available for that day
-                                            if (section?.schedules) {
-                                                const day = getDayOfWeek(e.target.value);
-                                                const matches = section.schedules.filter((schedule: SectionSchedule) => schedule.day === day);
-                                                setSelectedScheduleId(matches.length > 0 ? matches[0].id : null);
-                                            }
-                                        }}
-                                        className="bg-transparent min-w-37.5 text-xs font-bold"
-                                    />
+                                    <div className="space-y-1.5">
+                                        <div className="flex min-w-0 items-center justify-between gap-1.5 rounded-xl border border-border/70 bg-background p-1">
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                icon={ChevronLeft}
+                                                onClick={() => handleDateStep('prev')}
+                                                className="h-9 w-9 shrink-0 rounded-lg px-0 py-0 shadow-none"
+                                                title="Previous day"
+                                            />
+                                            <Input
+                                                id="datePicker"
+                                                type="date"
+                                                value={date}
+                                                onChange={(event) => handleDateChange(event.target.value)}
+                                                className="h-9 min-w-55 flex-1 rounded-lg border-border/60 bg-card/80 px-3 text-sm font-bold shadow-none"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                icon={ChevronRight}
+                                                onClick={() => handleDateStep('next')}
+                                                className="h-9 w-9 shrink-0 rounded-lg px-0 py-0 shadow-none"
+                                                title="Next day"
+                                            />
+                                        </div>
+                                        <p className="px-1 text-xs font-black text-primary">
+                                            {selectedDayLabel}
+                                            <span className="ml-2 font-semibold text-muted-foreground">{selectedDateLabel}</span>
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-4 border-l border-border/50 pl-6 ml-6 md:ml-0 md:pl-0 md:border-l-0 lg:border-l lg:pl-6 lg:ml-6">
-                                    <Label className="whitespace-nowrap font-black text-[10px] tracking-widest flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-primary" /> Time Slot:
+
+                                <div className="min-w-0 space-y-2">
+                                    <Label className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                                        <Clock className="h-4 w-4 text-primary" />
+                                        Time Slot
                                     </Label>
                                     <CustomSelect
                                         value={selectedScheduleId || 'adhoc'}
-                                        onChange={(val) => setSelectedScheduleId(val === 'adhoc' ? null : val)}
-                                        options={[
-                                            ...(section?.schedules?.filter((schedule: SectionSchedule) => schedule.day === getDayOfWeek(date)) || []).map((schedule: SectionSchedule) => ({
-                                                value: schedule.id,
-                                                label: `${schedule.startTime} - ${schedule.endTime} (${schedule.room || 'Main Room'})`
-                                            })),
-                                            { value: 'adhoc', label: 'Ad-hoc Session' }
-                                        ]}
-                                        className="min-w-50"
+                                        onChange={(value) => setSelectedScheduleId(value === 'adhoc' ? null : value)}
+                                        options={scheduleOptions}
+                                        className="min-w-0 max-h-11.5"
                                     />
                                 </div>
+
                                 {!selectedScheduleId && (
-                                    <div className="flex items-center gap-2 border-l border-border/50 pl-6 ml-6 animate-in fade-in slide-in-from-left-2">
-                                        <Input
-                                            type="time"
-                                            value={adhocTime.start}
-                                            onChange={(e) => setAdhocTime(prev => ({ ...prev, start: e.target.value }))}
-                                            className="h-8 w-25 text-xs font-bold bg-transparent border-border"
-                                        />
-                                        <span className="text-[10px] font-black opacity-30 tracking-tighter">to</span>
-                                        <Input
-                                            type="time"
-                                            value={adhocTime.end}
-                                            onChange={(e) => setAdhocTime(prev => ({ ...prev, end: e.target.value }))}
-                                            className="h-8 w-25 text-xs font-bold bg-transparent border-border"
-                                        />
+                                    <div className="min-w-0 space-y-2 lg:col-span-2 xl:col-span-1">
+                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Ad-hoc</Label>
+                                        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
+                                            <div className="min-w-0">
+                                                <Input
+                                                    type="time"
+                                                    value={adhocTime.start}
+                                                    onChange={(event) => setAdhocTime(prev => ({ ...prev, start: event.target.value }))}
+                                                    className="h-10 w-full min-w-0 border-border/60 bg-background/70 text-sm font-bold"
+                                                />
+                                            </div>
+                                            <span className="hidden text-center text-[10px] font-black text-muted-foreground sm:block">to</span>
+                                            <div className="min-w-0">
+                                                <Input
+                                                    type="time"
+                                                    value={adhocTime.end}
+                                                    onChange={(event) => setAdhocTime(prev => ({ ...prev, end: event.target.value }))}
+                                                    className="h-10 w-full min-w-0 border-border/60 bg-background/70 text-sm font-bold"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </>
                         ) : (
-                            <div className="flex items-center gap-4">
-                                <Label className="whitespace-nowrap font-black text-[10px] tracking-widest flex items-center gap-2">
-                                    <CalendarDays className="w-4 h-4 text-primary" /> Display Month:
+                            <div className="flex w-full flex-col sm:flex-row gap-2">
+                                <Label className="flex min-w-fit items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                                    <CalendarDays className="h-4 w-4 text-primary" />
+                                    Display Month
                                 </Label>
-                                <div className="flex items-center gap-2 bg-card rounded-lg p-1 border border-border">
-                                    <Button variant="secondary" icon={ChevronLeft} className="h-8 w-8" onClick={() => handleMonthChange('prev')} />
-                                    <span className="text-xs font-black tracking-tighter min-w-25 text-center">
+                                <div className="flex items-center gap-2 rounded-xl justify-between w-full sm:w-fit border border-border/70 bg-background p-1">
+                                    <Button variant="secondary" icon={ChevronLeft} className="h-9 w-9 px-0 py-0" onClick={() => handleMonthChange('prev')} />
+                                    <span className="min-w-32 text-center text-xs font-black text-foreground">
                                         {monthName} {currentYear}
                                     </span>
-                                    <Button variant="secondary" icon={ChevronRight} className="h-8 w-8" onClick={() => handleMonthChange('next')} />
+                                    <Button variant="secondary" icon={ChevronRight} className="h-9 w-9 px-0 py-0" onClick={() => handleMonthChange('next')} />
                                 </div>
                             </div>
                         )}
                     </div>
-                </div>
+                </section>
             </div>
 
             {(fetching && (viewMode === 'daily' ? !dailyData : !rangeData)) ? (
-                <div className="flex justify-center p-20 bg-card/50 rounded-xl border border-border backdrop-blur-sm animate-pulse"><Loading size="lg" /></div>
+                <div className="flex justify-center rounded-2xl border border-border/70 bg-card/80 p-20 shadow-sm">
+                    <Loading size="lg" />
+                </div>
             ) : viewMode === 'daily' ? (
                 dailyData && <AttendanceSheet students={dailyData.students} date={dailyData.date} onSave={handleSaveRecords} isSaving={saving} mode="daily" readOnly={isReadOnly} />
             ) : (

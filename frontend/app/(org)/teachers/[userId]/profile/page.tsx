@@ -5,12 +5,13 @@ import { useGlobal } from '@/context/GlobalContext';
 import { useAuth } from '@/context/AuthContext';
 import TeacherForm from '@/components/forms/TeacherForm';
 import SessionManagement from '@/components/SessionManagement';
-import { Settings, UserCircle } from 'lucide-react';
+import { UserCircle } from 'lucide-react';
 import { Loading } from '@/components/ui/Loading';
 import { useEffect } from 'react';
 import useSWR from 'swr';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useParams } from 'next/navigation';
+import { FormPageHeader, FormPageShell } from '@/components/ui/FormLayout';
 
 export default function TeacherProfilePage() {
     const { state } = useGlobal();
@@ -66,46 +67,27 @@ export default function TeacherProfilePage() {
     }, []);
 
     return (
-        <div className="flex flex-col w-full gap-6 md:gap-8">
-            {/* Profile Section */}
-            <div className="bg-linear-to-br from-card via-card/95 to-card/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 overflow-hidden">
-                {/* Header */}
-                <div className="bg-linear-to-r from-primary/5 via-primary/10 to-transparent p-6 md:p-8 border-b border-primary/10">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                            <div className="relative p-4 max-w-fit bg-linear-to-br from-primary/20 to-primary/5 rounded-2xl border border-primary/30 shadow-lg group">
-                                <UserCircle className="w-10 h-10 text-primary group-hover:scale-110 transition-transform" />
-                            </div>
-                        </div>
-                        <div>
-                            <h2 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">
-                                Account Settings
-                            </h2>
-                            <p className="text-sm md:text-base text-muted-foreground font-medium mt-1 flex items-center gap-2">
-                                <Settings className="w-4 h-4" />
-                                Update your personal information and security preferences
-                            </p>
-                        </div>
-                    </div>
-                </div>
+        <FormPageShell>
+            <FormPageHeader
+                title="Account Settings"
+                description="Update your personal information and security preferences."
+                icon={UserCircle}
+            />
 
-                {/* Content */}
-                <div className="p-6 md:p-8">
-                    {loading || profileLoading ? (
-                        <div className="py-20 flex justify-center">
-                            <Loading size="lg" />
-                        </div>
-                    ) : effectiveTeacherData ? (
-                        <TeacherForm
-                            initialData={effectiveTeacherData}
-                            isProfile={true}
-                        />
-                    ) : (
-                        <ErrorState error={profileError} onRetry={() => mutate()} />
-                    )}
+            {loading || profileLoading ? (
+                <div className="flex justify-center rounded-lg border border-border/70 bg-card/90 py-20 shadow-sm">
+                    <Loading size="lg" />
                 </div>
-            </div>
+            ) : effectiveTeacherData ? (
+                <TeacherForm
+                    initialData={effectiveTeacherData}
+                    isProfile={true}
+                />
+            ) : (
+                <div className="rounded-lg border border-border/70 bg-card/90 p-6 shadow-sm">
+                    <ErrorState error={profileError} onRetry={() => mutate()} />
+                </div>
+            )}
 
             {/* Session Management */}
             {!loading && !profileLoading && effectiveTeacherData && (
@@ -113,6 +95,6 @@ export default function TeacherProfilePage() {
                     <SessionManagement userId={effectiveTeacherData.id} />
                 </div>
             )}
-        </div>
+        </FormPageShell>
     );
 }
