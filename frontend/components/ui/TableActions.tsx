@@ -60,37 +60,41 @@ export const TableActions: React.FC<TableActionsProps> = ({
     const actionButtonClass = "inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-lg border px-2.5 text-sm shadow-xs transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50";
 
     return (
-        <div className={`flex gap-1 items-center ${className}`}>
+        <div className={`flex gap-1 items-center ${className}`} role="group" aria-label="Row actions">
             {onView && !isViewAndEdit && (
                 <button
+                    type="button"
                     onClick={(e) => {
                         e.stopPropagation();
                         onView();
                     }}
                     className={cn(actionButtonClass, "cursor-pointer border-primary/25 text-primary hover:bg-primary/10")}
                     title="View"
+                    aria-label="View"
                 >
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-4 h-4" aria-hidden="true" />
                     {showLabels && <span className="text-[10px] font-black tracking-wider text-inherit">View</span>}
                 </button>
             )}
 
             {onEdit && (
                 <button
+                    type="button"
                     onClick={(e) => {
                         e.stopPropagation();
                         onEdit();
                     }}
                     className={cn(actionButtonClass, "cursor-pointer border-primary/25 text-primary hover:bg-primary/10", !canWrite && "border-muted bg-muted/30 text-muted-foreground opacity-70")}
                     title={canWrite ? editTitle : `${editTitle} (Read-only)`}
+                    aria-label={canWrite ? editTitle : `${editTitle} (Read-only)`}
                 >
                     <div className="flex items-center gap-2">
                         {isViewAndEdit &&
                             <div className="flex items-center gap-1.5 px-0.5 opacity-70">
-                                <Eye className="w-4 h-4" /> <span className="text-current/30 text-[10px]">/</span>
+                                <Eye className="w-4 h-4" aria-hidden="true" /> <span className="text-current/30 text-[10px]">/</span>
                             </div>
                         }
-                        {!canWrite ? <Lock className="w-3.5 h-3.5 text-muted-foreground/60 mr-1" /> : <EditIcon className="w-4 h-4" />}
+                        {!canWrite ? <Lock className="w-3.5 h-3.5 text-muted-foreground/60 mr-1" aria-hidden="true" /> : <EditIcon className="w-4 h-4" aria-hidden="true" />}
                     </div>
                     {showLabels && <span className="text-[10px] font-black tracking-wider">{editTitle}</span>}
                 </button>
@@ -102,6 +106,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
                 const label = action.title || config.defaultTitle;
                 return (
                     <button
+                        type="button"
                         key={idx}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -110,11 +115,13 @@ export const TableActions: React.FC<TableActionsProps> = ({
                         disabled={action.disabled || action.loading || !canWrite}
                         className={cn(actionButtonClass, config.color, "cursor-pointer border-current/20")}
                         title={!canWrite ? `${label} (Permission Denied)` : label}
+                        aria-label={!canWrite ? `${label} (Permission Denied)` : label}
+                        aria-busy={action.loading || undefined}
                     >
                         {action.loading ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                         ) : (
-                            <Icon className="w-4 h-4" />
+                            <Icon className="w-4 h-4" aria-hidden="true" />
                         )}
                         {showLabels && !action.loading && <span className="text-[10px] font-black tracking-wider">{label}</span>}
                     </button>
@@ -131,11 +138,13 @@ export const TableActions: React.FC<TableActionsProps> = ({
                     disabled={isDeleting || !canWrite}
                     className={cn(actionButtonClass, "cursor-pointer border-danger/30 text-danger hover:bg-danger/15", !canWrite && "hidden")}
                     title={canWrite ? deleteTitle : `${deleteTitle} (Permission Denied)`}
+                    aria-label={canWrite ? deleteTitle : `${deleteTitle} (Permission Denied)`}
+                    aria-busy={isDeleting || undefined}
                 >
                     {isDeleting ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                     ) : (
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                     )}
                     {showLabels && !isDeleting && <span className="text-[10px] font-black tracking-wider">{deleteTitle}</span>}
                 </button>

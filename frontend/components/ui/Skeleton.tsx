@@ -32,10 +32,10 @@ export function DashboardSkeleton() {
             {/* Top Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[...Array(4)].map((_, i) => (
-                    <div key={i} className="bg-card rounded-3xl p-6 border border-border shadow-sm space-y-4">
+                    <div key={i} className="bg-card rounded-lg p-5 border border-border shadow-xs space-y-4">
                         <div className="flex justify-between items-start">
                             <Skeleton className="h-4 w-24" />
-                            <Skeleton className="w-10 h-10 rounded-2xl" />
+                            <Skeleton className="w-10 h-10 rounded-md" />
                         </div>
                         <Skeleton className="h-8 w-16" />
                         <Skeleton className="h-3 w-full" />
@@ -46,7 +46,7 @@ export function DashboardSkeleton() {
             {/* Main Sections */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Large Chart Area */}
-                <div className="lg:col-span-2 bg-card rounded-3xl border border-border p-6 space-y-6">
+                <div className="lg:col-span-2 bg-card rounded-lg border border-border p-5 space-y-6">
                     <div className="flex justify-between items-center">
                         <Skeleton className="h-6 w-48" />
                         <div className="flex gap-2">
@@ -58,7 +58,7 @@ export function DashboardSkeleton() {
                 </div>
 
                 {/* Right Sidebar List */}
-                <div className="bg-card rounded-3xl border border-border p-6 space-y-6">
+                <div className="bg-card rounded-lg border border-border p-5 space-y-6">
                     <Skeleton className="h-6 w-32" />
                     <div className="space-y-4">
                         {[...Array(6)].map((_, i) => (

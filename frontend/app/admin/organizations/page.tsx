@@ -23,6 +23,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Loading } from '@/components/ui/Loading';
 import { NewMailModal } from '@/components/mail/NewMailModal';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
 
 interface AdminOrgParams {
     page: number;
@@ -334,6 +335,21 @@ export default function OrganizationsPage() {
         );
     }
 
+    const activeFilters: ActiveFilter[] = [
+        ...(activeStatusTab !== 'ALL' ? [{
+            key: 'status',
+            label: 'Status',
+            value: statusTabs.find((tab) => tab.id === activeStatusTab)?.label || activeStatusTab,
+            onRemove: () => updateQueryParams({ status: undefined, page: 1 }),
+        }] : []),
+        ...(orgTypeFilter !== 'ALL' ? [{
+            key: 'type',
+            label: 'Type',
+            value: orgTypeFilter.replace('_', ' '),
+            onRemove: () => updateQueryParams({ type: undefined, page: 1 }),
+        }] : []),
+    ];
+
     const handleViewOrg = (org: Organization) => {
         const viewFields: DataField[] = [
             { label: 'Organization ID', value: org.id, icon: Hash, fullWidth: true },
@@ -414,8 +430,21 @@ export default function OrganizationsPage() {
     };
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl overflow-hidden flex flex-col flex-1 min-h-0">
+        <PageShell>
+            <PageHeader
+                title="Organizations"
+                description="Review organization access, verification state, and platform communications."
+                breadcrumbs={[
+                    { label: 'Admin' },
+                    { label: 'Organizations' },
+                ]}
+                meta={fetchedData?.totalRecords !== undefined ? (
+                    <span className="rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-xs font-black text-muted-foreground">
+                        {fetchedData.totalRecords} total
+                    </span>
+                ) : undefined}
+            />
+            <ResourcePanel>
                 {/* Top controls - fully responsive */}
                 <div className="p-4 space-y-1 border-b border-border/40">
                     {/* Mobile: status dropdown (visible only on small screens) */}
@@ -493,6 +522,8 @@ export default function OrganizationsPage() {
                     </div>
                 </div>
 
+                <ResourceToolbar activeFilters={activeFilters} />
+
                 {/* Data Table - with horizontal scroll on small screens */}
                 <div className="flex-1 min-h-0 overflow-x-auto">
                     <DataTable
@@ -512,7 +543,7 @@ export default function OrganizationsPage() {
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
                     />
                 </div>
-            </div>
+            </ResourcePanel>
 
             {/* Modals - responsive sizing */}
             <ModalForm
@@ -593,6 +624,6 @@ export default function OrganizationsPage() {
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });
                 }}
             />
-        </div>
+        </PageShell>
     );
 }

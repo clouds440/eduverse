@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 
 type BadgeVariant = 'success' | 'error' | 'warning' | 'neutral' | 'primary' | 'secondary' | 'info' | 'purple';
 type BadgeSize = 'xs' | 'sm' | 'md';
+type BadgeShape = 'rounded' | 'pill';
 
 interface BadgeProps {
     children: React.ReactNode;
@@ -13,18 +14,19 @@ interface BadgeProps {
     /** Optional dot indicator */
     dot?: boolean;
     /** Optional icon on the left */
-    icon?: React.ElementType;
+    icon?: React.ElementType<{ className?: string }>;
+    shape?: BadgeShape;
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-    success: "bg-success/10 text-success dark:bg-success/30",
-    error: "bg-danger/10 text-danger dark:bg-danger/30",
-    warning: "bg-warning/10 text-warning dark:bg-warning/30",
-    neutral: "bg-neutral/10 text-neutral dark:bg-neutral/30",
-    primary: "bg-primary/10 text-primary dark:bg-primary/30",
-    secondary: "bg-secondary/40 text-foreground dark:bg-secondary/50",
-    info: "bg-info/10 text-info dark:bg-info/30",
-    purple: "bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:text-purple-600",
+    success: "border-success/20 bg-success/10 text-success dark:bg-success/20",
+    error: "border-danger/20 bg-danger/10 text-danger dark:bg-danger/20",
+    warning: "border-warning/25 bg-warning/10 text-warning dark:bg-warning/20",
+    neutral: "border-border bg-muted/55 text-muted-foreground",
+    primary: "border-primary/20 bg-primary/10 text-primary dark:bg-primary/20",
+    secondary: "border-secondary/35 bg-secondary/35 text-secondary-foreground dark:bg-secondary/30",
+    info: "border-info/20 bg-info/10 text-info dark:bg-info/20",
+    purple: "border-purple-500/20 bg-purple-100 text-purple-700 dark:bg-purple-900/25 dark:text-purple-300",
 };
 
 const dotColors: Record<BadgeVariant, string> = {
@@ -39,9 +41,14 @@ const dotColors: Record<BadgeVariant, string> = {
 };
 
 const sizeStyles: Record<BadgeSize, string> = {
-    xs: "min-w-4 h-4 px-1 text-[10px] gap-1",
-    sm: "min-w-5 h-5 px-1.5 text-[11px] gap-1",
-    md: "min-w-6 h-6 px-2 text-[12px] gap-1.5",
+    xs: "min-h-4 px-1.5 py-0.5 text-[10px] gap-1",
+    sm: "min-h-5 px-2 py-0.5 text-[11px] gap-1",
+    md: "min-h-6 px-2.5 py-1 text-xs gap-1.5",
+};
+
+const shapeStyles: Record<BadgeShape, string> = {
+    rounded: "rounded-md",
+    pill: "rounded-full",
 };
 
 export function Badge({
@@ -52,13 +59,15 @@ export function Badge({
     className,
     dot,
     icon: Icon,
+    shape = 'rounded',
 }: BadgeProps) {
     return (
         <span
             className={cn(
-                "inline-flex items-center justify-center font-semibold leading-none whitespace-nowrap",
-                "rounded-md border border-current/10 shadow-xs select-none shrink-0",
+                "inline-flex items-center justify-center border font-semibold leading-none whitespace-nowrap",
+                "select-none shrink-0",
                 sizeStyles[size],
+                shapeStyles[shape],
                 variantStyles[variant],
                 className,
             )}

@@ -65,6 +65,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
         // RGB for opacity support (used for shadow)
         const primaryRgb = hexToRgb(safePrimary);
+        root.style.setProperty('--primary-rgb', `${primaryRgb?.r || 79}, ${primaryRgb?.g || 70}, ${primaryRgb?.b || 229}`);
 
         // Text Contrast (Automatic black/white text based on background)
         const primaryText = getContrastColor(safePrimary);
@@ -88,7 +89,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         // 1. Core Backgrounds & Foregrounds - Crypto Blue Design System
         if (isDark) {
             root.style.setProperty('--background', '#0B0F19'); // slightly richer than pure black
+            root.style.setProperty('--background-rgb', '11, 15, 25');
             root.style.setProperty('--foreground', '#E6EAF2');
+            root.style.setProperty('--foreground-rgb', '230, 234, 242');
 
             root.style.setProperty('--card-bg', '#121826'); // lifted surface
             root.style.setProperty('--card-text', '#E6EAF2');
@@ -104,10 +107,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
             root.style.setProperty('--text-primary', '#F1F5F9');
             root.style.setProperty('--text-secondary', '#94A3B8');
+            root.style.setProperty('--app-surface-overlay', 'rgba(2, 6, 23, 0.72)');
         }
         else {
             root.style.setProperty('--background', '#e2e8f0'); // slate-200
+            root.style.setProperty('--background-rgb', '226, 232, 240');
             root.style.setProperty('--foreground', '#0B1220');
+            root.style.setProperty('--foreground-rgb', '11, 18, 32');
 
             root.style.setProperty('--card-bg', '#f1f5f9'); // slate-100
             root.style.setProperty('--card-text', '#0B1220');
@@ -123,6 +129,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
             root.style.setProperty('--text-primary', '#0F172A');
             root.style.setProperty('--text-secondary', '#64748B');
+            root.style.setProperty('--app-surface-overlay', 'rgba(15, 23, 42, 0.62)');
         }
 
         root.style.setProperty('--primary-text', primaryText);

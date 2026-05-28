@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { LucideIcon, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface LoadingProps {
     text?: string;
@@ -35,24 +36,25 @@ export function Loading({
     fullScreen = false
 }: LoadingProps) {
     const containerClasses = fullScreen
-        ? `fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 ${className}`
-        : `flex flex-col items-center justify-center py-2 ${className}`;
+        ? "fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm"
+        : "flex flex-col items-center justify-center py-3";
 
     const spinnerSize = sizeMap[size];
     const textSize = textSizeMap[size];
 
     return (
-        <div className={containerClasses}>
+        <div className={cn(containerClasses, className)} role="status" aria-live="polite">
             {Icon ? (
-                <Icon className={`${spinnerSize} text-primary animate-spin`} />
+                <Icon className={cn(spinnerSize, "animate-spin text-primary")} aria-hidden="true" />
             ) : (
-                <Loader2 className={`${spinnerSize} text-primary animate-spin`} />
+                <Loader2 className={cn(spinnerSize, "animate-spin text-primary")} aria-hidden="true" />
             )}
             {text && (
                 <p className={`mt-4 font-medium text-muted-foreground ${textSize}`}>
                     {text}
                 </p>
             )}
+            {!text && <span className="sr-only">Loading</span>}
         </div>
     );
 }

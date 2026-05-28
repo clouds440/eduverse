@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import PasswordStrength from '@/components/ui/PasswordStrength';
 import { Input } from '@/components/ui/Input';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 
 interface PlatformAdminParams {
     page: number;
@@ -265,8 +266,21 @@ export default function PlatformAdminsPage() {
     }
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-sm shadow-xl overflow-hidden flex flex-col flex-1 min-h-0">
+        <PageShell>
+            <PageHeader
+                title="Platform Admins"
+                description="Manage platform administrators without changing role or security flows."
+                breadcrumbs={[
+                    { label: 'Admin' },
+                    { label: 'Platform Admins' },
+                ]}
+                meta={paginatedData?.totalRecords !== undefined ? (
+                    <span className="rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-xs font-black text-muted-foreground">
+                        {paginatedData.totalRecords} total
+                    </span>
+                ) : undefined}
+            />
+            <ResourcePanel>
                 <div className="p-1 flex items-center justify-between gap-1">
                     <div className="flex-1 max-w-xl">
                         <SearchBar
@@ -304,7 +318,7 @@ export default function PlatformAdminsPage() {
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
                     />
                 </div>
-            </div>
+            </ResourcePanel>
 
             <ModalForm
                 isOpen={isAdminModalOpen}
@@ -398,6 +412,6 @@ export default function PlatformAdminsPage() {
                     <p className="text-xs text-danger mt-2">This action cannot be undone.</p>
                 </div>
             </ModalForm>
-        </div>
+        </PageShell>
     );
 }

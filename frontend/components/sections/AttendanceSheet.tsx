@@ -287,13 +287,14 @@ export default function AttendanceSheet({
     }, []);
 
     const SearchControl = (
-        <div className="relative w-full md:max-w-xs">
-            <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative w-full md:max-w-xs" role="search">
+            <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
                 placeholder="Search students..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="h-10 border-border/60 bg-background/70 pl-10 text-sm font-medium"
+                aria-label="Search students"
             />
         </div>
     );
@@ -642,7 +643,7 @@ export default function AttendanceSheet({
                                     <th className="w-12 border-b border-r border-border/70 px-2 py-2 text-center">#</th>
                                     <th className="min-w-72 border-b border-r border-border/70 px-3 py-2">Student</th>
                                     <th className="min-w-36 border-b border-r border-border/70 px-3 py-2">Roll / Reg.</th>
-                                    <th className="min-w-112 border-b border-r border-border/70 px-3 py-2">Mark Status</th>
+                                    <th className="min-w-md border-b border-r border-border/70 px-3 py-2">Mark Status</th>
                                     <th className="w-28 border-b border-border/70 px-3 py-2 text-center">Current</th>
                                 </tr>
                             </thead>

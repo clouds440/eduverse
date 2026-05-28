@@ -79,6 +79,7 @@ import Navbar from "@/components/Navbar";
 import { Providers } from "@/components/Providers";
 import DashboardMainWrapper from "@/components/DashboardMainWrapper";
 import { PWAInstallPrompt } from "@/components/ui/PWAInstallPrompt";
+import { AppBackground } from "@/components/AppBackground";
 
 export default function RootLayout({
   children,
@@ -98,17 +99,7 @@ export default function RootLayout({
           {THEME_BOOTSTRAP_SCRIPT}
         </Script>
         <Providers>
-          <div className="fixed inset-0 z-[-1] pointer-events-none overflow-hidden">
-            {/* Branded Atmospheric Gradient */}
-            <div className="absolute inset-0 bg-theme-bg/50" />
-            <div className="absolute inset-0 bg-linear-to-br from-primary/5 via-transparent to-secondary/10" />
-
-            {/* Animated Branded Blobs */}
-            <div className="absolute -top-12 -left-12 w-96 h-96 bg-primary/20 dark:bg-primary/10 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-3xl opacity-30 animate-blob" />
-            <div className="absolute top-0 right-0 w-96 h-96 bg-secondary/20 dark:bg-secondary/10 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-3xl opacity-30 animate-blob animation-delay-2000" />
-            <div className="absolute -bottom-12 left-1/2 w-96 h-96 bg-primary/20 dark:bg-primary/10 rounded-full mix-blend-multiply dark:mix-blend-lighten filter blur-3xl opacity-30 animate-blob animation-delay-4000" />
-          </div>
-
+          <AppBackground />
           <Navbar />
           <DashboardMainWrapper>
             {children}

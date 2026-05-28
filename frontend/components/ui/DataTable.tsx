@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Pagination } from './Pagination';
 import { Skeleton, SkeletonTable } from './Skeleton';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
+import { EmptyState } from './EmptyState';
 
 export interface Column<T> {
     header: string;
@@ -39,6 +40,8 @@ interface DataTableProps<T> {
     maxHeight?: string; // e.g., '500px' or 'calc(100vh - 300px)'
     showSerialNumber?: boolean;
     tableLayout?: 'auto' | 'fixed';
+    emptyTitle?: string;
+    emptyDescription?: string;
     /**
      * Mobile cards show only this many non-badge detail fields by default.
      * Remaining fields are revealed per card.
@@ -65,6 +68,8 @@ export function DataTable<T>({
     maxHeight,
     showSerialNumber = true,
     tableLayout = 'auto',
+    emptyTitle = 'No data available',
+    emptyDescription,
     mobileDetailLimit = 2
 }: DataTableProps<T>) {
     // Add serial number column if enabled
@@ -152,6 +157,14 @@ export function DataTable<T>({
         onSort(key, direction);
     };
 
+    const handleRowKeyDown = (event: React.KeyboardEvent, row: T) => {
+        if (!onRowClick) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onRowClick(row);
+        }
+    };
+
     const handleMouseDown = (e: React.MouseEvent, index: number) => {
         e.preventDefault();
         e.stopPropagation();
@@ -214,13 +227,14 @@ export function DataTable<T>({
 
     return (
         <div
-            className="w-full overflow-hidden border border-border/50 bg-card shadow-xl ring-1 ring-foreground/5 relative flex flex-col"
+            className="relative flex w-full flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm"
             style={maxHeight ? { height: maxHeight } : {}}
+            aria-busy={isLoading || undefined}
         >
             <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 md:hidden custom-scrollbar">
                 {isLoading && data.length === 0 ? (
                     Array.from({ length: Math.min(pageSize || 5, 5) }).map((_, index) => (
-                        <div key={index} className="rounded-2xl border border-border/50 bg-card/70 p-4 shadow-sm space-y-4">
+                        <div key={index} className="rounded-lg border border-border/60 bg-card/70 p-4 shadow-xs space-y-4">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1 space-y-2">
                                     <Skeleton className="h-4 w-2/3" />
@@ -236,9 +250,7 @@ export function DataTable<T>({
                         </div>
                     ))
                 ) : data.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-border/60 bg-card/40 p-8 text-center">
-                        <p className="text-sm font-semibold text-muted-foreground">No data available</p>
-                    </div>
+                    <EmptyState title={emptyTitle} description={emptyDescription} size="sm" />
                 ) : (
                     data.map((row, rowIndex) => {
                         const rowKey = keyExtractor(row);
@@ -262,8 +274,11 @@ export function DataTable<T>({
                             <article
                                 key={rowKey}
                                 onClick={() => onRowClick && onRowClick(row)}
+                                onKeyDown={(event) => handleRowKeyDown(event, row)}
+                                role={onRowClick ? 'button' : undefined}
+                                tabIndex={onRowClick ? 0 : undefined}
                                 className={`
-                                    rounded-2xl border border-border/50 bg-card/80 p-3.5 shadow-sm ring-1 ring-foreground/5 transition-colors
+                                    rounded-lg border border-border/60 bg-card/80 p-3.5 shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30
                                     ${onRowClick ? 'cursor-pointer active:bg-primary/5' : ''}
                                     ${getRowClassName ? getRowClassName(row) : ''}
                                 `}
@@ -308,7 +323,7 @@ export function DataTable<T>({
                                 {visibleDetailColumns.length > 0 && (
                                     <div className="mt-3 grid grid-cols-1 gap-2">
                                         {visibleDetailColumns.map((column) => (
-                                            <div key={column.header} className="rounded-xl border border-border/35 bg-background/35 p-2.5">
+                                            <div key={column.header} className="rounded-md border border-border/45 bg-background/35 p-2.5">
                                                 <p className="mb-1 text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                                                     {column.header}
                                                 </p>
@@ -332,6 +347,7 @@ export function DataTable<T>({
                                             });
                                         }}
                                         className="mt-2 w-full rounded-xl border border-border/40 bg-background/40 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                        aria-expanded={isExpanded}
                                     >
                                         {isExpanded ? 'Show less' : `Show ${hiddenDetailCount} more`}
                                     </button>
@@ -366,6 +382,15 @@ export function DataTable<T>({
                                             ${col.sortable ? 'cursor-pointer hover:bg-primary/10' : ''}
                                         `}
                                         onClick={() => handleSort(index)}
+                                        onKeyDown={(event) => {
+                                            if (!col.sortable) return;
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault();
+                                                handleSort(index);
+                                            }
+                                        }}
+                                        tabIndex={col.sortable ? 0 : undefined}
+                                        aria-sort={isSorted ? (sortConfig?.direction === 'asc' ? 'ascending' : 'descending') : undefined}
                                     >
                                         <div className={`flex items-center gap-1.5 sm:gap-2 overflow-hidden ${isSerialColumn(index) ? 'justify-center' : ''}`}>
                                             <span className="truncate uppercase text-muted-foreground tracking-widest">{col.header}</span>
@@ -396,7 +421,7 @@ export function DataTable<T>({
                         {data.length === 0 && !isLoading ? (
                             <tr>
                                 <td colSpan={displayColumns.length} className="p-8 sm:p-12 text-center bg-card/30 border border-dashed border-border/50">
-                                    <p className="text-muted-foreground font-semibold text-sm sm:text-base">No data available</p>
+                                    <EmptyState title={emptyTitle} description={emptyDescription} />
                                 </td>
                             </tr>
                         ) : (
@@ -404,8 +429,10 @@ export function DataTable<T>({
                                 <tr
                                     key={keyExtractor(row)}
                                     onClick={() => onRowClick && onRowClick(row)}
+                                    onKeyDown={(event) => handleRowKeyDown(event, row)}
+                                    tabIndex={onRowClick ? 0 : undefined}
                                     className={`
-                                        transition-colors duration-200 group relative h-16 sm:h-20 border-b border-border/50
+                                        transition-colors duration-200 group relative h-16 sm:h-20 border-b border-border/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30
                                         ${(!disableZebra && rowIndex % 2 === 0) ? 'bg-card' : (!disableZebra ? 'bg-muted/20' : '')}
                                         ${onRowClick ? 'cursor-pointer hover:bg-primary/5' : ''}
                                         ${getRowClassName ? getRowClassName(row) : ''}
@@ -442,7 +469,7 @@ export function DataTable<T>({
                 </table>
                 {/* Loading Overlay */}
                 {isLoading && (
-                    <div className="absolute inset-0 bg-card/70 backdrop-blur-sm flex z-20 transition-all duration-300">
+                    <div className="absolute inset-0 bg-card/70 backdrop-blur-sm flex z-20 transition-all duration-300" role="status" aria-label="Loading table rows">
                         <SkeletonTable rows={5} columns={5} className="w-full" />
                     </div>
                 )}

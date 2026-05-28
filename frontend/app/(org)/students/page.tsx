@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { UserPlus } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -20,6 +20,9 @@ import { NewMailModal } from '@/components/mail/NewMailModal';
 import { BrandIcon } from '@/components/ui/Brand';
 import { Toggle } from '@/components/ui/Toggle';
 import { Drawer } from '@/components/ui/Drawer';
+import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 interface StudentParams {
     page: number;
@@ -37,8 +40,7 @@ interface StudentParams {
 export default function StudentsPage() {
     const { token, user } = useAuth();
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const pathname = usePathname();
+    const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const { dispatch } = useGlobal();
 
     // Redundant paginatedData state removed
@@ -57,23 +59,17 @@ export default function StudentsPage() {
     const [initialSubject, setInitialSubject] = useState<string | undefined>(undefined);
 
     // URL State
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const searchTerm = searchParams.get('search') || '';
-    const sortBy = searchParams.get('sortBy') || 'name';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
-    const showOnlyMyStudents = searchParams.get('my') === 'true';
-    const sectionId = searchParams.get('sectionId') || '';
-    const statusFilter = searchParams.get('status') || '';
-    const isDeletedView = searchParams.get('deleted') === 'true';
-    const showAlumni = searchParams.get('showAlumni') === 'true';
-    const cohortId = searchParams.get('cohortId') || '';
-    const [pageSize, setPageSize] = useState<number>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('edu-students-limit');
-            return saved ? parseInt(saved, 10) : 10;
-        }
-        return 10;
-    });
+    const page = getNumberParam('page', 1);
+    const searchTerm = getStringParam('search');
+    const sortBy = getStringParam('sortBy', 'name');
+    const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
+    const showOnlyMyStudents = getBooleanParam('my');
+    const sectionId = getStringParam('sectionId');
+    const statusFilter = getStringParam('status');
+    const isDeletedView = getBooleanParam('deleted');
+    const showAlumni = getBooleanParam('showAlumni');
+    const cohortId = getStringParam('cohortId');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-students-limit', 10);
 
     const studentParams: StudentParams = {
         page,
@@ -106,21 +102,8 @@ export default function StudentsPage() {
         }
     }, [user, router]);
 
-    const updateQueryParams = (updates: Record<string, string | number | undefined | boolean>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '' || value === false) {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
-
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
-        localStorage.setItem('edu-students-limit', String(newSize));
         updateQueryParams({ page: 1 });
     };
 
@@ -310,11 +293,59 @@ export default function StudentsPage() {
         }
     };
 
+    const activeFilters: ActiveFilter[] = [
+        ...(isDeletedView ? [{
+            key: 'deleted',
+            label: 'View',
+            value: 'Deleted',
+            onRemove: () => updateQueryParams({ deleted: undefined, page: 1 }),
+        }] : []),
+        ...(statusFilter ? [{
+            key: 'status',
+            label: 'Status',
+            value: statusFilter,
+            onRemove: () => updateQueryParams({ status: undefined, page: 1 }),
+        }] : []),
+        ...(cohortId ? [{
+            key: 'cohort',
+            label: 'Cohort',
+            value: cohorts.find((cohort) => cohort.id === cohortId)?.name || 'Selected cohort',
+            onRemove: () => updateQueryParams({ cohortId: undefined, page: 1 }),
+        }] : []),
+        ...(sectionId ? [{
+            key: 'section',
+            label: 'Section',
+            value: sections.find((section) => section.id === sectionId)?.name || 'Selected section',
+            onRemove: () => updateQueryParams({ sectionId: undefined, page: 1 }),
+        }] : []),
+        ...(showAlumni ? [{
+            key: 'showAlumni',
+            label: 'Include',
+            value: 'Alumni',
+            onRemove: () => updateQueryParams({ showAlumni: undefined, page: 1 }),
+        }] : []),
+        ...(showOnlyMyStudents ? [{
+            key: 'my',
+            label: 'Scope',
+            value: 'My students',
+            onRemove: () => updateQueryParams({ my: undefined, page: 1 }),
+        }] : []),
+    ];
+
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-1 md:p-2 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="mb-2 flex flex-col gap-4 shrink-0">
+        <PageShell>
+            <PageHeader
+                title={isDeletedView ? 'Deleted Students' : 'Students'}
+                description="Find, filter, and manage student records while keeping saved links intact."
+                breadcrumbs={[
+                    { label: 'Organization' },
+                    { label: isDeletedView ? 'Deleted Students' : 'Students' },
+                ]}
+                meta={isDeletedView ? <Badge variant="neutral" size="sm">Archive</Badge> : undefined}
+            />
+            <ResourcePanel>
+                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
                     {/* Unified Responsive Layout */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2 flex-1">
@@ -407,9 +438,10 @@ export default function StudentsPage() {
 
                                         {/* View Deleted Students */}
                                         <button
+                                            type="button"
                                             onClick={() =>
                                                 updateQueryParams({
-                                                    deleted: isDeletedView ? undefined : 'true',
+                                                    deleted: 'true',
                                                     page: 1,
                                                     status: undefined,
                                                     showAlumni: undefined,
@@ -419,7 +451,7 @@ export default function StudentsPage() {
                                             className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
                                                 }`}
                                         >
-                                            {isDeletedView ? '← Back to Active Students' : 'View Deleted Students'}
+                                            View Deleted Students
                                         </button>
                                     </div>
                                 </Drawer>
@@ -427,6 +459,7 @@ export default function StudentsPage() {
 
                             {isDeletedView && (
                                 <button
+                                    type="button"
                                     onClick={() =>
                                         updateQueryParams({
                                             deleted: undefined,
@@ -436,7 +469,7 @@ export default function StudentsPage() {
                                     className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
                                         }`}
                                 >
-                                    ← Back to Active Students
+                                    Back to Active Students
                                 </button>
                             )}
 
@@ -452,6 +485,8 @@ export default function StudentsPage() {
                         </div>
                     </div>
                 </div>
+
+                <ResourceToolbar activeFilters={activeFilters} className="border-t border-border/60" />
 
                 <div className="relative overflow-x-hidden flex-1 min-h-0">
                     <DataTable
@@ -472,9 +507,11 @@ export default function StudentsPage() {
                         maxHeight="100%"
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                        emptyTitle={isDeletedView ? 'No deleted students' : 'No students found'}
+                        emptyDescription={searchTerm || activeFilters.length > 0 ? 'Adjust the search or filters to broaden the result set.' : undefined}
                     />
                 </div>
-            </div>
+            </ResourcePanel>
 
             {/* Delete Confirmation */}
             <ConfirmDialog
@@ -500,6 +537,6 @@ export default function StudentsPage() {
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });
                 }}
             />
-        </div>
+        </PageShell>
     );
 }

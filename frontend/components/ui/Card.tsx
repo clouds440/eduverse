@@ -5,11 +5,13 @@ import { cn } from '@/lib/utils';
 
 interface CardProps {
     children: React.ReactNode;
-    onClick?: () => void;
+    onClick?: React.MouseEventHandler<HTMLDivElement>;
+    onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
     className?: string;
     accentColor?: string; // Tailwind color class, e.g., 'bg-primary'
     hoverable?: boolean;
     padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
+    variant?: 'default' | 'muted' | 'raised' | 'bare';
     animate?: boolean;
     delay?: number; // delay in ms
 }
@@ -18,11 +20,13 @@ export const Card = ({
     children,
     onClick,
     className,
-    accentColor = 'bg-primary',
+    accentColor,
     hoverable = true,
     padding = 'md',
-    animate = true,
+    variant = 'default',
+    animate = false,
     delay = 0,
+    onKeyDown,
 }: CardProps) => {
     const paddingClasses = {
         none: 'p-0',
@@ -31,15 +35,35 @@ export const Card = ({
         lg: 'p-5 md:p-7',
         xl: 'p-6 md:p-8',
     };
+    const variantClasses = {
+        default: 'border-border/70 bg-card text-card-foreground shadow-xs',
+        muted: 'border-border/60 bg-muted/35 text-foreground shadow-none',
+        raised: 'border-border/70 bg-surface-raised text-foreground shadow-sm',
+        bare: 'border-transparent bg-transparent text-foreground shadow-none',
+    };
+
+    const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
+        onKeyDown?.(event);
+        if (!onClick || event.defaultPrevented) return;
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            event.currentTarget.click();
+        }
+    };
 
     return (
         <div
             onClick={onClick}
+            onKeyDown={handleKeyDown}
+            role={onClick ? 'button' : undefined}
+            tabIndex={onClick ? 0 : undefined}
             className={cn(
-                "bg-linear-to-br from-card/90 via-card/70 to-card/90 backdrop-blur-xl border border-border/50 rounded-2xl flex flex-col h-full relative overflow-hidden ring-1 ring-border/50 transition-all duration-500 ease-out",
+                "relative flex h-full flex-col overflow-hidden rounded-lg border transition-colors duration-200",
                 paddingClasses[padding],
-                hoverable && "hover:border-primary/60 hover:shadow-2xl hover:shadow-primary/10 hover:-translate-y-1 hover:scale-[1.01] hover:z-10 group",
-                onClick && "cursor-pointer",
+                variantClasses[variant],
+                hoverable && "group hover:border-primary/40 hover:shadow-sm",
+                onClick && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 animate && "opacity-0 animate-fade-in-up-subtle",
                 className
             )}
@@ -47,9 +71,9 @@ export const Card = ({
         >
             {/* Premium Accent Line */}
             {accentColor && (
-                <div className="absolute top-0 left-0 w-full h-1.5 group-hover:bg-primary/10 transition-colors duration-300">
+                <div className="absolute top-0 left-0 w-full h-1 group-hover:bg-primary/10 transition-colors duration-200">
                     <div className={cn(
-                        "h-full w-0 group-hover:w-full transition-all duration-700 ease-out fill-mode-forwards",
+                        "h-full w-full",
                         accentColor
                     )} />
                 </div>
@@ -60,7 +84,7 @@ export const Card = ({
 };
 
 export const CardHeader = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={cn("mb-6 pt-2 flex justify-between items-start", className)}>
+    <div className={cn("mb-4 flex items-start justify-between gap-4", className)}>
         {children}
     </div>
 );
@@ -72,7 +96,7 @@ export const CardContent = ({ children, className }: { children: React.ReactNode
 );
 
 export const CardFooter = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={cn("mt-8 pt-6 border-t border-border flex items-center justify-between", className)}>
+    <div className={cn("mt-6 flex items-center justify-between gap-3 border-t border-border pt-4", className)}>
         {children}
     </div>
 );

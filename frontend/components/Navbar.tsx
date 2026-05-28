@@ -12,6 +12,7 @@ import { AnnouncementDropdown } from './announcements/AnnouncementDropdown';
 import { ThemeDropdown } from './ui/ThemeDropdown';
 import { useTheme } from '@/context/ThemeContext';
 import { DASHBOARD_MODULES } from '@/lib/constants';
+import { getRouteOrientation } from '@/lib/routeOrientation';
 
 const PUBLIC_NAV_LINKS = [
     { name: 'Documentation', href: '/docs' },
@@ -30,6 +31,7 @@ export default function Navbar() {
     const mailUnread = state.stats.mail?.unread || 0;
 
     const isDashboard = user && new RegExp(`^/(${DASHBOARD_MODULES.join('|')})(/|$)`).test(pathname);
+    const routeOrientation = getRouteOrientation(pathname || '/');
     const totalUnread = chatUnread + mailUnread;
 
     return (
@@ -65,6 +67,16 @@ export default function Navbar() {
                             className="max-w-[52vw] sm:max-w-none overflow-hidden"
                         />
                     </div>
+                    {isDashboard && (
+                        <div className="hidden min-w-0 border-l border-border/70 pl-3 sm:block">
+                            <p className="max-w-[10.5rem] truncate text-xs font-black leading-4 text-foreground lg:max-w-[16rem]">
+                                {routeOrientation.title}
+                            </p>
+                            <p className="max-w-[10.5rem] truncate text-[11px] font-semibold leading-4 text-muted-foreground lg:max-w-[16rem]">
+                                {routeOrientation.section}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {!isDashboard && (

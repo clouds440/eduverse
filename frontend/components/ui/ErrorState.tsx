@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from './Button';
-import { ServerCrash } from 'lucide-react';
+import { RefreshCw, ServerCrash } from 'lucide-react';
 import { Loading } from './Loading';
+import { cn } from '@/lib/utils';
 
 interface ErrorStateProps {
   error: Error | string | null | undefined;
-  onRetry: () => void;
+  onRetry?: () => void;
   showRetry?: boolean;
   className?: string;
   title?: string;
@@ -27,21 +28,36 @@ export function ErrorState({ error, onRetry, className = '', title, description,
 
   const handleRetry = () => {
     setCountdown(5);
-    onRetry();
+    onRetry?.();
   };
+  const canRetry = showRetry && onRetry && !errorMessage.toLowerCase().includes('permission');
 
   return (
-    <div className={`flex flex-col m-auto items-center justify-center p-6 bg-danger/10 border border-danger/20 rounded-lg text-center ${className}`}>
-      <ServerCrash className="w-8 h-8 text-danger mb-2" />
-      {title && <h2 className="text-danger font-bold">{title}</h2>}
-      {description && <p className="text-danger font-bold">{description}</p>}
-      {countdown > 0 ? <Loading size="sm" /> : <p className="text-danger font-bold">{errorMessage}</p>}
-      {showRetry && !errorMessage.toLowerCase().includes('permission') &&
+    <div
+      className={cn(
+        "m-auto flex w-full max-w-xl flex-col items-center justify-center rounded-lg border border-danger/20 bg-danger/10 p-5 text-center shadow-xs sm:p-6",
+        className,
+      )}
+      role="alert"
+    >
+      <div className="mb-3 rounded-full bg-danger/10 p-2 text-danger">
+        <ServerCrash className="h-6 w-6" aria-hidden="true" />
+      </div>
+      <h2 className="text-base font-semibold text-foreground">
+        {title || 'Something went wrong'}
+      </h2>
+      {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      <div className="mt-3 min-h-6 text-sm font-medium text-danger">
+        {countdown > 0 ? <Loading size="xs" /> : <p>{errorMessage}</p>}
+      </div>
+      {canRetry &&
         <Button
           onClick={handleRetry}
           disabled={countdown > 0}
           className="mt-4"
           variant="danger"
+          size="sm"
+          icon={RefreshCw}
         >
           Try Again {countdown > 0 ? `(${countdown}s)` : ''}
         </Button>

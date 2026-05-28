@@ -309,7 +309,11 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     return (
         <GlobalContext.Provider value={{ state, dispatch }}>
             {children}
-            <div className="fixed bottom-4 right-4 z-500 flex flex-col items-end pointer-events-none">
+            <div
+                className="fixed inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-500 flex flex-col items-stretch pointer-events-none sm:left-auto sm:right-4 sm:max-w-sm sm:items-end"
+                aria-live="polite"
+                aria-relevant="additions removals"
+            >
                 {state.toasts.map((toast) => (
                     <Toast
                         key={toast.id}

@@ -21,6 +21,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/Button';
 import { VerificationCodeInput } from '@/components/ui/VerificationCodeInput';
 import { Badge } from '@/components/ui/Badge';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 
 // Status Message Components
 const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: JwtPayload | null }) => {
@@ -31,85 +32,71 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
     if (accessLevel > 0) return null;
     if (!orgData) return null;
 
+    const latestStatusMessage = orgData.statusHistory && orgData.statusHistory.length > 0
+        ? orgData.statusHistory[orgData.statusHistory.length - 1].message
+        : undefined;
+    const panelClassName = "mx-auto my-6 w-full max-w-3xl px-3 sm:px-0";
+
     if (currentStatus === OrgStatus.PENDING) {
         return (
-            <div className="flex flex-col items-center justify-center p-12 bg-card/50 backdrop-blur-md rounded-lg shadow-xl border border-border text-center max-w-2xl mx-5 lg:mx-auto my-10">
-                <div className="p-6 bg-warning/10 rounded-full mb-6 relative">
-                    <Clock className="w-20 h-20 text-warning animate-pulse" />
-                    <div className="absolute inset-0 bg-warning/80 rounded-full animate-ping opacity-20"></div>
-                </div>
-                <h2 className="text-4xl font-black text-card-foreground mb-4 tracking-tight">Awaiting Approval</h2>
-                <p className="text-muted-foreground text-lg mb-8 font-medium">
-                    Your organization registration is currently being verified.
-                    You&apos;ll have full access once EduVerse confirms your details.
-                </p>
-                <div className="bg-warning/10 text-warning px-10 py-5 rounded-lg font-black text-xl border border-warning/40 w-full shadow-2xl flex items-center justify-center gap-3">
-                    Status: Pending Verification
-                </div>
+            <div className={panelClassName}>
+                <StatusBanner
+                    variant="warning"
+                    icon={Clock}
+                    title="Awaiting approval"
+                    description="Your organization registration is being verified. Full workspace access unlocks after EduVerse confirms your details."
+                >
+                    <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm font-black text-warning">
+                        Status: Pending Verification
+                    </div>
+                </StatusBanner>
             </div>
         );
     }
 
     if (orgData.status === OrgStatus.REJECTED) {
         return (
-            <div className="flex flex-col items-center justify-center p-12 bg-card/70 backdrop-blur-md rounded-lg shadow-xl border border-border text-center max-w-2xl mx-auto my-10">
-                <div className="p-6 bg-danger/10 rounded-full mb-6 relative">
-                    <ShieldOff className="w-20 h-20 text-danger" />
-                    <div className="absolute inset-0 bg-danger/80 rounded-full animate-ping opacity-10"></div>
-                </div>
-                <h2 className="text-4xl font-black text-card-foreground mb-4 tracking-tight italic">Application Denied</h2>
-                <div className="bg-danger/10 border border-danger/20 p-8 rounded-lg mb-8 text-left w-full shadow-inner">
-                    <p className="text-[10px] font-black text-danger tracking-[0.3em] mb-4">Official Rejection Reason</p>
-                    <MarkdownRenderer
-                        content={orgData.statusHistory && orgData.statusHistory.length > 0
-                            ? orgData.statusHistory[orgData.statusHistory.length - 1].message
-                            : 'No reason provided.'}
-                        className="text-danger! text-lg font-bold prose prose-red prose-sm max-w-none leading-relaxed"
-                    />
-                </div>
-                <p className="text-muted-foreground text-base mb-10 font-medium max-w-md">
-                    To regain access, please update your organization details based on the feedback above and submit your application again.
-                </p>
-                {user?.role === Role.ORG_ADMIN && (
-                    <Link
-                        href="/settings"
-                        className="inline-flex items-center gap-4 bg-danger/10 hover:bg-danger/30 text-danger px-12 py-6 rounded-lg font-black text-xl shadow-[0_20px_50px_rgba(220,38,38,0.3)] transition-all hover:-translate-y-1 active:scale-95 group tracking-tighter"
-                    >
-                        <RefreshCw className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />
-                        RE-APPLY NOW
-                    </Link>
-                )}
+            <div className={panelClassName}>
+                <StatusBanner
+                    variant="danger"
+                    icon={ShieldOff}
+                    title="Application denied"
+                    description="Update your organization details using the feedback below, then submit the application again."
+                    action={user?.role === Role.ORG_ADMIN ? { label: 'Update application', href: '/settings' } : undefined}
+                >
+                    <div className="rounded-md border border-danger/20 bg-background/60 p-3 text-left">
+                        <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-danger">Official rejection reason</p>
+                        <MarkdownRenderer
+                            content={latestStatusMessage || 'No reason provided.'}
+                            className="text-danger! prose prose-red prose-sm max-w-none leading-relaxed"
+                        />
+                    </div>
+                </StatusBanner>
             </div>
         );
     }
 
     if (orgData.status === OrgStatus.SUSPENDED) {
         return (
-            <div className="flex flex-col items-center justify-center p-12 bg-card/70 backdrop-blur-md rounded-lg shadow-xl border border-border text-center max-w-2xl mx-auto my-10">
-                <div className="p-6 bg-warning/50 rounded-full mb-6 relative">
-                    <ShieldOff className="w-20 h-20 text-warning" />
-                    <div className="absolute inset-0 bg-warning/40 rounded-full animate-ping opacity-10"></div>
-                </div>
-                <h2 className="text-4xl font-black text-card-foreground mb-4 tracking-tight italic">Access Suspended</h2>
-                <p className="text-muted-foreground text-lg mb-8 font-medium">
-                    Your institutional access has been temporarily restricted by the platform administrators.
-                </p>
-                <div className="bg-warning/10 text-warning p-8 rounded-lg border border-warning w-full mb-10 text-left shadow-inner">
-                    <h3 className="font-black mb-4 flex items-center gap-2 tracking-[0.3em] text-warning/60"><ShieldAlert className="w-4 h-4" /> Official Suspension Reason</h3>
-                    <MarkdownRenderer
-                        content={orgData.statusHistory && orgData.statusHistory.length > 0
-                            ? orgData.statusHistory[orgData.statusHistory.length - 1].message
-                            : 'Please contact EduVerse support for further details.'}
-                        className="italic font-bold text-warning! prose prose-warning prose-sm max-w-none leading-relaxed"
-                    />
-                </div>
-                <Link
-                    href="/contact"
-                    className="inline-flex items-center gap-4 bg-card hover:bg-muted text-foreground px-12 py-6 rounded-lg font-black text-xl shadow-2xl transition-all hover:-translate-y-1 group tracking-tighter border border-border"
+            <div className={panelClassName}>
+                <StatusBanner
+                    variant="warning"
+                    icon={ShieldOff}
+                    title="Access suspended"
+                    description="Institutional access is temporarily restricted by platform administrators."
+                    action={{ label: 'Contact support', href: '/contact' }}
                 >
-                    <Mail className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
-                    Contact Platform Support
-                </Link>
+                    <div className="rounded-md border border-warning/25 bg-background/60 p-3 text-left">
+                        <h3 className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-warning">
+                            <ShieldAlert className="w-4 h-4" />
+                            Official suspension reason
+                        </h3>
+                        <MarkdownRenderer
+                            content={latestStatusMessage || 'Please contact EduVerse support for further details.'}
+                            className="text-warning! prose prose-warning prose-sm max-w-none leading-relaxed"
+                        />
+                    </div>
+                </StatusBanner>
             </div>
         );
     }
@@ -122,34 +109,30 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
 
     if (user?.userStatus === 'ALUMNI' || user?.userStatus === 'EMERITUS') {
         return (
-            <div className="flex flex-col items-center justify-center p-12 bg-card/70 backdrop-blur-md rounded-lg shadow-xl border border-border text-center max-w-2xl mx-auto my-10">
-                <div className="p-6 bg-info/10 rounded-full mb-6 relative">
-                    <GraduationCap className="w-20 h-20 text-info" />
-                </div>
-                <h2 className="text-4xl font-black text-card-foreground mb-4 tracking-tight italic">Account Retired</h2>
-                <p className="text-muted-foreground text-lg mb-8 font-medium">
-                    Your account has been marked as {user.userStatus === 'ALUMNI' ? 'Alumni' : 'Emeritus'} by your organization.
-                </p>
-                <div className="bg-info/10 text-info p-8 rounded-lg border border-info/10 w-full mb-10 shadow-inner text-center">
-                    <p className="font-bold">You no longer have access to system records and write operations.</p>
-                    <p className="text-sm opacity-70 mt-2">You can still access your mail and update your security settings.</p>
-                </div>
-                <div className="flex gap-4">
-                    <Link
-                        href="/mail"
-                        className="inline-flex items-center gap-4 bg-card hover:bg-muted text-foreground px-8 py-4 rounded-lg font-bold shadow-xl transition-all border border-border"
-                    >
-                        <Mail className="w-5 h-5" />
-                        Access Mail
-                    </Link>
-                    <Link
-                        href="/change-password"
-                        className="inline-flex items-center gap-4 bg-card hover:bg-muted text-foreground px-8 py-4 rounded-lg font-bold shadow-xl transition-all border border-border"
-                    >
-                        <Settings className="w-5 h-5" />
-                        Security Settings
-                    </Link>
-                </div>
+            <div className={panelClassName}>
+                <StatusBanner
+                    variant="info"
+                    icon={GraduationCap}
+                    title="Account retired"
+                    description={`Your account has been marked as ${user.userStatus === 'ALUMNI' ? 'Alumni' : 'Emeritus'} by your organization. Mail and security settings remain available.`}
+                >
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <Link
+                            href="/mail"
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-bold text-foreground transition-colors hover:bg-muted"
+                        >
+                            <Mail className="h-4 w-4" />
+                            Access Mail
+                        </Link>
+                        <Link
+                            href="/change-password"
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-bold text-foreground transition-colors hover:bg-muted"
+                        >
+                            <Settings className="h-4 w-4" />
+                            Security Settings
+                        </Link>
+                    </div>
+                </StatusBanner>
             </div>
         );
     }
@@ -226,14 +209,14 @@ const ContactEmailVerificationBanner = ({
     };
 
     return (
-        <div className={`${compact ? 'max-w-3xl mx-auto my-10 p-8 rounded-lg text-center' : 'mx-6 my-6 p-4 rounded-xl'} bg-warning/10 border border-warning shadow-sm animate-in fade-in slide-in-from-top-4 duration-500`}>
+        <div className={`${compact ? 'mx-auto my-6 w-full max-w-3xl p-4 sm:p-5' : 'mx-3 my-3 p-3 sm:mx-6 sm:my-4 sm:p-4'} rounded-lg bg-warning/10 border border-warning/40 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500`}>
             <div className={`${compact ? 'flex flex-col items-center' : 'grid grid-cols-1 xl:grid-cols-[1fr_auto] xl:items-center'} gap-5`}>
                 <div className={`${compact ? 'flex flex-col items-center text-center' : 'flex items-start'} gap-4`}>
-                    <div className="p-2 bg-warning/10 rounded-lg">
-                        <Mail className={`${compact ? 'w-10 h-10' : 'w-5 h-5'} text-warning`} />
+                    <div className="p-2 bg-warning/10 rounded-md">
+                        <Mail className={`${compact ? 'w-6 h-6' : 'w-5 h-5'} text-warning`} />
                     </div>
                     <div>
-                        <p className={`${compact ? 'text-3xl' : 'text-base'} font-black text-warning leading-tight`}>Verify your contact email</p>
+                        <p className={`${compact ? 'text-lg' : 'text-base'} font-black text-warning leading-tight`}>Verify your contact email</p>
                         <p className="text-sm text-warning mt-1 font-medium">
                             Your contact email is used for password recovery and important organization communication.
                         </p>
@@ -250,7 +233,7 @@ const ContactEmailVerificationBanner = ({
                     </div>
                 </div>
 
-                <form className={`${compact ? 'w-full max-w-md' : 'w-full xl:w-auto'} flex flex-col items-stretch sm:items-center gap-3`} onSubmit={verifyCode}>
+                <form className={`${compact ? 'w-full max-w-sm' : 'w-full xl:w-auto'} flex flex-col items-stretch sm:items-center gap-3`} onSubmit={verifyCode}>
                     <VerificationCodeInput
                         id="contact-code"
                         value={code}
@@ -261,7 +244,7 @@ const ContactEmailVerificationBanner = ({
                         disabled={state.ui.processing['contact-email-verify']}
                         error={!!error}
                     />
-                    <div className="flex flex-row gap-2">
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                         <Button
                             type="submit"
                             variant="warning"
@@ -492,9 +475,9 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             showPadding={showPadding}
         >
             {user?.userStatus === 'SUSPENDED' && (
-                <div className="mx-6 my-6 p-4 bg-warning/10 border border-warning rounded-xl flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="flex items-center gap-4">
-                        <div className="p-2 bg-warning/10 rounded-lg">
+                <div className="mx-3 my-3 flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 sm:mx-6 sm:my-4 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                    <div className="flex items-start gap-3">
+                        <div className="p-2 bg-warning/10 rounded-md">
                             <ShieldOff className="w-5 h-5 text-warning" />
                         </div>
                         <div>
@@ -502,7 +485,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
                             <p className="text-sm text-warning mt-1">Your account is suspended. You can view data but cannot make changes.</p>
                         </div>
                     </div>
-                    <Link href="/mail" className="text-xs font-black bg-warning hover:bg-warning/90 text-white px-4 py-2 rounded-lg transition-colors">
+                    <Link href="/mail" className="inline-flex min-h-10 items-center justify-center rounded-md bg-warning px-4 py-2 text-xs font-black text-white transition-colors hover:bg-warning/90">
                         Appeal Suspension
                     </Link>
                 </div>

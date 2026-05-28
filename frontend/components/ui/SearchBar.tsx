@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { usePathname } from 'next/navigation';
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SearchBarProps {
@@ -10,9 +10,10 @@ interface SearchBarProps {
     placeholder?: string;
     delay?: number;
     className?: string;
+    ariaLabel?: string;
 }
 
-export function SearchBar({ value, onChange, placeholder = 'Search...', delay = 500, className }: SearchBarProps) {
+export function SearchBar({ value, onChange, placeholder = 'Search...', delay = 500, className, ariaLabel }: SearchBarProps) {
     const [localValue, setLocalValue] = useState(value);
     const debouncedValue = useDebounce(localValue, delay);
     const pathname = usePathname();
@@ -36,18 +37,35 @@ export function SearchBar({ value, onChange, placeholder = 'Search...', delay = 
         }
     }, [debouncedValue, onChange]);
 
+    const clearSearch = () => {
+        setLocalValue('');
+        prevDebouncedValueRef.current = '';
+        onChange('');
+    };
+
     return (
-        <div className={cn("relative group", className)}>
+        <div className={cn("relative group", className)} role="search">
             <input
                 type="text"
-                className="block w-full pl-11 pr-4 h-12 bg-linear-to-br from-card/90 via-card/80 to-card/90 backdrop-blur-xl border border-border/50 rounded-2xl text-sm md:text-base font-semibold text-foreground placeholder-muted-foreground focus:outline-none focus:ring-4 focus:ring-primary/20 focus:border-primary/60 focus:bg-card transition-all duration-300 shadow-lg"
+                className="block h-11 w-full rounded-md border border-border bg-input pl-10 pr-10 text-sm font-medium text-foreground shadow-xs transition-colors placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder={placeholder}
                 value={localValue}
                 onChange={(e) => setLocalValue(e.target.value)}
+                aria-label={ariaLabel || placeholder}
             />
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                <Search className="h-4 w-4 md:h-5 md:w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 flex items-center pl-3.5">
+                <Search className="h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" aria-hidden="true" />
             </div>
+            {localValue && (
+                <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    aria-label="Clear search"
+                >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+            )}
         </div>
     );
 }

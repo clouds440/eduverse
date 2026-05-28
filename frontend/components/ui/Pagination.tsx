@@ -15,7 +15,7 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
     const isDisabled = isLoading;
 
     return (
-        <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 border-t border-border/50 bg-card/40 backdrop-blur-sm shrink-0">
+        <nav className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-border/60 bg-card/70 px-4 py-3 sm:flex-row sm:px-5" aria-label="Pagination">
             {totalResults !== undefined && pageSize !== undefined && (
                 <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 order-2 sm:order-1 shrink-0">
                     <div className="text-xs sm:text-sm font-semibold text-muted-foreground">
@@ -33,7 +33,8 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
                                 value={pageSize}
                                 onChange={(e) => onPageSizeChange(Number(e.target.value))}
                                 disabled={isLoading}
-                                className="bg-card px-2 py-1 rounded-lg border border-border/50 text-[10px] sm:text-xs font-semibold text-primary hover:border-primary/50 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                className="rounded-md border border-border bg-input px-2 py-1 text-xs font-semibold text-primary transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                aria-label="Rows per page"
                             >
                                 {[10, 20, 50, 100].map(size => (
                                     <option key={size} value={size}>{size}</option>
@@ -47,11 +48,13 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
             {totalPages > 1 && (
                 <div className={`flex items-center gap-1 sm:gap-1.5 order-1 sm:order-2 ${totalResults === undefined ? 'w-full justify-center' : ''}`}>
                     <button
+                        type="button"
                         onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
                         disabled={currentPage === 1 || isDisabled}
-                        className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all group text-foreground font-semibold border border-transparent hover:border-primary/20 bg-card/30"
+                        className="group flex items-center gap-1.5 rounded-md border border-border/60 bg-card px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary/25 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-card"
+                        aria-label="Previous page"
                     >
-                        <ChevronLeft className="w-4 h-4 text-primary transition-transform group-hover:-translate-x-0.5" />
+                        <ChevronLeft className="w-4 h-4 text-primary" aria-hidden="true" />
                         <span className="text-[10px] sm:text-xs font-semibold tracking-wider hidden sm:inline">Previous</span>
                     </button>
 
@@ -64,14 +67,17 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
                             }
                             return (
                                 <button
+                                    type="button"
                                     key={page}
                                     onClick={() => onPageChange(page)}
                                     disabled={isDisabled}
-                                    className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                                    className={`flex h-8 w-8 items-center justify-center rounded-md text-xs font-semibold transition-colors sm:h-9 sm:w-9 sm:text-sm ${
                                         currentPage === page 
-                                            ? 'bg-primary text-primary-foreground shadow-lg transform scale-105' 
+                                            ? 'bg-primary text-primary-foreground shadow-xs' 
                                             : 'hover:bg-primary/10 text-foreground/80 border border-border/50 hover:border-primary/20 bg-card/50'
                                     }`}
+                                    aria-label={`Page ${page}`}
+                                    aria-current={currentPage === page ? 'page' : undefined}
                                 >
                                     {page}
                                 </button>
@@ -80,15 +86,17 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
                     </div>
 
                     <button
+                        type="button"
                         onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
                         disabled={currentPage === totalPages || isDisabled}
-                        className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-all group text-foreground font-semibold border border-transparent hover:border-primary/20 bg-card/30"
+                        className="group flex items-center gap-1.5 rounded-md border border-border/60 bg-card px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary/25 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-card"
+                        aria-label="Next page"
                     >
                         <span className="text-[10px] sm:text-xs font-semibold tracking-wider hidden sm:inline">Next</span>
-                        <ChevronRight className="w-4 h-4 text-primary transition-transform group-hover:translate-x-0.5" />
+                        <ChevronRight className="w-4 h-4 text-primary" aria-hidden="true" />
                     </button>
                 </div>
             )}
-        </div>
+        </nav>
     );
 }

@@ -9,7 +9,7 @@ import { ModalForm } from '@/components/ui/ModalForm';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Section, Role, AcademicCycle, Course, PaginatedResponse, Student, Cohort } from '@/types';
 import { TableActions } from '@/components/ui/TableActions';
 import { Input } from '@/components/ui/Input';
@@ -23,6 +23,9 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Badge } from '@/components/ui/Badge';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
+import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 interface SectionParams {
     page: number;
@@ -41,7 +44,7 @@ export default function SectionsPage() {
 
     const pathname = usePathname();
     const router = useRouter();
-    const searchParams = useSearchParams();
+    const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
 
     // SWR for courses (for edit form dropdown) - replaces useCallback + useEffect
     const coursesKey = token ? ['courses', { limit: 1000 }] as const : null;
@@ -53,19 +56,13 @@ export default function SectionsPage() {
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
     // URL State
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const searchTerm = searchParams.get('search') || '';
-    const sortBy = searchParams.get('sortBy') || 'name';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
-    const showOnlyMySections = searchParams.get('my') === 'true';
-    const academicCycleId = searchParams.get('academicCycleId') || '';
-    const [pageSize, setPageSize] = useState<number>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('edu-sections-limit');
-            return saved ? parseInt(saved, 10) : 10;
-        }
-        return 10;
-    });
+    const page = getNumberParam('page', 1);
+    const searchTerm = getStringParam('search');
+    const sortBy = getStringParam('sortBy', 'name');
+    const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
+    const showOnlyMySections = getBooleanParam('my');
+    const academicCycleId = getStringParam('academicCycleId');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-sections-limit', 10);
 
     const sectionParams: SectionParams = {
         page,
@@ -102,21 +99,8 @@ export default function SectionsPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingSection, setDeletingSection] = useState<Section | null>(null);
 
-    const updateQueryParams = (updates: Record<string, string | number | undefined | boolean>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '' || value === false) {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
-
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
-        localStorage.setItem('edu-sections-limit', String(newSize));
         updateQueryParams({ page: 1 });
     };
 
@@ -307,6 +291,21 @@ export default function SectionsPage() {
         }
     ];
 
+    const activeFilters: ActiveFilter[] = [
+        ...(showOnlyMySections ? [{
+            key: 'my',
+            label: 'Scope',
+            value: 'My sections',
+            onRemove: () => updateQueryParams({ my: undefined, page: 1 }),
+        }] : []),
+        ...(academicCycleId ? [{
+            key: 'academicCycleId',
+            label: 'Cycle',
+            value: cyclesData?.data?.find((cycle) => cycle.id === academicCycleId)?.name || 'Selected cycle',
+            onRemove: () => updateQueryParams({ academicCycleId: undefined, page: 1 }),
+        }] : []),
+    ];
+
 
     if (sectionsError) {
         return <ErrorState error={sectionsError + (coursesError ? ' ' + coursesError : '')} onRetry={() => {
@@ -316,9 +315,19 @@ export default function SectionsPage() {
     }
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-1 md:p-2 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-2 shrink-0">
+        <PageShell>
+            <PageHeader
+                title="Sections"
+                description="Search and maintain class sections while preserving course, cycle, and enrollment behavior."
+                breadcrumbs={[
+                    { label: 'Organization' },
+                    { label: 'Academics' },
+                    { label: 'Sections' },
+                ]}
+            />
+            <ResourcePanel>
+                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                     <div className="flex-1">
                         <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder="Search by section name, room..." />
                     </div>
@@ -369,6 +378,9 @@ export default function SectionsPage() {
                         )}
                     </div>
                 </div>
+                </div>
+
+                <ResourceToolbar activeFilters={activeFilters} className="border-t border-border/60" />
 
                 <div className="relative overflow-x-hidden flex-1 min-h-0">
                     <DataTable
@@ -386,9 +398,11 @@ export default function SectionsPage() {
                         maxHeight="100%"
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                        emptyTitle="No sections found"
+                        emptyDescription={searchTerm || activeFilters.length > 0 ? 'Adjust the search or filters to broaden the result set.' : undefined}
                     />
                 </div>
-            </div>
+            </ResourcePanel>
 
             <ModalForm
                 isOpen={editModalOpen}
@@ -505,6 +519,6 @@ export default function SectionsPage() {
                 confirmText="Yes, Delete Section"
                 isDestructive={true}
             />
-        </div>
+        </PageShell>
     );
 }

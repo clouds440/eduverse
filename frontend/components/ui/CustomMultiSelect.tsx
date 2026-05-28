@@ -1,12 +1,13 @@
 'use client';
 
 import * as React from "react";
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useId } from "react";
 import { createPortal } from "react-dom";
-import { LucideIcon, ChevronDown, X, Check } from "lucide-react";
+import { LucideIcon, ChevronDown, X, Check, Search } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
 import { useBackStackEntry } from "@/context/BackNavigationContext";
+import { cn } from "@/lib/utils";
 
 export interface MultiSelectOption {
     value: string;
@@ -33,12 +34,16 @@ function CustomMultiSelectComponent({
     icon: Icon,
     className = "",
     disabled = false,
+    error = false,
 }: CustomMultiSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [coords, setCoords] = useState<(FloatingPosition & { isMobile?: boolean }) | null>(null);
+    const [activeIndex, setActiveIndex] = useState(0);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const listboxId = useId();
 
     useBackStackEntry({
         enabled: isOpen,
@@ -62,6 +67,7 @@ function CustomMultiSelectComponent({
         );
     }, [options, searchTerm]);
     const visibleOptionsCount = visibleOptions.length;
+    const getOptionId = useCallback((index: number) => `${listboxId}-option-${index}`, [listboxId]);
 
     const updateCoords = useCallback(() => {
         if (containerRef.current) {
@@ -122,6 +128,22 @@ function CustomMultiSelectComponent({
     }, [isOpen]);
 
     useEffect(() => {
+        if (!isOpen) return;
+        setActiveIndex(0);
+    }, [isOpen, visibleOptionsCount]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const frameId = window.requestAnimationFrame(() => searchInputRef.current?.focus({ preventScroll: true }));
+        return () => window.cancelAnimationFrame(frameId);
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        document.getElementById(getOptionId(activeIndex))?.scrollIntoView({ block: 'nearest' });
+    }, [activeIndex, getOptionId, isOpen]);
+
+    useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (
                 containerRef.current && !containerRef.current.contains(event.target as Node) &&
@@ -147,25 +169,69 @@ function CustomMultiSelectComponent({
         onChange(values.filter(v => v !== val));
     }, [values, onChange]);
 
+    const moveActiveOption = useCallback((direction: 1 | -1) => {
+        setActiveIndex((currentIndex) => {
+            if (visibleOptions.length === 0) return 0;
+            return (currentIndex + direction + visibleOptions.length) % visibleOptions.length;
+        });
+    }, [visibleOptions.length]);
+
+    const closeDropdown = useCallback(() => {
+        setIsOpen(false);
+        containerRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus({ preventScroll: true });
+    }, []);
+
+    const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
+        if (disabled) return;
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (!isOpen) setIsOpen(true);
+            else moveActiveOption(1);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (!isOpen) setIsOpen(true);
+            else moveActiveOption(-1);
+        } else if ((event.key === 'Enter' || event.key === ' ') && !isOpen) {
+            event.preventDefault();
+            setIsOpen(true);
+        } else if (event.key === 'Enter' && isOpen) {
+            event.preventDefault();
+            const option = visibleOptions[activeIndex];
+            if (option) toggleOption(option.value);
+        } else if (event.key === 'Escape' && isOpen) {
+            event.preventDefault();
+            closeDropdown();
+        }
+    }, [activeIndex, closeDropdown, disabled, isOpen, moveActiveOption, toggleOption, visibleOptions]);
+
     return (
         <div className={`relative group ${className}`} ref={containerRef} >
             <div
                 onClick={() => !disabled && setIsOpen(!isOpen)}
-                className={`
-                    flex items-center w-full min-h-12 sm:min-h-13 px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl border transition-all duration-200 outline-none
-                    ${isOpen
-                        ? 'border-primary/60 ring-4 ring-primary/10 bg-background shadow-lg'
-                        : 'border-border/50 bg-background/5 hover:border-primary/50'
-                    }
-                    ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                    text-foreground
-                `}
+                onKeyDown={handleKeyDown}
+                className={cn(
+                    "flex min-h-11 w-full items-center rounded-md border px-3 py-2 text-foreground outline-none transition-colors duration-200",
+                    isOpen
+                        ? 'border-primary bg-input ring-2 ring-primary/20'
+                        : error
+                            ? 'border-danger/70 bg-danger/5 ring-1 ring-danger/20'
+                            : 'border-border bg-input hover:border-primary/45',
+                    disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+                )}
+                role="combobox"
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-controls={isOpen ? listboxId : undefined}
+                aria-activedescendant={isOpen && visibleOptions[activeIndex] ? getOptionId(activeIndex) : undefined}
+                aria-invalid={error || undefined}
+                tabIndex={disabled ? -1 : 0}
             >
                 {Icon && (
-                    <Icon className={`h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 shrink-0 transition-colors ${isOpen ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <Icon className={`mr-2 h-4 w-4 shrink-0 transition-colors ${isOpen ? 'text-primary' : 'text-muted-foreground'}`} />
                 )}
 
-                <div className="flex flex-wrap gap-1.5 sm:gap-2 flex-1 items-center overflow-hidden py-1">
+                <div className="flex flex-1 flex-wrap items-center gap-1.5 overflow-hidden py-0.5">
                     {selectedOptions.length > 0 ? (
                         selectedOptions.map(opt => (
                             <Badge
@@ -178,30 +244,32 @@ function CustomMultiSelectComponent({
                                 <button
                                     type="button"
                                     onClick={(e) => removeOption(opt.value, e)}
-                                    className="ml-1 hover:bg-primary/20 dark:hover:bg-primary/20 p-0.5 rounded-full transition-colors"
-                                    title="Remove option"
+                                    className="ml-1 rounded-full p-0.5 transition-colors hover:bg-primary/20 dark:hover:bg-primary/20"
+                                    title={`Remove ${opt.label}`}
+                                    aria-label={`Remove ${opt.label}`}
                                 >
-                                    <X className="h-3 w-3" />
+                                    <X className="h-3 w-3" aria-hidden="true" />
                                 </button>
                             </Badge>
                         ))
                     ) : (
-                        <span className="text-muted-foreground text-sm sm:text-base font-medium">{placeholder}</span>
+                        <span className="text-sm font-medium text-muted-foreground">{placeholder}</span>
                     )}
                 </div>
 
-                <div className="flex items-center shrink-0 ml-1 sm:ml-2">
+                <div className="ml-2 flex shrink-0 items-center">
                     {values.length > 0 && (
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onChange([]); }}
-                            className="mr-1.5 sm:mr-2 text-muted-foreground hover:text-destructive transition-colors p-1"
+                            className="mr-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
                             title="Clear all"
+                            aria-label="Clear selected options"
                         >
-                            <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            <X className="h-4 w-4" aria-hidden="true" />
                         </button>
                     )}
-                    <ChevronDown className={`h-4 w-4 transition-transform duration-200 text-muted-foreground ${isOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                 </div>
             </div>
 
@@ -217,23 +285,28 @@ function CustomMultiSelectComponent({
                         overflowY: 'hidden',
                         zIndex: 9999
                     }}
-                    className={`py-2 bg-linear-to-br from-background to-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-100 ${coords.placement === 'top' ? 'origin-bottom' : 'origin-top'}`}
+                    className={`flex flex-col rounded-lg border border-border/60 bg-card py-2 shadow-lg animate-in fade-in zoom-in duration-100 ${coords.placement === 'top' ? 'origin-bottom' : 'origin-top'}`}
+                    id={listboxId}
+                    role="listbox"
+                    aria-label={placeholder}
+                    aria-multiselectable="true"
+                    onKeyDown={handleKeyDown}
                 >
-                    <div className="px-3 sm:px-4 pb-2 sm:pb-3 border-b border-border/50">
+                    <div className="border-b border-border/60 px-3 pb-2">
                         <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg className="h-4 w-4 text-muted-foreground" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                                </svg>
+                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                             </div>
                             <input
+                                ref={searchInputRef}
                                 type="text"
-                                className="block w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 border border-border/50 rounded-2xl text-sm sm:text-base bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
+                                className="block w-full rounded-md border border-border bg-input py-2 pl-9 pr-3 text-sm text-foreground transition-colors placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                                 placeholder="Search..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 onClick={(e) => e.stopPropagation()}
-                                autoFocus
+                                onKeyDown={handleKeyDown}
+                                aria-label={`Search ${placeholder}`}
                             />
                         </div>
                     </div>
@@ -242,27 +315,31 @@ function CustomMultiSelectComponent({
                         {visibleOptions.length === 0 ? (
                             <div className="px-4 py-3 sm:py-4 text-sm sm:text-base text-muted-foreground text-center">No options found</div>
                         ) : (
-                            visibleOptions.map((option) => {
+                            visibleOptions.map((option, index) => {
                                 const isSelected = valuesSet.has(option.value);
                                 return (
                                     <button
                                         key={option.value}
+                                        id={getOptionId(index)}
                                         type="button"
                                         onClick={() => toggleOption(option.value)}
-                                        className={`
-                                            flex items-center justify-between rounded-2xl w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base font-semibold transition-all
-                                            ${isSelected
+                                        onMouseEnter={() => setActiveIndex(index)}
+                                        className={cn(
+                                            "flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                                            isSelected
                                                 ? 'bg-primary/10 text-primary'
-                                                : 'text-foreground hover:bg-primary/5'
-                                            }
-                                            text-left
-                                        `}
+                                                : index === activeIndex
+                                                    ? 'bg-primary/5 text-foreground'
+                                                    : 'text-foreground hover:bg-primary/5',
+                                        )}
+                                        role="option"
+                                        aria-selected={isSelected}
                                     >
                                         <div className="flex items-center truncate">
-                                            {option.icon && <option.icon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 sm:mr-3 text-muted-foreground/60" />}
+                                            {option.icon && <option.icon className="mr-2 h-4 w-4 text-muted-foreground/60" />}
                                             <span className="truncate">{option.label}</span>
                                         </div>
-                                        {isSelected && <Check className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0 ml-2 sm:ml-3" />}
+                                        {isSelected && <Check className="ml-2 h-4 w-4 shrink-0 text-primary" />}
                                     </button>
                                 );
                             })

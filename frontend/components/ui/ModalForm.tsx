@@ -1,6 +1,6 @@
 'use client';
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useId } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 
@@ -41,6 +41,7 @@ export function ModalForm({
     feedback,
     requireWrite
 }: ModalFormProps) {
+    const formId = useId();
     const footer = (showCancel || showSubmit) ? (
         <div className="flex justify-end gap-3 sm:gap-4 flex-col-reverse sm:flex-row">
             {showCancel && (
@@ -48,7 +49,7 @@ export function ModalForm({
                     type="button"
                     variant="secondary"
                     onClick={onClose}
-                    className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 text-xs sm:text-sm font-semibold tracking-wider"
+                    className="w-full sm:w-auto"
                 >
                     Cancel
                 </Button>
@@ -56,11 +57,12 @@ export function ModalForm({
             {showSubmit && (
                 <Button
                     type="submit"
-                    form="modal-form"
+                    form={formId}
                     isLoading={isSubmitting}
                     loadingId={loadingId}
                     requireWrite={requireWrite !== false}
                     variant={variant}
+                    className="w-full sm:w-auto"
                 >
                     {submitText}
                 </Button>
@@ -85,7 +87,7 @@ export function ModalForm({
                     </div>
                 )}
 
-                <form id="modal-form" onSubmit={onSubmit} className="text-foreground" noValidate>
+                <form id={formId} onSubmit={onSubmit} className="text-foreground" noValidate>
                     {children}
                 </form>
             </div>

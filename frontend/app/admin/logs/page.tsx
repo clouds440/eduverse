@@ -14,6 +14,7 @@ import { Loading } from '@/components/ui/Loading';
 import { Badge } from '@/components/ui/Badge';
 import { OrgLogoOrIcon } from '@/components/ui/OrgLogoOrIcon';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 
 type AuditLogsResponse = PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> };
 
@@ -212,21 +213,22 @@ export default function AdminAuditLogsPage() {
     }
 
     return (
-        <div className="flex h-full w-full flex-col">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl overflow-hidden flex flex-col flex-1 min-h-0">
+        <PageShell>
+            <PageHeader
+                title="Audit Logs"
+                description="Security and account events translated into readable activity."
+                breadcrumbs={[
+                    { label: 'Admin' },
+                    { label: 'Audit Logs' },
+                ]}
+                meta={data?.totalRecords !== undefined ? (
+                    <span className="rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-xs font-black text-muted-foreground">
+                        {data.totalRecords} events
+                    </span>
+                ) : undefined}
+            />
+            <ResourcePanel>
                 <div className="p-4 border-b border-border/40 space-y-4">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20">
-                                <ScrollText className="w-7 h-7 text-primary" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl md:text-3xl font-black text-foreground tracking-tight">Audit Logs</h1>
-                                <p className="text-xs md:text-sm text-muted-foreground font-semibold">Security and account events translated into readable activity.</p>
-                            </div>
-                        </div>
-                    </div>
-
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="w-full sm:w-80">
                             <CustomSelect
@@ -267,7 +269,7 @@ export default function AdminAuditLogsPage() {
                         tableLayout="fixed"
                     />
                 </div>
-            </div>
-        </div>
+            </ResourcePanel>
+        </PageShell>
     );
 }

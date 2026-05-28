@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
-import { LucideIcon, ChevronDown } from "lucide-react";
+import { LucideIcon, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
 import { useBackStackEntry } from "@/context/BackNavigationContext";
@@ -43,8 +43,11 @@ function CustomSelectComponent<T extends string = string>({
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [coords, setCoords] = useState<FloatingPosition | null>(null);
+    const [activeIndex, setActiveIndex] = useState(0);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const listboxId = useId();
 
     useBackStackEntry({
         enabled: isOpen,
@@ -62,12 +65,33 @@ function CustomSelectComponent<T extends string = string>({
         );
     }, [options, searchTerm, searchable]);
     const visibleOptionsCount = visibleOptions.length;
+    const selectedVisibleIndex = useMemo(
+        () => visibleOptions.findIndex((option) => option.value === value),
+        [value, visibleOptions],
+    );
+    const getOptionId = useCallback((index: number) => `${listboxId}-option-${index}`, [listboxId]);
 
     // Clear search term when closed
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- Preserve dropdown search reset behavior; moving this into close handlers previously caused runtime regressions.
         if (!isOpen) setSearchTerm("");
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setActiveIndex(selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0);
+    }, [isOpen, selectedVisibleIndex, visibleOptionsCount]);
+
+    useEffect(() => {
+        if (!isOpen || !searchable) return;
+        const frameId = window.requestAnimationFrame(() => searchInputRef.current?.focus({ preventScroll: true }));
+        return () => window.cancelAnimationFrame(frameId);
+    }, [isOpen, searchable]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        document.getElementById(getOptionId(activeIndex))?.scrollIntoView({ block: 'nearest' });
+    }, [activeIndex, getOptionId, isOpen]);
 
     const updateCoords = useCallback(() => {
         if (containerRef.current) {
@@ -125,10 +149,44 @@ function CustomSelectComponent<T extends string = string>({
         setIsOpen(false);
     }, [onChange]);
 
+    const moveActiveOption = useCallback((direction: 1 | -1) => {
+        setActiveIndex((currentIndex) => {
+            if (visibleOptions.length === 0) return 0;
+            return (currentIndex + direction + visibleOptions.length) % visibleOptions.length;
+        });
+    }, [visibleOptions.length]);
+
+    const closeDropdown = useCallback(() => {
+        setIsOpen(false);
+        containerRef.current?.querySelector<HTMLButtonElement>('button[type="button"]')?.focus({ preventScroll: true });
+    }, []);
+
+    const handleComboboxKeyDown = useCallback((event: React.KeyboardEvent) => {
+        if (disabled) return;
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (!isOpen) setIsOpen(true);
+            else moveActiveOption(1);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (!isOpen) setIsOpen(true);
+            else moveActiveOption(-1);
+        } else if (event.key === 'Enter' && isOpen) {
+            event.preventDefault();
+            const option = visibleOptions[activeIndex];
+            if (option) handleSelect(option.value);
+        } else if (event.key === 'Escape' && isOpen) {
+            event.preventDefault();
+            closeDropdown();
+        }
+    }, [activeIndex, closeDropdown, disabled, handleSelect, isOpen, moveActiveOption, visibleOptions]);
+
     return (
         <div className={`relative group ${className}`} ref={containerRef}>
             <select
                 required={required}
+                disabled={disabled}
                 value={value}
                 onChange={(e) => onChange(e.target.value as T)}
                 className="sr-only"
@@ -144,26 +202,32 @@ function CustomSelectComponent<T extends string = string>({
             <button
                 type="button"
                 onClick={() => !disabled && setIsOpen(!isOpen)}
+                onKeyDown={handleComboboxKeyDown}
                 disabled={disabled}
                 className={cn(
-                    "flex items-center w-full px-4 py-3 rounded-2xl border transition-all duration-200 outline-none",
+                    "flex min-h-11 w-full items-center rounded-md border px-3.5 py-2.5 text-left text-sm font-medium outline-none transition-colors duration-200",
                     isOpen
-                        ? 'border-primary ring-4 ring-primary/10 bg-background'
+                        ? 'border-primary bg-input ring-2 ring-primary/20'
                         : error
-                            ? 'border-destructive ring-2 ring-destructive/20 bg-destructive/5'
-                            : 'border-border/50 bg-primary/5 hover:border-primary/50',
+                            ? 'border-danger/70 bg-danger/5 ring-1 ring-danger/20'
+                            : 'border-border bg-input hover:border-primary/45',
                     disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
-                    "text-foreground font-semibold text-left text-base",
+                    "text-foreground",
                     className
                 )}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-controls={isOpen ? listboxId : undefined}
+                aria-activedescendant={isOpen && visibleOptions[activeIndex] ? getOptionId(activeIndex) : undefined}
+                aria-invalid={error || undefined}
             >
                 {/* Prefix Icon (Prop) or Selected Option Icon */}
                 {(selectedOption?.icon || Icon) && (
-                    <div className="mr-2 sm:mr-3 shrink-0">
+                    <div className="mr-2 shrink-0">
                         {selectedOption?.icon ? (
-                            <selectedOption.icon className={cn("h-5 w-5", selectedOption.iconClassName || (isOpen ? 'text-primary' : 'text-muted-foreground'))} />
+                            <selectedOption.icon className={cn("h-4 w-4", selectedOption.iconClassName || (isOpen ? 'text-primary' : 'text-muted-foreground'))} />
                         ) : (
-                            Icon && <Icon className={cn("h-5 w-5 transition-colors", isOpen ? 'text-primary' : error ? 'text-destructive' : 'text-muted-foreground group-focus-within:text-primary')} />
+                            Icon && <Icon className={cn("h-4 w-4 transition-colors", isOpen ? 'text-primary' : error ? 'text-danger' : 'text-muted-foreground group-focus-within:text-primary')} />
                         )}
                     </div>
                 )}
@@ -179,7 +243,7 @@ function CustomSelectComponent<T extends string = string>({
                     </span>
                 )}
 
-                <ChevronDown className={cn("h-4 w-4 ml-2 sm:ml-2.5 transition-transform duration-200 text-muted-foreground", isOpen && "rotate-180")} />
+                <ChevronDown className={cn("ml-2 h-4 w-4 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
             </button>
 
             {isOpen && coords && createPortal(
@@ -195,26 +259,30 @@ function CustomSelectComponent<T extends string = string>({
                         zIndex: 9999
                     }}
                     className={cn(
-                        "py-2 bg-background/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl flex flex-col animate-in fade-in zoom-in duration-100",
+                        "flex flex-col rounded-lg border border-border/60 bg-card py-2 shadow-lg animate-in fade-in zoom-in duration-100",
                         coords.placement === 'top' ? 'origin-bottom' : 'origin-top'
                     )}
+                    id={listboxId}
+                    role="listbox"
+                    aria-label={placeholder}
+                    onKeyDown={handleComboboxKeyDown}
                 >
                     {searchable && (
-                        <div className="px-3 sm:px-4 pb-2 sm:pb-3 border-b border-border/50">
+                        <div className="border-b border-border/60 px-3 pb-2">
                             <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg className="h-4 w-4 text-muted-foreground" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                                    </svg>
+                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                                 </div>
                                 <input
+                                    ref={searchInputRef}
                                     type="text"
-                                    className="block w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 border border-border/50 rounded-2xl text-xs sm:text-sm bg-primary/5 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
+                                    className="block w-full rounded-md border border-border bg-input py-2 pl-9 pr-3 text-sm text-foreground transition-colors placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                                     placeholder="Search..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     onClick={(e) => e.stopPropagation()}
-                                    autoFocus
+                                    onKeyDown={handleComboboxKeyDown}
+                                    aria-label={`Search ${placeholder}`}
                                 />
                             </div>
                         </div>
@@ -224,24 +292,28 @@ function CustomSelectComponent<T extends string = string>({
                         {visibleOptions.length === 0 ? (
                             <div className="px-4 py-4 text-sm sm:text-base text-muted-foreground text-center text-balance">{searchable ? `No results found for "${searchTerm}"` : 'No options available'}</div>
                         ) : (
-                            visibleOptions.map((option) => (
+                            visibleOptions.map((option, index) => (
                                 <button
                                     key={option.value}
+                                    id={getOptionId(index)}
                                     type="button"
                                     onClick={() => handleSelect(option.value)}
-                                    className={`
-                                    flex items-center w-full px-3 sm:px-4 rounded-2xl py-2.5 sm:py-3 text-sm sm:text-base font-semibold transition-all
-                                    ${option.value === value
+                                    onMouseEnter={() => setActiveIndex(index)}
+                                    className={cn(
+                                        "flex w-full items-center rounded-md px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                                        option.value === value
                                             ? 'bg-primary text-primary-foreground'
-                                            : 'text-foreground hover:bg-primary/10'
-                                        }
-                                    text-left
-                                `}
+                                            : index === activeIndex
+                                                ? 'bg-primary/10 text-foreground'
+                                                : 'text-foreground hover:bg-primary/10',
+                                    )}
+                                    role="option"
+                                    aria-selected={option.value === value}
                                 >
-                                    {option.icon && <option.icon className={cn("h-5 w-5 mr-2 sm:mr-3", option.iconClassName)} />}
+                                    {option.icon && <option.icon className={cn("mr-2 h-4 w-4", option.iconClassName)} />}
                                     <span className="flex-1">{option.label}</span>
                                     {option.badge !== undefined && (
-                                        <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${option.value === value ? 'bg-card/20 text-card-text' : 'bg-primary/10 text-primary'
+                                        <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${option.value === value ? 'bg-card/20 text-card-text' : 'bg-primary/10 text-primary'
                                             }`}>
                                             {option.badge}
                                         </span>

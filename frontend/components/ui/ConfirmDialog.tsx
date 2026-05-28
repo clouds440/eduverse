@@ -3,6 +3,7 @@
 import React from 'react';
 import { ModalOverlay } from './Modal';
 import { Button } from './Button';
+import { AlertTriangle } from 'lucide-react';
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -27,17 +28,32 @@ export function ConfirmDialog({
     children,
 }: ConfirmDialogProps & { children?: React.ReactNode }) {
     return (
-        <ModalOverlay isOpen={isOpen} onBack={onClose} backLabel="Confirmation dialog" maxWidth="max-w-md" className="p-6 sm:p-8 md:p-10 animate-scale-in">
-            <h3 className="text-xl sm:text-2xl font-black mb-3 sm:mb-4 leading-tight">{title}</h3>
-            <p className="opacity-70 text-base sm:text-lg mb-6 sm:mb-8 md:mb-10 leading-relaxed font-medium">{description}</p>
+        <ModalOverlay
+            isOpen={isOpen}
+            onBack={onClose}
+            backLabel="Confirmation dialog"
+            maxWidth="max-w-md"
+            className="p-5 sm:p-6"
+            mobileMode="dialog"
+            ariaLabel="Confirmation dialog"
+        >
+            <div className="mb-4 flex items-start gap-3">
+                <div className={`rounded-md p-2 ${isDestructive ? 'bg-danger/10 text-danger' : 'bg-primary/10 text-primary'}`}>
+                    <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                    <h3 className="text-lg font-semibold leading-tight text-foreground sm:text-xl">{title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+                </div>
+            </div>
 
-            {children && <div className="mb-6 sm:mb-8">{children}</div>}
+            {children && <div className="mb-5">{children}</div>}
 
-            <div className="flex gap-3 sm:gap-4 justify-end shrink-0 flex-col-reverse sm:flex-row">
+            <div className="flex shrink-0 flex-col-reverse justify-end gap-3 sm:flex-row">
                 <Button
                     variant="secondary"
                     onClick={onClose}
-                    className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 text-sm sm:text-base font-semibold shadow-sm"
+                    className="w-full sm:w-auto"
                 >
                     Cancel
                 </Button>
@@ -48,7 +64,7 @@ export function ConfirmDialog({
                         onConfirm();
                         onClose();
                     }}
-                    className={`w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 text-sm sm:text-base font-semibold border-none ${!isDestructive ? 'shadow-[0_8px_16px_var(--shadow-color)]' : 'shadow-danger30'}`}
+                    className="w-full sm:w-auto"
                 >
                     {confirmText}
                 </Button>

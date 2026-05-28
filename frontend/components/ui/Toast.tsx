@@ -2,6 +2,7 @@
 
 import { CheckCircle2, XCircle, Info, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -17,21 +18,24 @@ export function Toast({ id, message, type, duration = 2000, onClose }: ToastProp
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
-        // Trigger enter animation
-        requestAnimationFrame(() => setIsVisible(true));
+        let removeTimer: number | undefined;
+        const enterTimer = window.setTimeout(() => setIsVisible(true), 0);
 
-        const timer = setTimeout(() => {
+        const exitTimer = window.setTimeout(() => {
             setIsVisible(false);
-            // Wait for exit animation to complete before removing
-            setTimeout(() => onClose(id), 300);
+            removeTimer = window.setTimeout(() => onClose(id), 250);
         }, duration);
 
-        return () => clearTimeout(timer);
+        return () => {
+            window.clearTimeout(enterTimer);
+            window.clearTimeout(exitTimer);
+            if (removeTimer) window.clearTimeout(removeTimer);
+        };
     }, [id, duration, onClose]);
 
     const handleClose = () => {
         setIsVisible(false);
-        setTimeout(() => onClose(id), 200);
+        window.setTimeout(() => onClose(id), 200);
     };
 
     const icons = {
@@ -41,24 +45,31 @@ export function Toast({ id, message, type, duration = 2000, onClose }: ToastProp
     };
 
     const backgrounds = {
-        success: 'bg-success/80 border-success/80',
-        error: 'bg-danger/80 border-danger/80',
-        info: 'bg-info/80 border-info/80'
+        success: 'border-success/25 bg-success text-white',
+        error: 'border-danger/25 bg-danger text-white',
+        info: 'border-info/25 bg-info text-white'
     };
 
     return (
         <div
-            className={`flex items-center z-999 gap-3 md:gap-4 p-3 md:p-4 mb-3 text-white rounded-xl border shadow-2xl backdrop-blur-xl transition-all duration-500 pointer-events-auto max-w-sm w-full ${backgrounds[type]} ${isVisible ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-12 opacity-0 scale-95'
-                }`}
+            className={cn(
+                "pointer-events-auto mb-2 flex w-full items-start gap-3 rounded-lg border p-3 shadow-lg shadow-black/15 backdrop-blur-sm",
+                "transition-all duration-200 motion-reduce:transition-none sm:max-w-sm",
+                backgrounds[type],
+                isVisible ? "translate-y-0 opacity-100 sm:translate-x-0" : "translate-y-3 opacity-0 sm:translate-x-8 sm:translate-y-0",
+            )}
+            role={type === 'error' ? 'alert' : 'status'}
+            aria-live={type === 'error' ? 'assertive' : 'polite'}
         >
-            <div className="shrink-0 p-2 bg-foreground/10 rounded-xl shadow-sm">{icons[type]}</div>
-            <p className="font-semibold text-sm md:text-base flex-1 wrap-break-word">{message}</p>
+            <div className="shrink-0 rounded-md bg-white/10 p-1.5" aria-hidden="true">{icons[type]}</div>
+            <p className="flex-1 wrap-break-word text-sm font-semibold leading-5">{message}</p>
             <button
                 onClick={handleClose}
-                className="shrink-0 p-1.5 hover:bg-foreground/10 rounded-xl transition-all active:scale-90"
+                className="shrink-0 rounded-md p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
                 title="Dismiss"
+                aria-label="Dismiss notification"
             >
-                <X className="w-4 h-4 md:w-5 md:h-5 opacity-60" />
+                <X className="h-4 w-4" />
             </button>
         </div>
     );

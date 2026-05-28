@@ -85,6 +85,7 @@ export const THEME_BOOTSTRAP_SCRIPT = `
 
     root.classList.toggle('dark', isDark);
     root.style.setProperty('--primary', primary);
+    root.style.setProperty('--primary-rgb', (primaryRgb ? primaryRgb.r : 0) + ', ' + (primaryRgb ? primaryRgb.g : 82) + ', ' + (primaryRgb ? primaryRgb.b : 255));
     root.style.setProperty('--primary-hover', '#003ECB');
     root.style.setProperty('--secondary', secondary || DEFAULT_SECONDARY);
     root.style.setProperty('--primary-text', contrast(primary));
@@ -93,7 +94,9 @@ export const THEME_BOOTSTRAP_SCRIPT = `
     root.style.setProperty('--chat-tick', isBlue(primary) ? '#ffffff' : '#0952C8');
     root.style.setProperty('--theme-bg', isDark ? '#0A0E1A' : '#e2e8f0');
     root.style.setProperty('--background', isDark ? '#0B0F19' : '#e2e8f0');
+    root.style.setProperty('--background-rgb', isDark ? '11, 15, 25' : '226, 232, 240');
     root.style.setProperty('--foreground', isDark ? '#E6EAF2' : '#0B1220');
+    root.style.setProperty('--foreground-rgb', isDark ? '230, 234, 242' : '11, 18, 32');
     root.style.setProperty('--card-bg', isDark ? '#121826' : '#f1f5f9');
     root.style.setProperty('--card-text', isDark ? '#E6EAF2' : '#0B1220');
     root.style.setProperty('--muted-bg', isDark ? '#1A2233' : '#cbd5e1');
@@ -104,6 +107,7 @@ export const THEME_BOOTSTRAP_SCRIPT = `
     root.style.setProperty('--input-bg', isDark ? '#0F172A' : '#f8fafc');
     root.style.setProperty('--navbar-bg', isDark ? 'rgba(17, 24, 39, 0.9)' : 'rgba(255, 255, 255, 0.9)');
     root.style.setProperty('--navbar-text', isDark ? '#F9FAFB' : '#050F1A');
+    root.style.setProperty('--app-surface-overlay', isDark ? 'rgba(2, 6, 23, 0.72)' : 'rgba(15, 23, 42, 0.62)');
     root.style.setProperty('--shadow-color', isDark ? 'rgba(0,0,0,0.5)' : 'rgba(' + (primaryRgb ? primaryRgb.r : 0) + ', ' + (primaryRgb ? primaryRgb.g : 82) + ', ' + (primaryRgb ? primaryRgb.b : 255) + ', 0.15)');
   } catch (error) {
     document.documentElement.classList.toggle('dark', window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);

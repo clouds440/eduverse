@@ -6,7 +6,7 @@ import { UserPlus, BadgeCheck } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Teacher, Role, TeacherStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
@@ -21,6 +21,9 @@ import { BrandIcon } from '@/components/ui/Brand';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Toggle } from '@/components/ui/Toggle';
 import { Drawer } from '@/components/ui/Drawer';
+import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 interface TeacherParams {
     page: number;
@@ -36,7 +39,7 @@ export default function TeachersPage() {
     const { token, user } = useAuth();
     const pathname = usePathname();
     const router = useRouter();
-    const searchParams = useSearchParams();
+    const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const { dispatch } = useGlobal();
 
     // We no longer need local paginatedData state as fetchedData is used directly
@@ -47,20 +50,14 @@ export default function TeachersPage() {
     const [initialSubject, setInitialSubject] = useState<string | undefined>(undefined);
 
     // URL State
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const searchTerm = searchParams.get('search') || '';
-    const sortBy = searchParams.get('sortBy') || 'name';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
-    const statusFilter = searchParams.get('status') || '';
-    const isDeletedView = searchParams.get('deleted') === 'true';
-    const showEmeritus = searchParams.get('showEmeritus') === 'true';
-    const [pageSize, setPageSize] = useState<number>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('edu-teachers-limit');
-            return saved ? parseInt(saved, 10) : 10;
-        }
-        return 10;
-    });
+    const page = getNumberParam('page', 1);
+    const searchTerm = getStringParam('search');
+    const sortBy = getStringParam('sortBy', 'name');
+    const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
+    const statusFilter = getStringParam('status');
+    const isDeletedView = getBooleanParam('deleted');
+    const showEmeritus = getBooleanParam('showEmeritus');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-teachers-limit', 10);
 
     const teacherParams = useMemo<TeacherParams>(() => ({
         page,
@@ -93,21 +90,8 @@ export default function TeachersPage() {
         }
     }, [user, router, pathname]);
 
-    const updateQueryParams = (updates: Record<string, string | number | undefined>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '') {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
-
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
-        localStorage.setItem('edu-teachers-limit', String(newSize));
         updateQueryParams({ page: 1 });
     };
 
@@ -257,15 +241,46 @@ export default function TeachersPage() {
         }
     ], [isDeletedView, router, handleRestore]);
 
+    const activeFilters: ActiveFilter[] = [
+        ...(isDeletedView ? [{
+            key: 'deleted',
+            label: 'View',
+            value: 'Deleted',
+            onRemove: () => updateQueryParams({ deleted: undefined, page: 1 }),
+        }] : []),
+        ...(statusFilter ? [{
+            key: 'status',
+            label: 'Status',
+            value: statusFilter,
+            onRemove: () => updateQueryParams({ status: undefined, page: 1 }),
+        }] : []),
+        ...(showEmeritus ? [{
+            key: 'showEmeritus',
+            label: 'Include',
+            value: 'Emeritus',
+            onRemove: () => updateQueryParams({ showEmeritus: undefined, page: 1 }),
+        }] : []),
+    ];
+
 
     if (teachersError) {
         return <ErrorState error={teachersError} onRetry={() => mutateTeachers()} />;
     }
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-1 md:p-2 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-2 shrink-0">
+        <PageShell>
+            <PageHeader
+                title={isDeletedView ? 'Deleted Faculty' : 'Faculty'}
+                description="Search and maintain faculty records while preserving existing role and restore flows."
+                breadcrumbs={[
+                    { label: 'Organization' },
+                    { label: isDeletedView ? 'Deleted Faculty' : 'Faculty' },
+                ]}
+                meta={isDeletedView ? <Badge variant="neutral" size="sm">Archive</Badge> : undefined}
+            />
+            <ResourcePanel>
+                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                     <div className="flex-1 w-full">
                         <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder="Search faculty..." />
                     </div>
@@ -307,7 +322,7 @@ export default function TeachersPage() {
                                         className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
                                             }`}
                                     >
-                                        {isDeletedView ? '← Back to Active Faculty' : 'View Deleted Faculty'}
+                                        View Deleted Faculty
                                     </button>
                                 </div>
                             </Drawer>
@@ -319,7 +334,7 @@ export default function TeachersPage() {
                                 className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
                                     }`}
                             >
-                                ← Back to Active Faculty
+                                Back to Active Faculty
                             </button>
                         )}
 
@@ -334,6 +349,9 @@ export default function TeachersPage() {
                         )}
                     </div>
                 </div>
+                </div>
+
+                <ResourceToolbar activeFilters={activeFilters} className="border-t border-border/60" />
 
                 <div className="relative overflow-x-hidden flex-1 min-h-0">
                     <DataTable
@@ -360,9 +378,11 @@ export default function TeachersPage() {
                         maxHeight="100%"
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                        emptyTitle={isDeletedView ? 'No deleted faculty' : 'No faculty found'}
+                        emptyDescription={searchTerm || activeFilters.length > 0 ? 'Adjust the search or filters to broaden the result set.' : undefined}
                     />
                 </div>
-            </div>
+            </ResourcePanel>
 
             <ConfirmDialog
                 isOpen={deleteDialogOpen}
@@ -387,6 +407,6 @@ export default function TeachersPage() {
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });
                 }}
             />
-        </div>
+        </PageShell>
     );
 }
