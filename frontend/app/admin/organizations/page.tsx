@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { ShieldOff, ShieldAlert, ShieldCheck, Building2, MapPin, Mail, Calendar, LucideIcon, Tag, Phone, Info, Hash, Clock, GraduationCap, BookOpen, School, Library, MonitorPlay, Pencil, Send } from 'lucide-react';
@@ -24,6 +23,8 @@ import { Loading } from '@/components/ui/Loading';
 import { NewMailModal } from '@/components/mail/NewMailModal';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 interface AdminOrgParams {
     page: number;
@@ -38,8 +39,7 @@ interface AdminOrgParams {
 export default function OrganizationsPage() {
     const { user, token, loading } = useAuth();
     const { state, dispatch } = useGlobal();
-    const router = useRouter();
-    const searchParams = useSearchParams();
+    const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
 
     const { openViewModal } = useUI();
     const actionLoading = Object.keys(state.ui.processing).length > 0;
@@ -54,23 +54,24 @@ export default function OrganizationsPage() {
     const [initialTargetId, setInitialTargetId] = useState<string | undefined>(undefined);
     const [initialSubject, setInitialSubject] = useState<string | undefined>(undefined);
 
-    const [pageSize, setPageSize] = useState<number>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('edu-admin-orgs-limit');
-            return saved ? parseInt(saved, 10) : 10;
-        }
-        return 10;
-    });
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-admin-orgs-limit', 10);
+
+    const activeStatusTab = (getStringParam('status', 'ALL') as OrgStatus | 'ALL');
+    const page = getNumberParam('page', 1);
+    const searchQuery = getStringParam('search');
+    const sortBy = getStringParam('sortBy', 'name');
+    const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
+    const orgTypeFilter = getStringParam('type', 'ALL');
 
     // URL State
     const orgParams: AdminOrgParams = {
-        page: parseInt(searchParams.get('page') || '1', 10),
+        page,
         limit: pageSize,
-        search: searchParams.get('search') || '',
-        sortBy: searchParams.get('sortBy') || 'name',
-        sortOrder: (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc',
-        status: (searchParams.get('status') as OrgStatus | 'ALL') || 'ALL',
-        type: searchParams.get('type') || 'ALL',
+        search: searchQuery,
+        sortBy,
+        sortOrder,
+        status: activeStatusTab,
+        type: orgTypeFilter,
     };
 
     // SWR for organizations data - replaces usePaginatedData
@@ -82,28 +83,8 @@ export default function OrganizationsPage() {
         { data: Organization[]; totalPages: number; totalRecords: number; counts?: Record<string, number> }
     >(orgsKey);
 
-    const activeStatusTab = orgParams.status;
-    const page = orgParams.page || 1;
-    const searchQuery = orgParams.search || '';
-    const sortBy = orgParams.sortBy || 'name';
-    const sortOrder = orgParams.sortOrder || 'asc';
-    const orgTypeFilter = orgParams.type || 'ALL';
-
-    const updateQueryParams = (updates: Record<string, string | number | undefined>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '') {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`?${params.toString()}`, { scroll: false });
-    };
-
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
-        localStorage.setItem('edu-admin-orgs-limit', String(newSize));
         updateQueryParams({ page: 1 });
     };
 
@@ -302,15 +283,16 @@ export default function OrganizationsPage() {
                     <div className="flex flex-col gap-1 shrink-0 items-end">
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                             <button
+                                type="button"
                                 onClick={() => handleSendMail(row)}
                                 className="py-2 px-3 bg-card/5 border border-primary/20 hover:bg-primary/10 text-muted-foreground hover:text-primary rounded-lg transition-all cursor-pointer"
                                 title="Send Mail"
+                                aria-label={`Send mail to ${row.name}`}
                             >
                                 <Send className="w-4 h-4" />
                             </button>
                             <TableActions
                                 extraActions={getActions()}
-                                showLabels={window.innerWidth > 1440}
                             />
                         </div>
                     </div>
@@ -336,6 +318,12 @@ export default function OrganizationsPage() {
     }
 
     const activeFilters: ActiveFilter[] = [
+        ...(searchQuery ? [{
+            key: 'search',
+            label: 'Search',
+            value: searchQuery,
+            onRemove: () => updateQueryParams({ search: undefined, page: 1 }),
+        }] : []),
         ...(activeStatusTab !== 'ALL' ? [{
             key: 'status',
             label: 'Status',
@@ -434,6 +422,7 @@ export default function OrganizationsPage() {
             <PageHeader
                 title="Organizations"
                 description="Review organization access, verification state, and platform communications."
+                icon={Building2}
                 breadcrumbs={[
                     { label: 'Admin' },
                     { label: 'Organizations' },
@@ -541,6 +530,11 @@ export default function OrganizationsPage() {
                         maxHeight="100%"
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                        emptyTitle="No organizations found"
+                        emptyDescription={searchQuery || activeStatusTab !== 'ALL' || orgTypeFilter !== 'ALL'
+                            ? 'Adjust the filters to broaden the organization review queue.'
+                            : 'Organizations will appear here when they register on the platform.'}
+                        mobileDetailLimit={3}
                     />
                 </div>
             </ResourcePanel>

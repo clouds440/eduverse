@@ -707,6 +707,13 @@ Incremental execution:
 3. Apply to other complex flows based on value/risk.
 4. Leave compact modals intact.
 
+Execution pattern established:
+
+- Section editing is the first modal-to-page migration target.
+- Dedicated edit routes should preserve existing API payloads, mutation order, cache invalidation, and permission checks.
+- List/detail entry points should pass a safe `returnTo` route so cancel/save behavior respects where the user came from.
+- Keep destructive confirmations as modals; only move multi-step, multi-field, or selection-heavy flows to pages.
+
 Risk:
 
 - High. Flow migrations affect route history and user expectations.
@@ -770,6 +777,13 @@ Estimated impact:
 - UX: High
 - Maintainability: High
 - Performance: Medium
+
+Phase 7 execution status:
+
+- Completed: `/admin/logs`, `/admin/platform-admins`, `/admin/organizations`.
+- Completed: `/students`, `/teachers`, `/sections` through the earlier shared record-page migration.
+- Completed: `/courses`, `/cohorts`, `/academic-cycles` catch-up pass with shared page shell, URL query state, persisted page size, active filters, empty states, and mobile table-card limits.
+- Preserved: existing API calls, cache invalidation keys, role gates, confirm dialogs, and edit/create routes.
 
 ### Implementation Phase 8 - Academic, Attendance, And Student/Teacher Portals
 

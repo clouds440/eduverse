@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { CalendarDays, Clock, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ApiError, SectionSchedule, Section, Role } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { useAuth } from '@/context/AuthContext';
+import { Badge } from '@/components/ui/Badge';
 import { ModalForm } from '@/components/ui/ModalForm';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
-import { Clock, Plus, MapPin, CalendarDays, Pencil, Trash2 } from 'lucide-react';
 import { Loading } from '@/components/ui/Loading';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -30,23 +31,22 @@ interface SectionSchedulesProps {
     role: Role;
 }
 
+function getDayLabel(day: number) {
+    return DAY_OPTIONS.find((option) => option.value === String(day))?.label || 'Unknown';
+}
+
 export default memo(function SectionSchedules({ section, role }: SectionSchedulesProps) {
     const { token } = useAuth();
     const { state, dispatch } = useGlobal();
     const dispatchRef = useRef(dispatch);
-    useEffect(() => { dispatchRef.current = dispatch; }, [dispatch]);
 
     const [schedules, setSchedules] = useState<SectionSchedule[]>([]);
     const [fetching, setFetching] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [editingSchedule, setEditingSchedule] = useState<SectionSchedule | null>(null);
     const [deletingSchedule, setDeletingSchedule] = useState<SectionSchedule | null>(null);
-
-    // Form state
     const [formData, setFormData] = useState({
         day: '1',
         startTime: '09:00',
@@ -55,6 +55,10 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
     });
 
     const isManagerOrAdmin = role === Role.ORG_ADMIN || role === Role.ORG_MANAGER;
+
+    useEffect(() => {
+        dispatchRef.current = dispatch;
+    }, [dispatch]);
 
     const fetchSchedules = useCallback(async () => {
         if (!token) return;
@@ -74,25 +78,49 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         fetchSchedules();
     }, [fetchSchedules]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const openCreateModal = () => {
+        setEditingSchedule(null);
+        setFormData({
+            day: '1',
+            startTime: '09:00',
+            endTime: '10:00',
+            room: section.room || '',
+        });
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (schedule: SectionSchedule) => {
+        setEditingSchedule(schedule);
+        setFormData({
+            day: String(schedule.day),
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+            room: schedule.room || '',
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         if (!token) return;
 
+        const target = editingSchedule;
+        const processingId = target ? `schedule-edit-${target.id}` : 'schedule-create';
+
         try {
-            const data = {
+            dispatch({ type: 'UI_START_PROCESSING', payload: processingId });
+            const payload = {
                 day: parseInt(formData.day, 10),
                 startTime: formData.startTime,
                 endTime: formData.endTime,
                 room: formData.room || undefined,
             };
 
-            if (editingSchedule) {
-                dispatch({ type: 'UI_START_PROCESSING', payload: `schedule-edit-${editingSchedule.id}` });
-                await api.org.updateSchedule(section.id, editingSchedule.id, data, token);
+            if (target) {
+                await api.org.updateSchedule(section.id, target.id, payload, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Schedule updated successfully', type: 'success' } });
             } else {
-                dispatch({ type: 'UI_START_PROCESSING', payload: 'schedule-create' });
-                await api.org.createSchedule(section.id, data, token);
+                await api.org.createSchedule(section.id, payload, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Schedule added successfully', type: 'success' } });
             }
 
@@ -108,19 +136,20 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         } catch (err: unknown) {
             dispatch({
                 type: 'TOAST_ADD',
-                payload: { message: (err as ApiError)?.message || 'Error saving schedule', type: 'error' }
+                payload: { message: (err as ApiError)?.message || 'Error saving schedule', type: 'error' },
             });
         } finally {
-            dispatch({ type: 'UI_STOP_PROCESSING', payload: editingSchedule ? `schedule-edit-${editingSchedule.id}` : 'schedule-create' });
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: processingId });
         }
     };
 
     const handleDelete = async () => {
         if (!token || !deletingSchedule) return;
+        const target = deletingSchedule;
 
         try {
-            dispatch({ type: 'UI_START_PROCESSING', payload: `schedule-delete-${deletingSchedule.id}` });
-            await api.org.deleteSchedule(section.id, deletingSchedule.id, token);
+            dispatch({ type: 'UI_START_PROCESSING', payload: `schedule-delete-${target.id}` });
+            await api.org.deleteSchedule(section.id, target.id, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Schedule removed successfully', type: 'success' } });
             setIsDeleteDialogOpen(false);
             setDeletingSchedule(null);
@@ -128,37 +157,21 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         } catch (err: unknown) {
             dispatch({
                 type: 'TOAST_ADD',
-                payload: { message: (err as ApiError)?.message || 'Error deleting schedule', type: 'error' }
+                payload: { message: (err as ApiError)?.message || 'Error deleting schedule', type: 'error' },
             });
         } finally {
-            dispatch({ type: 'UI_STOP_PROCESSING', payload: `schedule-delete-${deletingSchedule.id}` });
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: `schedule-delete-${target.id}` });
         }
     };
 
-    const openEditModal = (schedule: SectionSchedule) => {
-        setEditingSchedule(schedule);
-        setFormData({
-            day: String(schedule.day),
-            startTime: schedule.startTime,
-            endTime: schedule.endTime,
-            room: schedule.room || '',
-        });
-        setIsModalOpen(true);
-    };
-
-    const openCreateModal = () => {
-        setEditingSchedule(null);
-        setFormData({
-            day: '1',
-            startTime: '09:00',
-            endTime: '10:00',
-            room: section.room || '',
-        });
-        setIsModalOpen(true);
-    };
-
     if (fetching && schedules.length === 0) {
-        return <div className="py-8 flex justify-center"><Loading size="md" /></div>;
+        return (
+            <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {[...Array(3)].map((_, index) => (
+                    <div key={index} className="h-32 min-w-0 animate-pulse rounded-lg border border-border/70 bg-muted/35" />
+                ))}
+            </div>
+        );
     }
 
     if (error) {
@@ -166,78 +179,90 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
     }
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                    {isManagerOrAdmin && (
-                        <Button onClick={openCreateModal} icon={Plus}>
-                            Add Schedule
-                        </Button>
-                    )}
+        <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                    <p className="text-sm font-black text-foreground">{schedules.length} schedule slots</p>
+                    <p className="break-words text-xs font-semibold text-muted-foreground">Weekly meeting times for this section.</p>
                 </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {schedules.length === 0 ? (
-                    <div className="col-span-full py-12 text-center text-muted-foreground/60 border border-dashed border-border rounded-xl">
-                        No schedules defined.
-                    </div>
-                ) : (
-                    schedules.map((schedule) => {
-                        const dayLabel = DAY_OPTIONS.find(d => d.value === String(schedule.day))?.label || 'Unknown';
-                        return (
-                            <div key={schedule.id} className="bg-card text-card-foreground border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                                <div className="flex items-center justify-between border-b border-border/50 pb-3 mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-2 bg-primary/10 rounded-lg">
-                                            <CalendarDays className="w-4 h-4 text-primary" />
-                                        </div>
-                                        <span className="font-bold text-lg">{dayLabel}</span>
-                                    </div>
-                                    {isManagerOrAdmin && (
-                                        <div className="flex items-center gap-1">
-                                            <button
-                                                onClick={() => openEditModal(schedule)}
-                                                className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-                                                title="Edit Slot"
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button
-                                                onClick={() => { setDeletingSchedule(schedule); setIsDeleteDialogOpen(true); }}
-                                                className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                                                title="Remove Slot"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-3 text-muted-foreground">
-                                        <Clock className="w-4 h-4 text-primary" />
-                                        <span className="font-medium text-sm">{schedule.startTime} - {schedule.endTime}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-muted-foreground">
-                                        <MapPin className="w-4 h-4 text-primary" />
-                                        <span className="font-medium text-sm">{schedule.room || section.room || 'TBD'}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })
+                {isManagerOrAdmin && (
+                    <Button onClick={openCreateModal} icon={Plus} className="w-full sm:w-auto">
+                        Add Schedule
+                    </Button>
                 )}
             </div>
 
+            {schedules.length === 0 ? (
+                <div className="min-w-0 rounded-lg border border-dashed border-border/70 bg-background/60 px-4 py-10 text-center sm:px-6">
+                    <CalendarDays className="mx-auto h-9 w-9 text-muted-foreground/45" />
+                    <p className="mt-3 text-sm font-black text-foreground">No schedule slots defined</p>
+                    <p className="mt-1 text-xs font-semibold text-muted-foreground">Add recurring class times so attendance and timetable views stay aligned.</p>
+                </div>
+            ) : (
+                <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {schedules.map((schedule) => (
+                        <article key={schedule.id} className="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-card p-3 shadow-sm sm:p-4">
+                            <div className="flex min-w-0 items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <Badge variant="primary" size="sm" icon={CalendarDays}>
+                                        {getDayLabel(schedule.day)}
+                                    </Badge>
+                                    <p className="mt-3 text-lg font-black leading-tight text-foreground">
+                                        {schedule.startTime} - {schedule.endTime}
+                                    </p>
+                                </div>
+                                {isManagerOrAdmin && (
+                                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => openEditModal(schedule)}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/35 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                            aria-label={`Edit ${getDayLabel(schedule.day)} schedule`}
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setDeletingSchedule(schedule);
+                                                setIsDeleteDialogOpen(true);
+                                            }}
+                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-danger/25 text-danger transition-colors hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30"
+                                            aria-label={`Delete ${getDayLabel(schedule.day)} schedule`}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-4 grid min-w-0 gap-2">
+                                <div className="flex min-w-0 items-center gap-2 rounded-md border border-border/60 bg-background/70 px-3 py-2 text-sm font-semibold text-foreground">
+                                    <Clock className="h-4 w-4 shrink-0 text-primary" />
+                                    <span className="min-w-0 truncate">{schedule.startTime} to {schedule.endTime}</span>
+                                </div>
+                                <div className="flex min-w-0 items-center gap-2 rounded-md border border-border/60 bg-background/70 px-3 py-2 text-sm font-semibold text-foreground">
+                                    <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                                    <span className="min-w-0 truncate">{schedule.room || section.room || 'Room TBD'}</span>
+                                </div>
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            )}
+
             <ModalForm
                 isOpen={isModalOpen}
-                onClose={() => { setIsModalOpen(false); setEditingSchedule(null); }}
-                title={editingSchedule ? "Edit Section Schedule" : "Add Section Schedule"}
+                onClose={() => {
+                    setIsModalOpen(false);
+                    setEditingSchedule(null);
+                }}
+                title={editingSchedule ? 'Edit Section Schedule' : 'Add Section Schedule'}
                 onSubmit={handleSubmit}
                 isSubmitting={state.ui.processing[editingSchedule ? `schedule-edit-${editingSchedule.id}` : 'schedule-create']}
                 loadingId={editingSchedule ? `schedule-edit-${editingSchedule.id}` : 'schedule-create'}
-                submitText={editingSchedule ? "Update Schedule" : "Save Schedule"}
-                showSubmit={true}
+                submitText={editingSchedule ? 'Update Schedule' : 'Save Schedule'}
+                showSubmit
             >
                 <div className="space-y-4 py-2">
                     <div className="space-y-2">
@@ -245,12 +270,12 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                         <CustomSelect
                             options={DAY_OPTIONS}
                             value={formData.day}
-                            onChange={(val) => setFormData({ ...formData, day: val })}
+                            onChange={(value) => setFormData({ ...formData, day: value })}
                             placeholder="Select Day"
                             required
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <Label htmlFor="startTime">Start Time</Label>
                             <Input
@@ -258,7 +283,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                 type="time"
                                 required
                                 value={formData.startTime}
-                                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                                onChange={(event) => setFormData({ ...formData, startTime: event.target.value })}
                             />
                         </div>
                         <div className="space-y-2">
@@ -268,7 +293,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                 type="time"
                                 required
                                 value={formData.endTime}
-                                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                                onChange={(event) => setFormData({ ...formData, endTime: event.target.value })}
                             />
                         </div>
                     </div>
@@ -279,7 +304,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                             type="text"
                             placeholder="Override section room"
                             value={formData.room}
-                            onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                            onChange={(event) => setFormData({ ...formData, room: event.target.value })}
                             icon={MapPin}
                         />
                     </div>

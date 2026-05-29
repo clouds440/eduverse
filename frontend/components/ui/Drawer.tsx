@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect, ReactNode, useId } from 'react';
-import { Filter, LucideIcon, X } from 'lucide-react';
+import { Filter, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './Button';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
+import { useUI } from '@/context/UIContext';
 
 interface DrawerProps {
     children: ReactNode;
@@ -27,6 +28,8 @@ export function Drawer({
     const drawerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const drawerId = useId();
+    const { isDesktop, mounted } = useUI();
+    const effectivePosition = mounted && isDesktop ? 'right' : position;
 
     useBackStackEntry({
         enabled: isOpen,
@@ -84,36 +87,17 @@ export function Drawer({
             {isOpen && (
                 <>
                     <div
-                        className="fixed inset-0 z-900 bg-[var(--app-surface-overlay)] backdrop-blur-sm md:hidden"
-                        onClick={() => setIsOpen(false)}
-                        aria-hidden="true"
-                    />
-                    <div
                         id={drawerId}
                         ref={drawerRef}
                         className={cn(
-                            'fixed inset-x-0 bottom-0 z-999 max-h-[85dvh] overflow-y-auto rounded-t-lg border border-border bg-card p-4 shadow-xl custom-scrollbar',
-                            'md:absolute md:bottom-auto md:top-full md:mt-2 md:max-h-[min(70vh,32rem)] md:min-w-72 md:max-w-sm md:rounded-lg',
-                            position === 'right' ? 'md:right-0' : 'md:left-0',
+                            'absolute top-full z-999 mt-2 w-[calc(100vw-2rem)] max-w-sm overflow-y-auto rounded-lg border border-border bg-card p-4 shadow-xl custom-scrollbar',
+                            'max-h-[min(70dvh,32rem)] sm:w-80',
+                            effectivePosition === 'right' ? 'right-0' : 'left-0',
                             drawerClassName
                         )}
                         role="dialog"
                         aria-label={label}
                     >
-                        <div className="mb-3 flex items-center justify-between gap-3 md:hidden">
-                            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                                <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
-                                {label}
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setIsOpen(false)}
-                                className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                                aria-label={`Close ${label}`}
-                            >
-                                <X className="h-4 w-4" aria-hidden="true" />
-                            </button>
-                        </div>
                         {children}
                     </div>
                 </>

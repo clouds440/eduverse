@@ -7,6 +7,7 @@ import { CheckCircle, Users, ChevronRight, BookOpen, Rows3, Search } from 'lucid
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/Input';
+import { PageHeader } from '@/components/ui/PageShell';
 import { useMemo, useState } from 'react';
 
 function SectionRowsSkeleton() {
@@ -58,28 +59,23 @@ export default function AttendanceLandingPage() {
     }
 
     return (
-        <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 pb-8">
-            <div className="flex flex-col gap-4 p-2 lg:flex-row lg:items-end lg:justify-between lg:p-0">
-                <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-card text-primary shadow-sm md:h-14 md:w-14">
-                        <CheckCircle className="h-6 w-6 md:h-7 md:w-7" />
+        <div className="mx-auto flex w-full flex-1 flex-col gap-6 pb-8">
+            <PageHeader
+                title="Attendance Portal"
+                description="Open a section workbook to mark daily attendance or review trends."
+                icon={CheckCircle}
+                actions={(
+                    <div className="relative w-full sm:w-80">
+                        <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            placeholder="Search sections..."
+                            value={searchTerm}
+                            onChange={(event) => setSearchTerm(event.target.value)}
+                            className="h-11 border-border/60 bg-background/70 pl-10 text-sm font-medium"
+                        />
                     </div>
-                    <div className="min-w-0">
-                        <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">Attendance Portal</h1>
-                        <p className="mt-1 text-sm font-semibold text-muted-foreground">Open a section workbook to mark daily attendance or review trends.</p>
-                    </div>
-                </div>
-
-                <div className="relative w-full sm:max-w-xs">
-                    <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                        placeholder="Search sections..."
-                        value={searchTerm}
-                        onChange={(event) => setSearchTerm(event.target.value)}
-                        className="h-11 border-border/60 bg-background/70 pl-10 text-sm font-medium"
-                    />
-                </div>
-            </div>
+                )}
+            />
 
             {fetching && sections.length === 0 ? (
                 <SectionRowsSkeleton />

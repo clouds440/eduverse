@@ -69,6 +69,8 @@ const ROOT_SECTIONS: Record<string, string> = {
     'change-password': 'Account',
 };
 
+const ACTION_SEGMENTS = ['add', 'create', 'edit'];
+
 function cleanPath(pathname: string) {
     return pathname.split('?')[0].split('#')[0] || '/';
 }
@@ -88,6 +90,13 @@ function humanizeSegment(segment: string) {
         .join(' ');
 }
 
+function singularize(label: string) {
+    if (label === 'Faculty') return label;
+    if (label.endsWith('ies')) return `${label.slice(0, -3)}y`;
+    if (label.endsWith('s')) return label.slice(0, -1);
+    return label;
+}
+
 export function getRouteOrientation(pathname: string): RouteOrientation {
     const path = cleanPath(pathname);
     const segments = path.split('/').filter(Boolean);
@@ -104,9 +113,12 @@ export function getRouteOrientation(pathname: string): RouteOrientation {
     }
 
     const labels = segments.map(humanizeSegment);
-    const title = labels[labels.length - 1] || 'Overview';
+    const actionSegment = segments.find((segment) => ACTION_SEGMENTS.includes(segment));
+    const title = actionSegment
+        ? `${humanizeSegment(actionSegment)} ${singularize(humanizeSegment(rootSegment))}`
+        : labels[labels.length - 1] || 'Overview';
     const section = ROOT_SECTIONS[rootSegment] || labels[0] || 'Dashboard';
-    const breadcrumbs: RouteBreadcrumb[] = segments.map((segment, index) => {
+    const pathBreadcrumbs: RouteBreadcrumb[] = segments.map((segment, index) => {
         const hrefSegments = segments.slice(0, index + 1);
         const isLast = index === segments.length - 1;
         const label = humanizeSegment(segment);
@@ -116,6 +128,13 @@ export function getRouteOrientation(pathname: string): RouteOrientation {
             href: isLast || isLikelyRecordId(segment) ? undefined : `/${hrefSegments.join('/')}`,
         };
     });
+    const contextLabel = rootSegment === 'admin' ? 'Platform' : 'Organization';
+    const shouldIncludeSection = section !== contextLabel && section !== labels[0];
+    const breadcrumbs: RouteBreadcrumb[] = [
+        { label: contextLabel },
+        ...(shouldIncludeSection ? [{ label: section }] : []),
+        ...pathBreadcrumbs,
+    ];
 
     return {
         section,

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Users, Mail, MessageSquare, Calendar, UserPlus, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -17,7 +16,10 @@ import { Button } from '@/components/ui/Button';
 import PasswordStrength from '@/components/ui/PasswordStrength';
 import { Input } from '@/components/ui/Input';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { Loading } from '@/components/ui/Loading';
+import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 interface PlatformAdminParams {
     page: number;
@@ -29,25 +31,16 @@ interface PlatformAdminParams {
 
 export default function PlatformAdminsPage() {
     const { user, token, loading } = useAuth();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const pathname = usePathname();
+    const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const { state, dispatch } = useGlobal();
     const actionLoading = Object.keys(state.ui.processing).length > 0;
 
     // URL State
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const searchQuery = searchParams.get('search') || '';
-    const sortBy = searchParams.get('sortBy') || 'name';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
-
-    const [pageSize, setPageSize] = useState<number>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('edu-admin-admins-limit');
-            return saved ? parseInt(saved, 10) : 10;
-        }
-        return 10;
-    });
+    const page = getNumberParam('page', 1);
+    const searchQuery = getStringParam('search');
+    const sortBy = getStringParam('sortBy', 'name');
+    const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-admin-admins-limit', 10);
 
     const adminParams: PlatformAdminParams = {
         page,
@@ -73,21 +66,8 @@ export default function PlatformAdminsPage() {
 
     const paginatedData = fetchedData || null;
 
-    const updateQueryParams = (updates: Record<string, string | number | undefined>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '') {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
-
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
-        localStorage.setItem('edu-admin-admins-limit', String(newSize));
         updateQueryParams({ page: 1 });
     };
 
@@ -170,11 +150,19 @@ export default function PlatformAdminsPage() {
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Failed to delete admin', type: 'error' } });
         } finally {
-            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'platform-admin-delete' });
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: `platform-admin-delete-${operatingAdmin.id}` });
         }
     };
 
     const platformAdmins = paginatedData?.data || [];
+    const activeFilters: ActiveFilter[] = [
+        ...(searchQuery ? [{
+            key: 'search',
+            label: 'Search',
+            value: searchQuery,
+            onRemove: () => updateQueryParams({ search: undefined, page: 1 }),
+        }] : []),
+    ];
 
     const columns = useMemo<Column<PlatformAdmin>[]>(() => [
         {
@@ -242,11 +230,7 @@ export default function PlatformAdminsPage() {
     ], [user?.id, actionLoading, operatingAdmin]);
 
     if (loading || (!user && !loading)) {
-        return (
-            <div className="flex flex-1 items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-        );
+        return <Loading className="h-full" text="Loading platform admins..." size="lg" icon={Users} />;
     }
 
     if (fetchError && !fetchedData) {
@@ -270,6 +254,7 @@ export default function PlatformAdminsPage() {
             <PageHeader
                 title="Platform Admins"
                 description="Manage platform administrators without changing role or security flows."
+                icon={Users}
                 breadcrumbs={[
                     { label: 'Admin' },
                     { label: 'Platform Admins' },
@@ -281,8 +266,8 @@ export default function PlatformAdminsPage() {
                 ) : undefined}
             />
             <ResourcePanel>
-                <div className="p-1 flex items-center justify-between gap-1">
-                    <div className="flex-1 max-w-xl">
+                <div className="flex flex-col gap-3 border-b border-border/60 bg-card/80 p-3 sm:p-4 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0 flex-1 md:max-w-xl">
                         <SearchBar
                             value={searchQuery}
                             onChange={(val) => updateQueryParams({ search: val, page: 1 })}
@@ -300,6 +285,8 @@ export default function PlatformAdminsPage() {
                     </Button>
                 </div>
 
+                <ResourceToolbar activeFilters={activeFilters} />
+
                 <div className="flex-1 min-h-0">
                     <DataTable
                         columns={columns}
@@ -316,6 +303,9 @@ export default function PlatformAdminsPage() {
                         maxHeight="100%"
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                        emptyTitle="No platform admins found"
+                        emptyDescription={searchQuery ? 'Clear or adjust the search to broaden the result set.' : 'Create a platform admin to delegate operations safely.'}
+                        mobileDetailLimit={3}
                     />
                 </div>
             </ResourcePanel>

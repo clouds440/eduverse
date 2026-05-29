@@ -13,6 +13,7 @@ import { Role } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { mutate } from 'swr';
+import { PageHeader } from '@/components/ui/PageShell';
 
 export default function CreateCoursePage() {
     const { token, user } = useAuth();
@@ -59,15 +60,12 @@ export default function CreateCoursePage() {
 
     return (
         <div className="flex flex-col w-full max-w-6xl py-10 mx-auto animate-in fade-in duration-700">
-            <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-4 px-2">
-                <div className="p-3 bg-primary/10 max-w-fit rounded-xl border border-primary/20 shadow-lg shadow-primary/5">
-                    <LibraryBig className="w-8 h-8 text-primary" />
-                </div>
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-foreground leading-tight">Create New Course</h1>
-                    <p className="text-muted-foreground mt-1 text-xs md:text-sm font-bold tracking-widest uppercase opacity-70">Expand your institution&apos;s academic catalog</p>
-                </div>
-            </div>
+            <PageHeader
+                title="Create New Course"
+                description="Expand your institution's academic catalog."
+                icon={LibraryBig}
+                className="mb-8"
+            />
 
             <div className="flex flex-col lg:flex-row gap-8 items-start">
                 {/* Left Side: Info Card */}

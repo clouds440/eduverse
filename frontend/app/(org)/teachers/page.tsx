@@ -272,6 +272,7 @@ export default function TeachersPage() {
             <PageHeader
                 title={isDeletedView ? 'Deleted Faculty' : 'Faculty'}
                 description="Search and maintain faculty records while preserving existing role and restore flows."
+                icon={UserPlus}
                 breadcrumbs={[
                     { label: 'Organization' },
                     { label: isDeletedView ? 'Deleted Faculty' : 'Faculty' },

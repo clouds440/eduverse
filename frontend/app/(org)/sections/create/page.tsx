@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { api } from '@/lib/api';
+import { PageHeader } from '@/components/ui/PageShell';
 
 export default function CreateSectionPage() {
     const { token, user } = useAuth();
@@ -111,15 +112,12 @@ export default function CreateSectionPage() {
 
     return (
         <div className="flex flex-col w-full max-w-6xl py-10 mx-auto animate-in fade-in duration-700">
-            <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-4 px-2">
-                <div className="p-3 bg-primary/10 rounded-xl border border-primary/20 shadow-lg shadow-primary/5">
-                    <Layers className="w-8 h-8 text-primary" />
-                </div>
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-foreground leading-tight">Create New Section</h1>
-                    <p className="text-muted-foreground mt-1 text-xs md:text-sm font-bold tracking-widest uppercase opacity-70">Define a new offering for your academic catalog</p>
-                </div>
-            </div>
+            <PageHeader
+                title="Create New Section"
+                description="Define a new offering for your academic catalog."
+                icon={Layers}
+                className="mb-8"
+            />
 
             <div className="flex flex-col lg:flex-row gap-8 items-start">
                 {/* Left Side: Info Card */}

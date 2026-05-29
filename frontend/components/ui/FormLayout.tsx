@@ -5,6 +5,7 @@ import { LucideIcon, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './Button';
 import { Label } from './Label';
+import { PageHeader } from './PageShell';
 
 export const FORM_INPUT_CLASS = 'h-12 border-border/60 bg-background/70 font-medium';
 export const FORM_READONLY_INPUT_CLASS = 'h-12 border-border/60 bg-muted/40 font-medium opacity-70 cursor-not-allowed';
@@ -27,15 +28,7 @@ interface FormPageHeaderProps {
 
 export function FormPageHeader({ title, description, icon: Icon, className }: FormPageHeaderProps) {
     return (
-        <div className={cn('flex items-start gap-4 p-2 lg:p-0', className)}>
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-card text-primary shadow-sm md:h-14 md:w-14">
-                <Icon className="h-6 w-6 md:h-7 md:w-7" />
-            </div>
-            <div className="min-w-0">
-                <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">{title}</h1>
-                <p className="mt-1 text-sm font-semibold text-muted-foreground">{description}</p>
-            </div>
-        </div>
+        <PageHeader title={title} description={description} icon={Icon} className={className} />
     );
 }
 

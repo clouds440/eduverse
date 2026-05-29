@@ -17,6 +17,7 @@ import { Loading } from '@/components/ui/Loading';
 import { NotFound } from '@/components/NotFound';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
+import { RouteBreadcrumbs } from '@/components/ui/PageShell';
 
 export default function AssessmentDetailPage() {
     const { token, user } = useAuth();
@@ -77,6 +78,7 @@ export default function AssessmentDetailPage() {
 
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
+                        <RouteBreadcrumbs className="mb-2" />
                         <div className="flex items-center gap-3 mb-3">
                             <span className="px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 text-[10px] font-black tracking-widest rounded-lg">
                                 {assessment.type}

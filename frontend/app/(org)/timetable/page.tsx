@@ -7,6 +7,7 @@ import { TimetableEntry, Role } from '@/types';
 import { Clock, MapPin } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { PageHeader } from '@/components/ui/PageShell';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const ACADEMIC_DAYS = [1, 2, 3, 4, 5]; // Mon - Fri
@@ -81,16 +82,12 @@ export default function TimetablePage() {
 
     if (loading && entries.length === 0) return (
         <div className="flex flex-col h-full w-full space-y-6 pb-6">
+            <PageHeader
+                title="Weekly Timetable"
+                description="Comprehensive visualization of instructional hours and room allocations."
+                icon={Clock}
+            />
             <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl border border-border p-4 md:p-6 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="mb-6 border-b border-border/50 pb-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <Skeleton className="w-6 h-1 rounded-full" />
-                        <Skeleton className="h-3 w-32" />
-                    </div>
-                    <Skeleton className="h-10 w-64 mb-2" />
-                    <Skeleton className="h-4 w-96" />
-                </div>
-
                 <div className="flex-1 overflow-auto pr-2 scrollbar-hide border border-border/50 rounded-xl bg-muted/5 p-4">
                     <div className="min-w-200">
                         {/* Header Skeleton */}
@@ -147,16 +144,17 @@ export default function TimetablePage() {
 
     return (
         <div className="flex flex-col h-full w-full space-y-6 pb-6">
+            <PageHeader
+                title="Weekly Timetable"
+                description="Comprehensive visualization of instructional hours and room allocations."
+                icon={Clock}
+                meta={(
+                    <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] font-black tracking-widest text-primary">
+                        Academic Schedule
+                    </span>
+                )}
+            />
             <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl border border-border p-4 md:p-6 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="mb-6 border-b border-border/50 pb-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <span className="w-6 h-1 bg-primary rounded-full"></span>
-                        <span className="text-[10px] font-black tracking-[0.3em] text-primary">Academic Schedule</span>
-                    </div>
-                    <h1 className="text-2xl md:text-4xl font-black tracking-tighter text-foreground leading-none">Weekly Timetable</h1>
-                    <p className="text-muted-foreground mt-2 text-sm font-bold tracking-widest max-w-md">Comprehensive visualization of instructional hours and room allocations.</p>
-                </div>
-
                 <div className="flex-1 overflow-auto pr-2 scrollbar-hide border border-border/50 rounded-xl bg-muted/5 p-4">
                     <div className="min-w-200">
                         {/* Header */}

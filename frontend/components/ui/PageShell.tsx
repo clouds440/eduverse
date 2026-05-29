@@ -2,8 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ChevronRight, X } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { ChevronRight, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getRouteOrientation } from '@/lib/routeOrientation';
 
 interface PageShellProps {
     children: React.ReactNode;
@@ -13,6 +15,7 @@ interface PageShellProps {
 interface PageHeaderProps {
     title: string;
     description?: string;
+    icon?: LucideIcon;
     meta?: React.ReactNode;
     actions?: React.ReactNode;
     breadcrumbs?: PageBreadcrumb[];
@@ -39,6 +42,11 @@ interface ResourceToolbarProps {
     className?: string;
 }
 
+interface RouteBreadcrumbsProps {
+    breadcrumbs?: PageBreadcrumb[];
+    className?: string;
+}
+
 export function PageShell({ children, className }: PageShellProps) {
     return (
         <div className={cn('flex h-full w-full min-w-0 flex-col gap-3 overflow-hidden', className)}>
@@ -47,53 +55,75 @@ export function PageShell({ children, className }: PageShellProps) {
     );
 }
 
-export function PageHeader({ title, description, meta, actions, breadcrumbs = [], className }: PageHeaderProps) {
+export function RouteBreadcrumbs({ breadcrumbs, className }: RouteBreadcrumbsProps) {
+    const pathname = usePathname();
+    const resolvedBreadcrumbs = breadcrumbs ?? getRouteOrientation(pathname || '/').breadcrumbs;
+
+    if (resolvedBreadcrumbs.length === 0) return null;
+
     return (
-        <header className={cn('flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between', className)}>
-            <div className="min-w-0">
-                {breadcrumbs.length > 0 && (
-                    <nav aria-label="Breadcrumb" className="mb-1.5 min-w-0">
-                        <ol className="flex min-w-0 flex-wrap items-center gap-1 text-xs font-semibold text-muted-foreground">
-                            {breadcrumbs.map((item, index) => {
-                                const isLast = index === breadcrumbs.length - 1;
-                                return (
-                                    <li key={`${item.label}-${index}`} className="flex min-w-0 items-center gap-1">
-                                        {item.href && !isLast ? (
-                                            <Link href={item.href} className="truncate transition-colors hover:text-foreground">
-                                                {item.label}
-                                            </Link>
-                                        ) : (
-                                            <span className={cn('truncate', isLast && 'text-foreground')}>
-                                                {item.label}
-                                            </span>
-                                        )}
-                                        {!isLast && <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-                                    </li>
-                                );
-                            })}
-                        </ol>
-                    </nav>
-                )}
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <h1 className="truncate text-xl font-semibold leading-tight text-foreground sm:text-2xl">
-                        {title}
-                    </h1>
-                    {meta}
+        <nav aria-label="Breadcrumb" className={cn('min-w-0', className)}>
+            <ol className="flex min-w-0 flex-wrap items-center gap-1 text-xs font-semibold text-muted-foreground">
+                {resolvedBreadcrumbs.map((item, index) => {
+                    const isLast = index === resolvedBreadcrumbs.length - 1;
+                    return (
+                        <li key={`${item.label}-${index}`} className="flex min-w-0 items-center gap-1">
+                            {item.href && !isLast ? (
+                                <Link href={item.href} className="truncate transition-colors hover:text-foreground">
+                                    {item.label}
+                                </Link>
+                            ) : (
+                                <span className={cn('truncate', isLast && 'text-foreground')}>
+                                    {item.label}
+                                </span>
+                            )}
+                            {!isLast && <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                        </li>
+                    );
+                })}
+            </ol>
+        </nav>
+    );
+}
+
+export function PageHeader({ title, description, icon: Icon, meta, actions, breadcrumbs, className }: PageHeaderProps) {
+    return (
+        <header className={cn('shrink-0 rounded-lg border border-border bg-card/80 p-2 shadow-xl backdrop-blur-2xl md:p-3 print:hidden', className)}>
+            <div className="flex min-w-0 flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                    {Icon && (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary shadow-inner">
+                            <Icon className="h-6 w-6" aria-hidden="true" />
+                        </div>
+                    )}
+                    <div className="min-w-0">
+                        <RouteBreadcrumbs breadcrumbs={breadcrumbs} className="mb-1.5" />
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-foreground">
+                                {title}
+                            </h1>
+                            {meta}
+                        </div>
+                        {description && (
+                            <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-muted-foreground">
+                                {description}
+                            </p>
+                        )}
+                    </div>
                 </div>
-                {description && (
-                    <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                        {description}
-                    </p>
+                {actions && (
+                    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-end md:w-auto md:items-center md:justify-end">
+                        {actions}
+                    </div>
                 )}
             </div>
-            {actions && <div className="shrink-0">{actions}</div>}
         </header>
     );
 }
 
 export function ResourcePanel({ children, className }: PageShellProps) {
     return (
-        <section className={cn('flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm', className)}>
+        <section className={cn('flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm', className)}>
             {children}
         </section>
     );

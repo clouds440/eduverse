@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Wallet, ListTree, Receipt, FileText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Role } from '@/types';
+import { PageHeader } from '@/components/ui/PageShell';
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -21,20 +22,16 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
     ];
 
     return (
-        <div className="flex flex-col h-full bg-theme-bg">
-            <div className="bg-card border-b border-border shrink-0 p-4 pb-0 space-y-4">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                        <Wallet className="w-6 h-6 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-black text-card-foreground tracking-tight">Financial Ledger</h1>
-                        <p className="text-sm text-muted-foreground font-medium">Manage agreements, billing, and transactions.</p>
-                    </div>
-                </div>
+        <div className="flex flex-col h-full">
+            <div className="shrink-0 space-y-3">
+                <PageHeader
+                    title="Financial Ledger"
+                    description="Manage agreements, billing, and transactions."
+                    icon={Wallet}
+                />
 
                 {/* Sub Navigation */}
-                <div className="flex space-x-1 overflow-x-auto scrollbar-none pt-2">
+                <div className="flex space-x-1 overflow-x-auto rounded-lg border border-border bg-card/80 px-3 pt-2 shadow-sm scrollbar-none">
                     {tabs.filter(t => !t.hidden).map((tab) => {
                         const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
                         return (
@@ -56,7 +53,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar relative">
+            <div className="flex-1 overflow-y-auto pt-3 custom-scrollbar relative">
                 {children}
             </div>
         </div>

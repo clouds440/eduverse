@@ -1,25 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import useSWR, { mutate } from 'swr';
+import { BookOpen, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { Plus, BookOpen } from 'lucide-react';
-import { DataTable } from '@/components/ui/DataTable';
+import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
-import { ModalForm } from '@/components/ui/ModalForm';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { SearchBar } from '@/components/ui/SearchBar';
+import { matchesCacheKeyPrefix } from '@/lib/swr';
+import { ApiError, Course, Role } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Course, Role, ApiError } from '@/types';
-import { TableActions } from '@/components/ui/TableActions';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DataTable, Column } from '@/components/ui/DataTable';
+import { Drawer } from '@/components/ui/Drawer';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { useGlobal } from '@/context/GlobalContext';
-import useSWR, { mutate } from 'swr';
-import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { ModalForm } from '@/components/ui/ModalForm';
+import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { TableActions } from '@/components/ui/TableActions';
+import { Textarea } from '@/components/ui/Textarea';
 import { Toggle } from '@/components/ui/Toggle';
-import { Drawer } from '@/components/ui/Drawer';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 interface CourseParams {
     page: number;
@@ -33,26 +37,16 @@ interface CourseParams {
 export default function CoursesPage() {
     const { token, user } = useAuth();
     const { state, dispatch } = useGlobal();
+    const router = useRouter();
+    const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const isProcessing = state.ui.processing['course-edit'];
 
-    const pathname = usePathname();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-
-    // Redundant paginatedData state removed
-    // URL State
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const searchTerm = searchParams.get('search') || '';
-    const sortBy = searchParams.get('sortBy') || 'name';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
-    const showOnlyMyCourses = searchParams.get('my') === 'true';
-    const [pageSize, setPageSize] = useState<number>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('edu-courses-limit');
-            return saved ? parseInt(saved, 10) : 10;
-        }
-        return 10;
-    });
+    const page = getNumberParam('page', 1);
+    const searchTerm = getStringParam('search');
+    const sortBy = getStringParam('sortBy', 'name');
+    const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
+    const showOnlyMyCourses = getBooleanParam('my');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-courses-limit', 10);
 
     const courseParams: CourseParams = {
         page,
@@ -60,51 +54,47 @@ export default function CoursesPage() {
         search: searchTerm,
         sortBy,
         sortOrder,
-        my: user?.role === Role.TEACHER ? true : (showOnlyMyCourses || undefined)
+        my: user?.role === Role.TEACHER ? true : (showOnlyMyCourses || undefined),
     };
 
-    // SWR for courses data - replaces usePaginatedData
     const coursesKey = token ? ['courses', courseParams] as const : null;
     const { data: fetchedData, isLoading: isFetching, error: coursesError, mutate: mutateCourses } = useSWR<
         { data: Course[]; totalPages: number; totalRecords: number }
     >(coursesKey);
 
-    useEffect(() => {
-        if (user && user.role === Role.STUDENT) {
-            router.replace(`/students/${user.id}`);
-        }
-    }, [user, router, pathname]);
-
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
     const [editFormData, setEditFormData] = useState({ name: '', description: '' });
-
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
 
-    const updateQueryParams = (updates: Record<string, string | number | undefined | boolean>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '' || value === false) {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
+    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+    const isTeacher = user?.role === Role.TEACHER;
+
+    useEffect(() => {
+        if (user?.role === Role.STUDENT) {
+            router.replace(`/students/${user.id}`);
+        }
+    }, [router, user]);
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
-        localStorage.setItem('edu-courses-limit', String(newSize));
         updateQueryParams({ page: 1 });
     };
 
-    // We no longer need fetchCourses locally as it's handled by the hook
+    const openCourseModal = (course: Course) => {
+        setEditingCourse(course);
+        setEditFormData({
+            name: course.name,
+            description: course.description || '',
+        });
+        setEditModalOpen(true);
+    };
 
-    const handleEditSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleEditSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         if (!editingCourse || !token) return;
+
         dispatch({ type: 'UI_START_PROCESSING', payload: 'course-edit' });
         try {
             await api.org.updateCourse(editingCourse.id, editFormData, token);
@@ -123,6 +113,7 @@ export default function CoursesPage() {
 
     const handleDeleteConfirm = async () => {
         if (!deletingCourse || !token) return;
+
         try {
             await api.org.deleteCourse(deletingCourse.id, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Course deleted successfully', type: 'success' } });
@@ -136,144 +127,154 @@ export default function CoursesPage() {
         }
     };
 
-    // Redundant courses variable removed. Using fetchedData directly.
+    const activeFilters: ActiveFilter[] = [
+        ...(searchTerm ? [{
+            key: 'search',
+            label: 'Search',
+            value: searchTerm,
+            onRemove: () => updateQueryParams({ search: undefined, page: 1 }),
+        }] : []),
+        ...(showOnlyMyCourses ? [{
+            key: 'my',
+            label: 'Scope',
+            value: 'My courses',
+            onRemove: () => updateQueryParams({ my: undefined, page: 1 }),
+        }] : []),
+    ];
 
-    const columns = [
+    const columns = useMemo<Column<Course>[]>(() => [
         {
             header: 'Course Name',
             sortable: true,
             sortKey: 'name',
-            accessor: (row: Course) => (
-                <div className="flex flex-col">
-                    <span className="font-semibold text-card-foreground">{row.name}</span>
+            accessor: (row) => (
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
+                        <BookOpen className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-foreground">{row.name}</p>
+                        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">Course record</p>
+                    </div>
                 </div>
-            )
+            ),
         },
         {
             header: 'Description',
             sortable: true,
             sortKey: 'description',
-            accessor: (row: Course) => row.description || <span className="text-muted-foreground/50 italic">No description</span>
+            accessor: (row) => row.description || <span className="text-muted-foreground/50 italic">No description</span>,
         },
         {
             header: 'Last Updated',
             sortable: true,
             sortKey: 'updatedAt',
-            accessor: (row: Course) => (
+            accessor: (row) => (
                 <div className="flex flex-col">
-                    <span className="font-medium text-card-foreground/80">
-                        {row.updatedBy || 'System'}
-                    </span>
-                    <span className="text-xs text-muted-foreground/40">
+                    <span className="font-medium text-card-foreground/80">{row.updatedBy || 'System'}</span>
+                    <span className="text-xs text-muted-foreground/50">
                         {row.updatedAt ? new Date(row.updatedAt).toLocaleString() : 'Never'}
                     </span>
                 </div>
-            )
+            ),
         },
         {
             header: 'Actions',
-            width: 210,
-            accessor: (row: Course) => {
-                const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
-                const isTeacher = user?.role === Role.TEACHER;
-
-                return (
-                    <TableActions
-                        onEdit={isAdmin ? () => {
-                            setEditingCourse(row);
-                            setEditFormData({
-                                name: row.name,
-                                description: row.description || ''
-                            });
-                            setEditModalOpen(true);
-                        } : undefined}
-                        onView={isTeacher ? () => {
-                            setEditingCourse(row);
-                            setEditFormData({
-                                name: row.name,
-                                description: row.description || ''
-                            });
-                            setEditModalOpen(true);
-                        } : undefined}
-                        onDelete={isAdmin ? () => {
-                            setDeletingCourse(row);
-                            setDeleteDialogOpen(true);
-                        } : undefined}
-                        editTitle="Edit Course"
-                        deleteTitle="Delete Course"
-                        variant="default"
-                        isViewAndEdit={isAdmin}
-                    />
-                );
-            }
-        }
-    ];
-
+            width: 180,
+            accessor: (row) => (
+                <TableActions
+                    onEdit={isAdmin ? () => openCourseModal(row) : undefined}
+                    onView={isTeacher ? () => openCourseModal(row) : undefined}
+                    onDelete={isAdmin ? () => {
+                        setDeletingCourse(row);
+                        setDeleteDialogOpen(true);
+                    } : undefined}
+                    editTitle="Edit Course"
+                    deleteTitle="Delete Course"
+                    variant="default"
+                    isViewAndEdit={isAdmin}
+                />
+            ),
+        },
+    ], [isAdmin, isTeacher]);
 
     if (coursesError) {
         return <ErrorState error={coursesError} onRetry={() => mutateCourses()} />;
     }
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-1 md:p-2 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="mb-2 flex flex-col md:flex-row md:items-center justify-between gap-2 shrink-0">
-                    <div className="flex-1 w-full">
-                        <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder="Search by name or description..." />
-                    </div>
-
-                    <div className='flex w-full md:w-auto gap-2 justify-between'>
-                        {user?.role === Role.ORG_MANAGER && (
-                            <Drawer position='left'>
-                                <div className="flex flex-col gap-4">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium">My Courses</span>
-                                        <Toggle
-                                            checked={showOnlyMyCourses}
-                                            onCheckedChange={(checked) => updateQueryParams({ my: checked, page: 1 })}
-                                        />
+        <PageShell>
+            <PageHeader
+                title="Courses"
+                description="Search and maintain course records used by sections, grading, and materials."
+                icon={BookOpen}
+                breadcrumbs={[
+                    { label: 'Organization' },
+                    { label: 'Academics' },
+                    { label: 'Courses' },
+                ]}
+            />
+            <ResourcePanel>
+                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0 flex-1">
+                            <SearchBar
+                                value={searchTerm}
+                                onChange={(value) => updateQueryParams({ search: value, page: 1 })}
+                                placeholder="Search by name or description..."
+                            />
+                        </div>
+                        <div className="flex w-full justify-between gap-2 md:w-auto md:justify-end">
+                            {user?.role === Role.ORG_MANAGER && (
+                                <Drawer position="left">
+                                    <div className="flex flex-col gap-4">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-medium">My Courses</span>
+                                            <Toggle
+                                                checked={showOnlyMyCourses}
+                                                onCheckedChange={(checked) => updateQueryParams({ my: checked, page: 1 })}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
-                            </Drawer>
-                        )}
-                        {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
-                            <Button
-                                onClick={() => router.push(`/courses/create`)}
-                                icon={Plus}
-                                className="shrink-0"
-                            >
-                                Create Course
-                            </Button>
-                        )}
+                                </Drawer>
+                            )}
+                            {isAdmin && (
+                                <Button
+                                    onClick={() => router.push('/courses/create')}
+                                    icon={Plus}
+                                    className="shrink-0"
+                                >
+                                    Create Course
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                <div className="relative overflow-x-hidden flex-1 min-h-0">
+                <ResourceToolbar activeFilters={activeFilters} />
+
+                <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable
                         data={fetchedData?.data || []}
                         columns={columns}
                         keyExtractor={(row) => row.id}
                         isLoading={isFetching}
-                        onRowClick={(row) => {
-                            setEditingCourse(row);
-                            setEditFormData({
-                                name: row.name,
-                                description: row.description || ''
-                            });
-                            setEditModalOpen(true);
-                        }}
+                        onRowClick={openCourseModal}
                         currentPage={page}
                         totalPages={fetchedData?.totalPages || 1}
                         totalResults={fetchedData?.totalRecords || 0}
                         pageSize={pageSize}
-                        onPageChange={(p) => updateQueryParams({ page: p })}
+                        onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
                         onPageSizeChange={handlePageSizeChange}
                         maxHeight="100%"
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                        emptyTitle="No courses found"
+                        emptyDescription={searchTerm || activeFilters.length > 0 ? 'Adjust the search or filters to broaden the result set.' : 'Create a course to begin organizing sections and materials.'}
+                        mobileDetailLimit={3}
                     />
                 </div>
-            </div>
+            </ResourcePanel>
 
             <ModalForm
                 isOpen={editModalOpen}
@@ -283,9 +284,9 @@ export default function CoursesPage() {
                 isSubmitting={isProcessing}
                 loadingId="course-edit"
                 submitText="Save Changes"
-                showSubmit={user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER}
+                showSubmit={isAdmin}
             >
-                <div className="space-y-8 py-2">
+                <div className="space-y-6 py-2">
                     <div className="space-y-2">
                         <Label htmlFor="courseName">Course Name *</Label>
                         <Input
@@ -293,19 +294,19 @@ export default function CoursesPage() {
                             type="text"
                             required
                             value={editFormData.name}
-                            onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                            onChange={(event) => setEditFormData({ ...editFormData, name: event.target.value })}
                             placeholder="e.g. Mathematics"
                             icon={BookOpen}
                         />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="description">Description</Label>
-                        <textarea
+                        <Textarea
                             id="description"
                             value={editFormData.description}
-                            onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                            className="w-full px-6 py-4 rounded-lg border border-border bg-input focus:bg-background focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all min-h-30 text-card-foreground font-bold resize-none"
+                            onChange={(event) => setEditFormData({ ...editFormData, description: event.target.value })}
                             placeholder="Briefly describe this course..."
+                            rows={5}
                         />
                     </div>
                 </div>
@@ -320,6 +321,6 @@ export default function CoursesPage() {
                 confirmText="Yes, Delete Course"
                 isDestructive={true}
             />
-        </div>
+        </PageShell>
     );
 }

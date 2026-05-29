@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowRight, CalendarDays, Sparkles, TrendingUp, BarChart3, ChevronDown, ChevronUp, Activity, Users, BookOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { DashboardInsights, DashboardInsightItem, Tone, Role } from '@/types';
 import { Badge } from '@/components/ui/Badge';
+import { RouteBreadcrumbs } from '@/components/ui/PageShell';
 import {
   InsightLineChart,
   InsightBarChart,
@@ -204,6 +205,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
       <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-8 shadow-xl backdrop-blur-sm">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
+            <RouteBreadcrumbs className="mb-3" />
             {insights.headline.eyebrow && (
               <Badge variant="primary" icon={Sparkles} className="mb-3 tracking-[0.25em] uppercase">
                 {insights.headline.eyebrow}

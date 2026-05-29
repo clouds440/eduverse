@@ -1,144 +1,199 @@
 'use client';
 
-import { useAuth } from '@/context/AuthContext';
-import { BookOpen, GraduationCap, Users, Trophy, Calendar, MapPin, FileText } from 'lucide-react';
-import useSWR from 'swr';
-import { Section, Role } from '@/types';
+import type { ReactNode } from 'react';
 import { useParams } from 'next/navigation';
+import useSWR from 'swr';
+import {
+    BookOpen,
+    Calendar,
+    FileText,
+    GraduationCap,
+    Layers,
+    MapPin,
+    School,
+    Trophy,
+    Users,
+    type LucideIcon,
+} from 'lucide-react';
+import { Section, Role } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 import AssessmentList from '@/components/sections/AssessmentList';
 import SectionSchedules from '@/components/sections/SectionSchedules';
 import CourseMaterials from '@/components/sections/CourseMaterials';
+import { Badge } from '@/components/ui/Badge';
 import { Loading } from '@/components/ui/Loading';
 import { NotFound } from '@/components/NotFound';
+import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+
+interface SummaryTileProps {
+    icon: LucideIcon;
+    label: string;
+    value: string | number;
+    helper?: string;
+}
+
+function SummaryTile({ icon: Icon, label, value, helper }: SummaryTileProps) {
+    return (
+        <div className="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+            <div className="flex min-w-0 items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                {label}
+            </div>
+            <p className="mt-2 truncate text-sm font-black text-foreground">{value}</p>
+            {helper && <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">{helper}</p>}
+        </div>
+    );
+}
+
+function SectionPanel({
+    icon: Icon,
+    title,
+    description,
+    children,
+}: {
+    icon: LucideIcon;
+    title: string;
+    description: string;
+    children: ReactNode;
+}) {
+    return (
+        <ResourcePanel className="flex-none overflow-hidden">
+            <header className="min-w-0 border-b border-border/60 bg-background/45 px-3 py-4 sm:px-5">
+                <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
+                        <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <h2 className="text-base font-black leading-tight text-foreground">{title}</h2>
+                        <p className="mt-1 max-w-3xl text-xs font-semibold leading-relaxed text-muted-foreground">
+                            {description}
+                        </p>
+                    </div>
+                </div>
+            </header>
+            <div className="min-w-0 overflow-hidden p-3 sm:p-5">{children}</div>
+        </ResourcePanel>
+    );
+}
 
 export default function SectionDetailPage() {
     const { token, user } = useAuth();
     const params = useParams();
-
     const sectionId = params.id as string;
 
-    // SWR for section data - replaces useCallback + useEffect + global loading state
     const sectionKey = token && sectionId ? ['section-detail', sectionId] as const : null;
     const { data: section, isLoading } = useSWR<Section>(sectionKey);
 
     if (isLoading) {
-        return (
-            <div className="flex items-center justify-center p-12 h-[60vh]">
-                <Loading size="lg" />
-            </div>
-        );
+        return <Loading className="h-full" text="Loading section..." size="lg" icon={BookOpen} />;
     }
 
-    if (!section) return <NotFound page="Section"/>;
+    if (!section) return <NotFound page="Section" />;
 
-    // Check if teacher is assigned to this section
-    const isTeacherAssigned = section.teachers?.some(t => t.userId === user?.id)
+    const isTeacherAssigned = section.teachers?.some((teacher) => teacher.userId === user?.id);
+    const studentCount = section.studentsCount || section.students?.length || 0;
+    const teacherCount = section.teachers?.length || 0;
+    const courseName = section.course?.name || 'Course not assigned';
+    const cycleName = section.academicCycle?.name || 'Academic cycle unavailable';
+    const cohortName = section.cohort?.name || 'No cohort assigned';
+    const roomLabel = section.room || 'Room TBD';
 
     return (
-        <div className="flex flex-col w-full space-y-8">
-            {/* Header Card - Premium Design */}
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-2 md:p-4 relative overflow-hidden group">
-                {/* Decorative background element */}
-                <div className="absolute -right-20 -top-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-700"></div>
+        <PageShell className="overflow-x-hidden overflow-y-auto custom-scrollbar">
+            <PageHeader
+                title={section.name}
+                description="A section workspace for evaluations, schedule slots, materials, and class context."
+                icon={BookOpen}
+                breadcrumbs={[
+                    { label: 'Organization' },
+                    { label: 'Academics' },
+                    { label: 'Sections', href: '/sections' },
+                    { label: section.name },
+                ]}
+                meta={(
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <Badge variant="primary" size="sm" icon={BookOpen}>{courseName}</Badge>
+                        <Badge variant="neutral" size="sm">{section.id.substring(0, 8)}</Badge>
+                    </div>
+                )}
+            />
 
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
-                    <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
-                        <div className="p-6 bg-primary/10 rounded-lg shadow-inner border border-primary/20 transform rotate-3 hover:rotate-0 transition-transform duration-500">
-                            <BookOpen className="w-8 h-8 text-primary" />
+            <section className="grid min-w-0 shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <SummaryTile icon={Users} label="Students" value={studentCount} helper="enrolled" />
+                <SummaryTile icon={School} label="Teachers" value={teacherCount} helper="assigned" />
+                <SummaryTile icon={GraduationCap} label="Cycle" value={cycleName} helper="academic placement" />
+                <SummaryTile icon={MapPin} label="Room" value={roomLabel} helper="primary venue" />
+            </section>
+
+            <ResourcePanel className="flex-none shrink-0 overflow-hidden">
+                <div className="grid min-w-0 gap-4 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,340px)] sm:p-5">
+                    <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <Badge variant="primary" dot size="md">{courseName}</Badge>
+                            {section.cohort && <Badge variant="secondary" size="md" icon={Layers}>{cohortName}</Badge>}
                         </div>
-                        <div>
-                            <div className="flex items-center gap-3 justify-center md:justify-start mb-2">
-                                <span className="px-3 py-1 bg-primary text-primary-foreground text-[10px] font-black tracking-[0.2em] rounded-lg shadow-lg shadow-primary/20">
-                                    Section ID: {section.id.substring(0, 8)}
-                                </span>
+                        <h2 className="mt-3 text-lg font-black tracking-tight text-foreground sm:text-xl">
+                            Section Profile
+                        </h2>
+                        <p className="mt-2 max-w-3xl wrap-break-word text-sm font-semibold leading-6 text-muted-foreground">
+                            {section.name} belongs to {cycleName}{section.cohort ? ` in ${cohortName}` : ''}.
+                        </p>
+                    </div>
+
+                    <div className="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-background/60 p-3">
+                        <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-sm font-black text-foreground">Teaching Team</p>
+                                <p className="text-xs font-semibold text-muted-foreground">{teacherCount} assigned</p>
                             </div>
-                            <h1 className="text-3xl md:text-4xl font-black tracking-tighter leading-none mb-4 text-foreground">
-                                {section.name}
-                            </h1>
-                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 text-[11px] font-black tracking-widest text-card-text/40">
-                                <span className="flex items-center gap-2 group/item">
-                                    <GraduationCap className="w-4 h-4 text-primary group-hover/item:scale-110 transition-transform" />
-                                    {section.course?.name || 'COURSE'}
-                                </span>
-                                <span className="flex items-center gap-2 group/item">
-                                    <Users className="w-4 h-4 text-primary group-hover/item:scale-110 transition-transform" />
-                                    {section.students?.length || 0} Enrolled Students
-                                </span>
-                                <span className="flex items-center gap-2 group/item">
-                                    <Calendar className="w-4 h-4 text-primary group-hover/item:scale-110 transition-transform" />
-                                    {section.academicCycle?.name || 'Academic Cycle'}
-                                    {section.cohort && (
-                                        <span className="ml-1 opacity-50 font-medium">({section.cohort.name})</span>
-                                    )}
-                                </span>
-                                {section.room && (
-                                    <span className="flex items-center gap-2 group/item">
-                                        <MapPin className="w-4 h-4 text-primary group-hover/item:scale-110 transition-transform" />
-                                        Venue: {section.room}
-                                    </span>
-                                )}
-                            </div>
+                            <Users className="h-5 w-5 shrink-0 text-primary" />
+                        </div>
+                        <div className="grid min-w-0 gap-2">
+                            {teacherCount === 0 ? (
+                                <p className="rounded-md border border-dashed border-border/70 bg-card p-3 text-xs font-semibold text-muted-foreground">
+                                    No teachers assigned yet.
+                                </p>
+                            ) : (
+                                section.teachers?.slice(0, 3).map((teacher) => (
+                                    <div key={teacher.id} className="min-w-0 rounded-md border border-border/70 bg-card px-3 py-2">
+                                        <p className="truncate text-sm font-black text-foreground">{teacher.user?.name || 'Unnamed teacher'}</p>
+                                        <p className="truncate text-xs font-semibold text-muted-foreground">{teacher.subject || teacher.designation || 'Faculty'}</p>
+                                    </div>
+                                ))
+                            )}
+                            {teacherCount > 3 && (
+                                <p className="text-xs font-bold text-muted-foreground">+{teacherCount - 3} more assigned</p>
+                            )}
                         </div>
                     </div>
                 </div>
+            </ResourcePanel>
+
+            <div className="flex min-w-0 flex-col gap-4">
+                <SectionPanel
+                    icon={Trophy}
+                    title="Evaluations"
+                    description="Create, review, and grade assessments attached to this section."
+                >
+                    <AssessmentList section={section} role={user?.role as Role} />
+                </SectionPanel>
+
+                <SectionPanel
+                    icon={Calendar}
+                    title="Schedule"
+                    description="Maintain the recurring class slots and room overrides students and teachers rely on."
+                >
+                    <SectionSchedules section={section} role={user?.role as Role} />
+                </SectionPanel>
+
+                <SectionPanel
+                    icon={FileText}
+                    title="Materials"
+                    description="Share files, links, and video resources for this section."
+                >
+                    <CourseMaterials sectionId={sectionId} role={user?.role as Role} isTeacherAssigned={isTeacherAssigned} />
+                </SectionPanel>
             </div>
-
-            {/* Main Content Area */}
-            <div className="grid grid-cols-1 gap-8">
-                {/* Assessments Panel */}
-                <div className="bg-card text-card-text rounded-lg shadow-2xl border border-border overflow-hidden transform transition-all hover:shadow-[0_30px_60px_rgba(0,0,0,0.12)]">
-                    <div className="p-8 border-b border-border bg-linear-to-r from-primary/10 to-transparent flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 bg-primary/20 rounded-lg">
-                                <Trophy className="w-6 h-6 text-primary" />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-black tracking-tighter leading-none">Course Evaluations</h2>
-                                <p className="text-[10px] font-black text-card-text/40 tracking-widest mt-1">Manage assessments, quizzes & final grades</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="p-8 md:p-10">
-                        <AssessmentList section={section} role={user?.role as Role} />
-                    </div>
-                </div>
-
-                {/* Schedules Panel */}
-                <div className="bg-card text-card-text rounded-lg shadow-2xl border border-border overflow-hidden transform transition-all hover:shadow-[0_30px_60px_rgba(0,0,0,0.12)] mt-8">
-                    <div className="p-8 border-b border-border bg-linear-to-r from-primary/10 to-transparent flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 bg-primary/20 rounded-lg">
-                                <Calendar className="w-6 h-6 text-primary" />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-black tracking-tighter leading-none">Class Schedule</h2>
-                                <p className="text-[10px] font-black text-card-text/40 tracking-widest mt-1">Manage weekly timetable and slots</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="p-8 md:p-10">
-                        <SectionSchedules section={section} role={user?.role as Role} />
-                    </div>
-                </div>
-
-                {/* Course Materials Panel */}
-                <div className="bg-card text-card-text rounded-lg shadow-2xl border border-border overflow-hidden transform transition-all hover:shadow-[0_30px_60px_rgba(0,0,0,0.12)] mt-8">
-                    <div className="p-8 border-b border-border bg-linear-to-r from-primary/10 to-transparent flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2.5 bg-primary/20 rounded-lg">
-                                <FileText className="w-6 h-6 text-primary" />
-                            </div>
-                            <div>
-                                <h2 className="text-2xl font-black tracking-tighter leading-none">Course Materials</h2>
-                                <p className="text-[10px] font-black text-card-text/40 tracking-widest mt-1">Upload and manage learning resources</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="p-8 md:p-10">
-                        <CourseMaterials sectionId={sectionId} role={user?.role as Role} isTeacherAssigned={isTeacherAssigned} />
-                    </div>
-                </div>
-            </div>
-        </div>
+        </PageShell>
     );
 }

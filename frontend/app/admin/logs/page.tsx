@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import { Building2, Clipboard, Clock, Filter, Monitor, ScrollText, ShieldAlert, UserRound } from 'lucide-react';
 import { AuditLogItem, PaginatedResponse, Role } from '@/types';
@@ -14,7 +13,9 @@ import { Loading } from '@/components/ui/Loading';
 import { Badge } from '@/components/ui/Badge';
 import { OrgLogoOrIcon } from '@/components/ui/OrgLogoOrIcon';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 type AuditLogsResponse = PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> };
 
@@ -43,25 +44,12 @@ function formatLogForCopy(log: AuditLogItem) {
 export default function AdminAuditLogsPage() {
     const { token, user, loading } = useAuth();
     const { dispatch } = useGlobal();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const [pageSize, setPageSize] = useState<number>(() => {
-        if (typeof window === 'undefined') return 10;
-        return parseInt(localStorage.getItem('edu-admin-audit-limit') || '10', 10);
-    });
+    const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-admin-audit-limit', 10);
 
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const search = searchParams.get('search') || '';
-    const action = searchParams.get('action') || 'ALL';
-
-    const updateQueryParams = (updates: Record<string, string | number | undefined>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '') params.delete(key);
-            else params.set(key, String(value));
-        });
-        router.push(`?${params.toString()}`, { scroll: false });
-    };
+    const page = getNumberParam('page', 1);
+    const search = getStringParam('search');
+    const action = getStringParam('action', 'ALL');
 
     const logsKey = token ? ['admin-audit-logs', { page, limit: pageSize, search, action: action === 'ALL' ? undefined : action }] as const : null;
     const { data, error: fetchError, isLoading, mutate: retryLogs } = useSWR<AuditLogsResponse>(logsKey);
@@ -77,6 +65,21 @@ export default function AdminAuditLogsPage() {
             })),
         ];
     }, [data?.counts]);
+
+    const activeFilters: ActiveFilter[] = [
+        ...(search ? [{
+            key: 'search',
+            label: 'Search',
+            value: search,
+            onRemove: () => updateQueryParams({ search: undefined, page: 1 }),
+        }] : []),
+        ...(action !== 'ALL' ? [{
+            key: 'action',
+            label: 'Action',
+            value: humanizeAction(action),
+            onRemove: () => updateQueryParams({ action: undefined, page: 1 }),
+        }] : []),
+    ];
 
     const copyLog = useCallback(async (log: AuditLogItem) => {
         try {
@@ -175,7 +178,9 @@ export default function AdminAuditLogsPage() {
                         event.stopPropagation();
                         copyLog(row);
                     }}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary px-3 py-2 text-xs font-black transition-colors"
+                    className="inline-flex items-center gap-2 rounded-md bg-primary/10 hover:bg-primary/20 text-primary px-3 py-2 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    aria-label={`Copy audit log ${row.id}`}
+                    title="Copy audit log"
                 >
                     <Clipboard className="w-3.5 h-3.5" />
                     Copy
@@ -217,6 +222,7 @@ export default function AdminAuditLogsPage() {
             <PageHeader
                 title="Audit Logs"
                 description="Security and account events translated into readable activity."
+                icon={ScrollText}
                 breadcrumbs={[
                     { label: 'Admin' },
                     { label: 'Audit Logs' },
@@ -228,7 +234,7 @@ export default function AdminAuditLogsPage() {
                 ) : undefined}
             />
             <ResourcePanel>
-                <div className="p-4 border-b border-border/40 space-y-4">
+                <div className="p-3 sm:p-4 border-b border-border/40 space-y-4">
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="w-full sm:w-80">
                             <CustomSelect
@@ -249,6 +255,8 @@ export default function AdminAuditLogsPage() {
                     </div>
                 </div>
 
+                <ResourceToolbar activeFilters={activeFilters} />
+
                 <div className="flex-1 min-h-0 overflow-x-auto">
                     <DataTable
                         columns={columns}
@@ -262,11 +270,13 @@ export default function AdminAuditLogsPage() {
                         onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
                         onPageSizeChange={(nextSize) => {
                             setPageSize(nextSize);
-                            localStorage.setItem('edu-admin-audit-limit', String(nextSize));
                             updateQueryParams({ page: 1 });
                         }}
                         maxHeight="100%"
                         tableLayout="fixed"
+                        emptyTitle="No audit events found"
+                        emptyDescription={search || activeFilters.length > 0 ? 'Adjust the search or action filter to broaden the result set.' : 'Audit events will appear here after platform activity is recorded.'}
+                        mobileDetailLimit={3}
                     />
                 </div>
             </ResourcePanel>

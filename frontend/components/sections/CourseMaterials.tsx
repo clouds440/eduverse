@@ -5,7 +5,23 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { ApiError, Role, CourseMaterial } from '@/types';
-import { FileText, Download, Trash2, Plus, Upload, X, FileImage, FileCode, Archive, Edit, Eye, Globe } from 'lucide-react';
+import {
+  Archive,
+  Download,
+  Edit,
+  ExternalLink,
+  Eye,
+  FileCode,
+  FileImage,
+  FileText,
+  Globe,
+  Paperclip,
+  Plus,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Loading } from '@/components/ui/Loading';
 import { Modal } from '@/components/ui/Modal';
@@ -13,7 +29,6 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ExternalLinkInput } from '@/components/ui/ExternalLinkInput';
 import { downloadFile, formatBytes } from '@/lib/utils';
 
-// Helper function to get file icon based on MIME type
 function getFileIcon(mimeType: string) {
   if (mimeType.startsWith('image/')) return FileImage;
   if (mimeType.includes('pdf')) return FileText;
@@ -22,9 +37,6 @@ function getFileIcon(mimeType: string) {
   return FileText;
 }
 
-
-
-// Helper function to get video embed URL
 function getVideoEmbedUrl(url: string): string {
   if (!url) return '';
   if (url.includes('youtube.com/watch?v=')) {
@@ -52,13 +64,17 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
   const { token } = useAuth();
   const { dispatch } = useGlobal();
   const dispatchRef = useRef(dispatch);
-  useEffect(() => { dispatchRef.current = dispatch; }, [dispatch]);
+
   const [materials, setMaterials] = useState<CourseMaterial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<CourseMaterial | null>(null);
   const [viewingMaterial, setViewingMaterial] = useState<CourseMaterial | null>(null);
   const [deletingMaterial, setDeletingMaterial] = useState<CourseMaterial | null>(null);
+
+  useEffect(() => {
+    dispatchRef.current = dispatch;
+  }, [dispatch]);
 
   const fetchMaterials = useCallback(async () => {
     if (!token || !sectionId) return;
@@ -83,10 +99,11 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
 
   const handleDelete = async () => {
     if (!token || !deletingMaterial) return;
+    const target = deletingMaterial;
 
     try {
-      dispatch({ type: 'UI_START_PROCESSING', payload: `material-delete-${deletingMaterial.id}` });
-      await api.courseMaterials.deleteMaterial(deletingMaterial.id, token);
+      dispatch({ type: 'UI_START_PROCESSING', payload: `material-delete-${target.id}` });
+      await api.courseMaterials.deleteMaterial(target.id, token);
       dispatch({ type: 'TOAST_ADD', payload: { message: 'Material deleted successfully', type: 'success' } });
       fetchMaterials();
       setDeletingMaterial(null);
@@ -95,7 +112,7 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
       dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to delete material', type: 'error' } });
       setDeletingMaterial(null);
     } finally {
-      dispatch({ type: 'UI_STOP_PROCESSING', payload: `material-delete-${deletingMaterial.id}` });
+      dispatch({ type: 'UI_STOP_PROCESSING', payload: `material-delete-${target.id}` });
     }
   };
 
@@ -104,168 +121,157 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
       await downloadFile(file.path, file.filename);
     } catch (error) {
       dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to download file', type: 'error' } });
-      console.error(error)
+      console.error(error);
     }
   };
 
-  const canViewDetails = true; // All users can view material details
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Loading size="md" />
+      <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {[...Array(3)].map((_, index) => (
+          <div key={index} className="h-44 min-w-0 animate-pulse rounded-lg border border-border/70 bg-muted/35" />
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-black text-foreground">{materials.length} materials</p>
+          <p className="break-words text-xs font-semibold text-muted-foreground">Files, external links, and class resources shared with this section.</p>
+        </div>
         {isTeacherAssigned && (
-          <Button
-            onClick={() => setShowUploadModal(true)}
-            icon={Plus}
-          >
+          <Button onClick={() => setShowUploadModal(true)} icon={Plus} className="w-full sm:w-auto">
             Add Material
           </Button>
         )}
       </div>
 
-      {/* Materials List */}
       {materials.length === 0 ? (
-        <div className="bg-primary/5 border border-dashed border-border rounded-xl p-12 text-center">
-          <FileText className="w-12 h-12 text-card-text/20 mx-auto mb-4" />
-          <p className="text-card-text/40 font-bold tracking-widest text-xs">No materials uploaded yet</p>
-          {isTeacherAssigned && (
-            <p className="text-card-text/30 text-sm mt-2">Click &quot;Add Material&quot; to upload your first resource</p>
-          )}
+        <div className="min-w-0 rounded-lg border border-dashed border-border/70 bg-background/60 px-4 py-10 text-center sm:px-6">
+          <FileText className="mx-auto h-9 w-9 text-muted-foreground/45" />
+          <p className="mt-3 text-sm font-black text-foreground">No materials yet</p>
+          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+            {isTeacherAssigned ? 'Add a file or link when students need a resource.' : 'Materials shared by the teaching team will appear here.'}
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {materials.map((material) => (
-            <div
-              key={material.id}
-              className="bg-card border border-border rounded-xl p-6 hover:border-primary/30 transition-all shadow-sm hover:shadow-md group"
-            >
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <FileText className="w-4 h-4 text-primary" />
+        <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {materials.map((material) => {
+            const fileCount = material.files?.length || 0;
+            const linkCount = material.links?.length || 0;
+
+            return (
+              <article key={material.id} className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border/70 bg-card p-3 shadow-sm sm:p-4">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Badge variant="primary" size="sm" icon={FileText}>Material</Badge>
+                      {material.isVideoLink && <Badge variant="info" size="sm">Video</Badge>}
                     </div>
-                    <h4 className="font-semibold text-card-text truncate text-lg">{material.title}</h4>
+                    <h3 className="mt-3 line-clamp-2 break-words text-base font-black leading-tight text-foreground">
+                      {material.title}
+                    </h3>
                   </div>
-                  {material.description && (
-                    <p className="text-sm text-card-text/60 line-clamp-2">{material.description}</p>
-                  )}
-                </div>
-                {(canViewDetails || isTeacherAssigned) && (
-                  <div className="flex gap-2 opacity-40 group-hover:opacity-100 transition-all duration-300">
-                    {canViewDetails && (
-                      <button
-                        onClick={() => setViewingMaterial(material)}
-                        className="p-2.5 text-muted hover:text-primary transition-all hover:bg-primary/10 rounded-xl border border-transparent hover:border-primary bg-foreground shadow-xs"
-                        title="View Details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    )}
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setViewingMaterial(material)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/35 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                      aria-label={`View ${material.title}`}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
                     {isTeacherAssigned && (
                       <>
                         <button
+                          type="button"
                           onClick={() => setEditingMaterial(material)}
-                          className="p-2.5 text-muted hover:text-primary transition-all hover:bg-primary/10 rounded-xl border border-transparent hover:border-primary bg-foreground shadow-xs"
-                          title="Edit"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/35 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                          aria-label={`Edit ${material.title}`}
                         >
-                          <Edit className="w-4 h-4" />
+                          <Edit className="h-4 w-4" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => setDeletingMaterial(material)}
-                          className="p-2.5 text-dangerhover:text-ddangerransition-all hover:bg-dadanger rounded-xl border border-transparent hover:border-dandangerforeground shadow-xs"
-                          title="Delete"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-danger/25 text-danger transition-colors hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30"
+                          aria-label={`Delete ${material.title}`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </>
                     )}
                   </div>
+                </div>
+
+                {material.description && (
+                  <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-muted-foreground">
+                    {material.description}
+                  </p>
                 )}
-              </div>
 
-              <div className="flex items-center gap-4 text-[11px] text-card-text/40 font-bold tracking-widest mb-4">
-                <span>Added {new Date(material.createdAt).toLocaleDateString()}</span>
-                {material.creator?.name && <span>by {material.creator.name}</span>}
-              </div>
-
-              {/* Files */}
-              {material.files && material.files.length > 0 && (
-                <div className="pt-4 border-t border-border/50">
-                  <p className="text-[10px] font-black text-card-text/40 tracking-widest mb-3">ATTACHED FILES</p>
-                  <div className="space-y-2 mb-3  ">
-                    {material.files.map((file) => {
-                      const FileIcon = getFileIcon(file.mimeType);
-                      return (
-                        <button
-                          key={file.id}
-                          onClick={() => handleDownload(file)}
-                          className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-primary/5 transition-colors group/file w-full text-left"
-                        >
-                          <FileIcon className="w-4 h-4 text-card-text/40 group-hover/file:text-primary transition-colors shrink-0" />
-                          <span className="text-sm text-card-text/70 group-hover/file:text-card-text transition-colors flex-1 truncate">
-                            {file.filename}
-                          </span>
-                          <span className="text-xs text-card-text/30 shrink-0">
-                            {formatBytes(file.size)}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2 text-xs font-bold text-muted-foreground">
+                  <span>Added {new Date(material.createdAt).toLocaleDateString()}</span>
+                  {material.creator?.name && <span>by {material.creator.name}</span>}
                 </div>
-              )}
 
-              {/* External Links */}
-              {material.links && material.links.length > 0 && (
-                <div className="pt-4 border-t border-border/50">
-                  <p className="text-[10px] font-black text-card-text/40 tracking-widest mb-3">EXTERNAL LINKS</p>
-                  <div className="space-y-3">
-                    {material.links.map((link, idx) => (
-                      <div key={idx}>
-                        {material.isVideoLink ? (
-                          <div className="w-full aspect-video rounded-lg overflow-hidden border border-border shadow-sm bg-black">
-                            <iframe
-                              src={getVideoEmbedUrl(link)}
-                              title="Embedded video"
-                              className="w-full h-full"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            ></iframe>
-                          </div>
-                        ) : (
-                          <a
-                            href={link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-primary/5 transition-colors w-full text-left"
-                          >
-                            <Globe className="w-4 h-4 text-card-text/40 shrink-0" />
-                            <span className="text-sm text-card-text/70 flex-1 truncate">
-                              External Link
-                            </span>
-                          </a>
-                        )}
+                <div className="mt-4 grid min-w-0 gap-2">
+                  {fileCount > 0 && (
+                    <div className="min-w-0 overflow-hidden rounded-md border border-border/60 bg-background/70 p-3">
+                      <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2 text-xs font-black text-foreground">
+                          <Paperclip className="h-4 w-4 shrink-0 text-primary" />
+                          {fileCount} file{fileCount === 1 ? '' : 's'}
+                        </span>
                       </div>
-                    ))}
-                  </div>
+                      <div className="min-w-0 space-y-1.5">
+                        {material.files?.slice(0, 2).map((file) => {
+                          const FileIcon = getFileIcon(file.mimeType);
+                          return (
+                            <button
+                              type="button"
+                              key={file.id}
+                              onClick={() => handleDownload(file)}
+                              className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-primary/5"
+                            >
+                              <FileIcon className="h-4 w-4 shrink-0 text-primary" />
+                              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{file.filename}</span>
+                              <span className="shrink-0 text-[10px] font-bold text-muted-foreground">{formatBytes(file.size)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {fileCount > 2 && <p className="mt-2 text-xs font-bold text-muted-foreground">+{fileCount - 2} more files</p>}
+                    </div>
+                  )}
+
+                  {linkCount > 0 && (
+                    <div className="min-w-0 overflow-hidden rounded-md border border-border/60 bg-background/70 p-3">
+                      <span className="flex min-w-0 items-center gap-2 text-xs font-black text-foreground">
+                        <ExternalLink className="h-4 w-4 shrink-0 text-primary" />
+                        {linkCount} link{linkCount === 1 ? '' : 's'}
+                      </span>
+                      <a
+                        href={material.links?.[0]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/5"
+                      >
+                        <Globe className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{material.isVideoLink ? 'Open video resource' : 'Open external resource'}</span>
+                      </a>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
 
-      {/* Upload Modal */}
       {showUploadModal && (
         <UploadMaterialModal
           sectionId={sectionId}
@@ -277,47 +283,47 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
         />
       )}
 
-      {/* View Details Modal */}
       {viewingMaterial && (
         <Modal
           isOpen={true}
           onClose={() => setViewingMaterial(null)}
-          title="Course Material Detials"
+          title="Course Material Details"
           maxWidth="max-w-2xl"
         >
           <div className="space-y-6">
             <div>
-              <h3 className="text-xl font-black text-card-text mb-2">{viewingMaterial.title} ({viewingMaterial.section?.name})</h3>
+              <h3 className="text-xl font-black text-card-text">{viewingMaterial.title}</h3>
+              {viewingMaterial.section?.name && (
+                <p className="mt-1 text-xs font-black uppercase tracking-widest text-muted-foreground">{viewingMaterial.section.name}</p>
+              )}
               {viewingMaterial.description && (
-                <p className="text-card-text/70">{viewingMaterial.description}</p>
+                <p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">{viewingMaterial.description}</p>
               )}
             </div>
 
-            <div className="flex items-center gap-4 text-sm text-card-text/40">
+            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-muted-foreground">
               <span>Added {new Date(viewingMaterial.createdAt).toLocaleDateString()}</span>
               {viewingMaterial.creator?.name && <span>by {viewingMaterial.creator.name}</span>}
             </div>
 
             {viewingMaterial.files && viewingMaterial.files.length > 0 && (
               <div>
-                <p className="text-[10px] font-black text-card-text/40 tracking-widest mb-3">ATTACHED FILES</p>
+                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Attached Files</p>
                 <div className="space-y-2">
                   {viewingMaterial.files.map((file) => {
                     const FileIcon = getFileIcon(file.mimeType);
                     return (
-                      <div
-                        key={file.id}
-                        className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50"
-                      >
-                        <FileIcon className="w-5 h-5 text-primary shrink-0" />
-                        <span className="text-sm text-card-text/70 flex-1 truncate">{file.filename}</span>
-                        <span className="text-xs text-card-text/30">{formatBytes(file.size)}</span>
+                      <div key={file.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-border/60 bg-background/70 p-3">
+                        <FileIcon className="h-5 w-5 shrink-0 text-primary" />
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-card-text/80">{file.filename}</span>
+                        <span className="hidden text-xs font-bold text-muted-foreground sm:inline">{formatBytes(file.size)}</span>
                         <button
+                          type="button"
                           onClick={() => handleDownload(file)}
-                          className="p-2 text-primary cursor-pointer hover:text-primary/80 hover:bg-primary/10 rounded-lg transition-colors"
-                          title="Download"
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/10"
+                          aria-label={`Download ${file.filename}`}
                         >
-                          <Download className="w-4 h-4" />
+                          <Download className="h-4 w-4" />
                         </button>
                       </div>
                     );
@@ -328,32 +334,30 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
 
             {viewingMaterial.links && viewingMaterial.links.length > 0 && (
               <div>
-                <p className="text-[10px] font-black text-card-text/40 tracking-widest mb-3">EXTERNAL LINKS</p>
+                <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">External Links</p>
                 <div className="space-y-3">
-                  {viewingMaterial.links.map((link, idx) => (
-                    <div key={idx}>
+                  {viewingMaterial.links.map((link, index) => (
+                    <div key={`${link}-${index}`}>
                       {viewingMaterial.isVideoLink ? (
-                        <div className="w-full aspect-video rounded-lg overflow-hidden border border-border shadow-sm bg-black">
+                        <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-sm">
                           <iframe
                             src={getVideoEmbedUrl(link)}
-                            className="w-full h-full"
+                            className="h-full w-full"
                             title="Embedded video"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
-                          ></iframe>
+                          />
                         </div>
                       ) : (
                         <a
                           href={link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50 hover:bg-primary/5 transition-colors"
+                          className="flex min-w-0 items-center gap-3 rounded-lg border border-border/60 bg-background/70 p-3 text-primary transition-colors hover:bg-primary/5"
                         >
-                          <Globe className="w-5 h-5 text-primary shrink-0" />
-                          <span className="text-sm text-card-text/70 flex-1 truncate">
-                            External Link
-                          </span>
-                          <Download className="w-4 h-4 text-card-text/30" />
+                          <Globe className="h-5 w-5 shrink-0" />
+                          <span className="min-w-0 flex-1 truncate text-sm font-semibold">External resource</span>
+                          <ExternalLink className="h-4 w-4 shrink-0" />
                         </a>
                       )}
                     </div>
@@ -371,7 +375,6 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
         </Modal>
       )}
 
-      {/* Edit Modal */}
       {editingMaterial && (
         <UploadMaterialModal
           sectionId={sectionId}
@@ -384,7 +387,6 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
         />
       )}
 
-      {/* Delete Confirm Dialog */}
       <ConfirmDialog
         isOpen={!!deletingMaterial}
         onClose={() => setDeletingMaterial(null)}
@@ -399,7 +401,6 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
   );
 });
 
-// Upload Modal Component
 function UploadMaterialModal({
   sectionId,
   material,
@@ -431,31 +432,29 @@ function UploadMaterialModal({
     }
   }, [material]);
 
-  const handleFileUpload = async (files: FileList) => {
-    setPendingFiles([...pendingFiles, ...Array.from(files)]);
+  const handleFileUpload = (files: FileList) => {
+    setPendingFiles((current) => [...current, ...Array.from(files)]);
   };
 
   const handleRemoveFile = (index: number) => {
-    setPendingFiles(pendingFiles.filter((_, i) => i !== index));
+    setPendingFiles((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const handleRemoveExistingFile = (fileId: string) => {
-    setFilesToRemove([...filesToRemove, fileId]);
-    setExistingFiles(existingFiles.filter(f => f.id !== fileId));
+    setFilesToRemove((current) => [...current, fileId]);
+    setExistingFiles((current) => current.filter((file) => file.id !== fileId));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!token || !title) return;
 
     try {
       dispatch({ type: 'UI_START_PROCESSING', payload: material ? `material-edit-${material.id}` : 'material-create' });
       if (material) {
-        // Edit existing material
         const orgId = state.auth.user?.orgId || state.auth.user?.organizationId;
         const uploadedFileIds: string[] = [];
 
-        // Upload new files with material ID as entityId
         if (orgId && pendingFiles.length > 0) {
           for (const file of pendingFiles) {
             const data = await api.files.uploadFile(orgId, 'COURSE_MATERIAL', material.id, file, token);
@@ -463,7 +462,6 @@ function UploadMaterialModal({
           }
         }
 
-        // Update material
         await api.courseMaterials.updateMaterial(
           material.id,
           { title, description, fileIds: uploadedFileIds, filesToRemove, links: externalLink ? [externalLink] : [], isVideoLink },
@@ -473,7 +471,6 @@ function UploadMaterialModal({
         dispatch({ type: 'TOAST_ADD', payload: { message: 'Material updated successfully', type: 'success' } });
         onSuccess();
       } else {
-        // Create new material
         const orgId = state.auth.user?.orgId || state.auth.user?.organizationId;
         const uploadedFileIds: string[] = [];
 
@@ -484,7 +481,6 @@ function UploadMaterialModal({
           }
         }
 
-        // Create material with fileIds
         await api.courseMaterials.createMaterial(
           sectionId,
           { title, description, fileIds: uploadedFileIds, links: externalLink ? [externalLink] : [], isVideoLink },
@@ -503,26 +499,26 @@ function UploadMaterialModal({
   };
 
   return (
-    <Modal isOpen={true} onClose={onClose} title="Upload Course Material">
+    <Modal isOpen={true} onClose={onClose} title={material ? 'Edit Course Material' : 'Upload Course Material'}>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label className="block text-sm font-semibold mb-2">Title *</label>
+          <label className="mb-2 block text-sm font-semibold">Title *</label>
           <input
             type="text"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20"
-            placeholder="e.g., Lecture Notes - Week 1"
+            onChange={(event) => setTitle(event.target.value)}
+            className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm font-semibold outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            placeholder="e.g. Lecture Notes - Week 1"
             required
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold mb-2">Description</label>
+          <label className="mb-2 block text-sm font-semibold">Description</label>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-25"
+            onChange={(event) => setDescription(event.target.value)}
+            className="min-h-25 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm font-semibold outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
             placeholder="Optional description of the material..."
             rows={4}
           />
@@ -533,82 +529,70 @@ function UploadMaterialModal({
           onChange={setExternalLink}
           isVideo={isVideoLink}
           onIsVideoChange={setIsVideoLink}
-          disabled={state.ui.processing['material-create'] || state.ui.processing['material-edit']}
+          disabled={state.ui.processing['material-create'] || Boolean(material && state.ui.processing[`material-edit-${material.id}`])}
         />
 
         <div>
-          <label className="block text-sm font-semibold mb-2">Files</label>
-          <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
+          <label className="mb-2 block text-sm font-semibold">Files</label>
+          <div className="rounded-lg border-2 border-dashed border-border p-6 text-center transition-colors hover:border-primary/50">
             <input
               type="file"
               multiple
-              onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+              onChange={(event) => event.target.files && handleFileUpload(event.target.files)}
               className="hidden"
               id="file-upload"
-              disabled={state.ui.processing['material-create'] || state.ui.processing['material-edit']}
+              disabled={state.ui.processing['material-create'] || Boolean(material && state.ui.processing[`material-edit-${material.id}`])}
             />
-            <label
-              htmlFor="file-upload"
-              className="cursor-pointer flex flex-col items-center gap-3"
-            >
-              <Upload className="w-8 h-8 text-card-text/40" />
-              <span className="text-sm text-card-text/60">
-                {state.ui.processing['material-create'] || state.ui.processing['material-edit'] ? 'Uploading...' : 'Click to upload files'}
+            <label htmlFor="file-upload" className="flex cursor-pointer flex-col items-center gap-3">
+              <Upload className="h-8 w-8 text-muted-foreground/60" />
+              <span className="text-sm font-semibold text-muted-foreground">
+                {state.ui.processing['material-create'] || Boolean(material && state.ui.processing[`material-edit-${material.id}`]) ? 'Uploading...' : 'Click to upload files'}
               </span>
-              <span className="text-xs text-card-text/30">
-                PDF, DOCX, XLSX, PPTX, ZIP (max 50MB)
+              <span className="text-xs font-semibold text-muted-foreground/70">
+                PDF, DOCX, XLSX, PPTX, ZIP
               </span>
             </label>
           </div>
 
-          {/* Staged Files List */}
           {(pendingFiles.length > 0 || existingFiles.length > 0) && (
             <div className="mt-4 space-y-2">
-              <p className="text-xs font-semibold text-card-text/40 tracking-widest">
-                {material ? 'FILES' : 'STAGED FILES'}
+              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                {material ? 'Files' : 'Staged Files'}
               </p>
 
-              {/* Existing files (in edit mode) */}
               {existingFiles.map((file) => {
                 const FileIcon = getFileIcon(file.mimeType);
                 return (
-                  <div
-                    key={file.id}
-                    className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50"
-                  >
-                    <FileIcon className="w-5 h-5 text-primary shrink-0" />
-                    <span className="text-sm text-card-text/70 flex-1 truncate">{file.filename}</span>
-                    <span className="text-xs text-card-text/30">{formatBytes(file.size)}</span>
+                  <div key={file.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-border/50 bg-muted/30 p-3">
+                    <FileIcon className="h-5 w-5 shrink-0 text-primary" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-card-text/80">{file.filename}</span>
+                    <span className="hidden text-xs font-semibold text-muted-foreground sm:inline">{formatBytes(file.size)}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveExistingFile(file.id)}
-                      className="text-card-text/40 hover:text-destructive transition-colors p-1"
-                      title="Remove file"
+                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                      aria-label={`Remove ${file.filename}`}
                     >
-                      <X className="w-4 h-4" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                 );
               })}
 
-              {/* New pending files */}
               {pendingFiles.map((file, index) => {
                 const FileIcon = getFileIcon(file.type);
                 return (
-                  <div
-                    key={`new-${index}`}
-                    className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20"
-                  >
-                    <FileIcon className="w-5 h-5 text-primary shrink-0" />
-                    <span className="text-sm text-card-text/70 flex-1 truncate">{file.name}</span>
-                    <span className="text-xs text-card-text/30">{formatBytes(file.size)}</span>
+                  <div key={`${file.name}-${index}`} className="flex min-w-0 items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <FileIcon className="h-5 w-5 shrink-0 text-primary" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-card-text/80">{file.name}</span>
+                    <span className="hidden text-xs font-semibold text-muted-foreground sm:inline">{formatBytes(file.size)}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveFile(index)}
-                      className="text-card-text/40 hover:text-destructive transition-colors p-1"
-                      title="Remove file"
+                      className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                      aria-label={`Remove ${file.name}`}
                     >
-                      <X className="w-4 h-4" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -617,7 +601,7 @@ function UploadMaterialModal({
           )}
         </div>
 
-        <div className="flex gap-3 justify-end">
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>

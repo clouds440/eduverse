@@ -10,6 +10,7 @@ import { ShieldOff, GraduationCap } from 'lucide-react';
 import { Skeleton, DashboardSkeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import { NotFound } from '@/components/NotFound';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { RouteBreadcrumbs } from '@/components/ui/PageShell';
 
 import Overview from './_components/Overview';
 import Courses from './_components/Courses';
@@ -109,7 +110,8 @@ function StudentPortalContent() {
     }
 
     return (
-        <div className="flex flex-col w-full h-full">
+        <div className="flex flex-col w-full h-full gap-4">
+            {tab !== 'profile' && <RouteBreadcrumbs className="px-1" />}
             {user?.status === 'ALUMNI' && (
                 <div className="flex flex-col items-center justify-center p-12 bg-card/70 backdrop-blur-md rounded-lg shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-info/20 text-center max-w-2xl mx-auto mb-10 hover:shadow-2xl transition-all duration-500">
                     <div className="p-6 bg-info/10 rounded-full mb-6">

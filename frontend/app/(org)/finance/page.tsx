@@ -111,7 +111,7 @@ export default function FinanceOverviewPage() {
                             stats.recentTransactions.map(t => (
                                 <div key={t.id} className="flex justify-between items-center pb-4 border-b border-border/50 last:border-0">
                                     <div>
-                                        <p className="font-bold text-sm truncate max-w-[150px]">{t.description || 'System Payment'}</p>
+                                        <p className="font-bold text-sm truncate max-w-37.5">{t.description || 'System Payment'}</p>
                                         <p className="text-[10px] text-muted-foreground uppercase">{new Date(t.createdAt).toLocaleDateString()}</p>
                                     </div>
                                     <FinancialAmount

@@ -11,6 +11,7 @@ import { GraduationCap, Printer, Search } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { BrandIcon } from '@/components/ui/Brand';
+import { PageHeader } from '@/components/ui/PageShell';
 
 export default function TranscriptsPage() {
     const { token, user } = useAuth();
@@ -51,19 +52,12 @@ export default function TranscriptsPage() {
 
     return (
         <div className="flex flex-col h-full w-full space-y-4">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-4 md:p-6 shrink-0 print:hidden">
-                <div className="flex flex-col md:flex-row justify-between gap-6">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-primary/20 p-3 rounded-full shadow-inner">
-                            <GraduationCap className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-foreground tracking-tight">Academic Transcripts</h1>
-                            <p className="text-sm text-muted-foreground font-medium">View and generate student academic reports.</p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-4 items-end sm:items-center">
+            <PageHeader
+                title="Academic Transcripts"
+                description="View and generate student academic reports."
+                icon={GraduationCap}
+                actions={(
+                    <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-end md:w-auto md:items-center">
                         {user?.role !== Role.STUDENT && (
                             <div className="w-full sm:w-72">
                                 <label className="text-xs font-bold text-muted-foreground mb-1.5 block uppercase tracking-wider">
@@ -128,8 +122,8 @@ export default function TranscriptsPage() {
                             Print
                         </Button>
                     </div>
-                </div>
-            </div>
+                )}
+            />
 
             <div className="flex-1 bg-card rounded-lg shadow-xl border border-border p-8 overflow-y-auto min-h-0 print:border-none print:shadow-none print:p-0 print:overflow-visible">
                 {isLoading && <Loading text="Generating Transcript..." />}

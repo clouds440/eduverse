@@ -8,9 +8,10 @@ import { useParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { Loading } from '@/components/ui/Loading';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { Users, BookOpen, GraduationCap } from 'lucide-react';
+import { Users, BookOpen } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/Brand';
 import { Badge } from '@/components/ui/Badge';
+import { PageHeader } from '@/components/ui/PageShell';
 
 export default function CohortDetailPage() {
     const { token } = useAuth();
@@ -34,32 +35,22 @@ export default function CohortDetailPage() {
 
     return (
         <div className="flex flex-col h-full w-full overflow-y-auto space-y-4">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-4 md:p-6 shrink-0">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-primary/20 p-3 rounded-full">
-                                <Users className="w-6 h-6 text-primary" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-foreground">{cohort.name}</h1>
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
-                                    <GraduationCap className="w-4 h-4" />
-                                    <span>{cohort.academicCycle?.name || 'N/A'}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <PageHeader
+                title={cohort.name}
+                description={cohort.academicCycle?.name || 'Academic cycle unavailable'}
+                icon={Users}
+                meta={<Badge variant="neutral" size="sm">Cohort</Badge>}
+            />
 
-                <div className="flex gap-2 mt-8 border-b border-border">
+            <div className="shrink-0 rounded-lg border border-border bg-card/80 px-4 pt-4 shadow-xl backdrop-blur-2xl">
+                <div className="flex gap-2 overflow-x-auto border-b border-border">
                     <button
                         className={`pb-3 px-6 flex items-center gap-2 font-semibold transition-all relative ${activeTab === 'students' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                         onClick={() => setActiveTab('students')}
                     >
                         <Users className="w-4 h-4" />
                         <span>Students</span>
-                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-[20px] justify-center">{cohort._count?.students || 0}</Badge>
+                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-5 justify-center">{cohort._count?.students || 0}</Badge>
                         {activeTab === 'students' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(var(--primary-rgb),0.5)]" />}
                     </button>
                     <button
@@ -68,7 +59,7 @@ export default function CohortDetailPage() {
                     >
                         <BookOpen className="w-4 h-4" />
                         <span>Sections</span>
-                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-[20px] justify-center">{cohort._count?.sections || 0}</Badge>
+                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-5 justify-center">{cohort._count?.sections || 0}</Badge>
                         {activeTab === 'sections' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(var(--primary-rgb),0.5)]" />}
                     </button>
                 </div>

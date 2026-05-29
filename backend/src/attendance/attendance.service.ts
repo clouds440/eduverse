@@ -135,6 +135,8 @@ export class AttendanceService {
             },
           },
         },
+        academicCycle: true,
+        cohort: true,
         assessments: true,
         schedules: true,
       },

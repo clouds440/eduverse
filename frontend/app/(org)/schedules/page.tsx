@@ -6,6 +6,7 @@ import { Section, SectionSchedule } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { PageHeader } from '@/components/ui/PageShell';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -130,16 +131,12 @@ export default function SchedulesPage() {
     if (sectionsLoading) {
         return (
             <div className="flex flex-col h-full w-full space-y-6 pb-6">
-                <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl border border-border p-4 md:p-6 overflow-hidden">
-                    <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
-                        <div className="p-3 bg-primary/10 rounded-lg w-fit">
-                            <CalendarDays className="w-8 h-8 text-primary" />
-                        </div>
-                        <div className="space-y-2">
-                            <Skeleton className="h-8 w-48" />
-                            <Skeleton className="h-4 w-64" />
-                        </div>
-                    </div>
+                <PageHeader
+                    title="Global Schedules"
+                    description="Unified overview of all instructional timelines across the institution."
+                    icon={CalendarDays}
+                />
+                <div className="rounded-lg border border-border bg-card/80 p-4 shadow-xl backdrop-blur-2xl md:p-6">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                         {[...Array(4)].map((_, i) => (
                             <SectionScheduleSkeleton key={i} />
@@ -152,17 +149,12 @@ export default function SchedulesPage() {
 
     return (
         <div className="flex flex-col h-full w-full space-y-6 pb-6">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl border border-border p-4 md:p-6 overflow-hidden">
-                <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="p-3 bg-primary/10 rounded-lg w-fit">
-                        <CalendarDays className="w-8 h-8 text-primary" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-black tracking-tighter text-foreground">Global Schedules</h1>
-                        <p className="text-muted-foreground mt-1 text-sm font-bold tracking-widest">Unified overview of all instructional timelines across the institution.</p>
-                    </div>
-                </div>
-
+            <PageHeader
+                title="Global Schedules"
+                description="Unified overview of all instructional timelines across the institution."
+                icon={CalendarDays}
+            />
+            <div className="rounded-lg border border-border bg-card/80 p-4 shadow-xl backdrop-blur-2xl md:p-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                     {sections.length === 0 ? (
                         <div className="col-span-full text-center py-16 bg-muted/10 border border-border/30 rounded-xl border-dashed">

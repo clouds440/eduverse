@@ -338,6 +338,7 @@ export default function StudentsPage() {
             <PageHeader
                 title={isDeletedView ? 'Deleted Students' : 'Students'}
                 description="Find, filter, and manage student records while keeping saved links intact."
+                icon={UserPlus}
                 breadcrumbs={[
                     { label: 'Organization' },
                     { label: isDeletedView ? 'Deleted Students' : 'Students' },

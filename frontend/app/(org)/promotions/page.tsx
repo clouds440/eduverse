@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { useGlobal, type GlobalAction } from '@/context/GlobalContext';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Toggle } from '@/components/ui/Toggle';
+import { PageHeader } from '@/components/ui/PageShell';
 
 export default function PromotionsPage() {
     const { token, user } = useAuth();
@@ -38,16 +39,12 @@ export default function PromotionsPage() {
     }
 
     return (
-        <div className="flex flex-col h-full w-full p-4 md:p-8 overflow-y-auto space-y-6">
-            <div className="flex items-center gap-3">
-                <div className="bg-primary/20 p-3 rounded-full">
-                    <ArrowRight className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Academic Transitions</h1>
-                    <p className="text-sm text-muted-foreground">Copy forward structures and promote cohorts to the next cycle.</p>
-                </div>
-            </div>
+        <div className="flex flex-col h-full w-full overflow-y-auto space-y-6">
+            <PageHeader
+                title="Academic Transitions"
+                description="Copy forward structures and promote cohorts to the next cycle."
+                icon={ArrowRight}
+            />
 
             <div className="flex gap-4 border-b border-border">
                 <button

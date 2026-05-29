@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CalendarDays, BarChart3, Edit3, ChevronLeft, ChevronRight, Clock, Table2 } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { PageHeader } from '@/components/ui/PageShell';
 import { cn } from '@/lib/utils';
 
 function parseDateInput(dateStr: string) {
@@ -175,28 +176,26 @@ export default function SectionAttendancePage() {
     return (
         <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 pb-8">
             <div className="flex flex-col gap-3 p-2 lg:p-0">
-                <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
-                    <div className="flex flex-col gap-4 border-b border-border/60 bg-background/45 p-4 lg:flex-row lg:items-end lg:justify-between">
-                        <div className="min-w-0">
-                            <div className="mb-2 flex flex-wrap items-center gap-2">
-                                <Badge variant="primary" dot size="md">
-                                    {section?.course?.name || 'Course'}
+                <PageHeader
+                    title={section?.name || 'Loading Section...'}
+                    description="Attendance workbook with daily marking and monthly review."
+                    icon={CalendarDays}
+                    meta={(
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="primary" dot size="md">
+                                {section?.course?.name || 'Course'}
+                            </Badge>
+                            <Badge variant="secondary" size="md" icon={Table2}>
+                                {studentCount} students
+                            </Badge>
+                            {viewMode === 'monthly' && (
+                                <Badge variant="info" size="md">
+                                    {sessionCount} sessions
                                 </Badge>
-                                <Badge variant="secondary" size="md" icon={Table2}>
-                                    {studentCount} students
-                                </Badge>
-                                {viewMode === 'monthly' && (
-                                    <Badge variant="info" size="md">
-                                        {sessionCount} sessions
-                                    </Badge>
-                                )}
-                            </div>
-                            <h1 className="truncate text-2xl font-black tracking-tight text-foreground md:text-3xl">
-                                {section?.name || 'Loading Section...'}
-                            </h1>
-                            <p className="mt-1 text-xs font-semibold text-muted-foreground">Attendance workbook with daily marking and monthly review.</p>
+                            )}
                         </div>
-
+                    )}
+                    actions={(
                         <div className="grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-background p-1">
                             {!isStudent && (
                                 <button
@@ -224,7 +223,10 @@ export default function SectionAttendancePage() {
                                 Overview
                             </button>
                         </div>
-                    </div>
+                    )}
+                />
+
+                <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
 
                     <div className="grid gap-3 p-3 lg:grid-cols-[minmax(300px,360px)_minmax(280px,1fr)] xl:grid-cols-[minmax(330px,380px)_minmax(320px,1fr)_minmax(300px,360px)] xl:items-start">
                         {viewMode === 'daily' ? (

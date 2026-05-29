@@ -302,7 +302,7 @@ export function DataTable<T>({
                                                         title={column.header}
                                                         aria-label={`${column.header}: ${typeof content === 'string' || typeof content === 'number' ? content : ''}`}
                                                     >
-                                                        <div className="min-w-0 max-w-[10rem] truncate text-foreground">
+                                                        <div className="min-w-0 max-w-40 truncate text-foreground">
                                                             {content}
                                                         </div>
                                                     </div>

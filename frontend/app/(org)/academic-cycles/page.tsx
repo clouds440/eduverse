@@ -1,44 +1,40 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import useSWR, { mutate } from 'swr';
+import { Calendar, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { Plus, Calendar } from 'lucide-react';
-import { DataTable } from '@/components/ui/DataTable';
+import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
-import { ModalForm } from '@/components/ui/ModalForm';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { SearchBar } from '@/components/ui/SearchBar';
+import { matchesCacheKeyPrefix } from '@/lib/swr';
+import { AcademicCycle, ApiError, Role } from '@/types';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { AcademicCycle, Role, ApiError } from '@/types';
-import { TableActions } from '@/components/ui/TableActions';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { DataTable, Column } from '@/components/ui/DataTable';
+import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { useGlobal } from '@/context/GlobalContext';
-import useSWR, { mutate } from 'swr';
-import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { ErrorState } from '@/components/ui/ErrorState';
+import { ModalForm } from '@/components/ui/ModalForm';
+import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { TableActions } from '@/components/ui/TableActions';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 export default function AcademicCyclesPage() {
     const { token, user } = useAuth();
     const { state, dispatch } = useGlobal();
+    const router = useRouter();
+    const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const isProcessing = state.ui.processing['cycle-edit'];
 
-    const pathname = usePathname();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const searchTerm = searchParams.get('search') || '';
-    const sortBy = searchParams.get('sortBy') || 'startDate';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
-    const [pageSize, setPageSize] = useState<number>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('edu-cycles-limit');
-            return saved ? parseInt(saved, 10) : 10;
-        }
-        return 10;
-    });
+    const page = getNumberParam('page', 1);
+    const searchTerm = getStringParam('search');
+    const sortBy = getStringParam('sortBy', 'startDate');
+    const sortOrder = (getStringParam('sortOrder', 'desc') as 'asc' | 'desc');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-cycles-limit', 10);
 
     const cycleParams = {
         page,
@@ -53,44 +49,43 @@ export default function AcademicCyclesPage() {
         { data: AcademicCycle[]; totalPages: number; totalRecords: number }
     >(cyclesKey);
 
-    useEffect(() => {
-        if (user && user.role === Role.STUDENT) {
-            router.replace(`/students/${user.id}`);
-        }
-    }, [user, router, pathname]);
-
     const [modalOpen, setModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editingCycle, setEditingCycle] = useState<AcademicCycle | null>(null);
     const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '' });
-
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCycle, setDeletingCycle] = useState<AcademicCycle | null>(null);
-
     const [activateDialogOpen, setActivateDialogOpen] = useState(false);
     const [activatingCycle, setActivatingCycle] = useState<AcademicCycle | null>(null);
 
-    const updateQueryParams = (updates: Record<string, string | number | undefined | boolean>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '' || value === false) {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
+    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+
+    useEffect(() => {
+        if (user?.role === Role.STUDENT) {
+            router.replace(`/students/${user.id}`);
+        }
+    }, [router, user]);
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
-        localStorage.setItem('edu-cycles-limit', String(newSize));
         updateQueryParams({ page: 1 });
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const openEditModal = (cycle: AcademicCycle) => {
+        setIsEditing(true);
+        setEditingCycle(cycle);
+        setFormData({
+            name: cycle.name,
+            startDate: cycle.startDate ? new Date(cycle.startDate).toISOString().split('T')[0] : '',
+            endDate: cycle.endDate ? new Date(cycle.endDate).toISOString().split('T')[0] : '',
+        });
+        setModalOpen(true);
+    };
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         if (!token) return;
+
         dispatch({ type: 'UI_START_PROCESSING', payload: 'cycle-edit' });
         try {
             if (isEditing && editingCycle) {
@@ -114,6 +109,7 @@ export default function AcademicCyclesPage() {
 
     const handleDeleteConfirm = async () => {
         if (!deletingCycle || !token) return;
+
         try {
             await api.academicCycles.deleteCycle(deletingCycle.id, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Academic Cycle deleted successfully', type: 'success' } });
@@ -129,6 +125,7 @@ export default function AcademicCyclesPage() {
 
     const handleActivateConfirm = async () => {
         if (!activatingCycle || !token) return;
+
         try {
             await api.academicCycles.activateCycle(activatingCycle.id, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Academic Cycle activated successfully', type: 'success' } });
@@ -142,108 +139,128 @@ export default function AcademicCyclesPage() {
         }
     };
 
-    const columns = [
+    const activeFilters: ActiveFilter[] = [
+        ...(searchTerm ? [{
+            key: 'search',
+            label: 'Search',
+            value: searchTerm,
+            onRemove: () => updateQueryParams({ search: undefined, page: 1 }),
+        }] : []),
+    ];
+
+    const columns = useMemo<Column<AcademicCycle>[]>(() => [
         {
             header: 'Name',
             sortable: true,
             sortKey: 'name',
-            accessor: (row: AcademicCycle) => (
-                <div className="flex items-center gap-2">
-                    <span className="font-semibold text-card-foreground">{row.name}</span>
-                    {row.isActive && (
-                        <span className="bg-primary/20 text-primary text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full">
-                            Active
-                        </span>
-                    )}
+            accessor: (row) => (
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
+                        <Calendar className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-black text-foreground">{row.name}</p>
+                            {row.isActive && <Badge variant="primary" size="sm">Active</Badge>}
+                        </div>
+                    </div>
                 </div>
-            )
+            ),
         },
         {
             header: 'Start Date',
             sortable: true,
             sortKey: 'startDate',
-            accessor: (row: AcademicCycle) => new Date(row.startDate).toLocaleDateString()
+            accessor: (row) => new Date(row.startDate).toLocaleDateString(),
         },
         {
             header: 'End Date',
             sortable: true,
             sortKey: 'endDate',
-            accessor: (row: AcademicCycle) => new Date(row.endDate).toLocaleDateString()
+            accessor: (row) => new Date(row.endDate).toLocaleDateString(),
         },
         {
             header: 'Cohorts',
-            accessor: (row: AcademicCycle) => row._count?.cohorts || 0
+            accessor: (row) => (
+                <span className="inline-flex min-w-12 items-center justify-center rounded-md bg-muted px-2 py-1 text-xs font-black text-foreground">
+                    {row._count?.cohorts || 0}
+                </span>
+            ),
         },
         {
             header: 'Sections',
-            accessor: (row: AcademicCycle) => row._count?.sections || 0
+            accessor: (row) => (
+                <span className="inline-flex min-w-12 items-center justify-center rounded-md bg-muted px-2 py-1 text-xs font-black text-foreground">
+                    {row._count?.sections || 0}
+                </span>
+            ),
         },
         {
             header: 'Actions',
             width: 250,
-            accessor: (row: AcademicCycle) => {
-                const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
-
-                return (
-                    <div className="flex items-center gap-2">
-                        {isAdmin && !row.isActive && (
-                            <Button
-                                variant="secondary"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActivatingCycle(row);
-                                    setActivateDialogOpen(true);
-                                }}
-                            >
-                                Activate
-                            </Button>
-                        )}
-                        <TableActions
-                            onEdit={isAdmin ? () => {
-                                setIsEditing(true);
-                                setEditingCycle(row);
-                                setFormData({
-                                    name: row.name,
-                                    startDate: row.startDate ? new Date(row.startDate).toISOString().split('T')[0] : '',
-                                    endDate: row.endDate ? new Date(row.endDate).toISOString().split('T')[0] : ''
-                                });
-                                setModalOpen(true);
-                            } : undefined}
-                            onView={() => router.push(`/academic-cycles/${row.id}`)}
-                            onDelete={isAdmin && !row.isActive ? () => {
-                                setDeletingCycle(row);
-                                setDeleteDialogOpen(true);
-                            } : undefined}
-                            editTitle="Edit Cycle"
-                            deleteTitle="Delete Cycle"
-                            variant="default"
-                            isViewAndEdit={false}
-                        />
-                    </div>
-                );
-            }
-        }
-    ];
-
+            accessor: (row) => (
+                <div className="flex items-center gap-2">
+                    {isAdmin && !row.isActive && (
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setActivatingCycle(row);
+                                setActivateDialogOpen(true);
+                            }}
+                        >
+                            Activate
+                        </Button>
+                    )}
+                    <TableActions
+                        onEdit={isAdmin ? () => openEditModal(row) : undefined}
+                        onDelete={isAdmin && !row.isActive ? () => {
+                            setDeletingCycle(row);
+                            setDeleteDialogOpen(true);
+                        } : undefined}
+                        editTitle="Edit Cycle"
+                        deleteTitle="Delete Cycle"
+                        variant="default"
+                        isViewAndEdit={false}
+                    />
+                </div>
+            ),
+        },
+    ], [isAdmin]);
 
     if (cyclesError) {
         return <ErrorState error={cyclesError} onRetry={() => mutateCycles()} />;
     }
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-1 md:p-2 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="mb-2 flex items-center justify-between gap-2 shrink-0">
-                    <div className="flex-1">
-                        <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder="Search academic cycles..." />
-                    </div>
+        <PageShell>
+            <PageHeader
+                title="Academic Cycles"
+                description="Manage academic terms and the active enrollment period for cohorts and sections."
+                icon={Calendar}
+                breadcrumbs={[
+                    { label: 'Organization' },
+                    { label: 'Academics' },
+                    { label: 'Academic Cycles' },
+                ]}
+            />
+            <ResourcePanel>
+                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0 flex-1">
+                            <SearchBar
+                                value={searchTerm}
+                                onChange={(value) => updateQueryParams({ search: value, page: 1 })}
+                                placeholder="Search academic cycles..."
+                            />
+                        </div>
 
-                    <div className="shrink-0">
-                        {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
+                        {isAdmin && (
                             <Button
                                 onClick={() => router.push('/academic-cycles/create')}
                                 icon={Plus}
-                                className="w-auto shadow-lg shadow-primary/10"
+                                className="shrink-0"
                             >
                                 New Cycle
                             </Button>
@@ -251,25 +268,29 @@ export default function AcademicCyclesPage() {
                     </div>
                 </div>
 
-                <div className="relative overflow-x-hidden flex-1 min-h-0">
+                <ResourceToolbar activeFilters={activeFilters} />
+
+                <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable
                         data={fetchedData?.data || []}
                         columns={columns}
                         keyExtractor={(row) => row.id}
                         isLoading={isFetching}
-                        onRowClick={(row) => router.push(`/academic-cycles/${row.id}`)}
                         currentPage={page}
                         totalPages={fetchedData?.totalPages || 1}
                         totalResults={fetchedData?.totalRecords || 0}
                         pageSize={pageSize}
-                        onPageChange={(p) => updateQueryParams({ page: p })}
+                        onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
                         onPageSizeChange={handlePageSizeChange}
                         maxHeight="100%"
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                        emptyTitle="No academic cycles found"
+                        emptyDescription={searchTerm ? 'Adjust the search to broaden the result set.' : 'Create an academic cycle to organize cohorts and sections.'}
+                        mobileDetailLimit={3}
                     />
                 </div>
-            </div>
+            </ResourcePanel>
 
             <ModalForm
                 isOpen={modalOpen}
@@ -288,12 +309,12 @@ export default function AcademicCyclesPage() {
                             type="text"
                             required
                             value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                             placeholder="e.g. Fall 2026"
                             icon={Calendar}
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                             <Label htmlFor="startDate">Start Date *</Label>
                             <Input
@@ -301,7 +322,7 @@ export default function AcademicCyclesPage() {
                                 type="date"
                                 required
                                 value={formData.startDate}
-                                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                onChange={(event) => setFormData({ ...formData, startDate: event.target.value })}
                             />
                         </div>
                         <div className="space-y-2">
@@ -311,7 +332,7 @@ export default function AcademicCyclesPage() {
                                 type="date"
                                 required
                                 value={formData.endDate}
-                                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                                onChange={(event) => setFormData({ ...formData, endDate: event.target.value })}
                             />
                         </div>
                     </div>
@@ -323,7 +344,7 @@ export default function AcademicCyclesPage() {
                 onClose={() => setDeleteDialogOpen(false)}
                 onConfirm={handleDeleteConfirm}
                 title={<>Delete Cycle <strong>{deletingCycle?.name}</strong></>}
-                description={<>Are you sure you want to delete this cycle? This action cannot be undone and will affect associated cohorts.</>}
+                description="Are you sure you want to delete this cycle? This action cannot be undone and will affect associated cohorts."
                 confirmText="Yes, Delete"
                 isDestructive={true}
             />
@@ -333,9 +354,9 @@ export default function AcademicCyclesPage() {
                 onClose={() => setActivateDialogOpen(false)}
                 onConfirm={handleActivateConfirm}
                 title={<>Activate Cycle <strong>{activatingCycle?.name}</strong></>}
-                description={<>Are you sure you want to mark this cycle as active? Doing so will deactivate the currently active cycle.</>}
+                description="Are you sure you want to mark this cycle as active? Doing so will deactivate the currently active cycle."
                 confirmText="Yes, Activate"
             />
-        </div>
+        </PageShell>
     );
 }

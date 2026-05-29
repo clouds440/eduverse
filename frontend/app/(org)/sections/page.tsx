@@ -1,21 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { BookOpen, Plus } from 'lucide-react';
+import { Layers, Plus } from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
 import { api } from '@/lib/api';
-import { ModalForm } from '@/components/ui/ModalForm';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { usePathname, useRouter } from 'next/navigation';
-import { Section, Role, AcademicCycle, Course, PaginatedResponse, Student, Cohort } from '@/types';
+import { Section, Role, AcademicCycle } from '@/types';
 import { TableActions } from '@/components/ui/TableActions';
-import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { CustomSelect } from '@/components/ui/CustomSelect';
-import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
 import { Drawer } from '@/components/ui/Drawer';
@@ -39,21 +36,11 @@ interface SectionParams {
 
 export default function SectionsPage() {
     const { token, user } = useAuth();
-    const { state, dispatch } = useGlobal();
-    const isProcessing = state.ui.processing['section-edit'];
+    const { dispatch } = useGlobal();
 
     const pathname = usePathname();
     const router = useRouter();
-    const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
-
-    // SWR for courses (for edit form dropdown) - replaces useCallback + useEffect
-    const coursesKey = token ? ['courses', { limit: 1000 }] as const : null;
-    const { data: coursesData, error: coursesError, mutate: mutateCourses } = useSWR<PaginatedResponse<Course>>(coursesKey);
-    const courses = coursesData?.data || [];
-
-    // Students state remains (on-demand fetch for enrollment)
-    const [students, setStudents] = useState<Student[]>([]);
-    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const { searchParams, getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
 
     // URL State
     const page = getNumberParam('page', 1);
@@ -83,89 +70,20 @@ export default function SectionsPage() {
     const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
     const { data: cyclesData } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
 
-    const cohortsKey = token ? ['cohorts', { limit: 1000 }] as const : null;
-    const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
-
     useEffect(() => {
         if (user && user.role === Role.STUDENT) {
             router.replace(`/students/${user.id}`);
         }
     }, [user, router, pathname]);
 
-    const [editModalOpen, setEditModalOpen] = useState(false);
-    const [editingSection, setEditingSection] = useState<Section | null>(null);
-    const [editFormData, setEditFormData] = useState({ name: '', room: '', courseId: '', academicCycleId: '', cohortId: '' });
-
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingSection, setDeletingSection] = useState<Section | null>(null);
+    const queryString = searchParams.toString();
+    const currentListPath = queryString ? `${pathname}?${queryString}` : pathname;
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
         updateQueryParams({ page: 1 });
-    };
-
-    // On-demand fetch for students (only needed when editing)
-    const fetchStudents = useCallback(async () => {
-        if (!token) return;
-        try {
-            const studentsResponse = await api.org.getStudents(token);
-            setStudents(Array.isArray(studentsResponse) ? studentsResponse : (studentsResponse as PaginatedResponse<Student>).data || []);
-        } catch (err: unknown) {
-            console.error(err);
-        }
-    }, [token]);
-
-    const handleEditSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!editingSection || !token) return;
-        dispatch({ type: 'UI_START_PROCESSING', payload: 'section-edit' });
-        try {
-            if (!editFormData.academicCycleId) {
-                dispatch({ type: 'TOAST_ADD', payload: { message: 'Academic Cycle is required', type: 'error' } });
-                return;
-            }
-            await api.org.updateSection(editingSection.id, editFormData, token);
-
-            // Handle student enrollment changes
-            const currentlyEnrolledIds = editingSection.students?.map(s => s.id) || [];
-            const newlyEnrolledIds = selectedStudentIds.filter(id => !currentlyEnrolledIds.includes(id));
-            const removedIds = currentlyEnrolledIds.filter(id => !selectedStudentIds.includes(id));
-
-            // Add newly enrolled students
-            for (const studentId of newlyEnrolledIds) {
-                try {
-                    const student = students.find(s => s.id === studentId);
-                    if (!student) continue;
-                    const currentSectionIds = student.enrollments?.map((e: { section?: { id?: string } }) => e.section?.id).filter((id: string | undefined): id is string => Boolean(id)) || [];
-                    await api.org.updateStudent(studentId, { sectionIds: [...currentSectionIds, editingSection.id] }, token);
-                } catch (error) {
-                    console.error(`Failed to enroll student ${studentId}:`, error);
-                    throw error;
-                }
-            }
-
-            // Remove students who were unenrolled
-            for (const studentId of removedIds) {
-                try {
-                    const student = students.find(s => s.id === studentId);
-                    if (!student) continue;
-                    const currentSectionIds = student.enrollments?.map((e: { section?: { id?: string } }) => e.section?.id).filter((id: string | undefined): id is string => Boolean(id)) || [];
-                    await api.org.updateStudent(studentId, { sectionIds: currentSectionIds.filter((id: string) => id !== editingSection.id) }, token);
-                } catch (error) {
-                    console.error(`Failed to unenroll student ${studentId}:`, error);
-                    throw error;
-                }
-            }
-
-            setEditModalOpen(false);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Section updated successfully', type: 'success' } });
-            mutate(matchesCacheKeyPrefix('sections'));
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : 'Error updating section';
-            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
-        } finally {
-            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'section-edit' });
-        }
     };
 
     const handleDeleteConfirm = async () => {
@@ -251,31 +169,10 @@ export default function SectionsPage() {
                 return (
                     <TableActions
                         onEdit={isAdmin ? () => {
-                            setEditingSection(row);
-                            setEditFormData({
-                                name: row.name,
-                                room: row.room || '',
-                                courseId: row.courseId || '',
-                                academicCycleId: row.academicCycleId || '',
-                                cohortId: row.cohortId || ''
-                            });
-                            // Fetch students and pre-select enrolled ones
-                            fetchStudents().then(() => {
-                                const enrolledStudentIds = row.students?.map(s => s.id) || [];
-                                setSelectedStudentIds(enrolledStudentIds);
-                            });
-                            setEditModalOpen(true);
+                            router.push(`/sections/edit/${row.id}?returnTo=${encodeURIComponent(currentListPath)}`);
                         } : undefined}
                         onView={() => {
-                            setEditingSection(row);
-                            setEditFormData({
-                                name: row.name,
-                                room: row.room || '',
-                                courseId: row.courseId || '',
-                                academicCycleId: row.academicCycleId || '',
-                                cohortId: row.cohortId || ''
-                            });
-                            setEditModalOpen(true);
+                            router.push(`/sections/${row.id}`);
                         }}
                         onDelete={isAdmin ? () => {
                             setDeletingSection(row);
@@ -308,9 +205,8 @@ export default function SectionsPage() {
 
 
     if (sectionsError) {
-        return <ErrorState error={sectionsError + (coursesError ? ' ' + coursesError : '')} onRetry={() => {
+        return <ErrorState error={sectionsError} onRetry={() => {
             mutateSections();
-            mutateCourses();
         }} />;
     }
 
@@ -319,6 +215,7 @@ export default function SectionsPage() {
             <PageHeader
                 title="Sections"
                 description="Search and maintain class sections while preserving course, cycle, and enrollment behavior."
+                icon={Layers}
                 breadcrumbs={[
                     { label: 'Organization' },
                     { label: 'Academics' },
@@ -403,112 +300,6 @@ export default function SectionsPage() {
                     />
                 </div>
             </ResourcePanel>
-
-            <ModalForm
-                isOpen={editModalOpen}
-                onClose={() => setEditModalOpen(false)}
-                title="Update Section Information"
-                onSubmit={handleEditSubmit}
-                isSubmitting={isProcessing}
-                loadingId="section-edit"
-                submitText="Save Changes"
-                showSubmit={user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER}
-            >
-                <div className="space-y-8 py-2">
-                    <div className="space-y-2">
-                        <Label htmlFor="sectionName">Section Name *</Label>
-                        <Input
-                            id="sectionName"
-                            type="text"
-                            required
-                            value={editFormData.name}
-                            onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                            placeholder="e.g. Section A"
-                            icon={BookOpen}
-                            readOnly={user?.role === Role.TEACHER}
-                            disabled={user?.role === Role.TEACHER}
-                        />
-                    </div>
-                    {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) ? (
-                        <div className="space-y-2">
-                            <Label>Course *</Label>
-                            <CustomSelect
-                                options={courses.map((c: Course) => ({ value: c.id, label: c.name, icon: BookOpen }))}
-                                value={editFormData.courseId}
-                                onChange={(val) => setEditFormData({ ...editFormData, courseId: val })}
-                                placeholder="Select Course"
-                                required
-                                searchable
-                            />
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            <Label>Course</Label>
-                            <Input
-                                value={courses.find((c: Course) => c.id === editFormData.courseId)?.name || 'N/A'}
-                                readOnly
-                                disabled
-                                icon={BookOpen}
-                            />
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Academic Cycle *</Label>
-                            <CustomSelect
-                                options={[
-                                    ...(cyclesData?.data?.map((c: AcademicCycle) => ({ value: c.id, label: c.name })) || [])
-                                ]}
-                                value={editFormData.academicCycleId || ''}
-                                onChange={(val) => setEditFormData({ ...editFormData, academicCycleId: val, cohortId: '' })}
-                                placeholder="Select Cycle"
-                                disabled={user?.role === Role.TEACHER}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Cohort</Label>
-                            <CustomSelect
-                                options={[
-                                    { label: 'No Cohort', value: '' },
-                                    ...(cohortsData?.data?.filter((c: Cohort) => !editFormData.academicCycleId || c.academicCycleId === editFormData.academicCycleId).map((c: Cohort) => ({
-                                        value: c.id,
-                                        label: c.name
-                                    })) || [])
-                                ]}
-                                value={editFormData.cohortId || ''}
-                                onChange={(val) => setEditFormData({ ...editFormData, cohortId: val })}
-                                placeholder="Select Cohort (Optional)..."
-                                disabled={user?.role === Role.TEACHER}
-                            />
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="room">Room</Label>
-                        <Input
-                            id="room"
-                            type="text"
-                            value={editFormData.room}
-                            onChange={(e) => setEditFormData({ ...editFormData, room: e.target.value })}
-                            placeholder="E.g., 101-B"
-                            readOnly={user?.role === Role.TEACHER}
-                            disabled={user?.role === Role.TEACHER}
-                        />
-                    </div>
-                    {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
-                        <div className="space-y-2">
-                            <Label>Enroll Students</Label>
-                            <CustomMultiSelect
-                                options={students.map(s => ({ value: s.id, label: `${s.user.name} (${s.registrationNumber || 'N/A'})` }))}
-                                values={selectedStudentIds}
-                                onChange={(vals) => setSelectedStudentIds(vals)}
-                                placeholder="Select students to enroll..."
-                            />
-                        </div>
-                    )}
-                </div>
-            </ModalForm>
 
             <ConfirmDialog
                 isOpen={deleteDialogOpen}

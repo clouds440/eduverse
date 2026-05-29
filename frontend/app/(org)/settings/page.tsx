@@ -34,6 +34,7 @@ import { Loading } from '@/components/ui/Loading';
 import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
 import { getPrimaryColorError, getSafePrimaryColor, isPrimaryColorAllowed } from '@/lib/themeColor';
 import { Badge } from '@/components/ui/Badge';
+import { PageHeader } from '@/components/ui/PageShell';
 
 function SettingsSection({
     icon: Icon,
@@ -299,34 +300,29 @@ export default function SettingsPage() {
 
     return (
         <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 pb-8">
-            <div className="flex flex-col p-2 lg:p-0 gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-card text-primary shadow-sm md:h-14 md:w-14">
-                        <Settings className="h-6 w-6 md:h-7 md:w-7" />
+            <PageHeader
+                title="Organization Settings"
+                description="Identity, contact, appearance, and account security."
+                icon={Settings}
+                actions={(
+                    <div className="flex flex-wrap items-center gap-2">
+                        {orgData?.status && (
+                            <Badge
+                                variant={orgData.status === 'APPROVED' ? 'success' : orgData.status === 'REJECTED' ? 'error' : 'warning'}
+                                size="md"
+                                dot
+                            >
+                                {orgData.status.replace('_', ' ')}
+                            </Badge>
+                        )}
+                        {orgData?.contactEmailVerifiedAt ? (
+                            <Badge variant="success" size="md" icon={ShieldCheck}>Contact verified</Badge>
+                        ) : (
+                            <Badge variant="warning" size="md" icon={TriangleAlert}>Contact unverified</Badge>
+                        )}
                     </div>
-                    <div className="min-w-0">
-                        <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">Organization Settings</h1>
-                        <p className="mt-1 text-sm font-semibold text-muted-foreground">Identity, contact, appearance, and account security.</p>
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                    {orgData?.status && (
-                        <Badge
-                            variant={orgData.status === 'APPROVED' ? 'success' : orgData.status === 'REJECTED' ? 'error' : 'warning'}
-                            size="md"
-                            dot
-                        >
-                            {orgData.status.replace('_', ' ')}
-                        </Badge>
-                    )}
-                    {orgData?.contactEmailVerifiedAt ? (
-                        <Badge variant="success" size="md" icon={ShieldCheck}>Contact verified</Badge>
-                    ) : (
-                        <Badge variant="warning" size="md" icon={TriangleAlert}>Contact unverified</Badge>
-                    )}
-                </div>
-            </div>
+                )}
+            />
 
             {orgData?.status === 'REJECTED' && (
                 <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-danger sm:p-5">
