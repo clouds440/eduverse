@@ -398,6 +398,7 @@ export interface LongPressHandlersOptions {
     onLongPress: (itemId: string) => void;
     delay?: number;
     movementThreshold?: number;
+    shouldIgnoreTarget?: (target: EventTarget | null) => boolean;
 }
 
 /**
@@ -411,7 +412,7 @@ export function getLongPressHandlers(
     startPosRef: RefObject<{ x: number; y: number } | null>,
     hasTriggeredRef: RefObject<boolean>
 ): LongPressHandlersResult {
-    const { isDesktop, itemId, onLongPress, delay = 500, movementThreshold = 10 } = options;
+    const { isDesktop, itemId, onLongPress, delay = 500, movementThreshold = 10, shouldIgnoreTarget } = options;
 
     const clearTimer = () => {
         if (timerRef.current) {
@@ -422,6 +423,7 @@ export function getLongPressHandlers(
 
     const onTouchStart = (e: React.TouchEvent) => {
         if (isDesktop) return;
+        if (shouldIgnoreTarget?.(e.target)) return;
 
         // Reset state
         clearTimer();

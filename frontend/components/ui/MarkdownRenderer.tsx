@@ -136,6 +136,17 @@ markdownRenderer.link = ({ href, title, text }) => {
 export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '', attachmentAlign = 'left', compactAttachments = false, attachmentsFirst = false }: MarkdownRendererProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [, forceUpdate] = React.useState({});
+    const stopLinkGesturePropagation = (event: React.SyntheticEvent<HTMLDivElement>) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const link = target.closest('a[data-chat-link="true"]');
+        if (!link) return;
+
+        event.stopPropagation();
+        if (event.type === 'contextmenu') {
+            event.preventDefault();
+        }
+    };
 
     // Initialize mermaid
     useEffect(() => {
@@ -432,6 +443,14 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
                 <div
                     ref={containerRef}
                     className={`markdown-content ${className}`}
+                    onClickCapture={stopLinkGesturePropagation}
+                    onContextMenuCapture={stopLinkGesturePropagation}
+                    onMouseDownCapture={stopLinkGesturePropagation}
+                    onMouseUpCapture={stopLinkGesturePropagation}
+                    onPointerDownCapture={stopLinkGesturePropagation}
+                    onPointerUpCapture={stopLinkGesturePropagation}
+                    onTouchStartCapture={stopLinkGesturePropagation}
+                    onTouchEndCapture={stopLinkGesturePropagation}
                     dangerouslySetInnerHTML={{ __html: htmlContent }}
                     dir="auto"
                     style={{
@@ -466,11 +485,11 @@ if (typeof document !== 'undefined') {
             }
             .markdown-content strong, .markdown-content b { font-weight: 800; color: inherit; }
             .markdown-content a {
-                color: color-mix(in oklab, var(--primary) 86%, currentColor);
-                background: color-mix(in oklab, var(--primary) 12%, transparent);
+                color: #fff !important;
+                background: rgba(15, 23, 42, 0.32);
                 border-radius: 5px;
                 padding: 1px 4px;
-                text-decoration: underline;
+                text-decoration: underline !important;
                 font-weight: 800;
                 text-underline-offset: 2px;
                 overflow-wrap: anywhere;

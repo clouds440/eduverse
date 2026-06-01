@@ -84,6 +84,11 @@ function shouldRefreshCachedMessages(cachedMessages: ChatMessageWithMeta[], chat
     return previewUpdatedAt > cachedUpdatedAt;
 }
 
+function isChatInteractiveTarget(target: EventTarget | null) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest('a[data-chat-link="true"], button, input, textarea, select, [role="button"], img.markdown-image, .doc-preview-card, .copy-code-btn'));
+}
+
 export function ChatLayout() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
@@ -1589,6 +1594,7 @@ export function ChatLayout() {
                 <div
                     id={`msg-${msg.id}`}
                     onContextMenu={(e) => {
+                        if (isChatInteractiveTarget(e.target)) return;
                         if (!isDeleted) {
                             e.preventDefault();
                             setContextMenu({ msg, x: e.clientX, y: e.clientY });
@@ -1601,7 +1607,8 @@ export function ChatLayout() {
                             if (!isDeleted) {
                                 setContextMenu({ msg, x: 0, y: 0 });
                             }
-                        }
+                        },
+                        shouldIgnoreTarget: isChatInteractiveTarget
                     }, touchTimerRef, touchStartPosRef, touchHasTriggeredRef)}
                     className={`flex ${isMine ? 'justify-end' : 'justify-start'} group/msg relative ${isLastInGroup ? 'mb-4' : 'mb-1'} px-3 md:px-5 -mx-3 md:-mx-5 transition-colors ${highlightedMessageId === msg.id || contextMenu?.msg.id === msg.id ? 'bg-primary/25 rounded-xl' : ''}`}
                 >
