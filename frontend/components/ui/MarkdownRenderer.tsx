@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useCallback } from 'react';
 import { marked } from 'marked';
 import { getPublicUrl } from '@/lib/utils';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
@@ -136,7 +136,7 @@ markdownRenderer.link = ({ href, title, text }) => {
 export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '', attachmentAlign = 'left', compactAttachments = false, attachmentsFirst = false }: MarkdownRendererProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [, forceUpdate] = React.useState({});
-    const stopLinkGesturePropagation = (event: React.SyntheticEvent<HTMLDivElement>) => {
+    const stopLinkGesturePropagation = useCallback((event: React.SyntheticEvent<HTMLDivElement>) => {
         const target = event.target;
         if (!(target instanceof Element)) return;
         const link = target.closest('a[data-chat-link="true"]');
@@ -146,7 +146,7 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
         if (event.type === 'contextmenu') {
             event.preventDefault();
         }
-    };
+    }, []);
 
     // Initialize mermaid
     useEffect(() => {
@@ -463,7 +463,13 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
             {!attachmentsFirst && renderedAttachmentCards}
         </div>
     );
-});
+}, (prev, next) => (
+    prev.content === next.content &&
+    prev.className === next.className &&
+    prev.attachmentAlign === next.attachmentAlign &&
+    prev.compactAttachments === next.compactAttachments &&
+    prev.attachmentsFirst === next.attachmentsFirst
+));
 
 // Add global CSS for markdown content and code themes
 if (typeof document !== 'undefined') {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
+import { memo, useState, useEffect, useRef, useMemo, useCallback, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -87,6 +87,208 @@ function shouldRefreshCachedMessages(cachedMessages: ChatMessageWithMeta[], chat
 function isChatInteractiveTarget(target: EventTarget | null) {
     if (!(target instanceof Element)) return false;
     return Boolean(target.closest('a[data-chat-link="true"], button, input, textarea, select, [role="button"], img.markdown-image, .doc-preview-card, .copy-code-btn'));
+}
+
+interface ChatMessageRowProps {
+    msg: ChatMessageWithMeta;
+    isMine: boolean;
+    isGroupChat: boolean;
+    showAvatar: boolean;
+    isLastInGroup: boolean;
+    isHighlighted: boolean;
+    isContextSelected: boolean;
+    isDesktop: boolean;
+    userId?: string;
+    activeParticipantsOnline: Record<string, boolean>;
+    retryDisabled: boolean;
+    touchTimerRef: RefObject<ReturnType<typeof setTimeout> | null>;
+    touchStartPosRef: RefObject<{ x: number; y: number } | null>;
+    touchHasTriggeredRef: RefObject<boolean>;
+    onOpenContextMenu: (msg: ChatMessageWithMeta, x: number, y: number) => void;
+    onScrollToMessage: (messageId: string) => void;
+    onRetrySend: (msg: ChatMessageWithMeta) => void;
+}
+
+const ChatMessageRow = memo(function ChatMessageRow({
+    msg,
+    isMine,
+    isGroupChat,
+    showAvatar,
+    isLastInGroup,
+    isHighlighted,
+    isContextSelected,
+    isDesktop,
+    userId,
+    activeParticipantsOnline,
+    retryDisabled,
+    touchTimerRef,
+    touchStartPosRef,
+    touchHasTriggeredRef,
+    onOpenContextMenu,
+    onScrollToMessage,
+    onRetrySend,
+}: ChatMessageRowProps) {
+    if (msg.type === ChatMessageType.SYSTEM) {
+        return (
+            <div>
+                <div className="flex justify-center py-2 px-3">
+                    <div className="bg-muted/50 text-muted-foreground px-4 py-1.5 rounded-full text-[12px] font-black uppercase tracking-wider border border-border/30 shadow-sm flex items-center gap-2">
+                        <span>{msg.content}</span>
+                        <span className="opacity-40 text-[10px]">{formatChatTimestamp(msg.createdAt)}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const isDeleted = !!msg.deletedAt;
+    const isSendingMessage = msg.clientStatus === 'sending';
+    const isFailedMessage = msg.clientStatus === 'failed';
+    const isMineRepliedTo = msg.replyTo?.senderId === userId;
+
+    return (
+        <div>
+            <div
+                id={`msg-${msg.id}`}
+                onContextMenu={(e) => {
+                    if (isChatInteractiveTarget(e.target)) return;
+                    if (!isDeleted) {
+                        e.preventDefault();
+                        onOpenContextMenu(msg, e.clientX, e.clientY);
+                    }
+                }}
+                {...getLongPressHandlers({
+                    isDesktop,
+                    itemId: msg.id,
+                    onLongPress: () => {
+                        if (!isDeleted) {
+                            onOpenContextMenu(msg, 0, 0);
+                        }
+                    },
+                    shouldIgnoreTarget: isChatInteractiveTarget
+                }, touchTimerRef, touchStartPosRef, touchHasTriggeredRef)}
+                className={`flex ${isMine ? 'justify-end' : 'justify-start'} group/msg relative ${isLastInGroup ? 'mb-4' : 'mb-1'} px-3 md:px-5 -mx-3 md:-mx-5 transition-colors ${isHighlighted || isContextSelected ? 'bg-primary/25 rounded-xl' : ''}`}
+            >
+                {!isMine && (
+                    <div className="w-7 shrink-0 mr-2 flex flex-col justify-end mb-1">
+                        {isLastInGroup && <ChatAvatar targetUser={msg.sender} className="w-7 h-7 rounded-full" isOnline={!!(msg.sender?.id && activeParticipantsOnline[msg.sender.id])} />}
+                    </div>
+                )}
+                <div className={`flex flex-col min-w-0 ${isMine ? 'items-end' : 'items-start'}`} style={{ maxWidth: isMine ? 'min(94%, calc(100% - 0.75rem))' : 'min(94%, calc(100% - 2.5rem))' }}>
+                    <div className={`flex items-end space-x-1.5 relative max-w-full min-w-0 group/content ${isMine ? 'flex-row-reverse space-x-reverse justify-start' : 'flex-row justify-end'}`}>
+                        <div className="flex flex-col items-inherit max-w-full min-w-0">
+                            {isGroupChat && !isMine && showAvatar && (
+                                <span className="text-[11px] font-black tracking-widest mb-1.5 ml-1 opacity-80" style={{ color: getUserColor(msg.sender?.id) }}>
+                                    {msg.sender?.name}
+                                </span>
+                            )}
+                            {isDeleted ? (
+                                <div className={`px-3 py-2 rounded-xl text-[13px] leading-relaxed bg-muted/65 text-muted-foreground border border-border/60 italic shadow-sm ${isMine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <Trash2 size={15} className="shrink-0" />
+                                        <span className="min-w-0 wrap-break-word">Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name}</span> : null}</span>
+                                    </div>
+                                    <div className="mt-1 flex items-center justify-end">
+                                        <span className="text-[11px] font-medium tracking-wider text-muted-foreground">
+                                            {formatChatTimestamp(msg.createdAt)}
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full rounded-xl`}>
+                                    <div
+                                        className={`
+                                            relative pb-1 rounded-xl text-[14.5px] leading-relaxed max-w-full overflow-hidden transition-shadow duration-200
+                                            ${isMine
+                                                ? 'bg-primary text-primary-foreground rounded-br-sm shadow-lg shadow-primary/20'
+                                                : 'bg-card text-foreground rounded-bl-sm shadow-md shadow-foreground/5'
+                                            }
+                                            ${isFailedMessage && isMine ? 'border-danger border shadow-danger/20' : ''}
+                                        `}
+                                    >
+                                        {msg.replyTo && (() => (
+                                            <div
+                                                onClick={(e) => { e.stopPropagation(); onScrollToMessage(msg.replyTo!.id); }}
+                                                className={`m-0.5 px-2.5 py-1.5 min-w-25 mb-1 rounded-xl border border-border text-sm bg-background/90 text-foreground/70! max-w-full overflow-hidden truncate cursor-pointer hover:opacity-90 transition-opacity shadow-inner`}
+                                            >
+                                                <div className={`border-b-3 mt-px ${isMineRepliedTo ? 'border-primary' : 'border-foreground/70'} max-w-[85%] -translate-y-1 mx-auto`}></div>
+                                                <p className="font-semibold mb-0.5 text-xs flex items-center opacity-70">
+                                                    {msg.replyTo.sender?.id === userId ? 'You:' : msg.replyTo.sender?.name + ':' || 'Someone'}
+                                                </p>
+                                                <div className="truncate line-clamp-1 opacity-70">
+                                                    <MarkdownRenderer
+                                                        content={getTruncatedMessagePreview(msg.replyTo.deletedAt ? 'Message deleted' : msg.replyTo.content, isDesktop ? 400 : 200)}
+                                                        className={`${msg.replyTo.deletedAt ? 'text-muted-foreground!' : 'text-foreground/80!'}`}
+                                                        compactAttachments
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))()}
+
+                                        <div className={`prose prose-sm mx-2 max-w-full prose-p:mb-0 ${isMine && !isHighlighted ? 'prose-invert' : 'prose-p:text-foreground!'}`}>
+                                            <MarkdownRenderer content={msg.content} className={`${isMine ? 'text-primary-foreground!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} attachmentAlign={isMine ? 'right' : 'left'} attachmentsFirst />
+                                        </div>
+
+                                        <div className={`flex items-center mx-2 pl-1.5 pb-0.5 justify-end space-x-1 mt-1 -mb-0.5 text-foreground`}>
+                                            {msg.updatedAt && msg.updatedAt !== msg.createdAt && (
+                                                <span className={`text-[11px] tracking-wide sm:text-[11px] rounded-md px-1 py-0 ${isMine ? 'bg-card/60 text-foreground!' : 'bg-foreground/70 text-background!'}`}>Edited</span>
+                                            )}
+                                            <span className={`text-[11px] tracking-wider sm:text-[11px] font-medium ${isMine ? 'text-primary-foreground/80!' : 'text-muted-foreground!'}`}>
+                                                {formatChatTimestamp(msg.createdAt)}
+                                            </span>
+                                            {isMine && (
+                                                isSendingMessage ? (
+                                                    <Loader2 className="w-3 h-3 animate-spin opacity-80" strokeWidth={2.5} />
+                                                ) : isFailedMessage ? (
+                                                    <span className="ml-1 inline-flex items-center gap-1">
+                                                        <span className="text-[11px] tracking-wide font-medium text-danger/70">Failed</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { onRetrySend(msg); }}
+                                                            disabled={retryDisabled}
+                                                            className="inline-flex items-center gap-1 rounded-full border border-foreground/30 px-1 py-0.5 text-[9px] hover:bg-primary-foreground/10 disabled:opacity-50 transition-colors"
+                                                            title="Retry send"
+                                                        >
+                                                            <RotateCcw className="w-2.5 h-2.5" strokeWidth={2.5} />
+                                                        </button>
+                                                    </span>
+                                                ) : msg.readBy && msg.readBy.length > 0 ? (
+                                                    <CheckCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-chat-tick transform translate-y-px" strokeWidth={2.5} />
+                                                ) : (
+                                                    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-80 transform text-primary-foreground! translate-y-px" strokeWidth={2.5} />
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}, (prev, next) => (
+    prev.msg === next.msg &&
+    prev.isMine === next.isMine &&
+    prev.isGroupChat === next.isGroupChat &&
+    prev.showAvatar === next.showAvatar &&
+    prev.isLastInGroup === next.isLastInGroup &&
+    prev.isHighlighted === next.isHighlighted &&
+    prev.isContextSelected === next.isContextSelected &&
+    prev.isDesktop === next.isDesktop &&
+    prev.userId === next.userId &&
+    prev.retryDisabled === next.retryDisabled &&
+    prev.activeParticipantsOnline === next.activeParticipantsOnline
+));
+
+function isChatDebugEnabled() {
+    return typeof window !== 'undefined' && window.sessionStorage.getItem('eduverseChatDebug') === '1';
+}
+
+function chatDebug(event: string, payload?: Record<string, unknown>) {
+    if (!isChatDebugEnabled()) return;
+    console.debug(`[chat-debug] ${event}`, payload || {});
 }
 
 export function ChatLayout() {
@@ -203,6 +405,9 @@ export function ChatLayout() {
     const unreadSinceScrollRef = useRef(unreadSinceScroll);
     const activeChatIdRef = useRef(activeChatId);
     const tokenRef = useRef(token);
+    const lastReadMarkRef = useRef<{ key: string; at: number } | null>(null);
+    const fetchSequenceRef = useRef(0);
+    const mountedRef = useRef(true);
 
     const [composerHeight, setComposerHeight] = useState(0);
     const [readOnlyBannerHeight, setReadOnlyBannerHeight] = useState(0);
@@ -231,14 +436,26 @@ export function ChatLayout() {
         window.history.replaceState({}, '', url.toString());
     }, [isDesktop]);
 
+    const markChatRead = useCallback((chatId: string, messageId: string | number | '', authToken: string, reason: string) => {
+        const key = `${chatId}:${messageId || 'latest'}:${reason}`;
+        const now = Date.now();
+        const last = lastReadMarkRef.current;
+        if (last?.key === key && now - last.at < 2500) {
+            chatDebug('markAsRead:skip-duplicate', { chatId, messageId, reason });
+            return;
+        }
+
+        lastReadMarkRef.current = { key, at: now };
+        chatDebug('markAsRead', { chatId, messageId, reason });
+        markAsReadGuard(chatId, messageId, authToken);
+    }, []);
+
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+        chatDebug('scrollToBottom', { activeChatId, behavior });
         messagesEndRef.current?.scrollIntoView({ behavior });
         setUnreadSinceScroll(0);
         setShowScrollToBottom(false);
-        if (activeChatId && token) {
-            markAsReadGuard(activeChatId, '', token);
-        }
-    }, [activeChatId, token]);
+    }, [activeChatId]);
 
     // Helper to update messages with read status
     const updateMessagesWithReadStatus = useCallback((messages: ChatMessage[], readData: { messageId: string; userId: string }): ChatMessage[] => {
@@ -301,6 +518,25 @@ export function ChatLayout() {
         tokenRef.current = token;
     }, [token]);
 
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        chatDebug('render-state', {
+            activeChatId,
+            messages: messages.length,
+            chats: chats.length,
+            contextMenu: Boolean(contextMenu),
+            isLoadingMessages,
+            isAtBottom,
+            showScrollToBottom,
+        });
+    });
+
     const handleScroll = useCallback(() => {
         if (scrollFrameRef.current !== null) return;
 
@@ -313,6 +549,7 @@ export function ChatLayout() {
             const atBottom = distanceFromBottom < 50;
             const shouldShowScrollToBottom = distanceFromBottom > clientHeight * 2;
 
+            chatDebug('scroll', { distanceFromBottom, atBottom, shouldShowScrollToBottom });
             setIsAtBottom(prev => prev === atBottom ? prev : atBottom);
             setShowScrollToBottom(prev => prev === shouldShowScrollToBottom ? prev : shouldShowScrollToBottom);
 
@@ -321,11 +558,11 @@ export function ChatLayout() {
                 const chatId = activeChatIdRef.current;
                 const authToken = tokenRef.current;
                 if (chatId && authToken) {
-                    markAsReadGuard(chatId, '', authToken);
+                    markChatRead(chatId, '', authToken, 'scroll-bottom-unread');
                 }
             }
         });
-    }, []);
+    }, [markChatRead]);
 
     // Click outside to close participants
     useEffect(() => {
@@ -426,6 +663,9 @@ export function ChatLayout() {
     // 2. Fetch Messages for Active Chat (Initial)
     const fetchInitialMessages = useCallback(async (chatId: string, targetMsgId?: string | null) => {
         if (!token) return;
+        const fetchId = fetchSequenceRef.current + 1;
+        fetchSequenceRef.current = fetchId;
+        chatDebug('messages:fetch-start', { chatId, targetMsgId, fetchId });
         setIsLoadingMessages(true);
         setMessagesPage(1);
         setHasMoreMessages(true);
@@ -441,7 +681,13 @@ export function ChatLayout() {
                 res = await api.chat.getChatMessages(chatId, token, { limit: 35, page: 1 });
             }
 
+            if (!mountedRef.current || fetchId !== fetchSequenceRef.current || chatId !== activeChatIdRef.current) {
+                chatDebug('messages:fetch-stale', { chatId, fetchId, currentFetchId: fetchSequenceRef.current, activeChatId: activeChatIdRef.current });
+                return;
+            }
+
             const messagesData = res.data;
+            chatDebug('messages:set-initial', { chatId, fetchId, count: messagesData.length });
             setMessages(messagesData);
             setCachedMessages(chatId, messagesData);
             setHasMoreMessages(res.hasMoreBefore ?? (res.currentPage < res.totalPages));
@@ -461,15 +707,17 @@ export function ChatLayout() {
                 setTimeout(() => scrollToBottom('instant'), 100);
             }
 
-            markAsReadGuard(chatId, '', token);
+            markChatRead(chatId, '', token, 'enter-chat');
             setChats(prev => prev.map(chat => chat.id === chatId ? { ...chat, unreadCount: 0 } : chat));
         } catch (err) {
             console.error(err);
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Failed to load messages', type: 'error' } });
         } finally {
-            setIsLoadingMessages(false);
+            if (fetchId === fetchSequenceRef.current) {
+                setIsLoadingMessages(false);
+            }
         }
-    }, [token, scrollToBottom, scrollToMessage]);
+    }, [token, scrollToBottom, scrollToMessage, markChatRead]);
 
     useEffect(() => {
         if (!activeChatId) return;
@@ -477,6 +725,7 @@ export function ChatLayout() {
         const cachedMessages = getCachedMessages(activeChatId);
         const activeChatPreview = activeChatPreviewRef.current;
         if (!targetMessageId && !shouldRefreshCachedMessages(cachedMessages, activeChatPreview)) {
+            chatDebug('messages:set-cached', { activeChatId, count: cachedMessages.length });
             setMessages(cachedMessages);
             setIsLoadingMessages(false);
             setTimeout(() => scrollToBottom('instant'), 100);
@@ -586,24 +835,30 @@ export function ChatLayout() {
     const loadEarlierMessages = async () => {
         if (!token || !activeChatId || isLoadingMore || !hasMoreMessages) return;
 
+        const requestedChatId = activeChatId;
         const container = messagesContainerRef.current;
         const previousScrollHeight = container?.scrollHeight || 0;
 
         setIsLoadingMore(true);
+        chatDebug('messages:fetch-earlier-start', { chatId: requestedChatId });
 
         try {
             let res: PaginatedResponse<ChatMessage>;
             if (isViewingHistory && messages.length > 0) {
                 // Fetch context before the first message
-                res = await api.chat.getChatMessages(activeChatId, token, {
+                res = await api.chat.getChatMessages(requestedChatId, token, {
                     limit: 35,
                     aroundId: messages[0].id
                 });
+                if (!mountedRef.current || activeChatIdRef.current !== requestedChatId) return;
+                chatDebug('messages:set-earlier-history', { chatId: requestedChatId, count: res.data.length });
                 setMessages(prev => mergeUniqueMessages(prev, res.data, 'prepend'));
                 setHasMoreMessages(res.hasMoreBefore ?? false);
             } else {
                 const nextPage = messagesPage + 1;
-                res = await api.chat.getChatMessages(activeChatId, token, { limit: 35, page: nextPage });
+                res = await api.chat.getChatMessages(requestedChatId, token, { limit: 35, page: nextPage });
+                if (!mountedRef.current || activeChatIdRef.current !== requestedChatId) return;
+                chatDebug('messages:set-earlier-page', { chatId: requestedChatId, count: res.data.length, page: nextPage });
                 setMessages(prev => mergeUniqueMessages(prev, res.data, 'prepend'));
                 setMessagesPage(nextPage);
                 setHasMoreMessages(res.hasMoreBefore ?? (res.currentPage < res.totalPages));
@@ -625,12 +880,16 @@ export function ChatLayout() {
     const loadNewerMessages = async () => {
         if (!token || !activeChatId || isLoadingNewer || !hasMoreAfter || messages.length === 0) return;
 
+        const requestedChatId = activeChatId;
         setIsLoadingNewer(true);
+        chatDebug('messages:fetch-newer-start', { chatId: requestedChatId });
         try {
-            const res = await api.chat.getChatMessages(activeChatId, token, {
+            const res = await api.chat.getChatMessages(requestedChatId, token, {
                 limit: 35,
                 aroundId: messages[messages.length - 1].id
             });
+            if (!mountedRef.current || activeChatIdRef.current !== requestedChatId) return;
+            chatDebug('messages:set-newer', { chatId: requestedChatId, count: res.data.length });
             setMessages(prev => mergeUniqueMessages(prev, res.data, 'append'));
             setHasMoreAfter(res.hasMoreAfter ?? false);
             setIsViewingHistory(res.hasMoreAfter ?? false);
@@ -647,6 +906,7 @@ export function ChatLayout() {
 
         const unsubMessage = subscribe('chat:message', (newMsg: unknown) => {
             const message = newMsg as ChatMessage & { sender?: User };
+            chatDebug('socket:message', { chatId: message.chatId, messageId: message.id, activeChatId });
 
             // Always update cached messages for the chat, regardless of active chat
             // This ensures messages are available when switching to that chat later
@@ -658,6 +918,7 @@ export function ChatLayout() {
                 setMessages(prev => {
                     const pendingId = message.senderId === user.id ? pendingMessageIdRef.current : null;
                     const next = reconcileIncomingMessage(prev, message, user.id, pendingId);
+                    chatDebug('messages:set-socket', { chatId: message.chatId, messageId: message.id, previous: prev.length, next: next.length });
                     if (pendingId && next !== prev) {
                         pendingMessageIdRef.current = null;
                     }
@@ -674,7 +935,7 @@ export function ChatLayout() {
 
                 if (message.senderId !== user.id) {
                     // Recipient marks the message as read immediately
-                    markAsReadGuard(activeChatId, message.id, token);
+                    markChatRead(activeChatId, message.id, token, 'active-incoming-message');
                 }
             }
 
@@ -808,7 +1069,7 @@ export function ChatLayout() {
             unsubUpdate();
             unsubRoomLeft();
         };
-    }, [subscribe, activeChatId, token, user, closeActiveChat, isAtBottom, scrollToBottom, updateMessagesWithReadStatus]);
+    }, [subscribe, activeChatId, token, user, closeActiveChat, isAtBottom, scrollToBottom, updateMessagesWithReadStatus, markChatRead]);
 
     // 4. Join/Leave rooms, Sync URL, and request presence
     useEffect(() => {
@@ -891,26 +1152,15 @@ export function ChatLayout() {
         onBack: () => setContextMenu(null),
     });
 
-    // 5. Image click handler for thumbnails
-    useEffect(() => {
-        // Attach a document-level click handler and filter clicks that originate from images
-        const handleImageClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement | null;
-            if (!target) return;
+    const handleMessagesClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
 
-            // Find the nearest <img> element from the event target (covers clicks on children)
-            const imgEl = (target.closest && (target.closest('img') as HTMLImageElement | null)) || (target.tagName === 'IMG' ? (target as HTMLImageElement) : null);
-            if (!imgEl) return;
+        const imgEl = target.closest('img.markdown-image') as HTMLImageElement | null;
+        if (!imgEl?.src) return;
 
-            // Ensure the image is inside the messages container and is a markdown image
-            if (messagesContainerRef.current && messagesContainerRef.current.contains(imgEl) && imgEl.classList.contains('markdown-image')) {
-                const imgSrc = imgEl.src;
-                if (imgSrc) setPreviewImageUrl(imgSrc);
-            }
-        };
-
-        document.addEventListener('click', handleImageClick);
-        return () => document.removeEventListener('click', handleImageClick);
+        event.stopPropagation();
+        setPreviewImageUrl(imgEl.src);
     }, []);
 
     const activeChat = useMemo(() => chats.find(c => c.id === activeChatId), [chats, activeChatId]);
@@ -1496,7 +1746,7 @@ export function ChatLayout() {
 
     const handleEditorFocus = () => {
         if (token && activeChatId) {
-            markAsReadGuard(activeChatId, '', token);
+            markChatRead(activeChatId, '', token, 'composer-focus');
             setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, unreadCount: 0 } : c));
         }
     };
@@ -1537,6 +1787,18 @@ export function ChatLayout() {
         return statuses;
     }, [activeChat?.participants, onlineUsers]);
 
+    const openMessageContextMenu = useCallback((targetMsg: ChatMessageWithMeta, x: number, y: number) => {
+        setContextMenu({ msg: targetMsg, x, y });
+    }, []);
+
+    const retrySendMessage = useCallback((targetMsg: ChatMessageWithMeta) => {
+        void handleSendMessage(targetMsg);
+    }, [handleSendMessage]);
+
+    const scrollToMessageFromRow = useCallback((messageId: string) => {
+        void scrollToMessage(messageId);
+    }, [scrollToMessage]);
+
     const renderedMessages = useMemo(() => {
         const sections: ReactNode[] = [];
         let currentDateLabel: string | null = null;
@@ -1567,160 +1829,37 @@ export function ChatLayout() {
                 currentDateLabel = dateLabel;
             }
 
-        if (msg.type === ChatMessageType.SYSTEM) {
-            currentDateMessages.push(
-                <div key={msg.id}>
-                    <div className="flex justify-center py-2 px-3">
-                        <div className="bg-muted/50 backdrop-blur-sm text-muted-foreground px-4 py-1.5 rounded-full text-[12px] font-black uppercase tracking-wider border border-border/30 shadow-sm flex items-center gap-2">
-                            <span>{msg.content}</span>
-                            <span className="opacity-40 text-[10px]">{formatChatTimestamp(msg.createdAt)}</span>
-                        </div>
-                    </div>
-                </div>
-            );
-            return;
-        }
-
         const isMine = msg.senderId === user?.id;
         const showAvatar = !isMine && (i === 0 || messages[i - 1].senderId !== msg.senderId || messages[i - 1].type === ChatMessageType.SYSTEM);
         const isLastInGroup = i === messages.length - 1 || messages[i + 1].senderId !== msg.senderId || messages[i + 1].type === ChatMessageType.SYSTEM;
-        const isDeleted = !!msg.deletedAt;
-        const isSendingMessage = msg.clientStatus === 'sending';
-        const isFailedMessage = msg.clientStatus === 'failed';
-        const isMineRepliedTo = msg.replyTo?.senderId === user?.id;
 
         currentDateMessages.push(
-            <div key={msg.id}>
-                <div
-                    id={`msg-${msg.id}`}
-                    onContextMenu={(e) => {
-                        if (isChatInteractiveTarget(e.target)) return;
-                        if (!isDeleted) {
-                            e.preventDefault();
-                            setContextMenu({ msg, x: e.clientX, y: e.clientY });
-                        }
-                    }}
-                    {...getLongPressHandlers({
-                        isDesktop,
-                        itemId: msg.id,
-                        onLongPress: () => {
-                            if (!isDeleted) {
-                                setContextMenu({ msg, x: 0, y: 0 });
-                            }
-                        },
-                        shouldIgnoreTarget: isChatInteractiveTarget
-                    }, touchTimerRef, touchStartPosRef, touchHasTriggeredRef)}
-                    className={`flex ${isMine ? 'justify-end' : 'justify-start'} group/msg relative ${isLastInGroup ? 'mb-4' : 'mb-1'} px-3 md:px-5 -mx-3 md:-mx-5 transition-colors ${highlightedMessageId === msg.id || contextMenu?.msg.id === msg.id ? 'bg-primary/25 rounded-xl' : ''}`}
-                >
-                    {!isMine && (
-                        <div className="w-7 shrink-0 mr-2 flex flex-col justify-end mb-1">
-                            {isLastInGroup && <ChatAvatar targetUser={msg.sender} className="w-7 h-7 rounded-full" isOnline={!!(msg.sender?.id && activeParticipantsOnline[msg.sender.id])} />}
-                        </div>
-                    )}
-                    <div className={`flex flex-col min-w-0 ${isMine ? 'items-end' : 'items-start'}`} style={{ maxWidth: isMine ? 'min(94%, calc(100% - 0.75rem))' : 'min(94%, calc(100% - 2.5rem))' }}>
-                        <div className={`flex items-end space-x-1.5 relative max-w-full min-w-0 group/content ${isMine ? 'flex-row-reverse space-x-reverse justify-start' : 'flex-row justify-end'}`}>
-                            <div className="flex flex-col items-inherit max-w-full min-w-0">
-                                {activeChat?.type === ChatType.GROUP && !isMine && showAvatar && (
-                                    <span className="text-[11px] font-black tracking-widest mb-1.5 ml-1 opacity-80" style={{ color: getUserColor(msg.sender?.id) }}>
-                                        {msg.sender?.name}
-                                    </span>
-                                )}
-                                {isDeleted ? (
-                                    <div className={`px-3 py-2 rounded-xl text-[13px] leading-relaxed bg-muted/65 text-muted-foreground border border-border/60 italic shadow-sm ${isMine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
-                                        <div className="flex min-w-0 items-center gap-2">
-                                            <Trash2 size={15} className="shrink-0" />
-                                            <span className="min-w-0 wrap-break-word">Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name}</span> : null}</span>
-                                        </div>
-                                        <div className="mt-1 flex items-center justify-end">
-                                            <span className="text-[11px] font-medium tracking-wider text-muted-foreground">
-                                                {formatChatTimestamp(msg.createdAt)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    // Chat Bubble
-                                    <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'} space-y-1.5 relative w-full rounded-xl`}>
-                                        <div
-                                            className={`
-                                                relative pb-1 rounded-xl text-[14.5px] leading-relaxed max-w-full overflow-hidden backdrop-blur-sm transition-shadow duration-200
-                                                ${isMine
-                                                    ? 'bg-primary text-primary-foreground rounded-br-sm shadow-lg shadow-primary/20'
-                                                    : 'bg-card text-foreground rounded-bl-sm shadow-md shadow-foreground/5'
-                                                }
-                                                ${isFailedMessage && isMine ? 'border-danger border shadow-danger/20' : ''}
-                                            `}
-                                        >
-                                            {/* Reply Section inside Bubble */}
-                                            {msg.replyTo && !isDeleted && (() => {
-                                                return (
-                                                    <div
-                                                        onClick={(e) => { e.stopPropagation(); void scrollToMessage(msg.replyTo!.id); }}
-                                                        className={`m-0.5 px-2.5 py-1.5 min-w-25 mb-1 rounded-xl border border-border text-sm bg-background/90 text-foreground/70! max-w-full overflow-hidden truncate cursor-pointer hover:opacity-90 transition-opacity shadow-inner`}
-                                                    >
-                                                        <div className={`border-b-3 mt-px ${isMineRepliedTo ? 'border-primary' : 'border-foreground/70'} max-w-[85%] -translate-y-1 mx-auto`}></div>
-                                                        <p className="font-semibold mb-0.5 text-xs flex items-center opacity-70">
-                                                            {msg.replyTo.sender?.id === user?.id ? 'You:' : msg.replyTo.sender?.name + ':' || 'Someone'}
-                                                        </p>
-                                                        <div className="truncate line-clamp-1 opacity-70">
-                                                            <MarkdownRenderer
-                                                                content={getTruncatedMessagePreview(msg.replyTo.deletedAt ? 'Message deleted' : msg.replyTo.content, isDesktop ? 400 : 200)}
-                                                                className={`${msg.replyTo.deletedAt ? 'text-muted-foreground!' : 'text-foreground/80!'}`}
-                                                                compactAttachments
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-
-                                            <div className={`prose prose-sm mx-2 max-w-full prose-p:mb-0 ${isMine && highlightedMessageId !== msg.id ? 'prose-invert' : 'prose-p:text-foreground!'}`}>
-                                                <MarkdownRenderer content={msg.content} className={`${isMine ? 'text-primary-foreground!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} attachmentAlign={isMine ? 'right' : 'left'} attachmentsFirst />
-                                            </div>
-
-                                            {/* Messages Timestamp */}
-                                            <div className={`flex items-center mx-2 pl-1.5 pb-0.5 justify-end space-x-1 mt-1 -mb-0.5 text-foreground`}>
-                                                {msg.updatedAt && msg.updatedAt !== msg.createdAt && (
-                                                    <span className={`text-[11px] tracking-wide sm:text-[11px] rounded-md px-1 py-0 ${isMine ? 'bg-card/60 text-foreground!' : 'bg-foreground/70 text-background!'}`}>Edited</span>
-                                                )}
-                                                <span className={`text-[11px] tracking-wider sm:text-[11px] font-medium ${isMine ? 'text-primary-foreground/80!' : 'text-muted-foreground!'}`}>
-                                                    {formatChatTimestamp(msg.createdAt)}
-                                                </span>
-                                                {isMine && (
-                                                    isSendingMessage ? (
-                                                        <Loader2 className="w-3 h-3 animate-spin opacity-80" strokeWidth={2.5} />
-                                                    ) : isFailedMessage ? (
-                                                        <span className="ml-1 inline-flex items-center gap-1">
-                                                            <span className="text-[11px] tracking-wide font-medium text-danger/70">Failed</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => { void handleSendMessage(msg); }}
-                                                                disabled={sendLockRef.current || isSending || isUploading}
-                                                                className="inline-flex items-center gap-1 rounded-full border border-foreground/30 px-1 py-0.5 text-[9px] hover:bg-primary-foreground/10 disabled:opacity-50 transition-colors"
-                                                                title="Retry send"
-                                                            >
-                                                                <RotateCcw className="w-2.5 h-2.5" strokeWidth={2.5} />
-                                                            </button>
-                                                        </span>
-                                                    ) : msg.readBy && msg.readBy.length > 0 ? (
-                                                        <CheckCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-chat-tick transform translate-y-px" strokeWidth={2.5} />
-                                                    ) : (
-                                                        <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-80 transform text-primary-foreground! translate-y-px" strokeWidth={2.5} />
-                                                    )
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <ChatMessageRow
+                key={msg.id}
+                msg={msg}
+                isMine={isMine}
+                isGroupChat={activeChat?.type === ChatType.GROUP}
+                showAvatar={showAvatar}
+                isLastInGroup={isLastInGroup}
+                isHighlighted={highlightedMessageId === msg.id}
+                isContextSelected={contextMenu?.msg.id === msg.id}
+                isDesktop={isDesktop}
+                userId={user?.id}
+                activeParticipantsOnline={activeParticipantsOnline}
+                retryDisabled={sendLockRef.current || isSending || isUploading}
+                touchTimerRef={touchTimerRef}
+                touchStartPosRef={touchStartPosRef}
+                touchHasTriggeredRef={touchHasTriggeredRef}
+                onOpenContextMenu={openMessageContextMenu}
+                onScrollToMessage={scrollToMessageFromRow}
+                onRetrySend={retrySendMessage}
+            />
         );
         });
 
         flushCurrentDateSection();
         return sections;
-    }, [messages, user?.id, contextMenu?.msg.id, highlightedMessageId, isDesktop, activeChat?.type, scrollToMessage, isSending, isUploading, handleSendMessage, activeParticipantsOnline]);
+    }, [messages, user?.id, contextMenu?.msg.id, highlightedMessageId, isDesktop, activeChat?.type, isSending, isUploading, activeParticipantsOnline, openMessageContextMenu, scrollToMessageFromRow, retrySendMessage]);
 
     if (!user) return null;
 
@@ -2011,7 +2150,7 @@ export function ChatLayout() {
                     <>
                         {/* Chat Header */}
                         <div
-                            className="relative w-full px-3 sm:px-4 py-3 border-b border-border/60 flex items-center justify-between z-20 bg-background/30 backdrop-blur-sm shadow-sm shadow-foreground/5"
+                            className="relative w-full px-3 sm:px-4 py-3 border-b border-border/60 flex items-center justify-between z-20 bg-background/95 shadow-sm shadow-foreground/5"
                         >
                             <button
                                 type="button"
@@ -2091,6 +2230,7 @@ export function ChatLayout() {
                             <div
                                 ref={messagesContainerRef}
                                 onScroll={handleScroll}
+                                onClick={handleMessagesClick}
                                 className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:px-24 py-3 sm:py-4 space-y-0.5 custom-scrollbar"
                                 style={{
                                     paddingBottom: !isDesktop
@@ -2107,7 +2247,7 @@ export function ChatLayout() {
                                     <>
                                         {!hasMoreMessages && (
                                             <div className="flex justify-center py-3">
-                                                <div className="bg-card/80 backdrop-blur-sm text-muted-foreground px-4 py-1.5 rounded-full text-[13px] font-medium flex items-center border border-border shadow-sm">
+                                                <div className="bg-card/90 text-muted-foreground px-4 py-1.5 rounded-full text-[13px] font-medium flex items-center border border-border shadow-sm">
                                                     <Info size={12} className="mr-1.5 text-primary/80" />
                                                     This is the beginning of this chat
                                                 </div>
@@ -2121,7 +2261,7 @@ export function ChatLayout() {
                                                     variant="secondary"
                                                     px="px-4"
                                                     py="py-1.5"
-                                                    className="bg-card/90 backdrop-blur-sm border border-border rounded-full text-[13px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/30 transition-all shadow-sm active:scale-95 flex items-center"
+                                                    className="bg-card/90 border border-border rounded-full text-[13px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/30 transition-all shadow-sm active:scale-95 flex items-center"
                                                     icon={isLoadingMore ? Loader2 : ArrowUp}
                                                 >
                                                     {isLoadingMore ? 'Loading...' : 'Load earlier'}
@@ -2140,7 +2280,7 @@ export function ChatLayout() {
                                                     variant="secondary"
                                                     px="px-4"
                                                     py="py-1.5"
-                                                    className="bg-card/90 backdrop-blur-sm border border-border rounded-full text-[11px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/30 transition-all shadow-sm active:scale-95 flex items-center"
+                                                    className="bg-card/90 border border-border rounded-full text-[11px] font-semibold text-muted-foreground hover:text-primary hover:border-primary/30 transition-all shadow-sm active:scale-95 flex items-center"
                                                     icon={isLoadingNewer ? Loader2 : ArrowDown}
                                                 >
                                                     {isLoadingNewer ? 'Loading...' : 'Load newer'}
@@ -2153,7 +2293,7 @@ export function ChatLayout() {
 
                             {/* History Mode Banner */}
                             {isViewingHistory && (
-                                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-foreground text-background px-4 py-2 rounded-full shadow-lg backdrop-blur-sm flex items-center space-x-3 text-[13px] font-semibold animate-in slide-in-from-top duration-300">
+                                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-foreground text-background px-4 py-2 rounded-full shadow-lg flex items-center space-x-3 text-[13px] font-semibold animate-in slide-in-from-top duration-300">
                                     <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
                                     <span>Viewing history</span>
                                     <button
@@ -2365,7 +2505,7 @@ export function ChatLayout() {
                                         />
 
                                         {/* Main composer container */}
-                                        <div className="flex-1 min-w-0 max-w-full bg-card/95 border-2 border-border/70 rounded-3xl focus-within:bg-background/70 focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/10 transition-all shadow-lg shadow-foreground/5 backdrop-blur-sm">
+                                        <div className="flex-1 min-w-0 max-w-full bg-card/95 border-2 border-border/70 rounded-3xl focus-within:bg-background/70 focus-within:border-primary/30 focus-within:ring-4 focus-within:ring-primary/10 transition-all shadow-lg shadow-foreground/5">
                                             {/* Top row */}
                                             <div className={`flex items-end min-w-0 transition-all duration-500 ease-out ${isComposerExpanded ? 'px-3 pt-2' : 'px-2'}`}>
                                                 {/* Left buttons only in compact mode */}
@@ -2525,7 +2665,7 @@ export function ChatLayout() {
                 ) : (
                     /* Empty State */
                     <div className="flex-1 flex flex-col items-center justify-center chat-bg-pattern px-4">
-                        <div className="flex flex-col items-center justify-center p-14 bg-card/60 rounded-xl shadow-lg backdrop-blur-sm">
+                        <div className="flex flex-col items-center justify-center p-14 bg-card/60 rounded-xl shadow-lg">
                             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-card rounded-2xl flex items-center justify-center shadow-sm border border-border mb-4 sm:mb-5">
                                 <MessageSquarePlus size={36} className="text-primary/80" />
                             </div>

@@ -19,7 +19,7 @@ export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps)
 
     return (
         <div
-            className="absolute w-full h-full z-50 flex items-center justify-center bg-accent/90 backdrop-blur-sm"
+            className="absolute w-full h-full z-50 flex items-center justify-center bg-accent/90"
             onClick={onClose}
         >
             <div className="relative max-w-4xl max-h-screen p-3 sm:p-4 w-full h-full flex items-center justify-center">
