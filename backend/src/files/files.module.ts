@@ -26,7 +26,7 @@ import { FilesService } from './files.service';
             const uniquePublicId = `${Date.now()}-${fileName}`;
 
             return {
-              folder: `school-management/orgs/${safeOrg}/${safeEntity}/${safeEntityId}`,
+              folder: `eduverse/orgs/${safeOrg}/${safeEntity}/${safeEntityId}`,
               resource_type: 'auto',
               public_id: uniquePublicId,
             };

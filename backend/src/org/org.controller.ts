@@ -104,7 +104,7 @@ export class OrgController {
             .slice(0, -1)
             .join('.');
           return {
-            folder: `school-management/orgs/${orgId}/orgLogo`,
+            folder: `eduverse/orgs/${orgId}/orgLogo`,
             resource_type: 'auto',
             public_id: `${Date.now()}-${fileName}`,
           };
@@ -360,7 +360,7 @@ export class OrgController {
             .slice(0, -1)
             .join('.');
           return {
-            folder: `school-management/users/${userId}/avatar`,
+            folder: `eduverse/users/${userId}/avatar`,
             resource_type: 'auto',
             public_id: `${Date.now()}-${fileName}`,
           };

@@ -2,10 +2,10 @@
 
 
 
-# School Management System - Technical Design Document
-**Version:** 1.0
+# EduVerse - Technical Design Document
+**Version:** 2.0.1
 **Date:** March 2026
-**Repository:** clouds440/school-management
+**Repository:** clouds440/eduverse
 **Document Type:** Technical Design Document (TDD)
 
 ---
@@ -32,7 +32,7 @@
 
 ## Overview
 ### Purpose
-The School Management System is a comprehensive web-based platform designed to streamline educational institution administration. It provides a multi-tenant architecture supporting multiple organizations with role-based access control for administrators, teachers, and students.
+EduVerse is a comprehensive web-based platform designed to streamline educational institution administration. It provides a multi-tenant architecture supporting multiple organizations with role-based access control for administrators, teachers, and students.
 
 ### Scope
 The system encompasses:
@@ -2921,7 +2921,7 @@ flowchart TD
 
 ## Live Deployment
 
-The School Management System is deployed and available at: **https://eduversepak.cloud**
+EduVerse is deployed and available at: **https://eduversepak.cloud**
 
 This production instance includes all features documented in this technical design document, including:
 - Multi-tenant organization management
