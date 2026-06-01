@@ -33,7 +33,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
 
                 <nav
                     aria-label="Finance navigation"
-                    className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-card/80 p-1 shadow-sm scrollbar-none"
+                    className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/45 p-1 shadow-sm scrollbar-none"
                 >
                     {tabs.filter(t => !t.hidden).map((tab) => {
                         const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
@@ -44,7 +44,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
                                 className={cn(
                                     'flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
                                     isActive
-                                        ? 'bg-background text-primary-foreground shadow-xs'
+                                        ? 'bg-card text-foreground shadow-xs'
                                         : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                                 )}
                                 aria-current={isActive ? 'page' : undefined}

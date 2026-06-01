@@ -61,11 +61,11 @@ export default function PromotionsPage() {
             />
 
             <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                    <div className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/35 p-1 scrollbar-none">
+                <div className="shrink-0 border-b border-border/60 rounded-t-lg bg-card/80">
+                    <div className="flex gap-1 overflow-x-auto rounded-t-lg border border-border/70 bg-muted/45 p-1 scrollbar-none">
                         <button
                             type="button"
-                            className={`flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-black transition-colors ${activeTab === 'copy-forward' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}`}
+                            className={`flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-black transition-colors ${activeTab === 'copy-forward' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}`}
                             onClick={() => setActiveTab('copy-forward')}
                             aria-pressed={activeTab === 'copy-forward'}
                         >
@@ -74,7 +74,7 @@ export default function PromotionsPage() {
                         </button>
                         <button
                             type="button"
-                            className={`flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-black transition-colors ${activeTab === 'promote' ? 'bg-background text-foreground shadow-xs' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}`}
+                            className={`flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-black transition-colors ${activeTab === 'promote' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}`}
                             onClick={() => setActiveTab('promote')}
                             aria-pressed={activeTab === 'promote'}
                         >
