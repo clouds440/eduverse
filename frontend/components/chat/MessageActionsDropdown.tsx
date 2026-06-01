@@ -138,7 +138,7 @@ export function MessageContextMenu({
     if (isMobile) {
         return (
             <>
-                <div className="fixed inset-0 z-50 bg-background/1" onClick={onClose} />
+                <div className="fixed inset-0 z-50 bg-background/10 backdrop-blur-xs" onClick={onClose} />
                 <div className="fixed bottom-0 left-0 right-0 z-51 bg-card border-t border-border rounded-t-2xl shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-8 duration-150 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
                     <div className="flex items-center justify-between mb-4 px-2">
                         <span className="text-sm font-bold text-muted-foreground tracking-wide">Message Options</span>

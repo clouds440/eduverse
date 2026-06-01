@@ -143,3 +143,9 @@ export function getDerivedSecondaryColor(primary: string, mode: ThemeMode) {
         ? adjustBrightness(primary, -85)
         : adjustBrightness(primary, 90);
 }
+
+export function getPrimaryHoverColor(primary: string) {
+    const safePrimary = getSafePrimaryColor(primary);
+    const brightness = getBrightness(safePrimary);
+    return adjustBrightness(safePrimary, brightness < 90 ? 12 : -12);
+}

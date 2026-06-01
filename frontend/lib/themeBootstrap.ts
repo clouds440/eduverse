@@ -69,6 +69,10 @@ export const THEME_BOOTSTRAP_SCRIPT = `
       return brightness(hex) >= 128 ? '#111827' : '#ffffff';
     }
 
+    function primaryHover(hex) {
+      return adjustBrightness(hex, brightness(hex) < 90 ? 12 : -12).toUpperCase();
+    }
+
     function isBlue(hex) {
       var rgb = hexToRgb(hex);
       return !!rgb && rgb.b > rgb.r && rgb.b > rgb.g;
@@ -86,7 +90,7 @@ export const THEME_BOOTSTRAP_SCRIPT = `
     root.classList.toggle('dark', isDark);
     root.style.setProperty('--primary', primary);
     root.style.setProperty('--primary-rgb', (primaryRgb ? primaryRgb.r : 0) + ', ' + (primaryRgb ? primaryRgb.g : 82) + ', ' + (primaryRgb ? primaryRgb.b : 255));
-    root.style.setProperty('--primary-hover', '#003ECB');
+    root.style.setProperty('--primary-hover', primaryHover(primary));
     root.style.setProperty('--secondary', secondary || DEFAULT_SECONDARY);
     root.style.setProperty('--primary-text', contrast(primary));
     root.style.setProperty('--secondary-text', contrast(secondary || DEFAULT_SECONDARY));

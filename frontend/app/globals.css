@@ -22,8 +22,8 @@
   --primary: #4f46e5;
   --primary-rgb: 79, 70, 229;
   /* primary */
-  --primary-hover: #4338ca;
-  /* indigo-700 */
+  --primary-hover: color-mix(in srgb, var(--primary) 88%, black);
+  /* derived from primary */
   --primary-text: #ffffff;
   --secondary: #ffece2;
   --secondary-hover: #f1f5f9;

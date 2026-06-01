@@ -10,6 +10,7 @@ import {
     adjustBrightness,
     getContrastColor,
     getDerivedSecondaryColor,
+    getPrimaryHoverColor,
     getSafePrimaryColor,
     hexToRgb,
     isBlueShade,
@@ -55,7 +56,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
         // Base Colors
         root.style.setProperty('--primary', safePrimary);
-        root.style.setProperty('--primary-hover', '#003ECB'); // Primary Hover
+        root.style.setProperty('--primary-hover', getPrimaryHoverColor(safePrimary));
         root.style.setProperty('--secondary', safeSecondary);
         root.style.setProperty('--neutral', '#8A919E'); // Neutral
         root.style.setProperty('--success', '#019256'); // Success
