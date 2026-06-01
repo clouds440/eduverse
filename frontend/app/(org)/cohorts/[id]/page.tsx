@@ -67,16 +67,16 @@ export default function CohortDetailPage() {
 
             <div className="flex-1 bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-6 overflow-y-auto min-h-0">
                 {activeTab === 'students' ? (
-                    <CohortStudentsTab cohortId={id} students={cohort.students || []} token={token} />
+                    <CohortStudentsTab students={cohort.students || []} />
                 ) : (
-                    <CohortSectionsTab cohortId={id} sections={cohort.sections || []} token={token} />
+                    <CohortSectionsTab sections={cohort.sections || []} />
                 )}
             </div>
         </div>
     );
 }
 
-function CohortStudentsTab({ cohortId, students, token }: { cohortId: string; students: Student[]; token: string }) {
+function CohortStudentsTab({ students }: { students: Student[] }) {
     return (
         <div className="space-y-6 max-w-4xl">
             <div className="flex items-center justify-between">
@@ -108,7 +108,7 @@ function CohortStudentsTab({ cohortId, students, token }: { cohortId: string; st
     );
 }
 
-function CohortSectionsTab({ cohortId, sections, token }: { cohortId: string; sections: Section[]; token: string }) {
+function CohortSectionsTab({ sections }: { sections: Section[] }) {
     return (
         <div className="space-y-6 max-w-4xl">
             <div className="flex items-center justify-between">

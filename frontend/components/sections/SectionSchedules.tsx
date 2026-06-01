@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { CalendarDays, Clock, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, CalendarRange, Clock, MapPin, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ApiError, SectionSchedule, Section, Role } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
@@ -12,9 +12,10 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
-import { Loading } from '@/components/ui/Loading';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { StatusBanner } from '@/components/ui/StatusBanner';
+import { Toggle } from '@/components/ui/Toggle';
 
 const DAY_OPTIONS = [
     { value: '0', label: 'Sunday' },
@@ -26,6 +27,14 @@ const DAY_OPTIONS = [
     { value: '6', label: 'Saturday' },
 ];
 
+const WEEKDAY_VALUES = ['1', '2', '3', '4', '5'];
+const DURATION_PRESETS = [
+    { label: '45m', minutes: 45 },
+    { label: '1h', minutes: 60 },
+    { label: '90m', minutes: 90 },
+    { label: '2h', minutes: 120 },
+];
+
 interface SectionSchedulesProps {
     section: Section;
     role: Role;
@@ -33,6 +42,32 @@ interface SectionSchedulesProps {
 
 function getDayLabel(day: number) {
     return DAY_OPTIONS.find((option) => option.value === String(day))?.label || 'Unknown';
+}
+
+function timeToMinutes(time: string) {
+    const [hours = '0', minutes = '0'] = time.split(':');
+    return Number(hours) * 60 + Number(minutes);
+}
+
+function minutesToTime(totalMinutes: number) {
+    const clamped = Math.min(23 * 60 + 59, Math.max(0, totalMinutes));
+    const hours = Math.floor(clamped / 60);
+    const minutes = clamped % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function addMinutesToTime(time: string, minutes: number) {
+    return minutesToTime(timeToMinutes(time) + minutes);
+}
+
+function getDurationLabel(startTime: string, endTime: string) {
+    const duration = timeToMinutes(endTime) - timeToMinutes(startTime);
+    if (duration <= 0) return 'Invalid range';
+    const hours = Math.floor(duration / 60);
+    const minutes = duration % 60;
+    if (hours && minutes) return `${hours}h ${minutes}m`;
+    if (hours) return `${hours}h`;
+    return `${minutes}m`;
 }
 
 export default memo(function SectionSchedules({ section, role }: SectionSchedulesProps) {
@@ -53,6 +88,8 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         endTime: '10:00',
         room: section.room || '',
     });
+    const [repeatWeekdays, setRepeatWeekdays] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
 
     const isManagerOrAdmin = role === Role.ORG_ADMIN || role === Role.ORG_MANAGER;
 
@@ -80,6 +117,8 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
 
     const openCreateModal = () => {
         setEditingSchedule(null);
+        setRepeatWeekdays(false);
+        setFormError(null);
         setFormData({
             day: '1',
             startTime: '09:00',
@@ -91,6 +130,8 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
 
     const openEditModal = (schedule: SectionSchedule) => {
         setEditingSchedule(schedule);
+        setRepeatWeekdays(false);
+        setFormError(null);
         setFormData({
             day: String(schedule.day),
             startTime: schedule.startTime,
@@ -100,14 +141,36 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         setIsModalOpen(true);
     };
 
+    const adjustTime = (field: 'startTime' | 'endTime', minutes: number) => {
+        setFormData((current) => ({
+            ...current,
+            [field]: addMinutesToTime(current[field], minutes),
+        }));
+    };
+
+    const applyDurationPreset = (minutes: number) => {
+        setFormData((current) => ({
+            ...current,
+            endTime: addMinutesToTime(current.startTime, minutes),
+        }));
+    };
+
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!token) return;
 
         const target = editingSchedule;
         const processingId = target ? `schedule-edit-${target.id}` : 'schedule-create';
+        const startMinutes = timeToMinutes(formData.startTime);
+        const endMinutes = timeToMinutes(formData.endTime);
+
+        if (endMinutes <= startMinutes) {
+            setFormError('End time must be later than start time.');
+            return;
+        }
 
         try {
+            setFormError(null);
             dispatch({ type: 'UI_START_PROCESSING', payload: processingId });
             const payload = {
                 day: parseInt(formData.day, 10),
@@ -119,6 +182,11 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             if (target) {
                 await api.org.updateSchedule(section.id, target.id, payload, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Schedule updated successfully', type: 'success' } });
+            } else if (repeatWeekdays) {
+                for (const day of WEEKDAY_VALUES) {
+                    await api.org.createSchedule(section.id, { ...payload, day: parseInt(day, 10) }, token);
+                }
+                dispatch({ type: 'TOAST_ADD', payload: { message: 'Weekday schedule added successfully', type: 'success' } });
             } else {
                 await api.org.createSchedule(section.id, payload, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Schedule added successfully', type: 'success' } });
@@ -126,6 +194,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
 
             setIsModalOpen(false);
             setEditingSchedule(null);
+            setRepeatWeekdays(false);
             setFormData({
                 day: '1',
                 startTime: '09:00',
@@ -134,9 +203,11 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             });
             fetchSchedules();
         } catch (err: unknown) {
+            const message = (err as ApiError)?.message || 'Error saving schedule';
+            setFormError(message);
             dispatch({
                 type: 'TOAST_ADD',
-                payload: { message: (err as ApiError)?.message || 'Error saving schedule', type: 'error' },
+                payload: { message, type: 'error' },
             });
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: processingId });
@@ -256,28 +327,91 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                 onClose={() => {
                     setIsModalOpen(false);
                     setEditingSchedule(null);
+                    setRepeatWeekdays(false);
+                    setFormError(null);
                 }}
                 title={editingSchedule ? 'Edit Section Schedule' : 'Add Section Schedule'}
                 onSubmit={handleSubmit}
                 isSubmitting={state.ui.processing[editingSchedule ? `schedule-edit-${editingSchedule.id}` : 'schedule-create']}
                 loadingId={editingSchedule ? `schedule-edit-${editingSchedule.id}` : 'schedule-create'}
-                submitText={editingSchedule ? 'Update Schedule' : 'Save Schedule'}
+                submitText={editingSchedule ? 'Update Schedule' : repeatWeekdays ? 'Save 5 Weekday Slots' : 'Save Schedule'}
+                maxWidth="max-w-2xl"
+                bodyClassName="p-0"
                 showSubmit
+                feedback={formError ? (
+                    <StatusBanner
+                        title="Schedule could not be saved"
+                        description={formError}
+                        variant="danger"
+                    />
+                ) : undefined}
             >
-                <div className="space-y-4 py-2">
-                    <div className="space-y-2">
-                        <Label>Day of Week</Label>
-                        <CustomSelect
-                            options={DAY_OPTIONS}
-                            value={formData.day}
-                            onChange={(value) => setFormData({ ...formData, day: value })}
-                            placeholder="Select Day"
-                            required
-                        />
+                <div className="space-y-4 p-1 sm:p-2">
+                    <div className="rounded-lg border border-border/70 bg-muted/25 p-3 sm:p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                                <p className="text-sm font-black text-foreground">Slot pattern</p>
+                                <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                    {editingSchedule ? 'Editing updates this schedule slot only.' : 'Create one day or repeat the same slot Monday through Friday.'}
+                                </p>
+                            </div>
+                            {!editingSchedule && (
+                                <Toggle
+                                    checked={repeatWeekdays}
+                                    onCheckedChange={setRepeatWeekdays}
+                                    label="All weekdays"
+                                    description="Mon-Fri"
+                                    size="md"
+                                    className="rounded-md border border-border/70 bg-background/60 p-2"
+                                />
+                            )}
+                        </div>
+
+                        {repeatWeekdays ? (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                                {WEEKDAY_VALUES.map((day) => (
+                                    <Badge key={day} variant="primary" size="sm" icon={CalendarRange}>
+                                        {getDayLabel(Number(day)).slice(0, 3)}
+                                    </Badge>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="mt-3 space-y-2">
+                                <Label>Day of Week</Label>
+                                <CustomSelect
+                                    options={DAY_OPTIONS}
+                                    value={formData.day}
+                                    onChange={(value) => setFormData({ ...formData, day: value })}
+                                    placeholder="Select Day"
+                                    required
+                                />
+                            </div>
+                        )}
                     </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="startTime">Start Time</Label>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                                <Label htmlFor="startTime">Start Time</Label>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => adjustTime('startTime', -60)}
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                        aria-label="Move start time back 1 hour"
+                                    >
+                                        <Minus className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => adjustTime('startTime', 60)}
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                        aria-label="Move start time forward 1 hour"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
                             <Input
                                 id="startTime"
                                 type="time"
@@ -286,8 +420,28 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                 onChange={(event) => setFormData({ ...formData, startTime: event.target.value })}
                             />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="endTime">End Time</Label>
+                        <div className="rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                                <Label htmlFor="endTime">End Time</Label>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => adjustTime('endTime', -60)}
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                        aria-label="Move end time back 1 hour"
+                                    >
+                                        <Minus className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => adjustTime('endTime', 60)}
+                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                        aria-label="Move end time forward 1 hour"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
                             <Input
                                 id="endTime"
                                 type="time"
@@ -297,12 +451,48 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                             />
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="room">Room (Optional)</Label>
+
+                    <div className="rounded-lg border border-border/70 bg-background/60 p-3">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="flex min-w-0 items-center gap-2 text-sm font-bold text-foreground">
+                                <Clock className="h-4 w-4 shrink-0 text-primary" />
+                                <span>{formData.startTime} to {formData.endTime}</span>
+                                <Badge variant={timeToMinutes(formData.endTime) > timeToMinutes(formData.startTime) ? 'neutral' : 'error'} size="sm">
+                                    {getDurationLabel(formData.startTime, formData.endTime)}
+                                </Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {DURATION_PRESETS.map((preset) => (
+                                    <button
+                                        key={preset.label}
+                                        type="button"
+                                        onClick={() => applyDurationPreset(preset.minutes)}
+                                        className="min-h-8 rounded-md border border-border/70 bg-card px-2.5 text-xs font-black text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                    >
+                                        {preset.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                        <div className="flex items-center justify-between gap-2">
+                            <Label htmlFor="room">Room</Label>
+                            {section.room && (
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, room: section.room || '' })}
+                                    className="rounded-md px-2 py-1 text-xs font-black text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                >
+                                    Use section room
+                                </button>
+                            )}
+                        </div>
                         <Input
                             id="room"
                             type="text"
-                            placeholder="Override section room"
+                            placeholder={section.room ? `Default: ${section.room}` : 'Room, lab, or location'}
                             value={formData.room}
                             onChange={(event) => setFormData({ ...formData, room: event.target.value })}
                             icon={MapPin}

@@ -96,7 +96,7 @@ export async function replayMutations(apiBaseUrl: string): Promise<void> {
       } else {
         console.warn(`[OfflineQueue] ✗ Replay failed (${response.status}) for ${mutation.endpoint}, keeping in queue`);
       }
-    } catch (err) {
+    } catch {
       // Still offline or network error — stop replaying, will retry later
       console.warn(`[OfflineQueue] Network error during replay, stopping. Will retry later.`);
       break;

@@ -129,7 +129,10 @@ function CustomMultiSelectComponent({
 
     useEffect(() => {
         if (!isOpen) return;
-        setActiveIndex(0);
+        const frameId = window.requestAnimationFrame(() => {
+            setActiveIndex(0);
+        });
+        return () => window.cancelAnimationFrame(frameId);
     }, [isOpen, visibleOptionsCount]);
 
     useEffect(() => {

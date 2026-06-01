@@ -1,53 +1,110 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo } from 'react';
 import useSWR from 'swr';
+import { FileText, LockKeyhole } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Transaction, TransactionType } from '@/types';
-import { DataTable } from '@/components/ui/DataTable';
+import { DataTable, type Column } from '@/components/ui/DataTable';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { ResourcePanel } from '@/components/ui/PageShell';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { Badge } from '@/components/ui/Badge';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 export default function TransactionsPage() {
     const { token } = useAuth();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const pathname = usePathname();
+    const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
 
-    // URL State
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const sortBy = searchParams.get('sortBy') || 'createdAt';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
-    const [pageSize, setPageSize] = useState(10);
+    const page = getNumberParam('page', 1);
+    const sortBy = getStringParam('sortBy', 'createdAt');
+    const sortOrder = (getStringParam('sortOrder', 'desc') as 'asc' | 'desc');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-finance-transactions-limit', 10);
 
-    const updateQueryParams = (updates: Record<string, string | number | undefined | boolean>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '' || value === false) {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
+    const { data: transactions, error, isLoading, mutate } = useSWR<Transaction[]>(
+        token ? ['finance/transactions', token] : null,
+        ([, t]) => api.finance.getTransactions(t as string)
+    );
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
         updateQueryParams({ page: 1 });
     };
 
-    const { data: transactions, error, isLoading } = useSWR<Transaction[]>(
-        token ? ['finance/transactions', token] : null,
-        ([, t]) => api.finance.getTransactions(t as string)
-    );
+    const columns = useMemo<Column<Transaction>[]>(() => [
+        {
+            header: 'Date',
+            sortable: true,
+            sortKey: 'createdAt',
+            accessor: (transaction) => (
+                <div className="font-semibold text-foreground/85">
+                    {new Date(transaction.createdAt).toLocaleString()}
+                </div>
+            ),
+        },
+        {
+            header: 'Description',
+            accessor: (transaction) => (
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
+                        <FileText className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-foreground">{transaction.description || 'System generated'}</p>
+                        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                            {transaction.relatedEntryId ? 'Linked entry' : 'Ledger entry'}
+                        </p>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            header: 'Category',
+            sortable: true,
+            sortKey: 'category',
+            badge: true,
+            accessor: (transaction) => <Badge variant="neutral" size="sm">{transaction.category}</Badge>,
+        },
+        {
+            header: 'Type',
+            sortable: true,
+            sortKey: 'type',
+            badge: true,
+            accessor: (transaction) => (
+                <Badge variant={transaction.type === TransactionType.INCOME ? 'success' : 'error'} size="sm" dot>
+                    {transaction.type === TransactionType.INCOME ? 'Income' : 'Expense'}
+                </Badge>
+            ),
+        },
+        {
+            header: 'Amount',
+            sortable: true,
+            sortKey: 'amount',
+            accessor: (transaction) => (
+                <FinancialAmount
+                    amount={transaction.amount}
+                    currency={transaction.currency}
+                    className={transaction.type === TransactionType.INCOME ? 'text-success' : 'text-danger'}
+                />
+            ),
+        },
+        {
+            header: 'Method',
+            accessor: (transaction) => (
+                <span className="text-xs font-semibold text-muted-foreground">
+                    {transaction.paymentMethod || 'System'}
+                </span>
+            ),
+        },
+    ], []);
 
-    const sortedData = React.useMemo(() => {
+    const sortedData = useMemo(() => {
         if (!transactions) return [];
         const result = [...transactions];
-        result.sort((a: Transaction, b: Transaction) => {
+        result.sort((a, b) => {
             const valA = a[sortBy as keyof Transaction];
             const valB = b[sortBy as keyof Transaction];
             if (valA === undefined || valB === undefined || valA === null || valB === null) return 0;
@@ -56,85 +113,56 @@ export default function TransactionsPage() {
             return 0;
         });
         return result;
-    }, [transactions, sortBy, sortOrder]);
+    }, [sortBy, sortOrder, transactions]);
 
-    const paginatedData = React.useMemo(() => {
+    const paginatedData = useMemo(() => {
         const start = (page - 1) * pageSize;
         return sortedData.slice(start, start + pageSize);
-    }, [sortedData, page, pageSize]);
+    }, [page, pageSize, sortedData]);
 
-    const columns = [
-        {
-            header: 'Date',
-            sortable: true,
-            sortKey: 'date',
-            accessor: (t: Transaction) => (
-                <div className="font-medium">{new Date(t.createdAt).toLocaleString()}</div>
-            )
-        },
-        {
-            header: 'Description',
-            accessor: (t: Transaction) => <div className="font-bold">{t.description || 'System generated'}</div>
-        },
-        {
-            header: 'Category',
-            accessor: (t: Transaction) => <span className="text-xs uppercase opacity-70 font-bold">{t.category}</span>
-        },
-        {
-            header: 'Type',
-            accessor: (t: Transaction) => (
-                <Badge variant={t.type === TransactionType.INCOME ? 'success' : 'error'}>
-                    {t.type}
-                </Badge>
-            )
-        },
-        {
-            header: 'Amount',
-            accessor: (t: Transaction) => (
-                <FinancialAmount
-                    amount={t.amount}
-                    currency={t.currency}
-                    className={t.type === TransactionType.INCOME ? 'text-success' : 'text-danger'}
-                />
-            )
-        },
-        {
-            header: 'Method',
-            accessor: (t: Transaction) => <span className="text-xs font-semibold">{t.paymentMethod || 'SYSTEM'}</span>
-        }
-    ];
-
-
-    if (error) return <div className="text-danger p-6 font-bold">Failed to load transactions.</div>;
+    if (error) {
+        return (
+            <ErrorState
+                error={error}
+                onRetry={() => mutate()}
+                title="Transactions could not load"
+                description="The append-only ledger is unavailable right now."
+            />
+        );
+    }
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-card p-6 rounded-2xl shadow-sm border border-border">
-                <h2 className="text-xl font-black">Transaction Audit Trail</h2>
-                <p className="text-sm text-muted-foreground mt-1">Immutable ledger of all confirmed payments and expenses.</p>
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <StatusBanner
+                title="Append-only audit trail"
+                description="Confirmed records in this table cannot be edited or deleted."
+                variant="info"
+                icon={LockKeyhole}
+            />
 
-                <div className="mt-4 p-3 bg-info/10 text-info rounded-lg text-xs font-semibold border border-info/20">
-                    🔒 Records in this table are append-only and cannot be modified or deleted.
+            <ResourcePanel>
+                <div className="relative min-h-0 flex-1 overflow-x-hidden">
+                    <DataTable
+                        data={paginatedData}
+                        columns={columns}
+                        keyExtractor={(transaction) => transaction.id}
+                        isLoading={isLoading}
+                        showSerialNumber
+                        currentPage={page}
+                        totalPages={Math.ceil((transactions?.length || 0) / pageSize) || 1}
+                        totalResults={transactions?.length || 0}
+                        pageSize={pageSize}
+                        onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
+                        onPageSizeChange={handlePageSizeChange}
+                        sortConfig={{ key: sortBy, direction: sortOrder }}
+                        onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                        maxHeight="100%"
+                        emptyTitle="No transactions recorded"
+                        emptyDescription="Confirmed payments and expenses will appear in this immutable ledger."
+                        mobileDetailLimit={3}
+                    />
                 </div>
-            </div>
-
-            <div className="relative overflow-x-hidden">
-                <DataTable
-                    data={paginatedData}
-                    columns={columns}
-                    keyExtractor={(t) => t.id}
-                    isLoading={isLoading}
-                    showSerialNumber
-                    currentPage={page}
-                    totalPages={Math.ceil((transactions?.length || 0) / pageSize) || 1}
-                    totalResults={transactions?.length || 0}
-                    pageSize={pageSize}
-                    onPageChange={(p) => updateQueryParams({ page: p })}
-                    onPageSizeChange={handlePageSizeChange}
-                    sortConfig={{ key: sortBy, direction: sortOrder }}
-                    onSort={(key, dir) => updateQueryParams({ sortBy: key, sortOrder: dir })}
-                />
-            </div>
+            </ResourcePanel>
         </div>
     );
 }

@@ -1,45 +1,46 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { TimetableEntry, Role } from '@/types';
-import { Clock, MapPin } from 'lucide-react';
+import { CalendarDays, Clock, MapPin } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { PageHeader } from '@/components/ui/PageShell';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const ACADEMIC_DAYS = [1, 2, 3, 4, 5]; // Mon - Fri
-const START_HOUR = 8;
-const END_HOUR = 18;
+const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const DEFAULT_START_HOUR = 8;
+const DEFAULT_END_HOUR = 18;
 
 const SECTION_COLORS = [
-    'bg-primary/10 text-primary border-primary/20 dark:border-primary/40',
-    'bg-success/10 text-success border-success/20 dark:border-success/40',
-    'bg-warning/10 text-warning border-warning/20 dark:border-warning/40',
-    'bg-danger/10 text-danger border-danger/20 dark:border-danger/40',
-    'bg-info/10 text-info border-info/20 dark:border-info/40',
-    'bg-secondary/10 text-secondary-foreground border-secondary/20 dark:border-secondary/40',
-    'bg-primary/5 text-primary/80 border-primary/10 dark:border-primary/20',
-    'bg-info/5 text-info/80 border-info/10 dark:border-info/20',
-    'bg-neutral/10 text-neutral border-neutral/20 dark:border-neutral/40',
+    'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-100',
+    'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-100',
+    'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100',
+    'border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-100',
+    'border-cyan-200 bg-cyan-50 text-cyan-950 dark:border-cyan-500/30 dark:bg-cyan-500/15 dark:text-cyan-100',
+    'border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-500/30 dark:bg-violet-500/15 dark:text-violet-100',
 ];
 
 const getSectionColor = (id: string) => {
-    if (!id) return SECTION_COLORS[0];
     let hash = 0;
     for (let i = 0; i < id.length; i++) {
-        // Use a more complex hash multiplier to avoid early collisions
         hash = ((hash << 5) - hash) + id.charCodeAt(i);
-        hash = hash & hash; // Convert to 32bit integer
+        hash |= 0;
     }
-
-    // Use a secondary salt for better distribution
-    const salt = (id.length * 31);
-    const index = Math.abs(hash + salt) % SECTION_COLORS.length;
-    return SECTION_COLORS[index];
+    return SECTION_COLORS[Math.abs(hash) % SECTION_COLORS.length];
 };
+
+interface TimetableSlotGroup {
+    day: number;
+    startTime: string;
+    endTime: string;
+    entries: TimetableEntry[];
+}
 
 const toLocalDateInputValue = (date: Date) => {
     const year = date.getFullYear();
@@ -51,16 +52,12 @@ const toLocalDateInputValue = (date: Date) => {
 const getClosestDateForWeekday = (targetDay: number) => {
     const today = new Date();
     const todayDay = today.getDay();
-
     let bestOffset = 0;
+
     for (let offset = -6; offset <= 6; offset++) {
         const candidateDay = (todayDay + offset + 7) % 7;
         if (candidateDay !== targetDay) continue;
-
-        if (
-            Math.abs(offset) < Math.abs(bestOffset) ||
-            (Math.abs(offset) === Math.abs(bestOffset) && offset >= 0)
-        ) {
+        if (Math.abs(offset) < Math.abs(bestOffset) || (Math.abs(offset) === Math.abs(bestOffset) && offset >= 0)) {
             bestOffset = offset;
         }
     }
@@ -70,163 +67,271 @@ const getClosestDateForWeekday = (targetDay: number) => {
     return toLocalDateInputValue(closestDate);
 };
 
+function timeToMinutes(time: string) {
+    const [hours = '0', minutes = '0'] = time.split(':');
+    return Number(hours) * 60 + Number(minutes);
+}
+
+function formatHour(hour: number) {
+    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+    return `${displayHour} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+
+function formatDuration(startTime: string, endTime: string) {
+    const duration = Math.max(0, timeToMinutes(endTime) - timeToMinutes(startTime));
+    const hours = Math.floor(duration / 60);
+    const minutes = duration % 60;
+
+    if (hours && minutes) return `${hours}h ${minutes}m`;
+    if (hours) return `${hours}h`;
+    return `${minutes}m`;
+}
+
+function TimetableSkeleton() {
+    return (
+        <ResourcePanel>
+            <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+                <div className="min-w-240 space-y-2">
+                    <Skeleton className="h-12 rounded-lg" />
+                    {Array.from({ length: 8 }).map((_, index) => (
+                        <Skeleton key={index} className="h-18 rounded-lg" />
+                    ))}
+                </div>
+            </div>
+        </ResourcePanel>
+    );
+}
+
 export default function TimetablePage() {
     const router = useRouter();
     const { token, user } = useAuth();
 
-    // SWR for timetable data
     const timetableKey = token && user ? ['timetable', user.id, user.role] as const : null;
-    const { data: entries = [], isLoading: loading, error } = useSWR<TimetableEntry[]>(timetableKey);
+    const { data: entries = [], isLoading, error, mutate } = useSWR<TimetableEntry[]>(timetableKey);
 
-    const timeSlots = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
-
-    if (loading && entries.length === 0) return (
-        <div className="flex flex-col h-full w-full space-y-6 pb-6">
-            <PageHeader
-                title="Weekly Timetable"
-                description="Comprehensive visualization of instructional hours and room allocations."
-                icon={Clock}
-            />
-            <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl border border-border p-4 md:p-6 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-auto pr-2 scrollbar-hide border border-border/50 rounded-xl bg-muted/5 p-4">
-                    <div className="min-w-200">
-                        {/* Header Skeleton */}
-                        <div className="grid grid-cols-[80px_repeat(5,1fr)] mb-4">
-                            <div className="p-2 border-r border-border/50">
-                                <Skeleton className="h-3 w-12" />
-                            </div>
-                            {ACADEMIC_DAYS.map((_, i) => (
-                                <div key={i} className="p-3 flex flex-col items-center justify-center border-b-2 border-primary/20 bg-primary/5 rounded-t-lg mx-1">
-                                    <Skeleton className="h-4 w-16 mb-1" />
-                                    <Skeleton className="w-4 h-0.5 rounded-full" />
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Body Skeleton */}
-                        {timeSlots.map((_, hourIdx) => (
-                            <div key={hourIdx} className="grid grid-cols-[80px_repeat(5,1fr)] border-b border-border/30 last:border-b-0 min-h-20">
-                                {/* Time Cell Skeleton */}
-                                <div className="flex flex-col items-center justify-center border-r border-border/50 pr-2 md:pr-4 bg-muted/5">
-                                    <Skeleton className="h-6 w-8 mb-1" />
-                                    <Skeleton className="h-2 w-8" />
-                                </div>
-
-                                {/* Day Cells Skeleton */}
-                                {ACADEMIC_DAYS.map((_, dayIdx) => (
-                                    <div key={`${hourIdx}-${dayIdx}`} className="p-2 h-full">
-                                        <Skeleton className="h-full w-full rounded-lg" />
-                                    </div>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    if (error) return (
-        <div className="bg-destructive/10 border border-destructive/20 p-8 rounded-3xl text-destructive text-center">
-            <h2 className="text-2xl font-black italic tracking-tighter mb-2">System Error</h2>
-            <p className="font-bold opacity-70 tracking-widest text-sm">{error.message || 'Failed to load timetable'}</p>
-        </div>
-    );
-
-    const getEntryForSlot = (day: number, hour: number) => {
-        return entries.find(e => {
-            if (e.day !== day) return false;
-            const startH = parseInt(e.startTime.split(':')[0], 10);
-            const endH = parseInt(e.endTime.split(':')[0], 10);
-            return hour >= startH && hour < endH;
+    const entriesByDay = useMemo(() => {
+        const grouped = new Map<number, TimetableEntry[]>();
+        WEEK_DAYS.forEach((day) => grouped.set(day, []));
+        entries.forEach((entry) => {
+            if (!grouped.has(entry.day)) grouped.set(entry.day, []);
+            grouped.get(entry.day)?.push(entry);
         });
-    };
+        grouped.forEach((dayEntries) => dayEntries.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)));
+        return grouped;
+    }, [entries]);
+
+    const slotGroupsByDay = useMemo(() => {
+        const grouped = new Map<number, TimetableSlotGroup[]>();
+        entriesByDay.forEach((dayEntries, day) => {
+            const slotMap = new Map<string, TimetableSlotGroup>();
+            dayEntries.forEach((entry) => {
+                const key = `${entry.startTime}-${entry.endTime}`;
+                const group = slotMap.get(key);
+                if (group) {
+                    group.entries.push(entry);
+                } else {
+                    slotMap.set(key, {
+                        day,
+                        startTime: entry.startTime,
+                        endTime: entry.endTime,
+                        entries: [entry],
+                    });
+                }
+            });
+            grouped.set(day, Array.from(slotMap.values()).sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)));
+        });
+        return grouped;
+    }, [entriesByDay]);
+
+    const { startHour, endHour, timeSlots } = useMemo(() => {
+        if (entries.length === 0) {
+            return {
+                startHour: DEFAULT_START_HOUR,
+                endHour: DEFAULT_END_HOUR,
+                timeSlots: Array.from({ length: DEFAULT_END_HOUR - DEFAULT_START_HOUR + 1 }, (_, index) => DEFAULT_START_HOUR + index),
+            };
+        }
+
+        const startMinutes = Math.min(...entries.map((entry) => timeToMinutes(entry.startTime)));
+        const endMinutes = Math.max(...entries.map((entry) => timeToMinutes(entry.endTime)));
+        const firstHour = Math.max(0, Math.floor(startMinutes / 60));
+        const lastHour = Math.min(24, Math.ceil(endMinutes / 60));
+        return {
+            startHour: firstHour,
+            endHour: lastHour,
+            timeSlots: Array.from({ length: lastHour - firstHour + 1 }, (_, index) => firstHour + index),
+        };
+    }, [entries]);
+
+    const canOpenAttendance = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN;
+    const rowCount = Math.max(1, (endHour - startHour) * 2);
+    const gridRows = `repeat(${rowCount}, 44px)`;
 
     return (
-        <div className="flex flex-col h-full w-full space-y-6 pb-6">
+        <PageShell>
             <PageHeader
                 title="Weekly Timetable"
-                description="Comprehensive visualization of instructional hours and room allocations."
+                description="A clear week view with time blocks sized by their real start and end times."
                 icon={Clock}
-                meta={(
-                    <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-[10px] font-black tracking-widest text-primary">
-                        Academic Schedule
-                    </span>
-                )}
+                meta={<Badge variant="neutral" size="sm">{entries.length} slots</Badge>}
+                breadcrumbs={[
+                    { label: 'Organization' },
+                    { label: 'Academics' },
+                    { label: 'Timetable' },
+                ]}
             />
-            <div className="bg-card/80 backdrop-blur-2xl rounded-xl shadow-xl border border-border p-4 md:p-6 overflow-hidden flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-auto pr-2 scrollbar-hide border border-border/50 rounded-xl bg-muted/5 p-4">
-                    <div className="min-w-200">
-                        {/* Header */}
-                        <div className="grid grid-cols-[80px_repeat(5,1fr)] mb-4">
-                            <div className="p-2 border-r border-border/50 flex items-center justify-center">
-                                <span className="text-[10px] font-black tracking-widest opacity-40">Time</span>
-                            </div>
-                            {ACADEMIC_DAYS.map(dayIdx => (
-                                <div key={dayIdx} className="p-3 flex flex-col items-center justify-center border-b-2 border-primary/20 bg-primary/5 rounded-t-lg mx-1">
-                                    <span className="text-xs md:text-sm font-black tracking-widest">{DAY_NAMES[dayIdx]}</span>
-                                    <div className="mt-1 w-4 h-0.5 bg-primary/40 rounded-full"></div>
-                                </div>
-                            ))}
-                        </div>
 
-                        {/* Body */}
-                        {timeSlots.map(hour => (
-                            <div key={hour} className="grid grid-cols-[80px_repeat(5,1fr)] border-b border-border/30 last:border-b-0 min-h-20">
-                                {/* Time Cell */}
-                                <div className="flex flex-col items-center justify-center border-r border-border/50 pr-2 md:pr-4 bg-muted/5">
-                                    <span className="text-lg md:text-xl font-black tracking-tighter leading-none">{hour > 12 ? hour - 12 : hour}</span>
-                                    <span className="text-[9px] font-black opacity-40 mt-1 tracking-widest">{hour >= 12 ? 'PM' : 'AM'}</span>
-                                </div>
-
-                                {/* Day Cells */}
-                                {ACADEMIC_DAYS.map(dayIdx => {
-                                    const entry = getEntryForSlot(dayIdx, hour);
-                                    if (entry) {
-                                        const colorClass = getSectionColor(entry.sectionId);
-                                        return (
-                                            <div key={`${hour}-${dayIdx}`} className="p-2 h-full flex flex-col">
-                                                <div
-                                                    onClick={() => {
-                                                        if (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN) {
-                                                            const closestDate = getClosestDateForWeekday(entry.day);
-                                                            router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
-                                                        }
-                                                    }}
-                                                    className={`flex-1 p-2 md:p-3 rounded-lg border ${colorClass} shadow-sm group hover:scale-[1.02] transition-all duration-300 flex flex-col justify-between overflow-hidden relative cursor-pointer`}
-                                                >
-                                                    <div className="absolute -right-2 -top-2 opacity-5 scale-150 rotate-12">
-                                                        <Clock className="w-12 h-12 md:w-16 md:h-16" />
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-[9px] font-black tracking-widest opacity-60 mb-1">{entry.sectionName}</div>
-                                                        <div className="text-xs font-black tracking-tighter leading-tight wrap-break-word">{entry.courseName}</div>
-                                                    </div>
-                                                    <div className="mt-2 md:mt-3 flex items-center justify-between gap-2 border-t border-current/10 pt-2">
-                                                        <div className="flex items-center gap-1 opacity-70">
-                                                            <MapPin className="w-2.5 h-2.5" />
-                                                            <span className="text-[9px] font-black tracking-widest truncate max-w-15">{entry.room || 'TBD'}</span>
-                                                        </div>
-                                                        <span className="text-[9px] font-black opacity-40">{entry.startTime}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    }
-
-                                    return (
-                                        <div key={`${hour}-${dayIdx}`} className="p-2 h-full group">
-                                            <div className="flex-1 rounded-lg border border-dashed border-border/30 flex items-center justify-center opacity-20 group-hover:opacity-40 transition-opacity bg-muted/2 shadow-inner">
-                                                <span className="text-[10px] font-black tracking-[0.2em] italic">Unallotted slot</span>
-                                            </div>
+            {isLoading && entries.length === 0 ? (
+                <TimetableSkeleton />
+            ) : error ? (
+                <ErrorState
+                    error={error}
+                    onRetry={() => mutate()}
+                    title="Timetable could not load"
+                    description="Weekly schedule data is unavailable right now."
+                />
+            ) : (
+                <ResourcePanel>
+                    {entries.length === 0 ? (
+                        <EmptyState
+                            icon={CalendarDays}
+                            title="No timetable slots found"
+                            description="Section schedules will appear here after they are configured."
+                            className="min-h-96"
+                        />
+                    ) : (
+                        <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4 custom-scrollbar">
+                            <div className="min-w-[1380px]">
+                                <div className="grid grid-cols-[96px_repeat(7,minmax(176px,1fr))] gap-2">
+                                    <div className="sticky left-0 z-20 rounded-md border border-border/70 bg-card p-3 text-center text-[10px] font-black uppercase tracking-wider text-muted-foreground shadow-sm">
+                                        Time
+                                    </div>
+                                    {WEEK_DAYS.map((day) => (
+                                        <div key={day} className="rounded-md border border-border/70 bg-card p-3 text-center shadow-sm">
+                                            <p className="text-sm font-black text-foreground">{DAY_NAMES[day]}</p>
+                                            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                {entriesByDay.get(day)?.length || 0} slots
+                                            </p>
                                         </div>
-                                    );
-                                })}
+                                    ))}
+
+                                    <div
+                                        className="sticky left-0 z-10 grid overflow-hidden rounded-md border border-border/70 bg-card shadow-sm"
+                                        style={{ gridTemplateRows: gridRows }}
+                                    >
+                                        {timeSlots.slice(0, -1).map((hour) => (
+                                            <div key={hour} className="row-span-2 flex items-start justify-center border-b-2 border-border/80 px-2 py-2 last:border-b-0">
+                                                <span className="text-xs font-black text-muted-foreground">{formatHour(hour)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {WEEK_DAYS.map((day) => (
+                                        <div
+                                            key={day}
+                                            className="relative grid overflow-hidden rounded-md border border-border/70 bg-background shadow-sm"
+                                            style={{ gridTemplateRows: gridRows }}
+                                        >
+                                            {Array.from({ length: rowCount }).map((_, index) => (
+                                                <div
+                                                    key={index}
+                                                    className={`last:border-b-0 ${index % 2 === 1 ? 'border-b-2 border-border/80 bg-background' : 'border-b border-border/30 bg-muted/20'}`}
+                                                />
+                                            ))}
+
+                                            {(slotGroupsByDay.get(day) || []).map((slot) => {
+                                                const startOffset = Math.max(0, timeToMinutes(slot.startTime) - startHour * 60);
+                                                const duration = Math.max(30, timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime));
+                                                const rowStart = Math.floor(startOffset / 30) + 1;
+                                                const rowSpan = Math.max(1, Math.ceil(duration / 30));
+                                                const isCompactSlot = duration <= 60;
+                                                const isLongSlot = duration >= 120;
+                                                const durationLabel = formatDuration(slot.startTime, slot.endTime);
+
+                                                return (
+                                                    <div
+                                                        key={`${day}-${slot.startTime}-${slot.endTime}`}
+                                                        className={`z-10 m-1 flex min-h-0 flex-col overflow-hidden rounded-md border border-border/70 bg-card shadow-md ring-1 ring-black/5 dark:ring-white/10 ${isLongSlot ? 'ring-2 ring-primary/20' : ''}`}
+                                                        style={{ gridRow: `${rowStart} / span ${rowSpan}` }}
+                                                    >
+                                                        {isCompactSlot ? (
+                                                            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1 custom-scrollbar">
+                                                                {slot.entries.map((entry) => {
+                                                                    const colorClass = getSectionColor(entry.sectionId);
+                                                                    return (
+                                                                        <button
+                                                                            key={entry.scheduleId}
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                if (!canOpenAttendance) return;
+                                                                                const closestDate = getClosestDateForWeekday(entry.day);
+                                                                                router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
+                                                                            }}
+                                                                            className={`flex min-h-0 w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${colorClass} ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                        >
+                                                                            <div className="min-w-0 flex-1">
+                                                                                <p className="truncate text-xs font-black leading-tight">{entry.sectionName}</p>
+                                                                                <p className="mt-0.5 truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}</p>
+                                                                            </div>
+                                                                            <Badge variant="neutral" size="xs" className="shrink-0 bg-white/70 text-foreground dark:bg-black/25">
+                                                                                {durationLabel}
+                                                                            </Badge>
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/45 px-2.5 py-1.5">
+                                                                    <div className="min-w-0">
+                                                                        <p className="truncate text-[11px] font-black uppercase tracking-wide text-foreground">
+                                                                            {slot.startTime} - {slot.endTime}
+                                                                        </p>
+                                                                        <p className="mt-0.5 text-[10px] font-bold text-muted-foreground">
+                                                                            {slot.entries.length} {slot.entries.length === 1 ? 'section' : 'sections'}
+                                                                        </p>
+                                                                    </div>
+                                                                    <Badge variant={isLongSlot ? 'primary' : 'neutral'} size="xs" className="shrink-0">
+                                                                        {durationLabel}
+                                                                    </Badge>
+                                                                </div>
+                                                                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto border-l-4 border-primary/45 p-1.5 custom-scrollbar">
+                                                                    {slot.entries.map((entry) => {
+                                                                        const colorClass = getSectionColor(entry.sectionId);
+                                                                        return (
+                                                                            <button
+                                                                                key={entry.scheduleId}
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    if (!canOpenAttendance) return;
+                                                                                    const closestDate = getClosestDateForWeekday(entry.day);
+                                                                                    router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
+                                                                                }}
+                                                                                className={`w-full rounded-md border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${colorClass} ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                            >
+                                                                                <p className="line-clamp-2 text-xs font-black leading-tight">{entry.sectionName}</p>
+                                                                                <p className="mt-0.5 truncate text-[11px] font-semibold opacity-80">{entry.courseName}</p>
+                                                                                <div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-current/15 pt-1.5 text-[10px] font-bold opacity-80">
+                                                                                    <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                                                    <span className="truncate">{entry.room || 'Room TBD'}</span>
+                                                                                </div>
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
+                        </div>
+                    )}
+                </ResourcePanel>
+            )}
+        </PageShell>
     );
 }

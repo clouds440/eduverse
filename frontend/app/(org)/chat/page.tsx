@@ -1,6 +1,5 @@
 import { Metadata } from 'next';
 import { ChatLayout } from '@/components/chat/ChatLayout';
-import { RouteBreadcrumbs } from '@/components/ui/PageShell';
 
 export const metadata: Metadata = {
     title: 'Chat | EduVerse',

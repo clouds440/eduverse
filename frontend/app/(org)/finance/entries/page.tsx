@@ -1,53 +1,45 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import useSWR from 'swr';
+import { CheckCircle, Receipt } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { FinancialEntry, Role, EntryStatus, FinanceTab } from '@/types';
-import { DataTable } from '@/components/ui/DataTable';
+import { Badge } from '@/components/ui/Badge';
+import { DataTable, type Column } from '@/components/ui/DataTable';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
 import { useGlobal } from '@/context/GlobalContext';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { TableActions } from '@/components/ui/TableActions';
 import { FinanceStatusBadge } from '@/components/finance/FinanceStatusBadge';
-import { CheckCircle } from 'lucide-react';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { ClaimPaidModal } from './ClaimPaidModal';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
+
+const tabLabels: Record<FinanceTab, string> = {
+    [FinanceTab.ALL]: 'All',
+    [FinanceTab.PENDING]: 'Pending',
+    [FinanceTab.OVERDUE]: 'Overdue',
+    [FinanceTab.UNVERIFIED]: 'Unverified',
+    [FinanceTab.PAID]: 'Paid',
+};
 
 export default function EntriesPage() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const pathname = usePathname();
+    const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
 
-    // URL State
-    const activeTab = (searchParams.get('tab') as FinanceTab) || FinanceTab.ALL;
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const sortBy = searchParams.get('sortBy') || 'dueDate';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
-    const [pageSize, setPageSize] = useState(10);
+    const activeTab = (getStringParam('tab', FinanceTab.ALL) as FinanceTab);
+    const page = getNumberParam('page', 1);
+    const sortBy = getStringParam('sortBy', 'dueDate');
+    const sortOrder = (getStringParam('sortOrder', 'desc') as 'asc' | 'desc');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-finance-entries-limit', 10);
 
     const [claimingEntry, setClaimingEntry] = useState<FinancialEntry | null>(null);
     const [confirmingEntry, setConfirmingEntry] = useState<FinancialEntry | null>(null);
-
-    const updateQueryParams = (updates: Record<string, string | number | undefined | boolean>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '' || value === false) {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
-
-    const handlePageSizeChange = (newSize: number) => {
-        setPageSize(newSize);
-        updateQueryParams({ page: 1 });
-    };
 
     const { data: entries, error, mutate, isLoading } = useSWR(
         token ? ['finance/entries', token] : null,
@@ -56,15 +48,31 @@ export default function EntriesPage() {
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
 
+    const handlePageSizeChange = (newSize: number) => {
+        setPageSize(newSize);
+        updateQueryParams({ page: 1 });
+    };
+
     const filteredEntries = useMemo(() => {
         if (!entries) return [];
         if (activeTab === FinanceTab.ALL) return entries;
-        if (activeTab === FinanceTab.PENDING) return entries.filter(e => e.status === EntryStatus.PENDING || e.status === EntryStatus.PARTIAL);
-        if (activeTab === FinanceTab.OVERDUE) return entries.filter(e => e.status === EntryStatus.OVERDUE);
-        if (activeTab === FinanceTab.UNVERIFIED) return entries.filter(e => e.status === EntryStatus.UNVERIFIED);
-        if (activeTab === FinanceTab.PAID) return entries.filter(e => e.status === EntryStatus.PAID);
+        if (activeTab === FinanceTab.PENDING) return entries.filter(entry => entry.status === EntryStatus.PENDING || entry.status === EntryStatus.PARTIAL);
+        if (activeTab === FinanceTab.OVERDUE) return entries.filter(entry => entry.status === EntryStatus.OVERDUE);
+        if (activeTab === FinanceTab.UNVERIFIED) return entries.filter(entry => entry.status === EntryStatus.UNVERIFIED);
+        if (activeTab === FinanceTab.PAID) return entries.filter(entry => entry.status === EntryStatus.PAID);
         return entries;
-    }, [entries, activeTab]);
+    }, [activeTab, entries]);
+
+    const tabCounts = useMemo(() => {
+        const source = entries || [];
+        return {
+            [FinanceTab.ALL]: source.length,
+            [FinanceTab.PENDING]: source.filter(entry => entry.status === EntryStatus.PENDING || entry.status === EntryStatus.PARTIAL).length,
+            [FinanceTab.OVERDUE]: source.filter(entry => entry.status === EntryStatus.OVERDUE).length,
+            [FinanceTab.UNVERIFIED]: source.filter(entry => entry.status === EntryStatus.UNVERIFIED).length,
+            [FinanceTab.PAID]: source.filter(entry => entry.status === EntryStatus.PAID).length,
+        };
+    }, [entries]);
 
     const handleClaim = async (data: { paymentMethod?: string; receiptUrl?: string }) => {
         if (!token || !claimingEntry) return;
@@ -92,57 +100,84 @@ export default function EntriesPage() {
         }
     };
 
-    const columns = [
+    const columns = useMemo<Column<FinancialEntry>[]>(() => [
         {
-            header: 'Title',
+            header: 'Entry',
             sortable: true,
             sortKey: 'title',
-            accessor: (e: FinancialEntry) => (
-                <div>
-                    <div className="font-bold">{e.title}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase mt-0.5">Due: {new Date(e.dueDate).toLocaleDateString()}</div>
+            accessor: (entry) => (
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
+                        <Receipt className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-foreground">{entry.title}</p>
+                        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                            Due {new Date(entry.dueDate).toLocaleDateString()}
+                        </p>
+                    </div>
                 </div>
-            )
+            ),
         },
         {
             header: 'Amount',
-            accessor: (e: FinancialEntry) => <FinancialAmount amount={e.amount} currency={e.currency} />
+            sortable: true,
+            sortKey: 'amount',
+            accessor: (entry) => <FinancialAmount amount={entry.amount} currency={entry.currency} />,
+        },
+        {
+            header: 'Paid',
+            sortable: true,
+            sortKey: 'paidAmount',
+            accessor: (entry) => <FinancialAmount amount={entry.paidAmount} currency={entry.currency} className="text-muted-foreground" />,
         },
         {
             header: 'Status',
-            accessor: (e: FinancialEntry) => <FinanceStatusBadge status={e.status} />
+            badge: true,
+            accessor: (entry) => <FinanceStatusBadge status={entry.status} />,
+        },
+        {
+            header: 'Source',
+            badge: true,
+            accessor: (entry) => <Badge variant="neutral" size="sm">{entry.source}</Badge>,
         },
         {
             header: 'Actions',
-            accessor: (e: FinancialEntry) => {
-                if (e.status === EntryStatus.PAID) {
-                    return <span className="text-xs text-success font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Fully Paid</span>;
+            width: 180,
+            accessor: (entry) => {
+                if (entry.status === EntryStatus.PAID) {
+                    return (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-success">
+                            <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                            Fully paid
+                        </span>
+                    );
                 }
 
                 return (
                     <TableActions
                         isViewAndEdit={false}
                         extraActions={[
-                            ...(!isManagement && e.status !== EntryStatus.UNVERIFIED ? [{
+                            ...(!isManagement && entry.status !== EntryStatus.UNVERIFIED ? [{
                                 variant: 'pay' as const,
                                 title: 'Mark as Paid',
-                                onClick: () => setClaimingEntry(e)
+                                onClick: () => setClaimingEntry(entry),
                             }] : []),
                             ...(isManagement ? [{
                                 variant: 'confirm' as const,
                                 title: 'Confirm Payment',
-                                onClick: () => setConfirmingEntry(e)
-                            }] : [])
+                                onClick: () => setConfirmingEntry(entry),
+                            }] : []),
                         ]}
                     />
                 );
-            }
-        }
-    ];
+            },
+        },
+    ], [isManagement]);
 
     const sortedAndFilteredEntries = useMemo(() => {
         const result = [...filteredEntries];
-        result.sort((a: FinancialEntry, b: FinancialEntry) => {
+        result.sort((a, b) => {
             const valA = a[sortBy as keyof FinancialEntry];
             const valB = b[sortBy as keyof FinancialEntry];
             if (valA === undefined || valB === undefined || valA === null || valB === null) return 0;
@@ -156,49 +191,75 @@ export default function EntriesPage() {
     const paginatedEntries = useMemo(() => {
         const start = (page - 1) * pageSize;
         return sortedAndFilteredEntries.slice(start, start + pageSize);
-    }, [sortedAndFilteredEntries, page, pageSize]);
+    }, [page, pageSize, sortedAndFilteredEntries]);
 
+    const activeFilters: ActiveFilter[] = activeTab !== FinanceTab.ALL
+        ? [{
+            key: 'tab',
+            label: 'Status',
+            value: tabLabels[activeTab] || activeTab,
+            onRemove: () => updateQueryParams({ tab: undefined, page: 1 }),
+        }]
+        : [];
 
-    if (error) return <div className="text-danger p-6 font-bold">Failed to load entries.</div>;
-
+    if (error) {
+        return (
+            <ErrorState
+                error={error}
+                onRetry={() => mutate()}
+                title="Financial entries could not load"
+                description="Invoices, salary entries, and payment claims are unavailable right now."
+            />
+        );
+    }
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-card p-6 rounded-2xl shadow-sm border border-border gap-4">
-                <div>
-                    <h2 className="text-xl font-black">Financial Entries</h2>
-                    <p className="text-sm text-muted-foreground">Manage invoices, salaries, and due payments.</p>
-                </div>
+        <ResourcePanel>
+            <ResourceToolbar
+                filters={(
+                    <div className="flex w-full gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/45 p-1 scrollbar-none md:w-auto">
+                        {Object.values(FinanceTab).map((tab) => (
+                            <button
+                                key={tab}
+                                type="button"
+                                onClick={() => updateQueryParams({ tab: tab === FinanceTab.ALL ? undefined : tab, page: 1 })}
+                                className={`flex min-h-9 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${activeTab === tab
+                                    ? 'bg-background text-foreground shadow-xs'
+                                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                                    }`}
+                                aria-pressed={activeTab === tab}
+                            >
+                                <span>{tabLabels[tab]}</span>
+                                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] leading-none">
+                                    {tabCounts[tab]}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+                activeFilters={activeFilters}
+            />
 
-                <div className="flex bg-muted p-1 rounded-lg">
-                    {Object.values(FinanceTab).map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => updateQueryParams({ tab, page: 1 })}
-                            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === tab ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                        >
-                            {tab}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div className="relative overflow-x-hidden">
+            <div className="relative min-h-0 flex-1 overflow-x-hidden">
                 <DataTable
                     data={paginatedEntries}
                     columns={columns}
-                    keyExtractor={(e) => e.id}
-                    onRowClick={(e) => isManagement && setConfirmingEntry(e)}
+                    keyExtractor={(entry) => entry.id}
+                    onRowClick={(entry) => isManagement && entry.status !== EntryStatus.PAID ? setConfirmingEntry(entry) : undefined}
                     isLoading={isLoading}
                     showSerialNumber
                     currentPage={page}
                     totalPages={Math.ceil(filteredEntries.length / pageSize) || 1}
                     totalResults={filteredEntries.length}
                     pageSize={pageSize}
-                    onPageChange={(p) => updateQueryParams({ page: p })}
+                    onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
                     onPageSizeChange={handlePageSizeChange}
                     sortConfig={{ key: sortBy, direction: sortOrder }}
-                    onSort={(key, dir) => updateQueryParams({ sortBy: key, sortOrder: dir })}
+                    onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                    maxHeight="100%"
+                    emptyTitle="No financial entries found"
+                    emptyDescription={activeTab !== FinanceTab.ALL ? 'Try another status tab to review additional entries.' : 'Entries will appear when structures generate billing or salary records.'}
+                    mobileDetailLimit={3}
                 />
             </div>
 
@@ -219,6 +280,6 @@ export default function EntriesPage() {
                     onConfirm={handleConfirm}
                 />
             )}
-        </div>
+        </ResourcePanel>
     );
 }

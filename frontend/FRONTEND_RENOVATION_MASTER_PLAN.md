@@ -842,6 +842,12 @@ Estimated impact:
 - Maintainability: Medium
 - Performance: Medium
 
+Phase 8 execution status:
+
+- Completed: `/overview`, academic picker/workflow pages, schedules/timetable/transcripts/promotions shells, section detail modules, assessment grading detail, student/teacher portal tabs, and attendance surfaces.
+- Preserved: grading and attendance calculations, role-specific read/write permissions, profile logic, attendance workbook behavior, and existing API payloads.
+- Verified direction: Phase 9 should continue using shared page shells, compact operational cards, consistent empty/error/loading states, and mobile-first controls.
+
 ### Implementation Phase 9 - Finance, Mail, Settings, And Auth/Public Pages
 
 Objective:
@@ -892,6 +898,11 @@ Estimated impact:
 - Maintainability: Medium
 - Performance: Medium to high
 
+Phase 9 execution status:
+
+- Completed first pass: finance overview, structures, entries, and transactions now use shared operational panels, compact summary cards, consistent empty/error/loading states, mobile tabs, and audit-friendly transaction tables.
+- Next: settings/security forms, mail orientation/detail improvements, auth shell, and public pages.
+
 ### Implementation Phase 10 - Final Performance, Accessibility, And Polish
 
 Objective:
@@ -939,6 +950,13 @@ Estimated impact:
 - UX: Medium to high
 - Maintainability: High
 - Performance: High
+
+Phase 10 execution status:
+
+- Started cleanup and verification pass after Phase 9.
+- Fixed PWA install prompt recurrence by re-checking dismissal state on each install event, adding a 30-day dismissal cooldown, and persisting native prompt dismissals.
+- Cleared non-chat lint warnings from shared selects, modal cleanup, offline queue, cohort/teacher/section cleanup, and stale academic imports.
+- Preserved: `ChatLayout.tsx`, dashboard layout internals, backend contracts, chat functionality, and existing business logic.
 
 ---
 

@@ -82,7 +82,7 @@ export default function AttendanceLandingPage() {
             ) : filteredSections.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border/70 bg-card/80 px-6 py-16 text-center shadow-sm">
                     <Rows3 className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                    <p className="mt-3 text-sm font-black text-foreground">No sections found</p>
+                    <p className="mt-3 text-sm font-black text-foreground">No sections found or schedules available</p>
                     <p className="mt-1 text-xs font-semibold text-muted-foreground">Try a different search or check your assigned sections.</p>
                 </div>
             ) : (

@@ -15,10 +15,36 @@ interface BeforeInstallPromptEvent extends Event {
 
 type NavigatorWithStandalone = Navigator & { standalone?: boolean };
 
+const PWA_DISMISSED_KEY = 'eduverse-pwa-dismissed';
+const PWA_DISMISSED_UNTIL_KEY = 'eduverse-pwa-dismissed-until';
+const PWA_DISMISS_COOLDOWN_MS = 1000 * 60 * 60 * 24 * 30;
+
 const isStandaloneDisplay = () =>
   window.matchMedia('(display-mode: standalone)').matches ||
   window.matchMedia('(display-mode: fullscreen)').matches ||
   (navigator as NavigatorWithStandalone).standalone === true;
+
+const isPromptDismissed = () => {
+  if (typeof window === 'undefined') return true;
+
+  if (localStorage.getItem(PWA_DISMISSED_KEY) === 'true') return true;
+
+  const dismissedUntil = Number(localStorage.getItem(PWA_DISMISSED_UNTIL_KEY) || 0);
+  return Number.isFinite(dismissedUntil) && dismissedUntil > Date.now();
+};
+
+const dismissPromptForCooldown = () => {
+  if (typeof window === 'undefined') return;
+
+  localStorage.setItem(PWA_DISMISSED_UNTIL_KEY, String(Date.now() + PWA_DISMISS_COOLDOWN_MS));
+};
+
+const dismissPromptPermanently = () => {
+  if (typeof window === 'undefined') return;
+
+  localStorage.setItem(PWA_DISMISSED_KEY, 'true');
+  localStorage.removeItem(PWA_DISMISSED_UNTIL_KEY);
+};
 
 export function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -102,8 +128,6 @@ export function PWAInstallPrompt() {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then((registration) => {
-          console.log('PWA Service Worker registered with scope:', registration.scope);
-
           registration.addEventListener('updatefound', () => {
             const installingWorker = registration.installing;
             if (!installingWorker) return;
@@ -129,17 +153,18 @@ export function PWAInstallPrompt() {
       removeControllerChange = () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
     }
 
-    // 2. Check if already dismissed
     if (typeof window !== 'undefined') {
-      const isDismissed = localStorage.getItem('eduverse-pwa-dismissed') === 'true';
-
-      // 3. Detect Standalone Mode
       const isStandalone = isStandaloneDisplay();
 
-      // 4. Handle Standard PWA Install Prompt (Chrome, Edge, Android)
-      if (!isDismissed && !isStandalone) {
+      if (!isPromptDismissed() && !isStandalone) {
         handleBeforeInstallPrompt = (e: Event) => {
           e.preventDefault();
+          if (isPromptDismissed() || isStandaloneDisplay()) {
+            setDeferredPrompt(null);
+            setShowPrompt(false);
+            setShowIOSPrompt(false);
+            return;
+          }
           setDeferredPrompt(e as BeforeInstallPromptEvent);
           setShowPrompt(true);
         };
@@ -147,7 +172,7 @@ export function PWAInstallPrompt() {
           setDeferredPrompt(null);
           setShowPrompt(false);
           setShowIOSPrompt(false);
-          localStorage.setItem('eduverse-pwa-dismissed', 'true');
+          dismissPromptPermanently();
           document.documentElement.classList.add('pwa-standalone');
           updateViewportVars();
         };
@@ -155,11 +180,13 @@ export function PWAInstallPrompt() {
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         window.addEventListener('appinstalled', handleAppInstalled);
 
-        // 5. Handle iOS Custom Prompt Detection
         const isIOSDevice = /ipad|iphone|ipod/.test(navigator.userAgent.toLowerCase());
         if (isIOSDevice) {
-          // Show iOS instructions for installation
-          window.setTimeout(() => setShowIOSPrompt(true), 0);
+          window.setTimeout(() => {
+            if (!isPromptDismissed() && !isStandaloneDisplay()) {
+              setShowIOSPrompt(true);
+            }
+          }, 3000);
         }
       }
     }
@@ -184,24 +211,25 @@ export function PWAInstallPrompt() {
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
 
-    // Show native browser prompt
     await deferredPrompt.prompt();
 
-    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to install prompt: ${outcome}`);
 
-    // Clear prompt state
     setDeferredPrompt(null);
     setShowPrompt(false);
+
+    if (outcome === 'accepted') {
+      dismissPromptPermanently();
+    } else {
+      dismissPromptForCooldown();
+    }
   };
 
   const handleDismiss = () => {
     setShowPrompt(false);
     setShowIOSPrompt(false);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('eduverse-pwa-dismissed', 'true');
-    }
+    setDeferredPrompt(null);
+    dismissPromptForCooldown();
   };
 
   if (!showPrompt && !showIOSPrompt) return null;

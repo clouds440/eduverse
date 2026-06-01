@@ -7,6 +7,7 @@ import { Wallet, ListTree, Receipt, FileText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Role } from '@/types';
 import { PageHeader } from '@/components/ui/PageShell';
+import { cn } from '@/lib/utils';
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -30,30 +31,33 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
                     icon={Wallet}
                 />
 
-                {/* Sub Navigation */}
-                <div className="flex space-x-1 overflow-x-auto rounded-lg border border-border bg-card/80 px-3 pt-2 shadow-sm scrollbar-none">
+                <nav
+                    aria-label="Finance navigation"
+                    className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-card/80 p-1 shadow-sm scrollbar-none"
+                >
                     {tabs.filter(t => !t.hidden).map((tab) => {
                         const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
                         return (
                             <Link
                                 key={tab.name}
                                 href={tab.href}
-                                className={`
-                                    flex items-center px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap gap-2
-                                    ${isActive 
-                                        ? 'border-primary text-primary' 
-                                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'}
-                                `}
+                                className={cn(
+                                    'flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                                    isActive
+                                        ? 'bg-background text-primary-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                                )}
+                                aria-current={isActive ? 'page' : undefined}
                             >
                                 <tab.icon className="w-4 h-4" />
                                 {tab.name}
                             </Link>
                         );
                     })}
-                </div>
+                </nav>
             </div>
 
-            <div className="flex-1 overflow-y-auto pt-3 custom-scrollbar relative">
+            <div className="relative flex-1 overflow-y-auto pt-3 custom-scrollbar">
                 {children}
             </div>
         </div>

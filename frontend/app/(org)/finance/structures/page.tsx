@@ -1,52 +1,35 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import useSWR from 'swr';
+import { Plus, ReceiptText } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { FinancialStructure, Role } from '@/types';
-import { DataTable } from '@/components/ui/DataTable';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Plus } from 'lucide-react';
+import { DataTable, type Column } from '@/components/ui/DataTable';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { ResourcePanel, ResourceToolbar } from '@/components/ui/PageShell';
 import { useGlobal } from '@/context/GlobalContext';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { StructureModal } from './StructureModal';
 
 export default function StructuresPage() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
-
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const pathname = usePathname();
+    const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStructure, setEditingStructure] = useState<FinancialStructure | null>(null);
 
-    // URL State
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const sortBy = searchParams.get('sortBy') || 'title';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
-    const [pageSize, setPageSize] = useState(10);
-
-    const updateQueryParams = (updates: Record<string, string | number | undefined | boolean>) => {
-        const params = new URLSearchParams(searchParams.toString());
-        Object.entries(updates).forEach(([key, value]) => {
-            if (value === undefined || value === '' || value === false) {
-                params.delete(key);
-            } else {
-                params.set(key, String(value));
-            }
-        });
-        router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
-
-    const handlePageSizeChange = (newSize: number) => {
-        setPageSize(newSize);
-        updateQueryParams({ page: 1 });
-    };
+    const page = getNumberParam('page', 1);
+    const sortBy = getStringParam('sortBy', 'title');
+    const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-finance-structures-limit', 10);
 
     const { data: structures, error, mutate, isLoading } = useSWR(
         token ? ['finance/structures', token] : null,
@@ -54,6 +37,16 @@ export default function StructuresPage() {
     );
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+
+    const handlePageSizeChange = (newSize: number) => {
+        setPageSize(newSize);
+        updateQueryParams({ page: 1 });
+    };
+
+    const openStructureModal = (structure: FinancialStructure | null) => {
+        setEditingStructure(structure);
+        setIsModalOpen(true);
+    };
 
     const handleSave = async (data: Partial<FinancialStructure>) => {
         if (!token) return;
@@ -69,47 +62,74 @@ export default function StructuresPage() {
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to save';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
-            throw error; // Let modal handle loading state termination if needed
+            throw error;
         }
     };
 
-    const columns = [
+    const columns = useMemo<Column<FinancialStructure>[]>(() => [
         {
-            header: 'Title',
+            header: 'Structure',
             sortable: true,
             sortKey: 'title',
-            accessor: (s: FinancialStructure) => <span className="font-bold">{s.title}</span>
-        },
-        {
-            header: 'Target',
-            accessor: (s: FinancialStructure) => s.studentId ? 'Student' : 'Teacher'
+            accessor: (structure) => (
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
+                        <ReceiptText className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-foreground">{structure.title}</p>
+                        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                            {structure.studentId ? 'Student agreement' : 'Teacher agreement'}
+                        </p>
+                    </div>
+                </div>
+            ),
         },
         {
             header: 'Category',
-            accessor: (s: FinancialStructure) => <span className="text-xs uppercase opacity-70 font-bold">{s.category}</span>
+            sortable: true,
+            sortKey: 'category',
+            badge: true,
+            accessor: (structure) => <Badge variant="neutral" size="sm">{structure.category}</Badge>,
         },
         {
             header: 'Amount',
-            accessor: (s: FinancialStructure) => <FinancialAmount amount={s.amount} currency={s.currency} />
+            sortable: true,
+            sortKey: 'amount',
+            accessor: (structure) => <FinancialAmount amount={structure.amount} currency={structure.currency} />,
         },
         {
             header: 'Billing Cycle',
-            accessor: (s: FinancialStructure) => <BillingCycleBadge cycle={s.billingCycle} />
+            sortable: true,
+            sortKey: 'billingCycle',
+            badge: true,
+            accessor: (structure) => <BillingCycleBadge cycle={structure.billingCycle} />,
+        },
+        {
+            header: 'Dates',
+            accessor: (structure) => (
+                <div className="text-xs font-semibold text-muted-foreground">
+                    <span>{new Date(structure.startDate).toLocaleDateString()}</span>
+                    <span> - </span>
+                    <span>{structure.endDate ? new Date(structure.endDate).toLocaleDateString() : 'Open'}</span>
+                </div>
+            ),
         },
         {
             header: 'Status',
-            accessor: (s: FinancialStructure) => (
-                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${s.isActive ? 'bg-success/10 text-success' : 'bg-neutral/10 text-muted-foreground'}`}>
-                    {s.isActive ? 'ACTIVE' : 'INACTIVE'}
-                </span>
-            )
-        }
-    ];
+            badge: true,
+            accessor: (structure) => (
+                <Badge variant={structure.isActive ? 'success' : 'neutral'} size="sm" dot>
+                    {structure.isActive ? 'Active' : 'Inactive'}
+                </Badge>
+            ),
+        },
+    ], []);
 
-    const sortedData = React.useMemo(() => {
+    const sortedData = useMemo(() => {
         if (!structures) return [];
         const result = [...structures];
-        result.sort((a: FinancialStructure, b: FinancialStructure) => {
+        result.sort((a, b) => {
             const valA = a[sortBy as keyof FinancialStructure];
             const valB = b[sortBy as keyof FinancialStructure];
             if (valA === undefined || valB === undefined || valA === null || valB === null) return 0;
@@ -120,51 +140,56 @@ export default function StructuresPage() {
         return result;
     }, [structures, sortBy, sortOrder]);
 
-    const paginatedData = React.useMemo(() => {
+    const paginatedData = useMemo(() => {
         const start = (page - 1) * pageSize;
         return sortedData.slice(start, start + pageSize);
-    }, [sortedData, page, pageSize]);
+    }, [page, pageSize, sortedData]);
 
-
-    if (error) return <div className="text-danger p-6 font-bold">Failed to load structures.</div>;
+    if (error) {
+        return (
+            <ErrorState
+                error={error}
+                onRetry={() => mutate()}
+                title="Financial structures could not load"
+                description="Recurring agreements are unavailable right now."
+            />
+        );
+    }
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center bg-card p-6 rounded-2xl shadow-sm border border-border">
-                <div>
-                    <h2 className="text-xl font-black">Financial Structures</h2>
-                    <p className="text-sm text-muted-foreground">Manage recurring fees, salaries, and billing contracts.</p>
-                </div>
-                {isManagement && (
+        <ResourcePanel>
+            <ResourceToolbar
+                actions={isManagement && (
                     <Button
-                        onClick={() => { setEditingStructure(null); setIsModalOpen(true); }}
-                        className="gap-2"
+                        onClick={() => openStructureModal(null)}
                         icon={Plus}
+                        className="shrink-0"
                     >
                         Create Structure
                     </Button>
                 )}
-            </div>
+            />
 
-            <div className="relative overflow-x-hidden">
+            <div className="relative min-h-0 flex-1 overflow-x-hidden">
                 <DataTable
                     data={paginatedData}
                     columns={columns}
-                    keyExtractor={(s) => s.id}
+                    keyExtractor={(structure) => structure.id}
                     isLoading={isLoading}
                     showSerialNumber
-                    onRowClick={isManagement ? ((s: FinancialStructure) => {
-                        setEditingStructure(s);
-                        setIsModalOpen(true);
-                    }) : undefined}
+                    onRowClick={isManagement ? openStructureModal : undefined}
                     currentPage={page}
                     totalPages={Math.ceil((structures?.length || 0) / pageSize) || 1}
                     totalResults={structures?.length || 0}
                     pageSize={pageSize}
-                    onPageChange={(p) => updateQueryParams({ page: p })}
+                    onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
                     onPageSizeChange={handlePageSizeChange}
                     sortConfig={{ key: sortBy, direction: sortOrder }}
-                    onSort={(key, dir) => updateQueryParams({ sortBy: key, sortOrder: dir })}
+                    onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
+                    maxHeight="100%"
+                    emptyTitle="No financial structures found"
+                    emptyDescription={isManagement ? 'Create a structure to start generating fees, salaries, or billing agreements.' : 'No billing structures are assigned yet.'}
+                    mobileDetailLimit={3}
                 />
             </div>
 
@@ -176,6 +201,6 @@ export default function StructuresPage() {
                     onSave={handleSave}
                 />
             )}
-        </div>
+        </ResourcePanel>
     );
 }

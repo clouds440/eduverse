@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { UserPlus, BadgeCheck } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -110,7 +110,7 @@ export default function TeachersPage() {
         }
     };
 
-    const handleRestore = async (id: string) => {
+    const handleRestore = useCallback(async (id: string) => {
         if (!token) return;
         try {
             await api.org.restoreTeacher(id, TeacherStatus.ACTIVE, token);
@@ -119,7 +119,7 @@ export default function TeachersPage() {
         } catch (err: unknown) {
             dispatch({ type: 'TOAST_ADD', payload: { message: err instanceof Error ? err.message : 'Failed to restore teacher', type: 'error' } });
         }
-    };
+    }, [dispatch, token]);
 
     const columns = useMemo<Column<Teacher>[]>(() => [
         {

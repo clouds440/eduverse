@@ -96,6 +96,7 @@ export function ModalOverlay({
             modalBodyPreviousOverflow = document.body.style.overflow;
             document.body.style.overflow = 'hidden';
         }
+        const modalId = modalIdRef.current;
 
         const frameId = window.requestAnimationFrame(() => {
             const modalNode = modalRef.current;
@@ -107,7 +108,7 @@ export function ModalOverlay({
 
         return () => {
             window.cancelAnimationFrame(frameId);
-            const stackIndex = modalStack.indexOf(modalIdRef.current);
+            const stackIndex = modalStack.indexOf(modalId);
             if (stackIndex !== -1) modalStack.splice(stackIndex, 1);
             modalBodyLockCount = Math.max(0, modalBodyLockCount - 1);
             if (modalBodyLockCount === 0) {

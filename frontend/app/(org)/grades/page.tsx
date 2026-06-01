@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { BookOpen, ChevronRight, GraduationCap, Search } from 'lucide-react';
+import { BookOpen, ChevronRight, GraduationCap, Layers, Search, Users } from 'lucide-react';
 import { Section, Role } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -14,20 +14,69 @@ import { Skeleton } from '@/components/ui/Skeleton';
 
 function SectionCardSkeleton() {
     return (
-        <div className="rounded-lg border border-border/70 bg-card p-4 shadow-sm md:p-5">
-            <div className="flex items-start justify-between">
-                <Skeleton className="h-10 w-10 rounded-md" />
-                <Skeleton className="h-5 w-5 rounded-md" />
+        <div className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-md" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <Skeleton className="h-5 w-2/3 rounded-md" />
+                        <Skeleton className="h-3 w-1/2 rounded-md" />
+                    </div>
+                </div>
+                <Skeleton className="h-8 w-8 rounded-md" />
             </div>
-            <div className="mt-4 space-y-3">
-                <Skeleton className="h-6 w-full rounded-md" />
-                <Skeleton className="h-3 w-2/3 rounded-md" />
-            </div>
-            <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
-                <Skeleton className="h-3 w-32 rounded-md" />
-                <Skeleton className="h-6 w-20 rounded-md" />
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <Skeleton className="h-16 rounded-md" />
+                <Skeleton className="h-16 rounded-md" />
             </div>
         </div>
+    );
+}
+
+function SectionGradeCard({ section }: { section: Section }) {
+    return (
+        <Link
+            href={`/sections/${section.id}`}
+            className="group block overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm transition-colors hover:border-primary/45 hover:bg-background/40"
+        >
+            <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border/60 bg-card/80 p-4">
+                <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                        <GraduationCap className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                        <h2 className="truncate text-base font-black text-foreground md:text-lg">{section.name}</h2>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                            <Badge variant="neutral" size="sm">{section.course?.name || 'Generic Course'}</Badge>
+                            {section.cohort?.name && <Badge variant="secondary" size="sm">{section.cohort.name}</Badge>}
+                            {section.academicCycle?.name && <Badge variant="primary" size="sm">{section.academicCycle.name}</Badge>}
+                        </div>
+                    </div>
+                </div>
+                <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors group-hover:border-primary/40 group-hover:bg-primary/10 group-hover:text-primary">
+                    <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                </div>
+            </div>
+
+            <div className="grid gap-2 p-3 sm:grid-cols-2 sm:p-4">
+                <div className="rounded-md border border-border/60 bg-background/55 p-3">
+                    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                        <Layers className="h-4 w-4 text-primary" aria-hidden="true" />
+                        Grade Workspace
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-foreground">Open assessments and grade records</p>
+                </div>
+                <div className="rounded-md border border-border/60 bg-background/55 p-3">
+                    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                        <Users className="h-4 w-4 text-primary" aria-hidden="true" />
+                        Section Context
+                    </div>
+                    <p className="mt-2 truncate text-sm font-semibold text-foreground">
+                        {section.cohort ? `${section.cohort.name} cohort` : 'No cohort assigned'}
+                    </p>
+                </div>
+            </div>
+        </Link>
     );
 }
 
@@ -74,7 +123,7 @@ export default function GradesPage() {
                             <Skeleton className="h-3 w-24 rounded-md" />
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                         {[...Array(6)].map((_, index) => (
                             <SectionCardSkeleton key={index} />
                         ))}
@@ -109,36 +158,9 @@ export default function GradesPage() {
                                 className="min-h-72"
                             />
                         ) : (
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                                 {filteredSections.map((section) => (
-                                    <Link
-                                        key={section.id}
-                                        href={`/sections/${section.id}`}
-                                        className="group flex min-h-44 flex-col justify-between rounded-lg border border-border/70 bg-card p-4 shadow-sm transition-colors hover:border-primary/50 hover:bg-background/45 md:p-5"
-                                    >
-                                        <div>
-                                            <div className="mb-4 flex items-start justify-between gap-3">
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                                                    <GraduationCap className="h-5 w-5" />
-                                                </div>
-                                                <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-                                            </div>
-                                            <h3 className="text-base font-black leading-tight text-foreground transition-colors group-hover:text-primary md:text-lg">
-                                                {section.name}
-                                            </h3>
-                                            <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                                                {section.course?.name || 'Generic Course'}
-                                            </p>
-                                        </div>
-                                        <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4 text-xs font-black text-muted-foreground">
-                                            <span className="min-w-0 truncate">
-                                                {section.cohort ? `${section.cohort.name} (${section.academicCycle?.name || 'Academic Cycle'})` : 'No cohort assigned'}
-                                            </span>
-                                            <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                                                Open
-                                            </span>
-                                        </div>
-                                    </Link>
+                                    <SectionGradeCard key={section.id} section={section} />
                                 ))}
                             </div>
                         )}

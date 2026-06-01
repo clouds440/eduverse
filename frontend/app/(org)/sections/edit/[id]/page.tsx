@@ -84,7 +84,7 @@ export default function EditSectionPage() {
 
     const cohortsKey = token && canManage ? ['cohorts', { limit: 1000 }] as const : null;
     const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
-    const cohorts = cohortsData?.data || [];
+    const cohorts = useMemo(() => cohortsData?.data || [], [cohortsData?.data]);
 
     const studentsKey = token && canManage ? ['students', { limit: 1000 }] as const : null;
     const { data: studentsData, isLoading: isStudentsLoading } = useSWR<PaginatedResponse<Student>>(studentsKey);

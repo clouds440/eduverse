@@ -33,6 +33,7 @@ type FetcherKey =
     | readonly ['schedules', string]
     | readonly ['student', string]
     | readonly ['teacher', string]
+    | readonly ['cohort', string]
     | readonly ['section-materials', string]
     | readonly ['section-detail', string]
     | readonly ['validate-student', string]
@@ -136,6 +137,8 @@ function createFetcher(token: string | null) {
                     return await api.org.getStudent(args[0] as string, token) as T;
                 case 'teacher':
                     return await api.org.getTeacher(args[0] as string, token) as T;
+                case 'cohort':
+                    return await api.cohorts.getCohort(args[0] as string, token) as T;
                 case 'section-materials':
                     return await api.org.getSection(args[0] as string, token) as T;
                 case 'section-detail':

@@ -79,7 +79,10 @@ function CustomSelectComponent<T extends string = string>({
 
     useEffect(() => {
         if (!isOpen) return;
-        setActiveIndex(selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0);
+        const frameId = window.requestAnimationFrame(() => {
+            setActiveIndex(selectedVisibleIndex >= 0 ? selectedVisibleIndex : 0);
+        });
+        return () => window.cancelAnimationFrame(frameId);
     }, [isOpen, selectedVisibleIndex, visibleOptionsCount]);
 
     useEffect(() => {
@@ -158,7 +161,7 @@ function CustomSelectComponent<T extends string = string>({
 
     const closeDropdown = useCallback(() => {
         setIsOpen(false);
-        containerRef.current?.querySelector<HTMLButtonElement>('button[type="button"]')?.focus({ preventScroll: true });
+        containerRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus({ preventScroll: true });
     }, []);
 
     const handleComboboxKeyDown = useCallback((event: React.KeyboardEvent) => {
@@ -199,11 +202,9 @@ function CustomSelectComponent<T extends string = string>({
                 ))}
             </select>
 
-            <button
-                type="button"
+            <div
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 onKeyDown={handleComboboxKeyDown}
-                disabled={disabled}
                 className={cn(
                     "flex min-h-11 w-full items-center rounded-md border px-3.5 py-2.5 text-left text-sm font-medium outline-none transition-colors duration-200",
                     isOpen
@@ -215,11 +216,14 @@ function CustomSelectComponent<T extends string = string>({
                     "text-foreground",
                     className
                 )}
+                role="combobox"
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
                 aria-controls={isOpen ? listboxId : undefined}
                 aria-activedescendant={isOpen && visibleOptions[activeIndex] ? getOptionId(activeIndex) : undefined}
                 aria-invalid={error || undefined}
+                aria-disabled={disabled || undefined}
+                tabIndex={disabled ? -1 : 0}
             >
                 {/* Prefix Icon (Prop) or Selected Option Icon */}
                 {(selectedOption?.icon || Icon) && (
@@ -244,7 +248,7 @@ function CustomSelectComponent<T extends string = string>({
                 )}
 
                 <ChevronDown className={cn("ml-2 h-4 w-4 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
-            </button>
+            </div>
 
             {isOpen && coords && createPortal(
                 <div
