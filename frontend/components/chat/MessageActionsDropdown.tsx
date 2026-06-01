@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Reply, Copy, Pencil, Download, Trash2, X } from 'lucide-react';
+import { Copy, Download, Pencil, Reply, Trash2, X } from 'lucide-react';
 import { ChatMessage, Role } from '@/types';
 import { JwtPayload } from '@/context/GlobalContext';
 import { getFloatingPosition } from '@/lib/floatingPosition';
@@ -25,7 +25,6 @@ export function MessageContextMenu({
     msg, user, isMine, isFailedMessage, position, isMobile,
     onClose, onReply, onCopyText, onEditMessage, onDownload, onDeleteMessage
 }: MessageContextMenuProps) {
-
     const ignoreFirstClickRef = useRef(true);
     const menuRef = useRef<HTMLDivElement>(null);
     const [desktopMenuStyle, setDesktopMenuStyle] = useState<CSSProperties>({
@@ -48,7 +47,15 @@ export function MessageContextMenu({
         action();
     };
 
-    const links = useMemo(() => Array.from(msg.content.matchAll(/!?\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g)), [msg.content]);
+    const downloadableImages = useMemo(() => {
+        const imageExtensionPattern = /\.(?:avif|gif|jpe?g|png|webp|bmp|svg)(?:[?#].*)?$/i;
+        return Array.from(msg.content.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g))
+            .map((match) => ({
+                label: (match[1] || '').trim(),
+                url: match[2],
+            }))
+            .filter((item) => imageExtensionPattern.test(item.url));
+    }, [msg.content]);
 
     useLayoutEffect(() => {
         if (isMobile) return;
@@ -81,7 +88,7 @@ export function MessageContextMenu({
             window.removeEventListener('resize', updateMenuPosition);
             window.removeEventListener('scroll', updateMenuPosition, true);
         };
-    }, [isMobile, position.x, position.y, msg.content, isMine, isFailedMessage, user?.role]);
+    }, [isMobile, position, msg.content, isMine, isFailedMessage, user?.role]);
 
     const menuContent = (
         <>
@@ -98,14 +105,12 @@ export function MessageContextMenu({
                     <Pencil size={14} className="mr-3 md:mr-2 opacity-85 text-success" /> Edit
                 </button>
             )}
-            {links.map((match, idx) => {
-                const label = (match[1] || '').trim();
-                const cleanLabel = label.replace(/^(?:📄|📝|📊|📽️|📦|📎)?\s*(?:PDF:|DOC:|Doc:|XLS:|PPT:|ARCHIVE:|ZIP:|Attachment:)\s*/i, '');
+            {downloadableImages.map((image, idx) => {
+                const cleanLabel = image.label || `image-${idx + 1}`;
                 const displayLabel = (() => {
                     if (cleanLabel.length <= 16) return cleanLabel;
-                    
+
                     const lastDot = cleanLabel.lastIndexOf('.');
-                    // Only treat as extension if it's 1-5 chars long and near the end
                     if (lastDot !== -1 && cleanLabel.length - lastDot <= 6) {
                         const name = cleanLabel.substring(0, lastDot);
                         const ext = cleanLabel.substring(lastDot);
@@ -115,13 +120,13 @@ export function MessageContextMenu({
                 })();
 
                 return (
-                    <button key={idx} onClick={(e) => handleAction(() => onDownload(e, match[2], cleanLabel || 'download'))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
+                    <button key={`${image.url}-${idx}`} onClick={(e) => handleAction(() => onDownload(e, image.url, cleanLabel || 'download'))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-foreground hover:bg-primary/10 flex items-center">
                         <Download size={14} className="mr-3 md:mr-2 opacity-85 text-info" /> {displayLabel}
                     </button>
                 );
             })}
             {(isMine || user?.role === Role.ORG_ADMIN) && (
-                <div className='border-t border-border'>
+                <div className="border-t border-border">
                     <button onClick={() => handleAction(() => onDeleteMessage(msg.id))} className="w-full rounded-sm text-left px-3 py-2.5 md:py-2 text-[14px] md:text-[13px] text-danger hover:bg-danger/10 flex items-center mt-1 pt-2 md:pt-1 md:mt-0">
                         <Trash2 size={14} className="mr-3 md:mr-2 opacity-85 text-danger" /> Delete
                     </button>

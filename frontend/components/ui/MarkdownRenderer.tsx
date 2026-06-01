@@ -130,7 +130,7 @@ markdownRenderer.link = ({ href, title, text }) => {
     const isExternal = /^[a-z][a-z\d+.-]*:/i.test(safeUrl) || safeUrl.startsWith('www.');
     const targetAttr = isExternal ? 'target="_blank" rel="noopener noreferrer"' : '';
 
-    return `<a href="${escapeHtml(safeUrl)}" title="${escapeHtml(title || '')}" ${targetAttr}>${text}</a>`;
+    return `<a href="${escapeHtml(safeUrl)}" title="${escapeHtml(title || '')}" ${targetAttr} data-chat-link="true" draggable="false">${text}</a>`;
 };
 
 export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, className = '', attachmentAlign = 'left', compactAttachments = false, attachmentsFirst = false }: MarkdownRendererProps) {
@@ -297,20 +297,22 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, 
             cleanups.push(() => img.removeEventListener('error', handleError));
         });
 
-        // Run mermaid
-        const renderMermaid = async () => {
-            const mermaidElements = containerRef.current?.querySelectorAll('.mermaid');
-            if (mermaidElements && mermaidElements.length > 0) {
-                try {
-                    await mermaid.run({
-                        nodes: mermaidElements as unknown as NodeListOf<HTMLElement>
-                    });
-                } catch (err) {
-                    console.error('Mermaid render error:', err);
+        // Run mermaid only when this message actually contains a diagram.
+        if (htmlContent.includes('class="mermaid"')) {
+            const renderMermaid = async () => {
+                const mermaidElements = containerRef.current?.querySelectorAll('.mermaid');
+                if (mermaidElements && mermaidElements.length > 0) {
+                    try {
+                        await mermaid.run({
+                            nodes: mermaidElements as unknown as NodeListOf<HTMLElement>
+                        });
+                    } catch (err) {
+                        console.error('Mermaid render error:', err);
+                    }
                 }
-            }
-        };
-        renderMermaid();
+            };
+            renderMermaid();
+        }
 
         // Handle copy code button clicks
         const handleCopyClick = async (e: MouseEvent) => {
@@ -463,7 +465,19 @@ if (typeof document !== 'undefined') {
                 line-height: 1.35;
             }
             .markdown-content strong, .markdown-content b { font-weight: 800; color: inherit; }
-            .markdown-content a { color: cyan; background: rgba(50, 60, 100, 0.4); border-radius: 3px; padding: 1px 4px; text-decoration: underline; font-weight: 700; text-underline-offset: 2px; }
+            .markdown-content a {
+                color: color-mix(in oklab, var(--primary) 86%, currentColor);
+                background: color-mix(in oklab, var(--primary) 12%, transparent);
+                border-radius: 5px;
+                padding: 1px 4px;
+                text-decoration: underline;
+                font-weight: 800;
+                text-underline-offset: 2px;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                touch-action: manipulation;
+                -webkit-touch-callout: none;
+            }
             .markdown-content a:hover { opacity: 0.8; }
             .markdown-content ul, .markdown-content ol { margin: 2px; padding-left: 1rem; }
             .markdown-content li { margin: 4px; }

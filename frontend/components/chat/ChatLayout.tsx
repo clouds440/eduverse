@@ -68,6 +68,22 @@ import {
     getFileTypeInfo
 } from './chatLayoutHelpers';
 
+function shouldRefreshCachedMessages(cachedMessages: ChatMessageWithMeta[], chat?: Chat) {
+    if (cachedMessages.length === 0) return true;
+    if (!chat) return true;
+    if ((chat.unreadCount || 0) > 0) return true;
+
+    const previewMessage = chat.messages?.[0];
+    const latestCachedMessage = cachedMessages[cachedMessages.length - 1];
+    if (!previewMessage || !latestCachedMessage) return false;
+
+    if (previewMessage.id !== latestCachedMessage.id) return true;
+
+    const previewUpdatedAt = new Date(previewMessage.updatedAt || previewMessage.createdAt).getTime();
+    const cachedUpdatedAt = new Date(latestCachedMessage.updatedAt || latestCachedMessage.createdAt).getTime();
+    return previewUpdatedAt > cachedUpdatedAt;
+}
+
 export function ChatLayout() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
@@ -81,6 +97,7 @@ export function ChatLayout() {
     const msgIdParam = searchParams.get('msgId');
 
     const [chats, setChats] = useState<Chat[]>([]);
+    const activeChatPreviewRef = useRef<Chat | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeChatId, setActiveChatId] = useState<string | null>(initialChatId);
     const [targetMessageId, setTargetMessageId] = useState<string | null>(msgIdParam);
@@ -289,7 +306,7 @@ export function ChatLayout() {
             const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
             const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
             const atBottom = distanceFromBottom < 50;
-            const shouldShowScrollToBottom = distanceFromBottom > clientHeight * 1.5;
+            const shouldShowScrollToBottom = distanceFromBottom > clientHeight * 2;
 
             setIsAtBottom(prev => prev === atBottom ? prev : atBottom);
             setShowScrollToBottom(prev => prev === shouldShowScrollToBottom ? prev : shouldShowScrollToBottom);
@@ -395,6 +412,12 @@ export function ChatLayout() {
         fetchChats();
     }, [token, fetchChats]);
 
+    useEffect(() => {
+        activeChatPreviewRef.current = activeChatId
+            ? chats.find(chat => chat.id === activeChatId)
+            : undefined;
+    }, [activeChatId, chats]);
+
     // 2. Fetch Messages for Active Chat (Initial)
     const fetchInitialMessages = useCallback(async (chatId: string, targetMsgId?: string | null) => {
         if (!token) return;
@@ -447,7 +470,8 @@ export function ChatLayout() {
         if (!activeChatId) return;
         // Load cached messages if available, otherwise fetch
         const cachedMessages = getCachedMessages(activeChatId);
-        if (cachedMessages.length > 0 && !targetMessageId) {
+        const activeChatPreview = activeChatPreviewRef.current;
+        if (!targetMessageId && !shouldRefreshCachedMessages(cachedMessages, activeChatPreview)) {
             setMessages(cachedMessages);
             setIsLoadingMessages(false);
             setTimeout(() => scrollToBottom('instant'), 100);
@@ -1595,10 +1619,15 @@ export function ChatLayout() {
                                     </span>
                                 )}
                                 {isDeleted ? (
-                                    <div className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed my-1 bg-foreground/20 text-foreground border border-border/50 italic ${isMine ? 'rounded-br-none' : 'rounded-bl-none'}`}>
-                                        <div className="flex items-center space-x-2">
-                                            <Trash2 size={15} />
-                                            <span>Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name} </span> : null} <sub className=''>{formatChatTimestamp(msg.createdAt!)}</sub></span>
+                                    <div className={`px-3 py-2 rounded-xl text-[13px] leading-relaxed bg-muted/65 text-muted-foreground border border-border/60 italic shadow-sm ${isMine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <Trash2 size={15} className="shrink-0" />
+                                            <span className="min-w-0 wrap-break-word">Message deleted {msg.deletedBy?.name ? <span>by {msg.deletedBy.name}</span> : null}</span>
+                                        </div>
+                                        <div className="mt-1 flex items-center justify-end">
+                                            <span className="text-[11px] font-medium tracking-wider text-muted-foreground">
+                                                {formatChatTimestamp(msg.createdAt)}
+                                            </span>
                                         </div>
                                     </div>
                                 ) : (
@@ -2134,11 +2163,11 @@ export function ChatLayout() {
                                 <button
                                     type="button"
                                     onClick={() => isViewingHistory ? (activeChatId && fetchInitialMessages(activeChatId)) : scrollToBottom()}
-                                    className="absolute right-5 z-30 p-2.5 bg-card text-foreground/70 rounded-full shadow-lg border border-border hover:bg-card/95 hover:text-primary hover:border-primary transition-all active:scale-95 group"
+                                    className="absolute right-7 z-30 p-2.5 bg-card text-foreground/70 rounded-full shadow-lg border border-border hover:bg-card/95 hover:text-primary hover:border-primary transition-all active:scale-95 group"
                                     style={{
                                         bottom: !isDesktop
-                                            ? `calc(${(canSendMessage ? composerHeight : readOnlyBannerHeight) + 12}px + env(safe-area-inset-bottom, 0px))`
-                                            : (canSendMessage ? composerHeight : readOnlyBannerHeight) + 12
+                                            ? `calc(${(canSendMessage ? composerHeight : readOnlyBannerHeight) + 30}px + env(safe-area-inset-bottom, 0px))`
+                                            : (canSendMessage ? composerHeight : readOnlyBannerHeight) + 30
                                     }}
                                     title={isViewingHistory ? "Jump to Present" : "Scroll to bottom"}
                                 >
@@ -2199,7 +2228,7 @@ export function ChatLayout() {
                             {canSendMessage ? (
                                 <div
                                     ref={composerRef}
-                                    className="absolute bottom-0 w-full px-5 sm:px-4 pt-0.5 pb-3 z-50 chat-bg-pattern bg-background"
+                                    className="absolute bottom-0 w-[98.5%] pl-1 sm:pl-5 pt-0.5 pb-3 z-50 chat-bg-pattern bg-background"
                                     style={!isDesktop ? { paddingBottom: mobileBottomInset } : undefined}
                                 >
                                     <div className="absolute inset-0 -z-10 opacity-65 bg-background pointer-events-none" />
@@ -2460,14 +2489,14 @@ export function ChatLayout() {
 
                                         {/* External Send Button (Animated Drop Style) */}
                                         <div className={`flex items-end justify-center transition-all duration-300 ease-out ${(messageDraft.trim() || stagedFiles.length > 0)
-                                            ? 'w-12 opacity-100 scale-100 ml-1'
+                                            ? 'w-12 opacity-100 scale-100 ml-2'
                                             : 'w-0 opacity-0 scale-50 ml-0 overflow-hidden'
                                             }`}>
                                             <button
                                                 type="button"
                                                 onClick={() => { void handleSendMessage(); }}
                                                 disabled={isSending || isUploading}
-                                                className="w-12.5 h-12.5 shrink-0 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-md hover:bg-primary/90 hover:scale-[1.03] hover:shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+                                                className="w-13 h-13.25 shrink-0 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-md hover:bg-primary/90 hover:scale-[1.03] hover:shadow-lg active:scale-95 transition-transform disabled:opacity-50 disabled:hover:scale-100"
                                                 title="Send message"
                                             >
                                                 <Send size={18} className="cursor-pointer mx-auto" />

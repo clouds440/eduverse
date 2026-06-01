@@ -433,7 +433,7 @@ export function getLongPressHandlers(
             // Success! We reached the long press threshold
             hasTriggeredRef.current = true;
             if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
-                try { window.navigator.vibrate(40); } catch (e) { /* ignore */ }
+                try { window.navigator.vibrate(40); } catch { /* ignore */ }
             }
             onLongPress(itemId);
             timerRef.current = null;
