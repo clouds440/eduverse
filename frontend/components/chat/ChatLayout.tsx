@@ -1975,7 +1975,7 @@ export function ChatLayout() {
                     <>
                         {/* Chat Header */}
                         <div
-                            className="relative w-full px-3 sm:px-4 py-3 border-b border-border/60 flex items-center justify-between z-20 bg-background/90 shadow-sm shadow-foreground/5"
+                            className="relative w-full px-3 sm:px-4 py-3 border-b border-border/60 flex items-center justify-between z-20 bg-background/30 backdrop-blur-sm shadow-sm shadow-foreground/5"
                         >
                             <button
                                 type="button"
@@ -2199,12 +2199,13 @@ export function ChatLayout() {
                             {canSendMessage ? (
                                 <div
                                     ref={composerRef}
-                                    className="absolute bottom-0 w-full px-5 sm:px-4 pt-0.5 pb-3 z-50 bg-background/70 backdrop-blur-md"
+                                    className="absolute bottom-0 w-full px-5 sm:px-4 pt-0.5 pb-3 z-50 chat-bg-pattern bg-background"
                                     style={!isDesktop ? { paddingBottom: mobileBottomInset } : undefined}
                                 >
+                                    <div className="absolute inset-0 -z-10 opacity-65 bg-background pointer-events-none" />
                                     {/* Reply / Edit Banner */}
                                     {(replyToMessage || editingMessage) && (
-                                        <div className="mb-1 px-4 py-2.5 bg-card/60 rounded-xl flex items-center justify-between animate-in slide-in-from-bottom-2 duration-300 shadow-sm ring-1 ring-primary/50">
+                                        <div className="mb-1 px-4 py-2.5 bg-card/90 rounded-xl flex items-center justify-between animate-in slide-in-from-bottom-2 duration-300 shadow-sm ring-1 ring-primary/50">
                                             <div className="flex-1 min-w-0 pr-4">
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">
                                                     {editingMessage ? 'Editing Message' : `Replying to ${replyToMessage?.sender?.name == user.name ? 'Yourself' : (replyToMessage?.sender?.name || 'Message')}`}
