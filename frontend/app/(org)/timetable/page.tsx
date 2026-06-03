@@ -72,13 +72,21 @@ function formatDuration(startTime: string, endTime: string) {
     return `${minutes}m`;
 }
 
-function shouldDrawDayGridBorder(dayEntries: TimetableEntry[], startHour: number, rowIndex: number, rowCount: number) {
-    if (dayEntries.length === 0) return rowIndex < rowCount - 1;
+function isGridRowCoveredByEntry(dayEntries: TimetableEntry[], startHour: number, rowIndex: number) {
+    const rowStartMinutes = startHour * 60 + rowIndex * 30;
+    const rowEndMinutes = rowStartMinutes + 30;
 
-    const startMinutes = startHour * 60;
-    const lastEndOffset = Math.max(...dayEntries.map((entry) => timeToMinutes(entry.endTime) - startMinutes));
-    const rowBottomOffset = (rowIndex + 1) * 30;
-    return rowBottomOffset < lastEndOffset;
+    return dayEntries.some((entry) => {
+        const entryStartMinutes = timeToMinutes(entry.startTime);
+        const entryEndMinutes = timeToMinutes(entry.endTime);
+        return entryStartMinutes < rowEndMinutes && entryEndMinutes > rowStartMinutes;
+    });
+}
+
+function shouldDrawDayGridBorder(dayEntries: TimetableEntry[], startHour: number, rowIndex: number, rowCount: number) {
+    if (rowIndex >= rowCount - 1) return false;
+    if (isGridRowCoveredByEntry(dayEntries, startHour, rowIndex)) return false;
+    return true;
 }
 
 function getTimetableCardStyle(entry: TimetableEntry): React.CSSProperties {
@@ -169,6 +177,7 @@ export default function TimetablePage() {
     const canOpenAttendance = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN;
     const rowCount = Math.max(1, (endHour - startHour) * 2);
     const gridRows = `repeat(${rowCount}, ${TIMETABLE_HALF_HOUR_ROW_HEIGHT}px)`;
+    const gridHeight = rowCount * TIMETABLE_HALF_HOUR_ROW_HEIGHT;
 
     return (
         <PageShell>
@@ -235,26 +244,33 @@ export default function TimetablePage() {
                                         return (
                                             <div
                                                 key={day}
-                                                className="relative grid overflow-hidden rounded-md border-x border-t border-border/70 bg-background shadow-sm"
-                                                style={{ gridTemplateRows: gridRows }}
+                                                className="relative overflow-hidden rounded-md border-x border-t border-border/70 bg-background shadow-sm"
+                                                style={{ height: gridHeight }}
                                             >
-                                                {Array.from({ length: rowCount }).map((_, index) => {
-                                                    const shouldDrawBorder = shouldDrawDayGridBorder(dayEntries, startHour, index, rowCount);
-                                                    return (
-                                                        <div
-                                                            key={index}
-                                                            className={
-                                                                shouldDrawBorder
-                                                                    ? index % 2 === 1
-                                                                        ? 'border-b-2 border-border/80 bg-background'
-                                                                        : 'border-b border-border/30 bg-muted/20'
-                                                                    : 'bg-background'
-                                                            }
-                                                        />
-                                                    );
-                                                })}
+                                                <div
+                                                    className="absolute inset-0 grid"
+                                                    style={{ gridTemplateRows: gridRows }}
+                                                    aria-hidden="true"
+                                                >
+                                                    {Array.from({ length: rowCount }).map((_, index) => {
+                                                        const shouldDrawBorder = shouldDrawDayGridBorder(dayEntries, startHour, index, rowCount);
+                                                        return (
+                                                            <div
+                                                                key={index}
+                                                                className={
+                                                                    shouldDrawBorder
+                                                                        ? index % 2 === 1
+                                                                            ? 'border-b-2 border-border/80 bg-background'
+                                                                            : 'border-b border-border/30 bg-muted/20'
+                                                                        : 'bg-background'
+                                                                }
+                                                            />
+                                                        );
+                                                    })}
+                                                </div>
 
-                                                {(slotGroupsByDay.get(day) || []).map((slot) => {
+                                                <div className="relative z-10 grid h-full" style={{ gridTemplateRows: gridRows }}>
+                                                    {(slotGroupsByDay.get(day) || []).map((slot) => {
                                                 const startOffset = Math.max(0, timeToMinutes(slot.startTime) - startHour * 60);
                                                 const duration = Math.max(30, timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime));
                                                 const rowStart = Math.floor(startOffset / 30) + 1;
@@ -361,7 +377,8 @@ export default function TimetablePage() {
                                                         )}
                                                     </div>
                                                 );
-                                                })}
+                                                    })}
+                                                </div>
                                             </div>
                                         );
                                     })}
