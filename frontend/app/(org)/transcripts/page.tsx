@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { AcademicCycle, Role, Student } from '@/types';
 import { api } from '@/lib/api';
@@ -14,14 +14,17 @@ import { Loading } from '@/components/ui/Loading';
 import { BrandIcon } from '@/components/ui/Brand';
 import { PageHeader } from '@/components/ui/PageShell';
 import { BookOpen, Download, GraduationCap, Printer, Search } from 'lucide-react';
-import { getPublicUrl } from '@/lib/utils';
+import { formatCourseSectionLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
 import { PLATFORM_NAME } from '@/lib/constants';
-import { Label } from '@/components/ui/Label';
+import { downloadPdfBlob, sanitizePdfFilename } from '@/lib/pdf/core';
+import { createTranscriptPdf } from '@/lib/pdf/transcript';
 
 interface TranscriptStudent {
     id: string;
     name: string | null;
     email: string;
+    avatarUrl?: string | null;
+    avatarUpdatedAt?: string | null;
     registrationNumber?: string | null;
     rollNumber?: string | null;
     currentCohort?: { id: string; name: string } | null;
@@ -39,6 +42,7 @@ interface TranscriptAssessmentGrade {
 interface TranscriptCycleSection {
     sectionId: string;
     sectionName: string;
+    sectionColor?: string | null;
     courseName: string;
     enrollmentType: string;
     wasExcluded: boolean;
@@ -58,64 +62,7 @@ interface TranscriptResponse {
     transcript?: TranscriptCycle[];
 }
 
-interface PdfLine {
-    text: string;
-    x: number;
-    y: number;
-    size?: number;
-    font?: 'regular' | 'bold';
-    color?: string;
-}
-
-interface PdfRect {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    fill?: string;
-    stroke?: string;
-}
-
-interface PdfPage {
-    lines: PdfLine[];
-    rects: PdfRect[];
-}
-
-const PDF_PAGE_WIDTH = 612;
-const PDF_PAGE_HEIGHT = 792;
-const PDF_MARGIN = 42;
 const PASS_MARK = 50;
-
-function escapePdfText(value: string) {
-    return value
-        .replace(/[^\x20-\x7E]/g, '')
-        .replace(/\\/g, '\\\\')
-        .replace(/\(/g, '\\(')
-        .replace(/\)/g, '\\)');
-}
-
-function escapePdfName(value: string) {
-    return value.replace(/[^\w.-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'transcript';
-}
-
-function wrapText(value: string, maxChars: number) {
-    const words = value.split(/\s+/).filter(Boolean);
-    const lines: string[] = [];
-    let current = '';
-
-    words.forEach((word) => {
-        const next = current ? `${current} ${word}` : word;
-        if (next.length > maxChars && current) {
-            lines.push(current);
-            current = word;
-        } else {
-            current = next;
-        }
-    });
-
-    if (current) lines.push(current);
-    return lines.length > 0 ? lines : [''];
-}
 
 function roundScore(value: number) {
     return Math.round(value * 100) / 100;
@@ -180,181 +127,27 @@ function getCyclePeriodLabel(cycle: TranscriptCycle) {
     return `${name} (${start || 'Start TBD'} - ${end || 'End TBD'})`;
 }
 
-function createTranscriptPdf({
-    orgName,
-    student,
-    cycles,
-    cumulativeAverage,
-}: {
-    orgName: string;
-    student: TranscriptStudent;
-    cycles: TranscriptCycle[];
-    cumulativeAverage: number;
-}) {
-    const pages: PdfPage[] = [];
-    let page: PdfPage;
-    let y = PDF_PAGE_HEIGHT - PDF_MARGIN;
-
-    const addPage = () => {
-        page = { lines: [], rects: [] };
-        pages.push(page);
-        y = PDF_PAGE_HEIGHT - PDF_MARGIN;
-    };
-
-    const drawText = (text: string, x: number, textY: number, size = 10, font: 'regular' | 'bold' = 'regular', color = '0 0 0') => {
-        page.lines.push({ text, x, y: textY, size, font, color });
-    };
-
-    const drawRect = (rect: PdfRect) => {
-        page.rects.push(rect);
-    };
-
-    const ensureSpace = (height: number) => {
-        if (y - height >= PDF_MARGIN) return;
-        addPage();
-        drawDocumentHeader(false);
-    };
-
-    const drawDocumentHeader = (fullHeader: boolean) => {
-        drawRect({ x: PDF_MARGIN, y: y - 38, width: 38, height: 38, fill: '0.16 0.32 0.75' });
-        drawText(orgName.slice(0, 1).toUpperCase(), PDF_MARGIN + 13, y - 25, 16, 'bold', '1 1 1');
-        drawText(orgName, PDF_MARGIN + 50, y - 12, 16, 'bold');
-        drawText('Official Academic Transcript', PDF_MARGIN + 50, y - 29, 11);
-        drawText(new Date().toLocaleDateString(), PDF_PAGE_WIDTH - PDF_MARGIN - 78, y - 16, 9);
-        y -= fullHeader ? 62 : 52;
-    };
-
-    addPage();
-    drawDocumentHeader(true);
-
-    drawRect({ x: PDF_MARGIN, y: y - 68, width: PDF_PAGE_WIDTH - PDF_MARGIN * 2, height: 68, stroke: '0.82 0.86 0.92' });
-    drawText('Student', PDF_MARGIN + 14, y - 20, 8, 'bold');
-    drawText(student.name || 'Unnamed Student', PDF_MARGIN + 14, y - 38, 13, 'bold');
-    drawText(student.email || 'No email recorded', PDF_MARGIN + 14, y - 54, 9);
-    drawText(`Cohort: ${student.currentCohort?.name || 'Independent'}`, PDF_MARGIN + 220, y - 22, 10);
-    drawText(`Registration: ${student.registrationNumber || student.rollNumber || 'N/A'}`, PDF_MARGIN + 220, y - 40, 10);
-    drawText(`Overall Average: ${cumulativeAverage}%`, PDF_MARGIN + 410, y - 31, 11, 'bold');
-    y -= 92;
-
-    if (cycles.length === 0) {
-        drawText('No academic records found for the selected period.', PDF_MARGIN, y, 12, 'bold');
-    }
-
-    cycles.forEach((cycle) => {
-        const sections = cycle.sections || [];
-        ensureSpace(78);
-        drawRect({ x: PDF_MARGIN, y: y - 30, width: PDF_PAGE_WIDTH - PDF_MARGIN * 2, height: 30, fill: '0.93 0.95 1' });
-        drawText(getCyclePeriodLabel(cycle), PDF_MARGIN + 10, y - 19, 11, 'bold');
-        drawText(`${cycle.cohortName || 'No cohort'} | ${cycle.overallPercentage || 0}% average`, PDF_PAGE_WIDTH - PDF_MARGIN - 190, y - 19, 9);
-        y -= 42;
-
-        drawText('Course / Section', PDF_MARGIN, y, 8, 'bold');
-        drawText('Assess', PDF_MARGIN + 178, y, 8, 'bold');
-        drawText('Marks', PDF_MARGIN + 220, y, 8, 'bold');
-        drawText('Raw %', PDF_MARGIN + 292, y, 8, 'bold');
-        drawText('Weight', PDF_MARGIN + 342, y, 8, 'bold');
-        drawText('W.Score', PDF_MARGIN + 392, y, 8, 'bold');
-        drawText('Grade', PDF_MARGIN + 455, y, 8, 'bold');
-        drawText('Status', PDF_MARGIN + 498, y, 8, 'bold');
-        y -= 12;
-        drawRect({ x: PDF_MARGIN, y, width: PDF_PAGE_WIDTH - PDF_MARGIN * 2, height: 0.5, fill: '0.82 0.86 0.92' });
-        y -= 10;
-
-        if (sections.length === 0) {
-            ensureSpace(24);
-            drawText('No academic records found for this cycle.', PDF_MARGIN, y, 10);
-            y -= 28;
-        }
-
-        sections.forEach((section) => {
-            const courseLines = wrapText(`${section.courseName} - ${section.sectionName}`, 28).slice(0, 2);
-            const metrics = getSectionMetrics(section);
-            const rowHeight = Math.max(34, courseLines.length * 12 + 12);
-            ensureSpace(rowHeight + 8);
-
-            courseLines.forEach((line, index) => {
-                drawText(line, PDF_MARGIN, y - (index * 12), 9, index === 0 ? 'bold' : 'regular');
-            });
-            drawText(String(metrics.assessmentCount), PDF_MARGIN + 178, y, 9);
-            drawText(`${metrics.marksObtained}/${metrics.totalMarks}`, PDF_MARGIN + 220, y, 9);
-            drawText(`${metrics.rawPercentage}%`, PDF_MARGIN + 292, y, 9);
-            drawText(`${metrics.totalWeight}%`, PDF_MARGIN + 342, y, 9);
-            drawText(`${metrics.weightedScore}%`, PDF_MARGIN + 392, y, 9, 'bold');
-            drawText(metrics.grade, PDF_MARGIN + 455, y, 9, 'bold');
-            drawText(metrics.status, PDF_MARGIN + 498, y, 9);
-            y -= rowHeight;
-            drawRect({ x: PDF_MARGIN, y: y + 6, width: PDF_PAGE_WIDTH - PDF_MARGIN * 2, height: 0.4, fill: '0.88 0.90 0.94' });
-        });
-
-        y -= 14;
-    });
-
-    ensureSpace(44);
-    drawRect({ x: PDF_PAGE_WIDTH - PDF_MARGIN - 190, y: y - 36, width: 190, height: 36, stroke: '0.82 0.86 0.92' });
-    drawText(`Overall Average: ${cumulativeAverage}%`, PDF_PAGE_WIDTH - PDF_MARGIN - 178, y - 16, 11, 'bold');
-    drawText(`Pass mark: ${PASS_MARK}% | A+ 90, A 80, B 70, C 60, D 50`, PDF_MARGIN, y - 16, 8);
-
-    return buildPdfBlob(pages);
-}
-
-function buildPdfBlob(pages: PdfPage[]) {
-    const objects: string[] = [];
-    const addObject = (content: string) => {
-        objects.push(content);
-        return objects.length;
-    };
-
-    const catalogId = addObject('');
-    const pagesId = addObject('');
-    const regularFontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-    const boldFontId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
-    const pageIds: number[] = [];
-
-    pages.forEach((pdfPage) => {
-        const commands: string[] = [];
-        pdfPage.rects.forEach((rect) => {
-            if (rect.fill) {
-                commands.push(`${rect.fill} rg ${rect.x} ${rect.y} ${rect.width} ${rect.height} re f`);
-            }
-            if (rect.stroke) {
-                commands.push(`${rect.stroke} RG ${rect.x} ${rect.y} ${rect.width} ${rect.height} re S`);
-            }
-        });
-        pdfPage.lines.forEach((line) => {
-            const fontName = line.font === 'bold' ? 'F2' : 'F1';
-            commands.push(`BT /${fontName} ${line.size || 10} Tf ${line.color || '0 0 0'} rg ${line.x} ${line.y} Td (${escapePdfText(line.text)}) Tj ET`);
-        });
-        const stream = commands.join('\n');
-        const streamLength = new TextEncoder().encode(stream).length;
-        const contentId = addObject(`<< /Length ${streamLength} >>\nstream\n${stream}\nendstream`);
-        const pageId = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PDF_PAGE_WIDTH} ${PDF_PAGE_HEIGHT}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
-        pageIds.push(pageId);
-    });
-
-    objects[catalogId - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
-    objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
-
-    const chunks = ['%PDF-1.4\n'];
-    const offsets: number[] = [0];
-    objects.forEach((object, index) => {
-        offsets.push(chunks.join('').length);
-        chunks.push(`${index + 1} 0 obj\n${object}\nendobj\n`);
-    });
-    const xrefOffset = chunks.join('').length;
-    chunks.push(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`);
-    offsets.slice(1).forEach((offset) => {
-        chunks.push(`${String(offset).padStart(10, '0')} 00000 n \n`);
-    });
-    chunks.push(`trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
-
-    return new Blob(chunks, { type: 'application/pdf' });
-}
-
 export default function TranscriptsPage() {
     const { token, user } = useAuth();
     const [selectedStudentId, setSelectedStudentId] = useState('');
     const [selectedCycleId, setSelectedCycleId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [isPdfOptionsOpen, setIsPdfOptionsOpen] = useState(false);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [transcriptPdfTheme, setTranscriptPdfTheme] = useState<'light' | 'dark'>(() => (
+        typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+    ));
+    const pdfOptionsRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isPdfOptionsOpen) return;
+        const handlePointerDown = (event: MouseEvent) => {
+            if (pdfOptionsRef.current?.contains(event.target as Node)) return;
+            setIsPdfOptionsOpen(false);
+        };
+        document.addEventListener('mousedown', handlePointerDown);
+        return () => document.removeEventListener('mousedown', handlePointerDown);
+    }, [isPdfOptionsOpen]);
 
     useEffect(() => {
         if (!token || user?.role !== Role.STUDENT || selectedStudentId) return;
@@ -385,26 +178,31 @@ export default function TranscriptsPage() {
         : 0;
     const orgName = user?.orgName || PLATFORM_NAME;
     const logoUrl = getPublicUrl(user?.orgLogoUrl);
+    const studentPhotoUrl = transcriptResponse
+        ? getPublicUrl(transcriptResponse.student.avatarUrl, transcriptResponse.student.avatarUpdatedAt)
+        : '';
     const transcriptTitle = selectedCycleId && transcriptCycles[0]
         ? getCyclePeriodLabel(transcriptCycles[0])
         : 'Cumulative Record';
 
-    const handleDownloadPdf = () => {
+    const handleDownloadPdf = async (theme: 'light' | 'dark' = transcriptPdfTheme) => {
         if (!transcriptResponse) return;
-    const blob = createTranscriptPdf({
-        orgName,
-        student: transcriptResponse.student,
-        cycles: transcriptCycles,
-        cumulativeAverage,
-    });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = `${escapePdfName(transcriptResponse.student.name || 'student')}-transcript.pdf`;
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+        setIsDownloadingPdf(true);
+        try {
+            const blob = await createTranscriptPdf({
+                orgName,
+                logoUrl,
+                studentPhotoUrl,
+                student: transcriptResponse.student,
+                cycles: transcriptCycles,
+                cumulativeAverage,
+                theme,
+            });
+            downloadPdfBlob(blob, `${sanitizePdfFilename(transcriptResponse.student.name || 'student', 'student')}-transcript.pdf`);
+            setIsPdfOptionsOpen(false);
+        } finally {
+            setIsDownloadingPdf(false);
+        }
     };
 
     if (!token) return <Loading className="h-full" text="Authenticating..." />;
@@ -475,15 +273,51 @@ export default function TranscriptsPage() {
                         >
                             Print
                         </Button>
-                        <Button
-                            onClick={handleDownloadPdf}
-                            icon={Download}
-                            disabled={!transcriptResponse}
-                            variant="secondary"
-                            className="w-full sm:w-auto"
-                        >
-                            PDF
-                        </Button>
+                        <div className="relative w-full sm:w-auto" ref={pdfOptionsRef}>
+                            <Button
+                                type="button"
+                                onClick={() => setIsPdfOptionsOpen((open) => !open)}
+                                icon={Download}
+                                disabled={!transcriptResponse}
+                                variant="secondary"
+                                className="w-full sm:w-auto"
+                                aria-expanded={isPdfOptionsOpen}
+                            >
+                                PDF
+                            </Button>
+                            {isPdfOptionsOpen && (
+                                <div
+                                    className="absolute right-0 z-50 mt-2 w-full min-w-72 rounded-lg border border-border/70 bg-card p-3 shadow-xl sm:w-80"
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                >
+                                    <div className="space-y-3">
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">PDF Theme</p>
+                                            <p className="mt-1 text-xs font-medium text-muted-foreground">Choose the transcript style before downloading.</p>
+                                        </div>
+                                        <CustomSelect<'light' | 'dark'>
+                                            value={transcriptPdfTheme}
+                                            onChange={setTranscriptPdfTheme}
+                                            options={[
+                                                { value: 'light', label: 'Light PDF' },
+                                                { value: 'dark', label: 'Dark PDF' },
+                                            ]}
+                                            placeholder="PDF theme"
+                                        />
+                                        <Button
+                                            type="button"
+                                            onClick={() => handleDownloadPdf(transcriptPdfTheme)}
+                                            icon={Download}
+                                            isLoading={isDownloadingPdf}
+                                            loadingText="Downloading"
+                                            className="w-full"
+                                        >
+                                            Download PDF
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             />
@@ -553,7 +387,7 @@ export default function TranscriptsPage() {
                                 <div className="min-w-0">
                                     <p className="truncate text-xl font-black text-foreground">{orgName}</p>
                                     <h2 className="mt-1 text-lg font-bold text-foreground">Official Academic Transcript</h2>
-                            <p className="text-muted-foreground">{transcriptTitle}</p>
+                                    <p className="text-muted-foreground">{transcriptTitle}</p>
                                 </div>
                             </div>
                             <div className="hidden text-right text-xs font-semibold text-muted-foreground sm:block">
@@ -563,17 +397,31 @@ export default function TranscriptsPage() {
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 rounded-lg bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-4">
-                            <div>
-                                <p className="text-xs font-semibold uppercase text-muted-foreground">Student Name</p>
-                                <p className="text-lg font-bold">{transcriptResponse.student.name || 'Unnamed Student'}</p>
-                                <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">{transcriptResponse.student.email}</p>
+                            <div className="flex min-w-0 items-center gap-3">
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-primary/10 text-sm font-black text-primary">
+                                    {studentPhotoUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={studentPhotoUrl}
+                                            alt={`${transcriptResponse.student.name || 'Student'} photo`}
+                                            className="h-full w-full rounded-full object-cover"
+                                        />
+                                    ) : (
+                                        (transcriptResponse.student.name || 'S').slice(0, 1).toUpperCase()
+                                    )}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Student Name</p>
+                                    <p className="truncate text-lg font-bold">{transcriptResponse.student.name || 'Unnamed Student'}</p>
+                                    <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">{transcriptResponse.student.email}</p>
+                                </div>
                             </div>
                             <div>
                                 <p className="text-xs font-semibold uppercase text-muted-foreground">Registration</p>
                                 <p className="text-lg font-bold">{transcriptResponse.student.registrationNumber || transcriptResponse.student.rollNumber || 'N/A'}</p>
                             </div>
                             <div>
-                                <p className="text-xs font-semibold uppercase text-muted-foreground">Current Cohort</p>
+                                <p className="text-xs font-semibold uppercase text-muted-foreground">Batch</p>
                                 <p className="text-lg font-bold">{transcriptResponse.student.currentCohort?.name || 'Independent'}</p>
                             </div>
                             <div>
@@ -601,11 +449,19 @@ export default function TranscriptsPage() {
                                             </div>
 
                                             <div className="overflow-x-auto">
-                                                <table className="w-full min-w-240 text-left text-sm">
+                                                <table className="w-full min-w-[920px] table-fixed text-left text-sm">
+                                                    <colgroup>
+                                                        <col className="w-[25%]" />
+                                                        <col className="w-[13%]" />
+                                                        <col className="w-[10%]" />
+                                                        <col className="w-[10%]" />
+                                                        <col className="w-[16%]" />
+                                                        <col className="w-[10%]" />
+                                                        <col className="w-[16%]" />
+                                                    </colgroup>
                                                     <thead className="border-b border-border bg-card text-xs font-semibold uppercase text-muted-foreground">
                                                         <tr>
                                                             <th className="px-4 py-3">Course Section</th>
-                                                            <th className="px-4 py-3">Assessments</th>
                                                             <th className="px-4 py-3">Marks</th>
                                                             <th className="px-4 py-3 text-center">Raw %</th>
                                                             <th className="px-4 py-3 text-center">Weight</th>
@@ -617,15 +473,17 @@ export default function TranscriptsPage() {
                                                     <tbody className="divide-y divide-border/20">
                                                         {sections.map((section) => {
                                                             const metrics = getSectionMetrics(section);
+                                                            const sectionColor = getSectionColor(section.sectionColor);
                                                             return (
-                                                                <tr key={section.sectionId} className={section.wasExcluded ? 'opacity-55' : ''}>
-                                                                    <td className="px-4 py-4">
-                                                                        <div className="font-semibold text-foreground">{section.courseName}</div>
-                                                                        <div className="text-xs text-muted-foreground">{section.sectionName}</div>
-                                                                    </td>
-                                                                    <td className="px-4 py-4">
-                                                                        <div className="font-bold text-foreground">{metrics.assessmentCount}</div>
-                                                                        <div className="text-xs font-semibold text-muted-foreground">recorded</div>
+                                                                <tr
+                                                                    key={section.sectionId}
+                                                                    className={section.wasExcluded ? 'opacity-55' : ''}
+                                                                    style={{ boxShadow: `inset 3px 0 0 ${sectionColor}` }}
+                                                                >
+                                                                    <td className="px-4 py-4" style={{ backgroundColor: `${sectionColor}0D` }}>
+                                                                        <div className="font-semibold" style={{ color: sectionColor }}>{section.courseName}</div>
+                                                                        <div className="text-xs font-semibold" style={{ color: `${sectionColor}CC` }}>{section.sectionName}</div>
+                                                                        <div className="sr-only">{formatCourseSectionLabel({ courseName: section.courseName, sectionName: section.sectionName })}</div>
                                                                     </td>
                                                                     <td className="px-4 py-4 font-mono text-sm font-bold">
                                                                         {metrics.marksObtained} / {metrics.totalMarks}
@@ -646,7 +504,7 @@ export default function TranscriptsPage() {
                                                         })}
                                                         {sections.length === 0 && (
                                                             <tr>
-                                                                <td colSpan={8} className="py-8 text-center text-muted-foreground italic">
+                                                                <td colSpan={7} className="py-8 text-center text-muted-foreground italic">
                                                                     No academic records found for this cycle.
                                                                 </td>
                                                             </tr>

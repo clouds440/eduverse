@@ -50,6 +50,7 @@ export function ModalOverlay({
     closeOnEscape = true,
     closeOnBackdrop = true,
     mobileMode = 'dialog',
+    overlayClassName,
     ariaLabel,
     ariaLabelledBy,
 }: {
@@ -63,6 +64,7 @@ export function ModalOverlay({
     closeOnEscape?: boolean;
     closeOnBackdrop?: boolean;
     mobileMode?: ModalMobileMode;
+    overlayClassName?: string;
     ariaLabel?: string;
     ariaLabelledBy?: string;
 }) {
@@ -175,6 +177,7 @@ export function ModalOverlay({
                 "fixed inset-0 z-200 flex overflow-y-auto bg-[var(--app-surface-overlay)] p-2 backdrop-blur-sm transition-opacity duration-200 sm:p-4 md:p-6",
                 mobileMode === 'sheet' ? "items-end justify-center sm:items-center" : "items-center justify-center",
                 mobileMode === 'full' && "p-0 sm:p-4 md:p-6",
+                overlayClassName,
             )}
             onMouseDown={(event) => {
                 if (closeOnBackdrop && event.target === event.currentTarget) closeTopModal();

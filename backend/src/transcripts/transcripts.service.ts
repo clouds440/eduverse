@@ -14,7 +14,7 @@ export class TranscriptsService {
     const student = await this.prisma.student.findFirst({
       where: { id: studentId, organizationId: orgId },
       include: {
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } },
         cohort: { select: { id: true, name: true } },
       },
     });
@@ -89,6 +89,7 @@ export class TranscriptsService {
       sections: Map<string, {
         sectionId: string;
         sectionName: string;
+        sectionColor: string | null;
         courseName: string;
         enrollmentType: string;
         wasExcluded: boolean;
@@ -122,6 +123,7 @@ export class TranscriptsService {
         cycleData.sections.set(eh.sectionId, {
           sectionId: eh.sectionId,
           sectionName: eh.section.name,
+          sectionColor: eh.section.color,
           courseName: eh.section.course.name,
           enrollmentType: eh.source,
           wasExcluded: eh.wasExcluded,
@@ -204,6 +206,8 @@ export class TranscriptsService {
         id: student.id,
         name: student.user.name,
         email: student.user.email,
+        avatarUrl: student.user.avatarUrl,
+        avatarUpdatedAt: student.user.avatarUpdatedAt,
         registrationNumber: student.registrationNumber,
         rollNumber: student.rollNumber,
         currentCohort: student.cohort,
