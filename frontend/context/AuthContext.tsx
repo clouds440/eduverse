@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     if (user.role === Role.STUDENT) {
                         const isStudentPortal = pathSegments[1] === 'students' && pathSegments[2] === user.id;
                         const isSupportInOrg = pathSegments[1] === 'mail';
-                        const isAllowedShared = ['chat', 'timetable', 'attendance', 'change-password', 'course-materials', 'transcripts'].includes(pathSegments[1]);
+                        const isAllowedShared = ['chat', 'timetable', 'attendance', 'change-password', 'course-materials', 'transcripts', 'fees'].includes(pathSegments[1]);
                         const isSettingsPage = pathSegments.includes('settings');
 
                         if (isSettingsPage) {

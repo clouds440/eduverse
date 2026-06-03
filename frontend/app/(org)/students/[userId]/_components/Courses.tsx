@@ -1,140 +1,163 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import { User, MapPinHouse, Book, LayoutDashboard, FileText } from 'lucide-react';
-import { Section } from '@/types';
-import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card';
+import { User, MapPinHouse, Book, CalendarDays, FileText, CheckCircle } from 'lucide-react';
+import { Assessment, GradeStatus, Section } from '@/types';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/Card';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { getSectionColor } from '@/lib/utils';
 
-export default function Courses({ sections }: { sections: Section[] }) {
-    const router = useRouter();
-    const { token } = useAuth();
-    const [search, setSearch] = useState('');
-    const [materialsCount, setMaterialsCount] = useState<Record<string, number>>({});
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-    useEffect(() => {
-        if (!token) return;
+function formatSectionSchedule(section: Section) {
+    const firstSchedule = section.schedules?.[0];
+    if (!firstSchedule) return 'No schedule set';
 
-        const fetchMaterialsCount = async () => {
-            const counts: Record<string, number> = {};
-            await Promise.all(
-                sections.map(async (section) => {
-                    try {
-                        const materials = await api.courseMaterials.getMaterials(section.id, token);
-                        counts[section.id] = materials.length;
-                    } catch (error) {
-                        counts[section.id] = 0;
-                        console.error('No materials found: ', error);
-                    }
-                })
-            );
-            setMaterialsCount(counts);
-        };
+    const day = WEEKDAYS[firstSchedule.day] || 'Scheduled';
+    const room = firstSchedule.room || section.room;
+    return `${day} ${firstSchedule.startTime} - ${firstSchedule.endTime}${room ? ` • ${room}` : ''}`;
+}
 
-        fetchMaterialsCount();
-    }, [sections, token]);
-
-    const filteredSections = sections.filter(sec =>
-        sec.name.toLowerCase().includes(search.toLowerCase()) ||
-        sec.course?.name.toLowerCase().includes(search.toLowerCase())
+function isCompletedAssessment(assessment: Assessment) {
+    const grade = assessment.grades?.[0];
+    return Boolean(
+        assessment.submissions?.length
+        || (grade && (grade.status === GradeStatus.PUBLISHED || grade.status === GradeStatus.FINALIZED)),
     );
+}
+
+export default function Courses({ sections, assessments }: { sections: Section[]; assessments: Assessment[] }) {
+    const router = useRouter();
+    const [search, setSearch] = useState('');
+
+    const filteredSections = useMemo(() => {
+        const query = search.trim().toLowerCase();
+        if (!query) return sections;
+        return sections.filter((section) => (
+            section.name.toLowerCase().includes(query)
+            || section.course?.name?.toLowerCase().includes(query)
+            || section.teachers?.some((teacher) => teacher.user?.name?.toLowerCase().includes(query))
+        ));
+    }, [search, sections]);
 
     return (
-        <div className="max-w-7xl mx-auto space-y-12 pb-16 px-4 sm:px-6">
-
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 pt-4 mb-10">
+        <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-4xl font-black text-foreground tracking-tighter leading-none">My Courses</h1>
-                    <p className="text-muted-foreground mt-3 font-bold max-w-md tracking-tight">Access your classroom materials and track syllabus progress.</p>
+                    <h2 className="text-base font-black text-foreground">Enrolled Sections</h2>
+                    <p className="mt-1 text-sm font-medium text-muted-foreground">
+                        {sections.length} active {sections.length === 1 ? 'section' : 'sections'}
+                    </p>
                 </div>
-                <div className="w-full md:w-80">
+                <div className="w-full sm:w-80">
                     <SearchBar
-                        placeholder="Search your courses..."
+                        placeholder="Search courses or teachers..."
                         value={search}
                         onChange={setSearch}
                     />
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredSections.map((sec, index) => (
-                    <Card
-                        key={sec.id}
-                        accentColor="bg-primary"
-                        padding="lg"
-                        delay={index * 100}
-                    >
-                        <CardHeader>
-                            <div className="text-left">
-                                <p className="text-[10px] font-black text-muted-foreground/60 tracking-[0.2em] mb-2">{sec.course?.name}</p>
-                                <CourseSectionLabel section={sec} as="h3" className="text-2xl font-black transition-colors tracking-tight leading-tight" />
-                            </div>
-                            <div className="p-3 bg-primary/5 rounded-2xl border border-primary/20 shadow-sm">
-                                <Book className="w-6 h-6 text-primary" />
-                            </div>
-                        </CardHeader>
-
-                        <CardContent>
-                            <div className="space-y-4 mb-4 flex-1">
-                                <div className="flex items-center gap-4 text-[11px] text-muted-foreground font-bold tracking-widest">
-                                    <div className="w-10 h-10 rounded-2xl bg-muted/30 flex items-center justify-center border border-border shadow-xs">
-                                        <User className="w-5 h-5 text-muted-foreground/60" />
-                                    </div>
-                                    <span className="text-left">{sec.teachers?.[0]?.user?.name || 'Assigned Professor'}</span>
-                                </div>
-                                <div className="flex items-center gap-4 text-[11px] text-muted-foreground font-bold tracking-widest">
-                                    <div className="w-10 h-10 rounded-2xl bg-muted/30 flex items-center justify-center border border-border shadow-xs">
-                                        <MapPinHouse className="w-5 h-5 text-muted-foreground/60" />
-                                    </div>
-                                    <span className="text-left">{sec.room || 'Room not specified'}</span>
-                                </div>
-                                <div className="flex items-center gap-4 text-[11px] text-muted-foreground font-bold tracking-widest">
-                                    <div className="w-10 h-10 rounded-2xl bg-muted/30 flex items-center justify-center border border-border shadow-xs">
-                                        <FileText className="w-5 h-5 text-muted-foreground/60" />
-                                    </div>
-                                    <span className="text-left">{materialsCount[sec.id] || 0} Course Materials</span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3 mt-8">
-                                <div className="flex justify-between text-[10px] font-black text-muted-foreground/60 tracking-[0.15em]">
-                                    <span>Syllabus Completion</span>
-                                    <span className="text-foreground px-2 py-0.5 bg-muted rounded">75%</span>
-                                </div>
-                                <div className="w-full bg-muted h-3 rounded-full overflow-hidden shadow-inner p-0.5 border border-border">
-                                    <div
-                                        className="bg-primary h-full transition-all duration-1000 ease-out rounded-full shadow-lg"
-                                        style={{ width: '75%' }}
-                                    ></div>
-                                </div>
-                            </div>
-                        </CardContent>
-
-                        <CardFooter className="pt-8">
-                            <Button
-                                onClick={() => router.push(`/course-materials/${sec.id}`)}
-                                variant="primary"
-                                icon={LayoutDashboard}
-                                className='w-full'
+            {filteredSections.length === 0 ? (
+                <EmptyState
+                    icon={Book}
+                    title={sections.length === 0 ? 'No active courses' : 'No courses found'}
+                    description={sections.length === 0 ? 'Your active enrollments will appear here.' : 'Try another course, section, or teacher name.'}
+                    className="min-h-80"
+                />
+            ) : (
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                    {filteredSections.map((section) => {
+                        const sectionColor = getSectionColor(section.color);
+                        const teacherName = section.teachers?.[0]?.user?.name || 'Teacher not assigned';
+                        const sectionAssessments = assessments.filter((assessment) => assessment.sectionId === section.id);
+                        const completedAssessments = sectionAssessments.filter(isCompletedAssessment).length;
+                        const progress = sectionAssessments.length > 0
+                            ? Math.round((completedAssessments / sectionAssessments.length) * 100)
+                            : null;
+                        return (
+                            <Card
+                                key={section.id}
+                                padding="md"
+                                className="min-h-64"
+                                style={{ boxShadow: `inset 3px 0 0 ${sectionColor}` }}
                             >
-                                View Materials
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                ))}
-                {filteredSections.length === 0 && (
-                    <div className="col-span-full text-center py-20 bg-muted/30 rounded-2xl border-2 border-dashed border-border">
-                        <Book className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
-                        <p className="text-muted-foreground font-bold tracking-widest text-xs italic">No courses found matching your search</p>
-                    </div>
-                )}
-            </div>
+                                <CardHeader>
+                                    <div className="min-w-0">
+                                        <CourseSectionLabel
+                                            section={section}
+                                            variant="stacked"
+                                            as="h3"
+                                            className="text-lg font-black leading-tight"
+                                        />
+                                    </div>
+                                    <div
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border"
+                                        style={{ borderColor: `${sectionColor}40`, backgroundColor: `${sectionColor}14`, color: sectionColor }}
+                                    >
+                                        <Book className="h-5 w-5" />
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent className="space-y-3">
+                                    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-muted/25 p-3">
+                                        <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        <span className="truncate text-sm font-semibold text-foreground">{teacherName}</span>
+                                    </div>
+                                    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-muted/25 p-3">
+                                        <MapPinHouse className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        <span className="truncate text-sm font-semibold text-foreground">{section.room || 'Room not specified'}</span>
+                                    </div>
+                                    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-muted/25 p-3">
+                                        <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        <span className="truncate text-sm font-semibold text-foreground">{formatSectionSchedule(section)}</span>
+                                    </div>
+                                    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-muted/25 p-3">
+                                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        <span className="truncate text-sm font-semibold text-foreground">
+                                            {section.courseMaterialsCount || 0} {(section.courseMaterialsCount || 0) === 1 ? 'material' : 'materials'}
+                                        </span>
+                                    </div>
+                                    <div className="rounded-md border border-border/60 bg-muted/25 p-3">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                <CheckCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                <span className="truncate text-sm font-semibold text-foreground">Assigned work</span>
+                                            </div>
+                                            <span className="shrink-0 text-xs font-black text-muted-foreground">
+                                                {sectionAssessments.length > 0 ? `${completedAssessments}/${sectionAssessments.length}` : 'None'}
+                                            </span>
+                                        </div>
+                                        {progress !== null && (
+                                            <div className="mt-3 h-2 overflow-hidden rounded-full border border-border bg-background">
+                                                <div
+                                                    className="h-full rounded-full transition-all"
+                                                    style={{ width: `${progress}%`, backgroundColor: sectionColor }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+
+                                <CardFooter>
+                                    <Button
+                                        onClick={() => router.push(`/course-materials/${section.id}`)}
+                                        variant="primary"
+                                        icon={FileText}
+                                        className="w-full"
+                                    >
+                                        View Materials
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }

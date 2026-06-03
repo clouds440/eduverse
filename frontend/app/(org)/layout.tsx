@@ -428,6 +428,8 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             orgLinks.push({ id: 'GRADES', label: 'Grades', href: `/students/${user.id}?tab=grades`, icon: Trophy });
             orgLinks.push({ id: 'ATTENDANCE', label: 'Attendance', href: `/students/${user.id}?tab=attendance`, icon: CheckCircle });
             orgLinks.push({ id: 'TIMETABLE', label: 'Timetable', href: '/timetable', icon: Clock });
+            orgLinks.push({ id: 'TRANSCRIPT', label: 'Transcript', href: '/transcripts', icon: FileText });
+            orgLinks.push({ id: 'FEES', label: 'Fees & Payments', href: '/fees', icon: Wallet });
             orgLinks.push({ id: 'PROFILE', label: 'Profile Settings', href: `/students/${user.id}?tab=profile`, icon: Settings });
         }
 

@@ -25,4 +25,5 @@ export const DASHBOARD_MODULES = [
     'promotions',
     'transcripts',
     'finance',
+    'fees',
 ];

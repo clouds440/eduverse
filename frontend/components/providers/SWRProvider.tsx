@@ -158,7 +158,7 @@ function createFetcher(token: string | null) {
                 case 'student-sections':
                     return await api.org.getSections(token, { ...args[1] as object, userId: args[0] as string }) as T;
                 case 'student-grades':
-                    return await api.org.getStudentFinalGrades(args[0] as string, token) as T;
+                    return await api.org.getOwnFinalGrades(token) as T;
                 case 'student-assessments':
                     return await api.org.getAssessments(token, args[0] as object) as T;
                 case 'student-insights':

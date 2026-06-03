@@ -4,17 +4,10 @@ import { Student } from '@/types';
 import StudentForm from '@/components/forms/StudentForm';
 import SessionManagement from '@/components/SessionManagement';
 import { UserCircle } from 'lucide-react';
-import { FormPageHeader, FormPageShell } from '@/components/ui/FormLayout';
 
 export default function Profile({ profile }: { profile: Student | null }) {
     return (
-        <FormPageShell>
-            <FormPageHeader
-                title="Account Settings"
-                description="Update your personal information and student record details."
-                icon={UserCircle}
-            />
-
+        <div className="space-y-5">
             {profile ? (
                 <StudentForm
                     initialData={profile}
@@ -35,6 +28,6 @@ export default function Profile({ profile }: { profile: Student | null }) {
                     <SessionManagement userId={profile.id} />
                 </div>
             )}
-        </FormPageShell>
+        </div>
     );
 }

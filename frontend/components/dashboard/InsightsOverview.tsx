@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { ArrowRight, CalendarDays, Sparkles, TrendingUp, BarChart3, ChevronDown, ChevronUp, Activity, Users, BookOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { DashboardInsights, DashboardInsightItem, Tone, Role } from '@/types';
 import { Badge } from '@/components/ui/Badge';
-import { RouteBreadcrumbs } from '@/components/ui/PageShell';
 import {
   InsightLineChart,
   InsightBarChart,
@@ -51,7 +50,7 @@ function InsightLinkCard({
   compact?: boolean;
 }) {
   const content = (
-    <div className={`rounded-2xl hover:scale-102 border p-4 transition-all hover:shadow-xl group ${getToneClass(item.tone)}`}>
+    <div className={`rounded-lg border p-4 transition-colors hover:border-primary/35 hover:shadow-sm group ${getToneClass(item.tone)}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <p className={`font-bold tracking-tight ${compact ? 'text-sm' : 'text-base'} text-foreground`}>
@@ -87,9 +86,9 @@ function InsightLinkCard({
 
 function SummaryCard({ card, index }: { card: DashboardInsights['summaryCards'][number]; index: number }) {
   const content = (
-    <div className={`rounded-2xl border p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg group ${getToneClass(card.tone)}`}>
+    <div className={`rounded-lg border p-4 shadow-sm transition-colors hover:border-primary/35 group ${getToneClass(card.tone)}`}>
       <div className="flex items-start justify-between gap-3">
-        <div className={`rounded-xl p-2.5 ${card.tone === Tone.SUCCESS ? 'bg-success/10 text-success' : card.tone === Tone.DANGER ? 'bg-danger/10 text-danger' : card.tone === Tone.WARNING ? 'bg-warning/10 text-warning' : card.tone === Tone.INFO ? 'bg-info/10 text-info' : 'bg-muted/10 text-muted-foreground'}`}>
+        <div className={`rounded-md p-2.5 ${card.tone === Tone.SUCCESS ? 'bg-success/10 text-success' : card.tone === Tone.DANGER ? 'bg-danger/10 text-danger' : card.tone === Tone.WARNING ? 'bg-warning/10 text-warning' : card.tone === Tone.INFO ? 'bg-info/10 text-info' : 'bg-muted/10 text-muted-foreground'}`}>
           {getCardIcon(card.label)}
         </div>
         {card.href && <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-all duration-200 shrink-0" />}
@@ -97,7 +96,7 @@ function SummaryCard({ card, index }: { card: DashboardInsights['summaryCards'][
       <p className="mt-4 text-[10px] font-bold tracking-[0.22em] uppercase text-muted-foreground">
         {card.label}
       </p>
-      <p className="mt-2 text-3xl font-black tracking-tighter text-foreground">
+      <p className="mt-2 text-2xl font-black tracking-tight text-foreground">
         {card.value}
       </p>
       {card.detail && (
@@ -122,30 +121,30 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
   const orgAdminCharts = insights.role === Role.ORG_ADMIN || insights.role === Role.ORG_MANAGER ? (
     <>
       {charts?.enrollmentTrend && charts.enrollmentTrend.length > 0 && (
-        <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
           <InsightLineChart data={charts.enrollmentTrend} title="Student Enrollment Trend (30 Days)" color={COLORS.info} />
         </section>
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-          <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
             <InsightLineChart data={charts.attendanceTrend} title="Attendance Coverage Trend (30 Days)" color={COLORS.success} />
           </section>
         )}
         {charts?.mailStatus && charts.mailStatus.length > 0 && (
-          <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
             <InsightPieChart data={charts.mailStatus.map(item => ({ name: item.status, value: item.count }))} title="Mail Status Distribution" />
           </section>
         )}
       </div>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {charts?.sectionCapacity && charts.sectionCapacity.length > 0 && (
-          <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
             <InsightBarChart data={charts.sectionCapacity} dataKey="enrolled" nameKey="name" title="Section Capacity" color={COLORS.purple} disableHover />
           </section>
         )}
         {charts?.teacherWorkload && charts.teacherWorkload.length > 0 && (
-          <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
             <InsightBarChart data={charts.teacherWorkload} dataKey="sections" nameKey="name" title="Teacher Workload" color={COLORS.warning} horizontal disableHover />
           </section>
         )}
@@ -157,18 +156,18 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
   const teacherCharts = insights.role === Role.TEACHER ? (
     <>
       {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-        <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
           <InsightLineChart data={charts.attendanceTrend} title="Attendance Follow-Through Trend (30 Days)" color={COLORS.success} />
         </section>
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {charts?.gradeDistribution && charts.gradeDistribution.length > 0 && (
-          <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
             <InsightPieChart data={charts.gradeDistribution.map(item => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
           </section>
         )}
         {charts?.assessmentCompletion && charts.assessmentCompletion.length > 0 && (
-          <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
             <CompletionBarChart data={charts.assessmentCompletion} title="Assessment Completion Rates" />
           </section>
         )}
@@ -181,18 +180,18 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
     <>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-          <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
             <InsightLineChart data={charts.attendanceTrend} title="Attendance Trend (30 Days)" color={COLORS.success} />
           </section>
         )}
         {charts?.gradeDistribution && charts.gradeDistribution.length > 0 && (
-          <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
             <InsightPieChart data={charts.gradeDistribution.map(item => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
           </section>
         )}
       </div>
       {charts?.studentPerformance && charts.studentPerformance.length > 0 && (
-        <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
           <PerformanceChart data={charts.studentPerformance} title="Performance by Subject" />
         </section>
       )}
@@ -202,23 +201,22 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
   return (
     <div className="space-y-6">
       {/* Header Section */}
-      <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-8 shadow-xl backdrop-blur-sm">
+      <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <RouteBreadcrumbs className="mb-3" />
             {insights.headline.eyebrow && (
-              <Badge variant="primary" icon={Sparkles} className="mb-3 tracking-[0.25em] uppercase">
+              <Badge variant="primary" icon={Sparkles} className="mb-3 uppercase">
                 {insights.headline.eyebrow}
               </Badge>
             )}
-            <h1 className="text-4xl font-black tracking-tighter text-foreground">
+            <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
               {insights.headline.title}
             </h1>
             <p className="mt-3 max-w-2xl text-sm font-bold text-muted-foreground">
               {insights.headline.subtitle}
             </p>
           </div>
-          <div className="inline-flex items-center gap-3 rounded-2xl border border-border bg-background/70 px-4 py-3">
+          <div className="inline-flex items-center gap-3 rounded-md border border-border bg-background/70 px-3 py-2">
             <CalendarDays className="h-5 w-5 text-primary" />
             <div>
               <p className="text-[10px] font-black tracking-[0.25em] text-muted-foreground">Live snapshot</p>
@@ -231,7 +229,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
       </section>
 
       {/* Summary Cards */}
-      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {insights.summaryCards.map((card, index) => (
           <SummaryCard key={card.id || `summary-${index}`} card={card} index={index} />
         ))}
@@ -239,7 +237,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
 
       {/* Spotlight Section */}
       {insights.spotlight && (
-        <section className="rounded-3xl border border-primary/20 bg-linear-to-br from-primary/10 via-card to-card p-6 shadow-xl">
+        <section className="rounded-lg border border-primary/20 bg-primary/10 p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <Badge variant="primary" icon={TrendingUp} className="mb-3 tracking-[0.22em] uppercase bg-background/70">
@@ -262,7 +260,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
             {insights.spotlight.href && (
               <Link
                 href={insights.spotlight.href}
-                className="inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-black tracking-[0.18em] text-primary-foreground shadow-lg transition hover:bg-primary/90"
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-black text-primary-foreground shadow-sm transition hover:bg-primary/90"
               >
                 Take Action
                 <ArrowRight className="h-4 w-4" />
@@ -274,7 +272,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
 
       {/* Charts Section with Toggle */}
       {charts && (orgAdminCharts || teacherCharts || studentCharts) && (
-        <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <BarChart3 className="h-5 w-5 text-primary" />
@@ -298,7 +296,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
 
       {/* Groups Section with Toggle */}
       {insights.groups.length > 0 && (
-        <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Activity className="h-5 w-5 text-primary" />
@@ -315,7 +313,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
           {showGroups && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               {insights.groups.map((group) => (
-                <div key={group.id} className="rounded-2xl border border-border bg-card/50 p-5 shadow-lg">
+                <div key={group.id} className="rounded-lg border border-border bg-card/50 p-4 shadow-sm">
                   <h3 className="text-lg font-bold tracking-tight text-foreground">
                     {group.title}
                   </h3>
@@ -330,7 +328,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
                         <InsightLinkCard key={item.id} item={item} />
                       ))
                     ) : (
-                      <div className="rounded-xl border border-dashed border-border bg-background/50 p-4 text-center text-xs font-bold tracking-[0.22em] text-muted-foreground">
+                      <div className="rounded-md border border-dashed border-border bg-background/50 p-4 text-center text-xs font-bold text-muted-foreground">
                         Nothing pressing here
                       </div>
                     )}
@@ -344,7 +342,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
 
       {/* Recent Activity Section with Toggle */}
       {insights.recentActivity.length > 0 && (
-        <section className="rounded-3xl border border-border bg-linear-to-br from-card/80 to-card/50 p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <TrendingUp className="h-5 w-5 text-primary" />

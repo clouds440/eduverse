@@ -174,6 +174,8 @@ export class AssessmentsService {
           select: {
             id: true,
             name: true,
+            color: true,
+            course: { select: { id: true, name: true } },
             teachers: { select: { user: { select: { name: true } } } },
           },
         },
@@ -181,6 +183,10 @@ export class AssessmentsService {
           ? {
               grades: {
                 where: { student: { userId: user.id } },
+              },
+              submissions: {
+                where: { student: { userId: user.id } },
+                select: { id: true, assessmentId: true, studentId: true, fileUrl: true, submittedAt: true },
               },
             }
           : {}),

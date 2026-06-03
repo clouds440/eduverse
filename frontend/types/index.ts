@@ -57,6 +57,7 @@ export interface Section {
     teachers?: Teacher[];
     students?: Student[];
     studentsCount?: number;
+    courseMaterialsCount?: number;
     updatedBy?: string;
     updatedAt?: string;
     schedules?: SectionSchedule[];
@@ -455,6 +456,7 @@ export interface Assessment {
     };
     section?: Section;
     grades?: Grade[];
+    submissions?: Submission[];
 }
 
 export interface Grade {

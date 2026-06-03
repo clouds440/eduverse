@@ -8,6 +8,7 @@ interface CardProps {
     onClick?: React.MouseEventHandler<HTMLDivElement>;
     onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
     className?: string;
+    style?: React.CSSProperties;
     accentColor?: string; // Tailwind color class, e.g., 'bg-primary'
     hoverable?: boolean;
     padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
@@ -20,6 +21,7 @@ export const Card = ({
     children,
     onClick,
     className,
+    style,
     accentColor,
     hoverable = true,
     padding = 'md',
@@ -67,7 +69,7 @@ export const Card = ({
                 animate && "opacity-0 animate-fade-in-up-subtle",
                 className
             )}
-            style={animate ? { animationDelay: `${delay}ms` } : undefined}
+            style={{ ...(style || {}), ...(animate ? { animationDelay: `${delay}ms` } : {}) }}
         >
             {/* Premium Accent Line */}
             {accentColor && (

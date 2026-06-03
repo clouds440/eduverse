@@ -87,6 +87,10 @@ export class SectionsService {
           teachers: {
             include: { user: { select: { email: true, name: true } } },
           },
+          schedules: {
+            select: { id: true, day: true, startTime: true, endTime: true, room: true },
+            orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
+          },
           enrollments: {
             include: {
               student: {
@@ -104,7 +108,7 @@ export class SectionsService {
           },
           academicCycle: true,
           cohort: true,
-          _count: { select: { enrollments: true } },
+          _count: { select: { enrollments: true, courseMaterials: true } },
         },
         orderBy,
       }),
@@ -118,6 +122,7 @@ export class SectionsService {
         user: e.student.user,
       })),
       studentsCount: s._count?.enrollments || 0,
+      courseMaterialsCount: s._count?.courseMaterials || 0,
     }));
 
     return formatPaginatedResponse(
