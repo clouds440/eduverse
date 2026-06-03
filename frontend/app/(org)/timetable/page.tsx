@@ -18,6 +18,7 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const DEFAULT_START_HOUR = 8;
 const DEFAULT_END_HOUR = 18;
+const TIMETABLE_HALF_HOUR_ROW_HEIGHT = 52;
 
 interface TimetableSlotGroup {
     day: number;
@@ -69,6 +70,15 @@ function formatDuration(startTime: string, endTime: string) {
     if (hours && minutes) return `${hours}h ${minutes}m`;
     if (hours) return `${hours}h`;
     return `${minutes}m`;
+}
+
+function shouldDrawDayGridBorder(dayEntries: TimetableEntry[], startHour: number, rowIndex: number, rowCount: number) {
+    if (dayEntries.length === 0) return rowIndex < rowCount - 1;
+
+    const startMinutes = startHour * 60;
+    const lastEndOffset = Math.max(...dayEntries.map((entry) => timeToMinutes(entry.endTime) - startMinutes));
+    const rowBottomOffset = (rowIndex + 1) * 30;
+    return rowBottomOffset < lastEndOffset;
 }
 
 function getTimetableCardStyle(entry: TimetableEntry): React.CSSProperties {
@@ -158,7 +168,7 @@ export default function TimetablePage() {
 
     const canOpenAttendance = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN;
     const rowCount = Math.max(1, (endHour - startHour) * 2);
-    const gridRows = `repeat(${rowCount}, 44px)`;
+    const gridRows = `repeat(${rowCount}, ${TIMETABLE_HALF_HOUR_ROW_HEIGHT}px)`;
 
     return (
         <PageShell>
@@ -209,7 +219,7 @@ export default function TimetablePage() {
                                     ))}
 
                                     <div
-                                        className="sticky left-0 z-10 grid overflow-hidden rounded-md border border-border/70 bg-card shadow-sm"
+                                        className="sticky left-0 z-10 grid overflow-hidden rounded-md border-x border-t border-border/70 bg-card shadow-sm"
                                         style={{ gridTemplateRows: gridRows }}
                                     >
                                         {timeSlots.slice(0, -1).map((hour) => (
@@ -219,20 +229,32 @@ export default function TimetablePage() {
                                         ))}
                                     </div>
 
-                                    {WEEK_DAYS.map((day) => (
-                                        <div
-                                            key={day}
-                                            className="relative grid overflow-hidden rounded-md border border-border/70 bg-background shadow-sm"
-                                            style={{ gridTemplateRows: gridRows }}
-                                        >
-                                            {Array.from({ length: rowCount }).map((_, index) => (
-                                                <div
-                                                    key={index}
-                                                    className={`last:border-b-0 ${index % 2 === 1 ? 'border-b-2 border-border/80 bg-background' : 'border-b border-border/30 bg-muted/20'}`}
-                                                />
-                                            ))}
+                                    {WEEK_DAYS.map((day) => {
+                                        const dayEntries = entriesByDay.get(day) || [];
 
-                                            {(slotGroupsByDay.get(day) || []).map((slot) => {
+                                        return (
+                                            <div
+                                                key={day}
+                                                className="relative grid overflow-hidden rounded-md border-x border-t border-border/70 bg-background shadow-sm"
+                                                style={{ gridTemplateRows: gridRows }}
+                                            >
+                                                {Array.from({ length: rowCount }).map((_, index) => {
+                                                    const shouldDrawBorder = shouldDrawDayGridBorder(dayEntries, startHour, index, rowCount);
+                                                    return (
+                                                        <div
+                                                            key={index}
+                                                            className={
+                                                                shouldDrawBorder
+                                                                    ? index % 2 === 1
+                                                                        ? 'border-b-2 border-border/80 bg-background'
+                                                                        : 'border-b border-border/30 bg-muted/20'
+                                                                    : 'bg-background'
+                                                            }
+                                                        />
+                                                    );
+                                                })}
+
+                                                {(slotGroupsByDay.get(day) || []).map((slot) => {
                                                 const startOffset = Math.max(0, timeToMinutes(slot.startTime) - startHour * 60);
                                                 const duration = Math.max(30, timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime));
                                                 const rowStart = Math.floor(startOffset / 30) + 1;
@@ -259,7 +281,7 @@ export default function TimetablePage() {
                                                                                 const closestDate = getClosestDateForWeekday(entry.day);
                                                                                 router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
                                                                             }}
-                                                                            className={`flex h-full w-full items-center cursor-pointer gap-2 rounded-md border px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                            className={`flex h-full w-full items-start cursor-pointer gap-2 rounded-md border px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
                                                                             style={getTimetableCardStyle(entry)}
                                                                         >
                                                                             <div className="min-w-0 flex-1">
@@ -269,8 +291,9 @@ export default function TimetablePage() {
                                                                                         color: entry.color,
                                                                                         course: { name: entry.courseName },
                                                                                     }}
+                                                                                    variant="stacked"
                                                                                     as="p"
-                                                                                    className="text-xs font-black leading-tight"
+                                                                                    className="text-xs"
                                                                                 />
                                                                                 <p className="mt-0.5 flex truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}
                                                                                     <MapPin className="h-3 w-3 ml-1 shrink-0" aria-hidden="true" />
@@ -278,7 +301,7 @@ export default function TimetablePage() {
                                                                                 </p>
 
                                                                             </div>
-                                                                            <Badge variant="neutral" size="xs" className="shrink-0 bg-white/70 text-foreground dark:bg-black/25">
+                                                                            <Badge variant="neutral" size="xs" className="shrink-0 bg-white/70 h-fit text-foreground dark:bg-black/25">
                                                                                 {durationLabel}
                                                                             </Badge>
                                                                         </button>
@@ -287,7 +310,7 @@ export default function TimetablePage() {
                                                             </div>
                                                         ) : (
                                                             <>
-                                                                <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/45 px-2.5 py-1.5">
+                                                                <div className="flex items-start justify-between gap-2 border-b border-border/60 bg-muted/45 px-2.5 py-1.5">
                                                                     <div className="min-w-0">
                                                                         <p className="truncate text-[11px] font-black uppercase tracking-wide text-foreground">
                                                                             {slot.startTime} - {slot.endTime}
@@ -300,7 +323,7 @@ export default function TimetablePage() {
                                                                         {durationLabel}
                                                                     </Badge>
                                                                 </div>
-                                                                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto border-l-4 border-primary/45 p-1.5 custom-scrollbar">
+                                                                <div className="h-full flex-1 space-y-1 overflow-y-auto border-l-4 border-primary/45 p-1.5 custom-scrollbar">
                                                                     {slot.entries.map((entry) => {
                                                                         return (
                                                                             <button
@@ -311,22 +334,24 @@ export default function TimetablePage() {
                                                                                     const closestDate = getClosestDateForWeekday(entry.day);
                                                                                     router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
                                                                                 }}
-                                                                                className={`w-full h-full rounded-md cursor-pointer border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                                className={`w-full h-full items-start rounded-md cursor-pointer border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
                                                                                 style={getTimetableCardStyle(entry)}
                                                                             >
-                                                                                <CourseSectionLabel
-                                                                                    section={{
-                                                                                        name: entry.sectionName,
-                                                                                        color: entry.color,
-                                                                                        course: { name: entry.courseName },
-                                                                                    }}
-                                                                                    as="p"
-                                                                                    className="line-clamp-2 text-xs font-black leading-tight"
-                                                                                />
-                                                                                <p className="mt-0.5 truncate text-[11px] font-semibold opacity-80">{entry.courseName}</p>
-                                                                                <div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-current/15 pt-1.5 text-[10px] font-bold opacity-80">
-                                                                                    <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-                                                                                    <span className="truncate">{entry.room || 'Room TBD'}</span>
+                                                                                <div className="grid grid-row-2 min-h-full">
+                                                                                    <CourseSectionLabel
+                                                                                        section={{
+                                                                                            name: entry.sectionName,
+                                                                                            color: entry.color,
+                                                                                            course: { name: entry.courseName },
+                                                                                        }}
+                                                                                        variant="stacked"
+                                                                                        as="p"
+                                                                                        className="text-xs"
+                                                                                    />
+                                                                                    <div className="mt-1.5 flex min-w-0 items-end gap-1.5 border-t border-current/15 pt-1.5 text-[10px] font-bold opacity-80">
+                                                                                        <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                                                        <span className="truncate">{entry.room || 'Room TBD'}</span>
+                                                                                    </div>
                                                                                 </div>
                                                                             </button>
                                                                         );
@@ -336,9 +361,10 @@ export default function TimetablePage() {
                                                         )}
                                                     </div>
                                                 );
-                                            })}
-                                        </div>
-                                    ))}
+                                                })}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>

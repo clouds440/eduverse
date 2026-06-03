@@ -71,6 +71,20 @@ export function formatCourseSectionLabel({
     return 'Unnamed section';
 }
 
+export function getCourseSectionLabelParts({
+    courseName,
+    sectionName,
+}: {
+    courseName?: string | null;
+    sectionName?: string | null;
+}) {
+    return {
+        courseName: courseName || null,
+        sectionName: sectionName || null,
+        inlineLabel: formatCourseSectionLabel({ courseName, sectionName }),
+    };
+}
+
 /**
  * Standardizes image and file URLs by prepending the base API URL 
  * and handling fallbacks and cache-busting timestamps.
