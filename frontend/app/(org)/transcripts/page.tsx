@@ -449,7 +449,7 @@ export default function TranscriptsPage() {
                                             </div>
 
                                             <div className="overflow-x-auto">
-                                                <table className="w-full min-w-[920px] table-fixed text-left text-sm">
+                                                <table className="w-full min-w-230 table-fixed text-left text-sm">
                                                     <colgroup>
                                                         <col className="w-[25%]" />
                                                         <col className="w-[13%]" />

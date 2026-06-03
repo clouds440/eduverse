@@ -610,7 +610,7 @@ export default function TimetablePage() {
                     isOpen={isFullscreenOpen}
                     onBack={() => setIsFullscreenOpen(false)}
                     maxWidth="max-w-none"
-                    className="relative h-[100dvh] max-h-[100dvh] rounded-none border-0 bg-background text-foreground shadow-none"
+                    className="relative h-dvh max-h-dvh rounded-none border-0 bg-background text-foreground shadow-none"
                     overlayClassName="!items-stretch !justify-start !p-0 !backdrop-blur-none"
                     closeOnBackdrop={false}
                     mobileMode="full"
