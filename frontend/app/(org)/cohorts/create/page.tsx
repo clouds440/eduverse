@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { api } from '@/lib/api';
+import { formatCourseSectionLabel } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageShell';
 
 export default function CreateCohortPage() {
@@ -231,7 +232,10 @@ export default function CreateCohortPage() {
                                                 values={formData.sectionIds}
                                                 onChange={(values) => setFormData({ ...formData, sectionIds: values })}
                                                 icon={BookOpen}
-                                                options={filteredSections.map((s: Section) => ({ value: s.id, label: `${s.name} - ${s.course?.name || 'Unknown'}` }))}
+                                                options={filteredSections.map((s: Section) => ({
+                                                    value: s.id,
+                                                    label: formatCourseSectionLabel({ courseName: s.course?.name, sectionName: s.name }),
+                                                }))}
                                                 placeholder="Select sections to assign..."
                                                 disabled={!formData.academicCycleId}
                                             />

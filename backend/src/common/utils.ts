@@ -15,6 +15,8 @@ export interface PaginationOptions {
   deleted?: boolean;
   academicCycleId?: string;
   cohortId?: string;
+  teacherId?: string;
+  activeAcademicCycleOnly?: boolean;
 }
 
 export interface PaginatedResult<T> {
@@ -27,8 +29,9 @@ export interface PaginatedResult<T> {
 export interface TimetableSection {
   id: string;
   name: string;
+  color?: string | null;
   room: string | null;
-  course: { name: string };
+  course: { id?: string; name: string };
   schedules: { id: string; day: number; startTime: string; endTime: string; room: string | null }[];
 }
 
@@ -36,7 +39,9 @@ export interface TimetableEntry {
   scheduleId: string;
   sectionId: string;
   sectionName: string;
+  courseId: string | null;
   courseName: string;
+  color: string | null;
   day: number;
   startTime: string;
   endTime: string;
@@ -65,7 +70,9 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
         scheduleId: schedule.id,
         sectionId: section.id,
         sectionName: section.name,
+        courseId: section.course.id || null,
         courseName: section.course.name,
+        color: section.color || null,
         day: schedule.day,
         startTime: schedule.startTime,
         endTime: schedule.endTime,

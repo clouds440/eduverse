@@ -16,6 +16,7 @@ interface BadgeProps {
     /** Optional icon on the left */
     icon?: React.ElementType<{ className?: string }>;
     shape?: BadgeShape;
+    style?: React.CSSProperties;
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
@@ -60,6 +61,7 @@ export function Badge({
     dot,
     icon: Icon,
     shape = 'rounded',
+    style,
 }: BadgeProps) {
     return (
         <span
@@ -72,6 +74,7 @@ export function Badge({
                 className,
             )}
             title={title}
+            style={style}
         >
             {dot && (
                 <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColors[variant])} />

@@ -13,6 +13,7 @@ import {
   formatPaginatedResponse,
   PaginationOptions,
 } from '../common/utils';
+import { normalizeSectionColor } from './section-colors';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -40,6 +41,9 @@ export class SectionsService {
     const where: Prisma.SectionWhereInput = {
       course: { organizationId: orgId },
       ...(options.academicCycleId ? { academicCycleId: options.academicCycleId } : {}),
+      ...(options.activeAcademicCycleOnly ? { academicCycle: { isActive: true } } : {}),
+      ...(options.cohortId ? { cohortId: options.cohortId } : {}),
+      ...(options.teacherId ? { teachers: { some: { id: options.teacherId } } } : {}),
       ...(options.my && options.userId
         ? {
             OR: [
@@ -150,10 +154,12 @@ export class SectionsService {
   async createSection(orgId: string, data: CreateSectionDto) {
     // Verify course belongs to the organization
     await this.coursesService.validateCourseBelongsToOrg(data.courseId, orgId);
+    const color = normalizeSectionColor(data.color, `${orgId}:${data.courseId}:${data.name}`);
 
     return this.prisma.section.create({
       data: {
         name: data.name,
+        color,
         room: data.room,
         courseId: data.courseId,
         academicCycleId: data.academicCycleId,
@@ -163,10 +169,13 @@ export class SectionsService {
   }
 
   async updateSection(orgId: string, id: string, data: UpdateSectionDto) {
+    const color = data.color ? normalizeSectionColor(data.color) : undefined;
+
     return this.prisma.section.update({
       where: { id, course: { organizationId: orgId } },
       data: {
         ...data,
+        color,
         academicCycleId: data.academicCycleId === '' ? undefined : data.academicCycleId,
         cohortId: data.cohortId === '' ? null : data.cohortId,
       },

@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Layers, Plus } from 'lucide-react';
+import { Layers, Plus, School, UserRound } from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
 import { api } from '@/lib/api';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { usePathname, useRouter } from 'next/navigation';
-import { Section, Role, AcademicCycle } from '@/types';
+import { Section, Role, AcademicCycle, Cohort, Teacher } from '@/types';
 import { TableActions } from '@/components/ui/TableActions';
 import { Label } from '@/components/ui/Label';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -23,6 +23,8 @@ import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { getSectionSurfaceStyle, getSectionTextStyle } from '@/lib/utils';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 interface SectionParams {
     page: number;
@@ -32,6 +34,9 @@ interface SectionParams {
     sortOrder: 'asc' | 'desc';
     my?: boolean;
     academicCycleId?: string;
+    cohortId?: string;
+    teacherId?: string;
+    activeAcademicCycleOnly?: boolean;
 }
 
 export default function SectionsPage() {
@@ -49,6 +54,9 @@ export default function SectionsPage() {
     const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
     const showOnlyMySections = getBooleanParam('my');
     const academicCycleId = getStringParam('academicCycleId');
+    const cohortId = getStringParam('cohortId');
+    const teacherId = getStringParam('teacherId');
+    const includeInactiveCycles = getBooleanParam('includeInactiveCycles');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-sections-limit', 10);
 
     const sectionParams: SectionParams = {
@@ -58,7 +66,10 @@ export default function SectionsPage() {
         sortBy,
         sortOrder,
         my: showOnlyMySections || undefined,
-        academicCycleId: academicCycleId || undefined
+        academicCycleId: academicCycleId || undefined,
+        cohortId: cohortId || undefined,
+        teacherId: teacherId || undefined,
+        activeAcademicCycleOnly: !includeInactiveCycles && !academicCycleId ? true : undefined,
     };
 
     // SWR for sections data - replaces usePaginatedData
@@ -69,6 +80,10 @@ export default function SectionsPage() {
 
     const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
     const { data: cyclesData } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
+    const cohortsKey = token ? ['cohorts', { limit: 500 }] as const : null;
+    const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
+    const teachersKey = token ? ['teachers', { limit: 1000 }] as const : null;
+    const { data: teachersData } = useSWR<{ data: Teacher[] }>(teachersKey);
 
     useEffect(() => {
         if (user && user.role === Role.STUDENT) {
@@ -105,9 +120,17 @@ export default function SectionsPage() {
             sortable: true,
             sortKey: 'name',
             accessor: (row: Section) => (
-                <div className="flex flex-col">
-                    <span className="font-semibold text-card-foreground">{row.name}</span>
-                    <span className="text-sm font-medium text-primary">{row.course?.name || 'No Course'}</span>
+                <div
+                    className="flex min-w-0 items-center gap-2 rounded-md border px-2 py-1"
+                    style={getSectionSurfaceStyle(row, '0F', '38')}
+                >
+                    <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: getSectionTextStyle(row).color }}
+                    />
+                    <div className="flex min-w-0 flex-col">
+                        <CourseSectionLabel section={row} className="truncate font-semibold" />
+                    </div>
                 </div>
             )
         },
@@ -135,7 +158,13 @@ export default function SectionsPage() {
                 const studentsList = row.students || [];
                 return studentsList.length > 0 ? (
                     <div className="flex flex-wrap gap-1 max-w-50">
-                        <Badge variant="primary" size="sm" className="truncate max-w-37.5" title='Click edit icon to view all'>
+                        <Badge
+                            variant="neutral"
+                            size="sm"
+                            className="truncate max-w-37.5"
+                            title="Click edit icon to view all"
+                            style={getSectionSurfaceStyle(row, '18', '55')}
+                        >
                             {studentsList.length === 1 ? '1 Student' : studentsList.length + ' Students'}
                         </Badge>
                     </div>
@@ -201,6 +230,24 @@ export default function SectionsPage() {
             value: cyclesData?.data?.find((cycle) => cycle.id === academicCycleId)?.name || 'Selected cycle',
             onRemove: () => updateQueryParams({ academicCycleId: undefined, page: 1 }),
         }] : []),
+        ...(cohortId ? [{
+            key: 'cohortId',
+            label: 'Cohort',
+            value: cohortsData?.data?.find((cohort) => cohort.id === cohortId)?.name || 'Selected cohort',
+            onRemove: () => updateQueryParams({ cohortId: undefined, page: 1 }),
+        }] : []),
+        ...(teacherId ? [{
+            key: 'teacherId',
+            label: 'Teacher',
+            value: teachersData?.data?.find((teacher) => teacher.id === teacherId)?.user?.name || 'Selected teacher',
+            onRemove: () => updateQueryParams({ teacherId: undefined, page: 1 }),
+        }] : []),
+        ...(includeInactiveCycles ? [{
+            key: 'includeInactiveCycles',
+            label: 'Include',
+            value: 'Past cycles',
+            onRemove: () => updateQueryParams({ includeInactiveCycles: undefined, page: 1 }),
+        }] : []),
     ];
 
 
@@ -258,6 +305,48 @@ export default function SectionsPage() {
                                             value={academicCycleId}
                                             onChange={(val) => updateQueryParams({ academicCycleId: val, page: 1 })}
                                             placeholder="All Cycles"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between bg-muted/20 p-3 rounded-lg border border-border">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold uppercase tracking-wider">Past Cycles</span>
+                                            <span className="text-[10px] text-muted-foreground">Include inactive academic cycle sections</span>
+                                        </div>
+                                        <Toggle
+                                            checked={includeInactiveCycles}
+                                            onCheckedChange={(checked) => updateQueryParams({ includeInactiveCycles: checked, page: 1 })}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Cohort</Label>
+                                        <CustomSelect
+                                            options={[
+                                                { label: 'All Cohorts', value: '' },
+                                                ...(cohortsData?.data?.map(cohort => ({ value: cohort.id, label: cohort.name, icon: School })) || [])
+                                            ]}
+                                            value={cohortId}
+                                            onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}
+                                            placeholder="All Cohorts"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Assigned Teacher</Label>
+                                        <CustomSelect
+                                            options={[
+                                                { label: 'All Teachers', value: '' },
+                                                ...(teachersData?.data?.map(teacher => ({
+                                                    value: teacher.id,
+                                                    label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
+                                                    icon: UserRound,
+                                                })) || [])
+                                            ]}
+                                            value={teacherId}
+                                            onChange={(val) => updateQueryParams({ teacherId: val, page: 1 })}
+                                            placeholder="All Teachers"
+                                            searchable
                                         />
                                     </div>
                                 </div>

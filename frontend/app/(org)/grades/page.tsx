@@ -11,6 +11,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/Input';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 function SectionCardSkeleton() {
     return (
@@ -38,6 +40,7 @@ function SectionGradeCard({ section }: { section: Section }) {
         <Link
             href={`/sections/${section.id}`}
             className="group block overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm transition-colors hover:border-primary/45 hover:bg-background/40"
+            style={getSectionSurfaceStyle(section, '08', '38')}
         >
             <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border/60 bg-card/80 p-4">
                 <div className="flex min-w-0 items-start gap-3">
@@ -45,9 +48,9 @@ function SectionGradeCard({ section }: { section: Section }) {
                         <GraduationCap className="h-5 w-5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
-                        <h2 className="truncate text-base font-black text-foreground md:text-lg">{section.name}</h2>
+                        <CourseSectionLabel section={section} as="h2" className="truncate text-base font-black md:text-lg" />
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                            <Badge variant="neutral" size="sm">{section.course?.name || 'Generic Course'}</Badge>
+                            <Badge variant="neutral" size="sm" style={getSectionTintStyle(section)}>{section.course?.name || 'Generic Course'}</Badge>
                             {section.cohort?.name && <Badge variant="secondary" size="sm">{section.cohort.name}</Badge>}
                             {section.academicCycle?.name && <Badge variant="primary" size="sm">{section.academicCycle.name}</Badge>}
                         </div>

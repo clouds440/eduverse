@@ -104,7 +104,7 @@ export class TeacherService {
               avatarUpdatedAt: true,
             },
           },
-          sections: { select: { id: true, name: true } },
+          sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
         },
       }),
       this.prisma.teacher.count({ where }),
@@ -182,7 +182,7 @@ export class TeacherService {
               avatarUpdatedAt: true,
             },
           },
-          sections: { select: { id: true, name: true } },
+          sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
         },
       }),
       this.prisma.teacher.count({ where }),
@@ -215,7 +215,7 @@ export class TeacherService {
             avatarUpdatedAt: true,
           },
         },
-        sections: { select: { id: true, name: true } },
+        sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
       },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
@@ -533,7 +533,7 @@ export class TeacherService {
     const sectionsWithDetails = await this.prisma.section.findMany({
       where: { id: { in: sectionIds } },
       include: {
-        course: { select: { name: true } },
+        course: { select: { id: true, name: true } },
         schedules: { select: { id: true, day: true, startTime: true, endTime: true, room: true } },
       },
     });

@@ -12,6 +12,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { formatCourseSectionLabel, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -52,16 +54,16 @@ function SectionScheduleCard({ section }: { section: Section }) {
     ), [schedulesData]);
 
     return (
-        <article className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+        <article className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm" style={getSectionSurfaceStyle(section, '08', '38')}>
             <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border/60 bg-card/80 p-4">
                 <div className="flex min-w-0 items-start gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
                         <CalendarDays className="h-5 w-5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
-                        <h2 className="truncate text-base font-black text-foreground md:text-lg">{section.name}</h2>
+                        <CourseSectionLabel section={section} as="h2" className="truncate text-base font-black md:text-lg" />
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                            <Badge variant="neutral" size="sm">{section.course?.name || 'Generic Course'}</Badge>
+                            <Badge variant="neutral" size="sm" style={getSectionTintStyle(section)}>{section.course?.name || 'Generic Course'}</Badge>
                             {section.cohort?.name && <Badge variant="secondary" size="sm">{section.cohort.name}</Badge>}
                             <Badge variant={schedules.length > 0 ? 'primary' : 'neutral'} size="sm">
                                 {schedules.length} slot{schedules.length === 1 ? '' : 's'}
@@ -72,7 +74,7 @@ function SectionScheduleCard({ section }: { section: Section }) {
                 <Link
                     href={`/sections/${section.id}`}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                    aria-label={`Open ${section.name}`}
+                    aria-label={`Open ${formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name })}`}
                 >
                     <ChevronRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
@@ -84,7 +86,7 @@ function SectionScheduleCard({ section }: { section: Section }) {
                         error={error}
                         onRetry={() => mutate()}
                         title="Schedules could not load"
-                        description={`Try again for ${section.name}.`}
+                        description={`Try again for ${formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name })}.`}
                         className="max-w-none"
                     />
                 ) : isLoading ? (

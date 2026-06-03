@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/ui/PageShell';
 import { BookOpen, Download, GraduationCap, Printer, Search } from 'lucide-react';
 import { getPublicUrl } from '@/lib/utils';
 import { PLATFORM_NAME } from '@/lib/constants';
+import { Label } from '@/components/ui/Label';
 
 interface TranscriptStudent {
     id: string;
@@ -418,16 +419,13 @@ export default function TranscriptsPage() {
                     <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-end md:w-auto md:items-center">
                         {user?.role !== Role.STUDENT && (
                             <div className="w-full sm:w-72">
-                                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                    Find Student
-                                </label>
                                 <div className="relative group">
                                     <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground transition-colors group-focus-within:text-primary">
                                         <Search className="h-4 w-4" />
                                     </div>
                                     <input
                                         type="text"
-                                        placeholder="Search by name or reg #..."
+                                        placeholder="Search students by name or reg #..."
                                         className="w-full rounded-md border border-border bg-input py-2.5 pl-10 pr-4 text-sm shadow-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
                                         value={searchTerm}
                                         onChange={(event) => setSearchTerm(event.target.value)}
@@ -458,9 +456,6 @@ export default function TranscriptsPage() {
                         )}
 
                         <div className="w-full sm:w-64">
-                            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                                Academic Cycle
-                            </label>
                             <CustomSelect
                                 value={selectedCycleId}
                                 onChange={setSelectedCycleId}

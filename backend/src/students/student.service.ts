@@ -807,6 +807,7 @@ export class StudentService {
       return {
         sectionId: section.id,
         sectionName: section.name,
+        sectionColor: section.color,
         courseName: section.course.name,
         finalPercentage: parseFloat(totalPercentage.toFixed(2)),
         assessments: assessmentGrades,
@@ -831,7 +832,7 @@ export class StudentService {
       include: {
         section: {
           include: {
-            course: { select: { name: true } },
+            course: { select: { id: true, name: true } },
             schedules: { select: { id: true, day: true, startTime: true, endTime: true, room: true } },
           },
         },
@@ -879,7 +880,7 @@ export class StudentService {
       include: {
         session: {
           include: {
-            section: { select: { id: true, name: true, course: { select: { name: true } } } },
+            section: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
           },
         },
       },

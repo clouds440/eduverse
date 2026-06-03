@@ -6,6 +6,71 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
+export const DEFAULT_SECTION_COLOR = '#3B82F6';
+
+export const SECTION_COLOR_PALETTE = [
+    '#3B82F6',
+    '#10B981',
+    '#F59E0B',
+    '#EF4444',
+    '#8B5CF6',
+    '#06B6D4',
+    '#EC4899',
+    '#84CC16',
+] as const;
+
+type SectionColorInput = string | null | undefined | { color?: string | null };
+
+function resolveSectionColorInput(color: SectionColorInput): string | null | undefined {
+    return typeof color === 'object' && color !== null ? color.color : color;
+}
+
+export function isValidHexColor(color: string | null | undefined): color is string {
+    return typeof color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(color);
+}
+
+export function getSectionColor(color: SectionColorInput): string {
+    const resolvedColor = resolveSectionColorInput(color);
+    return isValidHexColor(resolvedColor) ? resolvedColor.toUpperCase() : DEFAULT_SECTION_COLOR;
+}
+
+export function getSectionTextStyle(color: SectionColorInput) {
+    return { color: getSectionColor(color) };
+}
+
+export function getSectionSurfaceStyle(
+    color: SectionColorInput,
+    backgroundAlpha = '14',
+    borderAlpha = '4D',
+) {
+    const sectionColor = getSectionColor(color);
+    return {
+        backgroundColor: `${sectionColor}${backgroundAlpha}`,
+        borderColor: `${sectionColor}${borderAlpha}`,
+    };
+}
+
+export function getSectionTintStyle(color: SectionColorInput) {
+    const sectionColor = getSectionColor(color);
+    return {
+        ...getSectionSurfaceStyle(sectionColor, '18', '66'),
+        color: sectionColor,
+    };
+}
+
+export function formatCourseSectionLabel({
+    courseName,
+    sectionName,
+}: {
+    courseName?: string | null;
+    sectionName?: string | null;
+}) {
+    if (courseName && sectionName) return `${courseName} • ${sectionName}`;
+    if (sectionName) return sectionName;
+    if (courseName) return courseName;
+    return 'Unnamed section';
+}
+
 /**
  * Standardizes image and file URLs by prepending the base API URL 
  * and handling fallbacks and cache-busting timestamps.

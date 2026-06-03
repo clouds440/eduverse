@@ -212,6 +212,9 @@ export class OrgController {
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('my') my?: string,
     @Query('academicCycleId') academicCycleId?: string,
+    @Query('cohortId') cohortId?: string,
+    @Query('teacherId') teacherId?: string,
+    @Query('activeAcademicCycleOnly') activeAcademicCycleOnly?: string,
     @Request() req?: AuthenticatedRequest,
   ) {
     return this.sectionsService.getSections(orgId, {
@@ -223,6 +226,9 @@ export class OrgController {
       my: my === 'true',
       userId: req?.user?.id,
       academicCycleId,
+      cohortId,
+      teacherId,
+      activeAcademicCycleOnly: activeAcademicCycleOnly === 'true',
     });
   }
 

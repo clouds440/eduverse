@@ -18,6 +18,7 @@ import { NotFound } from '@/components/NotFound';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { RouteBreadcrumbs } from '@/components/ui/PageShell';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 export default function AssessmentDetailPage() {
     const { token, user } = useAuth();
@@ -84,7 +85,7 @@ export default function AssessmentDetailPage() {
                                 {assessment.type}
                             </span>
                             <span className="text-[10px] font-bold text-card-text/40 tracking-widest leading-none">
-                                {section.name} • {section.course?.name}
+                                <CourseSectionLabel section={section} />
                             </span>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-black tracking-tighter leading-none text-card-text">

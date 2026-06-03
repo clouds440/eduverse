@@ -13,6 +13,7 @@ import { Modal } from '@/components/ui/Modal';
 import { getPublicUrl, formatBytes } from '@/lib/utils';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 const getGradeColors = (marks: number, total: number) => {
     const percentage = (marks / total) * 100;
@@ -207,9 +208,11 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                     </div>
                                 </CardHeader>
                                 <CardContent>
-                                    <h3 className="text-xl font-black text-foreground leading-tight group-hover:text-primary transition-colors line-clamp-2 tracking-tight">
-                                        {sec.course?.name || sec.name}
-                                    </h3>
+                                    <CourseSectionLabel
+                                        section={sec}
+                                        as="h3"
+                                        className="text-xl font-black leading-tight transition-colors line-clamp-2 tracking-tight"
+                                    />
                                     <p className="text-[10px] font-black text-muted-foreground/60 tracking-widest leading-none mt-2">{teacherName}</p>
                                 </CardContent>
                                 <CardFooter className="flex-col gap-4 items-stretch border-border">

@@ -17,7 +17,8 @@ import { Button } from '@/components/ui/Button';
 import { CalendarDays, BarChart3, Edit3, ChevronLeft, ChevronRight, Clock, Table2 } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { PageHeader } from '@/components/ui/PageShell';
-import { cn } from '@/lib/utils';
+import { cn, getSectionTintStyle } from '@/lib/utils';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 function parseDateInput(dateStr: string) {
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -174,15 +175,15 @@ export default function SectionAttendancePage() {
     const sessionCount = rangeData?.sessions.length || 0;
 
     return (
-        <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-4 pb-8">
+        <div className="mx-auto flex w-full flex-1 flex-col gap-4 pb-8">
             <div className="flex flex-col gap-3 p-2 lg:p-0">
                 <PageHeader
-                    title={section?.name || 'Loading Section...'}
+                    title={<CourseSectionLabel section={section} courseName={section?.course?.name} sectionName={section?.name} />}
                     description="Attendance workbook with daily marking and monthly review."
                     icon={CalendarDays}
                     meta={(
                         <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="primary" dot size="md">
+                            <Badge variant="neutral" dot size="md" style={getSectionTintStyle(section)}>
                                 {section?.course?.name || 'Course'}
                             </Badge>
                             <Badge variant="secondary" size="md" icon={Table2}>

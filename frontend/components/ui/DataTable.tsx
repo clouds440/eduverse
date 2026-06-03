@@ -358,7 +358,7 @@ export function DataTable<T>({
                 )}
             </div>
 
-            <div className={`hidden md:block flex-1 min-h-0 overflow-x-auto scrollbar-thin scrollbar-thumb-border`}>
+            <div className={`relative hidden md:block flex-1 min-h-0 overflow-x-auto scrollbar-thin scrollbar-thumb-border`}>
                 <table
                     ref={tableRef}
                     className={`w-full text-left text-xs sm:text-sm text-foreground ${tableLayout === 'fixed' ? 'table-fixed' : 'table-auto'}`}
@@ -469,8 +469,8 @@ export function DataTable<T>({
                 </table>
                 {/* Loading Overlay */}
                 {isLoading && (
-                    <div className="absolute inset-0 bg-card/70 backdrop-blur-sm flex z-20 transition-all duration-300" role="status" aria-label="Loading table rows">
-                        <SkeletonTable rows={5} columns={5} className="w-full" />
+                    <div className="absolute inset-x-0 bottom-0 top-14 sm:top-16 bg-card/70 backdrop-blur-sm flex z-20 transition-all duration-300" role="status" aria-label="Loading table rows">
+                        <SkeletonTable rows={5} columns={displayColumns.length} className="w-full border-x-0 border-b-0 rounded-none" showHeader={false} />
                     </div>
                 )}
             </div>

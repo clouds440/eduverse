@@ -11,29 +11,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { getSectionColor } from '@/lib/utils';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const DEFAULT_START_HOUR = 8;
 const DEFAULT_END_HOUR = 18;
-
-const SECTION_COLORS = [
-    'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-100',
-    'border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-100',
-    'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-100',
-    'border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-100',
-    'border-cyan-200 bg-cyan-50 text-cyan-950 dark:border-cyan-500/30 dark:bg-cyan-500/15 dark:text-cyan-100',
-    'border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-500/30 dark:bg-violet-500/15 dark:text-violet-100',
-];
-
-const getSectionColor = (id: string) => {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-        hash = ((hash << 5) - hash) + id.charCodeAt(i);
-        hash |= 0;
-    }
-    return SECTION_COLORS[Math.abs(hash) % SECTION_COLORS.length];
-};
 
 interface TimetableSlotGroup {
     day: number;
@@ -85,6 +69,15 @@ function formatDuration(startTime: string, endTime: string) {
     if (hours && minutes) return `${hours}h ${minutes}m`;
     if (hours) return `${hours}h`;
     return `${minutes}m`;
+}
+
+function getTimetableCardStyle(entry: TimetableEntry): React.CSSProperties {
+    const hex = getSectionColor(entry);
+    return {
+        backgroundColor: `${hex}18`,
+        borderColor: `${hex}66`,
+        color: hex,
+    };
 }
 
 function TimetableSkeleton() {
@@ -257,7 +250,6 @@ export default function TimetablePage() {
                                                         {isCompactSlot ? (
                                                             <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1 custom-scrollbar">
                                                                 {slot.entries.map((entry) => {
-                                                                    const colorClass = getSectionColor(entry.sectionId);
                                                                     return (
                                                                         <button
                                                                             key={entry.scheduleId}
@@ -267,11 +259,24 @@ export default function TimetablePage() {
                                                                                 const closestDate = getClosestDateForWeekday(entry.day);
                                                                                 router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
                                                                             }}
-                                                                            className={`flex min-h-0 w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${colorClass} ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                            className={`flex h-full w-full items-center cursor-pointer gap-2 rounded-md border px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                            style={getTimetableCardStyle(entry)}
                                                                         >
                                                                             <div className="min-w-0 flex-1">
-                                                                                <p className="truncate text-xs font-black leading-tight">{entry.sectionName}</p>
-                                                                                <p className="mt-0.5 truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}</p>
+                                                                                <CourseSectionLabel
+                                                                                    section={{
+                                                                                        name: entry.sectionName,
+                                                                                        color: entry.color,
+                                                                                        course: { name: entry.courseName },
+                                                                                    }}
+                                                                                    as="p"
+                                                                                    className="text-xs font-black leading-tight"
+                                                                                />
+                                                                                <p className="mt-0.5 flex truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}
+                                                                                    <MapPin className="h-3 w-3 ml-1 shrink-0" aria-hidden="true" />
+                                                                                    <span className="truncate">{entry.room || 'Room TBD'}</span>
+                                                                                </p>
+
                                                                             </div>
                                                                             <Badge variant="neutral" size="xs" className="shrink-0 bg-white/70 text-foreground dark:bg-black/25">
                                                                                 {durationLabel}
@@ -297,7 +302,6 @@ export default function TimetablePage() {
                                                                 </div>
                                                                 <div className="min-h-0 flex-1 space-y-1 overflow-y-auto border-l-4 border-primary/45 p-1.5 custom-scrollbar">
                                                                     {slot.entries.map((entry) => {
-                                                                        const colorClass = getSectionColor(entry.sectionId);
                                                                         return (
                                                                             <button
                                                                                 key={entry.scheduleId}
@@ -307,9 +311,18 @@ export default function TimetablePage() {
                                                                                     const closestDate = getClosestDateForWeekday(entry.day);
                                                                                     router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
                                                                                 }}
-                                                                                className={`w-full rounded-md border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${colorClass} ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                                className={`w-full h-full rounded-md cursor-pointer border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                                style={getTimetableCardStyle(entry)}
                                                                             >
-                                                                                <p className="line-clamp-2 text-xs font-black leading-tight">{entry.sectionName}</p>
+                                                                                <CourseSectionLabel
+                                                                                    section={{
+                                                                                        name: entry.sectionName,
+                                                                                        color: entry.color,
+                                                                                        course: { name: entry.courseName },
+                                                                                    }}
+                                                                                    as="p"
+                                                                                    className="line-clamp-2 text-xs font-black leading-tight"
+                                                                                />
                                                                                 <p className="mt-0.5 truncate text-[11px] font-semibold opacity-80">{entry.courseName}</p>
                                                                                 <div className="mt-1.5 flex min-w-0 items-center gap-1.5 border-t border-current/15 pt-1.5 text-[10px] font-bold opacity-80">
                                                                                     <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />

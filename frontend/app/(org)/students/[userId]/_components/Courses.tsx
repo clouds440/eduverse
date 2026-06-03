@@ -9,6 +9,7 @@ import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card'
 import { SearchBar } from '@/components/ui/SearchBar';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 export default function Courses({ sections }: { sections: Section[] }) {
     const router = useRouter();
@@ -72,7 +73,7 @@ export default function Courses({ sections }: { sections: Section[] }) {
                         <CardHeader>
                             <div className="text-left">
                                 <p className="text-[10px] font-black text-muted-foreground/60 tracking-[0.2em] mb-2">{sec.course?.name}</p>
-                                <h3 className="text-2xl font-black text-foreground group-hover:text-primary transition-colors tracking-tight leading-tight">{sec.name}</h3>
+                                <CourseSectionLabel section={sec} as="h3" className="text-2xl font-black transition-colors tracking-tight leading-tight" />
                             </div>
                             <div className="p-3 bg-primary/5 rounded-2xl border border-primary/20 shadow-sm">
                                 <Book className="w-6 h-6 text-primary" />

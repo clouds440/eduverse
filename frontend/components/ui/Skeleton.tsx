@@ -134,15 +134,17 @@ export function SkeletonTableRow({ columns = 4, className }: { columns?: number;
 }
 
 /** Multiple table rows */
-export function SkeletonTable({ rows = 5, columns = 4, className }: { rows?: number; columns?: number; className?: string }) {
+export function SkeletonTable({ rows = 5, columns = 4, className, showHeader = true }: { rows?: number; columns?: number; className?: string; showHeader?: boolean }) {
     return (
         <div className={cn("divide-y divide-border border border-border rounded-md", className)}>
             {/* Header */}
-            <div className="flex items-center gap-4 h-16 px-4 bg-primary/10">
-                {Array.from({ length: columns }).map((_, i) => (
-                    <Skeleton key={i} className="h-4 flex-1" />
-                ))}
-            </div>
+            {showHeader && (
+                <div className="flex items-center gap-4 h-16 px-4 bg-primary/10">
+                    {Array.from({ length: columns }).map((_, i) => (
+                        <Skeleton key={i} className="h-4 flex-1" />
+                    ))}
+                </div>
+            )}
             {/* Rows */}
             {Array.from({ length: rows }).map((_, i) => (
                 <SkeletonTableRow key={i} columns={columns} />

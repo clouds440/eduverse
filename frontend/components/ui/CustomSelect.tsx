@@ -269,6 +269,7 @@ function CustomSelectComponent<T extends string = string>({
                     id={listboxId}
                     role="listbox"
                     aria-label={placeholder}
+                    onMouseDown={(event) => event.stopPropagation()}
                     onKeyDown={handleComboboxKeyDown}
                 >
                     {searchable && (

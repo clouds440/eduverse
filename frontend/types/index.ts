@@ -50,6 +50,7 @@ export interface Course {
 export interface Section {
     id: string;
     name: string;
+    color?: string | null;
     room?: string;
     courseId?: string;
     course?: Course;
@@ -415,6 +416,7 @@ export type UpdateStudentRequest = Partial<CreateStudentRequest>;
 
 export interface CreateSectionRequest {
     name: string;
+    color?: string;
     room?: string;
     courseId: string;
     academicCycleId: string;
@@ -518,6 +520,7 @@ export interface FinalGradeDetail {
 export interface FinalGradeResponse {
     sectionId: string;
     sectionName: string;
+    sectionColor?: string | null;
     courseName: string;
     finalPercentage: number;
     letterGrade?: string;
@@ -632,7 +635,9 @@ export interface TimetableEntry {
     scheduleId: string;
     sectionId: string;
     sectionName: string;
+    courseId?: string | null;
     courseName: string;
+    color?: string | null;
     day: number;
     startTime: string;
     endTime: string;
@@ -652,7 +657,9 @@ export interface AttendanceSession {
     section?: {
         id: string;
         name: string;
+        color?: string | null;
         course?: {
+            id?: string;
             name: string;
         };
     };

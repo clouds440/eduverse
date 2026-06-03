@@ -5,6 +5,7 @@ import { Trophy, Calendar, Award, TrendingUp } from 'lucide-react';
 import { FinalGradeResponse } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
     const [search, setSearch] = useState('');
@@ -98,7 +99,13 @@ export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-black text-muted-foreground/60 tracking-[0.2em] mb-1">{grade.courseName}</p>
-                                            <h3 className="text-lg font-black text-foreground tracking-tight leading-tight group-hover:text-primary transition-colors line-clamp-1">{grade.sectionName}</h3>
+                                            <CourseSectionLabel
+                                                courseName={grade.courseName}
+                                                sectionName={grade.sectionName}
+                                                color={grade.sectionColor}
+                                                as="h3"
+                                                className="text-lg font-black tracking-tight leading-tight transition-colors line-clamp-1"
+                                            />
                                         </div>
                                     </div>
                                     <div className="text-right">

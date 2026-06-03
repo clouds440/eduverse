@@ -10,6 +10,7 @@ import { AttendanceRecord, Role, RangeAttendanceResponse, AttendanceStatus } fro
 import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { SkeletonTable } from '@/components/ui/Skeleton';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 export default function Attendance() {
     const { token, user } = useAuth();
@@ -33,6 +34,7 @@ export default function Attendance() {
         const groups: Record<string, {
             id: string;
             sectionName: string;
+            sectionColor?: string | null;
             courseName: string;
             present: number;
             absent: number;
@@ -50,6 +52,7 @@ export default function Attendance() {
                 groups[sectionId] = {
                     id: sectionId,
                     sectionName: record.session?.section?.name || 'Unknown Section',
+                    sectionColor: record.session?.section?.color || null,
                     courseName: record.session?.section?.course?.name || 'Unknown Course',
                     present: 0, absent: 0, late: 0, excused: 0, total: 0, percentage: 0
                 };
@@ -113,7 +116,13 @@ export default function Attendance() {
                                 <span className="w-2 h-2 rounded-full bg-primary"></span>
                                 <span className="text-[10px] font-black tracking-widest text-primary">{summary?.courseName}</span>
                             </div>
-                            <h1 className="text-4xl font-black text-foreground tracking-tighter leading-none">{summary?.sectionName} Ledger</h1>
+                            <h1 className="text-4xl font-black text-foreground tracking-tighter leading-none">
+                                <CourseSectionLabel
+                                    courseName={summary?.courseName}
+                                    sectionName={summary?.sectionName}
+                                    color={summary?.sectionColor}
+                                /> Ledger
+                            </h1>
                             <p className="text-muted-foreground mt-3 font-bold max-w-md tracking-tight text-[10px] opacity-60">Full monthly presence history for this course.</p>
                         </div>
                         <div className="bg-background/50 border border-border p-4 rounded-2xl flex items-center gap-6 shadow-sm">
@@ -188,7 +197,13 @@ export default function Attendance() {
                                     <div className={`text-lg font-black tracking-tighter ${group.percentage >= 85 ? 'text-success' : 'text-warning'}`}>{group.percentage}%</div>
                                 </div>
 
-                                <h3 className="text-2xl font-black tracking-tighter mb-2 text-foreground group-hover:text-primary transition-colors leading-none">{group.sectionName}</h3>
+                                <h3 className="text-2xl font-black tracking-tighter mb-2 text-foreground group-hover:text-primary transition-colors leading-none">
+                                    <CourseSectionLabel
+                                        courseName={group.courseName}
+                                        sectionName={group.sectionName}
+                                        color={group.sectionColor}
+                                    />
+                                </h3>
                                 <p className="text-[10px] font-bold text-muted-foreground/60 tracking-widest mb-10">Historical Ledger Summary</p>
 
                                 <div className="space-y-6 bg-muted/20 p-6 rounded-2xl border border-border/50">

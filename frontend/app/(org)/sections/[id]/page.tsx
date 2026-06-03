@@ -20,10 +20,12 @@ import { useAuth } from '@/context/AuthContext';
 import AssessmentList from '@/components/sections/AssessmentList';
 import SectionSchedules from '@/components/sections/SectionSchedules';
 import CourseMaterials from '@/components/sections/CourseMaterials';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { Badge } from '@/components/ui/Badge';
 import { Loading } from '@/components/ui/Loading';
 import { NotFound } from '@/components/NotFound';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { formatCourseSectionLabel, getSectionSurfaceStyle, getSectionTextStyle, getSectionTintStyle } from '@/lib/utils';
 
 interface SummaryTileProps {
     icon: LucideIcon;
@@ -94,6 +96,7 @@ export default function SectionDetailPage() {
     const studentCount = section.studentsCount || section.students?.length || 0;
     const teacherCount = section.teachers?.length || 0;
     const courseName = section.course?.name || 'Course not assigned';
+    const sectionLabel = formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name });
     const cycleName = section.academicCycle?.name || 'Academic cycle unavailable';
     const cohortName = section.cohort?.name || 'No cohort assigned';
     const roomLabel = section.room || 'Room TBD';
@@ -101,18 +104,25 @@ export default function SectionDetailPage() {
     return (
         <PageShell className="overflow-x-hidden overflow-y-auto custom-scrollbar">
             <PageHeader
-                title={section.name}
+                title={<CourseSectionLabel section={section} />}
                 description="A section workspace for evaluations, schedule slots, materials, and class context."
                 icon={BookOpen}
                 breadcrumbs={[
                     { label: 'Organization' },
                     { label: 'Academics' },
                     { label: 'Sections', href: '/sections' },
-                    { label: section.name },
+                    { label: sectionLabel },
                 ]}
                 meta={(
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <Badge variant="primary" size="sm" icon={BookOpen}>{courseName}</Badge>
+                        <Badge
+                            variant="neutral"
+                            size="sm"
+                            icon={BookOpen}
+                            style={getSectionTintStyle(section)}
+                        >
+                            {courseName}
+                        </Badge>
                         <Badge variant="neutral" size="sm">{section.id.substring(0, 8)}</Badge>
                     </div>
                 )}
@@ -125,18 +135,14 @@ export default function SectionDetailPage() {
                 <SummaryTile icon={MapPin} label="Room" value={roomLabel} helper="primary venue" />
             </section>
 
-            <ResourcePanel className="flex-none shrink-0 overflow-hidden">
+            <ResourcePanel className="flex-none shrink-0 overflow-hidden" style={getSectionSurfaceStyle(section, '08', '38')}>
                 <div className="grid min-w-0 gap-4 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,340px)] sm:p-5">
                     <div className="min-w-0">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <Badge variant="primary" dot size="md">{courseName}</Badge>
-                            {section.cohort && <Badge variant="secondary" size="md" icon={Layers}>{cohortName}</Badge>}
-                        </div>
-                        <h2 className="mt-3 text-lg font-black tracking-tight text-foreground sm:text-xl">
+                        <h2 className="mt-3 text-lg font-black tracking-tight sm:text-xl" style={getSectionTextStyle(section)}>
                             Section Profile
                         </h2>
                         <p className="mt-2 max-w-3xl wrap-break-word text-sm font-semibold leading-6 text-muted-foreground">
-                            {section.name} belongs to {cycleName}{section.cohort ? ` in ${cohortName}` : ''}.
+                            {sectionLabel} belongs to {cycleName}{section.cohort ? ` in ${cohortName}` : ''}.
                         </p>
                     </div>
 

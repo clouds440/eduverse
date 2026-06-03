@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import AssessmentForm from '@/components/forms/AssessmentForm';
+import { formatCourseSectionLabel } from '@/lib/utils';
 import SubmissionForm from '@/components/forms/SubmissionForm';
 import { formatDate } from '@/lib/utils';
 
@@ -248,7 +249,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
                 title="New Assessment"
-                subtitle={`${section.name} - ${section.course?.name}`}
+                subtitle={formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name })}
                 maxWidth="max-w-3xl"
             >
                 <AssessmentForm

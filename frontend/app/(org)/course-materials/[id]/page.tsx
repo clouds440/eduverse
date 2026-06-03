@@ -9,6 +9,7 @@ import CourseMaterials from '@/components/sections/CourseMaterials';
 import { Loading } from '@/components/ui/Loading';
 import { NotFound } from '@/components/NotFound';
 import { PageHeader } from '@/components/ui/PageShell';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 export default function CourseMaterialsPage() {
     const { token, user } = useAuth();
@@ -41,7 +42,7 @@ export default function CourseMaterialsPage() {
     return (
         <div className="flex flex-col w-full space-y-8">
             <PageHeader
-                title={section.name}
+                title={<CourseSectionLabel section={section} />}
                 description={`Materials for ${section.course?.name || 'the assigned course'} in ${section.academicCycle?.name || 'the academic cycle'}.`}
                 icon={FileText}
                 meta={(

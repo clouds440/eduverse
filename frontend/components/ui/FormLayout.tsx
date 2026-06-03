@@ -20,7 +20,7 @@ interface FormSectionProps {
 }
 
 interface FormPageHeaderProps {
-    title: string;
+    title: React.ReactNode;
     description: string;
     icon: LucideIcon;
     className?: string;

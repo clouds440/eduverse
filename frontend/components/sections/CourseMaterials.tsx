@@ -27,6 +27,7 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ExternalLinkInput } from '@/components/ui/ExternalLinkInput';
 import { downloadFile, formatBytes } from '@/lib/utils';
+import { CourseSectionLabel } from './SectionLabel';
 
 function getFileIcon(mimeType: string) {
   if (mimeType.startsWith('image/')) return FileImage;
@@ -293,7 +294,7 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
             <div>
               <h3 className="text-xl font-black text-card-text">{viewingMaterial.title}</h3>
               {viewingMaterial.section?.name && (
-                <p className="mt-1 text-xs font-black uppercase tracking-widest text-muted-foreground">{viewingMaterial.section.name}</p>
+                <CourseSectionLabel section={viewingMaterial.section} as="p" className="mt-1 text-xs font-black uppercase tracking-widest" />
               )}
               {viewingMaterial.description && (
                 <p className="mt-3 text-sm font-semibold leading-6 text-muted-foreground">{viewingMaterial.description}</p>

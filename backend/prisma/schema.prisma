@@ -192,6 +192,7 @@ model Course {
 model Section {
   id               String       @id @default(uuid())
   name             String
+  color            String       @default("#3B82F6")
   room             String?
   courseId         String
   academicCycleId  String

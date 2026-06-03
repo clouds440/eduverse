@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Calendar, MapPin, Hash, AlertCircle, LibraryBig, Network, Layers } from 'lucide-react';
+import { Calendar, MapPin, Hash, AlertCircle, LibraryBig, Network, Layers, Palette } from 'lucide-react';
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageShell';
+import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, isValidHexColor } from '@/lib/utils';
 
 export default function CreateSectionPage() {
     const { token, user } = useAuth();
@@ -25,7 +26,8 @@ export default function CreateSectionPage() {
         room: '',
         courseId: '',
         academicCycleId: '',
-        cohortId: ''
+        cohortId: '',
+        color: DEFAULT_SECTION_COLOR,
     });
 
     // SWR for courses dropdown (only for admins/managers)
@@ -49,7 +51,7 @@ export default function CreateSectionPage() {
         }
     }, [user, router]);
 
-    const [formErrors, setFormErrors] = useState<{ name?: string; academicCycleId?: string; courseId?: string; teacherId?: string; room?: string; general?: string }>({});
+    const [formErrors, setFormErrors] = useState<{ name?: string; academicCycleId?: string; courseId?: string; teacherId?: string; room?: string; color?: string; general?: string }>({});
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -66,6 +68,10 @@ export default function CreateSectionPage() {
         }
         if (!formData.name) {
             setFormErrors(prev => ({ ...prev, name: 'Section Name is required' }));
+            hasError = true;
+        }
+        if (!isValidHexColor(formData.color)) {
+            setFormErrors(prev => ({ ...prev, color: 'Choose a valid section color' }));
             hasError = true;
         }
 
@@ -93,6 +99,7 @@ export default function CreateSectionPage() {
                     if (msg.includes('name')) newErrors.name = m;
                     else if (msg.includes('course')) newErrors.courseId = m;
                     else if (msg.includes('teacher')) newErrors.teacherId = m;
+                    else if (msg.includes('color')) newErrors.color = m;
                     else if (msg.includes('cycle')) newErrors.academicCycleId = m;
                     else newErrors.general = m;
                 });
@@ -101,6 +108,7 @@ export default function CreateSectionPage() {
                 if (msgStr.toLowerCase().includes('name')) newErrors.name = msgStr;
                 else if (msgStr.toLowerCase().includes('course')) newErrors.courseId = msgStr;
                 else if (msgStr.toLowerCase().includes('teacher')) newErrors.teacherId = msgStr;
+                else if (msgStr.toLowerCase().includes('color')) newErrors.color = msgStr;
                 else if (msgStr.toLowerCase().includes('cycle')) newErrors.academicCycleId = msgStr;
                 else newErrors.general = msgStr;
             }
@@ -246,6 +254,35 @@ export default function CreateSectionPage() {
                                             icon={Network}
                                             placeholder="Select student cohort..."
                                         />
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <Label className="text-sm font-bold ml-1">Section Color</Label>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <Input
+                                                type="color"
+                                                name="color"
+                                                value={formData.color}
+                                                onChange={handleChange}
+                                                icon={Palette}
+                                                aria-label="Section color"
+                                                error={!!formErrors.color}
+                                                className="h-12 w-20 cursor-pointer p-1"
+                                            />
+                                            <div className="flex flex-wrap gap-2">
+                                                {SECTION_COLOR_PALETTE.map((color) => (
+                                                    <button
+                                                        key={color}
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, color })}
+                                                        className={`h-9 w-9 rounded-md border transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${formData.color === color ? 'scale-110 border-foreground ring-2 ring-primary/30' : 'border-border/70'}`}
+                                                        style={{ backgroundColor: color }}
+                                                        aria-label={`Use section color ${color}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                        {formErrors.color && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.color}</p>}
                                     </div>
                                 </div>
                             </div>

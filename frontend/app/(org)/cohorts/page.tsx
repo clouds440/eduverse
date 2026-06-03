@@ -7,6 +7,7 @@ import { Plus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
+import { formatCourseSectionLabel } from '@/lib/utils';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { AcademicCycle, ApiError, Cohort, Role, Section, Student } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -340,7 +341,7 @@ export default function CohortsPage() {
                         <CustomMultiSelect
                             options={sectionsData?.data?.filter((section) => !formData.academicCycleId || section.academicCycleId === formData.academicCycleId).map((section) => ({
                                 value: section.id,
-                                label: `${section.name} (${section.course?.name || 'No Course'})`,
+                                label: formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name }),
                             })) || []}
                             values={formData.sectionIds}
                             onChange={(values) => setFormData({ ...formData, sectionIds: values })}

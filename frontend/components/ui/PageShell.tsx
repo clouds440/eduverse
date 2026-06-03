@@ -10,10 +10,11 @@ import { getRouteOrientation } from '@/lib/routeOrientation';
 interface PageShellProps {
     children: React.ReactNode;
     className?: string;
+    style?: React.CSSProperties;
 }
 
 interface PageHeaderProps {
-    title: string;
+    title: React.ReactNode;
     description?: string;
     icon?: LucideIcon;
     meta?: React.ReactNode;
@@ -47,9 +48,9 @@ interface RouteBreadcrumbsProps {
     className?: string;
 }
 
-export function PageShell({ children, className }: PageShellProps) {
+export function PageShell({ children, className, style }: PageShellProps) {
     return (
-        <div className={cn('flex h-full w-full min-w-0 flex-col gap-3 overflow-hidden', className)}>
+        <div className={cn('flex h-full w-full min-w-0 flex-col gap-3 overflow-hidden', className)} style={style}>
             {children}
         </div>
     );
@@ -89,7 +90,7 @@ export function RouteBreadcrumbs({ breadcrumbs, className }: RouteBreadcrumbsPro
 export function PageHeader({ title, description, icon: Icon, meta, actions, breadcrumbs, className }: PageHeaderProps) {
     return (
         <header className={cn('shrink-0 rounded-lg border border-border bg-card/80 p-2 shadow-xl backdrop-blur-2xl md:p-3 print:hidden', className)}>
-            <div className="flex min-w-0 flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="flex min-w-0 flex-col gap-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
                     {Icon && (
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary shadow-inner">
@@ -112,7 +113,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
                     </div>
                 </div>
                 {actions && (
-                    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-end md:w-auto md:items-center md:justify-end">
+                    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-end md:w-auto md:items-center 2xl:justify-end">
                         {actions}
                     </div>
                 )}
@@ -121,9 +122,9 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
     );
 }
 
-export function ResourcePanel({ children, className }: PageShellProps) {
+export function ResourcePanel({ children, className, style }: PageShellProps) {
     return (
-        <section className={cn('flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm', className)}>
+        <section className={cn('flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm', className)} style={style}>
             {children}
         </section>
     );

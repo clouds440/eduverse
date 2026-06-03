@@ -16,6 +16,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { FormActions, FormField, FormGrid, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
+import { formatCourseSectionLabel } from '@/lib/utils';
 import { useForm, SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { studentCreateSchema, studentUpdateSchema, studentProfileSchema, StudentCreateFormData, StudentUpdateFormData, StudentProfileFormData } from '@/lib/schemas';
@@ -137,7 +138,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
 
     const sectionOptions = useMemo(() => (sectionsData?.data || []).map(section => ({
         value: section.id,
-        label: `${section.name} ${section.course?.name ? `(${section.course.name})` : ''}`,
+        label: formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name }),
     })), [sectionsData?.data]);
 
     const cohortOptions = useMemo(() => [

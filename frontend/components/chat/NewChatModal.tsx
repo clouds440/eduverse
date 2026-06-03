@@ -13,6 +13,7 @@ import { CustomMultiSelect, MultiSelectOption } from '@/components/ui/CustomMult
 import { Users, Shield, User as UserIcon, ChevronLeft, MessageSquarePlus } from 'lucide-react';
 import { useGlobal } from '@/context/GlobalContext';
 import { Role } from '@/types';
+import { formatCourseSectionLabel } from '@/lib/utils';
 
 const STABLE_EMPTY_ARRAY: string[] = [];
 
@@ -48,7 +49,10 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
         const fetchSections = async () => {
             try {
                 const res = await api.org.getSections(token, { my: true });
-                setSections(res.data.map(s => ({ value: s.id, label: s.name })));
+                setSections(res.data.map(s => ({
+                    value: s.id,
+                    label: formatCourseSectionLabel({ courseName: s.course?.name, sectionName: s.name }),
+                })));
             } catch (err) {
                 console.error('Failed to fetch sections', err);
             }
@@ -67,7 +71,13 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                 const studentIds = section.students.map(s => s.userId);
                 // Merge with existing
                 setParticipantIds(prev => Array.from(new Set([...prev, ...studentIds])));
-                dispatch({ type: 'TOAST_ADD', payload: { message: `Added ${section.students.length} students from ${section.name}`, type: 'success' } });
+                dispatch({
+                    type: 'TOAST_ADD',
+                    payload: {
+                        message: `Added ${section.students.length} students from ${formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name })}`,
+                        type: 'success',
+                    },
+                });
             }
         } catch (err) {
             console.error('Failed to fetch section students', err);

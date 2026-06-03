@@ -24,6 +24,8 @@ import { Drawer } from '@/components/ui/Drawer';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { formatCourseSectionLabel, getSectionSurfaceStyle } from '@/lib/utils';
 
 interface TeacherParams {
     page: number;
@@ -190,11 +192,23 @@ export default function TeachersPage() {
                 const sectionsList = row.sections || [];
                 return sectionsList.length > 0 ? (
                     <div className="flex flex-wrap gap-1 max-w-50">
-                        {sectionsList.map(sec => (
-                            <Badge key={sec?.id || Math.random()} variant="neutral" size="sm" className="truncate max-w-37.5" title={sec?.name}>
-                                {sec?.name || 'Unknown'}
+                        {sectionsList.slice(0, 1).map(sec => (
+                            <Badge
+                                key={sec?.id || sec?.name}
+                                variant="neutral"
+                                size="sm"
+                                className="truncate max-w-37.5"
+                                title={formatCourseSectionLabel({ courseName: sec?.course?.name, sectionName: sec?.name })}
+                                style={getSectionSurfaceStyle(sec, '18', '55')}
+                            >
+                                <CourseSectionLabel section={sec} className="truncate" />
                             </Badge>
                         ))}
+                        {sectionsList.length > 1 && (
+                            <Badge variant="neutral" size="sm" className="truncate max-w-37.5" title="Click to view all sections">
+                                +{sectionsList.length - 1} more
+                            </Badge>
+                        )}
                     </div>
                 ) : <span className="text-muted-foreground/30 italic">Unassigned</span>;
             }

@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { Toggle } from '@/components/ui/Toggle';
+import { getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
 const DAY_OPTIONS = [
     { value: '0', label: 'Sunday' },
@@ -272,10 +273,14 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             ) : (
                 <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {schedules.map((schedule) => (
-                        <article key={schedule.id} className="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-card p-3 shadow-sm sm:p-4">
+                        <article
+                            key={schedule.id}
+                            className="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-card p-3 shadow-sm sm:p-4"
+                            style={getSectionSurfaceStyle(section, '08', '38')}
+                        >
                             <div className="flex min-w-0 items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <Badge variant="primary" size="sm" icon={CalendarDays}>
+                                    <Badge variant="neutral" size="sm" icon={CalendarDays} style={getSectionTintStyle(section)}>
                                         {getDayLabel(schedule.day)}
                                     </Badge>
                                     <p className="mt-3 text-lg font-black leading-tight text-foreground">

@@ -1,4 +1,5 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, Matches } from 'class-validator';
+import { HEX_COLOR_PATTERN } from '../section-colors';
 
 export class UpdateSectionDto {
   @IsString()
@@ -20,4 +21,9 @@ export class UpdateSectionDto {
   @IsString()
   @IsOptional()
   academicCycleId?: string;
+
+  @IsString()
+  @IsOptional()
+  @Matches(HEX_COLOR_PATTERN, { message: 'Color must be a valid hex color like #3B82F6' })
+  color?: string;
 }

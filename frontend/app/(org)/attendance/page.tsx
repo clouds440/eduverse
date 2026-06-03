@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/Input';
 import { PageHeader } from '@/components/ui/PageShell';
 import { useMemo, useState } from 'react';
+import { getSectionSurfaceStyle } from '@/lib/utils';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 function SectionRowsSkeleton() {
     return (
@@ -103,12 +105,13 @@ export default function AttendanceLandingPage() {
                                     key={section.id}
                                     href={`/attendance/${section.id}`}
                                     className="group grid grid-cols-[48px_minmax(240px,1.3fr)_minmax(180px,1fr)_120px_140px] border-b border-border/50 bg-card transition-colors last:border-b-0 hover:bg-background/60"
+                                    style={getSectionSurfaceStyle(section, '08', '30')}
                                 >
                                     <div className="border-r border-border/50 px-3 py-3 text-center font-mono text-xs font-bold text-muted-foreground">
                                         {index + 1}
                                     </div>
                                     <div className="min-w-0 border-r border-border/50 px-3 py-3">
-                                        <p className="truncate text-sm font-black text-foreground group-hover:text-primary">{section.name}</p>
+                                        <CourseSectionLabel section={section} as="p" className="truncate text-sm font-black group-hover:brightness-90" />
                                         <p className="mt-0.5 truncate text-[10px] font-semibold text-muted-foreground">Section workbook</p>
                                     </div>
                                     <div className="min-w-0 border-r border-border/50 px-3 py-3">
@@ -142,10 +145,11 @@ export default function AttendanceLandingPage() {
                                     key={section.id}
                                     href={`/attendance/${section.id}`}
                                     className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm transition-colors active:bg-background/60"
+                                    style={getSectionSurfaceStyle(section, '0F', '38')}
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <p className="truncate text-base font-black text-foreground">{section.name}</p>
+                                            <CourseSectionLabel section={section} as="p" className="truncate text-base font-black" />
                                             <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">{section.course?.name || 'Course'}</p>
                                         </div>
                                         <ChevronRight className="h-5 w-5 shrink-0 text-primary" />

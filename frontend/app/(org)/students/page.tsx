@@ -23,6 +23,8 @@ import { Drawer } from '@/components/ui/Drawer';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { formatCourseSectionLabel, getSectionSurfaceStyle } from '@/lib/utils';
 
 interface StudentParams {
     page: number;
@@ -186,9 +188,9 @@ export default function StudentsPage() {
                 return sectionsList.length > 0 && sectionsList.length < 2 ? (
                     <div className="flex flex-wrap gap-1 max-w-50">
                         {sectionsList.map(sec => (
-                            <span key={sec?.id || Math.random()} title={sec?.name}>
-                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5">
-                                    {sec?.name || 'Unknown'}
+                            <span key={sec?.id || sec?.name} title={formatCourseSectionLabel({ courseName: sec?.course?.name, sectionName: sec?.name })}>
+                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5" style={getSectionSurfaceStyle(sec, '18', '55')}>
+                                    <CourseSectionLabel section={sec} className="truncate" />
                                 </Badge>
                             </span>
                         ))}
@@ -196,9 +198,9 @@ export default function StudentsPage() {
                 ) : sectionsList.length >= 2 ? (
                     <div className="flex flex-wrap gap-1 max-w-50">
                         {sectionsList.slice(0, 1).map(sec => (
-                            <span key={sec?.id || Math.random()} title={sec?.name}>
-                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5">
-                                    {sec?.name || 'Unknown'}
+                            <span key={sec?.id || sec?.name} title={formatCourseSectionLabel({ courseName: sec?.course?.name, sectionName: sec?.name })}>
+                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5" style={getSectionSurfaceStyle(sec, '18', '55')}>
+                                    <CourseSectionLabel section={sec} className="truncate" />
                                 </Badge>
                             </span>
                         ))}
@@ -419,7 +421,10 @@ export default function StudentsPage() {
                                                     onChange={(val) => updateQueryParams({ sectionId: val, page: 1 })}
                                                     options={[
                                                         { value: '', label: 'All My Sections' },
-                                                        ...sections.map((sec) => ({ value: sec.id, label: sec.name })),
+                                                        ...sections.map((sec) => ({
+                                                            value: sec.id,
+                                                            label: formatCourseSectionLabel({ courseName: sec.course?.name, sectionName: sec.name }),
+                                                        })),
                                                     ]}
                                                     placeholder="All My Sections"
                                                 />
