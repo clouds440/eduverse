@@ -206,7 +206,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                 key={section.id}
                                 type="button"
                                 onClick={() => handleSelectSection(section.id)}
-                                className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:translate-y-[-1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:scale-101 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                 style={{
                                     ...(isActive ? getSectionSurfaceStyle(section, '24', 'CC') : {}),
                                     borderColor: isActive ? `${sectionColor}CC` : undefined,
@@ -252,7 +252,11 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                 onClick={() => handleOpenAssessment(assessment)}
                                 padding="md"
                                 className="min-h-56"
-                                style={{ boxShadow: `inset 3px 0 0 ${sectionColor}` }}
+                                style={{
+                                    ...getSectionSurfaceStyle(section, '10', '55'),
+                                    color: sectionColor,
+                                    boxShadow: `inset 3px 0 0 ${sectionColor}`,
+                                }}
                             >
                                 <CardHeader>
                                     <span className={`rounded-md border px-2.5 py-1 text-[11px] font-black ${statusClass}`}>
@@ -403,6 +407,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                     <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
                                         <iframe
                                             src={getVideoEmbedUrl(selectedExternalLink)}
+                                            title="External Video"
                                             className="h-full w-full"
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                             allowFullScreen
