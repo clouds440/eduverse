@@ -7,7 +7,7 @@ import { DataTable, Column } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { usePathname, useRouter } from 'next/navigation';
-import { Teacher, Role, TeacherStatus } from '@/types';
+import { BadgeVariant, Teacher, Role, TeacherStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
@@ -158,7 +158,7 @@ export default function TeachersPage() {
             badge: true,
             accessor: (row: Teacher) => {
                 const status = row.status || TeacherStatus.ACTIVE;
-                const config: Record<TeacherStatus, { label: string; variant: 'success' | 'error' | 'warning' | 'secondary' | 'neutral' }> = {
+                const config: Record<TeacherStatus, { label: string; variant: BadgeVariant }> = {
                     [TeacherStatus.ACTIVE]: { label: 'Active', variant: 'success' },
                     [TeacherStatus.SUSPENDED]: { label: 'Suspended', variant: 'error' },
                     [TeacherStatus.ON_LEAVE]: { label: 'On Leave', variant: 'warning' },

@@ -4,8 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2, Info, LucideIcon, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-type StatusBannerVariant = 'info' | 'success' | 'warning' | 'danger' | 'neutral';
+import type { StatusBannerVariant } from '@/types';
 
 interface StatusBannerAction {
     label: string;

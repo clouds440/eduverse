@@ -1,7 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-
-type BadgeVariant = 'success' | 'error' | 'warning' | 'neutral' | 'primary' | 'secondary' | 'info' | 'purple';
+import type { BadgeVariant } from '@/types';
 type BadgeSize = 'xs' | 'sm' | 'md';
 type BadgeShape = 'rounded' | 'pill';
 

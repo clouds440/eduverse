@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight, CalendarDays, Sparkles, TrendingUp, BarChart3, ChevronDown, ChevronUp, Activity, Users, BookOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { DashboardInsights, DashboardInsightItem, Tone, Role } from '@/types';
@@ -29,6 +29,66 @@ const toneClasses: Record<Tone, string> = {
 function getToneClass(tone?: Tone): string {
   if (!tone) return toneClasses.DEFAULT;
   return toneClasses[tone] || toneClasses.DEFAULT;
+}
+
+function SectionFrame({
+  title,
+  icon,
+  children,
+  action,
+  className = '',
+}: {
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm ${className}`}>
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border/60 bg-muted/25 px-3 py-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary">
+            {icon}
+          </div>
+          <h2 className="min-w-0 truncate text-base font-black tracking-tight text-foreground sm:text-lg">{title}</h2>
+        </div>
+        {action}
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </section>
+  );
+}
+
+function ToggleButton({
+  isOpen,
+  onClick,
+  openLabel,
+  closedLabel,
+}: {
+  isOpen: boolean;
+  onClick: () => void;
+  openLabel: string;
+  closedLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-3 text-xs font-black text-muted-foreground transition-colors hover:border-primary/35 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+    >
+      {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      <span className="hidden sm:inline">{isOpen ? openLabel : closedLabel}</span>
+    </button>
+  );
+}
+
+function ChartPanel({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-lg border border-border/70 bg-background/60 p-3 shadow-xs sm:p-4 ${className}`}>
+      {children}
+    </section>
+  );
 }
 
 function getCardIcon(label: string) {
@@ -86,7 +146,7 @@ function InsightLinkCard({
 
 function SummaryCard({ card, index }: { card: DashboardInsights['summaryCards'][number]; index: number }) {
   const content = (
-    <div className={`rounded-lg border p-4 shadow-sm transition-colors hover:border-primary/35 group ${getToneClass(card.tone)}`}>
+    <div className={`rounded-lg border p-4 shadow-sm transition-transform hover:-translate-y-px hover:border-primary/35 group ${getToneClass(card.tone)}`}>
       <div className="flex items-start justify-between gap-3">
         <div className={`rounded-md p-2.5 ${card.tone === Tone.SUCCESS ? 'bg-success/10 text-success' : card.tone === Tone.DANGER ? 'bg-danger/10 text-danger' : card.tone === Tone.WARNING ? 'bg-warning/10 text-warning' : card.tone === Tone.INFO ? 'bg-info/10 text-info' : 'bg-muted/10 text-muted-foreground'}`}>
           {getCardIcon(card.label)}
@@ -121,32 +181,32 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
   const orgAdminCharts = insights.role === Role.ORG_ADMIN || insights.role === Role.ORG_MANAGER ? (
     <>
       {charts?.enrollmentTrend && charts.enrollmentTrend.length > 0 && (
-        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+        <ChartPanel>
           <InsightLineChart data={charts.enrollmentTrend} title="Student Enrollment Trend (30 Days)" color={COLORS.info} />
-        </section>
+        </ChartPanel>
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+          <ChartPanel>
             <InsightLineChart data={charts.attendanceTrend} title="Attendance Coverage Trend (30 Days)" color={COLORS.success} />
-          </section>
+          </ChartPanel>
         )}
         {charts?.mailStatus && charts.mailStatus.length > 0 && (
-          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+          <ChartPanel>
             <InsightPieChart data={charts.mailStatus.map(item => ({ name: item.status, value: item.count }))} title="Mail Status Distribution" />
-          </section>
+          </ChartPanel>
         )}
       </div>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {charts?.sectionCapacity && charts.sectionCapacity.length > 0 && (
-          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+          <ChartPanel>
             <InsightBarChart data={charts.sectionCapacity} dataKey="enrolled" nameKey="name" title="Section Capacity" color={COLORS.purple} disableHover />
-          </section>
+          </ChartPanel>
         )}
         {charts?.teacherWorkload && charts.teacherWorkload.length > 0 && (
-          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+          <ChartPanel>
             <InsightBarChart data={charts.teacherWorkload} dataKey="sections" nameKey="name" title="Teacher Workload" color={COLORS.warning} horizontal disableHover />
-          </section>
+          </ChartPanel>
         )}
       </div>
     </>
@@ -156,20 +216,20 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
   const teacherCharts = insights.role === Role.TEACHER ? (
     <>
       {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+        <ChartPanel>
           <InsightLineChart data={charts.attendanceTrend} title="Attendance Follow-Through Trend (30 Days)" color={COLORS.success} />
-        </section>
+        </ChartPanel>
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {charts?.gradeDistribution && charts.gradeDistribution.length > 0 && (
-          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+          <ChartPanel>
             <InsightPieChart data={charts.gradeDistribution.map(item => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
-          </section>
+          </ChartPanel>
         )}
         {charts?.assessmentCompletion && charts.assessmentCompletion.length > 0 && (
-          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+          <ChartPanel>
             <CompletionBarChart data={charts.assessmentCompletion} title="Assessment Completion Rates" />
-          </section>
+          </ChartPanel>
         )}
       </div>
     </>
@@ -180,20 +240,20 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
     <>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+          <ChartPanel>
             <InsightLineChart data={charts.attendanceTrend} title="Attendance Trend (30 Days)" color={COLORS.success} />
-          </section>
+          </ChartPanel>
         )}
         {charts?.gradeDistribution && charts.gradeDistribution.length > 0 && (
-          <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+          <ChartPanel>
             <InsightPieChart data={charts.gradeDistribution.map(item => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
-          </section>
+          </ChartPanel>
         )}
       </div>
       {charts?.studentPerformance && charts.studentPerformance.length > 0 && (
-        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+        <ChartPanel>
           <PerformanceChart data={charts.studentPerformance} title="Performance by Subject" />
-        </section>
+        </ChartPanel>
       )}
     </>
   ) : null;
@@ -201,9 +261,11 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
   return (
     <div className="space-y-6">
       {/* Header Section */}
-      <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+      <section className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm">
+        <div className="relative p-4 sm:p-5">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-linear-to-b from-primary/10 to-transparent" />
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+          <div className="relative">
             {insights.headline.eyebrow && (
               <Badge variant="primary" icon={Sparkles} className="mb-3 uppercase">
                 {insights.headline.eyebrow}
@@ -216,7 +278,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
               {insights.headline.subtitle}
             </p>
           </div>
-          <div className="inline-flex items-center gap-3 rounded-md border border-border bg-background/70 px-3 py-2">
+          <div className="relative inline-flex items-center gap-3 rounded-md border border-border bg-background/80 px-3 py-2 shadow-xs">
             <CalendarDays className="h-5 w-5 text-primary" />
             <div>
               <p className="text-[10px] font-black tracking-[0.25em] text-muted-foreground">Live snapshot</p>
@@ -225,6 +287,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
               </p>
             </div>
           </div>
+        </div>
         </div>
       </section>
 
@@ -237,7 +300,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
 
       {/* Spotlight Section */}
       {insights.spotlight && (
-        <section className="rounded-lg border border-primary/20 bg-primary/10 p-4 shadow-sm sm:p-5">
+        <section className="rounded-lg border border-primary/25 bg-linear-to-br from-primary/10 to-primary/5 p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <Badge variant="primary" icon={TrendingUp} className="mb-3 tracking-[0.22em] uppercase bg-background/70">
@@ -272,48 +335,30 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
 
       {/* Charts Section with Toggle */}
       {charts && (orgAdminCharts || teacherCharts || studentCharts) && (
-        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-black tracking-tight text-foreground">Data Visualizations</h2>
-            </div>
-            <button
-              onClick={() => setShowCharts(!showCharts)}
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted/50 transition-colors"
-            >
-              {showCharts ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              {showCharts ? 'Hide Charts' : 'Show Charts'}
-            </button>
-          </div>
+        <SectionFrame
+          title="Data Visualizations"
+          icon={<BarChart3 className="h-5 w-5" />}
+          action={<ToggleButton isOpen={showCharts} onClick={() => setShowCharts(!showCharts)} openLabel="Hide charts" closedLabel="Show charts" />}
+        >
           {showCharts && (
             <div className="space-y-6">
               {orgAdminCharts || teacherCharts || studentCharts}
             </div>
           )}
-        </section>
+        </SectionFrame>
       )}
 
       {/* Groups Section with Toggle */}
       {insights.groups.length > 0 && (
-        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Activity className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-black tracking-tight text-foreground">Action Items</h2>
-            </div>
-            <button
-              onClick={() => setShowGroups(!showGroups)}
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted/50 transition-colors"
-            >
-              {showGroups ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              {showGroups ? 'Hide Items' : 'Show Items'}
-            </button>
-          </div>
+        <SectionFrame
+          title="Action Items"
+          icon={<Activity className="h-5 w-5" />}
+          action={<ToggleButton isOpen={showGroups} onClick={() => setShowGroups(!showGroups)} openLabel="Hide items" closedLabel="Show items" />}
+        >
           {showGroups && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               {insights.groups.map((group) => (
-                <div key={group.id} className="rounded-lg border border-border bg-card/50 p-4 shadow-sm">
+                <div key={group.id} className="rounded-lg border border-border/70 bg-background/60 p-4 shadow-xs">
                   <h3 className="text-lg font-bold tracking-tight text-foreground">
                     {group.title}
                   </h3>
@@ -337,25 +382,16 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
               ))}
             </div>
           )}
-        </section>
+        </SectionFrame>
       )}
 
       {/* Recent Activity Section with Toggle */}
       {insights.recentActivity.length > 0 && (
-        <section className="rounded-lg border border-border bg-card/80 p-4 shadow-sm backdrop-blur-sm sm:p-5">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-black tracking-tight text-foreground">Recent Activity</h2>
-            </div>
-            <button
-              onClick={() => setShowActivity(!showActivity)}
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted/50 transition-colors"
-            >
-              {showActivity ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              {showActivity ? 'Hide Activity' : 'Show Activity'}
-            </button>
-          </div>
+        <SectionFrame
+          title="Recent Activity"
+          icon={<TrendingUp className="h-5 w-5" />}
+          action={<ToggleButton isOpen={showActivity} onClick={() => setShowActivity(!showActivity)} openLabel="Hide activity" closedLabel="Show activity" />}
+        >
           {showActivity && (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {insights.recentActivity.map((activity) => (
@@ -373,7 +409,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
               ))}
             </div>
           )}
-        </section>
+        </SectionFrame>
       )}
     </div>
   );

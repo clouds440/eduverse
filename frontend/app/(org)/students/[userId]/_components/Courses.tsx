@@ -85,7 +85,9 @@ export default function Courses({ sections, assessments }: { sections: Section[]
                                 onClick={() => setSectionFilter(section.id)}
                                 className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:translate-y-[-1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                 style={{
-                                    ...getSectionSurfaceStyle(section, isActive ? '24' : '14', isActive ? 'CC' : '66'),
+                                    ...(isActive ? getSectionSurfaceStyle(section, '24', 'CC') : {}),
+                                    borderColor: isActive ? `${sectionColor}CC` : undefined,
+                                    backgroundColor: isActive ? `${sectionColor}24` : 'transparent',
                                     color: sectionColor,
                                 }}
                             >

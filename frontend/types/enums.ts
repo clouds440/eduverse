@@ -149,3 +149,28 @@ export enum Tone {
     DANGER = 'DANGER',
 }
 
+// Shared lowercase UI variants used by badges, banners, buttons, and status helpers.
+// This is intentionally an enum-like const object so JSX string literals such as
+// variant="success" remain assignable without noisy casts.
+export const UiVariant = {
+    PRIMARY: 'primary',
+    SECONDARY: 'secondary',
+    SUCCESS: 'success',
+    ERROR: 'error',
+    WARNING: 'warning',
+    INFO: 'info',
+    DANGER: 'danger',
+    NEUTRAL: 'neutral',
+    PURPLE: 'purple',
+    BLACK: 'black',
+    GHOST: 'ghost',
+    OUTLINE: 'outline',
+} as const;
+
+export type UiVariant = typeof UiVariant[keyof typeof UiVariant];
+export type FeedbackVariant = typeof UiVariant.SUCCESS | typeof UiVariant.ERROR | typeof UiVariant.WARNING | typeof UiVariant.INFO | typeof UiVariant.NEUTRAL;
+export type BadgeVariant = FeedbackVariant | typeof UiVariant.PRIMARY | typeof UiVariant.SECONDARY | typeof UiVariant.PURPLE;
+export type StatusBannerVariant = typeof UiVariant.INFO | typeof UiVariant.SUCCESS | typeof UiVariant.WARNING | typeof UiVariant.DANGER | typeof UiVariant.NEUTRAL;
+export type ButtonVariant = typeof UiVariant.PRIMARY | typeof UiVariant.SECONDARY | typeof UiVariant.DANGER | typeof UiVariant.SUCCESS | typeof UiVariant.WARNING | typeof UiVariant.BLACK | typeof UiVariant.GHOST | typeof UiVariant.OUTLINE;
+export type StatToneVariant = typeof UiVariant.SUCCESS | typeof UiVariant.DANGER | typeof UiVariant.WARNING | typeof UiVariant.INFO;
+export type ToastVariant = typeof UiVariant.SUCCESS | typeof UiVariant.ERROR | typeof UiVariant.INFO;

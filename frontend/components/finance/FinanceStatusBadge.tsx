@@ -1,6 +1,6 @@
 import React from 'react';
 import { Badge } from '@/components/ui/Badge';
-import { EntryStatus } from '@/types';
+import { BadgeVariant, EntryStatus } from '@/types';
 
 interface FinanceStatusBadgeProps {
     status: EntryStatus | string;
@@ -8,7 +8,7 @@ interface FinanceStatusBadgeProps {
 }
 
 export function FinanceStatusBadge({ status, className }: FinanceStatusBadgeProps) {
-    let variant: 'success' | 'error' | 'warning' | 'info' | 'primary' | 'neutral' = 'neutral';
+    let variant: BadgeVariant = 'neutral';
     let label = status;
 
     switch (status) {

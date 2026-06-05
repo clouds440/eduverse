@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { CheckCircle, AlertTriangle, ShieldAlert, MessageSquare } from 'lucide-react';
+import type { StatusBannerVariant } from '@/types';
 
 export interface MailTemplate {
     id: string;
@@ -9,7 +10,7 @@ export interface MailTemplate {
     subject?: string;
     content: string;
     icon: React.ElementType;
-    variant: 'info' | 'success' | 'warning' | 'danger';
+    variant: StatusBannerVariant;
 }
 
 export const ADMIN_REPLY_TEMPLATES: MailTemplate[] = [

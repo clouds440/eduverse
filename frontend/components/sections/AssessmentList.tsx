@@ -13,7 +13,7 @@ import {
     Trophy,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Assessment, Section, Role, AssessmentType, GradeStatus } from '@/types';
+import { Assessment, BadgeVariant, Section, Role, AssessmentType, GradeStatus } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { Badge } from '@/components/ui/Badge';
@@ -31,7 +31,7 @@ interface AssessmentListProps {
     role: Role;
 }
 
-function assessmentVariant(type: AssessmentType): 'primary' | 'warning' | 'info' {
+function assessmentVariant(type: AssessmentType): BadgeVariant {
     if (type === AssessmentType.FINAL) return 'primary';
     if (type === AssessmentType.MIDTERM) return 'warning';
     return 'info';

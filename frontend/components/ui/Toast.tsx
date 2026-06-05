@@ -3,8 +3,9 @@
 import { CheckCircle2, XCircle, Info, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import type { ToastVariant } from '@/types';
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = ToastVariant;
 
 interface ToastProps {
     id: string;

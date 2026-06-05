@@ -9,6 +9,9 @@ import { DashboardInsights, Role, Teacher } from '@/types';
 import { Loading } from '@/components/ui/Loading';
 import InsightsOverview from '@/components/dashboard/InsightsOverview';
 import { NotFound } from '@/components/NotFound';
+import { PageHeader, PageShell } from '@/components/ui/PageShell';
+import { Badge } from '@/components/ui/Badge';
+import { LayoutDashboard } from 'lucide-react';
 
 export default function TeacherLandingPage() {
     const { token, loading, user } = useAuth();
@@ -79,5 +82,21 @@ export default function TeacherLandingPage() {
         );
     }
 
-    return <InsightsOverview insights={insights} />;
+    return (
+        <PageShell>
+            <PageHeader
+                title="Teacher Overview"
+                description="Your teaching snapshot across sections, attendance, schedules, grading, and student activity."
+                icon={LayoutDashboard}
+                meta={<Badge variant="neutral" size="sm">Live dashboard</Badge>}
+                breadcrumbs={[
+                    { label: 'Teacher Portal' },
+                    { label: 'Overview' },
+                ]}
+            />
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+                <InsightsOverview insights={insights} />
+            </div>
+        </PageShell>
+    );
 }

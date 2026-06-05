@@ -5,8 +5,8 @@ import { Loader2 } from "lucide-react"
 import { useGlobal } from "@/context/GlobalContext"
 import { useAccess } from "@/hooks/useAccess"
 import { cn } from "@/lib/utils"
+import type { ButtonVariant } from "@/types"
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'warning' | 'black' | 'ghost' | 'outline'
 type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'icon'
 type ButtonIconPosition = 'left' | 'right'
 

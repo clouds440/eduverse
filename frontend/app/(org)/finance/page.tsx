@@ -20,13 +20,13 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StatusBanner } from '@/components/ui/StatusBanner';
-import { TransactionType } from '@/types';
+import { StatToneVariant, TransactionType } from '@/types';
 
 interface StatCardProps {
     title: string;
     amount: number;
     icon: React.ElementType<{ className?: string }>;
-    tone: 'success' | 'danger' | 'warning' | 'info';
+    tone: StatToneVariant;
     href: string;
     description: string;
 }

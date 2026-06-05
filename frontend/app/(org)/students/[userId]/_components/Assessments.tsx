@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
 import { Modal } from '@/components/ui/Modal';
-import { getPublicUrl, formatBytes, getSectionColor } from '@/lib/utils';
+import { getPublicUrl, formatBytes, getSectionColor, getSectionSurfaceStyle } from '@/lib/utils';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -191,24 +191,33 @@ export default function Assessments({ sections, assessments }: { sections: Secti
         <div className="space-y-4">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex min-w-0 flex-wrap gap-2">
-                    <Button
+                    <button
                         type="button"
-                        variant={!selectedSectionId ? 'primary' : 'secondary'}
                         onClick={() => handleSelectSection(null)}
+                        className={`min-h-9 shrink-0 rounded-md border px-3 text-xs font-black transition-colors ${!selectedSectionId ? 'border-foreground/20 bg-foreground text-background' : 'border-border/70 bg-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}
                     >
                         All
-                    </Button>
-                    {sectionOptions.map((section) => (
-                        <Button
-                            key={section.id}
-                            type="button"
-                            variant={selectedSectionId === section.id ? 'primary' : 'secondary'}
-                            onClick={() => handleSelectSection(section.id)}
-                            className="max-w-full"
-                        >
-                            <CourseSectionLabel section={section} className="max-w-52 truncate" />
-                        </Button>
-                    ))}
+                    </button>
+                    {sectionOptions.map((section) => {
+                        const sectionColor = getSectionColor(section.color);
+                        const isActive = selectedSectionId === section.id;
+                        return (
+                            <button
+                                key={section.id}
+                                type="button"
+                                onClick={() => handleSelectSection(section.id)}
+                                className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:translate-y-[-1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                style={{
+                                    ...(isActive ? getSectionSurfaceStyle(section, '24', 'CC') : {}),
+                                    borderColor: isActive ? `${sectionColor}CC` : undefined,
+                                    backgroundColor: isActive ? `${sectionColor}24` : 'transparent',
+                                    color: sectionColor,
+                                }}
+                            >
+                                {section.course?.name || 'Course'} - {section.name}
+                            </button>
+                        );
+                    })}
                 </div>
                 <div className="w-full xl:w-80">
                     <SearchBar

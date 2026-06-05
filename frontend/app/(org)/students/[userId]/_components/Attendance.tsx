@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Card } from '@/components/ui/Card';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
-import { getSectionColor } from '@/lib/utils';
+import { getSectionColor, getSectionSurfaceStyle } from '@/lib/utils';
 
 interface SectionSummary {
     id: string;
@@ -118,7 +118,15 @@ export default function Attendance() {
                 </div>
 
                 {summary && (
-                    <Card padding="md" hoverable={false} style={{ boxShadow: `inset 3px 0 0 ${getSectionColor(summary.sectionColor)}` }}>
+                    <Card
+                        padding="md"
+                        hoverable={false}
+                        className="border shadow-sm"
+                        style={{
+                            ...getSectionSurfaceStyle(summary.sectionColor, '10', '55'),
+                            boxShadow: `inset 3px 0 0 ${getSectionColor(summary.sectionColor)}`,
+                        }}
+                    >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <CourseSectionLabel
@@ -129,20 +137,20 @@ export default function Attendance() {
                                     as="h2"
                                     className="text-lg font-black"
                                 />
-                                <p className="mt-1 text-sm font-medium text-muted-foreground">Monthly attendance records for this section.</p>
+                                <p className="mt-1 text-sm font-medium opacity-80" style={{ color: getSectionColor(summary.sectionColor) }}>Monthly attendance records for this section.</p>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-center text-xs font-bold">
-                                <div className="rounded-md border border-border bg-muted/25 p-2">
-                                    <p className="text-muted-foreground">Present</p>
-                                    <p className="mt-1 text-success">{summary.present + summary.late}</p>
+                                <div className="rounded-md border p-2" style={getSectionSurfaceStyle(summary.sectionColor, '0C', '38')}>
+                                    <p className="opacity-80" style={{ color: getSectionColor(summary.sectionColor) }}>Present</p>
+                                    <p className="mt-1" style={{ color: getSectionColor(summary.sectionColor) }}>{summary.present + summary.late}</p>
                                 </div>
-                                <div className="rounded-md border border-border bg-muted/25 p-2">
-                                    <p className="text-muted-foreground">Absent</p>
-                                    <p className="mt-1 text-danger">{summary.absent}</p>
+                                <div className="rounded-md border p-2" style={getSectionSurfaceStyle(summary.sectionColor, '0C', '38')}>
+                                    <p className="opacity-80" style={{ color: getSectionColor(summary.sectionColor) }}>Absent</p>
+                                    <p className="mt-1" style={{ color: getSectionColor(summary.sectionColor) }}>{summary.absent}</p>
                                 </div>
-                                <div className="rounded-md border border-border bg-muted/25 p-2">
-                                    <p className="text-muted-foreground">Excused</p>
-                                    <p className="mt-1 text-info">{summary.excused}</p>
+                                <div className="rounded-md border p-2" style={getSectionSurfaceStyle(summary.sectionColor, '0C', '38')}>
+                                    <p className="opacity-80" style={{ color: getSectionColor(summary.sectionColor) }}>Excused</p>
+                                    <p className="mt-1" style={{ color: getSectionColor(summary.sectionColor) }}>{summary.excused}</p>
                                 </div>
                             </div>
                         </div>
@@ -203,12 +211,18 @@ export default function Attendance() {
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                     {sectionSummaries.map((summary) => {
                         const sectionColor = getSectionColor(summary.sectionColor);
+                        const sectionPanelStyle = getSectionSurfaceStyle(summary.sectionColor, '0C', '38');
                         return (
                             <Card
                                 key={summary.id}
                                 onClick={() => setSelectedSectionId(summary.id)}
                                 padding="md"
-                                style={{ boxShadow: `inset 3px 0 0 ${sectionColor}` }}
+                                className="border shadow-sm"
+                                style={{
+                                    ...getSectionSurfaceStyle(summary.sectionColor, '10', '55'),
+                                    color: sectionColor,
+                                    boxShadow: `inset 3px 0 0 ${sectionColor}`,
+                                }}
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
@@ -220,14 +234,14 @@ export default function Attendance() {
                                             as="h3"
                                             className="text-base font-black"
                                         />
-                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">{summary.total} official sessions</p>
+                                        <p className="mt-1 text-xs font-semibold opacity-80" style={{ color: sectionColor }}>{summary.total} official sessions</p>
                                     </div>
-                                    <div className={`shrink-0 text-xl font-black ${summary.percentage >= 85 ? 'text-success' : 'text-warning'}`}>
+                                    <div className="shrink-0 text-xl font-black" style={{ color: sectionColor }}>
                                         {summary.percentage}%
                                     </div>
                                 </div>
 
-                                <div className="mt-4 h-2 overflow-hidden rounded-full border border-border bg-muted">
+                                <div className="mt-4 h-2 overflow-hidden rounded-full border" style={sectionPanelStyle}>
                                     <div
                                         className="h-full rounded-full"
                                         style={{ width: `${summary.percentage}%`, backgroundColor: sectionColor }}
@@ -235,12 +249,12 @@ export default function Attendance() {
                                 </div>
 
                                 <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-bold">
-                                    <div className="rounded-md bg-success/10 p-2 text-success">{summary.present + summary.late} present</div>
-                                    <div className="rounded-md bg-danger/10 p-2 text-danger">{summary.absent} absent</div>
-                                    <div className="rounded-md bg-info/10 p-2 text-info">{summary.excused} excused</div>
+                                    <div className="rounded-md border p-2" style={sectionPanelStyle}>{summary.present + summary.late} present</div>
+                                    <div className="rounded-md border p-2" style={sectionPanelStyle}>{summary.absent} absent</div>
+                                    <div className="rounded-md border p-2" style={sectionPanelStyle}>{summary.excused} excused</div>
                                 </div>
 
-                                <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 text-xs font-black text-primary">
+                                <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs font-black" style={{ borderColor: `${sectionColor}38`, color: sectionColor }}>
                                     View monthly records
                                     <ChevronRight className="h-4 w-4" />
                                 </div>

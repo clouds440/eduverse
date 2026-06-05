@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
-import { getSectionColor } from '@/lib/utils';
+import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
 function formatPercent(value: number) {
     return `${Math.round(Number(value || 0) * 10) / 10}%`;
@@ -107,19 +107,26 @@ export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                     {filteredGrades.map((grade, index) => {
                         const sectionColor = getSectionColor(grade.sectionColor);
+                        const sectionPanelStyle = getSectionSurfaceStyle(grade.sectionColor, '0C', '38');
+                        const sectionBadgeStyle = getSectionTintStyle(grade.sectionColor);
                         const finalPercentage = Number(grade.finalPercentage || 0);
                         return (
                             <Card
                                 key={`${grade.sectionId}-${index}`}
                                 padding="md"
                                 hoverable={false}
-                                style={{ boxShadow: `inset 3px 0 0 ${sectionColor}` }}
+                                className="border shadow-sm"
+                                style={{
+                                    ...getSectionSurfaceStyle(grade.sectionColor, '10', '55'),
+                                    color: sectionColor,
+                                    boxShadow: `inset 3px 0 0 ${sectionColor}`,
+                                }}
                             >
                                 <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="flex min-w-0 items-center gap-3">
                                         <div
                                             className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border text-lg font-black"
-                                            style={{ borderColor: `${sectionColor}40`, backgroundColor: `${sectionColor}14`, color: sectionColor }}
+                                            style={sectionBadgeStyle}
                                         >
                                             {grade.letterGrade || '-'}
                                         </div>
@@ -132,14 +139,14 @@ export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
                                                 as="h3"
                                                 className="text-base font-black leading-tight"
                                             />
-                                            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                            <p className="mt-1 text-xs font-semibold opacity-80" style={{ color: sectionColor }}>
                                                 {(grade.assessments || []).filter((assessment) => assessment.status !== 'NOT_GRADED').length} / {(grade.assessments || []).length} assessments graded
                                             </p>
                                         </div>
                                     </div>
                                     <div className="w-full shrink-0 sm:w-36 sm:text-right">
-                                        <p className="text-2xl font-black text-foreground">{formatPercent(finalPercentage)}</p>
-                                        <div className="mt-2 h-2 overflow-hidden rounded-full border border-border bg-muted">
+                                        <p className="text-2xl font-black" style={{ color: sectionColor }}>{formatPercent(finalPercentage)}</p>
+                                        <div className="mt-2 h-2 overflow-hidden rounded-full border" style={sectionPanelStyle}>
                                             <div
                                                 className="h-full rounded-full"
                                                 style={{ width: `${Math.min(100, Math.max(0, finalPercentage))}%`, backgroundColor: sectionColor }}

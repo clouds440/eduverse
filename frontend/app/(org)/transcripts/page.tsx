@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { AcademicCycle, Role, Student } from '@/types';
+import { AcademicCycle, BadgeVariant, Role, Student } from '@/types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -106,7 +106,7 @@ function getAcademicStatus(section: TranscriptCycleSection, assessmentCount: num
     return weightedScore >= PASS_MARK ? 'Pass' : 'Fail';
 }
 
-function getStatusVariant(status: string): 'success' | 'error' | 'warning' | 'neutral' {
+function getStatusVariant(status: string): BadgeVariant {
     if (status === 'Pass') return 'success';
     if (status === 'Fail') return 'error';
     if (status === 'Excluded') return 'warning';

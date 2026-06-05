@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { AlertTriangle, BookOpen, CheckCircle2, ChevronRight, Edit3, GraduationCap, Layers, RefreshCw, Search, Users } from 'lucide-react';
-import { Assessment, Grade, GradeStatus, Role, Section, UnfinalizedGradeReviewRow } from '@/types';
+import { Assessment, BadgeVariant, Grade, GradeStatus, Role, Section, UnfinalizedGradeReviewRow } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -106,7 +106,7 @@ const UNFINALIZED_STATUS_OPTIONS: { value: UnfinalizedStatusFilter; label: strin
     { value: GradeStatus.PUBLISHED, label: 'Published only' },
 ];
 
-function getGradeStatusVariant(status: GradeStatus): 'warning' | 'info' | 'success' | 'neutral' {
+function getGradeStatusVariant(status: GradeStatus): BadgeVariant {
     if (status === GradeStatus.DRAFT) return 'warning';
     if (status === GradeStatus.PUBLISHED) return 'info';
     if (status === GradeStatus.FINALIZED) return 'success';

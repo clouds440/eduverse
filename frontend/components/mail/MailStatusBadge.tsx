@@ -1,9 +1,9 @@
 'use client';
 
-import { MailStatus } from '@/types';
+import { BadgeVariant, MailStatus } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 
-const STATUS_CONFIG: Record<MailStatus, { label: string; variant: 'info' | 'warning' | 'purple' | 'success' | 'neutral' }> = {
+const STATUS_CONFIG: Record<MailStatus, { label: string; variant: BadgeVariant }> = {
     [MailStatus.OPEN]: { label: 'Open', variant: 'info' },
     [MailStatus.IN_PROGRESS]: { label: 'In Progress', variant: 'warning' },
     [MailStatus.AWAITING_RESPONSE]: { label: 'Awaiting', variant: 'purple' },
@@ -12,7 +12,7 @@ const STATUS_CONFIG: Record<MailStatus, { label: string; variant: 'info' | 'warn
     [MailStatus.NO_REPLY]: { label: 'Notice (No Reply)', variant: 'neutral' },
 };
 
-const PRIORITY_CONFIG: Record<string, { label: string; variant: 'neutral' | 'info' | 'warning' | 'error' }> = {
+const PRIORITY_CONFIG: Record<string, { label: string; variant: BadgeVariant }> = {
     LOW: { label: 'Low', variant: 'neutral' },
     NORMAL: { label: 'Normal', variant: 'info' },
     HIGH: { label: 'High', variant: 'warning' },

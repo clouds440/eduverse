@@ -87,21 +87,31 @@ export function RouteBreadcrumbs({ breadcrumbs, className }: RouteBreadcrumbsPro
     );
 }
 
-function canScrollVertically(element: HTMLElement) {
-    const style = window.getComputedStyle(element);
-    return /(auto|scroll|overlay)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+const PAGE_HEADER_COMPACT_ENTER_SCROLL = 72;
+const PAGE_HEADER_COMPACT_EXIT_SCROLL = 24;
+const PAGE_HEADER_MIN_SCROLL_RANGE = 96;
+
+function getScrollableRange(element: HTMLElement) {
+    return Math.max(0, element.scrollHeight - element.clientHeight);
 }
 
-function getPageScrollTop(header: HTMLElement) {
+function canScrollVertically(element: HTMLElement) {
+    const style = window.getComputedStyle(element);
+    return /(auto|scroll|overlay)/.test(style.overflowY) && getScrollableRange(element) > 1;
+}
+
+function getPageScrollState(header: HTMLElement) {
     const pageRoot = header.parentElement;
     let maxScrollTop = window.scrollY;
+    let maxScrollRange = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
 
-    if (!pageRoot) return maxScrollTop;
+    if (!pageRoot) return { scrollTop: maxScrollTop, scrollRange: maxScrollRange };
 
     let ancestor: HTMLElement | null = pageRoot;
     while (ancestor && ancestor !== document.body) {
         if (canScrollVertically(ancestor)) {
             maxScrollTop = Math.max(maxScrollTop, ancestor.scrollTop);
+            maxScrollRange = Math.max(maxScrollRange, getScrollableRange(ancestor));
         }
         ancestor = ancestor.parentElement;
     }
@@ -109,10 +119,11 @@ function getPageScrollTop(header: HTMLElement) {
     pageRoot.querySelectorAll<HTMLElement>('*').forEach((element) => {
         if (canScrollVertically(element)) {
             maxScrollTop = Math.max(maxScrollTop, element.scrollTop);
+            maxScrollRange = Math.max(maxScrollRange, getScrollableRange(element));
         }
     });
 
-    return maxScrollTop;
+    return { scrollTop: maxScrollTop, scrollRange: maxScrollRange };
 }
 
 export function PageHeader({ title, description, icon: Icon, meta, actions, breadcrumbs, className }: PageHeaderProps) {
@@ -139,7 +150,13 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
         let frameId: number | null = null;
         const updateScrolledState = () => {
             frameId = null;
-            setIsScrolled(getPageScrollTop(header) > 48);
+            const { scrollTop, scrollRange } = getPageScrollState(header);
+            setIsScrolled((current) => {
+                if (scrollRange < PAGE_HEADER_MIN_SCROLL_RANGE) return false;
+                return current
+                    ? scrollTop > PAGE_HEADER_COMPACT_EXIT_SCROLL
+                    : scrollTop > PAGE_HEADER_COMPACT_ENTER_SCROLL;
+            });
         };
 
         const scheduleUpdate = () => {

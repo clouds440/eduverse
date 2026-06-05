@@ -3,6 +3,7 @@
 import React, { ReactNode, useId } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
+import type { ButtonVariant } from '@/types';
 
 interface ModalFormProps {
     isOpen: boolean;
@@ -13,7 +14,7 @@ interface ModalFormProps {
     submitText?: string;
     isSubmitting?: boolean;
     loadingId?: string;
-    variant?: 'primary' | 'danger' | 'warning' | 'success';
+    variant?: ButtonVariant;
     showCancel?: boolean;
     showSubmit?: boolean;
     maxWidth?: string;

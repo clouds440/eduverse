@@ -1,5 +1,6 @@
 import { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
-export { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
+export { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone, UiVariant } from './enums';
+export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
 
 export interface PaginatedResponse<T> {
     data: T[];

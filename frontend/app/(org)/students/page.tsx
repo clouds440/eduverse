@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useGlobal } from '@/context/GlobalContext';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import { Role, Student, Section, StudentStatus } from '@/types';
+import { BadgeVariant, Role, Student, Section, StudentStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { TableActions } from '@/components/ui/TableActions';
@@ -130,7 +130,7 @@ export default function StudentsPage() {
             badge: true,
             accessor: (row: Student) => {
                 const status = row.status || StudentStatus.ACTIVE;
-                const config: Record<StudentStatus, { label: string; variant: 'success' | 'error' | 'secondary' | 'neutral' }> = {
+                const config: Record<StudentStatus, { label: string; variant: BadgeVariant }> = {
                     [StudentStatus.ACTIVE]: { label: 'Active', variant: 'success' },
                     [StudentStatus.SUSPENDED]: { label: 'Suspended', variant: 'error' },
                     [StudentStatus.ALUMNI]: { label: 'Alumni', variant: 'secondary' },

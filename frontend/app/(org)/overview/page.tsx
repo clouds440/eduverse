@@ -5,6 +5,9 @@ import { useAuth } from '@/context/AuthContext';
 import { DashboardInsights } from '@/types';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import InsightsOverview from '@/components/dashboard/InsightsOverview';
+import { PageHeader, PageShell } from '@/components/ui/PageShell';
+import { Badge } from '@/components/ui/Badge';
+import { LayoutDashboard } from 'lucide-react';
 
 export default function AdminPage() {
     const { token, loading } = useAuth();
@@ -21,5 +24,21 @@ export default function AdminPage() {
 
     if (!insights) return null;
 
-    return <InsightsOverview insights={insights} />;
+    return (
+        <PageShell>
+            <PageHeader
+                title="Overview"
+                description="A live snapshot of academics, attendance, finance, communication, and operational activity."
+                icon={LayoutDashboard}
+                meta={<Badge variant="neutral" size="sm">Live dashboard</Badge>}
+                breadcrumbs={[
+                    { label: 'Organization' },
+                    { label: 'Overview' },
+                ]}
+            />
+            <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+                <InsightsOverview insights={insights} />
+            </div>
+        </PageShell>
+    );
 }
