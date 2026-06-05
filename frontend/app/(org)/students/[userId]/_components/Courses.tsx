@@ -119,7 +119,7 @@ export default function Courses({ sections, assessments }: { sections: Section[]
                             <Card
                                 key={section.id}
                                 padding="md"
-                                className="min-h-64 border shadow-sm"
+                                className="min-h-64 border shadow-sm hover:scale-101 transition-transform"
                                 style={{
                                     ...getSectionSurfaceStyle(section, '10', '55'),
                                     color: sectionColor,
@@ -188,7 +188,7 @@ export default function Courses({ sections, assessments }: { sections: Section[]
                                         onClick={() => router.push(`/course-materials/${section.id}`)}
                                         variant="outline"
                                         icon={FileText}
-                                        className="w-full"
+                                        className="w-full cursor-pointer hover:scale-101 transition-transform"
                                         style={getSectionTintStyle(section)}
                                     >
                                         View Materials

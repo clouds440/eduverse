@@ -99,8 +99,8 @@ export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
             {filteredGrades.length === 0 ? (
                 <EmptyState
                     icon={Trophy}
-                    title={grades.length === 0 ? 'No finalized grades' : 'No grades found'}
-                    description={grades.length === 0 ? 'Finalized grades will appear here when available.' : 'Try another course, section, or grade.'}
+                    title={grades.length === 0 ? 'No released grades' : 'No grades found'}
+                    description={grades.length === 0 ? 'Published and finalized grades will appear here when available.' : 'Try another course, section, or grade.'}
                     className="min-h-80"
                 />
             ) : (

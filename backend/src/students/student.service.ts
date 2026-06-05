@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { EnrollmentSource, Prisma } from '@prisma/client';
+import { EnrollmentSource, GradeStatus, Prisma } from '@prisma/client';
 import { Role, StudentStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -756,7 +756,11 @@ export class StudentService {
     return this.prisma.student.findUnique({ where: { userId } });
   }
 
-  async calculateFinalGrade(studentId: string, sectionId?: string) {
+  async calculateFinalGrade(
+    studentId: string,
+    sectionId?: string,
+    statuses: GradeStatus[] = [GradeStatus.FINALIZED],
+  ) {
     // If sectionId is provided, calculate for that section.
     // Otherwise, calculate for all sections the student is enrolled in.
     const enrollments = await this.prisma.enrollment.findMany({
@@ -773,7 +777,7 @@ export class StudentService {
                 grades: {
                   where: {
                     studentId,
-                    status: 'FINALIZED',
+                    status: { in: statuses },
                   },
                 },
               },
@@ -822,6 +826,16 @@ export class StudentService {
 
     const results = await this.calculateFinalGrade(student.id);
     return results;
+  }
+
+  async getStudentReleasedGrades(orgId: string, userId: string) {
+    const student = await this.getStudentByUserId(userId);
+    if (!student) return [];
+
+    return this.calculateFinalGrade(student.id, undefined, [
+      GradeStatus.PUBLISHED,
+      GradeStatus.FINALIZED,
+    ]);
   }
 
   async getStudentTimetable(orgId: string, userId: string) {

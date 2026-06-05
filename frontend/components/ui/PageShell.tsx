@@ -95,39 +95,55 @@ function getScrollableRange(element: HTMLElement) {
     return Math.max(0, element.scrollHeight - element.clientHeight);
 }
 
-function canScrollVertically(element: HTMLElement) {
+function hasVerticalScrollBehavior(element: HTMLElement) {
     const style = window.getComputedStyle(element);
-    return /(auto|scroll|overlay)/.test(style.overflowY) && getScrollableRange(element) > 1;
+    return /(auto|scroll|overlay)/.test(style.overflowY);
 }
 
-function getPageScrollState(header: HTMLElement) {
-    const pageRoot = header.parentElement;
-    let maxScrollTop = window.scrollY;
-    let maxScrollRange = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+function getPageScrollElement(header: HTMLElement): HTMLElement | null {
+    const dashboardScrollContainer = header.closest<HTMLElement>('[data-dashboard-scroll-container="true"]');
+    if (dashboardScrollContainer && hasVerticalScrollBehavior(dashboardScrollContainer)) {
+        return dashboardScrollContainer;
+    }
 
-    if (!pageRoot) return { scrollTop: maxScrollTop, scrollRange: maxScrollRange };
-
-    let ancestor: HTMLElement | null = pageRoot;
+    let ancestor: HTMLElement | null = header.parentElement;
     while (ancestor && ancestor !== document.body) {
-        if (canScrollVertically(ancestor)) {
-            maxScrollTop = Math.max(maxScrollTop, ancestor.scrollTop);
-            maxScrollRange = Math.max(maxScrollRange, getScrollableRange(ancestor));
+        if (hasVerticalScrollBehavior(ancestor)) {
+            return ancestor;
         }
         ancestor = ancestor.parentElement;
     }
 
-    pageRoot.querySelectorAll<HTMLElement>('*').forEach((element) => {
-        if (canScrollVertically(element)) {
+    return null;
+}
+
+function getPageScrollState(header: HTMLElement) {
+    const root = getPageScrollElement(header);
+    let maxScrollTop = window.scrollY;
+    let maxScrollRange = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+
+    if (root) {
+        maxScrollTop = Math.max(maxScrollTop, root.scrollTop);
+        maxScrollRange = Math.max(maxScrollRange, getScrollableRange(root));
+
+        root.querySelectorAll<HTMLElement>('*').forEach((element) => {
+            if (!hasVerticalScrollBehavior(element)) return;
+            const scrollRange = getScrollableRange(element);
+            if (scrollRange <= 1) return;
+
             maxScrollTop = Math.max(maxScrollTop, element.scrollTop);
-            maxScrollRange = Math.max(maxScrollRange, getScrollableRange(element));
-        }
-    });
+            maxScrollRange = Math.max(maxScrollRange, scrollRange);
+        });
+    }
 
     return { scrollTop: maxScrollTop, scrollRange: maxScrollRange };
 }
 
 export function PageHeader({ title, description, icon: Icon, meta, actions, breadcrumbs, className }: PageHeaderProps) {
+    const pathname = usePathname();
     const headerRef = useRef<HTMLElement>(null);
+    const compactAllowedRef = useRef(false);
+    const isScrolledRef = useRef(false);
     const [isScrolled, setIsScrolled] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [actionsOpen, setActionsOpen] = useState(true);
@@ -148,32 +164,72 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
         if (!header) return;
 
         let frameId: number | null = null;
+        let resizeObserver: ResizeObserver | null = null;
+        const scrollElement = getPageScrollElement(header);
+
+        const setStableScrolled = (next: boolean) => {
+            isScrolledRef.current = next;
+            setIsScrolled(next);
+        };
+
+        const measureCompactEligibility = () => {
+            const { scrollRange } = getPageScrollState(header);
+            if (!isScrolledRef.current) {
+                compactAllowedRef.current = scrollRange >= PAGE_HEADER_MIN_SCROLL_RANGE;
+            }
+        };
+
         const updateScrolledState = () => {
             frameId = null;
-            const { scrollTop, scrollRange } = getPageScrollState(header);
+            const { scrollTop } = getPageScrollState(header);
             setIsScrolled((current) => {
-                if (scrollRange < PAGE_HEADER_MIN_SCROLL_RANGE) return false;
-                return current
+                if (!compactAllowedRef.current) {
+                    isScrolledRef.current = false;
+                    return false;
+                }
+
+                const next = current
                     ? scrollTop > PAGE_HEADER_COMPACT_EXIT_SCROLL
                     : scrollTop > PAGE_HEADER_COMPACT_ENTER_SCROLL;
+                isScrolledRef.current = next;
+                return next;
             });
         };
 
         const scheduleUpdate = () => {
             if (frameId !== null) return;
-            frameId = window.requestAnimationFrame(updateScrolledState);
+            frameId = window.requestAnimationFrame(() => {
+                measureCompactEligibility();
+                updateScrolledState();
+            });
         };
 
-        scheduleUpdate();
+        const resetAndMeasure = () => {
+            compactAllowedRef.current = false;
+            setStableScrolled(false);
+            scheduleUpdate();
+        };
+
+        resetAndMeasure();
+        scrollElement?.addEventListener('scroll', scheduleUpdate, { passive: true });
         document.addEventListener('scroll', scheduleUpdate, { capture: true, passive: true });
-        window.addEventListener('resize', scheduleUpdate, { passive: true });
+        window.addEventListener('resize', resetAndMeasure, { passive: true });
+
+        if (typeof ResizeObserver !== 'undefined' && scrollElement) {
+            resizeObserver = new ResizeObserver(() => {
+                if (!isScrolledRef.current) scheduleUpdate();
+            });
+            resizeObserver.observe(scrollElement);
+        }
 
         return () => {
             if (frameId !== null) window.cancelAnimationFrame(frameId);
+            resizeObserver?.disconnect();
+            scrollElement?.removeEventListener('scroll', scheduleUpdate);
             document.removeEventListener('scroll', scheduleUpdate, true);
-            window.removeEventListener('resize', scheduleUpdate);
+            window.removeEventListener('resize', resetAndMeasure);
         };
-    }, []);
+    }, [pathname]);
 
     return (
         <header

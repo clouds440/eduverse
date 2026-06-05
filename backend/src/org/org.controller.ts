@@ -475,6 +475,14 @@ export class OrgController {
     return this.assessmentsService.getStudentFinalGrades(orgId, req.user.id);
   }
 
+  @Get('grades/released')
+  getStudentReleasedGrades(
+    @OrgId() orgId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.assessmentsService.getStudentReleasedGrades(orgId, req.user.id);
+  }
+
   @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('assessments/:id/grades')
   getGrades(

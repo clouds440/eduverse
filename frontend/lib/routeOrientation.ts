@@ -99,6 +99,10 @@ function singularize(label: string) {
     return label;
 }
 
+function isNonRoutableBreadcrumbSegment(segment: string, segments: string[], index: number) {
+    return segment === 'assessments' && isLikelyRecordId(segments[index - 1] || '');
+}
+
 export function getRouteOrientation(pathname: string): RouteOrientation {
     const path = cleanPath(pathname);
     const segments = path.split('/').filter(Boolean);
@@ -127,7 +131,9 @@ export function getRouteOrientation(pathname: string): RouteOrientation {
 
         return {
             label,
-            href: isLast || isLikelyRecordId(segment) ? undefined : `/${hrefSegments.join('/')}`,
+            href: isLast || isLikelyRecordId(segment) || isNonRoutableBreadcrumbSegment(segment, segments, index)
+                ? undefined
+                : `/${hrefSegments.join('/')}`,
         };
     });
     const contextLabel = rootSegment === 'admin' ? 'Platform' : 'Organization';

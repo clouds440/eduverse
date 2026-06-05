@@ -405,6 +405,10 @@ export class AssessmentsService {
     return this.studentService.getStudentFinalGrades(orgId, userId);
   }
 
+  async getStudentReleasedGrades(orgId: string, userId: string) {
+    return this.studentService.getStudentReleasedGrades(orgId, userId);
+  }
+
   // --- Submissions ---
   async createSubmission(
     orgId: string,

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { BellRing, BellOff, AlertTriangle, Loader2, CheckCircle2, PowerOff } from 'lucide-react';
-import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { supportsWebPush, syncWebPushSubscription, unsubscribeCurrentWebPushSubscription } from '@/lib/webPush';
 
@@ -16,7 +15,6 @@ export function PushNotificationBanner() {
   const { token } = useAuth();
   const [pushState, setPushState] = useState<PushState>('unsupported');
   const [errorMessage, setErrorMessage] = useState('');
-  const [isTesting, setIsTesting] = useState(false);
   const [isUnsubscribing, setIsUnsubscribing] = useState(false);
 
   const updatePushState = useCallback((nextState: PushState) => {
@@ -108,22 +106,6 @@ export function PushNotificationBanner() {
     }
   }, [token]);
 
-  const handleTestPush = useCallback(async () => {
-    if (!token || isTesting) return;
-    setIsTesting(true);
-    setErrorMessage('');
-
-    try {
-      const payload = await syncWebPushSubscription(token);
-      await api.notifications.testPush(token, payload.endpoint);
-    } catch (err: unknown) {
-      setPushState('error');
-      setErrorMessage(err instanceof Error ? err.message : 'Test notification failed.');
-    } finally {
-      setIsTesting(false);
-    }
-  }, [isTesting, token]);
-
   const handleUnsubscribe = useCallback(async () => {
     if (!token || isUnsubscribing) return;
     setIsUnsubscribing(true);
@@ -151,13 +133,6 @@ export function PushNotificationBanner() {
           <p className="text-[11px] text-muted-foreground font-medium flex-1">
             Push notifications enabled
           </p>
-          <button
-            onClick={handleTestPush}
-            disabled={isTesting}
-            className="text-[10px] font-bold text-primary hover:underline shrink-0 disabled:opacity-60 cursor-pointer"
-          >
-            {isTesting ? 'Testing...' : 'Test'}
-          </button>
           <button
             onClick={handleUnsubscribe}
             disabled={isUnsubscribing}

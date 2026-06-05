@@ -251,7 +251,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                 key={assessment.id}
                                 onClick={() => handleOpenAssessment(assessment)}
                                 padding="md"
-                                className="min-h-56"
+                                className="min-h-56 cursor-pointer border shadow-sm hover:scale-101 transition-transform"
                                 style={{
                                     ...getSectionSurfaceStyle(section, '10', '55'),
                                     color: sectionColor,

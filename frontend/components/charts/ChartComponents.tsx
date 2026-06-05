@@ -34,6 +34,15 @@ export const COLORS = {
   muted: '#94a3b8',
 };
 
+const CHART_THEME = {
+  background: 'var(--background)',
+  card: 'var(--card-bg)',
+  text: 'var(--foreground)',
+  mutedText: 'var(--muted-text)',
+  muted: 'var(--muted-bg)',
+  border: 'var(--border-color)',
+};
+
 function useCompactChart() {
   const [isCompact, setIsCompact] = useState(false);
 
@@ -62,11 +71,48 @@ function ChartTitle({ title, detail }: { title?: string; detail?: string }) {
 
 function getTooltipStyle() {
   return {
-    backgroundColor: 'hsl(var(--card))',
-    border: '1px solid hsl(var(--border))',
+    backgroundColor: CHART_THEME.card,
+    border: `1px solid ${CHART_THEME.border}`,
     borderRadius: '8px',
-    color: 'hsl(var(--foreground))',
+    color: CHART_THEME.text,
     boxShadow: '0 16px 40px rgba(15, 23, 42, 0.18)',
+    opacity: 1,
+  };
+}
+
+function getTooltipLabelStyle() {
+  return {
+    color: CHART_THEME.text,
+    fontWeight: 800,
+  };
+}
+
+function getTooltipItemStyle() {
+  return {
+    color: CHART_THEME.text,
+    fontWeight: 700,
+  };
+}
+
+function getTooltipWrapperStyle() {
+  return {
+    outline: 'none',
+    zIndex: 20,
+  };
+}
+
+function getAxisTick(isCompact: boolean) {
+  return {
+    fontSize: isCompact ? 10 : 11,
+    fill: CHART_THEME.mutedText,
+  };
+}
+
+function getLegendStyle() {
+  return {
+    color: CHART_THEME.mutedText,
+    fontSize: '11px',
+    fontWeight: 700,
   };
 }
 
@@ -115,11 +161,11 @@ export function InsightLineChart({ data, height = 300, color = COLORS.primary, t
               <stop offset="95%" stopColor={color} stopOpacity={0.02} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={!isCompact} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} strokeOpacity={0.5} vertical={!isCompact} />
           <XAxis
             dataKey="date"
             className="text-xs text-muted-foreground"
-            tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+            tick={getAxisTick(isCompact)}
             interval={getTickInterval(formattedData.length, isCompact)}
             minTickGap={isCompact ? 12 : 20}
             axisLine={false}
@@ -127,14 +173,16 @@ export function InsightLineChart({ data, height = 300, color = COLORS.primary, t
           />
           <YAxis
             className="text-xs text-muted-foreground"
-            tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+            tick={getAxisTick(isCompact)}
             width={isCompact ? 30 : 42}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
             contentStyle={getTooltipStyle()}
-            labelStyle={{ color: 'hsl(var(--foreground))' }}
+            itemStyle={getTooltipItemStyle()}
+            labelStyle={getTooltipLabelStyle()}
+            wrapperStyle={getTooltipWrapperStyle()}
             formatter={(value) => [value ?? 0, 'Value']}
           />
           <Area
@@ -144,7 +192,7 @@ export function InsightLineChart({ data, height = 300, color = COLORS.primary, t
             strokeWidth={2.5}
             fill={`url(#area-${color.replace('#', '')})`}
             dot={isCompact || dense ? false : { fill: color, strokeWidth: 2, r: 3 }}
-            activeDot={{ r: 5, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: CHART_THEME.background }}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -177,13 +225,13 @@ export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, c
       <ChartTitle title={title} detail={`${data.length} ${data.length === 1 ? 'item' : 'items'}`} />
       <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart data={data} layout={layout} margin={{ top: 8, right: 8, left: horizontal ? 4 : -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={!horizontal && !isCompact} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} strokeOpacity={0.5} vertical={!horizontal && !isCompact} />
           {horizontal ? (
             <>
               <XAxis
                 type="number"
                 className="text-xs text-muted-foreground"
-                tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+                tick={getAxisTick(isCompact)}
                 axisLine={false}
                 tickLine={false}
               />
@@ -191,7 +239,7 @@ export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, c
                 dataKey={nameKey}
                 type="category"
                 className="text-xs text-muted-foreground"
-                tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+                tick={getAxisTick(isCompact)}
                 axisLine={false}
                 tickLine={false}
                 width={isCompact ? 72 : 92}
@@ -202,14 +250,14 @@ export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, c
               <XAxis
                 dataKey={nameKey}
                 className="text-xs text-muted-foreground"
-                tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+                tick={getAxisTick(isCompact)}
                 axisLine={false}
                 tickLine={false}
                 interval={getTickInterval(data.length, isCompact)}
               />
               <YAxis
                 className="text-xs text-muted-foreground"
-                tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+                tick={getAxisTick(isCompact)}
                 axisLine={false}
                 tickLine={false}
                 width={isCompact ? 30 : 42}
@@ -217,9 +265,11 @@ export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, c
             </>
           )}
           <Tooltip
-            cursor={disableHover ? false : { fill: 'hsl(var(--muted))', opacity: 0.18 }}
+            cursor={disableHover ? false : { fill: CHART_THEME.muted, opacity: 0.28 }}
             contentStyle={getTooltipStyle()}
-            labelStyle={{ color: 'hsl(var(--foreground))' }}
+            itemStyle={getTooltipItemStyle()}
+            labelStyle={getTooltipLabelStyle()}
+            wrapperStyle={getTooltipWrapperStyle()}
           />
           <Bar
             dataKey={dataKey}
@@ -292,7 +342,9 @@ export function InsightPieChart({ data, height = 300, title, showLegend = true }
                   </Pie>
                   <Tooltip
                     contentStyle={getTooltipStyle()}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    itemStyle={getTooltipItemStyle()}
+                    labelStyle={getTooltipLabelStyle()}
+                    wrapperStyle={getTooltipWrapperStyle()}
                     formatter={(value, name) => {
                       const numeric = Number(value || 0);
                       const percentage = total > 0 ? Math.round((numeric / total) * 100) : 0;
@@ -357,31 +409,33 @@ export function CompletionBarChart({ data, height = 300, title }: StackedBarChar
       <ChartTitle title={title} detail={`${chartData.length} sections`} />
       <ResponsiveContainer width="100%" height={isCompact ? Math.min(height, 230) : height}>
         <BarChart data={chartData} margin={{ top: 8, right: 8, left: isCompact ? -24 : -8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={!isCompact} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} strokeOpacity={0.5} vertical={!isCompact} />
           <XAxis
             dataKey="section"
             className="text-xs text-muted-foreground"
-            tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+            tick={getAxisTick(isCompact)}
             axisLine={false}
             tickLine={false}
             interval={getTickInterval(chartData.length, isCompact)}
           />
           <YAxis
             className="text-xs text-muted-foreground"
-            tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+            tick={getAxisTick(isCompact)}
             axisLine={false}
             tickLine={false}
             width={isCompact ? 30 : 42}
           />
           <Tooltip
-            cursor={{ fill: 'hsl(var(--muted))', opacity: 0.18 }}
+            cursor={{ fill: CHART_THEME.muted, opacity: 0.28 }}
             contentStyle={getTooltipStyle()}
-            labelStyle={{ color: 'hsl(var(--foreground))' }}
+            itemStyle={getTooltipItemStyle()}
+            labelStyle={getTooltipLabelStyle()}
+            wrapperStyle={getTooltipWrapperStyle()}
             formatter={(value) => [value ?? 0, 'Students']}
           />
-          <Legend />
+          <Legend wrapperStyle={getLegendStyle()} />
           <Bar dataKey="completed" stackId="a" fill={COLORS.success} name="Submitted" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="remaining" stackId="a" fill={COLORS.border} name="Pending" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="remaining" stackId="a" fill={CHART_THEME.border} name="Pending" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -407,11 +461,11 @@ export function PerformanceChart({ data, height = 300, title }: PerformanceChart
       <ChartTitle title={title} detail="Grade vs attendance" />
       <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 12, left: isCompact ? -12 : 8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" horizontal={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} strokeOpacity={0.5} horizontal={false} />
           <XAxis
             type="number"
             className="text-xs text-muted-foreground"
-            tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+            tick={getAxisTick(isCompact)}
             axisLine={false}
             tickLine={false}
             domain={[0, 100]}
@@ -420,18 +474,20 @@ export function PerformanceChart({ data, height = 300, title }: PerformanceChart
             dataKey="subject"
             type="category"
             className="text-xs text-muted-foreground"
-            tick={{ fontSize: isCompact ? 10 : 11, fill: 'hsl(var(--muted-foreground))' }}
+            tick={getAxisTick(isCompact)}
             width={isCompact ? 74 : 104}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
-            cursor={{ fill: 'hsl(var(--muted))', opacity: 0.16 }}
+            cursor={{ fill: CHART_THEME.muted, opacity: 0.28 }}
             contentStyle={getTooltipStyle()}
-            labelStyle={{ color: 'hsl(var(--foreground))' }}
+            itemStyle={getTooltipItemStyle()}
+            labelStyle={getTooltipLabelStyle()}
+            wrapperStyle={getTooltipWrapperStyle()}
             formatter={(value, name) => [`${value ?? 0}%`, name === 'grade' ? 'Grade' : 'Attendance']}
           />
-          <Legend />
+          <Legend wrapperStyle={getLegendStyle()} />
           <Bar dataKey="grade" fill={COLORS.primary} name="Grade" radius={[0, 6, 6, 0]} isAnimationActive={false} />
           <Bar dataKey="attendance" fill={COLORS.success} name="Attendance" radius={[0, 6, 6, 0]} isAnimationActive={false} />
         </BarChart>
