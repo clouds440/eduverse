@@ -2,12 +2,13 @@
 
 import { useMemo, useState, type Dispatch } from 'react';
 import useSWR from 'swr';
-import { AcademicCycle, ApiError, Cohort, Role } from '@/types';
+import { AcademicCycle, ApiError, Cohort, CopyForwardPreview, Role } from '@/types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal, type GlobalAction } from '@/context/GlobalContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
@@ -129,16 +130,42 @@ function getApiErrorMessage(err: unknown, fallback: string) {
     return Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
 }
 
+function formatCount(count: number, singular: string, plural = `${singular}s`) {
+    return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[]; token: string; dispatch: Dispatch<GlobalAction> }) {
     const [fromCycleId, setFromCycleId] = useState('');
     const [toCycleId, setToCycleId] = useState('');
     const [options, setOptions] = useState({ copySchedules: true, copyAssessments: false, copyMaterials: false });
     const [isExecuting, setIsExecuting] = useState(false);
+    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+    const [copyPreview, setCopyPreview] = useState<CopyForwardPreview | null>(null);
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
     const fromCycle = cycles.find((cycle) => cycle.id === fromCycleId);
     const toCycle = cycles.find((cycle) => cycle.id === toCycleId);
+    const copyForwardPayload = useMemo(() => ({
+        fromCycleId,
+        toCycleId,
+        copySchedules: options.copySchedules,
+        copyAssessments: options.copyAssessments,
+        copyMaterials: options.copyMaterials,
+    }), [fromCycleId, options.copyAssessments, options.copyMaterials, options.copySchedules, toCycleId]);
+    const previewItems = copyPreview ? [
+        formatCount(copyPreview.sections, 'section'),
+        ...(options.copySchedules ? [formatCount(copyPreview.schedules, 'schedule')] : []),
+        ...(options.copyAssessments ? [formatCount(copyPreview.assessments, 'assessment')] : []),
+        ...(options.copyMaterials ? [formatCount(copyPreview.materials, 'material')] : []),
+    ] : [];
+    const previewTotal = copyPreview
+        ? copyPreview.sections
+        + (options.copySchedules ? copyPreview.schedules : 0)
+        + (options.copyAssessments ? copyPreview.assessments : 0)
+        + (options.copyMaterials ? copyPreview.materials : 0)
+        : 0;
 
-    const handleCopyForward = async () => {
+    const openCopyForwardConfirm = async () => {
         if (!fromCycleId || !toCycleId) {
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Please select both source and target cycles.', type: 'error' } });
             return;
@@ -148,13 +175,33 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
             return;
         }
 
+        setIsPreviewLoading(true);
+        try {
+            const preview = await api.copyForward.preview(copyForwardPayload, token);
+            setCopyPreview(preview);
+            setIsConfirmOpen(true);
+        } catch (err: unknown) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: getApiErrorMessage(err, 'Could not prepare copy preview'), type: 'error' } });
+        } finally {
+            setIsPreviewLoading(false);
+        }
+    };
+
+    const executeCopyForward = async () => {
         setIsExecuting(true);
         dispatch({ type: 'UI_START_PROCESSING', payload: 'copy-forward' });
         try {
-            const res = await api.copyForward.execute({ fromCycleId, toCycleId, options }, token);
-            dispatch({ type: 'TOAST_ADD', payload: { message: `Copy forward successful. Copied ${res.sectionsCopied} sections.`, type: 'success' } });
+            const res = await api.copyForward.execute(copyForwardPayload, token);
+            dispatch({
+                type: 'TOAST_ADD',
+                payload: {
+                    message: `Copy forward successful. Copied ${formatCount(res.sectionsCopied, 'section')}, ${formatCount(res.schedulesCopied, 'schedule')}, ${formatCount(res.assessmentsCopied, 'assessment')}, and ${formatCount(res.materialsCopied, 'material')}.`,
+                    type: 'success',
+                },
+            });
             setFromCycleId('');
             setToCycleId('');
+            setCopyPreview(null);
         } catch (err: unknown) {
             dispatch({ type: 'TOAST_ADD', payload: { message: getApiErrorMessage(err, 'Error processing request'), type: 'error' } });
         } finally {
@@ -167,9 +214,9 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-4">
                 <StatusBanner
-                    title="Use copy forward before promotion"
-                    description="This prepares the next cycle with matching sections and optional schedules/materials."
-                    variant="info"
+                    title="Copy forward creates new records"
+                    description="This copies selected academic setup from the source cycle into the target cycle. It cannot be reversed automatically, so review the source, target, and selected record types before confirming."
+                    variant="warning"
                     icon={GitBranch}
                 />
 
@@ -209,8 +256,8 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
                 </StepBlock>
 
                 <div className="flex justify-end">
-                    <Button onClick={handleCopyForward} disabled={isExecuting} isLoading={isExecuting} icon={Copy}>
-                        Execute Copy Forward
+                    <Button onClick={openCopyForwardConfirm} disabled={isExecuting || isPreviewLoading} isLoading={isPreviewLoading} icon={Copy}>
+                        Review Copy Forward
                     </Button>
                 </div>
             </div>
@@ -225,6 +272,23 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
                     ['Assessments', options.copyAssessments ? 'Included' : 'Skipped'],
                 ]}
             />
+
+            <ConfirmDialog
+                isOpen={isConfirmOpen}
+                onClose={() => setIsConfirmOpen(false)}
+                onConfirm={executeCopyForward}
+                title="Confirm copy forward"
+                description={`Copy selected setup from ${fromCycle?.name || 'the source cycle'} into ${toCycle?.name || 'the target cycle'}. This creates new records and cannot be reversed automatically.`}
+                confirmText="Confirm Copy"
+                loadingId="copy-forward"
+            >
+                <div className="rounded-md border border-border/70 bg-background/70 p-3">
+                    <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Selected for copy</p>
+                    <p className="mt-2 text-sm font-bold leading-6 text-foreground">
+                        {previewItems.length > 0 ? `${previewItems.slice(0, -1).join(', ')}${previewItems.length > 1 ? ', and ' : ''}${previewItems.at(-1)} ${previewTotal === 1 ? 'is' : 'are'} selected for copy forward.` : 'No preview is available.'}
+                    </p>
+                </div>
+            </ConfirmDialog>
         </div>
     );
 }

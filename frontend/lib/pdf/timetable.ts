@@ -45,6 +45,12 @@ function formatDuration(startTime: string, endTime: string) {
     return `${minutes}m`;
 }
 
+function getTeacherLabel(entry: TimetableEntry) {
+    if (!entry.teacherName) return 'Teacher TBD';
+    const additionalCount = entry.additionalTeachersCount || 0;
+    return additionalCount > 0 ? `${entry.teacherName}, ${additionalCount} more` : entry.teacherName;
+}
+
 function mixHex(hex: string, target: string, amount: number) {
     const normalize = (value: string) => {
         const safe = value.replace('#', '');
@@ -58,6 +64,39 @@ function mixHex(hex: string, target: string, amount: number) {
         return Math.round(a + (b - a) * amount);
     };
     return `#${[channel(16), channel(8), channel(0)].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function getEntriesByDay(entries: TimetableEntry[]) {
+    const grouped = new Map<number, TimetableEntry[]>();
+    WEEK_DAYS.forEach((day) => grouped.set(day, []));
+    entries.forEach((entry) => grouped.get(entry.day)?.push(entry));
+    grouped.forEach((dayEntries) => dayEntries.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)));
+    return grouped;
+}
+
+function getBreaksByDay(entries: TimetableEntry[]) {
+    const grouped = new Map<number, { startTime: string; endTime: string }[]>();
+    const entriesByDay = getEntriesByDay(entries);
+
+    WEEK_DAYS.forEach((day) => {
+        const slotMap = new Map<string, { startTime: string; endTime: string }>();
+        entriesByDay.get(day)?.forEach((entry) => {
+            const key = `${entry.startTime}-${entry.endTime}`;
+            if (!slotMap.has(key)) slotMap.set(key, { startTime: entry.startTime, endTime: entry.endTime });
+        });
+        const slots = Array.from(slotMap.values()).sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+        const breaks: { startTime: string; endTime: string }[] = [];
+
+        for (let index = 0; index < slots.length - 1; index += 1) {
+            const currentEnd = timeToMinutes(slots[index].endTime);
+            const nextStart = timeToMinutes(slots[index + 1].startTime);
+            if (nextStart > currentEnd) breaks.push({ startTime: slots[index].endTime, endTime: slots[index + 1].startTime });
+        }
+
+        grouped.set(day, breaks);
+    });
+
+    return grouped;
 }
 
 function getUniqueSections(entries: TimetableEntry[]) {
@@ -156,7 +195,7 @@ export async function createTimetablePdf({
     pdf.rect({ x: pdf.margin, y: infoY - 40, width: usableWidth, height: 40, fill: palette.softSurface, stroke: palette.softBorder, borderWidth: 0.5 });
     pdf.text('For', pdf.margin + 12, infoY - 14, { size: 7, font: 'bold', color: palette.muted });
     pdf.text(userName || 'Current User', pdf.margin + 12, infoY - 29, { size: 12, font: 'bold', color: palette.text, maxWidth: 190 });
-    pdf.text('Cohort', pdf.margin + 230, infoY - 14, { size: 7, font: 'bold', color: palette.muted });
+    pdf.text('Batch', pdf.margin + 230, infoY - 14, { size: 7, font: 'bold', color: palette.muted });
     pdf.text(cohortName || 'Not assigned', pdf.margin + 230, infoY - 29, { size: 10, color: palette.text, maxWidth: 140 });
     pdf.text('Sections', pdf.margin + 400, infoY - 14, { size: 7, font: 'bold', color: palette.muted });
     pdf.text(`${sectionSummary.length} ${sectionSummary.length === 1 ? 'section' : 'sections'} listed`, pdf.margin + 400, infoY - 29, { size: 10, font: 'bold', color: palette.text, maxWidth: 150 });
@@ -195,6 +234,8 @@ export async function createTimetablePdf({
     const bodyTop = gridTop - headerHeight;
     const rowCount = Math.max(1, (endHour - startHour) * 2);
     const rowHeight = (bodyTop - gridBottom) / rowCount;
+    const entriesByDay = getEntriesByDay(entries);
+    const breaksByDay = getBreaksByDay(entries);
 
     pdf.rect({ x: pdf.margin, y: gridBottom, width: usableWidth, height: gridHeight, fill: palette.surface, stroke: palette.border, borderWidth: 0.6 });
     pdf.rect({ x: pdf.margin, y: bodyTop, width: usableWidth, height: headerHeight, fill: palette.mutedSurface, stroke: palette.border, borderWidth: 0.5 });
@@ -204,6 +245,9 @@ export async function createTimetablePdf({
         const x = pdf.margin + timeColumnWidth + index * dayColumnWidth;
         pdf.line(x, gridBottom, x, gridTop, palette.border, 0.5);
         pdf.text(DAY_NAMES[day], x + 6, bodyTop + 9, { size: 8, font: 'bold', color: palette.text, maxWidth: dayColumnWidth - 12 });
+        if ((entriesByDay.get(day)?.length || 0) === 0) {
+            pdf.text('Off day', x + 6, bodyTop - 34, { size: 8, font: 'bold', color: palette.muted, maxWidth: dayColumnWidth - 12 });
+        }
     });
 
     for (let index = 0; index < rowCount; index += 1) {
@@ -215,6 +259,22 @@ export async function createTimetablePdf({
             pdf.text(formatHour(hour), pdf.margin + 8, y + rowHeight - 11, { size: 7, font: 'bold', color: palette.muted });
         }
     }
+
+    WEEK_DAYS.forEach((day) => {
+        const dayX = pdf.margin + timeColumnWidth + day * dayColumnWidth;
+        const x = dayX + 4;
+        const width = dayColumnWidth - 8;
+
+        breaksByDay.get(day)?.forEach((dayBreak) => {
+            const startOffset = Math.max(0, timeToMinutes(dayBreak.startTime) - startHour * 60);
+            const duration = Math.max(30, timeToMinutes(dayBreak.endTime) - timeToMinutes(dayBreak.startTime));
+            const y = bodyTop - (startOffset / 30) * rowHeight - (duration / 30) * rowHeight + 3;
+            const height = Math.max(14, (duration / 30) * rowHeight - 6);
+
+            pdf.rect({ x, y, width, height, fill: palette.mutedSurface, stroke: palette.softBorder, borderWidth: 0.5 });
+            pdf.text(`Break ${dayBreak.startTime} - ${dayBreak.endTime}`, x + 5, y + Math.max(7, height / 2 - 2), { size: 6, font: 'bold', color: palette.muted, maxWidth: width - 10 });
+        });
+    });
 
     entries.forEach((entry) => {
         const color = getSectionColor(entry);
@@ -235,6 +295,9 @@ export async function createTimetablePdf({
         }
         if (height >= 50) {
             pdf.text(`Venue: ${entry.room || 'Room TBD'}`, x + 5, y + 19, { size: 6, color: palette.muted, maxWidth: width - 10 });
+        }
+        if (height >= 62) {
+            pdf.text(`Teacher: ${getTeacherLabel(entry)}`, x + 5, y + 29, { size: 6, color: palette.muted, maxWidth: width - 10 });
         }
     });
 

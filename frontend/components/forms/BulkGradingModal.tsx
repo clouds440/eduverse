@@ -117,7 +117,7 @@ export function BulkGradingModal({ isOpen, onClose, assessment, section, existin
                     <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex flex-col">
                             <span className="text-primary font-semibold text-sm md:text-base">Enter marks and status for each student. Blank marks will be skipped.</span>
-                            <span className="text-muted-foreground mt-1 text-xs md:text-sm">Total Marks: {assessment.totalMarks}</span>
+                            <span className="text-muted-foreground mt-1 text-xs md:text-sm">Total Marks: {assessment.totalMarks}. Only Finalized grades appear in transcripts.</span>
                         </div>
                         <div className="flex items-center gap-3 bg-card/80 backdrop-blur-sm p-2 md:p-3 rounded-xl border border-border/50 shadow-lg w-full md:w-auto">
                             <span className="text-xs tracking-wider text-muted-foreground whitespace-nowrap font-semibold">Apply to all:</span>

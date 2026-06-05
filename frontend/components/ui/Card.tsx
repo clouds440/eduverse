@@ -97,8 +97,8 @@ export const CardContent = ({ children, className }: { children: React.ReactNode
     </div>
 );
 
-export const CardFooter = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={cn("mt-6 flex items-center justify-between gap-3 border-t border-border pt-4", className)}>
+export const CardFooter = ({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
+    <div className={cn("mt-6 flex items-center justify-between gap-3 border-t border-border pt-4", className)} style={style}>
         {children}
     </div>
 );

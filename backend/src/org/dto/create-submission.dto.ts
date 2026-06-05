@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsUrl } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsUrl, MaxLength } from 'class-validator';
 
 export class CreateSubmissionDto {
   @IsString()
@@ -9,4 +9,9 @@ export class CreateSubmissionDto {
   @IsOptional()
   @IsUrl()
   fileUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(5000)
+  message?: string;
 }

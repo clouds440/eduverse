@@ -22,6 +22,13 @@ export class CopyForwardController {
 
   @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
   @Access(AccessLevel.WRITE)
+  @Post('preview')
+  previewCopyForward(@OrgId() orgId: string, @Body() dto: CopyForwardDto) {
+    return this.copyForwardService.previewCopyForward(orgId, dto);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Access(AccessLevel.WRITE)
   @Post()
   copyForward(@OrgId() orgId: string, @Body() dto: CopyForwardDto) {
     return this.copyForwardService.copyForward(orgId, dto);

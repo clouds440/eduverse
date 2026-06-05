@@ -20,14 +20,17 @@ export default function OrganizationChangePasswordPage() {
         <div className="flex flex-1 flex-col p-4 md:p-8 max-w-7xl mx-auto w-full">
             <div className="flex flex-1 items-center justify-center">
                 <ChangePasswordForm
-                    title="Change Password"
+                    title={user?.isFirstLogin ? 'Security Required' : 'Change Password'}
                     description={
-                        (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER)
+                        user?.isFirstLogin
+                            ? 'Create a private password before using the dashboard.'
+                            : (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER)
                             ? `Update administrative password for ${user?.name || 'Organization'}`
                             : user?.role === Role.TEACHER
                                 ? `Update teacher portal password for ${user?.name || 'User'}`
                                 : `Update student portal password for ${user?.name || 'User'}`
                     }
+                    isRequired={Boolean(user?.isFirstLogin)}
                     onSubmit={handleSubmit}
                     onSuccess={() => {
                         // Small delay to allow AuthContext state to sync with the new token

@@ -122,6 +122,19 @@ export default function StudentFeesPage() {
         return entries;
     }, [activeTab, entries, stats]);
 
+    const structureClaimEntries = useMemo(() => {
+        const byStructureId = new Map<string, FinancialEntry>();
+        entries
+            .filter((entry) => entry.structureId && isPayable(entry))
+            .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+            .forEach((entry) => {
+                if (entry.structureId && !byStructureId.has(entry.structureId)) {
+                    byStructureId.set(entry.structureId, entry);
+                }
+            });
+        return byStructureId;
+    }, [entries]);
+
     const handleClaim = async (data: { paymentMethod?: string; receiptUrl?: string }) => {
         if (!token || !claimingEntry) return;
         try {
@@ -233,37 +246,56 @@ export default function StudentFeesPage() {
                                     />
                                 ) : (
                                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                                        {structures.map((structure: FinancialStructure) => (
-                                            <Card key={structure.id} padding="sm" hoverable={false}>
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <p className="truncate text-sm font-black text-foreground">{structure.title}</p>
-                                                        {structure.description && (
-                                                            <p className="mt-1 line-clamp-2 text-xs font-medium text-muted-foreground">{structure.description}</p>
+                                        {structures.map((structure: FinancialStructure) => {
+                                            const claimEntry = structureClaimEntries.get(structure.id);
+                                            return (
+                                                <Card key={structure.id} padding="sm" hoverable={false}>
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-sm font-black text-foreground">{structure.title}</p>
+                                                            {structure.description && (
+                                                                <p className="mt-1 line-clamp-2 text-xs font-medium text-muted-foreground">{structure.description}</p>
+                                                            )}
+                                                        </div>
+                                                        <FinancialAmount amount={structure.amount} currency={structure.currency} className="shrink-0 text-primary" />
+                                                    </div>
+                                                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold">
+                                                        <div className="rounded-md border border-border/60 bg-muted/25 p-2">
+                                                            <p className="text-muted-foreground">Category</p>
+                                                            <p className="mt-1 text-foreground">{structure.category}</p>
+                                                        </div>
+                                                        <div className="rounded-md border border-border/60 bg-muted/25 p-2">
+                                                            <p className="text-muted-foreground">Billing</p>
+                                                            <p className="mt-1 text-foreground">{formatCycle(structure.billingCycle)}</p>
+                                                        </div>
+                                                        <div className="rounded-md border border-border/60 bg-muted/25 p-2">
+                                                            <p className="text-muted-foreground">Start</p>
+                                                            <p className="mt-1 text-foreground">{formatDate(structure.startDate)}</p>
+                                                        </div>
+                                                        <div className="rounded-md border border-border/60 bg-muted/25 p-2">
+                                                            <p className="text-muted-foreground">Ends</p>
+                                                            <p className="mt-1 text-foreground">{formatDate(structure.endDate)}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-4 border-t border-border/60 pt-3">
+                                                        {claimEntry ? (
+                                                            <Button
+                                                                type="button"
+                                                                icon={FileText}
+                                                                onClick={() => setClaimingEntry(claimEntry)}
+                                                                className="w-full"
+                                                            >
+                                                                Claim Paid
+                                                            </Button>
+                                                        ) : (
+                                                            <p className="rounded-md border border-border/60 bg-muted/25 px-3 py-2 text-center text-xs font-bold text-muted-foreground">
+                                                                No payable entry for this fee right now
+                                                            </p>
                                                         )}
                                                     </div>
-                                                    <FinancialAmount amount={structure.amount} currency={structure.currency} className="shrink-0 text-primary" />
-                                                </div>
-                                                <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold">
-                                                    <div className="rounded-md border border-border/60 bg-muted/25 p-2">
-                                                        <p className="text-muted-foreground">Category</p>
-                                                        <p className="mt-1 text-foreground">{structure.category}</p>
-                                                    </div>
-                                                    <div className="rounded-md border border-border/60 bg-muted/25 p-2">
-                                                        <p className="text-muted-foreground">Billing</p>
-                                                        <p className="mt-1 text-foreground">{formatCycle(structure.billingCycle)}</p>
-                                                    </div>
-                                                    <div className="rounded-md border border-border/60 bg-muted/25 p-2">
-                                                        <p className="text-muted-foreground">Start</p>
-                                                        <p className="mt-1 text-foreground">{formatDate(structure.startDate)}</p>
-                                                    </div>
-                                                    <div className="rounded-md border border-border/60 bg-muted/25 p-2">
-                                                        <p className="text-muted-foreground">Ends</p>
-                                                        <p className="mt-1 text-foreground">{formatDate(structure.endDate)}</p>
-                                                    </div>
-                                                </div>
-                                            </Card>
-                                        ))}
+                                                </Card>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </section>

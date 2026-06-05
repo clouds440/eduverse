@@ -535,6 +535,12 @@ export class TeacherService {
       include: {
         course: { select: { id: true, name: true } },
         schedules: { select: { id: true, day: true, startTime: true, endTime: true, room: true } },
+        teachers: {
+          select: {
+            id: true,
+            user: { select: { name: true, email: true } },
+          },
+        },
       },
     });
 

@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Lock, ShieldCheck } from 'lucide-react';
 import { useGlobal } from '@/context/GlobalContext';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import PasswordStrength from '@/components/ui/PasswordStrength';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 
 interface ChangePasswordFormProps {
     title?: string;
     description?: string;
+    isRequired?: boolean;
     onSubmit: (oldPassword: string, newPassword: string) => Promise<void>;
     onSuccess?: () => void;
 }
@@ -18,6 +20,7 @@ interface ChangePasswordFormProps {
 export default function ChangePasswordForm({
     title = 'Change Password',
     description = 'Update your account password.',
+    isRequired = false,
     onSubmit,
     onSuccess
 }: ChangePasswordFormProps) {
@@ -92,6 +95,15 @@ export default function ChangePasswordForm({
                     {description}
                 </p>
             </div>
+
+            {isRequired && (
+                <StatusBanner
+                    variant="warning"
+                    icon={AlertTriangle}
+                    title="Password change required"
+                    description="For security, this first-login password must be replaced before you can continue. This protects student and school data and confirms the account is under your control."
+                />
+            )}
 
             <form className="mt-8 space-y-5 md:space-y-6" onSubmit={handleSubmit} noValidate>
                 <div className="space-y-4 md:space-y-5">

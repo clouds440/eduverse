@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronRight, X, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, MoreHorizontal, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getRouteOrientation } from '@/lib/routeOrientation';
 
@@ -87,37 +87,138 @@ export function RouteBreadcrumbs({ breadcrumbs, className }: RouteBreadcrumbsPro
     );
 }
 
+function canScrollVertically(element: HTMLElement) {
+    const style = window.getComputedStyle(element);
+    return /(auto|scroll|overlay)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+}
+
+function getPageScrollTop(header: HTMLElement) {
+    const pageRoot = header.parentElement;
+    let maxScrollTop = window.scrollY;
+
+    if (!pageRoot) return maxScrollTop;
+
+    let ancestor: HTMLElement | null = pageRoot;
+    while (ancestor && ancestor !== document.body) {
+        if (canScrollVertically(ancestor)) {
+            maxScrollTop = Math.max(maxScrollTop, ancestor.scrollTop);
+        }
+        ancestor = ancestor.parentElement;
+    }
+
+    pageRoot.querySelectorAll<HTMLElement>('*').forEach((element) => {
+        if (canScrollVertically(element)) {
+            maxScrollTop = Math.max(maxScrollTop, element.scrollTop);
+        }
+    });
+
+    return maxScrollTop;
+}
+
 export function PageHeader({ title, description, icon: Icon, meta, actions, breadcrumbs, className }: PageHeaderProps) {
+    const headerRef = useRef<HTMLElement>(null);
+    const [isScrolled, setIsScrolled] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    const [actionsOpen, setActionsOpen] = useState(true);
+    const isCompact = isMobile || isScrolled;
+    const hasActions = Boolean(actions);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(max-width: 767px)');
+        const updateMobile = () => setIsMobile(mediaQuery.matches);
+
+        updateMobile();
+        mediaQuery.addEventListener('change', updateMobile);
+        return () => mediaQuery.removeEventListener('change', updateMobile);
+    }, []);
+
+    useEffect(() => {
+        const header = headerRef.current;
+        if (!header) return;
+
+        let frameId: number | null = null;
+        const updateScrolledState = () => {
+            frameId = null;
+            setIsScrolled(getPageScrollTop(header) > 48);
+        };
+
+        const scheduleUpdate = () => {
+            if (frameId !== null) return;
+            frameId = window.requestAnimationFrame(updateScrolledState);
+        };
+
+        scheduleUpdate();
+        document.addEventListener('scroll', scheduleUpdate, { capture: true, passive: true });
+        window.addEventListener('resize', scheduleUpdate, { passive: true });
+
+        return () => {
+            if (frameId !== null) window.cancelAnimationFrame(frameId);
+            document.removeEventListener('scroll', scheduleUpdate, true);
+            window.removeEventListener('resize', scheduleUpdate);
+        };
+    }, []);
+
     return (
-        <header className={cn('shrink-0 rounded-lg border border-border bg-card/80 p-2 shadow-xl backdrop-blur-2xl md:p-3 print:hidden', className)}>
-            <div className="flex min-w-0 flex-col gap-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
-                <div className="flex min-w-0 items-start gap-3">
+        <header
+            ref={headerRef}
+            className={cn(
+                'shrink-0 rounded-lg border border-border bg-card/80 shadow-xl backdrop-blur-2xl print:hidden',
+                isCompact ? 'p-2' : 'p-2 md:p-3',
+                className,
+            )}
+        >
+            <div className={cn(
+                'flex min-w-0 flex-row justify-between gap-3',
+                isCompact ? 'items-center' : 'items-start',
+            )}>
+                <div className={cn('flex min-w-0 flex-1 items-start gap-3', isCompact && 'items-center gap-2')}>
                     {Icon && (
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary shadow-inner">
-                            <Icon className="h-6 w-6" aria-hidden="true" />
+                        <div className={cn(
+                            'flex shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary shadow-inner',
+                            isCompact ? 'h-8 w-8' : 'h-12 w-12',
+                        )}>
+                            <Icon className={cn(isCompact ? 'h-4 w-4' : 'h-6 w-6')} aria-hidden="true" />
                         </div>
                     )}
                     <div className="min-w-0">
-                        <RouteBreadcrumbs breadcrumbs={breadcrumbs} className="mb-1.5" />
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-foreground">
-                                {title}
-                            </h1>
-                            {meta}
-                        </div>
-                        {description && (
-                            <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-muted-foreground">
-                                {description}
-                            </p>
+                        <RouteBreadcrumbs breadcrumbs={breadcrumbs} className={cn(!isCompact && 'mb-1.5')} />
+                        {!isCompact && (
+                            <>
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                    <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-foreground">
+                                        {title}
+                                    </h1>
+                                    {meta}
+                                </div>
+                                {description && (
+                                    <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-muted-foreground">
+                                        {description}
+                                    </p>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
-                {actions && (
-                    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-end md:w-auto md:items-center 2xl:justify-end">
-                        {actions}
-                    </div>
+                {hasActions && (
+                    <button
+                        type="button"
+                        onClick={() => setActionsOpen((open) => !open)}
+                        className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                        aria-expanded={actionsOpen}
+                        aria-label={actionsOpen ? 'Collapse page actions' : 'Expand page actions'}
+                        title={actionsOpen ? 'Collapse actions' : 'Expand actions'}
+                    >
+                        {actionsOpen ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <MoreHorizontal className="h-4 w-4" aria-hidden="true" />}
+                    </button>
                 )}
             </div>
+            {hasActions && actionsOpen && (
+                <div className="mt-3 border-t border-border/60 pt-3">
+                    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end md:items-center md:justify-end">
+                        {actions}
+                    </div>
+                </div>
+            )}
         </header>
     );
 }

@@ -37,6 +37,7 @@ interface TranscriptAssessmentGrade {
     totalMarks: number;
     weightage: number;
     percentage: number;
+    status?: string;
 }
 
 interface TranscriptCycleSection {
@@ -69,7 +70,7 @@ function roundScore(value: number) {
 }
 
 function getSectionMetrics(section: TranscriptCycleSection) {
-    const grades = section.grades || [];
+    const grades = (section.grades || []).filter((grade) => !grade.status || grade.status === 'FINALIZED');
     const marksObtained = roundScore(grades.reduce((sum, grade) => sum + Number(grade.marksObtained || 0), 0));
     const totalMarks = roundScore(grades.reduce((sum, grade) => sum + Number(grade.totalMarks || 0), 0));
     const totalWeight = roundScore(grades.reduce((sum, grade) => sum + Number(grade.weightage || 0), 0));

@@ -10,14 +10,15 @@ import { CopyForwardDto } from './dto/copy-forward.dto';
 export class CopyForwardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Copy academic data from one cycle to another.
-   * Duplicates sections (under same courses) with new academicCycleId.
-   * Optionally duplicates schedules, assessments, and materials.
-   * No link back to old records — all new IDs.
-   */
-  async copyForward(orgId: string, dto: CopyForwardDto) {
-    // Validate cycles
+  private getOptions(dto: CopyForwardDto) {
+    return {
+      copySchedules: dto.options?.copySchedules ?? dto.copySchedules ?? false,
+      copyAssessments: dto.options?.copyAssessments ?? dto.copyAssessments ?? false,
+      copyMaterials: dto.options?.copyMaterials ?? dto.copyMaterials ?? false,
+    };
+  }
+
+  private async validateCycles(orgId: string, dto: CopyForwardDto) {
     const fromCycle = await this.prisma.academicCycle.findFirst({
       where: { id: dto.fromCycleId, organizationId: orgId },
     });
@@ -32,12 +33,55 @@ export class CopyForwardService {
       throw new BadRequestException('Source and target cycles must be different');
     }
 
+    return { fromCycle, toCycle };
+  }
+
+  async previewCopyForward(orgId: string, dto: CopyForwardDto) {
+    const options = this.getOptions(dto);
+    await this.validateCycles(orgId, dto);
+
+    const sectionWhere = {
+      academicCycleId: dto.fromCycleId,
+      course: { organizationId: orgId },
+    };
+
+    const [sections, schedules, assessments, materials] = await Promise.all([
+      this.prisma.section.count({ where: sectionWhere }),
+      options.copySchedules
+        ? this.prisma.sectionSchedule.count({ where: { section: sectionWhere } })
+        : Promise.resolve(0),
+      options.copyAssessments
+        ? this.prisma.assessment.count({ where: { section: sectionWhere } })
+        : Promise.resolve(0),
+      options.copyMaterials
+        ? this.prisma.courseMaterial.count({ where: { section: sectionWhere } })
+        : Promise.resolve(0),
+    ]);
+
+    return {
+      sections,
+      schedules,
+      assessments,
+      materials,
+    };
+  }
+
+  /**
+   * Copy academic data from one cycle to another.
+   * Duplicates sections (under same courses) with new academicCycleId.
+   * Optionally duplicates schedules, assessments, and materials.
+   * No link back to old records — all new IDs.
+   */
+  async copyForward(orgId: string, dto: CopyForwardDto) {
+    const options = this.getOptions(dto);
+    await this.validateCycles(orgId, dto);
+
     // Get all sections from the source cycle
     const sourceSections = await this.prisma.section.findMany({
       where: { academicCycleId: dto.fromCycleId, course: { organizationId: orgId } },
       include: {
         teachers: { select: { id: true } },
-        ...(dto.copySchedules
+        ...(options.copySchedules
           ? {
               schedules: {
                 select: {
@@ -49,7 +93,7 @@ export class CopyForwardService {
               },
             }
           : {}),
-        ...(dto.copyAssessments
+        ...(options.copyAssessments
           ? {
               assessments: {
                 select: {
@@ -67,7 +111,7 @@ export class CopyForwardService {
               },
             }
           : {}),
-        ...(dto.copyMaterials
+        ...(options.copyMaterials
           ? {
               courseMaterials: {
                 select: {
@@ -108,7 +152,7 @@ export class CopyForwardService {
         results.sectionsCopied++;
 
         // Copy schedules
-        if (dto.copySchedules && 'schedules' in sourceSection) {
+        if (options.copySchedules && 'schedules' in sourceSection) {
           const schedules = sourceSection.schedules as Array<{
             day: number;
             startTime: string;
@@ -132,7 +176,7 @@ export class CopyForwardService {
         }
 
         // Copy assessments
-        if (dto.copyAssessments && 'assessments' in sourceSection) {
+        if (options.copyAssessments && 'assessments' in sourceSection) {
           const assessments = sourceSection.assessments as Array<{
             courseId: string;
             title: string;
@@ -167,7 +211,7 @@ export class CopyForwardService {
         }
 
         // Copy materials
-        if (dto.copyMaterials && 'courseMaterials' in sourceSection) {
+        if (options.copyMaterials && 'courseMaterials' in sourceSection) {
           const materials = sourceSection.courseMaterials as Array<{
             title: string;
             description: string | null;

@@ -7,6 +7,7 @@ import { BookOpen, Check, FileText, PlayCircle, UploadCloud } from 'lucide-react
 import { useAuth } from '@/context/AuthContext';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Textarea';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
 import { Modal } from '@/components/ui/Modal';
@@ -51,6 +52,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
     const [search, setSearch] = useState('');
     const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [submissionMessage, setSubmissionMessage] = useState('');
     const [submittedAssessmentIds, setSubmittedAssessmentIds] = useState<Set<string>>(new Set());
     const isSubmitting = state.ui.processing['assessment-submission'];
 
@@ -103,6 +105,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
     const handleCloseModal = () => {
         setSelectedAssessment(null);
         setSelectedFile(null);
+        setSubmissionMessage('');
         if (assessmentIdFromUrl) router.back();
     };
 
@@ -119,6 +122,8 @@ export default function Assessments({ sections, assessments }: { sections: Secti
 
     const handleOpenAssessment = (assessment: Assessment) => {
         setSelectedAssessment(assessment);
+        setSelectedFile(null);
+        setSubmissionMessage('');
         const params = new URLSearchParams(searchParams.toString());
         params.set('sectionId', assessment.sectionId);
         params.set('assessmentId', assessment.id);
@@ -128,11 +133,24 @@ export default function Assessments({ sections, assessments }: { sections: Secti
     const handleSubmission = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!token || !user || !selectedAssessment) return;
+        const message = submissionMessage.trim();
+        const alreadyGraded = isPublishedGrade(selectedAssessment);
+
+        if (alreadyGraded) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Submissions are closed because this assessment has already been graded.', type: 'info' } });
+            return;
+        }
+
+        if (selectedAssessment.allowSubmissions && !selectedFile && !message) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Add a file or a message before submitting.', type: 'error' } });
+            return;
+        }
 
         dispatch({ type: 'UI_START_PROCESSING', payload: 'assessment-submission' });
         try {
             const submission = await api.org.createSubmission(selectedAssessment.id, {
                 assessmentId: selectedAssessment.id,
+                message: message || undefined,
             }, token);
 
             if (selectedFile) {
@@ -166,6 +184,8 @@ export default function Assessments({ sections, assessments }: { sections: Secti
 
     const selectedSection = selectedAssessment ? resolveSection(selectedAssessment) : null;
     const selectedExternalLink = normalizeSafeUrl(selectedAssessment?.externalLink, { allowRelative: false });
+    const selectedAssessmentGraded = selectedAssessment ? isPublishedGrade(selectedAssessment) : false;
+    const selectedAssessmentSubmitted = selectedAssessment ? isSubmitted(selectedAssessment, submittedAssessmentIds) : false;
 
     return (
         <div className="space-y-4">
@@ -388,7 +408,13 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                             </div>
                         )}
 
-                        {!isSubmitted(selectedAssessment, submittedAssessmentIds) && (
+                        {selectedAssessmentGraded && (
+                            <div className="rounded-lg border border-success/20 bg-success/10 p-4 text-sm font-bold text-success">
+                                Submissions are closed because this assessment has already been graded.
+                            </div>
+                        )}
+
+                        {!selectedAssessmentGraded && !selectedAssessmentSubmitted && (
                             <form onSubmit={handleSubmission} className="space-y-4 border-t border-border pt-5">
                                 <h3 className="text-sm font-black text-foreground">Submit Work</h3>
 
@@ -414,12 +440,26 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                     </div>
                                 )}
 
+                                <div className="space-y-2">
+                                    <label htmlFor="student-submission-message" className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                                        Message
+                                    </label>
+                                    <Textarea
+                                        id="student-submission-message"
+                                        value={submissionMessage}
+                                        onChange={(event) => setSubmissionMessage(event.target.value)}
+                                        placeholder="Write your answer, notes, or context for your teacher. You can submit text only, a file only, or both."
+                                        className="min-h-32"
+                                        maxLength={5000}
+                                    />
+                                </div>
+
                                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                                     <Button type="button" variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>
                                         Cancel
                                     </Button>
-                                    <Button type="submit" loadingId="assessment-submission" disabled={isSubmitting || (selectedAssessment.allowSubmissions && !selectedFile)}>
-                                        {selectedAssessment.allowSubmissions ? 'Upload & Submit' : 'Mark as Done'}
+                                    <Button type="submit" loadingId="assessment-submission" disabled={isSubmitting || (selectedAssessment.allowSubmissions && !selectedFile && !submissionMessage.trim())}>
+                                        {selectedAssessment.allowSubmissions ? 'Submit Work' : 'Mark as Done'}
                                     </Button>
                                 </div>
                             </form>

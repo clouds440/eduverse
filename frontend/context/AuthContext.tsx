@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (user) {
                 // Enforce password change on first login for all roles
-                if (user.isFirstLogin && user.role != Role.ORG_ADMIN) {
+                if (user.isFirstLogin) {
                     const changePasswordPath = (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN)
                         ? '/admin/change-password'
                         : '/change-password';

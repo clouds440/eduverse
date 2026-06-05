@@ -13,13 +13,14 @@ import {
     Trophy,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Assessment, Section, Role, AssessmentType } from '@/types';
+import { Assessment, Section, Role, AssessmentType, GradeStatus } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import AssessmentForm from '@/components/forms/AssessmentForm';
 import { formatCourseSectionLabel } from '@/lib/utils';
 import SubmissionForm from '@/components/forms/SubmissionForm';
@@ -34,6 +35,11 @@ function assessmentVariant(type: AssessmentType): 'primary' | 'warning' | 'info'
     if (type === AssessmentType.FINAL) return 'primary';
     if (type === AssessmentType.MIDTERM) return 'warning';
     return 'info';
+}
+
+function isReleasedGrade(assessment: Assessment) {
+    const grade = assessment.grades?.[0];
+    return Boolean(grade && (grade.status === GradeStatus.PUBLISHED || grade.status === GradeStatus.FINALIZED));
 }
 
 export default memo(function AssessmentList({ section, role }: AssessmentListProps) {
@@ -123,6 +129,14 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                 )}
             </div>
 
+            {canView && (
+                <StatusBanner
+                    variant="warning"
+                    title="Transcript reminder"
+                    description="Draft and Published grades are still in review. Only grades marked Finalized will appear in student transcripts."
+                />
+            )}
+
             {assessments.length === 0 ? (
                 <div className="min-w-0 rounded-lg border border-dashed border-border/70 bg-background/60 px-4 py-10 text-center sm:px-6">
                     <FileText className="mx-auto h-9 w-9 text-muted-foreground/45" />
@@ -134,6 +148,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                     {assessments.map((assessment) => {
                         const dueLabel = assessment.dueDate ? formatDate(assessment.dueDate) : 'No due date';
                         const dueDatePassed = Boolean(assessment.dueDate && new Date(assessment.dueDate) < new Date());
+                        const submissionsClosed = isReleasedGrade(assessment);
 
                         return (
                             <article
@@ -198,6 +213,9 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                                     </span>
 
                                     {role === Role.STUDENT && (
+                                        submissionsClosed ? (
+                                            <Badge variant="success" size="sm">Graded</Badge>
+                                        ) :
                                         assessment.allowSubmissions ? (
                                             <Button
                                                 type="button"

@@ -23,6 +23,7 @@ export default function AdminChangePasswordPage() {
                 description={user?.isFirstLogin
                     ? 'For security reasons, you must change the default super admin password before accessing the dashboard.'
                     : 'Update your super admin administrative password'}
+                isRequired={Boolean(user?.isFirstLogin)}
                 onSubmit={handleSubmit}
                 onSuccess={() => {
                     setTimeout(() => router.push('/admin'), 100);

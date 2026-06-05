@@ -9,7 +9,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
-import { getSectionColor } from '@/lib/utils';
+import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -33,16 +33,20 @@ function isCompletedAssessment(assessment: Assessment) {
 export default function Courses({ sections, assessments }: { sections: Section[]; assessments: Assessment[] }) {
     const router = useRouter();
     const [search, setSearch] = useState('');
+    const [sectionFilter, setSectionFilter] = useState('');
 
     const filteredSections = useMemo(() => {
         const query = search.trim().toLowerCase();
-        if (!query) return sections;
-        return sections.filter((section) => (
-            section.name.toLowerCase().includes(query)
-            || section.course?.name?.toLowerCase().includes(query)
-            || section.teachers?.some((teacher) => teacher.user?.name?.toLowerCase().includes(query))
-        ));
-    }, [search, sections]);
+        return sections.filter((section) => {
+            const matchesSection = !sectionFilter || section.id === sectionFilter;
+            const matchesSearch = !query
+                || section.name.toLowerCase().includes(query)
+                || section.course?.name?.toLowerCase().includes(query)
+                || section.teachers?.some((teacher) => teacher.user?.name?.toLowerCase().includes(query));
+
+            return matchesSection && matchesSearch;
+        });
+    }, [search, sectionFilter, sections]);
 
     return (
         <div className="space-y-4">
@@ -61,6 +65,36 @@ export default function Courses({ sections, assessments }: { sections: Section[]
                     />
                 </div>
             </div>
+
+            {sections.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    <button
+                        type="button"
+                        onClick={() => setSectionFilter('')}
+                        className={`min-h-9 shrink-0 rounded-md border px-3 text-xs font-black transition-colors ${sectionFilter === '' ? 'border-foreground/20 bg-foreground text-background' : 'border-border/70 bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}
+                    >
+                        All sections
+                    </button>
+                    {sections.map((section) => {
+                        const sectionColor = getSectionColor(section.color);
+                        const isActive = sectionFilter === section.id;
+                        return (
+                            <button
+                                key={section.id}
+                                type="button"
+                                onClick={() => setSectionFilter(section.id)}
+                                className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:translate-y-[-1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                style={{
+                                    ...getSectionSurfaceStyle(section, isActive ? '24' : '14', isActive ? 'CC' : '66'),
+                                    color: sectionColor,
+                                }}
+                            >
+                                {section.course?.name || 'Course'} - {section.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
             {filteredSections.length === 0 ? (
                 <EmptyState
@@ -83,8 +117,12 @@ export default function Courses({ sections, assessments }: { sections: Section[]
                             <Card
                                 key={section.id}
                                 padding="md"
-                                className="min-h-64"
-                                style={{ boxShadow: `inset 3px 0 0 ${sectionColor}` }}
+                                className="min-h-64 border shadow-sm"
+                                style={{
+                                    ...getSectionSurfaceStyle(section, '10', '55'),
+                                    color: sectionColor,
+                                    boxShadow: `inset 3px 0 0 ${sectionColor}`,
+                                }}
                             >
                                 <CardHeader>
                                     <div className="min-w-0">
@@ -97,43 +135,43 @@ export default function Courses({ sections, assessments }: { sections: Section[]
                                     </div>
                                     <div
                                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border"
-                                        style={{ borderColor: `${sectionColor}40`, backgroundColor: `${sectionColor}14`, color: sectionColor }}
+                                        style={getSectionTintStyle(section)}
                                     >
                                         <Book className="h-5 w-5" />
                                     </div>
                                 </CardHeader>
 
                                 <CardContent className="space-y-3">
-                                    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-muted/25 p-3">
-                                        <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                        <span className="truncate text-sm font-semibold text-foreground">{teacherName}</span>
+                                    <div className="flex min-w-0 items-center gap-3 rounded-md border p-3" style={getSectionSurfaceStyle(section, '0C', '38')}>
+                                        <User className="h-4 w-4 shrink-0" style={{ color: sectionColor }} />
+                                        <span className="truncate text-sm font-semibold" style={{ color: sectionColor }}>{teacherName}</span>
                                     </div>
-                                    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-muted/25 p-3">
-                                        <MapPinHouse className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                        <span className="truncate text-sm font-semibold text-foreground">{section.room || 'Room not specified'}</span>
+                                    <div className="flex min-w-0 items-center gap-3 rounded-md border p-3" style={getSectionSurfaceStyle(section, '0C', '38')}>
+                                        <MapPinHouse className="h-4 w-4 shrink-0" style={{ color: sectionColor }} />
+                                        <span className="truncate text-sm font-semibold" style={{ color: sectionColor }}>{section.room || 'Room not specified'}</span>
                                     </div>
-                                    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-muted/25 p-3">
-                                        <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                        <span className="truncate text-sm font-semibold text-foreground">{formatSectionSchedule(section)}</span>
+                                    <div className="flex min-w-0 items-center gap-3 rounded-md border p-3" style={getSectionSurfaceStyle(section, '0C', '38')}>
+                                        <CalendarDays className="h-4 w-4 shrink-0" style={{ color: sectionColor }} />
+                                        <span className="truncate text-sm font-semibold" style={{ color: sectionColor }}>{formatSectionSchedule(section)}</span>
                                     </div>
-                                    <div className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-muted/25 p-3">
-                                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                        <span className="truncate text-sm font-semibold text-foreground">
+                                    <div className="flex min-w-0 items-center gap-3 rounded-md border p-3" style={getSectionSurfaceStyle(section, '0C', '38')}>
+                                        <FileText className="h-4 w-4 shrink-0" style={{ color: sectionColor }} />
+                                        <span className="truncate text-sm font-semibold" style={{ color: sectionColor }}>
                                             {section.courseMaterialsCount || 0} {(section.courseMaterialsCount || 0) === 1 ? 'material' : 'materials'}
                                         </span>
                                     </div>
-                                    <div className="rounded-md border border-border/60 bg-muted/25 p-3">
+                                    <div className="rounded-md border p-3" style={getSectionSurfaceStyle(section, '0C', '38')}>
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="flex min-w-0 items-center gap-3">
-                                                <CheckCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                                <span className="truncate text-sm font-semibold text-foreground">Assigned work</span>
+                                                <CheckCircle className="h-4 w-4 shrink-0" style={{ color: sectionColor }} />
+                                                <span className="truncate text-sm font-semibold" style={{ color: sectionColor }}>Assigned work</span>
                                             </div>
-                                            <span className="shrink-0 text-xs font-black text-muted-foreground">
+                                            <span className="shrink-0 text-xs font-black" style={{ color: sectionColor }}>
                                                 {sectionAssessments.length > 0 ? `${completedAssessments}/${sectionAssessments.length}` : 'None'}
                                             </span>
                                         </div>
                                         {progress !== null && (
-                                            <div className="mt-3 h-2 overflow-hidden rounded-full border border-border bg-background">
+                                            <div className="mt-3 h-2 overflow-hidden rounded-full border" style={getSectionSurfaceStyle(section, '08', '38')}>
                                                 <div
                                                     className="h-full rounded-full transition-all"
                                                     style={{ width: `${progress}%`, backgroundColor: sectionColor }}
@@ -143,12 +181,13 @@ export default function Courses({ sections, assessments }: { sections: Section[]
                                     </div>
                                 </CardContent>
 
-                                <CardFooter>
+                                <CardFooter style={{ borderColor: `${sectionColor}38` }} className="pt-4">
                                     <Button
                                         onClick={() => router.push(`/course-materials/${section.id}`)}
-                                        variant="primary"
+                                        variant="outline"
                                         icon={FileText}
                                         className="w-full"
+                                        style={getSectionTintStyle(section)}
                                     >
                                         View Materials
                                     </Button>

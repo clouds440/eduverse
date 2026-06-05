@@ -186,7 +186,7 @@ export class AssessmentsService {
               },
               submissions: {
                 where: { student: { userId: user.id } },
-                select: { id: true, assessmentId: true, studentId: true, fileUrl: true, submittedAt: true },
+                select: { id: true, assessmentId: true, studentId: true, fileUrl: true, message: true, submittedAt: true },
               },
             }
           : {}),
@@ -422,6 +422,17 @@ export class AssessmentsService {
       throw new BadRequestException('Submission deadline has passed');
     }
 
+    const releasedGrade = await this.prisma.grade.findUnique({
+      where: { assessmentId_studentId: { assessmentId: data.assessmentId, studentId } },
+      select: { status: true },
+    });
+    if (
+      releasedGrade &&
+      (releasedGrade.status === GradeStatus.PUBLISHED || releasedGrade.status === GradeStatus.FINALIZED)
+    ) {
+      throw new BadRequestException('Submissions are closed because this assessment has already been graded');
+    }
+
     // Check if student already submitted this assessment
     const existingSubmission = await this.prisma.submission.findFirst({
       where: {
@@ -436,8 +447,11 @@ export class AssessmentsService {
 
     const submission = await this.prisma.submission.create({
       data: {
-        ...data,
+        assessmentId: data.assessmentId,
+        fileUrl: data.fileUrl,
+        message: data.message?.trim() || undefined,
         studentId,
+        academicCycleId: assessment.academicCycleId,
       },
     });
 

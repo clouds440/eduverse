@@ -9,7 +9,7 @@ import {
     Chat, ChatMessage, Notification, Announcement, TargetType, AnnouncementPriority, User,
     ThemeMode, SectionSchedule, TimetableEntry, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights,
-    AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto,
+    AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, MessageResponse, AuditLogItem
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
@@ -574,8 +574,10 @@ export const api = {
     },
 
     copyForward: {
+        preview: (data: CopyForwardDto, token: string) =>
+            request<CopyForwardPreview>(`/org/copy-forward/preview`, { method: 'POST', body: JSON.stringify(data), token }),
         execute: (data: CopyForwardDto, token: string) =>
-            request<{ message: string; sectionsCopied: number; details: unknown }>(`/org/copy-forward`, { method: 'POST', body: JSON.stringify(data), token }),
+            request<{ message: string; sectionsCopied: number; schedulesCopied: number; assessmentsCopied: number; materialsCopied: number }>(`/org/copy-forward`, { method: 'POST', body: JSON.stringify(data), token }),
     },
 
     finance: {

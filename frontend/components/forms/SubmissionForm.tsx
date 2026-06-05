@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
 import { Upload, FileCheck } from 'lucide-react';
 import { Submission } from '@/types';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
@@ -17,6 +18,10 @@ const submissionSchema = z.object({
         .url('Please provide a valid URL for your submission')
         .refine(isSafeHttpUrl, 'Only safe http(s) URLs are allowed')
         .or(z.literal('')),
+    message: z.string().max(5000, 'Submission message cannot exceed 5000 characters').optional().or(z.literal('')),
+}).refine((data) => Boolean(data.fileUrl?.trim() || data.message?.trim()), {
+    message: 'Add a submission URL or a message before submitting',
+    path: ['message'],
 });
 
 type SubmissionFormValues = z.infer<typeof submissionSchema>;
@@ -35,6 +40,7 @@ export default function SubmissionForm({ assessmentId, onSuccess, onCancel }: Su
         resolver: zodResolver(submissionSchema),
         defaultValues: {
             fileUrl: '',
+            message: '',
         }
     });
 
@@ -45,6 +51,7 @@ export default function SubmissionForm({ assessmentId, onSuccess, onCancel }: Su
             const submission = await api.org.createSubmission(assessmentId, {
                 assessmentId,
                 fileUrl: data.fileUrl || undefined,
+                message: data.message?.trim() || undefined,
             }, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Work submitted successfully!', type: 'success' } });
             onSuccess(submission);
@@ -72,7 +79,7 @@ export default function SubmissionForm({ assessmentId, onSuccess, onCancel }: Su
                     </div>
                     <h3 className="text-xl md:text-2xl font-black text-foreground mb-2">Upload Your Work</h3>
                     <p className="text-xs md:text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">
-                        Provide a link to your project repository, document, or hosted file for evaluation.
+                        Provide a link, a written response, or both for evaluation.
                     </p>
                 </div>
             </div>
@@ -86,6 +93,15 @@ export default function SubmissionForm({ assessmentId, onSuccess, onCancel }: Su
                     {...register('fileUrl')}
                     className="font-medium placeholder:text-muted-foreground/40"
                 />
+            </div>
+            <div className="space-y-3">
+                <label className="text-xs md:text-sm font-semibold tracking-wider text-muted-foreground ml-1">Submission Message</label>
+                <Textarea
+                    placeholder="Write your answer, notes for the teacher, or any context for your submission."
+                    {...register('message')}
+                    className="min-h-32 font-medium placeholder:text-muted-foreground/40"
+                />
+                {errors.message && <p className="text-xs font-semibold text-danger">{errors.message.message}</p>}
             </div>
 
             {/* Buttons */}

@@ -325,6 +325,7 @@ model Submission {
   assessmentId    String
   studentId       String
   fileUrl         String?
+  message         String?
   academicCycleId String?
   submittedAt     DateTime       @default(now())
   assessment      Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)

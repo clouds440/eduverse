@@ -477,6 +477,7 @@ export interface Submission {
     assessmentId: string;
     studentId: string;
     fileUrl?: string;
+    message?: string;
     submittedAt: string;
     student?: Student;
     files?: Attachment[];
@@ -506,6 +507,7 @@ export interface UpdateGradeRequest {
 export interface CreateSubmissionRequest {
     assessmentId: string;
     fileUrl?: string;
+    message?: string;
 }
 
 export interface FinalGradeDetail {
@@ -527,6 +529,21 @@ export interface FinalGradeResponse {
     finalPercentage: number;
     letterGrade?: string;
     assessments: FinalGradeDetail[];
+}
+
+export interface UnfinalizedGradeReviewRow {
+    id: string;
+    assessmentId: string;
+    assessmentTitle: string;
+    assessmentType: AssessmentType;
+    totalMarks: number;
+    weightage: number;
+    sectionId: string;
+    sectionName: string;
+    sectionColor?: string | null;
+    courseName: string;
+    grade: Grade;
+    student: Student;
 }
 
 export interface ApiError {
@@ -644,6 +661,8 @@ export interface TimetableEntry {
     startTime: string;
     endTime: string;
     room: string | null;
+    teacherName?: string | null;
+    additionalTeachersCount?: number;
 }
 
 export interface AttendanceSession {
@@ -993,9 +1012,19 @@ export interface PromoteStudentsDto {
 export interface CopyForwardDto {
     fromCycleId: string;
     toCycleId: string;
-    options: {
+    copySchedules?: boolean;
+    copyAssessments?: boolean;
+    copyMaterials?: boolean;
+    options?: {
         copySchedules: boolean;
         copyAssessments: boolean;
         copyMaterials: boolean;
     };
+}
+
+export interface CopyForwardPreview {
+    sections: number;
+    schedules: number;
+    assessments: number;
+    materials: number;
 }

@@ -46,12 +46,13 @@ export class TranscriptsService {
       orderBy: { joinedAt: 'asc' },
     });
 
-    // Get grades grouped by section
+    // Get finalized grades grouped by section. Draft and published grades are
+    // still editable workflow states and must not appear in transcripts.
     const grades = await this.prisma.grade.findMany({
       where: {
         studentId,
         ...(cycleId ? { academicCycleId: cycleId } : {}),
-        status: { in: ['PUBLISHED', 'FINALIZED'] },
+        status: 'FINALIZED',
       },
       include: {
         assessment: {
@@ -100,6 +101,7 @@ export class TranscriptsService {
           totalMarks: number;
           weightage: number;
           percentage: number;
+          status: string;
         }>;
         attendance: { present: number; absent: number; late: number; excused: number; total: number };
         totalPercentage: number;
@@ -160,6 +162,7 @@ export class TranscriptsService {
         totalMarks: a.totalMarks,
         weightage: a.weightage,
         percentage: parseFloat(percentage.toFixed(2)),
+        status: grade.status,
       });
       sectionData.totalPercentage += percentage;
     }

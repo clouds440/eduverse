@@ -19,6 +19,7 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/Button';
 import { RouteBreadcrumbs } from '@/components/ui/PageShell';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 
 export default function AssessmentDetailPage() {
     const { token, user } = useAuth();
@@ -145,19 +146,26 @@ export default function AssessmentDetailPage() {
             {/* Grading Table (Teachers & Admins) */}
             {isTeacherOrAdmin && (
                 <div className="bg-card border border-border rounded-lg shadow-xl overflow-hidden">
-                    <div className="p-6 border-b border-border bg-primary/5 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <Users className="w-5 h-5 text-primary" />
-                            <h2 className="text-xl font-black text-foreground tracking-wider">Student Performance & Grading</h2>
+                    <div className="space-y-4 border-b border-border bg-primary/5 p-4 sm:p-6">
+                        <StatusBanner
+                            variant="warning"
+                            title="Only Finalized grades appear in transcripts"
+                            description="Use Draft while entering marks and Published while sharing provisional results. Finalize when the grade is ready for the official transcript."
+                        />
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <Users className="w-5 h-5 text-primary" />
+                                <h2 className="text-xl font-black text-foreground tracking-wider">Student <span className="hidden md:inline">Performance</span> & Grading</h2>
+                            </div>
+                            {canGrade && (
+                                <Button
+                                    onClick={() => setShowBulkGrading(true)}
+                                    variant='primary'
+                                >
+                                    Grade All
+                                </Button>
+                            )}
                         </div>
-                        {canGrade && (
-                            <Button
-                                onClick={() => setShowBulkGrading(true)}
-                                variant='primary'
-                            >
-                                Grade All
-                            </Button>
-                        )}
                     </div>
 
                     <DataTable
@@ -225,6 +233,10 @@ export default function AssessmentDetailPage() {
                                             >
                                                 <LinkIcon className="w-3 h-3" /> View Link
                                             </a>
+                                        ) : submission.message ? (
+                                            <span className="text-info italic flex items-center gap-1.5 font-black tracking-widest">
+                                                <CheckCircle2 className="w-3 h-3" /> Text Submitted
+                                            </span>
                                         ) : (
                                             <span className="text-success italic flex items-center gap-1.5 font-black tracking-widest"><CheckCircle2 className="w-3 h-3" /> Done</span>
                                         )
@@ -245,6 +257,18 @@ export default function AssessmentDetailPage() {
                                     );
                                 },
                                 width: 120,
+                            },
+                            {
+                                header: 'Submission Note',
+                                accessor: (student) => {
+                                    const submission = submissions.find(s => s.studentId === student.id);
+                                    return submission?.message ? (
+                                        <span className="text-sm font-semibold text-card-text">{submission.message}</span>
+                                    ) : (
+                                        <span className="text-xs font-black text-muted-foreground italic tracking-tighter">No note</span>
+                                    );
+                                },
+                                width: 220,
                             },
                             {
                                 header: 'Actions',

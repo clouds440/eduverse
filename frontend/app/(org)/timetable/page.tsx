@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { Section, Student, Teacher, TimetableEntry, Role } from '@/types';
-import { CalendarDays, Clock, Download, Maximize2, MapPin, X } from 'lucide-react';
+import { CalendarDays, Clock, Download, Maximize2, MapPin, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -32,11 +32,18 @@ interface TimetableSlotGroup {
     entries: TimetableEntry[];
 }
 
+interface TimetableBreak {
+    day: number;
+    startTime: string;
+    endTime: string;
+}
+
 type TimetableProfile = Student | Teacher;
 
 interface TimetableGridProps {
     entriesByDay: Map<number, TimetableEntry[]>;
     slotGroupsByDay: Map<number, TimetableSlotGroup[]>;
+    breaksByDay: Map<number, TimetableBreak[]>;
     timeSlots: number[];
     startHour: number;
     rowCount: number;
@@ -100,6 +107,12 @@ function formatDuration(startTime: string, endTime: string) {
     if (hours && minutes) return `${hours}h ${minutes}m`;
     if (hours) return `${hours}h`;
     return `${minutes}m`;
+}
+
+function getTeacherLabel(entry: TimetableEntry) {
+    if (!entry.teacherName) return 'Teacher TBD';
+    const additionalCount = entry.additionalTeachersCount || 0;
+    return additionalCount > 0 ? `${entry.teacherName}, ${additionalCount} more` : entry.teacherName;
 }
 
 function isGridRowCoveredByEntry(dayEntries: TimetableEntry[], startHour: number, rowIndex: number) {
@@ -213,7 +226,7 @@ function TimetableContextHeader({
                     <h2 className="mt-1 truncate text-xl font-black text-foreground">{userName}</h2>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                         <Badge variant="neutral" size="sm">{roleLabel} Timetable</Badge>
-                        <Badge variant="neutral" size="sm">{cohortName || 'No cohort'}</Badge>
+                        <Badge variant="neutral" size="sm">{cohortName ? `Batch: ${cohortName}` : 'No batch'}</Badge>
                         <Badge variant="neutral" size="sm">{sections.length} {sections.length === 1 ? 'section' : 'sections'}</Badge>
                         <Badge variant="neutral" size="sm">{slotsCount} {slotsCount === 1 ? 'slot' : 'slots'}</Badge>
                     </div>
@@ -253,6 +266,7 @@ function TimetableContextHeader({
 function TimetableGrid({
     entriesByDay,
     slotGroupsByDay,
+    breaksByDay,
     timeSlots,
     startHour,
     rowCount,
@@ -273,7 +287,7 @@ function TimetableGrid({
                         <div key={day} className="rounded-md border border-border/70 bg-card p-3 text-center shadow-sm">
                             <p className="text-sm font-black text-foreground">{DAY_NAMES[day]}</p>
                             <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                {entriesByDay.get(day)?.length || 0} slots
+                                {(entriesByDay.get(day)?.length || 0) > 0 ? `${entriesByDay.get(day)?.length || 0} slots` : 'Off day'}
                             </p>
                         </div>
                     ))}
@@ -291,6 +305,7 @@ function TimetableGrid({
 
                     {WEEK_DAYS.map((day) => {
                         const dayEntries = entriesByDay.get(day) || [];
+                        const dayBreaks = breaksByDay.get(day) || [];
 
                         return (
                             <div
@@ -321,6 +336,31 @@ function TimetableGrid({
                                 </div>
 
                                 <div className="relative z-10 grid h-full" style={{ gridTemplateRows: gridRows }}>
+                                    {dayEntries.length === 0 && (
+                                        <div className="absolute inset-0 z-0 flex items-center justify-center px-4 text-center">
+                                            <div className="rounded-md border border-dashed border-border/80 bg-muted/35 px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                                                Off day
+                                            </div>
+                                        </div>
+                                    )}
+                                    {dayBreaks.map((dayBreak) => {
+                                        const startOffset = Math.max(0, timeToMinutes(dayBreak.startTime) - startHour * 60);
+                                        const duration = Math.max(30, timeToMinutes(dayBreak.endTime) - timeToMinutes(dayBreak.startTime));
+                                        const rowStart = Math.floor(startOffset / 30) + 1;
+                                        const rowSpan = Math.max(1, Math.ceil(duration / 30));
+
+                                        return (
+                                            <div
+                                                key={`${day}-break-${dayBreak.startTime}-${dayBreak.endTime}`}
+                                                className="pointer-events-none z-0 m-1 flex items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/35 px-2 text-center"
+                                                style={{ gridRow: `${rowStart} / span ${rowSpan}` }}
+                                            >
+                                                <span className="truncate text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+                                                    Break {dayBreak.startTime} - {dayBreak.endTime}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
                                     {(slotGroupsByDay.get(day) || []).map((slot) => {
                                         const startOffset = Math.max(0, timeToMinutes(slot.startTime) - startHour * 60);
                                         const duration = Math.max(30, timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime));
@@ -360,6 +400,10 @@ function TimetableGrid({
                                                                     <p className="mt-0.5 flex truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}
                                                                         <MapPin className="h-3 w-3 ml-1 shrink-0" aria-hidden="true" />
                                                                         <span className="truncate">{entry.room || 'Room TBD'}</span>
+                                                                    </p>
+                                                                    <p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] font-bold opacity-75">
+                                                                        <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                                        <span className="truncate">{getTeacherLabel(entry)}</span>
                                                                     </p>
                                                                 </div>
                                                                 <Badge variant="neutral" size="xs" className="shrink-0 bg-white/70 h-fit text-foreground dark:bg-black/25">
@@ -406,6 +450,10 @@ function TimetableGrid({
                                                                         <div className="mt-1.5 flex min-w-0 items-end gap-1.5 border-t border-current/15 pt-1.5 text-[10px] font-bold opacity-80">
                                                                             <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
                                                                             <span className="truncate">{entry.room || 'Room TBD'}</span>
+                                                                        </div>
+                                                                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-bold opacity-80">
+                                                                            <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                                                            <span className="truncate">{getTeacherLabel(entry)}</span>
                                                                         </div>
                                                                     </div>
                                                                 </button>
@@ -474,6 +522,29 @@ export default function TimetablePage() {
         });
         return grouped;
     }, [entriesByDay]);
+
+    const breaksByDay = useMemo(() => {
+        const grouped = new Map<number, TimetableBreak[]>();
+        WEEK_DAYS.forEach((day) => {
+            const slots = slotGroupsByDay.get(day) || [];
+            const dayBreaks: TimetableBreak[] = [];
+
+            for (let index = 0; index < slots.length - 1; index += 1) {
+                const currentEnd = timeToMinutes(slots[index].endTime);
+                const nextStart = timeToMinutes(slots[index + 1].startTime);
+                if (nextStart > currentEnd) {
+                    dayBreaks.push({
+                        day,
+                        startTime: slots[index].endTime,
+                        endTime: slots[index + 1].startTime,
+                    });
+                }
+            }
+
+            grouped.set(day, dayBreaks);
+        });
+        return grouped;
+    }, [slotGroupsByDay]);
 
     const { startHour, endHour, timeSlots } = useMemo(() => {
         if (entries.length === 0) {
@@ -593,6 +664,7 @@ export default function TimetablePage() {
                         <TimetableGrid
                             entriesByDay={entriesByDay}
                             slotGroupsByDay={slotGroupsByDay}
+                            breaksByDay={breaksByDay}
                             timeSlots={timeSlots}
                             startHour={startHour}
                             rowCount={rowCount}
@@ -648,6 +720,7 @@ export default function TimetablePage() {
                     <TimetableGrid
                         entriesByDay={entriesByDay}
                         slotGroupsByDay={slotGroupsByDay}
+                        breaksByDay={breaksByDay}
                         timeSlots={timeSlots}
                         startHour={startHour}
                         rowCount={rowCount}

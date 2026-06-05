@@ -12,7 +12,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { formatCourseSectionLabel, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
+import { formatCourseSectionLabel, getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -44,6 +44,9 @@ function ScheduleSkeleton() {
 }
 
 function SectionScheduleCard({ section }: { section: Section }) {
+    const sectionColor = getSectionColor(section);
+    const sectionPanelStyle = getSectionSurfaceStyle(section, '0C', '38');
+    const sectionBadgeStyle = getSectionTintStyle(section);
     const { data: schedulesData, isLoading, error, mutate } = useSWR<SectionSchedule[]>(
         ['schedules', section.id] as const
     );
@@ -54,18 +57,18 @@ function SectionScheduleCard({ section }: { section: Section }) {
     ), [schedulesData]);
 
     return (
-        <article className="overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm" style={getSectionSurfaceStyle(section, '08', '38')}>
-            <div className="flex min-w-0 items-start justify-between gap-3 border-b border-border/60 bg-card/80 p-4">
+        <article className="overflow-hidden rounded-lg border shadow-sm" style={getSectionSurfaceStyle(section, '10', '55')}>
+            <div className="flex min-w-0 items-start justify-between gap-3 border-b p-4" style={{ borderColor: `${sectionColor}38`, backgroundColor: `${sectionColor}08` }}>
                 <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border" style={sectionBadgeStyle}>
                         <CalendarDays className="h-5 w-5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
                         <CourseSectionLabel section={section} as="h2" className="truncate text-base font-black md:text-lg" />
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                            <Badge variant="neutral" size="sm" style={getSectionTintStyle(section)}>{section.course?.name || 'Generic Course'}</Badge>
-                            {section.cohort?.name && <Badge variant="secondary" size="sm">{section.cohort.name}</Badge>}
-                            <Badge variant={schedules.length > 0 ? 'primary' : 'neutral'} size="sm">
+                            <Badge variant="neutral" size="sm" style={sectionBadgeStyle}>{section.course?.name || 'Generic Course'}</Badge>
+                            {section.cohort?.name && <Badge variant="neutral" size="sm" style={sectionBadgeStyle}>{section.cohort.name}</Badge>}
+                            <Badge variant="neutral" size="sm" style={sectionBadgeStyle}>
                                 {schedules.length} slot{schedules.length === 1 ? '' : 's'}
                             </Badge>
                         </div>
@@ -73,7 +76,8 @@ function SectionScheduleCard({ section }: { section: Section }) {
                 </div>
                 <Link
                     href={`/sections/${section.id}`}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-transform hover:translate-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    style={sectionBadgeStyle}
                     aria-label={`Open ${formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name })}`}
                 >
                     <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -95,32 +99,32 @@ function SectionScheduleCard({ section }: { section: Section }) {
                         <Skeleton className="h-16 rounded-md" />
                     </div>
                 ) : schedules.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border/70 bg-background/60 p-5 text-center">
-                        <Clock className="mx-auto h-8 w-8 text-muted-foreground/45" aria-hidden="true" />
-                        <p className="mt-2 text-sm font-black text-foreground">No time slots allocated</p>
-                        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                    <div className="rounded-lg border border-dashed p-5 text-center" style={getSectionSurfaceStyle(section, '0A', '55')}>
+                        <Clock className="mx-auto h-8 w-8 opacity-70" style={{ color: sectionColor }} aria-hidden="true" />
+                        <p className="mt-2 text-sm font-black" style={{ color: sectionColor }}>No time slots allocated</p>
+                        <p className="mt-1 text-xs font-semibold opacity-80" style={{ color: sectionColor }}>
                             Add section schedules from the section detail page.
                         </p>
                     </div>
                 ) : (
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         {schedules.map((schedule) => (
-                            <div key={schedule.id} className="rounded-md border border-border/60 bg-background/55 p-3">
+                            <div key={schedule.id} className="rounded-md border p-3" style={sectionPanelStyle}>
                                 <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-black uppercase tracking-wide text-primary">
+                                    <span className="text-xs font-black uppercase tracking-wide" style={{ color: sectionColor }}>
                                         {DAY_NAMES[schedule.day]}
                                     </span>
-                                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-black text-primary">
+                                    <span className="rounded-full border px-2 py-0.5 text-[10px] font-black" style={sectionBadgeStyle}>
                                         {schedule.startTime}
                                     </span>
                                 </div>
                                 <div className="mt-3 space-y-2">
-                                    <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-                                        <Clock className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                                    <div className="flex items-center gap-2 text-sm font-bold" style={{ color: sectionColor }}>
+                                        <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
                                         <span>{schedule.startTime} - {schedule.endTime}</span>
                                     </div>
-                                    <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-muted-foreground">
-                                        <MapPin className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                                    <div className="flex min-w-0 items-center gap-2 text-xs font-semibold opacity-80" style={{ color: sectionColor }}>
+                                        <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
                                         <span className="truncate">{schedule.room || section.room || 'Venue TBD'}</span>
                                     </div>
                                 </div>

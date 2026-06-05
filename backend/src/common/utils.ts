@@ -33,6 +33,7 @@ export interface TimetableSection {
   room: string | null;
   course: { id?: string; name: string };
   schedules: { id: string; day: number; startTime: string; endTime: string; room: string | null }[];
+  teachers?: { id: string; user?: { name: string | null; email?: string | null } | null }[];
 }
 
 export interface TimetableEntry {
@@ -46,6 +47,8 @@ export interface TimetableEntry {
   startTime: string;
   endTime: string;
   room: string | null;
+  teacherName: string | null;
+  additionalTeachersCount: number;
 }
 
 export interface GroupedTimetableEntry {
@@ -77,6 +80,8 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
         startTime: schedule.startTime,
         endTime: schedule.endTime,
         room: schedule.room || section.room,
+        teacherName: section.teachers?.[0]?.user?.name || section.teachers?.[0]?.user?.email || null,
+        additionalTeachersCount: Math.max(0, (section.teachers?.length || 0) - 1),
       });
     }
   }

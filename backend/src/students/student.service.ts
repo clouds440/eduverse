@@ -773,7 +773,7 @@ export class StudentService {
                 grades: {
                   where: {
                     studentId,
-                    status: { in: ['PUBLISHED', 'FINALIZED'] },
+                    status: 'FINALIZED',
                   },
                 },
               },
@@ -786,22 +786,23 @@ export class StudentService {
     return enrollments.map((enrollment) => {
       const section = enrollment.section;
       let totalPercentage = 0;
-      const assessmentGrades = section.assessments.map((a) => {
+      const assessmentGrades = section.assessments.flatMap((a) => {
         const grade = a.grades[0];
+        if (!grade) return [];
         const percentage = grade
           ? (grade.marksObtained / a.totalMarks) * a.weightage
           : 0;
         totalPercentage += percentage;
-        return {
+        return [{
           assessmentId: a.id,
           title: a.title,
           type: a.type,
           weightage: a.weightage,
-          marksObtained: grade?.marksObtained || 0,
+          marksObtained: grade.marksObtained,
           totalMarks: a.totalMarks,
-          status: grade?.status || 'NOT_GRADED',
+          status: grade.status,
           percentage: percentage.toFixed(2),
-        };
+        }];
       });
 
       return {
@@ -812,7 +813,7 @@ export class StudentService {
         finalPercentage: parseFloat(totalPercentage.toFixed(2)),
         assessments: assessmentGrades,
       };
-    });
+    }).filter((result) => result.assessments.length > 0);
   }
 
   async getStudentFinalGrades(orgId: string, userId: string) {
@@ -834,6 +835,12 @@ export class StudentService {
           include: {
             course: { select: { id: true, name: true } },
             schedules: { select: { id: true, day: true, startTime: true, endTime: true, room: true } },
+            teachers: {
+              select: {
+                id: true,
+                user: { select: { name: true, email: true } },
+              },
+            },
           },
         },
       },
