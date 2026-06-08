@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, ArrowRight, CheckCircle2, ListChecks } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Lightbulb, ListChecks, Square } from 'lucide-react';
 import type { DocBlock, DocPage, DocSection } from '../_data/docs';
 import { docsPages, flattenDocSections, getDocPage } from '../_data/docs';
 
@@ -133,6 +133,82 @@ function DocBlockView({ block }: { block: DocBlock }) {
         </h3>
         <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">{block.text}</p>
       </div>
+    );
+  }
+
+  if (block.type === 'tip') {
+    return (
+      <div className="rounded-lg border border-success/25 bg-success/10 p-4">
+        <h3 className="flex items-center gap-2 text-sm font-black text-foreground">
+          <Lightbulb className="h-4 w-4 text-success" aria-hidden="true" />
+          {block.title}
+        </h3>
+        <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">{block.text}</p>
+      </div>
+    );
+  }
+
+  if (block.type === 'table') {
+    return (
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/50">
+              {block.headers.map((header) => (
+                <th key={header} className="px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider text-foreground">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/70">
+            {block.rows.map((row, rowIndex) => (
+              <tr key={rowIndex} className="transition-colors hover:bg-muted/30">
+                {row.map((cell, cellIndex) => (
+                  <td key={cellIndex} className="px-4 py-2.5 font-medium text-muted-foreground">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (block.type === 'flow') {
+    return (
+      <div className="rounded-lg border border-border bg-muted/20 p-4">
+        {block.title && (
+          <h4 className="mb-3 text-xs font-black uppercase tracking-wider text-muted-foreground">{block.title}</h4>
+        )}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {block.steps.map((step, index) => (
+            <div key={index} className="flex items-center gap-1.5">
+              <span className="rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">
+                {step}
+              </span>
+              {index < block.steps.length - 1 && (
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === 'checklist') {
+    return (
+      <ul className="space-y-2">
+        {block.items.map((item) => (
+          <li key={item} className="flex gap-3 text-sm font-medium leading-6 text-muted-foreground">
+            <Square className="mt-0.5 h-4 w-4 shrink-0 text-primary/60" aria-hidden="true" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     );
   }
 

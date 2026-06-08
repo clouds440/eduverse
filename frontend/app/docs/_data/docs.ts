@@ -2,7 +2,11 @@ export type DocBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'list'; items: string[] }
   | { type: 'steps'; items: string[] }
-  | { type: 'note'; title: string; text: string };
+  | { type: 'note'; title: string; text: string }
+  | { type: 'table'; headers: string[]; rows: string[][] }
+  | { type: 'flow'; title?: string; steps: string[] }
+  | { type: 'checklist'; items: string[] }
+  | { type: 'tip'; title: string; text: string };
 
 export type DocSection = {
   id: string;
@@ -1644,6 +1648,321 @@ export const docsPages: DocPage[] = [
       },
     ],
   },
+  {
+    slug: 'quick-start',
+    title: 'Quick Start Guide',
+    description: 'Get your school operational on EduVerse in the right order. Follow this checklist to avoid configuration mistakes.',
+    category: 'Getting Started',
+    tags: ['setup', 'onboarding', 'checklist', 'first time'],
+    related: ['school-setup-workflow', 'getting-started', 'roles-permissions', 'settings'],
+    sections: [
+      {
+        id: 'before-you-begin',
+        title: 'Before you begin',
+        tags: ['prerequisites', 'preparation'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'EduVerse requires configuration in a specific order because later features depend on earlier setup. Skipping steps or doing them out of order will cause missing options, empty dropdowns, or broken workflows.',
+          },
+          {
+            type: 'tip',
+            title: 'Plan your academic structure first',
+            text: 'Before touching EduVerse, decide your academic cycle names, course list, class groups (cohorts), and grading policy. Having these ready makes setup much faster.',
+          },
+        ],
+      },
+      {
+        id: 'setup-checklist',
+        title: 'Setup checklist',
+        summary: 'Complete these steps in order. Each step unlocks the next.',
+        tags: ['checklist', 'order'],
+        blocks: [
+          {
+            type: 'flow',
+            title: 'Setup order',
+            steps: ['Organization', 'GPA Policy', 'Academic Cycle', 'Courses', 'Cohorts', 'Sections', 'Teachers', 'Students', 'Timetable', 'Materials', 'Assessments', 'Go Live'],
+          },
+          {
+            type: 'steps',
+            items: [
+              'Configure Organization: Set school name, logo, contact email, and appearance in Settings.',
+              'Configure GPA Policy: Review the default 4.0 policy or create a custom policy that matches your grading rules.',
+              'Create Academic Cycle: Create your first term or semester (e.g. "Fall 2026"). Select the GPA policy for this cycle.',
+              'Create Courses: Add each subject with the correct credit hours. Course names appear on transcripts.',
+              'Create Cohorts: Group students into classes (e.g. "Grade 10-A"). Cohorts make bulk enrollment easier.',
+              'Create Sections: Create class sections under courses and link them to the academic cycle. Assign cohorts to auto-enroll students.',
+              'Assign Teachers: Add teacher accounts and assign them to their sections.',
+              'Import Students: Create student accounts and place them in the correct cohorts.',
+              'Create Timetable: Add schedule slots for each section, selecting the assigned teacher, day, time, and room.',
+              'Upload Materials: Teachers upload course materials to their assigned sections.',
+              'Create Assessments: Teachers create assessments with due dates, total marks, and submission settings.',
+              'Begin Operations: Students can now view timetables, access materials, submit work, and check grades.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'common-setup-mistakes',
+        title: 'Common setup mistakes',
+        tags: ['mistakes', 'errors'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Creating sections before courses — sections need a course to attach to.',
+              'Creating schedules before assigning teachers — only assigned teachers can be selected for a schedule.',
+              'Skipping GPA policy setup — the default policy works, but review it before teachers start grading.',
+              'Creating duplicate courses instead of multiple sections — one course can have many sections.',
+              'Forgetting to set credit hours — the default is 3, but some courses need different values for accurate GPA.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'school-setup-workflow',
+    title: 'Setting Up a New School',
+    description: 'End-to-end guide for configuring a new school workspace from registration to first day of class.',
+    category: 'Workflows',
+    tags: ['setup', 'new school', 'workflow', 'configuration'],
+    related: ['quick-start', 'settings', 'academic-cycles', 'courses-sections', 'cohorts-promotions'],
+    sections: [
+      {
+        id: 'workflow-overview',
+        title: 'Workflow overview',
+        tags: ['overview'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Setting up a new school requires decisions in the right order. This guide walks through each stage, explains what decisions to make, and warns about common pitfalls.',
+          },
+          {
+            type: 'flow',
+            title: 'Full setup flow',
+            steps: ['Register', 'Configure Org', 'GPA Policy', 'Cycle', 'Courses', 'Cohorts', 'Sections', 'Teachers', 'Students', 'Timetable', 'Content', 'Launch'],
+          },
+        ],
+      },
+      {
+        id: 'stage-organization',
+        title: 'Stage 1: Organization profile',
+        tags: ['organization', 'branding'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'After registration is approved, the org admin should immediately configure the school profile. This information appears throughout the workspace.',
+          },
+          {
+            type: 'checklist',
+            items: [
+              'Set the official school name',
+              'Upload a square logo image',
+              'Add location and phone number',
+              'Set and verify the contact email',
+              'Choose an accent color that matches the school brand',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Contact email verification',
+            text: 'Verify the contact email early. An unverified email can delay account recovery and important platform communications.',
+          },
+        ],
+      },
+      {
+        id: 'stage-academics',
+        title: 'Stage 2: Academic foundation',
+        tags: ['gpa', 'cycle', 'courses'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The academic foundation consists of three things that must exist before classes can operate: a GPA policy, an academic cycle, and courses.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Review or customize the GPA policy. The default 4.0 scale works for most schools. If your school uses a 5.0 or 10.0 scale, create a new policy.',
+              'Create the first academic cycle. Name it clearly (e.g. "Semester 1 - 2026"). Select the GPA policy for this cycle.',
+              'Create all courses with proper names and credit hours. These names appear on transcripts, so use official names.',
+            ],
+          },
+          {
+            type: 'tip',
+            title: 'Credit hours matter for GPA',
+            text: 'If your school uses weighted GPA (by credit hours), set each course credit value correctly now. Changing it later can affect future transcript calculations.',
+          },
+        ],
+      },
+      {
+        id: 'stage-people',
+        title: 'Stage 3: People and classes',
+        tags: ['cohorts', 'sections', 'teachers', 'students'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'With courses and a cycle ready, create the class structure and add people.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Create cohorts for each class group (e.g. "Grade 10-A", "Grade 10-B").',
+              'Create sections under each course, linking them to the academic cycle.',
+              'Assign cohorts to sections so students are auto-enrolled.',
+              'Create teacher accounts and assign them to their sections.',
+              'Create student accounts and place them in the correct cohorts.',
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Cohort', 'Section'],
+            rows: [
+              ['A student group (e.g. Grade 10-A)', 'An actual class instance (e.g. Math - Grade 10-A)'],
+              ['Groups students for bulk enrollment', 'Connects course, cycle, teachers, and students'],
+              ['One cohort can link to many sections', 'One section belongs to one course and one cycle'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'stage-operations',
+        title: 'Stage 4: Operations',
+        tags: ['timetable', 'materials', 'assessments'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'With people and classes in place, set up operational workflows.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Create timetable schedules for each section (select teacher, day, time, room).',
+              'Teachers upload course materials to their sections.',
+              'Teachers create assessments with due dates and submission settings.',
+              'Verify the student portal shows correct timetables, materials, and assessments.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'end-of-term-workflow',
+    title: 'End-of-Term Process',
+    description: 'Step-by-step guide for finalizing grades, locking GPA policies, generating transcripts, and promoting students.',
+    category: 'Workflows',
+    tags: ['end of term', 'finalize', 'transcripts', 'promotion', 'workflow'],
+    related: ['academic-cycles', 'transcripts', 'gradebook', 'cohorts-promotions', 'gpa-policies'],
+    sections: [
+      {
+        id: 'end-of-term-overview',
+        title: 'End-of-term overview',
+        tags: ['overview', 'timeline'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The end of an academic term requires a specific sequence of actions. Doing these out of order can create transcript errors or lock data prematurely.',
+          },
+          {
+            type: 'flow',
+            title: 'End-of-term sequence',
+            steps: ['Complete Grading', 'Review Grades', 'Finalize Grades', 'GPA Policy Locks', 'Generate Transcripts', 'Promote Students', 'Create New Cycle'],
+          },
+        ],
+      },
+      {
+        id: 'finalize-grades',
+        title: 'Step 1: Finalize grades',
+        tags: ['grading', 'finalized'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Teachers must finalize all grades for the cycle. Only finalized grades appear on official transcripts.',
+          },
+          {
+            type: 'table',
+            headers: ['Grade State', 'Editable', 'Visible to Students', 'Transcript Eligible'],
+            rows: [
+              ['Draft', 'Yes', 'No', 'No'],
+              ['Published', 'Yes', 'Yes', 'No'],
+              ['Finalized', 'No', 'Yes', 'Yes'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Review before finalizing',
+            text: 'Finalized grades cannot be edited. Double-check marks, feedback, and assessment weights before finalizing.',
+          },
+          {
+            type: 'checklist',
+            items: [
+              'All assessments have been graded',
+              'Grade values have been reviewed for accuracy',
+              'Assessment weights add up correctly',
+              'Teachers have finalized their grades',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'gpa-lock',
+        title: 'Step 2: GPA policy locks',
+        tags: ['gpa', 'locked', 'policy'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Once the first grade is finalized in a cycle, the GPA policy for that cycle is permanently locked. This prevents transcript history from being recalculated under a different policy.',
+          },
+          {
+            type: 'tip',
+            title: 'This is intentional',
+            text: 'Policy locking protects transcript integrity. If you need a different policy for next term, create a new policy and assign it to the new cycle.',
+          },
+        ],
+      },
+      {
+        id: 'generate-transcripts',
+        title: 'Step 3: Generate transcripts',
+        tags: ['transcripts', 'gpa', 'cgpa'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'With finalized grades and a locked GPA policy, transcripts can be generated. The transcript uses the cycle policy snapshot so results remain stable.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Web transcripts are available immediately after grades are finalized.',
+              'PDF transcripts can be downloaded for printing or sharing.',
+              'CGPA is calculated cumulatively across all transcript cycles.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'promote-students',
+        title: 'Step 4: Promote students',
+        tags: ['promotion', 'new cycle'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'After transcripts are generated, promote students to the next cycle or cohort. Promotion moves student placement while preserving enrollment history.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Create the new academic cycle if it does not exist yet.',
+              'Create target cohorts in the new cycle.',
+              'Use the promotion tool to select students and move them to the target cycle and cohort.',
+              'Review promoted students to confirm correct placement.',
+              'Use copy-forward to carry sections, schedules, or materials into the new cycle if needed.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 export const docsNavGroups: DocNavGroup[] = [
@@ -1719,6 +2038,9 @@ export function buildDocsSearchEntries() {
         ...section.blocks.flatMap((block) => {
           if (block.type === 'paragraph') return [block.text];
           if (block.type === 'note') return [block.title, block.text];
+          if (block.type === 'tip') return [block.title, block.text];
+          if (block.type === 'table') return [...block.headers, ...block.rows.flat()];
+          if (block.type === 'flow') return [block.title, ...block.steps].filter(Boolean);
           return block.items;
         }),
       ]

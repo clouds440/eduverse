@@ -18,26 +18,6 @@ export function DocsIndex() {
           These docs explain workflows, rules, permissions, and consequences in plain operational language.
           Use the docs search to jump directly to the module or section you need.
         </p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border border-border bg-muted/35 p-4">
-            <div className="flex items-center gap-2 text-sm font-black text-foreground">
-              <Search className="h-4 w-4 text-primary" aria-hidden="true" />
-              Find exact answers
-            </div>
-            <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">
-              Search can point users to exact sections, which helps keep long warnings out of the app itself.
-            </p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted/35 p-4">
-            <div className="flex items-center gap-2 text-sm font-black text-foreground">
-              <GraduationCap className="h-4 w-4 text-primary" aria-hidden="true" />
-              Academic rules included
-            </div>
-            <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">
-              GPA policies, credit hours, transcripts, grading constraints, schedules, and policy locks now have dedicated docs.
-            </p>
-          </div>
-        </div>
       </section>
 
       <div className="space-y-8">
