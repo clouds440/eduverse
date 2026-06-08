@@ -20,11 +20,13 @@ import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell'
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import {
     ApiError,
+    GpaCalculationMethod,
+    GpaRounding,
+    Role,
     GpaGradeRule,
     GpaPolicy,
     GpaPolicyPreviewResponse,
 } from '@/types';
-import { GpaCalculationMethod, GpaRounding, Role } from '@/types/enums';
 
 const STANDARD_RULES: GpaGradeRule[] = [
     { min: 85, max: 100, letter: 'A', points: 4.0 },
@@ -42,6 +44,7 @@ const MARK_EPSILON = 0.000001;
 const DESIRED_INSERT_SPAN = 4.99;
 const MIN_REMAINING_SPAN = 1;
 const NEW_POLICY_ID = '__new_policy__';
+const MAX_GPA_GRADE_RULES = 20;
 
 type PolicyDraft = {
     id?: string;
@@ -124,6 +127,7 @@ function validateDraft(draft: PolicyDraft) {
     if (!draft.name.trim()) return 'Policy name is required.';
     if (!Number.isFinite(scale) || scale <= 0) return 'GPA scale must be greater than zero.';
     if (draft.gradeRules.length === 0) return 'Add at least one grade rule.';
+    if (draft.gradeRules.length > MAX_GPA_GRADE_RULES) return `GPA policies can have at most ${MAX_GPA_GRADE_RULES} grade rules.`;
 
     const rules = draft.gradeRules.map((rule) => ({
         ...rule,
@@ -411,6 +415,10 @@ export default function GpaPoliciesPage() {
     };
 
     const addRule = () => {
+        if (draft.gradeRules.length >= MAX_GPA_GRADE_RULES) {
+            setFormError(`GPA policies can have at most ${MAX_GPA_GRADE_RULES} grade rules.`);
+            return;
+        }
         const scale = Number(draft.scale);
         if (!Number.isFinite(scale) || scale <= 0) {
             setFormError('Set a valid GPA scale before adding a rule.');
@@ -454,6 +462,10 @@ export default function GpaPoliciesPage() {
     };
 
     const insertRule = (index: number, position: 'above' | 'below') => {
+        if (draft.gradeRules.length >= MAX_GPA_GRADE_RULES) {
+            setFormError(`GPA policies can have at most ${MAX_GPA_GRADE_RULES} grade rules.`);
+            return;
+        }
         const scale = Number(draft.scale);
         if (!Number.isFinite(scale) || scale <= 0) {
             setFormError('Set a valid GPA scale before adding a rule.');
@@ -754,7 +766,17 @@ export default function GpaPoliciesPage() {
                                                 <h2 className="text-base font-black">Grade Boundaries</h2>
                                                 <p className="text-xs font-semibold text-muted-foreground">Ranges must be unique and stay within 0-100.</p>
                                             </div>
-                                            <Button type="button" variant="secondary" size="sm" icon={Plus} onClick={addRule}>Add Rule</Button>
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                size="sm"
+                                                icon={Plus}
+                                                onClick={addRule}
+                                                disabled={draft.gradeRules.length >= MAX_GPA_GRADE_RULES}
+                                                title={draft.gradeRules.length >= MAX_GPA_GRADE_RULES ? `Maximum ${MAX_GPA_GRADE_RULES} rules reached` : 'Add rule'}
+                                            >
+                                                Add Rule
+                                            </Button>
                                         </div>
                                         <div className="max-w-full overflow-x-auto">
                                             <table className="w-full min-w-195 table-fixed text-sm">
@@ -831,7 +853,7 @@ export default function GpaPoliciesPage() {
                                                                         aria-label="Add rule above"
                                                                         title={isTopRange ? 'Cannot add above the 100 marks range' : 'Add rule above'}
                                                                         className="w-8 px-0"
-                                                                        disabled={isTopRange}
+                                                                        disabled={isTopRange || draft.gradeRules.length >= MAX_GPA_GRADE_RULES}
                                                                         onClick={() => insertRule(index, 'above')}
                                                                     />
                                                                     <Button
@@ -842,7 +864,7 @@ export default function GpaPoliciesPage() {
                                                                         aria-label="Add rule below"
                                                                         title={isBottomRange ? 'Cannot add below the 0 marks range' : 'Add rule below'}
                                                                         className="w-8 px-0"
-                                                                        disabled={isBottomRange}
+                                                                        disabled={isBottomRange || draft.gradeRules.length >= MAX_GPA_GRADE_RULES}
                                                                         onClick={() => insertRule(index, 'below')}
                                                                     />
                                                                     <Button

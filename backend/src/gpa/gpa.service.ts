@@ -5,6 +5,7 @@ import { STANDARD_GPA_RULES } from './gpa.constants';
 
 const MARK_STEP = 0.01;
 const MARK_EPSILON = 0.000001;
+const MAX_GPA_GRADE_RULES = 20;
 
 export interface GpaGradeRule {
   min: number;
@@ -68,6 +69,9 @@ export class GpaService {
   validateGradeRules(rules: GpaGradeRule[], scale: number) {
     if (!Array.isArray(rules) || rules.length === 0) {
       throw new BadRequestException('At least one GPA grade rule is required');
+    }
+    if (rules.length > MAX_GPA_GRADE_RULES) {
+      throw new BadRequestException(`GPA policies can have at most ${MAX_GPA_GRADE_RULES} grade rules`);
     }
 
     const normalized = rules.map((rule, index) => {
