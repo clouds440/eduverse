@@ -360,7 +360,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                             <div className="min-w-0">
                                 <p className="text-sm font-black text-foreground">Slot pattern</p>
                                 <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                                    {editingSchedule ? 'Editing updates this schedule slot only.' : 'Create one day or repeat the same slot Monday through Friday.'} <DocsLink href="/docs/timetable#conflicts">Conflict rules</DocsLink>
+                                    {editingSchedule ? 'Editing updates this schedule slot only.' : 'Create one day or repeat the same slot Monday through Friday.'} <DocsLink href="/docs/timetable#weekday-repeat">Repeat guide</DocsLink>
                                 </p>
                             </div>
                             {!editingSchedule && (

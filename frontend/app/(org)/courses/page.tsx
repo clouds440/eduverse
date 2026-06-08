@@ -223,7 +223,7 @@ export default function CoursesPage() {
         <PageShell>
             <PageHeader
                 title="Courses"
-                description={<>Search and maintain course records used by sections, grading, and materials. <DocsLink href="/docs/courses-sections#courses">Read course docs</DocsLink></>}
+                description={<>Search and maintain course records used by sections, grading, and materials. <DocsLink href="/docs/courses-sections#course-records">Read course docs</DocsLink></>}
                 icon={BookOpen}
                 breadcrumbs={[
                     { label: 'Organization' },
@@ -330,7 +330,7 @@ export default function CoursesPage() {
                             icon={Clock3}
                         />
                         <p className="text-xs font-semibold text-muted-foreground">
-                            Credit hours can affect weighted GPA and transcript totals. <DocsLink href="/docs/transcripts#transcript-calculation">Details</DocsLink>
+                            Credit hours can affect weighted GPA and transcript totals. <DocsLink href="/docs/courses-sections#course-credit-hours">Credit details</DocsLink>
                         </p>
                     </div>
                     <div className="space-y-2">

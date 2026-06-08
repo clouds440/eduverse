@@ -19,6 +19,8 @@ export function DocsNavigation() {
   const [isMobileHeaderVisible, setIsMobileHeaderVisible] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const lastScrollTopRef = useRef(0);
+  const desktopNavRef = useRef<HTMLDivElement>(null);
+  const mobileContentsRef = useRef<HTMLDivElement>(null);
 
   const activeSections = useMemo(() => (activePage ? flattenDocSections(activePage) : []), [activePage]);
 
@@ -77,6 +79,30 @@ export function DocsNavigation() {
   }, []);
 
   useEffect(() => {
+    const scrollActiveLinkIntoView = (container: HTMLElement | null) => {
+      const activeLink = container?.querySelector<HTMLElement>('[data-docs-active="true"]');
+      if (!container || !activeLink) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const activeRect = activeLink.getBoundingClientRect();
+      const isSectionLink = activeLink.dataset.docsActiveLevel === 'section';
+      const topPadding = isSectionLink ? 56 : 16;
+
+      container.scrollTo({
+        top: container.scrollTop + activeRect.top - containerRect.top - topPadding,
+        behavior: 'smooth',
+      });
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      scrollActiveLinkIntoView(desktopNavRef.current);
+      if (isMobileContentsOpen) scrollActiveLinkIntoView(mobileContentsRef.current);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeSlug, activeSectionId, isMobileContentsOpen]);
+
+  useEffect(() => {
     const appShell = document.querySelector<HTMLElement>('.app-shell-main');
 
     const getScrollTop = () => {
@@ -121,7 +147,7 @@ export function DocsNavigation() {
   const mobileHeader = (
     <div
       className={cn(
-        'fixed left-0 right-0 top-(--app-nav-height) z-90 w-full border-b border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur-md transition-transform duration-200 lg:hidden',
+        'fixed left-0 right-0 top-[var(--app-nav-height)] z-90 w-full border-b border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur-md transition-transform duration-200 lg:hidden',
         isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full',
       )}
     >
@@ -190,6 +216,7 @@ export function DocsNavigation() {
 
       {isMobileContentsOpen && !isMobileSearchOpen && (
         <div
+          ref={mobileContentsRef}
           id="mobile-docs-contents"
           className="absolute left-3 right-3 top-[calc(100%+0.35rem)] z-30 max-h-[min(68vh,32rem)] overflow-y-auto rounded-lg border border-border bg-card p-3 shadow-lg ring-1 ring-border/50"
         >
@@ -206,6 +233,8 @@ export function DocsNavigation() {
                       <a
                         href={`#${section.id}`}
                         onClick={() => setIsMobileContentsOpen(false)}
+                        data-docs-active={isActive ? 'true' : undefined}
+                        data-docs-active-level={isActive ? 'section' : undefined}
                         className={cn(
                           'block rounded-md px-2 py-2 text-sm font-bold transition-colors',
                           isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-primary/5 hover:text-primary',
@@ -235,7 +264,7 @@ export function DocsNavigation() {
   return (
     <>
       <aside className="hidden w-72 shrink-0 border-r border-border bg-background/80 px-5 py-6 lg:block">
-        <nav className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1" aria-label="Documentation">
+        <nav className="sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col" aria-label="Documentation">
           <Link href="/docs" className="mb-4 flex items-center gap-2 text-base font-black text-foreground">
             <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
             EduVerse Docs
@@ -245,11 +274,13 @@ export function DocsNavigation() {
             <DocsSearch />
           </div>
 
-          <DocsLinkGroups activeSlug={activeSlug} activeSectionId={activeSectionId} />
+          <div ref={desktopNavRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <DocsLinkGroups activeSlug={activeSlug} activeSectionId={activeSectionId} />
+          </div>
         </nav>
       </aside>
 
-      <div className="h-14.25 shrink-0 lg:hidden" aria-hidden="true" />
+      <div className="h-[57px] shrink-0 lg:hidden" aria-hidden="true" />
       {isMounted ? createPortal(mobileHeader, document.body) : null}
     </>
   );
@@ -285,6 +316,8 @@ function DocsLinkGroups({
                     <Link
                       href={`/docs/${page.slug}`}
                       onClick={onNavigate}
+                      data-docs-active={isActivePage && !activeSectionId ? 'true' : undefined}
+                      data-docs-active-level={isActivePage && !activeSectionId ? 'page' : undefined}
                       className={cn(
                         'group flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm font-semibold transition-colors',
                         isActivePage
@@ -309,6 +342,8 @@ function DocsLinkGroups({
                               <a
                                 href={`#${section.id}`}
                                 onClick={onNavigate}
+                                data-docs-active={isActiveSection ? 'true' : undefined}
+                                data-docs-active-level={isActiveSection ? 'section' : undefined}
                                 className={cn(
                                   'block rounded-md px-2 py-1.5 text-xs font-bold transition-colors',
                                   isActiveSection

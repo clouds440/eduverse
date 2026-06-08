@@ -151,7 +151,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                         <Label>Amount</Label>
                         <Input type="number" min={0} step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} />
                         <p className="text-xs font-semibold text-muted-foreground">
-                            Enter the amount for this agreement. <DocsLink href="/docs/finance#finance-structures">Details</DocsLink>
+                            Enter the amount for this agreement. <DocsLink href="/docs/finance#structure-amounts">Amount details</DocsLink>
                         </p>
                     </div>
                 </div>

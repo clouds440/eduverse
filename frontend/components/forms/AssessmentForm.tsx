@@ -120,7 +120,7 @@ export default function AssessmentForm({
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
             <p className="text-sm font-semibold text-muted-foreground">
-                Assessments can collect submissions and later feed grading. <DocsLink href="/docs/assessments-grading#assessment-ownership">Read assessment rules</DocsLink>
+                Assessments can collect submissions and later feed grading. <DocsLink href="/docs/assessments-grading#assessment-setup">Read assessment setup</DocsLink>
             </p>
 
             <div className="space-y-4 md:space-y-6">

@@ -395,7 +395,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
 
             <FormSection
                 title="Academic Placement"
-                description={<>Cohort and individual section placement. <DocsLink href="/docs/students#enrollment-history">Read enrollment rules</DocsLink></>}
+                description={<>Cohort and individual section placement. <DocsLink href="/docs/students#student-academic-placement">Read placement rules</DocsLink></>}
                 icon={Users}
             >
                 <FormGrid className="items-start">

@@ -68,7 +68,7 @@ export default function CreateCoursePage() {
         <div className="flex flex-col w-full max-w-6xl py-10 mx-auto animate-in fade-in duration-700">
             <PageHeader
                 title="Create New Course"
-                description={<>Expand your institution&apos;s academic catalog. <DocsLink href="/docs/courses-sections#courses">Read course docs</DocsLink></>}
+                description={<>Expand your institution&apos;s academic catalog. <DocsLink href="/docs/courses-sections#course-records">Read course docs</DocsLink></>}
                 icon={LibraryBig}
                 className="mb-8"
             />
@@ -80,7 +80,7 @@ export default function CreateCoursePage() {
                         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-all duration-700" />
                         <h3 className="text-lg font-black tracking-tight mb-4 relative z-10">Course Definition</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed relative z-10 mb-6">
-                            Courses are the subjects your school offers. Credit hours can affect GPA and transcripts. <DocsLink href="/docs/courses-sections#courses">Learn more</DocsLink>
+                            Courses are the subjects your school offers. Credit hours can affect GPA and transcripts. <DocsLink href="/docs/courses-sections#course-records">Learn more</DocsLink>
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
@@ -118,7 +118,7 @@ export default function CreateCoursePage() {
                                                 className="h-12 md:h-14 font-medium"
                                             />
                                             <p className="text-xs font-semibold text-muted-foreground">
-                                                Used in transcript credit totals and weighted GPA. <DocsLink href="/docs/transcripts#transcript-calculation">Read transcript docs</DocsLink>
+                                                Used in transcript credit totals and weighted GPA. <DocsLink href="/docs/courses-sections#course-credit-hours">Read credit-hour docs</DocsLink>
                                             </p>
                                         </div>
 

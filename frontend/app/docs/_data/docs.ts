@@ -152,6 +152,25 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
+        id: 'student-academic-placement',
+        title: 'Academic placement',
+        tags: ['cohort', 'sections', 'placement'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Academic placement decides where a student appears in class lists, attendance sheets, grade workspaces, timetable views, finance records, and transcripts.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Cohort placement is useful when a whole group should move through the same academic cycle together.',
+              'Individual section placement is useful when one student needs a class outside their cohort setup.',
+              'Changing placement can affect what the student sees in their portal, so review the cohort and section list before saving.',
+            ],
+          },
+        ],
+      },
+      {
         id: 'enrollment-history',
         title: 'Enrollment history',
         tags: ['enrollment', 'history'],
@@ -159,6 +178,14 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'Enrollment history allows transcripts and academic reports to show where a student studied during each academic cycle, even after promotions or section changes.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Use cohort placement for the normal class group.',
+              'Use individual section placement for exceptions, transfers, or extra classes.',
+              'Avoid removing historical context just to clean up a current view; old enrollment data may explain transcript and attendance history.',
+            ],
           },
         ],
       },
@@ -189,6 +216,11 @@ export const docsPages: DocPage[] = [
               'Teachers only see the timetable slots assigned to them.',
             ],
           },
+          {
+            type: 'note',
+            title: 'Before removing a teacher',
+            text: 'Check whether the teacher is still responsible for schedules, assessments, or grading in that section. Removing the assignment can change what the teacher can access.',
+          },
         ],
       },
       {
@@ -213,40 +245,94 @@ export const docsPages: DocPage[] = [
     related: ['teachers', 'materials', 'gpa-policies', 'gradebook'],
     sections: [
       {
-        id: 'courses',
-        title: 'Courses',
-        tags: ['credit hours'],
+        id: 'course-records',
+        title: 'Course records',
+        tags: ['course name', 'description'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'Courses define the subject identity used by sections and transcripts. Each course has credit hours, which default to 3 and must be greater than 0.',
+            text: 'A course is the subject record that sections are built from. Users normally create the course once, then create one or more sections for specific cycles, teachers, rooms, and students.',
           },
           {
             type: 'list',
             items: [
-              'Credit hours are used by GPA calculations when the policy method is weighted by credit hours.',
-              'Course credit hours appear in transcript course rows and total credit summaries.',
-              'Changing course credit hours affects future transcript calculation for records that use the current course value.',
+              'Use a clear course name because it appears in sections, grades, materials, schedules, and transcripts.',
+              'Use the description for short internal context, not long policy text.',
+              'Do not create duplicate courses for different class groups; create separate sections under the same course instead.',
             ],
           },
         ],
       },
       {
-        id: 'sections',
-        title: 'Sections',
-        tags: ['safe color', 'enrollment'],
+        id: 'course-credit-hours',
+        title: 'Course credit hours',
+        tags: ['credit hours', 'gpa', 'transcript'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'Sections represent teachable class groups for a course inside an academic cycle. Section colors use predefined safe colors to keep labels readable in the UI.',
+            text: 'Credit hours describe how much academic weight a course carries. They appear on transcripts and can affect GPA when the selected GPA policy uses credit-hour weighting.',
           },
           {
             type: 'list',
             items: [
-              'Sections connect students, teachers, schedules, materials, assessments, attendance, and grades.',
-              'A section can be assigned to a cohort for bulk student enrollment.',
-              'Students may be excluded from a cohort-section enrollment when needed.',
+              'The default credit value is 3, but admins can choose another positive number when the course needs a different weight.',
+              'A higher credit value gives that course more influence in weighted GPA policies.',
+              'Changing credit hours can affect future transcript calculations that use the current course value, so review the course before saving.',
             ],
+          },
+        ],
+      },
+      {
+        id: 'section-records',
+        title: 'Section records',
+        tags: ['section', 'course', 'cycle'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A section is the actual class group students and teachers work inside. It connects a course to an academic cycle, teachers, students, schedules, attendance, materials, assessments, and grades.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Create a new section when the same course is taught to a different group, cycle, teacher, or schedule.',
+              'Use the room field when the class has a regular location.',
+              'Open the section detail page to manage schedules, materials, assessments, attendance, and enrollment.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'section-creation',
+        title: 'Section creation',
+        tags: ['create section', 'teachers', 'students'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'When creating a section, review the selected course, academic cycle, teachers, and students together. A wrong selection can put the class in the wrong cycle or make it visible to the wrong users.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Assign teachers who should manage the class work.',
+              'Assign students directly when this section is an exception or independent class.',
+              'Use cohorts when a whole student group should share the same sections.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'section-colors',
+        title: 'Section colors',
+        tags: ['safe color', 'labels'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Section colors help users recognize classes quickly across schedules, timetables, lists, and cards. EduVerse uses a predefined safe palette so labels stay readable in light and dark themes.',
+          },
+          {
+            type: 'note',
+            title: 'Why custom colors are limited',
+            text: 'Very bright or very dark custom colors can make text hard to read. Safe colors keep the interface usable for students, teachers, and admins.',
           },
         ],
       },
@@ -307,6 +393,26 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
+        id: 'assessment-setup',
+        title: 'Assessment setup',
+        tags: ['total marks', 'weightage', 'due date'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Assessment setup controls how work is collected and how marks contribute to the class result. Review total marks, weightage, due date, attachments, links, and submission settings before saving.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Total marks define the maximum score a student can receive.',
+              'Weightage controls how much the assessment contributes to the course percentage.',
+              'The due date helps students understand when work is expected and helps teachers track late or missing work.',
+              'Submissions should be enabled when students need to upload a file, paste a link, or write a response.',
+            ],
+          },
+        ],
+      },
+      {
         id: 'grade-input-rules',
         title: 'Grade input rules',
         tags: ['zero grade', 'minimum grade', 'rounding'],
@@ -350,6 +456,30 @@ export const docsPages: DocPage[] = [
               'Grade rules map mark ranges from 0 to 100 to letter grades and grade points.',
             ],
           },
+          {
+            type: 'note',
+            title: 'Multiple policies',
+            text: 'You can keep more than one policy when your institute changes grading rules over time. The default policy is the one used when a cycle does not have a specific policy selected.',
+          },
+        ],
+      },
+      {
+        id: 'policy-preview',
+        title: 'Preview calculator',
+        tags: ['preview', 'calculator'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The preview calculator lets admins test sample marks and credit hours before saving a policy. Use it to confirm that letters, grade points, simple GPA, and weighted GPA behave as expected.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Try marks near each boundary, such as 84.9 and 85, to confirm the correct letter appears.',
+              'Try different credit hours when the policy is weighted by credit hours.',
+              'Fix validation errors before relying on preview results.',
+            ],
+          },
         ],
       },
       {
@@ -384,6 +514,14 @@ export const docsPages: DocPage[] = [
             title: 'Proceed with caution',
             text: 'Choose the cycle GPA policy carefully. After finalized grades exist, EduVerse locks the policy to preserve transcript history.',
           },
+          {
+            type: 'list',
+            items: [
+              'Set the correct policy before teachers begin finalizing grades in the cycle.',
+              'After finalized grades exist, the cycle policy is locked so old transcript results do not silently change later.',
+              'Policies already used by past cycles should be archived instead of deleted, so historical records remain explainable.',
+            ],
+          },
         ],
       },
     ],
@@ -405,6 +543,30 @@ export const docsPages: DocPage[] = [
             type: 'paragraph',
             text: 'Academic cycles represent periods such as semesters, school years, or terms. They group cohorts, sections, enrollments, assessments, grades, attendance, and transcript summaries.',
           },
+          {
+            type: 'list',
+            items: [
+              'Create a cycle before creating cohorts or sections that belong to that period.',
+              'Use clear names such as Fall 2026 or Academic Year 2026 so reports and transcripts are easy to read.',
+              'Cycles help preserve history when students move from one period to the next.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'active-cycle',
+        title: 'Active cycle',
+        tags: ['active', 'current cycle'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The active cycle is the period your school is currently working in. Making a cycle active can affect default filters and where users expect new academic work to appear.',
+          },
+          {
+            type: 'note',
+            title: 'Before activating',
+            text: 'Check the cycle name, dates, and GPA policy before marking it active. Activating one cycle usually means the previous active cycle is no longer treated as current.',
+          },
         ],
       },
       {
@@ -415,6 +577,14 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'Each cycle can use a selected GPA policy. When no specific policy is selected at creation time, the organization default policy is used.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Select the policy that should apply to grades finalized in this cycle.',
+              'Use the default only when it matches the institute rules for this cycle.',
+              'Changing the default policy later does not mean old cycles should silently follow the new policy.',
+            ],
           },
           {
             type: 'note',
@@ -464,6 +634,25 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
+        id: 'weekday-repeat',
+        title: 'Repeating weekday slots',
+        tags: ['repeat', 'weekdays', 'bulk schedule'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Repeating a schedule Monday through Friday creates the same class time for each weekday. Use it only when the class truly meets at the same time and room every weekday.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Review the start time, end time, room, and selected teacher before saving the repeated slots.',
+              'If one day has a different time or room, create that day separately instead of using the weekday repeat.',
+              'Conflict checks still apply to repeated slots, so one busy day can prevent the schedule from saving.',
+            ],
+          },
+        ],
+      },
+      {
         id: 'conflicts',
         title: 'Conflict checks',
         tags: ['room conflict', 'teacher conflict'],
@@ -471,6 +660,15 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'EduVerse checks for room, time, and teacher clashes before saving a schedule. If the selected teacher or room is already busy, the schedule should be corrected first.',
+          },
+          {
+            type: 'list',
+            items: [
+              'A teacher should not be assigned to two class slots at the same time.',
+              'A room should not be assigned to two class slots at the same time.',
+              'End time must be later than start time.',
+              'If a conflict appears, adjust the teacher, room, day, or time before trying again.',
+            ],
           },
         ],
       },
@@ -500,6 +698,11 @@ export const docsPages: DocPage[] = [
               'Review the selected date and class before saving attendance.',
               'Attendance summaries help identify students with repeated absence or weak attendance patterns.',
             ],
+          },
+          {
+            type: 'note',
+            title: 'Before saving',
+            text: 'Check the section, date, and student list before saving. Attendance corrections are possible only where your role and school workflow allow them.',
           },
         ],
       },
@@ -540,6 +743,11 @@ export const docsPages: DocPage[] = [
               'Students only see grades that belong to their own enrollments.',
               'Transcript calculations use finalized grades where required by the transcript flow.',
             ],
+          },
+          {
+            type: 'note',
+            title: 'Finalizing grades',
+            text: 'Finalized grades are treated as ready for official transcript use. Review the student, assessment, marks, and feedback before finalizing.',
           },
         ],
       },
@@ -588,6 +796,11 @@ export const docsPages: DocPage[] = [
               'CGPA is calculated cumulatively across returned transcript cycles.',
             ],
           },
+          {
+            type: 'note',
+            title: 'Why finalized grades matter',
+            text: 'Draft and Published grades can still change. Finalized grades are the ones treated as ready for official transcript calculation.',
+          },
         ],
       },
       {
@@ -635,6 +848,31 @@ export const docsPages: DocPage[] = [
               'Payment processing is recorded inside EduVerse, but external payment gateway integration is outside the current scope.',
             ],
           },
+          {
+            type: 'note',
+            title: 'Before creating a structure',
+            text: 'Check the target person, amount, category, billing cycle, due day, and start date. The structure is the plan; entries are the payment requests created from that plan.',
+          },
+        ],
+      },
+      {
+        id: 'structure-amounts',
+        title: 'Structure amounts',
+        tags: ['amount', 'currency', 'billing'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The amount is the value that will be used when entries are created from the structure. It should match the actual agreement for the selected student or teacher.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Use a positive amount that matches the billing agreement.',
+              'For one-time structures, the amount usually represents the full charge.',
+              'For recurring structures, the amount usually represents the value for each billing period.',
+              'Changing an existing structure does not automatically mean every past entry should be treated as changed.',
+            ],
+          },
         ],
       },
       {
@@ -645,6 +883,54 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'Students can submit payment claims where enabled. Admins verify payments, reject invalid claims, and maintain transaction history for audit visibility.',
+          },
+          {
+            type: 'list',
+            items: [
+              'A payment claim means the student says a payment was made.',
+              'Unverified payments still need staff review.',
+              'Confirm a payment only after checking the receipt, transaction reference, cash record, or other school-approved proof.',
+              'Confirmed payments update the paid amount and transaction history.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'payment-claims',
+        title: 'Payment claims',
+        tags: ['claim paid', 'receipt', 'student payment'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A payment claim sends a fee entry to staff for review. It is useful when a student has paid outside EduVerse and needs the school to mark the entry as paid.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Students should choose the correct fee entry before claiming payment.',
+              'Receipt links or transaction references should be clear enough for staff to verify.',
+              'A claimed payment remains Awaiting Approval until staff confirms it.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'payment-confirmation',
+        title: 'Payment confirmation',
+        tags: ['confirm payment', 'partial payment', 'paid'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Payment confirmation is the staff action that accepts a payment claim or records a verified payment. This changes the entry balance and may create a confirmed transaction record.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Confirm only the amount that was actually verified.',
+              'Use partial confirmation when only part of the balance was paid.',
+              'Once an entry is fully paid, it appears as paid instead of due or awaiting approval.',
+              'Keep receipt and reference details readable so later audits make sense.',
+            ],
           },
         ],
       },
@@ -752,7 +1038,108 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Organization settings control profile details, contact information, branding, and workspace-level configuration.',
+            text: 'Organization settings are the central place for school identity, contact details, branding, appearance, and account safety options. Each section affects a different part of the workspace.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Profile details help users recognize the school across dashboards and records.',
+              'Branding controls the logo shown in the workspace and documents.',
+              'Appearance controls the main accent color and theme preference.',
+              'Contact and security options help with recovery, verification, and active sessions.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'organization-profile',
+        title: 'Organization profile',
+        tags: ['name', 'location', 'phone', 'contact email'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The organization profile stores the school name, location, phone number, and contact email used throughout the workspace. Keep these values official and easy to recognize.',
+          },
+          {
+            type: 'list',
+            items: [
+              'The school name appears in dashboards, reports, and places where the workspace needs to identify itself.',
+              'Location and phone help users and support teams understand which institute the workspace represents.',
+              'The contact email should be monitored by the school because verification and recovery messages may depend on it.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'branding-logo',
+        title: 'Logo and branding',
+        tags: ['logo', 'branding', 'image'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The organization logo is used as the visual mark for the school workspace. Upload a clean square image that remains readable at small sizes.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Use an official logo or school mark, not a temporary classroom image.',
+              'Square images work best because the logo is often shown inside a round or compact frame.',
+              'Logo changes are saved with the rest of the organization settings when you submit the page.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'appearance-theme',
+        title: 'Appearance and theme',
+        tags: ['accent color', 'theme', 'contrast'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Appearance settings control the workspace accent color and preferred theme mode. They help the school feel recognizable without making the interface hard to read.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Choose an accent color with enough contrast for buttons, highlights, and focus states.',
+              'EduVerse checks unsafe colors before saving so text and controls remain readable.',
+              'Theme mode controls whether the workspace follows light, dark, or system preference where supported.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'contact-verification',
+        title: 'Contact verification',
+        tags: ['verified email', 'recovery', 'contact'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Contact verification confirms that the school can receive important account and recovery messages. If the contact email changes, the school may need to verify the new address again.',
+          },
+          {
+            type: 'note',
+            title: 'Why this matters',
+            text: 'An unverified contact email can make account recovery and official communication harder. Keep the address current and monitored.',
+          },
+        ],
+      },
+      {
+        id: 'security-sessions',
+        title: 'Security and sessions',
+        tags: ['sessions', 'password', 'devices'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Security tools help users review active sessions, remove access from old devices, and change passwords when needed.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Review sessions if a device is lost, shared, or no longer trusted.',
+              'Change the password if there is any chance the account was exposed.',
+              'Use the verified contact email for recovery-related workflows when available.',
+            ],
           },
         ],
       },
@@ -764,6 +1151,14 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'Academic settings include GPA policies. GPA policy management is restricted to organization admins because it affects transcripts and academic history.',
+          },
+          {
+            type: 'list',
+            items: [
+              'GPA policies define scale, rounding, calculation method, and grade boundaries.',
+              'A cycle can lock its selected GPA policy after finalized grades exist.',
+              'Only trusted academic administrators should change GPA policies because the result affects official records.',
+            ],
           },
         ],
       },

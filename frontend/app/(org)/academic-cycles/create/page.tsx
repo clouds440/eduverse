@@ -265,7 +265,7 @@ export default function CreateAcademicCyclePage() {
                                             checked={formData.isActive}
                                             onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
                                             label="Set as Active Cycle"
-                                            description={<>This deactivates the current active cycle. <DocsLink href="/docs/academic-cycles#cycle-purpose">Details</DocsLink></>}
+                                            description={<>This deactivates the current active cycle. <DocsLink href="/docs/academic-cycles#active-cycle">Details</DocsLink></>}
                                             size="md"
                                         />
                                     </div>

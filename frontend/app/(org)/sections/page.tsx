@@ -262,7 +262,7 @@ export default function SectionsPage() {
         <PageShell>
             <PageHeader
                 title="Sections"
-                description={<>Search and maintain class sections while preserving course, cycle, and enrollment behavior. <DocsLink href="/docs/courses-sections#sections">Read section docs</DocsLink></>}
+                description={<>Search and maintain class sections while preserving course, cycle, and enrollment behavior. <DocsLink href="/docs/courses-sections#section-records">Read section docs</DocsLink></>}
                 icon={Layers}
                 breadcrumbs={[
                     { label: 'Organization' },

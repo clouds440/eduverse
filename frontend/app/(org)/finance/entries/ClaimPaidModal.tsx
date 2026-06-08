@@ -35,7 +35,7 @@ export function ClaimPaidModal({ isOpen, onClose, entry, onSubmit }: ClaimPaidMo
         <Modal isOpen={isOpen} onClose={onClose} title="Claim Payment">
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="bg-info/10 text-info p-4 rounded-xl border border-info/20 text-sm font-medium">
-                    Claiming <strong>{entry.title}</strong> sends it for admin verification. <DocsLink href="/docs/finance#payments" className="text-info">Read payment rules</DocsLink>
+                    Claiming <strong>{entry.title}</strong> sends it for admin verification. <DocsLink href="/docs/finance#payment-claims" className="text-info">Read payment rules</DocsLink>
                 </div>
 
                 <div className="space-y-2">

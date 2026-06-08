@@ -177,7 +177,7 @@ export default function StudentFeesPage() {
         <PageShell>
             <PageHeader
                 title="Fees & Payments"
-                description={<>View fee plans, payment requests, and fee history. <DocsLink href="/docs/finance#payments">Read payment guide</DocsLink></>}
+                description={<>View fee plans, payment requests, and fee history. <DocsLink href="/docs/finance#payment-claims">Read payment guide</DocsLink></>}
                 icon={Wallet}
                 breadcrumbs={[{ label: 'Student Portal' }, { label: 'Fees & Payments' }]}
             />

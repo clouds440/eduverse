@@ -363,7 +363,7 @@ export default function SettingsPage() {
                         <SettingsSection
                             icon={Building2}
                             title="Organization Profile"
-                            description={<>These details identify the organization across dashboards and records. <DocsLink href="/docs/settings#organization-settings">Details</DocsLink></>}
+                            description={<>These details identify the organization across dashboards and records. <DocsLink href="/docs/settings#organization-profile">Profile details</DocsLink></>}
                         >
                             <div className="grid gap-5 md:grid-cols-2">
                                 <div className="space-y-2">
@@ -439,7 +439,7 @@ export default function SettingsPage() {
                         <SettingsSection
                             icon={Palette}
                             title="Appearance"
-                            description={<>Choose the primary accent and preferred theme for this workspace. <DocsLink href="/docs/settings#organization-settings">Details</DocsLink></>}
+                            description={<>Choose the primary accent and preferred theme for this workspace. <DocsLink href="/docs/settings#appearance-theme">Appearance details</DocsLink></>}
                         >
                             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.65fr)]">
                                 <div className="space-y-3">
@@ -489,7 +489,7 @@ export default function SettingsPage() {
                         <SettingsSection
                             icon={School}
                             title="Logo"
-                            description={<>Upload a square organization mark. <DocsLink href="/docs/settings#organization-settings">Details</DocsLink></>}
+                            description={<>Upload a square organization mark. <DocsLink href="/docs/settings#branding-logo">Logo details</DocsLink></>}
                         >
                             <div className="flex flex-col items-center gap-3">
                                 <PhotoUploadPicker

@@ -123,7 +123,7 @@ export default function CreateSectionPage() {
         <div className="flex flex-col w-full max-w-6xl py-10 mx-auto animate-in fade-in duration-700">
             <PageHeader
                 title="Create New Section"
-                description={<>Define a class offering for a course and cycle. <DocsLink href="/docs/courses-sections#sections">Read section docs</DocsLink></>}
+                description={<>Define a class offering for a course and cycle. <DocsLink href="/docs/courses-sections#section-creation">Read section docs</DocsLink></>}
                 icon={Layers}
                 className="mb-8"
             />
@@ -135,7 +135,7 @@ export default function CreateSectionPage() {
                         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-all duration-700" />
                         <h3 className="text-lg font-black tracking-tight mb-4 relative z-10">Section Placement</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed relative z-10 mb-6">
-                            Sections connect a course to students, teachers, schedules, attendance, and grades. <DocsLink href="/docs/courses-sections#sections">Learn more</DocsLink>
+                            Sections connect a course to students, teachers, schedules, attendance, and grades. <DocsLink href="/docs/courses-sections#section-records">Learn more</DocsLink>
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">

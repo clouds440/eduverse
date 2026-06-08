@@ -51,7 +51,7 @@ export function ConfirmPaymentModal({ isOpen, onClose, entry, onConfirm }: Confi
                 </div>
 
                 <p className="text-sm font-semibold text-muted-foreground">
-                    Confirm only payments you have verified. <DocsLink href="/docs/finance#payments">Read payment verification docs</DocsLink>
+                    Confirm only payments you have verified. <DocsLink href="/docs/finance#payment-confirmation">Read payment verification docs</DocsLink>
                 </p>
 
                 {entry.paymentMethod && (
