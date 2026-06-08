@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { getSiteUrl } from '@/lib/site';
+import { docsPages } from './docs/_data/docs';
 
 const publicRoutes: Array<{
     path: string;
@@ -21,7 +22,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     const siteUrl = getSiteUrl();
     const lastModified = new Date();
 
-    return publicRoutes.map((route) => ({
+    const docRoutes = docsPages.map((page) => ({
+        path: `/docs/${page.slug}`,
+        changeFrequency: 'weekly' as const,
+        priority: 0.55,
+    }));
+
+    return [...publicRoutes, ...docRoutes].map((route) => ({
         url: `${siteUrl}${route.path}`,
         lastModified,
         changeFrequency: route.changeFrequency,

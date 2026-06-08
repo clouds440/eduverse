@@ -70,7 +70,9 @@ export default function Navbar() {
                 {!isDashboard && (
                     <div className="hidden lg:flex items-center justify-center gap-1 rounded-full border border-border/60 bg-card/45 p-1">
                         {PUBLIC_NAV_LINKS.map((item) => {
-                            const isActive = pathname === item.href;
+                            const isActive = item.href === '/docs'
+                                ? pathname === '/docs' || pathname.startsWith('/docs/')
+                                : pathname === item.href;
                             return (
                                 <Link
                                     key={item.name}
