@@ -19,6 +19,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StatusBanner } from '@/components/ui/StatusBanner';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 import { BrandIcon } from '@/components/ui/Brand';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
@@ -217,7 +218,7 @@ function UnfinalizedGradesPanel({ token, canReview }: { token: string | null; ca
                     variant="warning"
                     icon={AlertTriangle}
                     title="Unfinalized grades stay out of transcripts"
-                    description="Use this workspace to find Draft and Published grades, make corrections, and finalize grades when they are ready for official transcripts."
+                    description={<>Review Draft and Published grades before transcripts use them. <DocsLink href="/docs/gradebook#grades-page">Read gradebook rules</DocsLink></>}
                 />
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_auto] lg:items-center">
                     <Input
@@ -410,7 +411,7 @@ export default function GradesPage() {
         <PageShell>
             <PageHeader
                 title="Grades"
-                description="Choose a section or review grades that still need final transcript approval."
+                description={<>Choose a section or review grades before final transcript approval. <DocsLink href="/docs/gradebook#grades-page">Read grade docs</DocsLink></>}
                 icon={GraduationCap}
                 breadcrumbs={[
                     { label: 'Organization' },

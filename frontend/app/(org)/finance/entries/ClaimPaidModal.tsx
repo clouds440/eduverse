@@ -5,6 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { FinancialEntry } from '@/types';
 
 interface ClaimPaidModalProps {
@@ -34,7 +35,7 @@ export function ClaimPaidModal({ isOpen, onClose, entry, onSubmit }: ClaimPaidMo
         <Modal isOpen={isOpen} onClose={onClose} title="Claim Payment">
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="bg-info/10 text-info p-4 rounded-xl border border-info/20 text-sm font-medium">
-                    You are claiming payment for <strong>{entry.title}</strong>. This will notify the administration for verification.
+                    Claiming <strong>{entry.title}</strong> sends it for admin verification. <DocsLink href="/docs/finance#payments" className="text-info">Read payment rules</DocsLink>
                 </div>
 
                 <div className="space-y-2">

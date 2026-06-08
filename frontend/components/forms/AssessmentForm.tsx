@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { ExternalLinkInput } from '@/components/ui/ExternalLinkInput';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { assessmentSchema, AssessmentFormData } from '@/lib/schemas';
@@ -118,6 +119,10 @@ export default function AssessmentForm({
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
+            <p className="text-sm font-semibold text-muted-foreground">
+                Assessments can collect submissions and later feed grading. <DocsLink href="/docs/assessments-grading#assessment-ownership">Read assessment rules</DocsLink>
+            </p>
+
             <div className="space-y-4 md:space-y-6">
                 <div className="space-y-2 md:space-y-3">
                     <Label htmlFor="title">Assessment Title</Label>
@@ -258,7 +263,7 @@ export default function AssessmentForm({
                             checked={watch('allowSubmissions')}
                             onCheckedChange={(checked) => setValue('allowSubmissions', checked)}
                             label="Allow Submissions"
-                            description="Enable students to upload work for this assessment"
+                            description={<>Enable students to upload work for this assessment. <DocsLink href="/docs/submissions#student-submissions">Submission guide</DocsLink></>}
                             textColor='text-muted-foreground'
                         />
                     </div>

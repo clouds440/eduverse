@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
@@ -51,7 +52,7 @@ export default function PromotionsPage() {
         <PageShell>
             <PageHeader
                 title="Academic Transitions"
-                description="Copy section structure into a new cycle or promote a cohort after review."
+                description={<>Copy setup or promote cohorts after review. <DocsLink href="/docs/cohorts-promotions#promotions">Read transition docs</DocsLink></>}
                 icon={ArrowRight}
                 meta={<Badge variant="neutral" size="sm">{cycles.length} cycles</Badge>}
                 breadcrumbs={[
@@ -214,8 +215,8 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-4">
                 <StatusBanner
-                    title="Copy forward creates new records"
-                    description="This copies selected academic setup from the source cycle into the target cycle. It cannot be reversed automatically, so review the source, target, and selected record types before confirming."
+                    title="Review before copying"
+                    description={<>Copy-forward creates new records in the target cycle. <DocsLink href="/docs/cohorts-promotions#copy-forward">Read copy-forward docs</DocsLink></>}
                     variant="warning"
                     icon={GitBranch}
                 />
@@ -357,7 +358,7 @@ function PromotionView({ cycles, cohorts, token, dispatch }: { cycles: AcademicC
             <div className="space-y-4">
                 <StatusBanner
                     title="Review before promoting"
-                    description="Promotion moves students into the selected target cohort for the next academic cycle."
+                    description={<>Promotion changes student placement. <DocsLink href="/docs/cohorts-promotions#promotions">Read promotion docs</DocsLink></>}
                     variant="warning"
                     icon={Users}
                 />

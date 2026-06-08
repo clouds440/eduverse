@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCourseSectionLabel, getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
@@ -159,7 +160,7 @@ export default function SchedulesPage() {
         <PageShell>
             <PageHeader
                 title="Schedules"
-                description="Scan section time slots by section, course, cohort, day, and room."
+                description={<>Scan class time slots by section, teacher, day, and room. <DocsLink href="/docs/timetable#schedule-teacher">Read schedule rules</DocsLink></>}
                 icon={CalendarDays}
                 meta={<Badge variant="neutral" size="sm">{sections.length} sections</Badge>}
                 breadcrumbs={[

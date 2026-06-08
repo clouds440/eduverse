@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/Badge';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { getSectionSurfaceStyle, getSectionTextStyle } from '@/lib/utils';
@@ -261,7 +262,7 @@ export default function SectionsPage() {
         <PageShell>
             <PageHeader
                 title="Sections"
-                description="Search and maintain class sections while preserving course, cycle, and enrollment behavior."
+                description={<>Search and maintain class sections while preserving course, cycle, and enrollment behavior. <DocsLink href="/docs/courses-sections#sections">Read section docs</DocsLink></>}
                 icon={Layers}
                 breadcrumbs={[
                     { label: 'Organization' },

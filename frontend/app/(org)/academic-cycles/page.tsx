@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, Column } from '@/components/ui/DataTable';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -252,7 +253,7 @@ export default function AcademicCyclesPage() {
         <PageShell>
             <PageHeader
                 title="Academic Cycles"
-                description="Manage academic terms and the active enrollment period for cohorts and sections."
+                description={<>Manage academic terms and enrollment periods. <DocsLink href="/docs/academic-cycles#cycle-purpose">Read cycle docs</DocsLink></>}
                 icon={Calendar}
                 breadcrumbs={[
                     { label: 'Organization' },
@@ -354,8 +355,8 @@ export default function AcademicCyclesPage() {
                     <div className="space-y-3 rounded-lg border border-warning/35 bg-warning/10 p-3">
                         <StatusBanner
                             variant="warning"
-                            title="GPA policy locks after finalized grades"
-                            description="Once finalized grades are pushed by any teacher in this academic cycle, the GPA policy cannot be changed. Proceed with caution."
+                            title="GPA policy can lock"
+                            description={<>After finalized grades exist, this cycle&apos;s GPA policy cannot be changed. <DocsLink href="/docs/gpa-policies#policy-locking">Learn why</DocsLink></>}
                             className="shadow-none"
                         />
                         <div className="space-y-2">
@@ -373,7 +374,7 @@ export default function AcademicCyclesPage() {
                             />
                             {editingCycle?.hasFinalizedGrades && (
                                 <p className="text-xs font-bold text-warning">
-                                    This cycle already has finalized grades, so its GPA policy is locked.
+                                    GPA policy is locked for this cycle. <DocsLink href="/docs/gpa-policies#policy-locking">Details</DocsLink>
                                 </p>
                             )}
                         </div>

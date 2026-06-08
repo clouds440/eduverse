@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
 import { BrandIcon } from '@/components/ui/Brand';
 import { PageHeader } from '@/components/ui/PageShell';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { BookOpen, Download, GraduationCap, Printer, Search } from 'lucide-react';
 import { formatCourseSectionLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
 import { PLATFORM_NAME } from '@/lib/constants';
@@ -207,7 +208,7 @@ export default function TranscriptsPage() {
         <div className="flex h-full w-full flex-col space-y-4">
             <PageHeader
                 title="Academic Transcripts"
-                description="View and print student academic reports by cycle or cumulative history."
+                description={<>View and print academic reports by cycle or cumulative history. <DocsLink href="/docs/transcripts#transcript-calculation">Read transcript rules</DocsLink></>}
                 icon={GraduationCap}
                 actions={(
                     <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-end md:w-auto md:items-center">
@@ -540,7 +541,7 @@ export default function TranscriptsPage() {
                                     <p className="truncate text-lg font-black">{transcriptResponse.summary?.policyName || 'GPA Policy'}</p>
                                 </div>
                                 <p className="text-right text-xs font-semibold text-muted-foreground sm:col-span-4">
-                                    Letter grades and grade points are calculated from the organization GPA policy.
+                                    Letter grades and grade points come from the cycle GPA policy. <DocsLink href="/docs/transcripts#transcript-columns">Column guide</DocsLink>
                                 </p>
                             </div>
                         </div>

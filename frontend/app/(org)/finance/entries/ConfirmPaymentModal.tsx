@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { FinancialEntry } from '@/types';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
+import { DocsLink } from '@/components/ui/DocsLink';
 
 interface ConfirmPaymentModalProps {
     isOpen: boolean;
@@ -48,6 +49,10 @@ export function ConfirmPaymentModal({ isOpen, onClose, entry, onConfirm }: Confi
                         <FinancialAmount amount={entry.paidAmount} currency={entry.currency} className="text-success font-bold" />
                     </div>
                 </div>
+
+                <p className="text-sm font-semibold text-muted-foreground">
+                    Confirm only payments you have verified. <DocsLink href="/docs/finance#payments">Read payment verification docs</DocsLink>
+                </p>
 
                 {entry.paymentMethod && (
                     <div className="bg-warning/10 text-warning p-4 rounded-xl border border-warning/20 text-xs">

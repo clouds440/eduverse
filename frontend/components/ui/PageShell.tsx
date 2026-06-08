@@ -15,7 +15,7 @@ interface PageShellProps {
 
 interface PageHeaderProps {
     title: React.ReactNode;
-    description?: string;
+    description?: React.ReactNode;
     icon?: LucideIcon;
     meta?: React.ReactNode;
     actions?: React.ReactNode;

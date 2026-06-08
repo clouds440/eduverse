@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/Input';
 import { PageHeader } from '@/components/ui/PageShell';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { useMemo, useState } from 'react';
 import { getSectionSurfaceStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
@@ -64,7 +65,7 @@ export default function AttendanceLandingPage() {
         <div className="mx-auto flex w-full flex-1 flex-col gap-6 pb-8">
             <PageHeader
                 title="Attendance Portal"
-                description="Open a section workbook to mark daily attendance or review trends."
+                description={<>Open a section workbook to mark attendance or review trends. <DocsLink href="/docs/attendance#attendance-workflow">Read attendance guide</DocsLink></>}
                 icon={CheckCircle}
                 actions={(
                     <div className="relative w-full sm:w-80">

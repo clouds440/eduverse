@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
@@ -212,7 +213,7 @@ export default function CohortsPage() {
         <PageShell>
             <PageHeader
                 title="Cohorts"
-                description="Group students and sections by academic cycle for cleaner enrollment workflows."
+                description={<>Group students and sections by academic cycle for cleaner enrollment workflows. <DocsLink href="/docs/cohorts-promotions#cohorts">Read cohort docs</DocsLink></>}
                 icon={Users}
                 breadcrumbs={[
                     { label: 'Organization' },

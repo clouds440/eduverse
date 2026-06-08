@@ -12,7 +12,7 @@ export const FORM_READONLY_INPUT_CLASS = 'h-12 border-border/60 bg-muted/40 font
 
 interface FormSectionProps {
     title: string;
-    description?: string;
+    description?: React.ReactNode;
     icon?: LucideIcon;
     children: React.ReactNode;
     className?: string;
@@ -21,7 +21,7 @@ interface FormSectionProps {
 
 interface FormPageHeaderProps {
     title: React.ReactNode;
-    description: string;
+    description: React.ReactNode;
     icon: LucideIcon;
     className?: string;
 }

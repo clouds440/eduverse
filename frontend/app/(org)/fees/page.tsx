@@ -31,6 +31,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { FinanceStatusBadge } from '@/components/finance/FinanceStatusBadge';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { ClaimPaidModal } from '@/app/(org)/finance/entries/ClaimPaidModal';
+import { DocsLink } from '@/components/ui/DocsLink';
 
 const statusTabs = [
     { id: 'DUE', label: 'Due' },
@@ -176,7 +177,7 @@ export default function StudentFeesPage() {
         <PageShell>
             <PageHeader
                 title="Fees & Payments"
-                description="View your assigned fee structures, payment requests, and fee book history."
+                description={<>View fee plans, payment requests, and fee history. <DocsLink href="/docs/finance#payments">Read payment guide</DocsLink></>}
                 icon={Wallet}
                 breadcrumbs={[{ label: 'Student Portal' }, { label: 'Fees & Payments' }]}
             />

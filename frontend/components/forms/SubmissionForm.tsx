@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Upload, FileCheck } from 'lucide-react';
 import { Submission } from '@/types';
 import { isSafeHttpUrl } from '@/lib/safeUrl';
+import { DocsLink } from '@/components/ui/DocsLink';
 
 const submissionSchema = z.object({
     fileUrl: z.string()
@@ -79,7 +80,7 @@ export default function SubmissionForm({ assessmentId, onSuccess, onCancel }: Su
                     </div>
                     <h3 className="text-xl md:text-2xl font-black text-foreground mb-2">Upload Your Work</h3>
                     <p className="text-xs md:text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">
-                        Provide a link, a written response, or both for evaluation.
+                        Provide a link, a written response, or both. <DocsLink href="/docs/submissions#student-submissions">Read submission guide</DocsLink>
                     </p>
                 </div>
             </div>

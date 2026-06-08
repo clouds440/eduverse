@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
@@ -606,7 +607,7 @@ export default function GpaPoliciesPage() {
         <PageShell>
             <PageHeader
                 title="GPA Policies"
-                description="Manage organization GPA scales, grade boundaries, and transcript calculation rules."
+                description={<>Manage GPA scales, grade boundaries, and transcript rules. <DocsLink href="/docs/gpa-policies#policy-basics">Read GPA policy docs</DocsLink></>}
                 icon={Trophy}
                 breadcrumbs={[
                     { label: 'Organization' },
@@ -764,7 +765,9 @@ export default function GpaPoliciesPage() {
                                         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
                                             <div>
                                                 <h2 className="text-base font-black">Grade Boundaries</h2>
-                                                <p className="text-xs font-semibold text-muted-foreground">Ranges must be unique and stay within 0-100.</p>
+                                                <p className="text-xs font-semibold text-muted-foreground">
+                                                    Ranges must cover 0-100 without gaps. <DocsLink href="/docs/gpa-policies#grade-rule-validation">Rules guide</DocsLink>
+                                                </p>
                                             </div>
                                             <Button
                                                 type="button"
@@ -998,8 +1001,8 @@ export default function GpaPoliciesPage() {
                 onConfirm={() => deletingPolicy && deletePolicy(deletingPolicy)}
                 title={(deletingPolicy?._count?.academicCycles || 0) > 0 ? 'Archive GPA policy?' : 'Delete GPA policy?'}
                 description={(deletingPolicy?._count?.academicCycles || 0) > 0
-                    ? `${deletingPolicy?.name || 'This GPA policy'} is used by academic cycles, so it will be archived and kept for historical transcripts.`
-                    : `This will permanently remove ${deletingPolicy?.name || 'this GPA policy'}.`}
+                    ? <>{deletingPolicy?.name || 'This GPA policy'} is used by academic cycles, so it will be archived. <DocsLink href="/docs/gpa-policies#policy-locking">Why archive?</DocsLink></>
+                    : <>This will permanently remove {deletingPolicy?.name || 'this GPA policy'}. <DocsLink href="/docs/gpa-policies#policy-basics">Read policy docs</DocsLink></>}
                 confirmText={(deletingPolicy?._count?.academicCycles || 0) > 0 ? 'Archive' : 'Delete'}
                 isDestructive
             />

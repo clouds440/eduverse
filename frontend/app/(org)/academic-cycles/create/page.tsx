@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageShell';
@@ -120,7 +121,7 @@ export default function CreateAcademicCyclePage() {
         <div className="flex flex-col w-full max-w-6xl py-10 mx-auto animate-in fade-in duration-700">
             <PageHeader
                 title="Create New Academic Cycle"
-                description="Define a new academic period for your institution."
+                description={<>Define a new academic period for your institution. <DocsLink href="/docs/academic-cycles#gpa-policy-selection">Read cycle policy docs</DocsLink></>}
                 icon={Calendar}
                 className="mb-8"
             />
@@ -132,7 +133,7 @@ export default function CreateAcademicCyclePage() {
                         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-all duration-700" />
                         <h3 className="text-lg font-black tracking-tight mb-4 relative z-10">Academic Period</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed relative z-10 mb-6">
-                            Academic cycles represent time-bound periods like semesters, trimesters, or full academic years. They organize your institution&apos;s academic timeline.
+                            Academic cycles represent time-bound periods like semesters, trimesters, or full academic years. <DocsLink href="/docs/academic-cycles#cycle-purpose">Learn more</DocsLink>
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">
@@ -240,7 +241,7 @@ export default function CreateAcademicCyclePage() {
                                             variant="warning"
                                             icon={AlertCircle}
                                             title="Choose carefully"
-                                            description="Once finalized grades are pushed by any teacher in this academic cycle, the GPA policy is locked and cannot be changed."
+                                            description={<>The GPA policy locks after finalized grades. <DocsLink href="/docs/gpa-policies#policy-locking">Read before choosing</DocsLink></>}
                                             className="shadow-none"
                                         />
                                         <CustomSelect
@@ -264,7 +265,7 @@ export default function CreateAcademicCyclePage() {
                                             checked={formData.isActive}
                                             onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
                                             label="Set as Active Cycle"
-                                            description="This will deactivate the currently active cycle"
+                                            description={<>This deactivates the current active cycle. <DocsLink href="/docs/academic-cycles#cycle-purpose">Details</DocsLink></>}
                                             size="md"
                                         />
                                     </div>

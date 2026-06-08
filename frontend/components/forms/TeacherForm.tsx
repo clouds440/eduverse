@@ -21,6 +21,7 @@ import { useForm, SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { teacherCreateSchema, teacherUpdateSchema, teacherProfileSchema, TeacherCreateFormData, TeacherUpdateFormData, TeacherProfileFormData } from '@/lib/schemas';
 import { Toggle } from '@/components/ui/Toggle';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { Badge } from '../ui/Badge';
 
 interface TeacherFormProps {
@@ -397,13 +398,13 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
 
             <FormSection
                 title="Section Assignments"
-                description="Attach this teacher to the sections they can manage."
+                description={<>Attach this teacher to sections they can manage. <DocsLink href="/docs/teachers#teacher-assignments">Read assignment rules</DocsLink></>}
                 icon={Plus}
             >
                 <FormField
                     label="Assign to Sections"
                     error={errors.sectionIds?.message}
-                    helper="Teacher will be able to manage students and grading for selected sections."
+                    helper={<>Teacher can manage selected sections and can be chosen for their schedules. <DocsLink href="/docs/timetable#schedule-teacher">Schedule rules</DocsLink></>}
                     className="max-w-2xl"
                 >
                     <CustomMultiSelect

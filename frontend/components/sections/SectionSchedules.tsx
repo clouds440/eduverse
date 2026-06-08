@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { Toggle } from '@/components/ui/Toggle';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
 const DAY_OPTIONS = [
@@ -255,7 +256,9 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                     <p className="text-sm font-black text-foreground">{schedules.length} schedule slots</p>
-                    <p className="break-words text-xs font-semibold text-muted-foreground">Weekly meeting times for this section.</p>
+                    <p className="break-words text-xs font-semibold text-muted-foreground">
+                        Weekly meeting times for this section. <DocsLink href="/docs/timetable#schedule-teacher">Schedule guide</DocsLink>
+                    </p>
                 </div>
                 {isManagerOrAdmin && (
                     <Button onClick={openCreateModal} icon={Plus} className="w-full sm:w-auto">
@@ -357,7 +360,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                             <div className="min-w-0">
                                 <p className="text-sm font-black text-foreground">Slot pattern</p>
                                 <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                                    {editingSchedule ? 'Editing updates this schedule slot only.' : 'Create one day or repeat the same slot Monday through Friday.'}
+                                    {editingSchedule ? 'Editing updates this schedule slot only.' : 'Create one day or repeat the same slot Monday through Friday.'} <DocsLink href="/docs/timetable#conflicts">Conflict rules</DocsLink>
                                 </p>
                             </div>
                             {!editingSchedule && (

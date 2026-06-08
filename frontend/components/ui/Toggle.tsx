@@ -1,13 +1,13 @@
 'use client';
 
-import { forwardRef } from 'react';
+import { forwardRef, type ReactNode } from 'react';
 
 interface ToggleProps {
     checked: boolean;
     onCheckedChange: (checked: boolean) => void;
     disabled?: boolean;
     label?: string;
-    description?: string;
+    description?: ReactNode;
     size?: 'sm' | 'md' | 'lg';
     onColor?: string;
     offColor?: string;

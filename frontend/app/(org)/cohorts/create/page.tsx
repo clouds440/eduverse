@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { api } from '@/lib/api';
 import { formatCourseSectionLabel } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageShell';
@@ -114,7 +115,7 @@ export default function CreateCohortPage() {
         <div className="flex flex-col w-full max-w-6xl py-10 mx-auto animate-in fade-in duration-700">
             <PageHeader
                 title="Create New Cohort"
-                description="Group students for streamlined management."
+                description={<>Group students for enrollment and promotions. <DocsLink href="/docs/cohorts-promotions#cohorts">Read cohort docs</DocsLink></>}
                 icon={Users}
                 className="mb-8"
             />
@@ -126,7 +127,7 @@ export default function CreateCohortPage() {
                         <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-all duration-700" />
                         <h3 className="text-lg font-black tracking-tight mb-4 relative z-10">Cohort Organization</h3>
                         <p className="text-sm text-muted-foreground leading-relaxed relative z-10 mb-6">
-                            Cohorts are student groups within an academic cycle. They enable bulk enrollment, promotions, and simplified section assignments.
+                            Cohorts are student groups inside an academic cycle. They help with bulk enrollment and promotions. <DocsLink href="/docs/cohorts-promotions#cohorts">Learn more</DocsLink>
                         </p>
                         <div className="space-y-4 relative z-10">
                             <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/50">

@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StatusBanner } from '@/components/ui/StatusBanner';
+import { DocsLink } from '@/components/ui/DocsLink';
 import AssessmentForm from '@/components/forms/AssessmentForm';
 import { formatCourseSectionLabel } from '@/lib/utils';
 import SubmissionForm from '@/components/forms/SubmissionForm';
@@ -133,7 +134,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                 <StatusBanner
                     variant="warning"
                     title="Transcript reminder"
-                    description="Draft and Published grades are still in review. Only grades marked Finalized will appear in student transcripts."
+                    description={<>Only Finalized grades appear in transcripts. <DocsLink href="/docs/assessments-grading#grade-input-rules">Read grading rules</DocsLink></>}
                 />
             )}
 

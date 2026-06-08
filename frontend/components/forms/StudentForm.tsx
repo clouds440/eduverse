@@ -16,6 +16,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { FormActions, FormField, FormGrid, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { formatCourseSectionLabel } from '@/lib/utils';
 import { useForm, SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -394,7 +395,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
 
             <FormSection
                 title="Academic Placement"
-                description="Cohort and individual section placement."
+                description={<>Cohort and individual section placement. <DocsLink href="/docs/students#enrollment-history">Read enrollment rules</DocsLink></>}
                 icon={Users}
             >
                 <FormGrid className="items-start">

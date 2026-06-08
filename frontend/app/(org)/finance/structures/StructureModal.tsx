@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { FinanceCategory, BillingCycle, FinancialStructure, Student, Teacher, FinanceTargetType, PaginatedResponse } from '@/types';
 import { api } from '@/lib/api';
 import useSWR from 'swr';
@@ -105,6 +106,10 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
             title={initialData ? "Edit Financial Structure" : "Create Financial Structure"}
         >
             <form onSubmit={handleSubmit} className="space-y-6">
+                <p className="text-sm font-semibold text-muted-foreground">
+                    Structures define billing agreements and generated entries. <DocsLink href="/docs/finance#finance-structures">Read finance structure docs</DocsLink>
+                </p>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label>Target Type</Label>
@@ -145,6 +150,9 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                     <div className="space-y-2">
                         <Label>Amount</Label>
                         <Input type="number" min={0} step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} />
+                        <p className="text-xs font-semibold text-muted-foreground">
+                            Enter the amount for this agreement. <DocsLink href="/docs/finance#finance-structures">Details</DocsLink>
+                        </p>
                     </div>
                 </div>
 

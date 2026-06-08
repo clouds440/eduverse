@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
@@ -222,7 +223,7 @@ export default function CoursesPage() {
         <PageShell>
             <PageHeader
                 title="Courses"
-                description="Search and maintain course records used by sections, grading, and materials."
+                description={<>Search and maintain course records used by sections, grading, and materials. <DocsLink href="/docs/courses-sections#courses">Read course docs</DocsLink></>}
                 icon={BookOpen}
                 breadcrumbs={[
                     { label: 'Organization' },
@@ -328,6 +329,9 @@ export default function CoursesPage() {
                             placeholder="3"
                             icon={Clock3}
                         />
+                        <p className="text-xs font-semibold text-muted-foreground">
+                            Credit hours can affect weighted GPA and transcript totals. <DocsLink href="/docs/transcripts#transcript-calculation">Details</DocsLink>
+                        </p>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="description">Description</Label>

@@ -8,6 +8,7 @@ import {
     AlertCircle,
     Building2,
     CheckCircle,
+    ExternalLink,
     Mail,
     MapPin,
     Palette,
@@ -35,6 +36,8 @@ import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
 import { getPrimaryColorError, getSafePrimaryColor, isPrimaryColorAllowed } from '@/lib/themeColor';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageShell';
+import { DocsLink } from '@/components/ui/DocsLink';
+import Link from 'next/link';
 
 function SettingsSection({
     icon: Icon,
@@ -44,7 +47,7 @@ function SettingsSection({
 }: {
     icon: LucideIcon;
     title: string;
-    description?: string;
+    description?: ReactNode;
     children: ReactNode;
 }) {
     return (
@@ -302,7 +305,7 @@ export default function SettingsPage() {
         <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 pb-8">
             <PageHeader
                 title="Organization Settings"
-                description="Identity, contact, appearance, and account security."
+                description={<>Identity, contact, appearance, and account security. <DocsLink href="/docs/settings#organization-settings">Read settings docs</DocsLink></>}
                 icon={Settings}
                 actions={(
                     <div className="flex flex-wrap items-center gap-2">
@@ -360,7 +363,7 @@ export default function SettingsPage() {
                         <SettingsSection
                             icon={Building2}
                             title="Organization Profile"
-                            description="These details identify the organization across dashboards, emails, and internal records."
+                            description={<>These details identify the organization across dashboards and records. <DocsLink href="/docs/settings#organization-settings">Details</DocsLink></>}
                         >
                             <div className="grid gap-5 md:grid-cols-2">
                                 <div className="space-y-2">
@@ -436,7 +439,7 @@ export default function SettingsPage() {
                         <SettingsSection
                             icon={Palette}
                             title="Appearance"
-                            description="Choose the primary accent and preferred theme for this workspace."
+                            description={<>Choose the primary accent and preferred theme for this workspace. <DocsLink href="/docs/settings#organization-settings">Details</DocsLink></>}
                         >
                             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.65fr)]">
                                 <div className="space-y-3">
@@ -486,7 +489,7 @@ export default function SettingsPage() {
                         <SettingsSection
                             icon={School}
                             title="Logo"
-                            description="Upload a square organization mark."
+                            description={<>Upload a square organization mark. <DocsLink href="/docs/settings#organization-settings">Details</DocsLink></>}
                         >
                             <div className="flex flex-col items-center gap-3">
                                 <PhotoUploadPicker
@@ -520,17 +523,26 @@ export default function SettingsPage() {
                             </div>
                             <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-3">
                                 {orgData?.contactEmailVerifiedAt ? (
-                                    <div className="flex items-center gap-2 text-success">
+                                    <div className="flex items-center justify-center gap-2 text-success">
                                         <CheckCircle className="h-4 w-4" />
                                         <span className="text-sm font-black">Verified</span>
                                     </div>
                                 ) : (
-                                    <div className="flex items-center gap-2 text-warning">
+                                    <div className="flex items-center justify-center gap-2 text-warning">
                                         <TriangleAlert className="h-4 w-4" />
                                         <span className="text-sm font-black">Verification pending</span>
                                     </div>
                                 )}
                             </div>
+                            <Link href="/change-password" >
+                                <div className="flex items-center justify-center mt-4 rounded-lg border border-border/70 bg-background/70 hover:bg-background p-3 text-sm font-medium cursor-pointer">
+                                    <span className="flex items-center gap-2">
+                                        Change Password
+                                        <ExternalLink className="h-4 w-4" />
+                                    </span>
+                                </div>
+                            </Link>
+
                         </section>
                     </aside>
                 </div>

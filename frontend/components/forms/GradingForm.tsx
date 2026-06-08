@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { DocsLink } from '@/components/ui/DocsLink';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { gradeSchema, GradeFormData, MIN_GRADE_MARKS, isAllowedGradeMarks, roundGradeMarks } from '@/lib/schemas';
@@ -126,6 +127,11 @@ export default function GradingForm({
                             className="font-medium"
                         />
                         {errors.marksObtained && <p className="text-xs text-danger font-semibold">{errors.marksObtained.message}</p>}
+                        {!errors.marksObtained && (
+                            <p className="text-xs font-semibold text-muted-foreground">
+                                Use 0, or at least {MIN_GRADE_MARKS}. <DocsLink href="/docs/assessments-grading#grade-input-rules">Rules</DocsLink>
+                            </p>
+                        )}
                     </div>
 
                     <div className="space-y-2 md:space-y-3">
