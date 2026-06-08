@@ -147,7 +147,7 @@ export function DocsNavigation() {
   const mobileHeader = (
     <div
       className={cn(
-        'fixed left-0 right-0 top-[var(--app-nav-height)] z-90 w-full border-b border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur-md transition-transform duration-200 lg:hidden',
+        'fixed left-0 right-0 top-(--app-nav-height) z-90 w-full border-b border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur-md transition-transform duration-200 lg:hidden',
         isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full',
       )}
     >
@@ -280,7 +280,7 @@ export function DocsNavigation() {
         </nav>
       </aside>
 
-      <div className="h-[57px] shrink-0 lg:hidden" aria-hidden="true" />
+      <div className="h-14.25 shrink-0 lg:hidden" aria-hidden="true" />
       {isMounted ? createPortal(mobileHeader, document.body) : null}
     </>
   );
