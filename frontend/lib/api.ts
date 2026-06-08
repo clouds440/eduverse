@@ -1,4 +1,4 @@
-import {
+import type {
     Teacher, Student, Organization, RegisterRequest, LoginRequest, AuthResponse,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateStudentRequest, UpdateStudentRequest,
@@ -10,7 +10,8 @@ import {
     ThemeMode, SectionSchedule, TimetableEntry, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
-    FinancialStructure, FinancialEntry, Transaction, FinanceStats, MessageResponse, AuditLogItem
+    FinancialStructure, FinancialEntry, Transaction, FinanceStats, MessageResponse, AuditLogItem,
+    GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -383,6 +384,20 @@ export const api = {
             request<T>('/org/profile', { method: 'PATCH', body: JSON.stringify(data), token }),
         getInsights: (token: string) =>
             request<DashboardInsights>('/org/insights', { token }),
+
+        // --- GPA Policies ---
+        getGpaPolicies: (token: string, params: { includeArchived?: boolean } = {}) =>
+            request<GpaPolicy[]>(`/org/gpa-policies${buildQueryString(params)}`, { token }),
+        createGpaPolicy: (data: CreateGpaPolicyRequest, token: string) =>
+            request<GpaPolicy>('/org/gpa-policies', { method: 'POST', body: JSON.stringify(data), token }),
+        updateGpaPolicy: (id: string, data: UpdateGpaPolicyRequest, token: string) =>
+            request<GpaPolicy>(`/org/gpa-policies/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        deleteGpaPolicy: (id: string, token: string) =>
+            request<void>(`/org/gpa-policies/${id}`, { method: 'DELETE', token }),
+        setDefaultGpaPolicy: (id: string, token: string) =>
+            request<GpaPolicy>(`/org/gpa-policies/${id}/default`, { method: 'PATCH', token }),
+        previewGpaPolicy: (data: GpaPolicyPreviewRequest, token: string) =>
+            request<GpaPolicyPreviewResponse>('/org/gpa-policies/preview', { method: 'POST', body: JSON.stringify(data), token }),
 
         // --- Timetable & Attendance ---
         createSchedule: (id: string, data: { day: number, startTime: string, endTime: string, room?: string }, token: string) =>

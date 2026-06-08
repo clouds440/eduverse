@@ -18,6 +18,7 @@ type NavigatorWithStandalone = Navigator & { standalone?: boolean };
 const PWA_DISMISSED_KEY = 'eduverse-pwa-dismissed';
 const PWA_DISMISSED_UNTIL_KEY = 'eduverse-pwa-dismissed-until';
 const PWA_DISMISS_COOLDOWN_MS = 1000 * 60 * 60 * 24 * 30;
+const SHOULD_REGISTER_SERVICE_WORKER = process.env.NODE_ENV === 'production';
 
 const isStandaloneDisplay = () =>
   window.matchMedia('(display-mode: standalone)').matches ||
@@ -124,33 +125,52 @@ export function PWAInstallPrompt() {
     const removeStandaloneQueryListener = addMediaQueryListener(standaloneQuery, updateViewportVars);
     const removeFullscreenQueryListener = addMediaQueryListener(fullscreenQuery, updateViewportVars);
 
-    // 1. Register Service Worker
+    // 1. Register Service Worker in production only. In dev it can serve stale
+    // Next chunks on soft reloads and create false runtime errors.
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then((registration) => {
-          registration.addEventListener('updatefound', () => {
-            const installingWorker = registration.installing;
-            if (!installingWorker) return;
+      if (SHOULD_REGISTER_SERVICE_WORKER) {
+        navigator.serviceWorker.register('/sw.js')
+          .then((registration) => {
+            registration.addEventListener('updatefound', () => {
+              const installingWorker = registration.installing;
+              if (!installingWorker) return;
 
-            installingWorker.addEventListener('statechange', () => {
-              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                installingWorker.postMessage({ type: 'SKIP_WAITING' });
-              }
+              installingWorker.addEventListener('statechange', () => {
+                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  installingWorker.postMessage({ type: 'SKIP_WAITING' });
+                }
+              });
             });
+          })
+          .catch((error) => {
+            console.error('PWA Service Worker registration failed:', error);
           });
-        })
-        .catch((error) => {
-          console.error('PWA Service Worker registration failed:', error);
-        });
 
-      let refreshing = false;
-      const handleControllerChange = () => {
-        if (refreshing) return;
-        refreshing = true;
-        window.location.reload();
-      };
-      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-      removeControllerChange = () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+        let refreshing = false;
+        const handleControllerChange = () => {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+        removeControllerChange = () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      } else {
+        navigator.serviceWorker.getRegistrations()
+          .then((registrations) => registrations
+            .filter((registration) => registration.scope.startsWith(window.location.origin))
+            .forEach((registration) => registration.unregister()))
+          .catch((error) => console.warn('PWA Service Worker cleanup failed:', error));
+
+        if ('caches' in window) {
+          caches.keys()
+            .then((cacheNames) => Promise.all(
+              cacheNames
+                .filter((cacheName) => cacheName.startsWith('eduverse-'))
+                .map((cacheName) => caches.delete(cacheName)),
+            ))
+            .catch((error) => console.warn('PWA cache cleanup failed:', error));
+        }
+      }
     }
 
     if (typeof window !== 'undefined') {

@@ -25,6 +25,7 @@ import { TranscriptsModule } from './transcripts/transcripts.module';
 import { PromotionsModule } from './promotions/promotions.module';
 import { CopyForwardModule } from './copy-forward/copy-forward.module';
 import { FinanceModule } from './finance/finance.module';
+import { GpaModule } from './gpa/gpa.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { FinanceModule } from './finance/finance.module';
     PromotionsModule,
     CopyForwardModule,
     FinanceModule,
+    GpaModule,
   ],
   providers: [
     {

@@ -163,8 +163,22 @@ export type AssessmentFormData = z.infer<typeof assessmentSchema>;
 // --- GRADE SCHEMAS ---
 // =========================
 
+export const MIN_GRADE_MARKS = 0.5;
+
+export function roundGradeMarks(value: number) {
+    return Number.isFinite(value) ? Number(value.toFixed(1)) : Number.NaN;
+}
+
+export function isAllowedGradeMarks(value: number) {
+    const roundedValue = roundGradeMarks(value);
+    return Number.isFinite(roundedValue) && (roundedValue === 0 || roundedValue >= MIN_GRADE_MARKS);
+}
+
 export const gradeSchema = z.object({
-    marksObtained: z.string().min(1, 'Marks obtained is required').refine(val => !isNaN(Number(val)) && Number(val) >= 0, 'Must be a non-negative number'),
+    marksObtained: z.string()
+        .min(1, 'Marks obtained is required')
+        .refine((val) => Number.isFinite(Number(val)), 'Enter a valid number')
+        .refine((val) => isAllowedGradeMarks(Number(val)), `Use 0 or at least ${MIN_GRADE_MARKS}`),
     feedback: z.string().optional().or(z.literal('')),
     status: z.nativeEnum(GradeStatus).optional(),
 });

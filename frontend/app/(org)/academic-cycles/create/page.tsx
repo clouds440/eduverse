@@ -5,13 +5,15 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Toggle } from '@/components/ui/Toggle';
-import { mutate } from 'swr';
+import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
-import { ApiError, Role } from '@/types';
+import { ApiError, GpaPolicy, Role } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
+import { CustomSelect } from '@/components/ui/CustomSelect';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageShell';
 
@@ -24,7 +26,8 @@ export default function CreateAcademicCyclePage() {
         name: '',
         startDate: '',
         endDate: '',
-        isActive: false
+        isActive: false,
+        gpaPolicyId: '',
     });
 
     useEffect(() => {
@@ -37,6 +40,16 @@ export default function CreateAcademicCyclePage() {
     }, [user, router]);
 
     const [formErrors, setFormErrors] = useState<{ name?: string; startDate?: string; endDate?: string; general?: string }>({});
+    const { data: gpaPolicies = [] } = useSWR<GpaPolicy[]>(
+        token ? ['gpaPolicies', 'cycle-create', token] : null,
+        () => api.org.getGpaPolicies(token!),
+    );
+
+    useEffect(() => {
+        if (formData.gpaPolicyId || gpaPolicies.length === 0) return;
+        const defaultPolicy = gpaPolicies.find((policy) => policy.isDefault) || gpaPolicies[0];
+        setFormData((current) => ({ ...current, gpaPolicyId: defaultPolicy.id }));
+    }, [formData.gpaPolicyId, gpaPolicies]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -216,6 +229,30 @@ export default function CreateAcademicCyclePage() {
                                             />
                                             {formErrors.endDate && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.endDate}</p>}
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Activation Section */}
+                                <div className="space-y-4">
+                                    <Label className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">GPA Policy</Label>
+                                    <div className="space-y-3 rounded-xl border border-warning/35 bg-warning/10 p-4">
+                                        <StatusBanner
+                                            variant="warning"
+                                            icon={AlertCircle}
+                                            title="Choose carefully"
+                                            description="Once finalized grades are pushed by any teacher in this academic cycle, the GPA policy is locked and cannot be changed."
+                                            className="shadow-none"
+                                        />
+                                        <CustomSelect
+                                            value={formData.gpaPolicyId}
+                                            onChange={(value) => setFormData({ ...formData, gpaPolicyId: value })}
+                                            options={gpaPolicies.map((policy) => ({
+                                                value: policy.id,
+                                                label: `${policy.name}${policy.isDefault ? ' (Default)' : ''}`,
+                                            }))}
+                                            placeholder="Select GPA policy"
+                                            required
+                                        />
                                     </div>
                                 </div>
 

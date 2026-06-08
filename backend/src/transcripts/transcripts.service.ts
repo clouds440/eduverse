@@ -1,10 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums';
+import { GpaService } from '../gpa/gpa.service';
+import { GpaRounding, Prisma } from '@prisma/client';
 
 @Injectable()
 export class TranscriptsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gpaService: GpaService,
+  ) {}
 
   /**
    * Get a student's transcript for a specific academic cycle.
@@ -29,10 +34,10 @@ export class TranscriptsService {
       include: {
         section: {
           include: {
-            course: { select: { id: true, name: true } },
+            course: { select: { id: true, name: true, creditHours: true } },
           },
         },
-        academicCycle: { select: { id: true, name: true, startDate: true, endDate: true } },
+        academicCycle: { select: { id: true, name: true, startDate: true, endDate: true, gpaPolicySnapshot: true } },
       },
       orderBy: { enrolledAt: 'asc' },
     });
@@ -86,12 +91,14 @@ export class TranscriptsService {
 
     // Group data by academic cycle
     const cycleMap = new Map<string, {
-      cycle: { id: string; name: string; startDate: Date; endDate: Date } | null;
+      cycle: { id: string; name: string; startDate: Date; endDate: Date; gpaPolicySnapshot?: Prisma.JsonValue | null } | null;
       sections: Map<string, {
         sectionId: string;
         sectionName: string;
         sectionColor: string | null;
+        courseId: string;
         courseName: string;
+        creditHours: number;
         enrollmentType: string;
         wasExcluded: boolean;
         grades: Array<{
@@ -105,6 +112,9 @@ export class TranscriptsService {
         }>;
         attendance: { present: number; absent: number; late: number; excused: number; total: number };
         totalPercentage: number;
+        letterGrade: string;
+        gradePoints: number;
+        qualityPoints: number;
       }>;
       cohortName: string | null;
     }>();
@@ -126,12 +136,17 @@ export class TranscriptsService {
           sectionId: eh.sectionId,
           sectionName: eh.section.name,
           sectionColor: eh.section.color,
+          courseId: eh.section.course.id,
           courseName: eh.section.course.name,
+          creditHours: eh.section.course.creditHours,
           enrollmentType: eh.source,
           wasExcluded: eh.wasExcluded,
           grades: [],
           attendance: { present: 0, absent: 0, late: 0, excused: 0, total: 0 },
           totalPercentage: 0,
+          letterGrade: 'N/A',
+          gradePoints: 0,
+          qualityPoints: 0,
         });
       }
     }
@@ -185,12 +200,54 @@ export class TranscriptsService {
       }
     }
 
+    const allGpaCourseResults: Array<{
+      creditHours: number;
+      gradePoints: number;
+      qualityPoints: number;
+      policyName: string;
+      gpaScale: number;
+    }> = [];
+    const policyNames = new Set<string>();
+    const policyScales = new Set<number>();
+
     // Format response
-    const transcript = Array.from(cycleMap.entries()).map(([_, cycleData]) => {
-      const sections = Array.from(cycleData.sections.values()).map((s) => ({
-        ...s,
-        totalPercentage: parseFloat(s.totalPercentage.toFixed(2)),
-      }));
+    const transcript = await Promise.all(Array.from(cycleMap.entries()).map(async ([_, cycleData]) => {
+      const sectionValues = Array.from(cycleData.sections.values());
+      const gpaEligibleSections = sectionValues.filter((s) => !s.wasExcluded && s.grades.length > 0);
+      const gpaPolicy = await this.gpaService.getPolicyForCycle(orgId, cycleData.cycle);
+      const cycleGpa = this.gpaService.calculateCourses(
+        gpaEligibleSections.map((s) => ({
+          courseId: s.courseId,
+          courseName: s.courseName,
+          sectionId: s.sectionId,
+          sectionName: s.sectionName,
+          creditHours: s.creditHours,
+          percentage: parseFloat(s.totalPercentage.toFixed(2)),
+        })),
+        gpaPolicy,
+      );
+
+      const gpaBySectionId = new Map(cycleGpa.courses.map((course) => [course.sectionId, course]));
+      policyNames.add(cycleGpa.summary.policyName);
+      policyScales.add(cycleGpa.summary.gpaScale);
+      allGpaCourseResults.push(...cycleGpa.courses.map((course) => ({
+        creditHours: course.creditHours,
+        gradePoints: course.gradePoints,
+        qualityPoints: course.qualityPoints,
+        policyName: cycleGpa.summary.policyName,
+        gpaScale: cycleGpa.summary.gpaScale,
+      })));
+
+      const sections = sectionValues.map((s) => {
+        const gpaCourse = gpaBySectionId.get(s.sectionId);
+        return {
+          ...s,
+          totalPercentage: parseFloat(s.totalPercentage.toFixed(2)),
+          letterGrade: s.wasExcluded || s.grades.length === 0 ? 'N/A' : (gpaCourse?.letterGrade || 'N/A'),
+          gradePoints: s.wasExcluded || s.grades.length === 0 ? 0 : (gpaCourse?.gradePoints || 0),
+          qualityPoints: s.wasExcluded || s.grades.length === 0 ? 0 : (gpaCourse?.qualityPoints || 0),
+        };
+      });
 
       const overallPercentage = sections.length > 0
         ? parseFloat((sections.reduce((sum, s) => sum + s.totalPercentage, 0) / sections.length).toFixed(2))
@@ -201,8 +258,16 @@ export class TranscriptsService {
         cohortName: cycleData.cohortName,
         sections,
         overallPercentage,
+        gpa: cycleGpa.summary.gpa,
+        totalCreditHours: cycleGpa.summary.totalCreditHours,
+        gpaScale: cycleGpa.summary.gpaScale,
+        policyName: cycleGpa.summary.policyName,
       };
-    });
+    }));
+
+    const totalCreditHours = allGpaCourseResults.reduce((sum, course) => sum + course.creditHours, 0);
+    const totalQualityPoints = allGpaCourseResults.reduce((sum, course) => sum + course.qualityPoints, 0);
+    const cgpa = totalCreditHours > 0 ? totalQualityPoints / totalCreditHours : 0;
 
     return {
       student: {
@@ -216,6 +281,12 @@ export class TranscriptsService {
         currentCohort: student.cohort,
       },
       transcript,
+      summary: {
+        cgpa: this.gpaService.applyRounding(cgpa, GpaRounding.TWO_DECIMALS),
+        gpaScale: policyScales.values().next().value ?? 4,
+        policyName: policyNames.size > 1 ? 'Multiple policies' : (policyNames.values().next().value ?? 'GPA Policy'),
+        totalCreditHours: this.gpaService.applyRounding(totalCreditHours, GpaRounding.TWO_DECIMALS),
+      },
     };
   }
 

@@ -402,6 +402,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             orgLinks.push({ id: 'FINANCE', label: 'Finance', href: '/finance', icon: Wallet });
 
             if (user?.role === Role.ORG_ADMIN) {
+                orgLinks.push({ id: 'GPA_POLICIES', label: 'GPA Policies', href: '/settings/gpa-policies', icon: Trophy });
                 orgLinks.push({ id: 'SETTINGS', label: 'Settings', href: '/settings', icon: Settings });
             }
         }

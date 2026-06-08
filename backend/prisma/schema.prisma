@@ -43,6 +43,7 @@ model Organization {
   financialEntries    FinancialEntry[]
   transactions        Transaction[]
   auditLogs           AuditLog[]
+  gpaPolicies         GpaPolicy[]
 
   @@index([status])
   @@index([type])
@@ -178,6 +179,7 @@ model Course {
   id             String       @id @default(uuid())
   name           String
   description    String?
+  creditHours    Float        @default(3)
   organizationId String
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -188,6 +190,38 @@ model Course {
 
   @@index([organizationId])
 }
+
+enum GpaCalculationMethod {
+  SIMPLE_AVERAGE
+  WEIGHTED_BY_CREDIT_HOURS
+}
+
+enum GpaRounding {
+  NONE
+  ONE_DECIMAL
+  TWO_DECIMALS
+}
+
+model GpaPolicy {
+    id             String               @id @default(uuid())
+    organizationId String
+    name           String
+    scale          Float                @default(4.0)
+    method         GpaCalculationMethod @default(WEIGHTED_BY_CREDIT_HOURS)
+    rounding       GpaRounding          @default(TWO_DECIMALS)
+    gradeRules     Json
+    isDefault      Boolean              @default(false)
+    isArchived     Boolean              @default(false)
+    createdAt      DateTime             @default(now())
+    updatedAt      DateTime             @updatedAt
+
+    organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+    academicCycles AcademicCycle[]
+
+    @@index([organizationId])
+    @@index([isDefault])
+    @@index([isArchived])
+  }
 
 model Section {
   id               String       @id @default(uuid())
@@ -755,17 +789,20 @@ enum EnrollmentSource {
 }
 
 model AcademicCycle {
-  id             String   @id @default(uuid())
-  name           String
-  startDate      DateTime
-  endDate        DateTime
-  isActive       Boolean  @default(false)
-  organizationId String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+    id             String   @id @default(uuid())
+    name           String
+    startDate      DateTime
+    endDate        DateTime
+    isActive       Boolean  @default(false)
+    organizationId String
+    gpaPolicyId    String?
+    gpaPolicySnapshot Json?
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
 
-  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  cohorts             Cohort[]
+    organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+    gpaPolicy           GpaPolicy?            @relation(fields: [gpaPolicyId], references: [id], onDelete: SetNull)
+    cohorts             Cohort[]
   sections            Section[]
   enrollments         Enrollment[]
   enrollmentHistories EnrollmentHistory[]
@@ -777,9 +814,10 @@ model AcademicCycle {
   courseMaterials     CourseMaterial[]
   sectionSchedules    SectionSchedule[]
 
-  @@index([organizationId])
-  @@index([isActive])
-}
+    @@index([organizationId])
+    @@index([isActive])
+    @@index([gpaPolicyId])
+  }
 
 model Cohort {
   id              String   @id @default(uuid())

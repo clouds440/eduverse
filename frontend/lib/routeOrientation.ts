@@ -21,6 +21,7 @@ const SEGMENT_LABELS: Record<string, string> = {
     mail: 'Mail',
     chat: 'Messages',
     settings: 'Settings',
+    'gpa-policies': 'GPA Policies',
     'change-password': 'Security',
     teachers: 'Faculty',
     students: 'Students',

@@ -25,7 +25,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
     const [targetId, setTargetId] = useState<string>('');
     const [title, setTitle] = useState('');
     const [category, setCategory] = useState<FinanceCategory>(FinanceCategory.TUITION);
-    const [amount, setAmount] = useState<number>(0);
+    const [amount, setAmount] = useState('');
     const [billingCycle, setBillingCycle] = useState<BillingCycle>(BillingCycle.MONTHLY);
     const [dueDay, setDueDay] = useState<number | ''>('');
     const [startDate, setStartDate] = useState('');
@@ -41,7 +41,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                 setTargetId(initialData.teacherId || initialData.studentId || '');
                 setTitle(initialData.title);
                 setCategory(initialData.category);
-                setAmount(initialData.amount);
+                setAmount(String(initialData.amount));
                 setBillingCycle(initialData.billingCycle);
                 setDueDay(initialData.dueDay || '');
                 setStartDate(initialData.startDate.split('T')[0]);
@@ -51,7 +51,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                 setTargetId('');
                 setTitle('');
                 setCategory(FinanceCategory.TUITION);
-                setAmount(0);
+                setAmount('');
                 setBillingCycle(BillingCycle.MONTHLY);
                 setDueDay('');
                 setStartDate(new Date().toISOString().split('T')[0]);
@@ -144,7 +144,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                     </div>
                     <div className="space-y-2">
                         <Label>Amount</Label>
-                        <Input type="number" min={0} step="0.01" required value={amount} onChange={e => setAmount(Number(e.target.value))} />
+                        <Input type="number" min={0} step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} />
                     </div>
                 </div>
 

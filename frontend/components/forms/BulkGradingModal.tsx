@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { BrandIcon } from '@/components/ui/Brand';
+import { MIN_GRADE_MARKS, isAllowedGradeMarks, roundGradeMarks } from '@/lib/schemas';
 
 interface BulkGradingModalProps {
     isOpen: boolean;
@@ -25,6 +26,7 @@ export function BulkGradingModal({ isOpen, onClose, assessment, section, existin
 
     // State to hold bulk marks and status
     const [bulkData, setBulkData] = useState<Record<string, { marksObtained: string, status: GradeStatus }>>({});
+    const [bulkErrors, setBulkErrors] = useState<Record<string, string>>({});
     const [globalStatus, setGlobalStatus] = useState<GradeStatus | ''>('');
 
     // Initialize bulk data using existing grades or defaults
@@ -39,6 +41,7 @@ export function BulkGradingModal({ isOpen, onClose, assessment, section, existin
                 };
             });
             setBulkData(initialData);
+            setBulkErrors({});
         }
     }, [isOpen, section.students, existingGrades]);
 
@@ -50,9 +53,20 @@ export function BulkGradingModal({ isOpen, onClose, assessment, section, existin
 
             for (const [studentId, data] of Object.entries(bulkData)) {
                 if (data.marksObtained.trim() !== '') {
-                    const marks = Number(data.marksObtained);
+                    const rawMarks = Number(data.marksObtained);
+                    const marks = roundGradeMarks(rawMarks);
+                    if (!Number.isFinite(rawMarks)) {
+                        setBulkErrors({ [studentId]: 'Enter a valid number' });
+                        dispatch({ type: 'UI_STOP_PROCESSING', payload: 'bulk-grading-submit' });
+                        return; // Abort saving if validation fails
+                    }
+                    if (!isAllowedGradeMarks(marks)) {
+                        setBulkErrors({ [studentId]: `Use 0 or at least ${MIN_GRADE_MARKS}` });
+                        dispatch({ type: 'UI_STOP_PROCESSING', payload: 'bulk-grading-submit' });
+                        return; // Abort saving if validation fails
+                    }
                     if (marks > assessment.totalMarks) {
-                        dispatch({ type: 'TOAST_ADD', payload: { message: `Marks for a student cannot exceed ${assessment.totalMarks}`, type: 'error' } });
+                        setBulkErrors({ [studentId]: `Cannot exceed ${assessment.totalMarks}` });
                         dispatch({ type: 'UI_STOP_PROCESSING', payload: 'bulk-grading-submit' });
                         return; // Abort saving if validation fails
                     }
@@ -82,6 +96,14 @@ export function BulkGradingModal({ isOpen, onClose, assessment, section, existin
     };
 
     const handleInputChange = (studentId: string, field: 'marksObtained' | 'status', value: string) => {
+        if (field === 'marksObtained') {
+            setBulkErrors(prev => {
+                if (!prev[studentId]) return prev;
+                const next = { ...prev };
+                delete next[studentId];
+                return next;
+            });
+        }
         setBulkData(prev => ({
             ...prev,
             [studentId]: {
@@ -160,13 +182,16 @@ export function BulkGradingModal({ isOpen, onClose, assessment, section, existin
                                     <td className="px-4 md:px-6 py-3 md:py-4">
                                         <input
                                             type="number"
-                                            min="0"
+                                            min={0}
+                                            step="0.1"
                                             max={assessment.totalMarks}
                                             value={bulkData[student.id]?.marksObtained || ''}
                                             onChange={(e) => handleInputChange(student.id, 'marksObtained', e.target.value)}
-                                            className="w-24 md:w-28 bg-card/80 backdrop-blur-sm border border-border rounded-lg px-3 py-2 text-sm md:text-base font-semibold focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                            aria-invalid={bulkErrors[student.id] ? true : undefined}
+                                            className={`w-24 md:w-28 bg-card/80 backdrop-blur-sm border rounded-lg px-3 py-2 text-sm md:text-base font-semibold focus:ring-2 outline-none transition-all ${bulkErrors[student.id] ? 'border-danger/70 bg-danger/5 focus:border-danger focus:ring-danger/20' : 'border-border focus:border-primary focus:ring-primary/20'}`}
                                             placeholder={`/${assessment.totalMarks}`}
                                         />
+                                        {bulkErrors[student.id] && <p className="mt-1 text-xs text-danger font-semibold">{bulkErrors[student.id]}</p>}
                                     </td>
                                     <td className="px-4 md:px-6 py-3 md:py-4 min-w-36 md:min-w-40">
                                         <CustomSelect<GradeStatus>

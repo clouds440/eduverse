@@ -248,12 +248,12 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
                     {Icon && (
                         <div className={cn(
                             'flex shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary shadow-inner',
-                            isCompact ? 'h-8 w-8' : 'h-12 w-12',
+                            isCompact ? 'h-7 w-7' : 'h-12 w-12',
                         )}>
                             <Icon className={cn(isCompact ? 'h-4 w-4' : 'h-6 w-6')} aria-hidden="true" />
                         </div>
                     )}
-                    <div className="min-w-0">
+                    <div className={cn('min-w-0', isCompact && 'flex min-h-7 items-center')}>
                         <RouteBreadcrumbs breadcrumbs={breadcrumbs} className={cn(!isCompact && 'mb-1.5')} />
                         {!isCompact && (
                             <>

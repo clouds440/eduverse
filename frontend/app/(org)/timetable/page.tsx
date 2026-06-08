@@ -280,7 +280,7 @@ function TimetableGrid({
         <div className={cn('min-h-0 flex-1 overflow-auto p-3 sm:p-4 custom-scrollbar', className)}>
             <div className="min-w-345">
                 <div className="grid grid-cols-[96px_repeat(7,minmax(176px,1fr))] gap-2">
-                    <div className="sticky left-0 z-20 rounded-md border border-border/70 bg-card p-3 text-center text-[10px] font-black uppercase tracking-wider text-muted-foreground shadow-sm">
+                    <div className="rounded-md border border-border/70 bg-card p-3 text-center text-[10px] font-black uppercase tracking-wider text-muted-foreground shadow-sm">
                         Time
                     </div>
                     {WEEK_DAYS.map((day) => (
@@ -293,7 +293,7 @@ function TimetableGrid({
                     ))}
 
                     <div
-                        className="sticky left-0 z-10 grid overflow-hidden rounded-md border-x border-t border-border/70 bg-card shadow-sm"
+                        className="grid overflow-hidden rounded-md border-x border-t border-border/70 bg-card shadow-sm"
                         style={{ gridTemplateRows: gridRows }}
                     >
                         {timeSlots.slice(0, -1).map((hour) => (

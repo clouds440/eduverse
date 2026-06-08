@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { BookOpen, Plus } from 'lucide-react';
+import { BookOpen, Clock3, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -64,7 +64,7 @@ export default function CoursesPage() {
 
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-    const [editFormData, setEditFormData] = useState({ name: '', description: '' });
+    const [editFormData, setEditFormData] = useState({ name: '', description: '', creditHours: '3' });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
 
@@ -87,6 +87,7 @@ export default function CoursesPage() {
         setEditFormData({
             name: course.name,
             description: course.description || '',
+            creditHours: String(course.creditHours ?? 3),
         });
         setEditModalOpen(true);
     };
@@ -97,7 +98,11 @@ export default function CoursesPage() {
 
         dispatch({ type: 'UI_START_PROCESSING', payload: 'course-edit' });
         try {
-            await api.org.updateCourse(editingCourse.id, editFormData, token);
+            await api.org.updateCourse(editingCourse.id, {
+                name: editFormData.name,
+                description: editFormData.description,
+                creditHours: Number(editFormData.creditHours),
+            }, token);
             setEditModalOpen(false);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Course updated successfully', type: 'success' } });
             mutate(matchesCacheKeyPrefix('courses'));
@@ -164,6 +169,17 @@ export default function CoursesPage() {
             sortable: true,
             sortKey: 'description',
             accessor: (row) => row.description || <span className="text-muted-foreground/50 italic">No description</span>,
+        },
+        {
+            header: 'Credits',
+            sortable: true,
+            sortKey: 'creditHours',
+            accessor: (row) => (
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/25 px-2 py-1 text-xs font-black text-foreground">
+                    <Clock3 className="h-3.5 w-3.5 text-primary" />
+                    {row.creditHours ?? 3}
+                </span>
+            ),
         },
         {
             header: 'Last Updated',
@@ -297,6 +313,20 @@ export default function CoursesPage() {
                             onChange={(event) => setEditFormData({ ...editFormData, name: event.target.value })}
                             placeholder="e.g. Mathematics"
                             icon={BookOpen}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="courseCreditHours">Credit Hours *</Label>
+                        <Input
+                            id="courseCreditHours"
+                            type="number"
+                            min={0.01}
+                            step="0.5"
+                            required
+                            value={editFormData.creditHours}
+                            onChange={(event) => setEditFormData({ ...editFormData, creditHours: event.target.value })}
+                            placeholder="3"
+                            icon={Clock3}
                         />
                     </div>
                     <div className="space-y-2">

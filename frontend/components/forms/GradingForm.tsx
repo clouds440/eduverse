@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { gradeSchema, GradeFormData } from '@/lib/schemas';
+import { gradeSchema, GradeFormData, MIN_GRADE_MARKS, isAllowedGradeMarks, roundGradeMarks } from '@/lib/schemas';
 import { BrandIcon } from '../ui/Brand';
 
 interface GradingFormProps {
@@ -39,6 +39,7 @@ export default function GradingForm({
     const {
         register,
         handleSubmit,
+        setError,
         setValue,
         watch,
         formState: { errors },
@@ -58,7 +59,14 @@ export default function GradingForm({
     const formData = watch();
 
     const onSubmit: SubmitHandler<GradeFormData> = async (data) => {
-        if (Number(data.marksObtained) > totalMarks) {
+        const marksObtained = roundGradeMarks(Number(data.marksObtained));
+
+        if (!isAllowedGradeMarks(marksObtained)) {
+            setError('marksObtained', { type: 'min', message: `Use 0 or at least ${MIN_GRADE_MARKS}` });
+            return;
+        }
+
+        if (marksObtained > totalMarks) {
             dispatch({ type: 'TOAST_ADD', payload: { message: `Marks obtained cannot exceed total marks (${totalMarks})`, type: 'error' } });
             return;
         }
@@ -66,7 +74,7 @@ export default function GradingForm({
         dispatch({ type: 'UI_START_PROCESSING', payload: 'grading-submit' });
         try {
             const payload: UpdateGradeRequest = {
-                marksObtained: Number(data.marksObtained),
+                marksObtained,
                 feedback: data.feedback || undefined,
                 status: data.status,
             };
@@ -83,7 +91,7 @@ export default function GradingForm({
     };
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 md:space-y-8" noValidate>
             {/* Student Info Card */}
             <div className="bg-linear-to-br from-primary/5 via-primary/10 to-primary/5 border border-primary/20 rounded-2xl p-4 md:p-6 relative overflow-hidden">
                 <div className="absolute inset-0 bg-linear-to-br from-primary/10 to-transparent opacity-50" />
@@ -109,6 +117,8 @@ export default function GradingForm({
                         <Input
                             id="marksObtained"
                             type="number"
+                            min={0}
+                            step="0.1"
                             {...register('marksObtained')}
                             error={!!errors.marksObtained}
                             icon={Star}

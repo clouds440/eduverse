@@ -13,10 +13,35 @@ import {
   PaginationOptions,
 } from '../common/utils';
 import { Prisma } from '@prisma/client';
+import { GpaService } from '../gpa/gpa.service';
 
 @Injectable()
 export class AcademicCyclesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gpaService: GpaService,
+  ) {}
+
+  private async getPolicySnapshot(orgId: string, gpaPolicyId?: string) {
+    const policyId = gpaPolicyId?.trim() || undefined;
+    const policy = policyId
+      ? await this.prisma.gpaPolicy.findFirst({
+        where: { id: policyId, organizationId: orgId, isArchived: false },
+      })
+      : await this.gpaService.getDefaultPolicy(orgId);
+
+    if (!policy) throw new NotFoundException('GPA policy not found');
+    if (policy.isArchived) throw new BadRequestException('Archived GPA policies cannot be assigned to academic cycles');
+
+    return this.gpaService.snapshotPolicy(policy);
+  }
+
+  private async hasFinalizedGrades(cycleId: string) {
+    const finalizedCount = await this.prisma.grade.count({
+      where: { academicCycleId: cycleId, status: 'FINALIZED' },
+    });
+    return finalizedCount > 0;
+  }
 
   async createCycle(orgId: string, dto: CreateAcademicCycleDto) {
     const startDate = new Date(dto.startDate);
@@ -34,6 +59,8 @@ export class AcademicCyclesService {
       });
     }
 
+    const gpaPolicySnapshot = await this.getPolicySnapshot(orgId, dto.gpaPolicyId);
+
     return this.prisma.academicCycle.create({
       data: {
         name: dto.name,
@@ -41,6 +68,8 @@ export class AcademicCyclesService {
         endDate,
         isActive: dto.isActive ?? false,
         organizationId: orgId,
+        gpaPolicyId: gpaPolicySnapshot.policyId,
+        gpaPolicySnapshot: gpaPolicySnapshot as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -66,6 +95,9 @@ export class AcademicCyclesService {
         take,
         orderBy: { [sortBy]: sortOrder },
         include: {
+          gpaPolicy: {
+            select: { id: true, name: true, isArchived: true },
+          },
           _count: {
             select: {
               cohorts: true,
@@ -78,13 +110,31 @@ export class AcademicCyclesService {
       this.prisma.academicCycle.count({ where }),
     ]);
 
-    return formatPaginatedResponse(cycles, totalRecords, options.page, options.limit);
+    const finalizedGrades = await this.prisma.grade.groupBy({
+      by: ['academicCycleId'],
+      where: {
+        academicCycleId: { in: cycles.map((cycle) => cycle.id) },
+        status: 'FINALIZED',
+      },
+      _count: { _all: true },
+    });
+    const finalizedCycleIds = new Set(finalizedGrades.map((row) => row.academicCycleId).filter(Boolean));
+
+    return formatPaginatedResponse(
+      cycles.map((cycle) => ({ ...cycle, hasFinalizedGrades: finalizedCycleIds.has(cycle.id) })),
+      totalRecords,
+      options.page,
+      options.limit,
+    );
   }
 
   async getCycle(orgId: string, id: string) {
     const cycle = await this.prisma.academicCycle.findFirst({
       where: { id, organizationId: orgId },
       include: {
+        gpaPolicy: {
+          select: { id: true, name: true, isArchived: true },
+        },
         _count: {
           select: {
             cohorts: true,
@@ -96,7 +146,10 @@ export class AcademicCyclesService {
     });
 
     if (!cycle) throw new NotFoundException('Academic cycle not found');
-    return cycle;
+    return {
+      ...cycle,
+      hasFinalizedGrades: await this.hasFinalizedGrades(cycle.id),
+    };
   }
 
   async updateCycle(orgId: string, id: string, dto: UpdateAcademicCycleDto) {
@@ -109,6 +162,15 @@ export class AcademicCyclesService {
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.startDate !== undefined) updateData.startDate = new Date(dto.startDate);
     if (dto.endDate !== undefined) updateData.endDate = new Date(dto.endDate);
+    const nextGpaPolicyId = dto.gpaPolicyId?.trim() || undefined;
+    if (dto.gpaPolicyId !== undefined && nextGpaPolicyId !== (cycle.gpaPolicyId || undefined)) {
+      if (await this.hasFinalizedGrades(id)) {
+        throw new BadRequestException('GPA policy cannot be changed after finalized grades have been pushed for this cycle');
+      }
+      const gpaPolicySnapshot = await this.getPolicySnapshot(orgId, nextGpaPolicyId);
+      updateData.gpaPolicy = { connect: { id: gpaPolicySnapshot.policyId } };
+      updateData.gpaPolicySnapshot = gpaPolicySnapshot as unknown as Prisma.InputJsonValue;
+    }
 
     // Validate dates if either is being updated
     const newStart = dto.startDate ? new Date(dto.startDate) : cycle.startDate;

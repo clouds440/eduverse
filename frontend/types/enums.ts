@@ -68,6 +68,17 @@ export enum GradeStatus {
     FINALIZED = 'FINALIZED',
 }
 
+export enum GpaCalculationMethod {
+    SIMPLE_AVERAGE = 'SIMPLE_AVERAGE',
+    WEIGHTED_BY_CREDIT_HOURS = 'WEIGHTED_BY_CREDIT_HOURS'
+}
+
+export enum GpaRounding {
+    NONE = 'NONE',
+    ONE_DECIMAL = 'ONE_DECIMAL',
+    TWO_DECIMALS = 'TWO_DECIMALS'
+}
+
 // ── Mail Categories (context-aware) ──────────────────────────────────────────
 export enum MailCategory {
     // Platform-level

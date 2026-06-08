@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { BookOpen, Calendar, Layers, MapPin, Network, Palette, Users } from 'lucide-react';
+import { BookOpen, Calendar, Layers, MapPin, Network, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/FormLayout';
 import { Input } from '@/components/ui/Input';
 import { Loading } from '@/components/ui/Loading';
-import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, getSectionColor, isValidHexColor } from '@/lib/utils';
+import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, getSectionColor, isSectionPaletteColor } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 interface SectionEditFormData {
@@ -124,7 +124,7 @@ export default function EditSectionPage() {
         if (!formData.name.trim()) nextErrors.name = 'Section name is required';
         if (!formData.courseId) nextErrors.courseId = 'Course is required';
         if (!formData.academicCycleId) nextErrors.academicCycleId = 'Academic cycle is required';
-        if (!isValidHexColor(formData.color)) nextErrors.color = 'Choose a valid section color';
+        if (!isSectionPaletteColor(formData.color)) nextErrors.color = 'Choose one of the preset section colors';
         setFormErrors(nextErrors);
         return Object.keys(nextErrors).length === 0;
     };
@@ -234,28 +234,18 @@ export default function EditSectionPage() {
                             />
                         </FormField>
                         <FormField label="Section Color" error={formErrors.color}>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <Input
-                                    type="color"
-                                    value={formData.color}
-                                    onChange={(event) => setFormData((previous) => ({ ...previous, color: event.target.value }))}
-                                    icon={Palette}
-                                    className="h-12 w-20 cursor-pointer p-1"
-                                    error={!!formErrors.color}
-                                    aria-label="Section color"
-                                />
-                                <div className="flex flex-wrap gap-2">
-                                    {SECTION_COLOR_PALETTE.map((color) => (
-                                        <button
-                                            key={color}
-                                            type="button"
-                                            onClick={() => setFormData((previous) => ({ ...previous, color }))}
-                                            className={`h-9 w-9 rounded-md border transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${formData.color === color ? 'scale-110 border-foreground ring-2 ring-primary/30' : 'border-border/70'}`}
-                                            style={{ backgroundColor: color }}
-                                            aria-label={`Use section color ${color}`}
-                                        />
-                                    ))}
-                                </div>
+                            <div className="flex flex-wrap gap-2">
+                                {SECTION_COLOR_PALETTE.map((color) => (
+                                    <button
+                                        key={color}
+                                        type="button"
+                                        onClick={() => setFormData((previous) => ({ ...previous, color }))}
+                                        className={`h-9 w-9 rounded-md border transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${formData.color === color ? 'scale-110 border-foreground ring-2 ring-primary/30' : 'border-border/70'}`}
+                                        style={{ backgroundColor: color }}
+                                        aria-label={`Use section color ${color}`}
+                                        aria-pressed={formData.color === color}
+                                    />
+                                ))}
                             </div>
                         </FormField>
                     </FormGrid>

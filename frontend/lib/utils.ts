@@ -16,7 +16,12 @@ export const SECTION_COLOR_PALETTE = [
     '#8B5CF6',
     '#06B6D4',
     '#EC4899',
-    '#84CC16',
+    '#6366F1',
+    '#14B8A6',
+    '#0EA5E9',
+    '#F43F5E',
+    '#F97316',
+    '#22C55E',
 ] as const;
 
 type SectionColorInput = string | null | undefined | { color?: string | null };
@@ -27,6 +32,10 @@ function resolveSectionColorInput(color: SectionColorInput): string | null | und
 
 export function isValidHexColor(color: string | null | undefined): color is string {
     return typeof color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(color);
+}
+
+export function isSectionPaletteColor(color: string | null | undefined): color is typeof SECTION_COLOR_PALETTE[number] {
+    return isValidHexColor(color) && SECTION_COLOR_PALETTE.includes(color.toUpperCase() as typeof SECTION_COLOR_PALETTE[number]);
 }
 
 export function getSectionColor(color: SectionColorInput): string {

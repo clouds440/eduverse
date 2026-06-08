@@ -8,10 +8,11 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, ApiError, Role } from '@/types';
+import { AcademicCycle, ApiError, GpaPolicy, Role } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
@@ -19,6 +20,7 @@ import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { StatusBanner } from '@/components/ui/StatusBanner';
 import { TableActions } from '@/components/ui/TableActions';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
@@ -52,13 +54,17 @@ export default function AcademicCyclesPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editingCycle, setEditingCycle] = useState<AcademicCycle | null>(null);
-    const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '' });
+    const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '', gpaPolicyId: '' });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCycle, setDeletingCycle] = useState<AcademicCycle | null>(null);
     const [activateDialogOpen, setActivateDialogOpen] = useState(false);
     const [activatingCycle, setActivatingCycle] = useState<AcademicCycle | null>(null);
 
     const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+    const { data: gpaPolicies = [] } = useSWR<GpaPolicy[]>(
+        token && isAdmin ? ['gpaPolicies', 'cycle-edit', token] : null,
+        () => api.org.getGpaPolicies(token!),
+    );
 
     useEffect(() => {
         if (user?.role === Role.STUDENT) {
@@ -78,6 +84,7 @@ export default function AcademicCyclesPage() {
             name: cycle.name,
             startDate: cycle.startDate ? new Date(cycle.startDate).toISOString().split('T')[0] : '',
             endDate: cycle.endDate ? new Date(cycle.endDate).toISOString().split('T')[0] : '',
+            gpaPolicyId: cycle.gpaPolicyId || '',
         });
         setModalOpen(true);
     };
@@ -88,8 +95,16 @@ export default function AcademicCyclesPage() {
 
         dispatch({ type: 'UI_START_PROCESSING', payload: 'cycle-edit' });
         try {
+            const payload = {
+                name: formData.name,
+                startDate: formData.startDate,
+                endDate: formData.endDate,
+                ...(!editingCycle?.hasFinalizedGrades && formData.gpaPolicyId && formData.gpaPolicyId !== editingCycle?.gpaPolicyId
+                    ? { gpaPolicyId: formData.gpaPolicyId }
+                    : {}),
+            };
             if (isEditing && editingCycle) {
-                await api.academicCycles.updateCycle(editingCycle.id, formData, token);
+                await api.academicCycles.updateCycle(editingCycle.id, payload, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Academic Cycle updated successfully', type: 'success' } });
             } else {
                 await api.academicCycles.createCycle(formData, token);
@@ -334,6 +349,33 @@ export default function AcademicCyclesPage() {
                                 value={formData.endDate}
                                 onChange={(event) => setFormData({ ...formData, endDate: event.target.value })}
                             />
+                        </div>
+                    </div>
+                    <div className="space-y-3 rounded-lg border border-warning/35 bg-warning/10 p-3">
+                        <StatusBanner
+                            variant="warning"
+                            title="GPA policy locks after finalized grades"
+                            description="Once finalized grades are pushed by any teacher in this academic cycle, the GPA policy cannot be changed. Proceed with caution."
+                            className="shadow-none"
+                        />
+                        <div className="space-y-2">
+                            <Label>GPA Policy</Label>
+                            <CustomSelect
+                                value={formData.gpaPolicyId}
+                                onChange={(value) => setFormData({ ...formData, gpaPolicyId: value })}
+                                options={gpaPolicies.map((policy) => ({
+                                    value: policy.id,
+                                    label: `${policy.name}${policy.isDefault ? ' (Default)' : ''}`,
+                                }))}
+                                placeholder="Select GPA policy"
+                                disabled={Boolean(editingCycle?.hasFinalizedGrades)}
+                                required
+                            />
+                            {editingCycle?.hasFinalizedGrades && (
+                                <p className="text-xs font-bold text-warning">
+                                    This cycle already has finalized grades, so its GPA policy is locked.
+                                </p>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { LibraryBig, FileText } from 'lucide-react';
+import { Clock3, LibraryBig, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
@@ -22,7 +22,8 @@ export default function CreateCoursePage() {
 
     const [formData, setFormData] = useState({
         name: '',
-        description: ''
+        description: '',
+        creditHours: '3',
     });
 
     useEffect(() => {
@@ -45,7 +46,11 @@ export default function CreateCoursePage() {
         dispatch({ type: 'UI_START_PROCESSING', payload: 'course-create' });
 
         try {
-            await api.org.createCourse(formData, token);
+            await api.org.createCourse({
+                name: formData.name,
+                description: formData.description,
+                creditHours: Number(formData.creditHours),
+            }, token);
             // Invalidate courses cache using SWR mutate
             mutate((key) => Array.isArray(key) && key[0] === 'courses');
             window.dispatchEvent(new Event('stats-updated'));
@@ -109,6 +114,22 @@ export default function CreateCoursePage() {
                                                 required
                                                 icon={LibraryBig}
                                                 placeholder="e.g. Advanced Mathematics"
+                                                className="h-12 md:h-14 font-medium"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-bold ml-1">Credit Hours <span className="text-primary">*</span></Label>
+                                            <Input
+                                                type="number"
+                                                name="creditHours"
+                                                value={formData.creditHours}
+                                                onChange={handleChange}
+                                                required
+                                                min={0.01}
+                                                step="0.5"
+                                                icon={Clock3}
+                                                placeholder="3"
                                                 className="h-12 md:h-14 font-medium"
                                             />
                                         </div>

@@ -1,5 +1,5 @@
-import { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
-export { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone, UiVariant } from './enums';
+import type { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
+export { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
 
 export interface PaginatedResponse<T> {
@@ -44,6 +44,7 @@ export interface Course {
     id: string;
     name: string;
     description?: string;
+    creditHours: number;
     updatedBy?: string;
     updatedAt?: string;
 }
@@ -430,6 +431,7 @@ export type UpdateSectionRequest = Partial<CreateSectionRequest>;
 export interface CreateCourseRequest {
     name: string;
     description?: string;
+    creditHours?: number;
 }
 
 
@@ -527,9 +529,62 @@ export interface FinalGradeResponse {
     sectionName: string;
     sectionColor?: string | null;
     courseName: string;
+    creditHours?: number;
     finalPercentage: number;
     letterGrade?: string;
+    gradePoints?: number;
     assessments: FinalGradeDetail[];
+}
+
+export interface GpaGradeRule {
+    min: number;
+    max: number;
+    letter: string;
+    points: number;
+}
+
+export interface GpaPolicy {
+    id: string;
+    organizationId: string;
+    name: string;
+    scale: number;
+    method: GpaCalculationMethod;
+    rounding: GpaRounding;
+    gradeRules: GpaGradeRule[];
+    isDefault: boolean;
+    isArchived: boolean;
+    createdAt: string;
+    updatedAt: string;
+    _count?: {
+        academicCycles?: number;
+    };
+}
+
+export interface CreateGpaPolicyRequest {
+    name: string;
+    scale?: number;
+    method?: GpaCalculationMethod;
+    rounding?: GpaRounding;
+    gradeRules: GpaGradeRule[];
+    isDefault?: boolean;
+}
+
+export type UpdateGpaPolicyRequest = Partial<CreateGpaPolicyRequest>;
+
+export interface GpaPolicyPreviewRequest {
+    marks: number;
+    creditHours: number;
+    scale?: number;
+    method?: GpaCalculationMethod;
+    rounding?: GpaRounding;
+    gradeRules: GpaGradeRule[];
+}
+
+export interface GpaPolicyPreviewResponse {
+    letterGrade: string;
+    gradePoints: number;
+    gpa: number;
+    totalCreditHours: number;
 }
 
 export interface UnfinalizedGradeReviewRow {
@@ -786,6 +841,10 @@ export interface AcademicCycle {
     endDate: string;
     isActive: boolean;
     organizationId: string;
+    gpaPolicyId?: string | null;
+    gpaPolicySnapshot?: unknown;
+    gpaPolicy?: Pick<GpaPolicy, 'id' | 'name' | 'isArchived'> | null;
+    hasFinalizedGrades?: boolean;
     _count?: {
         cohorts: number;
         sections: number;
@@ -821,12 +880,17 @@ export interface TranscriptSection {
     sectionId: string;
     courseName: string;
     sectionName: string;
+    courseId?: string;
+    creditHours?: number;
     source: string;
     wasExcluded: boolean;
     removedAt?: string | null;
     totalMarks: number;
     marksObtained: number;
     percentage: number;
+    letterGrade?: string;
+    gradePoints?: number;
+    qualityPoints?: number;
     status: string;
 }
 
@@ -838,6 +902,11 @@ export interface Transcript {
     cohortName?: string;
     sections: TranscriptSection[];
     overallPercentage: number;
+    gpa?: number;
+    cgpa?: number;
+    gpaScale?: number;
+    policyName?: string;
+    totalCreditHours?: number;
     totalAssessments: number;
 }
 
@@ -846,6 +915,7 @@ export interface CreateAcademicCycleDto {
     startDate: string;
     endDate: string;
     isActive?: boolean;
+    gpaPolicyId?: string;
 }
 
 // ─── Financial System Types ──────────────────────────────────────────────────
@@ -988,6 +1058,7 @@ export interface UpdateAcademicCycleDto {
     startDate?: string;
     endDate?: string;
     isActive?: boolean;
+    gpaPolicyId?: string;
 }
 
 export interface CreateCohortDto {

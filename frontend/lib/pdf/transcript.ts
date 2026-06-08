@@ -26,11 +26,16 @@ interface TranscriptCycleSection {
     sectionId: string;
     sectionName: string;
     sectionColor?: string | null;
+    courseId?: string;
     courseName: string;
     enrollmentType: string;
     wasExcluded: boolean;
     grades?: TranscriptAssessmentGrade[];
     totalPercentage: number;
+    creditHours?: number;
+    letterGrade?: string;
+    gradePoints?: number;
+    qualityPoints?: number;
 }
 
 interface TranscriptCycle {
@@ -38,6 +43,17 @@ interface TranscriptCycle {
     cohortName: string | null;
     sections?: TranscriptCycleSection[];
     overallPercentage: number;
+    gpa?: number;
+    totalCreditHours?: number;
+    gpaScale?: number;
+    policyName?: string;
+}
+
+interface TranscriptSummary {
+    cgpa: number;
+    gpaScale: number;
+    policyName: string;
+    totalCreditHours: number;
 }
 
 export interface TranscriptPdfInput {
@@ -47,10 +63,10 @@ export interface TranscriptPdfInput {
     student: TranscriptStudent;
     cycles: TranscriptCycle[];
     cumulativeAverage: number;
+    summary?: TranscriptSummary;
     theme?: 'light' | 'dark';
 }
 
-const PASS_MARK = 50;
 const TRANSCRIPT_PAGE_SIZE = { width: 792, height: 1120 };
 
 function getTranscriptPalette(theme: 'light' | 'dark' = 'light') {
@@ -127,21 +143,6 @@ function getCyclePeriodLabel(cycle: TranscriptCycle) {
     return `${name} (${start || 'Start TBD'} - ${end || 'End TBD'})`;
 }
 
-function getLetterGrade(score: number) {
-    if (score >= 90) return 'A+';
-    if (score >= 80) return 'A';
-    if (score >= 70) return 'B';
-    if (score >= 60) return 'C';
-    if (score >= 50) return 'D';
-    return 'F';
-}
-
-function getAcademicStatus(section: TranscriptCycleSection, assessmentCount: number, weightedScore: number) {
-    if (section.wasExcluded) return 'Excluded';
-    if (assessmentCount === 0) return 'No grades';
-    return weightedScore >= PASS_MARK ? 'Pass' : 'Fail';
-}
-
 function getSectionMetrics(section: TranscriptCycleSection) {
     const grades = (section.grades || []).filter((grade) => !grade.status || grade.status === 'FINALIZED');
     const marksObtained = roundScore(grades.reduce((sum, grade) => sum + Number(grade.marksObtained || 0), 0));
@@ -149,8 +150,7 @@ function getSectionMetrics(section: TranscriptCycleSection) {
     const totalWeight = roundScore(grades.reduce((sum, grade) => sum + Number(grade.weightage || 0), 0));
     const rawPercentage = totalMarks > 0 ? roundScore((marksObtained / totalMarks) * 100) : 0;
     const weightedScore = roundScore(section.totalPercentage || 0);
-    const status = getAcademicStatus(section, grades.length, weightedScore);
-    const grade = section.wasExcluded || grades.length === 0 ? 'N/A' : getLetterGrade(weightedScore);
+    const grade = section.wasExcluded || grades.length === 0 ? 'N/A' : section.letterGrade || 'N/A';
 
     return {
         assessmentCount: grades.length,
@@ -160,7 +160,9 @@ function getSectionMetrics(section: TranscriptCycleSection) {
         rawPercentage,
         weightedScore,
         grade,
-        status,
+        creditHours: roundScore(Number(section.creditHours ?? 0)),
+        gradePoints: section.gradePoints === undefined || section.gradePoints === null ? null : roundScore(Number(section.gradePoints)),
+        qualityPoints: section.qualityPoints === undefined || section.qualityPoints === null ? null : roundScore(Number(section.qualityPoints)),
     };
 }
 
@@ -171,6 +173,7 @@ export async function createTranscriptPdf({
     student,
     cycles,
     cumulativeAverage,
+    summary,
     theme = 'light',
 }: TranscriptPdfInput) {
     const pdf = await createPdfBuilder({
@@ -185,19 +188,21 @@ export async function createTranscriptPdf({
         x: pdf.margin,
         width: usableWidth,
         courseX: pdf.margin + 12,
-        marksX: pdf.margin + 194,
-        rawX: pdf.margin + 294,
-        weightX: pdf.margin + 366,
-        scoreX: pdf.margin + 444,
-        gradeX: pdf.margin + 542,
-        statusX: pdf.margin + 598,
+        creditX: pdf.margin + 188,
+        marksX: pdf.margin + 252,
+        rawX: pdf.margin + 346,
+        scoreX: pdf.margin + 416,
+        gradeX: pdf.margin + 492,
+        pointsX: pdf.margin + 552,
+        qualityX: pdf.margin + 624,
         courseWidth: 160,
-        marksWidth: 80,
+        creditWidth: 44,
+        marksWidth: 78,
         rawWidth: 50,
-        weightWidth: 55,
-        scoreWidth: 70,
-        gradeWidth: 35,
-        statusWidth: 80,
+        scoreWidth: 58,
+        gradeWidth: 44,
+        pointsWidth: 54,
+        qualityWidth: 56,
     };
     let y = pdf.cursorY;
 
@@ -252,8 +257,8 @@ export async function createTranscriptPdf({
     pdf.text(student.currentCohort?.name || 'Independent', pdf.margin + 320, y - 40, { size: 11, color: palette.text, maxWidth: 155 });
     pdf.text('Registration', pdf.margin + 500, y - 20, { size: 8, font: 'bold', color: palette.muted });
     pdf.text(student.registrationNumber || student.rollNumber || 'N/A', pdf.margin + 500, y - 40, { size: 11, color: palette.text, maxWidth: 105 });
-    pdf.text('Overall Average', pdf.margin + 620, y - 20, { size: 8, font: 'bold', color: palette.muted });
-    pdf.text(`${cumulativeAverage}%`, pdf.margin + 620, y - 42, { size: 15, font: 'bold', color: palette.text, maxWidth: 70 });
+    pdf.text('CGPA', pdf.margin + 620, y - 20, { size: 8, font: 'bold', color: palette.muted });
+    pdf.text(`${summary?.cgpa ?? 0} / ${summary?.gpaScale ?? 4}`, pdf.margin + 620, y - 42, { size: 15, font: 'bold', color: palette.text, maxWidth: 70 });
     y -= 92;
     pdf.cursorY = y;
 
@@ -266,17 +271,18 @@ export async function createTranscriptPdf({
         await ensureSpace(78);
         pdf.rect({ x: pdf.margin, y: y - 34, width: usableWidth, height: 34, fill: palette.cycle, stroke: palette.softBorder, borderWidth: 0.5 });
         pdf.text(getCyclePeriodLabel(cycle), pdf.margin + 12, y - 21, { size: 11, font: 'bold', color: palette.text, maxWidth: 460 });
-        pdf.text(`${cycle.cohortName || 'No batch'} | ${cycle.overallPercentage || 0}% average`, pdf.width - pdf.margin - 218, y - 21, { size: 9, color: palette.muted, maxWidth: 205 });
+        pdf.text(`GPA ${cycle.gpa ?? 0} / ${cycle.gpaScale ?? summary?.gpaScale ?? 4} | ${cycle.totalCreditHours ?? 0} credits`, pdf.width - pdf.margin - 218, y - 21, { size: 9, color: palette.muted, maxWidth: 205 });
         y -= 42;
 
         pdf.rect({ x: table.x, y: y - 22, width: table.width, height: 28, fill: palette.mutedSurface, stroke: palette.softBorder, borderWidth: 0.6 });
         drawCell('Course / Section', table.courseX, table.courseWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
+        drawCell('Credits', table.creditX, table.creditWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
         drawCell('Marks', table.marksX, table.marksWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
         drawCell('Raw %', table.rawX, table.rawWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
-        drawCell('Weight', table.weightX, table.weightWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
-        drawCell('W.Score', table.scoreX, table.scoreWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
-        drawCell('Grade', table.gradeX, table.gradeWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
-        drawCell('Status', table.statusX, table.statusWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
+        drawCell('Final %', table.scoreX, table.scoreWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
+        drawCell('Letter', table.gradeX, table.gradeWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
+        drawCell('Grade Points', table.pointsX, table.pointsWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
+        drawCell('Quality Points', table.qualityX, table.qualityWidth, y - 10, { size: 8, font: 'bold', color: palette.muted });
         y -= 36;
         pdf.cursorY = y;
 
@@ -308,12 +314,13 @@ export async function createTranscriptPdf({
             if (labelParts.sectionName) {
                 drawCell(labelParts.sectionName, table.courseX, table.courseWidth, y - 21, { size: 7, color: mixHex(sectionColor, palette.text, 0.35) });
             }
+            drawCell(`${metrics.creditHours}`, table.creditX, table.creditWidth, y - 10, { size: 9, color: palette.text });
             drawCell(`${metrics.marksObtained}/${metrics.totalMarks}`, table.marksX, table.marksWidth, y - 10, { size: 9, color: palette.text });
             drawCell(`${metrics.rawPercentage}%`, table.rawX, table.rawWidth, y - 10, { size: 9, color: palette.text });
-            drawCell(`${metrics.totalWeight}%`, table.weightX, table.weightWidth, y - 10, { size: 9, color: palette.text });
             drawCell(`${metrics.weightedScore}%`, table.scoreX, table.scoreWidth, y - 10, { size: 9, font: 'bold', color: sectionColor });
             drawCell(metrics.grade, table.gradeX, table.gradeWidth, y - 10, { size: 9, font: 'bold', color: palette.text });
-            drawCell(metrics.status, table.statusX, table.statusWidth, y - 10, { size: 9, color: palette.text });
+            drawCell(`${metrics.gradePoints ?? 'N/A'}`, table.pointsX, table.pointsWidth, y - 10, { size: 9, color: palette.text });
+            drawCell(`${metrics.qualityPoints ?? 'N/A'}`, table.qualityX, table.qualityWidth, y - 10, { size: 9, color: palette.text });
             y -= rowHeight + 6;
             pdf.cursorY = y;
         }
@@ -323,9 +330,10 @@ export async function createTranscriptPdf({
     }
 
     await ensureSpace(44);
-    pdf.rect({ x: pdf.width - pdf.margin - 220, y: y - 38, width: 220, height: 38, fill: palette.softSurface, stroke: palette.softBorder, borderWidth: 0.6 });
-    pdf.text(`Overall Average: ${cumulativeAverage}%`, pdf.width - pdf.margin - 205, y - 17, { size: 11, font: 'bold', color: palette.text });
-    pdf.text(`Pass mark: ${PASS_MARK}% | A+ 90, A 80, B 70, C 60, D 50`, pdf.margin, y - 17, { size: 8, color: palette.muted });
+    pdf.rect({ x: pdf.width - pdf.margin - 260, y: y - 46, width: 260, height: 46, fill: palette.softSurface, stroke: palette.softBorder, borderWidth: 0.6 });
+    pdf.text(`CGPA: ${summary?.cgpa ?? 0} / ${summary?.gpaScale ?? 4}`, pdf.width - pdf.margin - 244, y - 17, { size: 11, font: 'bold', color: palette.text });
+    pdf.text(`Credits: ${summary?.totalCreditHours ?? 0}`, pdf.width - pdf.margin - 244, y - 32, { size: 9, color: palette.muted });
+    pdf.text(`Policy: ${summary?.policyName || 'GPA Policy'}`, pdf.margin, y - 17, { size: 8, color: palette.muted });
 
     return pdf.saveAsBlob();
 }

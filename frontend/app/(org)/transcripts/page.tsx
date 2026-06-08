@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
-import { AcademicCycle, BadgeVariant, Role, Student } from '@/types';
+import { AcademicCycle, Role, Student } from '@/types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -44,11 +44,16 @@ interface TranscriptCycleSection {
     sectionId: string;
     sectionName: string;
     sectionColor?: string | null;
+    courseId?: string;
     courseName: string;
     enrollmentType: string;
     wasExcluded: boolean;
     grades?: TranscriptAssessmentGrade[];
     totalPercentage: number;
+    creditHours?: number;
+    letterGrade?: string;
+    gradePoints?: number;
+    qualityPoints?: number;
 }
 
 interface TranscriptCycle {
@@ -56,14 +61,24 @@ interface TranscriptCycle {
     cohortName: string | null;
     sections?: TranscriptCycleSection[];
     overallPercentage: number;
+    gpa?: number;
+    totalCreditHours?: number;
+    gpaScale?: number;
+    policyName?: string;
+}
+
+interface TranscriptSummary {
+    cgpa: number;
+    gpaScale: number;
+    policyName: string;
+    totalCreditHours: number;
 }
 
 interface TranscriptResponse {
     student: TranscriptStudent;
     transcript?: TranscriptCycle[];
+    summary?: TranscriptSummary;
 }
-
-const PASS_MARK = 50;
 
 function roundScore(value: number) {
     return Math.round(value * 100) / 100;
@@ -76,8 +91,7 @@ function getSectionMetrics(section: TranscriptCycleSection) {
     const totalWeight = roundScore(grades.reduce((sum, grade) => sum + Number(grade.weightage || 0), 0));
     const rawPercentage = totalMarks > 0 ? roundScore((marksObtained / totalMarks) * 100) : 0;
     const weightedScore = roundScore(section.totalPercentage || 0);
-    const status = getAcademicStatus(section, grades.length, weightedScore);
-    const grade = section.wasExcluded || grades.length === 0 ? 'N/A' : getLetterGrade(weightedScore);
+    const grade = section.wasExcluded || grades.length === 0 ? 'N/A' : section.letterGrade || 'N/A';
 
     return {
         assessmentCount: grades.length,
@@ -87,30 +101,10 @@ function getSectionMetrics(section: TranscriptCycleSection) {
         rawPercentage,
         weightedScore,
         grade,
-        status,
+        creditHours: roundScore(Number(section.creditHours ?? 0)),
+        gradePoints: section.gradePoints === undefined || section.gradePoints === null ? null : roundScore(Number(section.gradePoints)),
+        qualityPoints: section.qualityPoints === undefined || section.qualityPoints === null ? null : roundScore(Number(section.qualityPoints)),
     };
-}
-
-function getLetterGrade(score: number) {
-    if (score >= 90) return 'A+';
-    if (score >= 80) return 'A';
-    if (score >= 70) return 'B';
-    if (score >= 60) return 'C';
-    if (score >= 50) return 'D';
-    return 'F';
-}
-
-function getAcademicStatus(section: TranscriptCycleSection, assessmentCount: number, weightedScore: number) {
-    if (section.wasExcluded) return 'Excluded';
-    if (assessmentCount === 0) return 'No grades';
-    return weightedScore >= PASS_MARK ? 'Pass' : 'Fail';
-}
-
-function getStatusVariant(status: string): BadgeVariant {
-    if (status === 'Pass') return 'success';
-    if (status === 'Fail') return 'error';
-    if (status === 'Excluded') return 'warning';
-    return 'neutral';
 }
 
 function formatDate(value?: string) {
@@ -197,6 +191,7 @@ export default function TranscriptsPage() {
                 student: transcriptResponse.student,
                 cycles: transcriptCycles,
                 cumulativeAverage,
+                summary: transcriptResponse.summary,
                 theme,
             });
             downloadPdfBlob(blob, `${sanitizePdfFilename(transcriptResponse.student.name || 'student', 'student')}-transcript.pdf`);
@@ -426,8 +421,11 @@ export default function TranscriptsPage() {
                                 <p className="text-lg font-bold">{transcriptResponse.student.currentCohort?.name || 'Independent'}</p>
                             </div>
                             <div>
-                                <p className="text-xs font-semibold uppercase text-muted-foreground">Overall Average</p>
-                                <p className="text-lg font-bold text-primary">{cumulativeAverage}%</p>
+                                <p className="text-xs font-semibold uppercase text-muted-foreground">CGPA</p>
+                                <p className="text-lg font-bold text-primary">
+                                    {transcriptResponse.summary?.cgpa ?? 0}
+                                    <span className="text-sm text-muted-foreground"> / {transcriptResponse.summary?.gpaScale ?? 4}</span>
+                                </p>
                             </div>
                         </div>
 
@@ -446,6 +444,11 @@ export default function TranscriptsPage() {
                                             <div className="flex flex-col gap-2 border-b border-border/60 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
                                                 <div>
                                                     <h3 className="text-base font-black text-foreground">{getCyclePeriodLabel(cycle)}</h3>
+                                                    <p className="mt-1 text-xs font-semibold text-muted-foreground">{cycle.policyName || transcriptResponse.summary?.policyName || 'GPA policy'} policy</p>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <Badge variant="info" size="sm">GPA {cycle.gpa ?? 0} / {cycle.gpaScale ?? transcriptResponse.summary?.gpaScale ?? 4}</Badge>
+                                                    <Badge variant="neutral" size="sm">{cycle.totalCreditHours ?? 0} credits</Badge>
                                                 </div>
                                             </div>
 
@@ -453,22 +456,24 @@ export default function TranscriptsPage() {
                                                 <table className="w-full min-w-230 table-fixed text-left text-sm">
                                                     <colgroup>
                                                         <col className="w-[25%]" />
+                                                        <col className="w-[10%]" />
                                                         <col className="w-[13%]" />
-                                                        <col className="w-[10%]" />
-                                                        <col className="w-[10%]" />
-                                                        <col className="w-[16%]" />
-                                                        <col className="w-[10%]" />
-                                                        <col className="w-[16%]" />
+                                                        <col className="w-[12%]" />
+                                                        <col className="w-[12%]" />
+                                                        <col className="w-[12%]" />
+                                                        <col className="w-[13%]" />
+                                                        <col className="w-[13%]" />
                                                     </colgroup>
                                                     <thead className="border-b border-border bg-card text-xs font-semibold uppercase text-muted-foreground">
                                                         <tr>
                                                             <th className="px-4 py-3">Course Section</th>
+                                                            <th className="px-4 py-3 text-center">Credits</th>
                                                             <th className="px-4 py-3">Marks</th>
                                                             <th className="px-4 py-3 text-center">Raw %</th>
-                                                            <th className="px-4 py-3 text-center">Weight</th>
-                                                            <th className="px-4 py-3 text-center">Weighted Score</th>
-                                                            <th className="px-4 py-3 text-center">Grade</th>
-                                                            <th className="px-4 py-3 text-center">Status</th>
+                                                            <th className="px-4 py-3 text-center">Final %</th>
+                                                            <th className="px-4 py-3 text-center">Letter</th>
+                                                            <th className="px-4 py-3 text-center">Grade Points</th>
+                                                            <th className="px-4 py-3 text-center">Quality Points</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-border/20">
@@ -486,26 +491,23 @@ export default function TranscriptsPage() {
                                                                         <div className="text-xs font-semibold" style={{ color: `${sectionColor}CC` }}>{section.sectionName}</div>
                                                                         <div className="sr-only">{formatCourseSectionLabel({ courseName: section.courseName, sectionName: section.sectionName })}</div>
                                                                     </td>
+                                                                    <td className="px-4 py-4 text-center font-bold">{metrics.creditHours}</td>
                                                                     <td className="px-4 py-4 font-mono text-sm font-bold">
                                                                         {metrics.marksObtained} / {metrics.totalMarks}
                                                                     </td>
                                                                     <td className="px-4 py-4 text-center font-bold">{metrics.rawPercentage}%</td>
-                                                                    <td className="px-4 py-4 text-center font-bold">{metrics.totalWeight}%</td>
                                                                     <td className="px-4 py-4 text-center font-bold text-primary">{metrics.weightedScore}%</td>
                                                                     <td className="px-4 py-4 text-center">
                                                                         <Badge variant={metrics.grade === 'N/A' ? 'neutral' : metrics.grade === 'F' ? 'error' : 'success'} size="sm">{metrics.grade}</Badge>
                                                                     </td>
-                                                                    <td className="px-4 py-4 text-center">
-                                                                        <Badge variant={getStatusVariant(metrics.status)} size="sm">
-                                                                            {metrics.status}
-                                                                        </Badge>
-                                                                    </td>
+                                                                    <td className="px-4 py-4 text-center font-bold">{metrics.gradePoints ?? 'N/A'}</td>
+                                                                    <td className="px-4 py-4 text-center font-bold">{metrics.qualityPoints ?? 'N/A'}</td>
                                                                 </tr>
                                                             );
                                                         })}
                                                         {sections.length === 0 && (
                                                             <tr>
-                                                                <td colSpan={7} className="py-8 text-center text-muted-foreground italic">
+                                                                <td colSpan={8} className="py-8 text-center text-muted-foreground italic">
                                                                     No academic records found for this cycle.
                                                                 </td>
                                                             </tr>
@@ -520,9 +522,25 @@ export default function TranscriptsPage() {
                         )}
 
                         <div className="flex justify-end border-t border-border/50 pt-6">
-                            <div className="w-full max-w-xl space-y-2">
-                                <p className="text-right text-xs font-semibold text-muted-foreground">
-                                    Pass mark: {PASS_MARK}% | Grade scale: A+ 90+, A 80-89, B 70-79, C 60-69, D 50-59, F below 50
+                            <div className="grid w-full gap-3 sm:max-w-3xl sm:grid-cols-4">
+                                <div className="rounded-md border border-border bg-muted/20 p-3 text-right">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">CGPA</p>
+                                    <p className="text-lg font-black text-primary">{transcriptResponse.summary?.cgpa ?? 0}</p>
+                                </div>
+                                <div className="rounded-md border border-border bg-muted/20 p-3 text-right">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Scale</p>
+                                    <p className="text-lg font-black">{transcriptResponse.summary?.gpaScale ?? 4}</p>
+                                </div>
+                                <div className="rounded-md border border-border bg-muted/20 p-3 text-right">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Credits</p>
+                                    <p className="text-lg font-black">{transcriptResponse.summary?.totalCreditHours ?? 0}</p>
+                                </div>
+                                <div className="rounded-md border border-border bg-muted/20 p-3 text-right">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Policy</p>
+                                    <p className="truncate text-lg font-black">{transcriptResponse.summary?.policyName || 'GPA Policy'}</p>
+                                </div>
+                                <p className="text-right text-xs font-semibold text-muted-foreground sm:col-span-4">
+                                    Letter grades and grade points are calculated from the organization GPA policy.
                                 </p>
                             </div>
                         </div>

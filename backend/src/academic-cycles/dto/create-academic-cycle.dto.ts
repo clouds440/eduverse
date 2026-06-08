@@ -16,4 +16,8 @@ export class CreateAcademicCycleDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsOptional()
+  gpaPolicyId?: string;
 }
