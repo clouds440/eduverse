@@ -123,7 +123,8 @@ SELECT
     WHEN fe."status" = 'PAID' THEN 'CONFIRMED'::"PaymentClaimStatus"
     ELSE 'PENDING'::"PaymentClaimStatus"
   END,
-  COALESCE(s."userId", t."userId", fe."confirmedById")
+  COALESCE(s."userId", t."userId", fe."confirmedById"),
+  CURRENT_TIMESTAMP
 FROM "FinancialEntry" fe
 LEFT JOIN "Student" s ON s."id" = fe."studentId"
 LEFT JOIN "Teacher" t ON t."id" = fe."teacherId"
