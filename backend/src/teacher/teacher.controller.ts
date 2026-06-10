@@ -29,7 +29,7 @@ export class TeacherController {
   constructor(private readonly teacherService: TeacherService) { }
 
   // --- Teachers ---
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Get('teachers')
   async getTeachers(
     @OrgId() orgId: string,
@@ -52,7 +52,7 @@ export class TeacherController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Get('managers')
   async getManagers(
     @OrgId() orgId: string,
@@ -75,7 +75,7 @@ export class TeacherController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER)
   @Get('teachers/:id')
   getTeacher(
     @OrgId() orgId: string, 
@@ -85,7 +85,7 @@ export class TeacherController {
     return this.teacherService.getTeacher(orgId, id, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post('teachers')
   createTeacher(
@@ -96,7 +96,7 @@ export class TeacherController {
     return this.teacherService.createTeacher(orgId, createTeacherDto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch('teachers/:id')
   updateTeacher(
@@ -108,7 +108,7 @@ export class TeacherController {
     return this.teacherService.updateTeacher(orgId, id, updateTeacherDto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch('teachers/:id/restore')
   restoreTeacher(
@@ -119,7 +119,7 @@ export class TeacherController {
     return this.teacherService.restoreTeacher(orgId, id, status as TeacherStatus);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete('teachers/:id')
   deleteTeacher(

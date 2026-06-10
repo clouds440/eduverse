@@ -133,7 +133,8 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
         label: formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name }),
     })), [sectionsData?.data]);
 
-    const isManagerLocked = currentUser?.role !== Role.ORG_ADMIN;
+    const canAssignManagerRole = currentUser?.role === Role.ORG_ADMIN || currentUser?.role === Role.SUB_ADMIN;
+    const isManagerLocked = !canAssignManagerRole;
     const isStatusLocked = isProfile || (
         currentUser?.role === Role.ORG_MANAGER &&
         (initialData?.user?.role === Role.ORG_MANAGER || currentUser?.id === initialData?.userId)
@@ -148,10 +149,10 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
     }, [isProfile, setValue, trigger]);
 
     const handleManagerChange = useCallback((checked: boolean) => {
-        if (currentUser?.role !== Role.ORG_ADMIN) return;
+        if (!canAssignManagerRole) return;
         setValue('isManager', checked);
         trigger('isManager');
-    }, [currentUser?.role, setValue, trigger]);
+    }, [canAssignManagerRole, setValue, trigger]);
 
     const handleSectionsChange = useCallback((values: string[]) => {
         if (isProfile) return;
@@ -384,7 +385,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile }: Teach
                                 disabled={isManagerLocked}
                                 size="lg"
                                 label="Administrative Privileges"
-                                description="Allow this teacher to manage organization settings, staff, students and finances"
+                                description="Allow this teacher to manage assigned academic sections, students, attendance, grades, and assessments"
                             />
                         </div>
                         {watchedIsManager && (

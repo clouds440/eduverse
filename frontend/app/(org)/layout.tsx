@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
-import {
-    LayoutDashboard, Users, BookOpen, GraduationCap,
-    MessageSquare, Settings, LibraryBig, Trophy,
-    Clock, ShieldOff, RefreshCw, Mail, CheckCircle, Book,
-    Layers,
-    CalendarDays, Calendar, Network, FileText, ArrowRightCircle, Wallet,
-    ShieldAlert
-} from 'lucide-react';
+import { Clock, GraduationCap, Mail, RefreshCw, Settings, ShieldAlert, ShieldOff, CheckCircle } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Organization, Role, OrgStatus } from '@/types';
@@ -22,6 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { VerificationCodeInput } from '@/components/ui/VerificationCodeInput';
 import { Badge } from '@/components/ui/Badge';
 import { StatusBanner } from '@/components/ui/StatusBanner';
+import { buildOrgSidebarLinks, getOrgOverviewHref } from '@/lib/orgSidebar';
 
 // Status Message Components
 const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: JwtPayload | null }) => {
@@ -304,7 +298,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
             if (!token) return;
 
-            if (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER || user?.role === Role.TEACHER || user?.role === Role.STUDENT) {
+            if (user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN || user?.role === Role.ORG_MANAGER || user?.role === Role.FINANCE_MANAGER || user?.role === Role.TEACHER || user?.role === Role.STUDENT) {
                 // Fetch Org Data
                 api.org.getOrgData(token)
                     .then((data: Organization) => {
@@ -356,86 +350,12 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     }, [token, user?.role, user?.id, dispatch, subscribe]);
 
     const links = useMemo<SidebarLink[]>(() => {
-        const orgLinks: SidebarLink[] = [];
-
-        if (!isApproved) {
-            // Simplified links for non-approved orgs - Allow Settings/Mail
-            if (user?.role === Role.ORG_ADMIN) {
-                orgLinks.push({ id: 'SETTINGS', label: 'Settings', href: '/settings', icon: Settings });
-            }
-            return orgLinks;
-        }
-
-        // Landing page link based on role
-        let overviewHref = '/overview';
-        if (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) {
-            overviewHref = `/teachers/${user.id}`;
-        } else if (user?.role === Role.STUDENT) {
-            overviewHref = `/students/${user.id}`;
-        }
-
-        // Common links for everyone
-        orgLinks.push({ id: 'DASHBOARD', label: 'Overview', href: overviewHref, icon: LayoutDashboard });
-        orgLinks.push({
-            id: 'CHAT',
-            label: 'Messages',
-            icon: MessageSquare,
-            href: '/chat',
-            badge: chatStats && chatStats.unread > 0 ? `${chatStats.unread}` : undefined
+        return buildOrgSidebarLinks({
+            user,
+            isApproved,
+            unreadChats: chatStats?.unread,
         });
-
-        const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
-        const isAcademic = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
-
-        // Management View (Admins & Managers)
-        if (isManagement) {
-            orgLinks.push({ id: 'COURSES', label: 'Courses', href: '/courses', icon: LibraryBig });
-            orgLinks.push({ id: 'ACADEMIC_CYCLES', label: 'Academic Cycles', href: '/academic-cycles', icon: Calendar });
-            orgLinks.push({ id: 'COHORTS', label: 'Cohorts', href: '/cohorts', icon: Network });
-            orgLinks.push({ id: 'SECTIONS', label: 'Sections', href: '/sections', icon: Layers });
-            orgLinks.push({ id: 'TEACHERS', label: 'Teachers', href: '/teachers', icon: Users });
-            orgLinks.push({ id: 'STUDENTS', label: 'Students', href: '/students', icon: GraduationCap });
-            orgLinks.push({ id: 'ATTENDANCE', label: 'Attendance', href: '/attendance', icon: CheckCircle });
-            orgLinks.push({ id: 'SCHEDULES', label: 'Schedules', href: '/schedules', icon: CalendarDays });
-            orgLinks.push({ id: 'TRANSCRIPTS', label: 'Transcripts', href: '/transcripts', icon: FileText });
-            orgLinks.push({ id: 'PROMOTIONS', label: 'Promotions', href: '/promotions', icon: ArrowRightCircle });
-            orgLinks.push({ id: 'FINANCE', label: 'Finance', href: '/finance', icon: Wallet });
-
-            if (user?.role === Role.ORG_ADMIN) {
-                orgLinks.push({ id: 'GPA_POLICIES', label: 'GPA Policies', href: '/settings/gpa-policies', icon: Trophy });
-                orgLinks.push({ id: 'SETTINGS', label: 'Settings', href: '/settings', icon: Settings });
-            }
-        }
-
-        // Academic/Teaching View (Teachers & Managers)
-        if (user?.role === Role.TEACHER) {
-            orgLinks.push({ id: 'COURSES', label: 'My Courses', href: '/courses', icon: LibraryBig });
-            orgLinks.push({ id: 'SECTIONS', label: 'My Sections', href: '/sections', icon: Layers });
-            orgLinks.push({ id: 'STUDENTS', label: 'My Students', href: '/students', icon: GraduationCap });
-            orgLinks.push({ id: 'ATTENDANCE', label: 'Attendance', href: '/attendance', icon: CheckCircle });
-        }
-
-        // Shared Academic Features (Teachers and Managers, but not pure Admins unless explicitly handling classes)
-        if (isAcademic && user?.role !== Role.ORG_ADMIN) {
-            orgLinks.push({ id: 'TIMETABLE', label: 'Timetable', href: '/timetable', icon: Clock });
-            orgLinks.push({ id: 'GRADES', label: 'Grades', href: '/grades', icon: Trophy });
-            orgLinks.push({ id: 'PROFILE', label: 'Profile Settings', href: `/teachers/${user.id}/profile`, icon: Settings });
-        }
-
-        // Student View
-        if (user?.role === Role.STUDENT) {
-            orgLinks.push({ id: 'COURSES', label: 'My Courses', href: `/students/${user.id}?tab=courses`, icon: Book });
-            orgLinks.push({ id: 'ASSESSMENTS', label: 'Assessments', href: `/students/${user.id}?tab=assessments`, icon: BookOpen });
-            orgLinks.push({ id: 'GRADES', label: 'Grades', href: `/students/${user.id}?tab=grades`, icon: Trophy });
-            orgLinks.push({ id: 'ATTENDANCE', label: 'Attendance', href: `/students/${user.id}?tab=attendance`, icon: CheckCircle });
-            orgLinks.push({ id: 'TIMETABLE', label: 'Timetable', href: '/timetable', icon: Clock });
-            orgLinks.push({ id: 'TRANSCRIPT', label: 'Transcript', href: '/transcripts', icon: FileText });
-            orgLinks.push({ id: 'FEES', label: 'Fees & Payments', href: '/fees', icon: Wallet });
-            orgLinks.push({ id: 'PROFILE', label: 'Profile Settings', href: `/students/${user.id}?tab=profile`, icon: Settings });
-        }
-
-        return orgLinks;
-    }, [chatStats, isApproved, user]);
+    }, [chatStats?.unread, isApproved, user]);
 
     const bottomLinks = useMemo<SidebarLink[]>(() => [
         {
@@ -451,12 +371,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
     const isOrgAdmin = pathname === '/overview';
     const isGrades = pathname === '/grades' || pathname.includes('tab=grades');
 
-    let overviewHref = '/settings';
-    if (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) {
-        overviewHref = `/teachers/${user.id}`;
-    } else if (user?.role === Role.STUDENT) {
-        overviewHref = `/students/${user.id}`;
-    }
+    const overviewHref = getOrgOverviewHref(user);
     const isOverview = pathname === overviewHref;
 
     const showPadding = isOrgAdmin || isGrades || isOverview;

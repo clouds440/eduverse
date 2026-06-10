@@ -21,7 +21,7 @@ export default function EditTeacherPage() {
     // Role guard check
     useEffect(() => {
         if (!authLoading && user) {
-            if (user.role !== Role.ORG_ADMIN && user.role !== Role.ORG_MANAGER) {
+            if (user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN) {
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'You do not have permission to edit this teacher.', type: 'error' } });
                 router.replace('/teachers');
             }

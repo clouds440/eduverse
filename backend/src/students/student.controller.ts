@@ -66,7 +66,7 @@ export class StudentController {
     return this.studentService.getStudent(orgId, id, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post('students')
   createStudent(
@@ -80,7 +80,7 @@ export class StudentController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch('students/:id')
   updateStudent(
@@ -96,7 +96,7 @@ export class StudentController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch('students/:id/restore')
   restoreStudent(
@@ -107,7 +107,7 @@ export class StudentController {
     return this.studentService.restoreStudent(orgId, id, status as StudentStatus);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete('students/:id')
   deleteStudent(

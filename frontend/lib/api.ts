@@ -1,7 +1,7 @@
 import type {
     Teacher, Student, Organization, RegisterRequest, LoginRequest, AuthResponse,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
-    CreateTeacherRequest, UpdateTeacherRequest, CreateStudentRequest, UpdateStudentRequest,
+    CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
     CreateGuardianRequest, GuardianProfile,
     CreateSectionRequest, UpdateSectionRequest, CreateCourseRequest, UpdateCourseRequest,
     PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload,
@@ -12,7 +12,8 @@ import type {
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, MessageResponse, AuditLogItem,
-    GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse
+    GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
+    GradeFinalizationFilters, GradeFinalizationRow
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -302,6 +303,32 @@ export const api = {
         getManagers: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, deleted?: boolean } = {}) =>
             request<PaginatedResponse<Teacher>>(`/org/managers${buildQueryString(params)}`, { token }),
 
+        getSubAdmins: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, deleted?: boolean } = {}) =>
+            request<PaginatedResponse<User>>(`/org/sub-admins${buildQueryString(params)}`, { token }),
+        getSubAdmin: (id: string, token: string) =>
+            request<User>(`/org/sub-admins/${id}`, { token }),
+        createSubAdmin: (data: CreateSubAdminRequest, token: string) =>
+            request<User>('/org/sub-admins', { method: 'POST', body: JSON.stringify(data), token }),
+        updateSubAdmin: (id: string, data: UpdateSubAdminRequest, token: string) =>
+            request<User>(`/org/sub-admins/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        restoreSubAdmin: (id: string, status: string, token: string) =>
+            request<{ message: string }>(`/org/sub-admins/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ status }), token }),
+        deleteSubAdmin: (id: string, token: string) =>
+            request<void>(`/org/sub-admins/${id}`, { method: 'DELETE', token }),
+
+        getFinanceManagers: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, deleted?: boolean } = {}) =>
+            request<PaginatedResponse<User>>(`/org/finance-managers${buildQueryString(params)}`, { token }),
+        getFinanceManager: (id: string, token: string) =>
+            request<User>(`/org/finance-managers/${id}`, { token }),
+        createFinanceManager: (data: CreateFinanceManagerRequest, token: string) =>
+            request<User>('/org/finance-managers', { method: 'POST', body: JSON.stringify(data), token }),
+        updateFinanceManager: (id: string, data: UpdateFinanceManagerRequest, token: string) =>
+            request<User>(`/org/finance-managers/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        restoreFinanceManager: (id: string, status: string, token: string) =>
+            request<{ message: string }>(`/org/finance-managers/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ status }), token }),
+        deleteFinanceManager: (id: string, token: string) =>
+            request<void>(`/org/finance-managers/${id}`, { method: 'DELETE', token }),
+
         getStudent: (id: string, token: string) =>
             request<Student>(`/org/students/${id}`, { token }),
         getStudentByUserId: (userId: string, token: string) =>
@@ -352,7 +379,7 @@ export const api = {
         },
 
         // --- Assessments ---
-        getAssessments: (token: string, params: { sectionId?: string, courseId?: string } = {}) =>
+        getAssessments: (token: string, params: { sectionId?: string, courseId?: string, academicCycleId?: string } = {}) =>
             request<Assessment[]>(`/org/assessments${buildQueryString(params)}`, { token }),
         getAssessment: (id: string, token: string) =>
             request<Assessment>(`/org/assessments/${id}`, { token }),
@@ -376,6 +403,10 @@ export const api = {
             request<void>(`/org/assessments/${assessmentId}/publish`, { method: 'PATCH', token }),
         finalizeGrades: (assessmentId: string, token: string) =>
             request<void>(`/org/assessments/${assessmentId}/finalize`, { method: 'PATCH', token }),
+        getGradeFinalization: (token: string, params: GradeFinalizationFilters = {}) => {
+            const queryParams: QueryParams = { ...params };
+            return request<GradeFinalizationRow[]>(`/org/grade-finalization${buildQueryString(queryParams)}`, { token });
+        },
 
         // --- Submissions ---
         getSubmissions: (assessmentId: string, token: string) =>

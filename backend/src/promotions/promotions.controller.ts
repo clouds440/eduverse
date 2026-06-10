@@ -20,7 +20,7 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 export class PromotionsController {
   constructor(private readonly promotionsService: PromotionsService) {}
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
   promote(@OrgId() orgId: string, @Body() dto: PromoteStudentsDto) {

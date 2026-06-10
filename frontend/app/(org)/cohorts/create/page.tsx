@@ -42,8 +42,7 @@ export default function CreateCohortPage() {
     useEffect(() => {
         if (!user) return;
 
-        // Teachers should not be able to create cohorts
-        if (user.role === Role.TEACHER) {
+        if (user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN) {
             router.replace('/cohorts');
         }
     }, [user, router]);

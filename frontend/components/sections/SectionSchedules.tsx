@@ -93,7 +93,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
     const [repeatWeekdays, setRepeatWeekdays] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
-    const isManagerOrAdmin = role === Role.ORG_ADMIN || role === Role.ORG_MANAGER;
+    const canManageSchedules = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
 
     useEffect(() => {
         dispatchRef.current = dispatch;
@@ -260,7 +260,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                         Weekly meeting times for this section. <DocsLink href="/docs/timetable#schedule-teacher">Schedule guide</DocsLink>
                     </p>
                 </div>
-                {isManagerOrAdmin && (
+                {canManageSchedules && (
                     <Button onClick={openCreateModal} icon={Plus} className="w-full sm:w-auto">
                         Add Schedule
                     </Button>
@@ -290,7 +290,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                         {schedule.startTime} - {schedule.endTime}
                                     </p>
                                 </div>
-                                {isManagerOrAdmin && (
+                                {canManageSchedules && (
                                     <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
                                         <button
                                             type="button"

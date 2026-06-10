@@ -155,11 +155,12 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
         })) || []),
     ], [cohortsData?.data]);
 
-    const isWatchMode = !isProfile && currentUser?.role === Role.TEACHER;
+    const canManageStudentRecords = currentUser?.role === Role.ORG_ADMIN || currentUser?.role === Role.SUB_ADMIN;
+    const isWatchMode = !isProfile && (currentUser?.role === Role.TEACHER || currentUser?.role === Role.ORG_MANAGER);
     const identityLocked = isProfile || isWatchMode;
-    const registrationLocked = isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN);
+    const registrationLocked = isProfile || isWatchMode || (!!studentId && !canManageStudentRecords);
     const currentUserAvatarUrl = isProfile ? currentUser?.avatarUrl : '';
-    const canManageGuardianLink = !isProfile && !isWatchMode && (currentUser?.role === Role.ORG_ADMIN || currentUser?.role === Role.ORG_MANAGER);
+    const canManageGuardianLink = !isProfile && !isWatchMode && canManageStudentRecords;
 
     const { data: guardians = [] } = useSWR<GuardianProfile[]>(
         token && canManageGuardianLink ? ['guardians', token] as const : null,

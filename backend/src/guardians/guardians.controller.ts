@@ -23,19 +23,19 @@ import { GuardiansService } from './guardians.service';
 export class GuardiansController {
   constructor(private readonly guardiansService: GuardiansService) {}
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Get()
   getGuardians(@OrgId() orgId: string, @Query('search') search?: string) {
     return this.guardiansService.getGuardians(orgId, search);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Get(':id')
   getGuardian(@OrgId() orgId: string, @Param('id') id: string) {
     return this.guardiansService.getGuardian(orgId, id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
   createGuardian(

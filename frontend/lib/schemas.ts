@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { OrganizationType, TeacherStatus, StudentStatus, AssessmentType, GradeStatus } from '@/types';
+import { OrganizationType, TeacherStatus, StudentStatus, UserStatus, AssessmentType, GradeStatus } from '@/types';
 import { isSafeHttpUrl } from './safeUrl';
 
 // --- Shared Patterns ---
@@ -87,6 +87,35 @@ export const teacherProfileSchema = teacherBaseSchema.extend({
 });
 
 export type TeacherProfileFormData = z.infer<typeof teacherProfileSchema>;
+
+// =========================
+// --- SUB ADMIN SCHEMAS ---
+// =========================
+
+const subAdminBaseSchema = z.object({
+    name: z.string().min(1, 'Full Name is required'),
+    phone: z.string().regex(phoneRegex, 'Invalid phone number').optional().or(z.literal('')),
+    email: z.string().email('Invalid email address'),
+    status: z.nativeEnum(UserStatus),
+});
+
+export const subAdminCreateSchema = subAdminBaseSchema.extend({
+    password: passwordRules,
+});
+
+export type SubAdminCreateFormData = z.infer<typeof subAdminCreateSchema>;
+
+export const subAdminUpdateSchema = subAdminBaseSchema.extend({
+    password: optionalPasswordRules,
+});
+
+export type SubAdminUpdateFormData = z.infer<typeof subAdminUpdateSchema>;
+
+export const financeManagerCreateSchema = subAdminCreateSchema;
+export type FinanceManagerCreateFormData = z.infer<typeof financeManagerCreateSchema>;
+
+export const financeManagerUpdateSchema = subAdminUpdateSchema;
+export type FinanceManagerUpdateFormData = z.infer<typeof financeManagerUpdateSchema>;
 
 // =========================
 // --- STUDENT SCHEMAS ---

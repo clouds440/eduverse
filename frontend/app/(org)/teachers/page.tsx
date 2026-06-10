@@ -60,6 +60,7 @@ export default function TeachersPage() {
     const isDeletedView = getBooleanParam('deleted');
     const showEmeritus = getBooleanParam('showEmeritus');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-teachers-limit', 10);
+    const canManageTeachers = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
     const teacherParams = useMemo<TeacherParams>(() => ({
         page,
@@ -81,7 +82,7 @@ export default function TeachersPage() {
     >(teachersKey);
 
     useEffect(() => {
-        if (user && user.role !== Role.ORG_ADMIN && user.role !== Role.ORG_MANAGER) {
+        if (user && !canManageTeachers) {
             if (user.role === Role.TEACHER) {
                 router.replace(`/teachers/${user.id}`);
             } else if (user.role === Role.STUDENT) {
@@ -90,7 +91,7 @@ export default function TeachersPage() {
                 router.replace('/');
             }
         }
-    }, [user, router, pathname]);
+    }, [user, canManageTeachers, router, pathname]);
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
@@ -353,7 +354,7 @@ export default function TeachersPage() {
                             </button>
                         )}
 
-                        {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && !isDeletedView && (
+                        {canManageTeachers && !isDeletedView && (
                             <Button
                                 onClick={() => router.push('/teachers/add')}
                                 icon={UserPlus}
@@ -375,7 +376,7 @@ export default function TeachersPage() {
                         keyExtractor={(row) => row.id}
                         isLoading={isFetching}
                         onRowClick={(row) => {
-                            if (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) {
+                            if (canManageTeachers) {
                                 if (user?.id === row.userId) {
                                     router.push(`/teachers/${row.userId}/profile`);
                                 } else {

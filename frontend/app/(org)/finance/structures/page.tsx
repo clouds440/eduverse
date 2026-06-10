@@ -63,7 +63,7 @@ export default function StructuresPage() {
         })
     );
 
-    const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+    const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.FINANCE_MANAGER;
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);

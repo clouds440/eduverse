@@ -105,7 +105,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     } else {
                         if (user.role === Role.STUDENT) router.replace(`/students/${user.id}`);
                         else if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) router.replace(`/teachers/${user.id}`);
-                        else if (user.role === Role.ORG_ADMIN) router.replace('/overview');
+                        else if (user.role === Role.FINANCE_MANAGER) router.replace('/finance');
+                        else if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) router.replace('/overview');
                         else router.replace('/');
                     }
                     return;
@@ -144,22 +145,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             router.replace(`/students/${user.id}`);
                             return;
                         }
+                    } else if (user.role === Role.SUB_ADMIN) {
+                        const isMainAdminOnlyPage = ['sub-admins', 'settings'].includes(pathSegments[1]);
+                        const isAllowedShared = [
+                            'overview',
+                            'courses',
+                            'academic-cycles',
+                            'cohorts',
+                            'sections',
+                            'teachers',
+                            'students',
+                            'guardians',
+                            'attendance',
+                            'schedules',
+                            'transcripts',
+                            'promotions',
+                            'grade-finalization',
+                            'finance',
+                            'finance-managers',
+                            'chat',
+                            'mail',
+                            'change-password',
+                            'contact',
+                        ].includes(pathSegments[1]);
+
+                        if (isMainAdminOnlyPage || !isAllowedShared) {
+                            dispatch({ type: 'TOAST_ADD', payload: { message: 'Access Denied.', type: 'error' } });
+                            router.replace('/overview');
+                            return;
+                        }
+                    } else if (user.role === Role.FINANCE_MANAGER) {
+                        const isAllowedShared = ['finance', 'chat', 'mail', 'change-password', 'contact'].includes(pathSegments[1]);
+                        const isSettingsPage = pathSegments.includes('settings');
+
+                        if (isSettingsPage || !isAllowedShared) {
+                            dispatch({ type: 'TOAST_ADD', payload: { message: 'Access Denied.', type: 'error' } });
+                            router.replace('/finance');
+                            return;
+                        }
                     } else if (user.role === Role.ORG_MANAGER) {
                         const isSettingsPage = pathSegments.includes('settings');
+                        const isFinancePage = pathSegments[1] === 'finance';
+                        const isTeacherManagementPage = pathSegments[1] === 'teachers' && (!pathSegments[2] || pathSegments[2] === 'add' || pathSegments[2] === 'edit');
+                        const isStudentManagementPage = pathSegments[1] === 'students' && pathSegments[2] === 'add';
+                        const isSectionManagementPage = pathSegments[1] === 'sections' && (pathSegments[2] === 'create' || pathSegments[2] === 'edit');
+                        const isOrgManagementPage = ['courses', 'academic-cycles', 'cohorts', 'promotions', 'schedules', 'sub-admins', 'finance-managers'].includes(pathSegments[1]);
                         if (isSettingsPage) {
                             // Settings page handles its own redirect, no toast needed
                             router.replace(`/teachers/${user.id}/profile`);
+                            return;
+                        }
+                        if (isFinancePage || isTeacherManagementPage || isStudentManagementPage || isSectionManagementPage || isOrgManagementPage) {
+                            dispatch({ type: 'TOAST_ADD', payload: { message: 'Access Denied.', type: 'error' } });
+                            router.replace(`/teachers/${user.id}`);
                             return;
                         }
                     } else if (user.role === Role.TEACHER) {
                         const isTeacherList = pathSegments[1] === 'teachers' && !pathSegments[2];
                         const isSettingsPage = pathSegments.includes('settings');
+                        const isGradeFinalizationPage = pathSegments[1] === 'grade-finalization';
                         if (isSettingsPage) {
                             // Settings page handles its own redirect, no toast needed
                             router.replace(`/teachers/${user.id}/profile`);
                             return;
                         }
-                        if (isTeacherList) {
+                        if (isTeacherList || isGradeFinalizationPage) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Access Denied.', type: 'error' } });
                             router.replace(`/teachers/${user.id}`);
                             return;
@@ -180,6 +230,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             case Role.SUPER_ADMIN:
             case Role.PLATFORM_ADMIN: document.title = `Admin – ${PLATFORM_NAME}`; break;
             case Role.ORG_ADMIN: document.title = `Admin – ${orgSuffix}`; break;
+            case Role.SUB_ADMIN: document.title = `${user.name || 'Sub Admin'} – ${orgSuffix}`; break;
+            case Role.FINANCE_MANAGER: document.title = `${user.name || 'Finance Manager'} – ${orgSuffix}`; break;
             case Role.ORG_MANAGER: document.title = `${user.name || 'Manager'} – ${orgSuffix}`; break;
             case Role.TEACHER: document.title = `${user.name || 'Teacher'} – ${orgSuffix}`; break;
             case Role.STUDENT: document.title = `${user.name || 'Student'} – ${orgSuffix}`; break;

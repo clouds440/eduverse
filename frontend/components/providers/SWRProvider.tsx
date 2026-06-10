@@ -13,6 +13,8 @@ type FetcherKey =
     | readonly ['sections', object]
     | readonly ['students', object]
     | readonly ['teachers', object]
+    | readonly ['sub-admins', object]
+    | readonly ['finance-managers', object]
     | readonly ['courses', object]
     | readonly ['admin-organizations', object]
     | readonly ['admin-audit-logs', object]
@@ -33,6 +35,8 @@ type FetcherKey =
     | readonly ['schedules', string]
     | readonly ['student', string]
     | readonly ['teacher', string]
+    | readonly ['sub-admin', string]
+    | readonly ['finance-manager', string]
     | readonly ['cohort', string]
     | readonly ['section-materials', string]
     | readonly ['section-detail', string]
@@ -73,6 +77,10 @@ function createFetcher(token: string | null) {
                     return await api.org.getStudents(token, args[0] as object) as T;
                 case 'teachers':
                     return await api.org.getTeachers(token, args[0] as object) as T;
+                case 'sub-admins':
+                    return await api.org.getSubAdmins(token, args[0] as object) as T;
+                case 'finance-managers':
+                    return await api.org.getFinanceManagers(token, args[0] as object) as T;
                 case 'courses':
                     return await api.org.getCourses(token, args[0] as object) as T;
                 case 'admin-organizations':
@@ -137,6 +145,10 @@ function createFetcher(token: string | null) {
                     return await api.org.getStudent(args[0] as string, token) as T;
                 case 'teacher':
                     return await api.org.getTeacher(args[0] as string, token) as T;
+                case 'sub-admin':
+                    return await api.org.getSubAdmin(args[0] as string, token) as T;
+                case 'finance-manager':
+                    return await api.org.getFinanceManager(args[0] as string, token) as T;
                 case 'cohort':
                     return await api.cohorts.getCohort(args[0] as string, token) as T;
                 case 'section-materials':

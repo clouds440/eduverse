@@ -20,14 +20,14 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 export class CopyForwardController {
   constructor(private readonly copyForwardService: CopyForwardService) {}
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post('preview')
   previewCopyForward(@OrgId() orgId: string, @Body() dto: CopyForwardDto) {
     return this.copyForwardService.previewCopyForward(orgId, dto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
   copyForward(@OrgId() orgId: string, @Body() dto: CopyForwardDto) {

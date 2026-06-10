@@ -59,6 +59,8 @@ export default function StudentsPage() {
     const [newMailOpen, setNewMailOpen] = useState(false);
     const [initialTargetId, setInitialTargetId] = useState<string | undefined>(undefined);
     const [initialSubject, setInitialSubject] = useState<string | undefined>(undefined);
+    const canManageStudents = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const canViewStudentDetails = canManageStudents || user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
 
     // URL State
     const page = getNumberParam('page', 1);
@@ -92,7 +94,7 @@ export default function StudentsPage() {
         { data: Student[]; totalPages: number; totalRecords: number }
     >(studentsKey);
 
-    const cohortsKey = token && (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER)
+    const cohortsKey = token && canManageStudents
         ? ['cohorts', { limit: 100 }] as const
         : null;
     const { data: cohortsData } = useSWR<{ data: { id: string, name: string }[] }>(cohortsKey);
@@ -232,21 +234,22 @@ export default function StudentsPage() {
             header: 'Actions',
             width: 150,
             accessor: (row: Student) => {
-                const isManagerOrAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
                 return (
                     <TableActions
-                        onEdit={isDeletedView || !isManagerOrAdmin ? undefined : () => router.push(`/students/edit/${row.id}`)}
-                        onView={isDeletedView || user?.role !== Role.TEACHER ? undefined : () => router.push(`/students/edit/${row.id}`)}
-                        onDelete={isDeletedView || !isManagerOrAdmin ? undefined : () => handleDeleteClick(row.id)}
+                        onEdit={isDeletedView || !canManageStudents ? undefined : () => router.push(`/students/edit/${row.id}`)}
+                        onView={isDeletedView || !canViewStudentDetails || canManageStudents ? undefined : () => router.push(`/students/edit/${row.id}`)}
+                        onDelete={isDeletedView || !canManageStudents ? undefined : () => handleDeleteClick(row.id)}
                         variant="user"
-                        isViewAndEdit={!isDeletedView && isManagerOrAdmin}
-                        extraActions={isDeletedView ? [
-                            {
-                                variant: 'restore' as const,
-                                title: 'Restore',
-                                onClick: () => handleRestore(row.id)
-                            }
-                        ] : [
+                        isViewAndEdit={!isDeletedView && canManageStudents}
+                        extraActions={isDeletedView ? (
+                            canManageStudents ? [
+                                {
+                                    variant: 'restore' as const,
+                                    title: 'Restore',
+                                    onClick: () => handleRestore(row.id)
+                                }
+                            ] : []
+                        ) : [
                             {
                                 variant: 'mail' as const,
                                 title: 'Send Mail',
@@ -382,7 +385,7 @@ export default function StudentsPage() {
                                         </div>
 
                                         {/* Cohort Filter */}
-                                        {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
+                                        {canManageStudents && (
                                             <div>
                                                 <label className="text-xs font-bold text-muted-foreground mb-1 block">
                                                     Cohort
@@ -442,23 +445,24 @@ export default function StudentsPage() {
                                             </div>
                                         )}
 
-                                        {/* View Deleted Students */}
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                updateQueryParams({
-                                                    deleted: 'true',
-                                                    page: 1,
-                                                    status: undefined,
-                                                    showAlumni: undefined,
-                                                    sectionId: undefined,
-                                                })
-                                            }
-                                            className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
-                                                }`}
-                                        >
-                                            View Deleted Students
-                                        </button>
+                                        {canManageStudents && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    updateQueryParams({
+                                                        deleted: 'true',
+                                                        page: 1,
+                                                        status: undefined,
+                                                        showAlumni: undefined,
+                                                        sectionId: undefined,
+                                                    })
+                                                }
+                                                className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
+                                                    }`}
+                                            >
+                                                View Deleted Students
+                                            </button>
+                                        )}
                                     </div>
                                 </Drawer>
                             )}
@@ -479,7 +483,7 @@ export default function StudentsPage() {
                                 </button>
                             )}
 
-                            {!isDeletedView && (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
+                            {!isDeletedView && canManageStudents && (
                                 <Button
                                     onClick={() => router.push('/students/add')}
                                     icon={UserPlus}
@@ -501,7 +505,7 @@ export default function StudentsPage() {
                         keyExtractor={(row) => row.id}
                         isLoading={isFetching}
                         onRowClick={(row) => {
-                            router.push(`/students/edit/${row.id}`);
+                            if (canViewStudentDetails) router.push(`/students/edit/${row.id}`);
                         }}
                         currentPage={page}
                         totalPages={fetchedData?.totalPages || 1}

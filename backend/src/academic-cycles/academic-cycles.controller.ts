@@ -26,14 +26,14 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 export class AcademicCyclesController {
   constructor(private readonly academicCyclesService: AcademicCyclesService) {}
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
   create(@OrgId() orgId: string, @Body() dto: CreateAcademicCycleDto) {
     return this.academicCyclesService.createCycle(orgId, dto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get()
   findAll(
     @OrgId() orgId: string,
@@ -52,19 +52,19 @@ export class AcademicCyclesController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('active')
   findActive(@OrgId() orgId: string) {
     return this.academicCyclesService.getActiveCycle(orgId);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get(':id')
   findOne(@OrgId() orgId: string, @Param('id') id: string) {
     return this.academicCyclesService.getCycle(orgId, id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch(':id')
   update(
@@ -75,14 +75,14 @@ export class AcademicCyclesController {
     return this.academicCyclesService.updateCycle(orgId, id, dto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch(':id/activate')
   activate(@OrgId() orgId: string, @Param('id') id: string) {
     return this.academicCyclesService.setActiveCycle(orgId, id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete(':id')
   remove(@OrgId() orgId: string, @Param('id') id: string) {

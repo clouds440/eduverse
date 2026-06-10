@@ -11,10 +11,10 @@ import { FormPageHeader, FormPageShell } from '@/components/ui/FormLayout';
 export default function AddStudentPage() {
     const { user } = useAuth();
     const router = useRouter();
-    // Redirect if not authorized
     useEffect(() => {
-        if (user && user.role === Role.STUDENT) {
-            router.push(`/students/${user.id}`);
+        if (!user) return;
+        if (user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN) {
+            router.push(user.role === Role.STUDENT ? `/students/${user.id}` : '/students');
         }
     }, [user, router]);
 

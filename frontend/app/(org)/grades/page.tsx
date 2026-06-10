@@ -390,7 +390,7 @@ export default function GradesPage() {
     const { token, user } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [view, setView] = useState<GradesView>('sections');
-    const canReviewUnfinalized = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER || user?.role === Role.TEACHER;
+    const canReviewUnfinalized = false;
 
     const sectionsKey = token && user
         ? ['sections-for-grades', { my: user.role === Role.TEACHER }] as const
@@ -412,7 +412,7 @@ export default function GradesPage() {
         <PageShell>
             <PageHeader
                 title="Grades"
-                description={<>Choose a section or review grades before final transcript approval. <DocsLink href="/docs/gradebook#grades-page">Read grade docs</DocsLink></>}
+                description={<>Choose a section to open assessments and grade records. <DocsLink href="/docs/gradebook#grades-page">Read grade docs</DocsLink></>}
                 icon={GraduationCap}
                 breadcrumbs={[
                     { label: 'Organization' },

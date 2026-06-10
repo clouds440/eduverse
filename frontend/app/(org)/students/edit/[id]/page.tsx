@@ -21,7 +21,7 @@ export default function EditStudentPage() {
     // Role guard check
     useEffect(() => {
         if (!authLoading && user) {
-            if (user.role !== Role.ORG_ADMIN && user.role !== Role.ORG_MANAGER && user.role !== Role.TEACHER) {
+            if (user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN && user.role !== Role.ORG_MANAGER && user.role !== Role.TEACHER) {
                 router.replace('/');
             }
         }
@@ -31,9 +31,9 @@ export default function EditStudentPage() {
     const studentKey = token && studentId ? ['student', studentId] as const : null;
     const { data: studentData, isLoading: dataLoading, error } = useSWR<Student>(studentKey);
 
-    // Teacher permission check
+    // Assigned academic staff permission check
     useEffect(() => {
-        if (user?.role === Role.TEACHER && studentData) {
+        if ((user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) && studentData) {
             const isMyStudent = studentData.enrollments?.some(e =>
                 e.section?.teachers?.some(t => t.userId === user.id)
             );
@@ -63,7 +63,7 @@ export default function EditStudentPage() {
 
     if (!studentData) return null;
 
-    const isWatchMode = user?.role === Role.TEACHER;
+    const isWatchMode = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
 
     return (
         <FormPageShell>

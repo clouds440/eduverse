@@ -30,8 +30,7 @@ export default function CreateCoursePage() {
     useEffect(() => {
         if (!token || !user) return;
 
-        // Teachers should not be able to create courses
-        if (user.role === Role.TEACHER) {
+        if (user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN) {
             router.replace('/courses');
             return;
         }

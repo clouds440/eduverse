@@ -23,7 +23,7 @@ import { SectionsService } from '../sections/sections.service';
 import { StudentService } from '../students/student.service';
 import { TeacherService } from '../teacher/teacher.service';
 import { InsightsService } from '../insights/insights.service';
-import { AssessmentsService } from '../assessments/assessments.service';
+import { AssessmentsService, type GradeFinalizationStatus } from '../assessments/assessments.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -66,7 +66,7 @@ export class OrgController {
     private readonly attendanceService: AttendanceService,
   ) { }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('insights')
   getInsights(@OrgId() orgId: string, @Request() req: AuthenticatedRequest) {
     return this.insightsService.getInsights(orgId, req.user);
@@ -79,7 +79,7 @@ export class OrgController {
     return this.orgService.getSettings(orgId);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN)
   @Access(AccessLevel.NONE)
   @Patch('settings')
   updateSettings(
@@ -89,7 +89,7 @@ export class OrgController {
     return this.orgService.updateSettings(orgId, updateSettingsDto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN)
   @Access(AccessLevel.NONE)
   @Patch('settings/logo')
   @UseInterceptors(
@@ -139,7 +139,7 @@ export class OrgController {
     return this.orgService.updateLogo(orgId, file, req.user.id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN)
   @Access(AccessLevel.NONE)
   @Patch('reapply')
   reapply(@OrgId() orgId: string) {
@@ -169,7 +169,7 @@ export class OrgController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post('courses')
   createCourse(
@@ -181,7 +181,7 @@ export class OrgController {
     return this.coursesService.createCourse(orgId, createCourseDto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch('courses/:id')
   updateCourse(
@@ -194,7 +194,7 @@ export class OrgController {
     return this.coursesService.updateCourse(orgId, id, updateCourseDto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete('courses/:id')
   deleteCourse(@OrgId() orgId: string, @Param('id') id: string) {
@@ -233,7 +233,7 @@ export class OrgController {
   }
 
   @Get('sections/:id')
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   getSection(
     @OrgId() orgId: string,
     @Param('id') id: string,
@@ -242,7 +242,7 @@ export class OrgController {
     return this.attendanceService.getSection(orgId, id, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post('sections')
   createSection(
@@ -252,7 +252,7 @@ export class OrgController {
     return this.sectionsService.createSection(orgId, createSectionDto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch('sections/:id')
   updateSection(
@@ -263,7 +263,7 @@ export class OrgController {
     return this.sectionsService.updateSection(orgId, id, updateSectionDto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete('sections/:id')
   deleteSection(@OrgId() orgId: string, @Param('id') id: string) {
@@ -351,7 +351,7 @@ export class OrgController {
     throw new ForbiddenException('Profile update not allowed for this role');
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.FINANCE_MANAGER)
   @Access(AccessLevel.WRITE)
   @Patch('users/:id/avatar')
   @UseInterceptors(
@@ -398,10 +398,10 @@ export class OrgController {
       );
     }
 
-    // Authorization check: User can update their own avatar, or ORG_ADMIN/MANAGER can update any
+    // Users can update their own avatar; operational admins can update org users.
     if (
       req.user.role !== Role.ORG_ADMIN &&
-      req.user.role !== Role.ORG_MANAGER &&
+      req.user.role !== Role.SUB_ADMIN &&
       req.user.id !== id
     ) {
       throw new ForbiddenException('You can only update your own avatar');
@@ -422,7 +422,7 @@ export class OrgController {
     return this.assessmentsService.createAssessment(orgId, dto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('assessments')
   getAssessments(
     @OrgId() orgId: string,
@@ -450,7 +450,7 @@ export class OrgController {
     return this.assessmentsService.updateAssessment(orgId, id, dto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Get('assessments/:id')
   getAssessment(@OrgId() orgId: string, @Param('id') id: string) {
     return this.assessmentsService.getAssessment(orgId, id);
@@ -483,7 +483,7 @@ export class OrgController {
     return this.assessmentsService.getStudentReleasedGrades(orgId, req.user.id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('assessments/:id/grades')
   getGrades(
     @OrgId() orgId: string,
@@ -493,7 +493,7 @@ export class OrgController {
     return this.assessmentsService.getGrades(orgId, assessmentId, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Patch('assessments/:id/grades/:studentId')
   updateGrade(
@@ -513,18 +513,46 @@ export class OrgController {
     );
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Patch('assessments/:id/publish')
-  publishGrades(@OrgId() orgId: string, @Param('id') id: string) {
-    return this.assessmentsService.publishGrades(orgId, id);
+  publishGrades(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.assessmentsService.publishGrades(orgId, id, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER)
   @Access(AccessLevel.WRITE)
   @Patch('assessments/:id/finalize')
-  finalizeGrades(@OrgId() orgId: string, @Param('id') id: string) {
-    return this.assessmentsService.finalizeGrades(orgId, id);
+  finalizeGrades(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.assessmentsService.finalizeGrades(orgId, id, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER)
+  @Get('grade-finalization')
+  getGradeFinalizationDashboard(
+    @OrgId() orgId: string,
+    @Request() req: AuthenticatedRequest,
+    @Query('academicCycleId') academicCycleId?: string,
+    @Query('courseId') courseId?: string,
+    @Query('sectionId') sectionId?: string,
+    @Query('teacherId') teacherId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.assessmentsService.getGradeFinalizationDashboard(orgId, req.user, {
+      academicCycleId,
+      courseId,
+      sectionId,
+      teacherId,
+      status: status as GradeFinalizationStatus | 'ALL' | undefined,
+    });
   }
 
   // --- Submissions ---
@@ -547,7 +575,7 @@ export class OrgController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('assessments/:id/submissions')
   getSubmissions(
     @OrgId() orgId: string,
@@ -568,7 +596,7 @@ export class OrgController {
   }
 
   // --- Timetable & Schedules ---
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post('sections/:id/schedules')
   createSchedule(
@@ -579,7 +607,7 @@ export class OrgController {
     return this.attendanceService.createSchedule(orgId, id, dto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch('sections/:id/schedules/:scheduleId')
   updateSchedule(
@@ -591,7 +619,7 @@ export class OrgController {
     return this.attendanceService.updateSchedule(orgId, scheduleId, dto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete('sections/:id/schedules/:scheduleId')
   deleteSchedule(
@@ -602,7 +630,7 @@ export class OrgController {
     return this.attendanceService.deleteSchedule(orgId, scheduleId);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('sections/:id/schedules')
   getSchedules(@OrgId() orgId: string, @Param('id') id: string) {
     return this.attendanceService.getSchedules(orgId, id);

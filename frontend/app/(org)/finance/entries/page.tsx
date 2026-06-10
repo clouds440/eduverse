@@ -76,7 +76,8 @@ export default function EntriesPage() {
         })
     );
 
-    const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+    const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.FINANCE_MANAGER;
+    const canSelfClaim = user?.role === Role.STUDENT || user?.role === Role.TEACHER;
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
@@ -224,7 +225,7 @@ export default function EntriesPage() {
                     <TableActions
                         isViewAndEdit={false}
                         extraActions={[
-                            ...(!isManagement && entry.status !== EntryStatus.UNVERIFIED ? [{
+                            ...(canSelfClaim && entry.status !== EntryStatus.UNVERIFIED ? [{
                                 variant: 'pay' as const,
                                 title: 'Mark as Paid',
                                 onClick: () => setClaimingEntry(entry),
@@ -239,7 +240,7 @@ export default function EntriesPage() {
                 );
             },
         },
-    ], [isManagement]);
+    ], [canSelfClaim, isManagement]);
 
     const sortedAndFilteredEntries = useMemo(() => {
         const result = [...filteredEntries];

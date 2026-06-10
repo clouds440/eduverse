@@ -1,5 +1,5 @@
-import type { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
-export { Role, TeacherStatus, StudentStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone, UiVariant } from './enums';
+import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
+export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
 
 export interface PaginatedResponse<T> {
@@ -18,10 +18,13 @@ export interface User {
     email: string;
     userName: string;
     role: Role;
+    status?: UserStatus;
     phone?: string;
     avatarUrl?: string | null;
     avatarUpdatedAt?: string | null;
     organizationId?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface Teacher {
@@ -409,6 +412,29 @@ export interface CreateTeacherRequest {
 
 export type UpdateTeacherRequest = Partial<CreateTeacherRequest>;
 
+export interface CreateSubAdminRequest {
+    name: string;
+    email: string;
+    phone?: string | null;
+    password?: string;
+    status?: UserStatus;
+}
+
+export type UpdateSubAdminRequest = Partial<CreateSubAdminRequest>;
+
+export interface CreateRoleAccountRequest {
+    name: string;
+    email: string;
+    phone?: string | null;
+    password?: string;
+    status?: UserStatus;
+}
+
+export type UpdateRoleAccountRequest = Partial<CreateRoleAccountRequest>;
+
+export type CreateFinanceManagerRequest = CreateRoleAccountRequest;
+export type UpdateFinanceManagerRequest = UpdateRoleAccountRequest;
+
 export interface CreateStudentRequest {
     name: string;
     email: string;
@@ -627,6 +653,58 @@ export interface UnfinalizedGradeReviewRow {
     courseName: string;
     grade: Grade;
     student: Student;
+}
+
+export type GradeFinalizationStatus =
+    | 'DRAFT'
+    | 'PUBLISHED'
+    | 'READY_FOR_FINALIZATION'
+    | 'FINALIZED'
+    | 'NEEDS_REVIEW';
+
+export interface GradeFinalizationFilters {
+    academicCycleId?: string;
+    courseId?: string;
+    sectionId?: string;
+    teacherId?: string;
+    status?: GradeFinalizationStatus | 'ALL';
+}
+
+export interface GradeFinalizationRow {
+    assessmentId: string;
+    assessmentTitle: string;
+    assessmentType: AssessmentType;
+    totalMarks: number;
+    weightage: number;
+    status: GradeFinalizationStatus;
+    academicCycle: {
+        id: string;
+        name: string;
+        gpaPolicyName?: string | null;
+    } | null;
+    course: {
+        id: string;
+        name: string;
+    };
+    section: {
+        id: string;
+        name: string;
+        color?: string | null;
+    };
+    teachers: {
+        id: string;
+        userId: string;
+        name: string;
+        email?: string;
+    }[];
+    totalStudents: number;
+    gradedStudents: number;
+    missingGrades: number;
+    draftCount: number;
+    publishedCount: number;
+    finalizedCount: number;
+    lastUpdatedBy?: string | null;
+    lastUpdatedAt?: string | null;
 }
 
 export interface ApiError {

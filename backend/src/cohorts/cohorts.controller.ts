@@ -27,14 +27,14 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 export class CohortsController {
   constructor(private readonly cohortsService: CohortsService) {}
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
   create(@OrgId() orgId: string, @Body() dto: CreateCohortDto) {
     return this.cohortsService.createCohort(orgId, dto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Get()
   findAll(
     @OrgId() orgId: string,
@@ -55,13 +55,13 @@ export class CohortsController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Get(':id')
   findOne(@OrgId() orgId: string, @Param('id') id: string) {
     return this.cohortsService.getCohort(orgId, id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch(':id')
   update(
@@ -72,7 +72,7 @@ export class CohortsController {
     return this.cohortsService.updateCohort(orgId, id, dto);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete(':id')
   remove(@OrgId() orgId: string, @Param('id') id: string) {
@@ -81,7 +81,7 @@ export class CohortsController {
 
   // --- Student ↔ Cohort ---
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post(':id/students')
   addStudents(
@@ -98,7 +98,7 @@ export class CohortsController {
     return this.cohortsService.addStudentsToCohortBulk(orgId, cohortId, studentIds);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete(':id/students/:studentId')
   removeStudent(
@@ -111,7 +111,7 @@ export class CohortsController {
 
   // --- Section ↔ Cohort ---
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post(':id/sections')
   assignSection(
@@ -123,7 +123,7 @@ export class CohortsController {
     return this.cohortsService.assignSectionToCohort(orgId, cohortId, sectionId);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete(':id/sections/:sectionId')
   removeSection(
@@ -136,7 +136,7 @@ export class CohortsController {
 
   // --- Exclusions ---
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Post('enrollments/exclude')
   excludeStudent(
@@ -150,7 +150,7 @@ export class CohortsController {
     return this.cohortsService.excludeStudentFromSection(orgId, studentId, sectionId);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Post('enrollments/include')
   includeStudent(

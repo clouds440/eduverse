@@ -61,7 +61,7 @@ export default function AcademicCyclesPage() {
     const [activateDialogOpen, setActivateDialogOpen] = useState(false);
     const [activatingCycle, setActivatingCycle] = useState<AcademicCycle | null>(null);
 
-    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const { data: gpaPolicies = [] } = useSWR<GpaPolicy[]>(
         token && isAdmin ? ['gpaPolicies', 'cycle-edit', token] : null,
         () => api.org.getGpaPolicies(token!),

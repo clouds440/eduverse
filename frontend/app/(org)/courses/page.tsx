@@ -12,7 +12,6 @@ import { ApiError, Course, Role } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import { Drawer } from '@/components/ui/Drawer';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -22,7 +21,6 @@ import { DocsLink } from '@/components/ui/DocsLink';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
-import { Toggle } from '@/components/ui/Toggle';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
@@ -69,7 +67,7 @@ export default function CoursesPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
 
-    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const isTeacher = user?.role === Role.TEACHER;
 
     useEffect(() => {
@@ -242,19 +240,6 @@ export default function CoursesPage() {
                             />
                         </div>
                         <div className="flex w-full justify-between gap-2 md:w-auto md:justify-end">
-                            {user?.role === Role.ORG_MANAGER && (
-                                <Drawer position="left">
-                                    <div className="flex flex-col gap-4">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium">My Courses</span>
-                                            <Toggle
-                                                checked={showOnlyMyCourses}
-                                                onCheckedChange={(checked) => updateQueryParams({ my: checked, page: 1 })}
-                                            />
-                                        </div>
-                                    </div>
-                                </Drawer>
-                            )}
                             {isAdmin && (
                                 <Button
                                     onClick={() => router.push('/courses/create')}

@@ -178,7 +178,9 @@ export const Brand = React.memo(function Brand({
 
   const defaultHref = isDashboardContext ?
     activeUser?.orgName
-      ? activeUser.role === Role.ORG_ADMIN
+      ? activeUser.role === Role.FINANCE_MANAGER
+        ? '/finance'
+        : activeUser.role === Role.ORG_ADMIN || activeUser.role === Role.SUB_ADMIN
         ? '/overview'
         : activeUser.role === Role.TEACHER || activeUser.role === Role.ORG_MANAGER
           ? `/teachers/${activeUser.id}`

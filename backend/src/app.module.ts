@@ -27,6 +27,8 @@ import { CopyForwardModule } from './copy-forward/copy-forward.module';
 import { FinanceModule } from './finance/finance.module';
 import { GpaModule } from './gpa/gpa.module';
 import { GuardiansModule } from './guardians/guardians.module';
+import { SubAdminsModule } from './sub-admins/sub-admins.module';
+import { FinanceManagersModule } from './finance-managers/finance-managers.module';
 
 @Module({
   imports: [
@@ -58,6 +60,8 @@ import { GuardiansModule } from './guardians/guardians.module';
     FinanceModule,
     GpaModule,
     GuardiansModule,
+    SubAdminsModule,
+    FinanceManagersModule,
   ],
   providers: [
     {

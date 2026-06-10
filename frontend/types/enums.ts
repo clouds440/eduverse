@@ -41,6 +41,15 @@ export enum StudentStatus {
     DELETED = 'DELETED',
 }
 
+export enum UserStatus {
+    ACTIVE = 'ACTIVE',
+    SUSPENDED = 'SUSPENDED',
+    ON_LEAVE = 'ON_LEAVE',
+    ALUMNI = 'ALUMNI',
+    EMERITUS = 'EMERITUS',
+    DELETED = 'DELETED',
+}
+
 export enum OrganizationType {
     KINDERGARTEN = 'KINDERGARTEN',
     PRE_SCHOOL = 'PRE_SCHOOL',

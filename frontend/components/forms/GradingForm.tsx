@@ -140,7 +140,6 @@ export default function GradingForm({
                             options={[
                                 { value: GradeStatus.DRAFT, label: 'Draft' },
                                 { value: GradeStatus.PUBLISHED, label: 'Published' },
-                                { value: GradeStatus.FINALIZED, label: 'Finalized' },
                             ]}
                             value={formData.status || GradeStatus.DRAFT}
                             onChange={(val) => setValue('status', val as GradeStatus)}

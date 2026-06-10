@@ -27,7 +27,7 @@ export class TranscriptsController {
     private readonly studentService: StudentService,
   ) {}
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('students/:id')
   async getStudentTranscript(
     @OrgId() orgId: string,
@@ -45,7 +45,7 @@ export class TranscriptsController {
     return this.transcriptsService.getStudentTranscript(orgId, studentId, cycleId);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER)
   @Get('cycles/:id/report')
   getCycleReport(@OrgId() orgId: string, @Param('id') cycleId: string) {
     return this.transcriptsService.getCycleReport(orgId, cycleId);

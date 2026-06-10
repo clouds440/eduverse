@@ -23,6 +23,21 @@ interface JwtPayload {
   userName?: string;
 }
 
+export type GradeFinalizationStatus =
+  | 'DRAFT'
+  | 'PUBLISHED'
+  | 'READY_FOR_FINALIZATION'
+  | 'FINALIZED'
+  | 'NEEDS_REVIEW';
+
+interface GradeFinalizationFilters {
+  academicCycleId?: string;
+  courseId?: string;
+  sectionId?: string;
+  teacherId?: string;
+  status?: GradeFinalizationStatus | 'ALL';
+}
+
 @Injectable()
 export class AssessmentsService {
   constructor(
@@ -326,9 +341,24 @@ export class AssessmentsService {
       where: { assessmentId_studentId: { assessmentId, studentId } },
     });
 
-    if (grade && grade.status === GradeStatus.FINALIZED && userRole !== Role.ORG_ADMIN) {
+    if (
+      grade &&
+      grade.status === GradeStatus.FINALIZED &&
+      userRole !== Role.ORG_ADMIN &&
+      userRole !== Role.SUB_ADMIN
+    ) {
       throw new ForbiddenException(
-        'Only Org Admin can update finalized grades',
+        'Only Org Admin or Sub Admin can update finalized grades',
+      );
+    }
+
+    if (
+      data.status === GradeStatus.FINALIZED &&
+      userRole !== Role.ORG_ADMIN &&
+      userRole !== Role.SUB_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Use the grade finalization flow to finalize grades',
       );
     }
 
@@ -383,18 +413,265 @@ export class AssessmentsService {
     return result;
   }
 
-  async publishGrades(orgId: string, assessmentId: string) {
+  async publishGrades(orgId: string, assessmentId: string, user: JwtPayload) {
+    const assessment = await this.prisma.assessment.findFirst({
+      where: { id: assessmentId, organizationId: orgId },
+      select: { sectionId: true },
+    });
+
+    if (!assessment) throw new NotFoundException('Assessment not found');
+
+    if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
+      const isAssigned = await this.sectionsService.isTeacherAssignedToSection(
+        assessment.sectionId,
+        user.id,
+      );
+      if (!isAssigned) {
+        throw new ForbiddenException(
+          'You are not assigned to this section and cannot publish grades for it.',
+        );
+      }
+    } else {
+      throw new ForbiddenException('Only assigned teachers or managers can publish grades');
+    }
+
     return this.prisma.grade.updateMany({
       where: { assessmentId, assessment: { organizationId: orgId } },
-      data: { status: 'PUBLISHED' },
+      data: { status: 'PUBLISHED', updatedBy: user.id },
     });
   }
 
-  async finalizeGrades(orgId: string, assessmentId: string) {
+  async finalizeGrades(orgId: string, assessmentId: string, user: JwtPayload) {
+    if (
+      user.role !== Role.ORG_ADMIN &&
+      user.role !== Role.SUB_ADMIN &&
+      user.role !== Role.ORG_MANAGER
+    ) {
+      throw new ForbiddenException(
+        'Only Admin, Sub Admin, or Manager can finalize grades',
+      );
+    }
+
+    const assessment = await this.prisma.assessment.findFirst({
+      where: { id: assessmentId, organizationId: orgId },
+      include: {
+        section: {
+          include: {
+            enrollments: {
+              where: { isExcludedFromCohort: false },
+              select: { studentId: true },
+            },
+          },
+        },
+        grades: { select: { studentId: true, status: true } },
+      },
+    });
+
+    if (!assessment) throw new NotFoundException('Assessment not found');
+
+    if (user.role === Role.ORG_MANAGER) {
+      const isAssigned = await this.sectionsService.isTeacherAssignedToSection(
+        assessment.sectionId,
+        user.id,
+      );
+      if (!isAssigned) {
+        throw new ForbiddenException(
+          'You are not assigned to this section and cannot finalize grades for it.',
+        );
+      }
+    }
+
+    const enrolledStudentIds = new Set(
+      assessment.section.enrollments.map((enrollment) => enrollment.studentId),
+    );
+    const gradeByStudentId = new Map(
+      assessment.grades.map((grade) => [grade.studentId, grade]),
+    );
+    const missingGrades = [...enrolledStudentIds].filter(
+      (studentId) => !gradeByStudentId.has(studentId),
+    );
+    const draftGrades = assessment.grades.filter(
+      (grade) => enrolledStudentIds.has(grade.studentId) && grade.status === GradeStatus.DRAFT,
+    );
+
+    if (enrolledStudentIds.size === 0) {
+      throw new BadRequestException('Cannot finalize an assessment with no enrolled students');
+    }
+
+    if (missingGrades.length > 0 || draftGrades.length > 0) {
+      throw new BadRequestException(
+        'All enrolled students must have published grades before finalization',
+      );
+    }
+
     return this.prisma.grade.updateMany({
       where: { assessmentId, assessment: { organizationId: orgId } },
-      data: { status: 'FINALIZED' },
+      data: { status: 'FINALIZED', updatedBy: user.id },
     });
+  }
+
+  async getGradeFinalizationDashboard(
+    orgId: string,
+    user: JwtPayload,
+    filters: GradeFinalizationFilters = {},
+  ) {
+    if (
+      user.role !== Role.ORG_ADMIN &&
+      user.role !== Role.SUB_ADMIN &&
+      user.role !== Role.ORG_MANAGER
+    ) {
+      throw new ForbiddenException('You cannot access grade finalization');
+    }
+
+    const andFilters: import('@prisma/client').Prisma.AssessmentWhereInput[] = [];
+
+    if (filters.teacherId) {
+      andFilters.push({
+        section: { teachers: { some: { id: filters.teacherId } } },
+      });
+    }
+
+    if (user.role === Role.ORG_MANAGER) {
+      andFilters.push({
+        section: { teachers: { some: { id: user.id } } },
+      });
+    }
+
+    const whereClause: import('@prisma/client').Prisma.AssessmentWhereInput = {
+      organizationId: orgId,
+      ...(filters.academicCycleId ? { academicCycleId: filters.academicCycleId } : {}),
+      ...(filters.courseId ? { courseId: filters.courseId } : {}),
+      ...(filters.sectionId ? { sectionId: filters.sectionId } : {}),
+      ...(andFilters.length ? { AND: andFilters } : {}),
+    };
+
+    const assessments = await this.prisma.assessment.findMany({
+      where: whereClause,
+      include: {
+        academicCycle: { select: { id: true, name: true, gpaPolicy: { select: { id: true, name: true } } } },
+        course: { select: { id: true, name: true } },
+        section: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+            enrollments: {
+              where: { isExcludedFromCohort: false },
+              select: { studentId: true },
+            },
+            teachers: {
+              select: {
+                id: true,
+                user: { select: { id: true, name: true, email: true } },
+              },
+            },
+          },
+        },
+        grades: {
+          select: {
+            id: true,
+            studentId: true,
+            status: true,
+            updatedAt: true,
+            updatedBy: true,
+          },
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    const updatedByIds = [
+      ...new Set(
+        assessments
+          .flatMap((assessment) => assessment.grades.map((grade) => grade.updatedBy))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const updatedByUsers = updatedByIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: updatedByIds } },
+          select: { id: true, name: true, email: true },
+        })
+      : [];
+    const updatedByName = new Map(
+      updatedByUsers.map((updatedByUser) => [
+        updatedByUser.id,
+        updatedByUser.name || updatedByUser.email,
+      ]),
+    );
+
+    const rows = assessments.map((assessment) => {
+      const enrolledStudentIds = new Set(
+        assessment.section.enrollments.map((enrollment) => enrollment.studentId),
+      );
+      const relevantGrades = assessment.grades.filter((grade) =>
+        enrolledStudentIds.has(grade.studentId),
+      );
+      const totalStudents = enrolledStudentIds.size;
+      const gradedStudents = new Set(relevantGrades.map((grade) => grade.studentId)).size;
+      const missingGrades = Math.max(totalStudents - gradedStudents, 0);
+      const draftCount = relevantGrades.filter((grade) => grade.status === GradeStatus.DRAFT).length;
+      const publishedCount = relevantGrades.filter((grade) => grade.status === GradeStatus.PUBLISHED).length;
+      const finalizedCount = relevantGrades.filter((grade) => grade.status === GradeStatus.FINALIZED).length;
+      const latestGrade = relevantGrades
+        .slice()
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
+
+      let status: GradeFinalizationStatus = 'DRAFT';
+      if (totalStudents > 0 && finalizedCount === totalStudents) {
+        status = 'FINALIZED';
+      } else if (gradedStudents === 0) {
+        status = 'DRAFT';
+      } else if (missingGrades > 0 || draftCount > 0 || finalizedCount > 0) {
+        status = 'NEEDS_REVIEW';
+      } else if (publishedCount === totalStudents) {
+        status = 'READY_FOR_FINALIZATION';
+      } else if (publishedCount > 0) {
+        status = 'PUBLISHED';
+      }
+
+      return {
+        assessmentId: assessment.id,
+        assessmentTitle: assessment.title,
+        assessmentType: assessment.type,
+        totalMarks: assessment.totalMarks,
+        weightage: assessment.weightage,
+        status,
+        academicCycle: assessment.academicCycle
+          ? {
+              id: assessment.academicCycle.id,
+              name: assessment.academicCycle.name,
+              gpaPolicyName: assessment.academicCycle.gpaPolicy?.name || null,
+            }
+          : null,
+        course: assessment.course,
+        section: {
+          id: assessment.section.id,
+          name: assessment.section.name,
+          color: assessment.section.color,
+        },
+        teachers: assessment.section.teachers.map((teacher) => ({
+          id: teacher.id,
+          userId: teacher.user.id,
+          name: teacher.user.name || teacher.user.email,
+          email: teacher.user.email,
+        })),
+        totalStudents,
+        gradedStudents,
+        missingGrades,
+        draftCount,
+        publishedCount,
+        finalizedCount,
+        lastUpdatedBy: latestGrade?.updatedBy
+          ? updatedByName.get(latestGrade.updatedBy) || latestGrade.updatedBy
+          : null,
+        lastUpdatedAt: latestGrade?.updatedAt || null,
+      };
+    });
+
+    return filters.status && filters.status !== 'ALL'
+      ? rows.filter((row) => row.status === filters.status)
+      : rows;
   }
 
   async calculateFinalGrade(studentId: string, sectionId?: string) {

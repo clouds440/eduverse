@@ -31,8 +31,8 @@ export default function CreateSectionPage() {
         color: DEFAULT_SECTION_COLOR,
     });
 
-    // SWR for courses dropdown (only for admins/managers)
-    const canFetchCourses = token && user && (user.role === Role.ORG_ADMIN || user.role === Role.ORG_MANAGER);
+    const canCreateSection = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const canFetchCourses = token && canCreateSection;
     const coursesKey = canFetchCourses ? ['courses', { limit: 1000 }] as const : null;
     const { data: coursesData } = useSWR<PaginatedResponse<Course>>(coursesKey);
     const courses = coursesData?.data || [];
@@ -46,11 +46,10 @@ export default function CreateSectionPage() {
     useEffect(() => {
         if (!user) return;
 
-        // Teachers should not be able to create sections
-        if (user.role === Role.TEACHER) {
+        if (!canCreateSection) {
             router.replace('/sections');
         }
-    }, [user, router]);
+    }, [canCreateSection, user, router]);
 
     const [formErrors, setFormErrors] = useState<{ name?: string; academicCycleId?: string; courseId?: string; teacherId?: string; room?: string; color?: string; general?: string }>({});
 

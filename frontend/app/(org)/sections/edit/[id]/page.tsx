@@ -56,7 +56,7 @@ export default function EditSectionPage() {
     const params = useParams<{ id: string }>();
     const searchParams = useSearchParams();
     const sectionId = params.id;
-    const canManage = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+    const canManage = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
     const returnTo = useMemo(() => {
         const requestedReturnTo = searchParams.get('returnTo');

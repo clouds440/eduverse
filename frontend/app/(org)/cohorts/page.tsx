@@ -68,7 +68,7 @@ export default function CohortsPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCohort, setDeletingCohort] = useState<Cohort | null>(null);
 
-    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
+    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
     useEffect(() => {
         if (user?.role === Role.STUDENT) {

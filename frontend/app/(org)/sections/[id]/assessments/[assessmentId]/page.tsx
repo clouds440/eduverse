@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Trophy, Users, Calendar, CheckCircle2, Link as LinkIcon, Download } from 'lucide-react';
 import useSWR, { mutate } from 'swr';
-import { Assessment, Section, Grade, Submission, Role } from '@/types';
+import { Assessment, Section, Grade, Submission, Role, GradeStatus } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { useParams } from 'next/navigation';
 import { formatDate, getPublicUrl, formatBytes } from '@/lib/utils';
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { RouteBreadcrumbs } from '@/components/ui/PageShell';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { StatusBanner } from '@/components/ui/StatusBanner';
+import { Badge } from '@/components/ui/Badge';
 
 export default function AssessmentDetailPage() {
     const { token, user } = useAuth();
@@ -53,7 +54,7 @@ export default function AssessmentDetailPage() {
 
     const isAssigned = section?.teachers?.some(t => t.user?.id === userId);
     const canGrade = (role === Role.TEACHER || role === Role.ORG_MANAGER) && isAssigned;
-    const isTeacherOrAdmin = role === Role.TEACHER || role === Role.ORG_ADMIN || role === Role.ORG_MANAGER;
+    const isTeacherOrAdmin = role === Role.TEACHER || role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.ORG_MANAGER;
     const safeAssessmentExternalLink = normalizeSafeUrl(assessment?.externalLink, { allowRelative: false });
 
     if (isLoading && !assessmentData) {
@@ -197,9 +198,9 @@ export default function AssessmentDetailPage() {
                                 accessor: (student) => {
                                     const grade = grades.find(g => g.studentId === student.id);
                                     return grade ? (
-                                        <span className="flex items-center gap-1.5 text-success">
-                                            <CheckCircle2 className="w-3.5 h-3.5" /> Graded
-                                        </span>
+                                        <Badge variant={grade.status === GradeStatus.FINALIZED ? 'success' : grade.status === GradeStatus.PUBLISHED ? 'info' : 'warning'} size="sm">
+                                            {grade.status === GradeStatus.FINALIZED ? 'Finalized' : grade.status === GradeStatus.PUBLISHED ? 'Published' : 'Draft'}
+                                        </Badge>
                                     ) : (
                                         <span className="flex items-center gap-1.5 text-warning">
                                             <Calendar className="w-3.5 h-3.5" /> Pending
@@ -273,19 +274,26 @@ export default function AssessmentDetailPage() {
                             },
                             {
                                 header: 'Actions',
-                                accessor: (student) => canGrade ? (
-                                    <Button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedStudentId(student.id);
-                                        }}
-                                        py='py-1'
-                                        px='px-3'
-                                        variant={grades.find(g => g.studentId === student.id) ? 'warning' : 'primary'}
-                                    >
-                                        {grades.find(g => g.studentId === student.id) ? 'Update Grade' : 'Assign Grade'}
-                                    </Button>
-                                ) : null,
+                                accessor: (student) => {
+                                    const grade = grades.find(g => g.studentId === student.id);
+                                    if (!canGrade) return null;
+                                    if (grade?.status === GradeStatus.FINALIZED) {
+                                        return <Badge variant="success" size="sm">Locked</Badge>;
+                                    }
+                                    return (
+                                        <Button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedStudentId(student.id);
+                                            }}
+                                            py='py-1'
+                                            px='px-3'
+                                            variant={grade ? 'warning' : 'primary'}
+                                        >
+                                            {grade ? 'Update Grade' : 'Assign Grade'}
+                                        </Button>
+                                    );
+                                },
                                 width: 150,
                             },
                         ]}

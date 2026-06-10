@@ -33,12 +33,12 @@ export default function PromotionsPage() {
     if (isLoading && !cyclesData) return <Loading className="h-full" text="Loading academic transitions..." />;
     if (error) return <ErrorState error={error} onRetry={() => mutate()} />;
 
-    if (user?.role !== Role.ORG_ADMIN && user?.role !== Role.ORG_MANAGER) {
+    if (user?.role !== Role.ORG_ADMIN && user?.role !== Role.SUB_ADMIN) {
         return (
             <div className="flex h-full items-center justify-center">
                 <StatusBanner
                     title="Access restricted"
-                    description="Only organization admins and managers can run academic transitions."
+                    description="Only organization admins and sub admins can run academic transitions."
                     variant="warning"
                 />
             </div>

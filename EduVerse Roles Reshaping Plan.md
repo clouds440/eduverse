@@ -1224,7 +1224,7 @@ Student:
 * Can DM assigned teachers only, if enabled.
 * Can participate in section chats.
 * Cannot create groups.
-* Cannot DM other students by default.
+* Cannot DM other students by default. requires enabling.
 * Cannot DM admin/subadmin/manager by default.
 
 Guardian:
@@ -1250,7 +1250,7 @@ SubAdmin/Admin:
 
 FinanceManager:
 
-* Can message students/guardians for finance-related communication if enabled.
+* Can mail (not chat message) students/guardians for finance-related communication if enabled.
 * Should not have academic group creation power.
 
 ## In-Chat Roles
@@ -1292,7 +1292,7 @@ Remove frontend/backend mismatches and hidden access.
 
 ## Known Issues To Fix
 
-Current issues include:
+Current issues include: (if not fixed in other phases already)
 
 * Manager backend settings access while frontend blocks settings.
 * Manager finance backend access even though finance should move to FinanceManager.

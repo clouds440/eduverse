@@ -1460,7 +1460,7 @@ export class InsightsService {
     orgId: string,
     user: JwtPayload,
   ): Promise<DashboardInsightsResponse> {
-    if (user.role === Role.ORG_ADMIN) {
+    if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
       return this.buildOrgAdminInsights(orgId, user);
     }
 

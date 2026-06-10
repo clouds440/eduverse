@@ -19,7 +19,9 @@ export function HeroButtons() {
                     href={
                         user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN
                             ? '/admin'
-                            : user.role === Role.ORG_ADMIN
+                            : user.role === Role.FINANCE_MANAGER
+                                ? '/finance'
+                            : user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN
                                 ? '/overview'
                                 : user.role === Role.TEACHER || user.role === Role.ORG_MANAGER
                                     ? `/teachers/${user.id}`

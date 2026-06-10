@@ -8,7 +8,7 @@ import { CreateGpaPolicyDto, PreviewGpaPolicyDto, UpdateGpaPolicyDto } from './d
 import { GpaPoliciesService } from './gpa-policies.service';
 
 @Controller('org/gpa-policies')
-@Roles(Role.ORG_ADMIN, Role.ORG_MANAGER)
+@Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
 @Access(AccessLevel.READ)
 export class GpaPoliciesController {
   constructor(private readonly gpaPoliciesService: GpaPoliciesService) {}

@@ -59,6 +59,8 @@ export default function SectionsPage() {
     const teacherId = getStringParam('teacherId');
     const includeInactiveCycles = getBooleanParam('includeInactiveCycles');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-sections-limit', 10);
+    const canManageSections = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const canUseTeacherFilter = canManageSections;
 
     const sectionParams: SectionParams = {
         page,
@@ -83,7 +85,7 @@ export default function SectionsPage() {
     const { data: cyclesData } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
     const cohortsKey = token ? ['cohorts', { limit: 500 }] as const : null;
     const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
-    const teachersKey = token ? ['teachers', { limit: 1000 }] as const : null;
+    const teachersKey = token && canUseTeacherFilter ? ['teachers', { limit: 1000 }] as const : null;
     const { data: teachersData } = useSWR<{ data: Teacher[] }>(teachersKey);
 
     useEffect(() => {
@@ -195,23 +197,22 @@ export default function SectionsPage() {
             header: 'Actions',
             width: 210,
             accessor: (row: Section) => {
-                const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
                 return (
                     <TableActions
-                        onEdit={isAdmin ? () => {
+                        onEdit={canManageSections ? () => {
                             router.push(`/sections/edit/${row.id}?returnTo=${encodeURIComponent(currentListPath)}`);
                         } : undefined}
                         onView={() => {
                             router.push(`/sections/${row.id}`);
                         }}
-                        onDelete={isAdmin ? () => {
+                        onDelete={canManageSections ? () => {
                             setDeletingSection(row);
                             setDeleteDialogOpen(true);
                         } : undefined}
                         editTitle="Edit Section"
                         deleteTitle="Delete Section"
                         variant="default"
-                        isViewAndEdit={isAdmin}
+                        isViewAndEdit={canManageSections}
                     />
                 );
             }
@@ -278,7 +279,7 @@ export default function SectionsPage() {
                     </div>
 
                     <div className='flex w-full md:w-auto gap-2 justify-between'>
-                        {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
+                        {(canManageSections || user?.role === Role.ORG_MANAGER) && (
                             <Drawer position='left'>
                                 <div className="flex flex-col gap-6">
                                     {/* My Sections Toggle */}
@@ -333,28 +334,30 @@ export default function SectionsPage() {
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Assigned Teacher</Label>
-                                        <CustomSelect
-                                            options={[
-                                                { label: 'All Teachers', value: '' },
-                                                ...(teachersData?.data?.map(teacher => ({
-                                                    value: teacher.id,
-                                                    label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
-                                                    icon: UserRound,
-                                                })) || [])
-                                            ]}
-                                            value={teacherId}
-                                            onChange={(val) => updateQueryParams({ teacherId: val, page: 1 })}
-                                            placeholder="All Teachers"
-                                            searchable
-                                        />
-                                    </div>
+                                    {canUseTeacherFilter && (
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Assigned Teacher</Label>
+                                            <CustomSelect
+                                                options={[
+                                                    { label: 'All Teachers', value: '' },
+                                                    ...(teachersData?.data?.map(teacher => ({
+                                                        value: teacher.id,
+                                                        label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
+                                                        icon: UserRound,
+                                                    })) || [])
+                                                ]}
+                                                value={teacherId}
+                                                onChange={(val) => updateQueryParams({ teacherId: val, page: 1 })}
+                                                placeholder="All Teachers"
+                                                searchable
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </Drawer>
                         )}
 
-                        {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
+                        {canManageSections && (
                             <Button
                                 onClick={() => router.push('/sections/create')}
                                 icon={Plus}

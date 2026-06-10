@@ -34,8 +34,7 @@ export default function CreateAcademicCyclePage() {
     useEffect(() => {
         if (!user) return;
 
-        // Teachers should not be able to create academic cycles
-        if (user.role === Role.TEACHER) {
+        if (user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN) {
             router.replace('/academic-cycles');
         }
     }, [user, router]);

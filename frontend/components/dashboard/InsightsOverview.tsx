@@ -178,7 +178,7 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
   const [showActivity, setShowActivity] = useState(true);
 
   // Org Admin Charts
-  const orgAdminCharts = insights.role === Role.ORG_ADMIN || insights.role === Role.ORG_MANAGER ? (
+  const orgAdminCharts = insights.role === Role.ORG_ADMIN || insights.role === Role.SUB_ADMIN || insights.role === Role.ORG_MANAGER ? (
     <>
       {charts?.enrollmentTrend && charts.enrollmentTrend.length > 0 && (
         <ChartPanel>

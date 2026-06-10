@@ -24,7 +24,7 @@ export default function OrganizationChangePasswordPage() {
                     description={
                         user?.isFirstLogin
                             ? 'Create a private password before using the dashboard.'
-                            : (user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER)
+                            : (user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN || user?.role === Role.ORG_MANAGER || user?.role === Role.FINANCE_MANAGER)
                             ? `Update administrative password for ${user?.name || 'Organization'}`
                             : user?.role === Role.TEACHER
                                 ? `Update teacher portal password for ${user?.name || 'User'}`
@@ -42,6 +42,10 @@ export default function OrganizationChangePasswordPage() {
     
                             const target = user.role === Role.ORG_ADMIN
                                 ? '/settings'
+                                : user.role === Role.SUB_ADMIN
+                                    ? '/overview'
+                                : user.role === Role.FINANCE_MANAGER
+                                    ? '/finance'
                                 : user.role === Role.STUDENT
                                     ? `/students/${user.id}`
                                     : `/teachers/${user.id}`;
