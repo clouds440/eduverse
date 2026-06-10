@@ -219,6 +219,7 @@ function UnfinalizedGradesPanel({ token, canReview }: { token: string | null; ca
                     icon={AlertTriangle}
                     title="Unfinalized grades stay out of transcripts"
                     description={<>Review Draft and Published grades before transcripts use them. <DocsLink href="/docs/gradebook#grades-page">Read gradebook rules</DocsLink></>}
+                    dismissible={true}
                 />
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_auto] lg:items-center">
                     <Input

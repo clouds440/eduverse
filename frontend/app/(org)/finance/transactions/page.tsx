@@ -221,6 +221,7 @@ export default function TransactionsPage() {
                 description="Confirmed records in this table cannot be edited or deleted."
                 variant="info"
                 icon={LockKeyhole}
+                dismissible={true}
             />
 
             <ResourcePanel>

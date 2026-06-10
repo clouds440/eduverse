@@ -151,6 +151,7 @@ export default function AssessmentDetailPage() {
                             variant="warning"
                             title="Only Finalized grades appear in transcripts"
                             description="Use Draft while entering marks and Published while sharing provisional results. Finalize when the grade is ready for the official transcript."
+                            dismissible={true}
                         />
                         <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3">

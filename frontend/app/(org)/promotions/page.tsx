@@ -213,11 +213,12 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
 
     return (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-4">
+            <div className="relative space-y-4">
                 <StatusBanner
                     title="Review before copying"
                     description={<>Copy-forward creates new records in the target cycle. <DocsLink href="/docs/cohorts-promotions#copy-forward">Read copy-forward docs</DocsLink></>}
                     variant="warning"
+                    dismissible={true}
                     icon={GitBranch}
                 />
 
@@ -355,11 +356,12 @@ function PromotionView({ cycles, cohorts, token, dispatch }: { cycles: AcademicC
 
     return (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-4">
+            <div className="relative space-y-4">
                 <StatusBanner
                     title="Review before promoting"
                     description={<>Promotion changes student placement. <DocsLink href="/docs/cohorts-promotions#promotions">Read promotion docs</DocsLink></>}
                     variant="warning"
+                    dismissible={true}
                     icon={Users}
                 />
 

@@ -121,7 +121,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                     <p className="text-sm font-black text-foreground">{assessments.length} assessments</p>
-                    <p className="break-words text-xs font-semibold text-muted-foreground">Sorted by the section workflow, opened in the grading detail page.</p>
+                    <p className="wrap-break-word text-xs font-semibold text-muted-foreground">Sorted by the section workflow, opened in the grading detail page.</p>
                 </div>
                 {canCreate && (
                     <Button onClick={() => setIsCreateModalOpen(true)} icon={Plus} className="w-full sm:w-auto">
@@ -135,6 +135,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                     variant="warning"
                     title="Transcript reminder"
                     description={<>Only Finalized grades appear in transcripts. <DocsLink href="/docs/assessments-grading#grade-input-rules">Read grading rules</DocsLink></>}
+                    dismissible={true}
                 />
             )}
 
@@ -187,7 +188,7 @@ export default memo(function AssessmentList({ section, role }: AssessmentListPro
                                 </div>
 
                                 <div className="mt-4 min-w-0">
-                                    <h3 className="line-clamp-2 break-words text-base font-black leading-tight text-foreground group-hover:text-primary">
+                                    <h3 className="line-clamp-2 wrap-break-word text-base font-black leading-tight text-foreground group-hover:text-primary">
                                         {assessment.title}
                                     </h3>
                                     <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 min-[520px]:grid-cols-3">

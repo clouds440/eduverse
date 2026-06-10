@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, Info, LucideIcon, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, LucideIcon, X, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StatusBannerVariant } from '@/types';
 
@@ -17,6 +17,7 @@ interface StatusBannerProps {
     variant?: StatusBannerVariant;
     icon?: LucideIcon;
     action?: StatusBannerAction;
+    dismissible?: boolean;
     children?: React.ReactNode;
     className?: string;
 }
@@ -73,15 +74,31 @@ export function StatusBanner({
     variant = 'info',
     icon,
     action,
+    dismissible = false,
     children,
     className,
 }: StatusBannerProps) {
     const tone = variantClasses[variant];
     const Icon = icon || DEFAULT_ICONS[variant];
 
+    const [visible, setVisible] = React.useState(true);
+    if (!visible) return null;
+
     return (
-        <section className={cn('rounded-lg border p-3 shadow-sm sm:p-4', tone.shell, className)}>
+        <section className={cn('relative rounded-lg border p-3 shadow-sm sm:p-4', tone.shell, className)}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                {dismissible && (
+                    <div className="absolute top-4 right-2">
+                        <button
+                            type="button"
+                            onClick={() => setVisible(false)}
+                            className="flex h-8 w-8 shrink-0 items-center justify-center cursor-pointer rounded-md text-current hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            aria-label="Dismiss"
+                        >
+                            <X className="h-5 w-5" aria-hidden="true" />
+                        </button>
+                    </div>
+                )}
                 <div className="flex min-w-0 items-start gap-3">
                     <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-current/10', tone.icon)}>
                         <Icon className="h-5 w-5" aria-hidden="true" />
