@@ -937,9 +937,9 @@ export enum FinanceCategory {
 export enum BillingCycle {
     ONCE = 'ONCE',
     MONTHLY = 'MONTHLY',
-    QUARTERLY = 'QUARTERLY',
     SEMESTER = 'SEMESTER',
-    ANNUAL = 'ANNUAL'
+    YEARLY = 'YEARLY',
+    ACADEMIC_CYCLE = 'ACADEMIC_CYCLE'
 }
 
 export enum EntryStatus {
@@ -963,7 +963,23 @@ export enum TransactionType {
 
 export enum FinanceTargetType {
     STUDENT = 'STUDENT',
-    TEACHER = 'TEACHER'
+    TEACHER = 'TEACHER',
+    OTHER_INCOME = 'OTHER_INCOME',
+    OTHER_EXPENSE = 'OTHER_EXPENSE'
+}
+
+export enum FinanceAssignmentSource {
+    MANUAL = 'MANUAL',
+    SECTION = 'SECTION',
+    COHORT = 'COHORT',
+    COURSE = 'COURSE',
+    OTHER = 'OTHER'
+}
+
+export enum PaymentClaimStatus {
+    PENDING = 'PENDING',
+    CONFIRMED = 'CONFIRMED',
+    REJECTED = 'REJECTED'
 }
 
 export enum FinanceTab {
@@ -979,6 +995,7 @@ export interface FinancialStructure {
     organizationId: string;
     title: string;
     description: string | null;
+    targetType: FinanceTargetType;
     studentId: string | null;
     teacherId: string | null;
     category: FinanceCategory;
@@ -992,12 +1009,54 @@ export interface FinancialStructure {
     metadata: Record<string, unknown> | null;
     createdAt: string;
     updatedAt: string;
+    assignments?: FinancialStructureAssignment[];
+    _count?: { assignments?: number; entries?: number };
+}
+
+export interface FinancialStructureAssignment {
+    id: string;
+    organizationId: string;
+    structureId: string;
+    targetType: FinanceTargetType;
+    studentId: string | null;
+    teacherId: string | null;
+    entityName: string | null;
+    sourceType: FinanceAssignmentSource;
+    sourceId: string | null;
+    isActive: boolean;
+    metadata: Record<string, unknown> | null;
+    createdAt: string;
+    updatedAt: string;
+    student?: Student | null;
+    teacher?: Teacher | null;
+}
+
+export interface PaymentClaim {
+    id: string;
+    organizationId: string;
+    entryId: string;
+    claimedAmount: number;
+    paymentMethod: string | null;
+    referenceNumber: string | null;
+    receiptUrl: string | null;
+    note: string | null;
+    status: PaymentClaimStatus;
+    claimedById: string;
+    claimedAt: string;
+    reviewedById: string | null;
+    reviewedAt: string | null;
+    confirmedAmount: number | null;
+    rejectionReason: string | null;
+    metadata: Record<string, unknown> | null;
+    claimedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'>;
+    reviewedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
 }
 
 export interface FinancialEntry {
     id: string;
     organizationId: string;
     structureId: string | null;
+    assignmentId: string | null;
     title: string;
     studentId: string | null;
     teacherId: string | null;
@@ -1022,6 +1081,10 @@ export interface FinancialEntry {
 
     // Relations (if included)
     structure?: FinancialStructure | null;
+    assignment?: FinancialStructureAssignment | null;
+    student?: Student | null;
+    teacher?: Teacher | null;
+    claims?: PaymentClaim[];
     transactions?: Transaction[];
 }
 
@@ -1041,6 +1104,7 @@ export interface Transaction {
 
     // Relations (if included)
     relatedEntry?: FinancialEntry | null;
+    createdBy?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
 }
 
 export interface FinanceStats {

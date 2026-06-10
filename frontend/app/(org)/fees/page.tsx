@@ -136,7 +136,7 @@ export default function StudentFeesPage() {
         return byStructureId;
     }, [entries]);
 
-    const handleClaim = async (data: { paymentMethod?: string; receiptUrl?: string }) => {
+    const handleClaim = async (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string }) => {
         if (!token || !claimingEntry) return;
         try {
             await api.finance.markEntryPaid(claimingEntry.id, data, token);

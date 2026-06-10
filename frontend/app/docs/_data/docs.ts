@@ -129,6 +129,79 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'glossary',
+    title: 'Glossary',
+    description: 'Short definitions for common EduVerse academic, finance, and communication terms.',
+    category: 'Basics',
+    tags: ['glossary', 'definitions', 'terms'],
+    related: ['quick-start', 'courses-sections', 'gpa-policies', 'finance'],
+    sections: [
+      {
+        id: 'academic-terms',
+        title: 'Academic terms',
+        tags: ['academic cycle', 'course', 'section', 'cohort'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Term', 'Meaning'],
+            rows: [
+              ['Academic Cycle', 'A time period such as a semester, term, or academic year.'],
+              ['Course', 'A subject such as Mathematics, Biology, or English.'],
+              ['Section', 'The actual class students attend for a course in a specific cycle.'],
+              ['Cohort', 'A group of students that usually move through the same academic period together.'],
+              ['Enrollment', 'The connection that places a student into a cohort or section.'],
+              ['Material', 'A file, link, or learning resource shared with a class.'],
+              ['Attendance Record', 'A saved status showing whether a student attended a class activity.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'grading-terms',
+        title: 'Grading and transcript terms',
+        tags: ['gpa', 'cgpa', 'grade points', 'transcript'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Term', 'Meaning'],
+            rows: [
+              ['Assessment', 'A graded task such as an assignment, quiz, project, exam, or class activity.'],
+              ['Gradebook', 'The place where teachers and admins review and enter marks.'],
+              ['Published Grade', 'A grade students can see but that may still change.'],
+              ['Finalized Grade', 'A grade treated as ready for official transcript use.'],
+              ['Transcript', 'An academic record showing courses, marks, credit hours, GPA, and related results.'],
+              ['Credit Hours', 'The academic weight of a course. Higher credit hours can give a course more influence in weighted GPA.'],
+              ['Letter Grade', 'The letter result matched from marks, such as A, B, or F.'],
+              ['Grade Points', 'The number value assigned to a letter grade.'],
+              ['Quality Points', 'Grade points multiplied by credit hours.'],
+              ['GPA', 'The grade point average for a selected academic period.'],
+              ['CGPA', 'The cumulative grade point average across multiple periods.'],
+              ['GPA Policy', 'The school rulebook for turning marks into letter grades, grade points, GPA, and CGPA.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'finance-communication-terms',
+        title: 'Finance and communication terms',
+        tags: ['finance', 'payment claim', 'announcement'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Term', 'Meaning'],
+            rows: [
+              ['Financial Structure', 'A reusable plan for a charge or expense, such as monthly tuition.'],
+              ['Financial Entry', 'A specific payable amount created from a structure or finance action.'],
+              ['Transaction', 'A confirmed payment or finance record tied to an entry.'],
+              ['Payment Claim', 'A request saying a payment was made and needs staff verification.'],
+              ['Announcement', 'A broad notice sent to a selected audience.'],
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'students',
     title: 'Students',
     description: 'Manage student profiles, enrollment, cohorts, academic history, and portal visibility.',
@@ -249,6 +322,23 @@ export const docsPages: DocPage[] = [
     related: ['teachers', 'materials', 'gpa-policies', 'gradebook'],
     sections: [
       {
+        id: 'core-academic-terms',
+        title: 'Core academic terms',
+        tags: ['course', 'section', 'cohort', 'enrollment'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Term', 'Plain meaning'],
+            rows: [
+              ['Course', 'The subject, such as Mathematics or Biology.'],
+              ['Section', 'The actual class students attend for a course in a specific academic period.'],
+              ['Cohort', 'A group of students that usually move through the same academic period together.'],
+              ['Enrollment', 'The connection that places a student into a section or cohort.'],
+            ],
+          },
+        ],
+      },
+      {
         id: 'course-records',
         title: 'Course records',
         tags: ['course name', 'description'],
@@ -320,6 +410,15 @@ export const docsPages: DocPage[] = [
               'Assign teachers who should manage the class work.',
               'Assign students directly when this section is an exception or independent class.',
               'Use cohorts when a whole student group should share the same sections.',
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Use this', 'When it fits best'],
+            rows: [
+              ['Cohort enrollment', 'A whole group shares the same classes and usually moves together.'],
+              ['Individual enrollment', 'One student needs an exception, transfer, extra class, or special placement.'],
+              ['Both together', 'Most students follow the cohort, but a few students need individual exceptions.'],
             ],
           },
         ],
@@ -414,6 +513,16 @@ export const docsPages: DocPage[] = [
               'Submissions should be enabled when students need to upload a file, paste a link, or write a response.',
             ],
           },
+          {
+            type: 'checklist',
+            items: [
+              'The assessment is attached to the correct section',
+              'Total marks match the actual assessment',
+              'Weightage matches the course grading plan',
+              'The due date is visible and realistic for students',
+              'Submission settings match how students are expected to turn in work',
+            ],
+          },
         ],
       },
       {
@@ -429,6 +538,16 @@ export const docsPages: DocPage[] = [
             type: 'note',
             title: 'Do not fail silently',
             text: 'When a grade violates the minimum rule, forms should show a one-line validation error instead of quietly changing or dropping the value.',
+          },
+          {
+            type: 'table',
+            headers: ['Input', 'Allowed?', 'Why'],
+            rows: [
+              ['0', 'Yes', 'Used for missing work, cheating decisions, or no-credit outcomes.'],
+              ['0.1 to 0.4', 'No', 'Tiny non-zero grades display poorly and are not useful for realistic grading.'],
+              ['0.5 or higher', 'Yes', 'Accepted and rounded to one decimal place.'],
+              ['More than total marks', 'No', 'A score cannot exceed the assessment maximum.'],
+            ],
           },
         ],
       },
@@ -449,7 +568,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'GPA policies belong to an organization. Org admins can create multiple policies, select one default policy, and preview calculations before saving.',
+            text: 'A GPA policy is the school rulebook for turning marks into letter grades, grade points, GPA, and CGPA. Org admins can create multiple policies, select one default policy, and preview calculations before saving.',
           },
           {
             type: 'list',
@@ -464,6 +583,26 @@ export const docsPages: DocPage[] = [
             type: 'note',
             title: 'Multiple policies',
             text: 'You can keep more than one policy when your institute changes grading rules over time. The default policy is the one used when a cycle does not have a specific policy selected.',
+          },
+          {
+            type: 'table',
+            headers: ['Setting', 'What it changes', 'When to review it'],
+            rows: [
+              ['Scale', 'The highest grade point a student can earn, such as 4.0 or 10.0.', 'Before a new term starts or when the institute changes grading rules.'],
+              ['Method', 'Whether GPA averages all courses equally or gives higher-credit courses more weight.', 'Before transcripts are generated for a cycle.'],
+              ['Rounding', 'How many decimals appear in GPA and CGPA results.', 'When official report formatting is decided.'],
+              ['Grade rules', 'Which marks receive each letter and grade point.', 'Any time the grading boundary table changes.'],
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Choose', 'Use when'],
+            rows: [
+              ['Simple average', 'Every course should contribute equally to GPA.'],
+              ['Weighted by credit hours', 'Courses with more credit hours should influence GPA more.'],
+              ['No rounding', 'The school wants the exact calculated value.'],
+              ['One or two decimals', 'Reports should use a consistent official display format.'],
+            ],
           },
         ],
       },
@@ -502,6 +641,11 @@ export const docsPages: DocPage[] = [
               'Custom formulas are not supported. Use clear mark ranges and grade points instead.',
             ],
           },
+          {
+            type: 'tip',
+            title: 'Build from top to bottom',
+            text: 'Keep the highest mark range at the top and work downward. This makes it easier to notice gaps, duplicated ranges, and grade points that move in the wrong direction.',
+          },
         ],
       },
       {
@@ -526,6 +670,27 @@ export const docsPages: DocPage[] = [
               'Policies already used by past cycles should be archived instead of deleted, so historical records remain explainable.',
             ],
           },
+          {
+            type: 'flow',
+            title: 'Safe policy flow',
+            steps: ['Create policy', 'Preview boundaries', 'Save policy', 'Assign to cycle', 'Teachers finalize grades', 'Policy locks for that cycle'],
+          },
+        ],
+      },
+      {
+        id: 'gpa-common-mistakes',
+        title: 'Common mistakes',
+        tags: ['mistakes', 'rules', 'locking'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Changing the default policy and expecting old finalized cycles to change.',
+              'Leaving gaps in grade ranges, which can make some marks impossible to grade correctly.',
+              'Setting higher marks to lower grade points than lower marks.',
+              'Choosing weighted GPA before checking that course credit hours are correct.',
+            ],
+          },
         ],
       },
     ],
@@ -545,7 +710,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Academic cycles represent periods such as semesters, school years, or terms. They group cohorts, sections, enrollments, assessments, grades, attendance, and transcript summaries.',
+            text: 'An academic cycle is a time period such as a semester, term, or academic year. It groups the classes, enrollments, grades, attendance, and transcripts that belong to that period.',
           },
           {
             type: 'list',
@@ -554,6 +719,11 @@ export const docsPages: DocPage[] = [
               'Use clear names such as Fall 2026 or Academic Year 2026 so reports and transcripts are easy to read.',
               'Cycles help preserve history when students move from one period to the next.',
             ],
+          },
+          {
+            type: 'flow',
+            title: 'Cycle lifecycle',
+            steps: ['Create cycle', 'Choose GPA policy', 'Create cohorts and sections', 'Run classes', 'Finalize grades', 'Generate transcripts', 'Promote students'],
           },
         ],
       },
@@ -570,6 +740,15 @@ export const docsPages: DocPage[] = [
             type: 'note',
             title: 'Before activating',
             text: 'Check the cycle name, dates, and GPA policy before marking it active. Activating one cycle usually means the previous active cycle is no longer treated as current.',
+          },
+          {
+            type: 'checklist',
+            items: [
+              'Cycle name and dates are correct',
+              'The intended GPA policy is selected',
+              'Courses and sections have been reviewed for this period',
+              'Staff know this cycle will become the default working period',
+            ],
           },
         ],
       },
@@ -595,6 +774,15 @@ export const docsPages: DocPage[] = [
             title: 'Policy change lock',
             text: 'Once finalized grades are pushed in the cycle, the policy cannot be changed. This prevents old transcripts from being recalculated under a newer policy.',
           },
+          {
+            type: 'table',
+            headers: ['Cycle state', 'Can policy change?', 'Recommended action'],
+            rows: [
+              ['No finalized grades yet', 'Yes', 'Review and change the selected policy before teachers finalize grades.'],
+              ['Some grades finalized', 'No', 'Keep the policy as-is and correct future cycles with a new policy if needed.'],
+              ['Past cycle', 'No, if grades were finalized', 'Archive old policies instead of deleting them when they explain historical transcripts.'],
+            ],
+          },
         ],
       },
       {
@@ -605,6 +793,31 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'Copy-forward helps admins carry selected academic setup from one cycle into another. It can copy sections and optionally include schedules, assessments, and materials depending on the operation.',
+          },
+          {
+            type: 'table',
+            headers: ['Use copy-forward when', 'Avoid it when'],
+            rows: [
+              ['The new cycle has a similar class structure.', 'Teachers, rooms, times, or assessments will be completely different.'],
+              ['You want a faster starting point that staff will still review.', 'You need a clean reset with no old setup carried forward.'],
+              ['Materials or schedules mostly repeat.', 'Old dates or instructions could confuse students.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'cycle-common-mistakes',
+        title: 'Common mistakes',
+        tags: ['mistakes', 'setup'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Activating a cycle before reviewing its GPA policy.',
+              'Creating sections in the wrong cycle and later wondering why students cannot see them.',
+              'Using copy-forward without reviewing copied dates, rooms, teachers, and instructions.',
+              'Changing setup after teachers have already started grading without telling staff.',
+            ],
           },
         ],
       },
@@ -654,6 +867,14 @@ export const docsPages: DocPage[] = [
               'Conflict checks still apply to repeated slots, so one busy day can prevent the schedule from saving.',
             ],
           },
+          {
+            type: 'table',
+            headers: ['Use repeat when', 'Create separate slots when'],
+            rows: [
+              ['The class meets at the same time, room, and teacher on each selected weekday.', 'One day uses a different room, time, or teacher.'],
+              ['The schedule pattern is stable for the cycle.', 'The class only meets once or has an irregular pattern.'],
+            ],
+          },
         ],
       },
       {
@@ -672,6 +893,22 @@ export const docsPages: DocPage[] = [
               'A room should not be assigned to two class slots at the same time.',
               'End time must be later than start time.',
               'If a conflict appears, adjust the teacher, room, day, or time before trying again.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'timetable-common-mistakes',
+        title: 'Common mistakes',
+        tags: ['mistakes', 'conflicts'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Selecting a teacher who is not assigned to the section.',
+              'Using weekday repeat when one day has a different room or time.',
+              'Forgetting that teacher and room conflicts can block a whole repeated set.',
+              'Expecting the time column to stay fixed while the timetable scrolls horizontally.',
             ],
           },
         ],
@@ -753,6 +990,15 @@ export const docsPages: DocPage[] = [
             title: 'Finalizing grades',
             text: 'Finalized grades are treated as ready for official transcript use. Review the student, assessment, marks, and feedback before finalizing.',
           },
+          {
+            type: 'table',
+            headers: ['State', 'Student visibility', 'Can still change?', 'Used on transcript?'],
+            rows: [
+              ['Draft', 'No', 'Yes', 'No'],
+              ['Published', 'Yes', 'Yes', 'No'],
+              ['Finalized', 'Yes', 'Usually no', 'Yes'],
+            ],
+          },
         ],
       },
       {
@@ -768,6 +1014,16 @@ export const docsPages: DocPage[] = [
             type: 'note',
             title: 'Check before saving',
             text: 'Review student names and marks before saving bulk grades. A zero is allowed, but any non-zero mark must follow the minimum grade rule.',
+          },
+          {
+            type: 'checklist',
+            items: [
+              'The selected section and assessment are correct',
+              'Each mark belongs to the correct student row',
+              'Zero grades are intentional',
+              'Non-zero grades meet the minimum grade rule',
+              'Feedback is suitable for students to see when grades are published',
+            ],
           },
         ],
       },
@@ -788,7 +1044,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Transcripts use finalized grades, assessment weights, course credit hours, and the GPA policy assigned to each academic cycle. The same GPA rules are used everywhere so web views and PDFs stay consistent.',
+            text: 'A transcript is the student academic record for a cycle or set of cycles. It uses finalized grades, assessment weights, course credit hours, and the GPA policy assigned to each academic cycle.',
           },
           {
             type: 'list',
@@ -813,14 +1069,31 @@ export const docsPages: DocPage[] = [
         tags: ['grade points', 'quality points'],
         blocks: [
           {
+            type: 'table',
+            headers: ['Column', 'Plain meaning'],
+            rows: [
+              ['Course Name', 'The course attached to the section.'],
+              ['Credit Hours', 'The course weight used when GPA is weighted.'],
+              ['Marks/Percentage', 'The student performance result for the course.'],
+              ['Letter Grade', 'The letter matched from the cycle GPA policy.'],
+              ['Grade Points', 'The number value for the matched letter grade.'],
+              ['Quality Points', 'Grade points multiplied by credit hours.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'transcript-common-mistakes',
+        title: 'Common mistakes',
+        tags: ['mistakes', 'finalized grades'],
+        blocks: [
+          {
             type: 'list',
             items: [
-              'Course Name: course attached to the section.',
-              'Credit Hours: course credit value used for GPA weighting.',
-              'Marks/Percentage: student performance for the course.',
-              'Letter Grade: matched GPA policy rule.',
-              'Grade Points: grade-point value for the matched rule.',
-              'Quality Points: grade points multiplied by credit hours.',
+              'Expecting draft or published grades to appear on official transcripts.',
+              'Changing the default GPA policy and expecting old finalized cycles to recalculate.',
+              'Forgetting that total credit hours should add up across the displayed courses.',
+              'Reading quality points as a separate grade instead of grade points multiplied by credit hours.',
             ],
           },
         ],
@@ -842,20 +1115,46 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Finance structures define recurring or one-time charges, such as tuition, admission fees, salaries, or other school-defined amounts.',
+            text: 'Finance structures define reusable recurring or one-time templates, such as tuition, admission fees, salaries, vendor expenses, or other school-defined amounts.',
+          },
+          {
+            type: 'tip',
+            title: 'Plain meaning',
+            text: 'A financial structure is the plan for a charge or expense. A financial entry is the actual amount due for a person or target after that plan is applied.',
           },
           {
             type: 'list',
             items: [
-              'Structures can target students or groups depending on the selected setup.',
+              'A structure is created once, then assigned to students, teachers, sections, cohorts, courses, or another income/expense entity.',
+              'Student structures use student-facing income categories; teacher structures use teacher-facing expense categories.',
               'Generated entries track payment state separately from the structure definition.',
+              'Timed entries generated by the finance scheduler create in-app notifications and web push notifications when push is enabled.',
               'Payment processing is recorded inside EduVerse, but external payment gateway integration is outside the current scope.',
             ],
           },
           {
             type: 'note',
             title: 'Before creating a structure',
-            text: 'Check the target person, amount, category, billing cycle, due day, and start date. The structure is the plan; entries are the payment requests created from that plan.',
+            text: 'Check the target type, assignment scope, amount, category, billing cycle, due day, and start date. The structure is the plan; assignments decide who or what receives generated entries.',
+          },
+          {
+            type: 'table',
+            headers: ['Item', 'What it means', 'Common mistake'],
+            rows: [
+              ['Structure', 'The reusable billing or expense template.', 'Creating a separate structure for every student when one assigned structure is enough.'],
+              ['Assignment', 'The student, teacher, group, course, or entity attached to the structure.', 'Forgetting that course assignment includes students through all matching sections.'],
+              ['Entry', 'A specific payable item generated for an assignment.', 'Treating an entry as paid before proof has been reviewed.'],
+              ['Transaction', 'A confirmed ledger action tied back to an entry and target.', 'Recording unclear references that are hard to audit later.'],
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Use this', 'When it fits best'],
+            rows: [
+              ['Recurring structure', 'The same charge or expense repeats on a schedule.'],
+              ['One-time structure', 'A single charge or expense should be generated from a saved plan.'],
+              ['Manual verification', 'Payment happened outside EduVerse and staff need to confirm proof.'],
+            ],
           },
         ],
       },
@@ -866,7 +1165,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'The amount is the value that will be used when entries are created from the structure. It should match the actual agreement for the selected student or teacher.',
+            text: 'The amount is the value used when entries are created from the structure. It should match the agreement for every selected assignment target.',
           },
           {
             type: 'list',
@@ -874,7 +1173,7 @@ export const docsPages: DocPage[] = [
               'Use a positive amount that matches the billing agreement.',
               'For one-time structures, the amount usually represents the full charge.',
               'For recurring structures, the amount usually represents the value for each billing period.',
-              'Changing an existing structure does not automatically mean every past entry should be treated as changed.',
+              'Changing an existing structure does not automatically rewrite past entries or transactions.',
             ],
           },
         ],
@@ -886,15 +1185,31 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Students can submit payment claims where enabled. Admins verify payments, reject invalid claims, and maintain transaction history for audit visibility.',
+            text: 'Students and other assigned users can submit payment claims where enabled. Finance staff verify claims, reject invalid claims, and maintain transaction history for audit visibility.',
           },
           {
             type: 'list',
             items: [
-              'A payment claim means the student says a payment was made.',
+              'A payment claim records who claimed payment, how much was claimed, how it was paid, when it was claimed, and any note or reference.',
               'Unverified payments still need staff review.',
               'Confirm a payment only after checking the receipt, transaction reference, cash record, or other school-approved proof.',
               'Confirmed payments update the paid amount and transaction history.',
+              'Once the full amount is paid, confirmation controls are restricted and the entry displays as fully paid.',
+            ],
+          },
+          {
+            type: 'flow',
+            title: 'Payment review flow',
+            steps: ['Fee entry created', 'Student claims payment', 'Staff reviews proof', 'Payment confirmed or rejected', 'Balance updates'],
+          },
+          {
+            type: 'table',
+            headers: ['Status', 'Meaning', 'Who should act'],
+            rows: [
+              ['Due', 'Payment is still expected.', 'Student or finance staff.'],
+              ['Awaiting Approval', 'A payment claim has been submitted but not verified.', 'Finance staff.'],
+              ['Partially Paid', 'Some payment was confirmed but a balance remains.', 'Student or finance staff.'],
+              ['Paid', 'The full amount has been confirmed.', 'No action unless correction is needed.'],
             ],
           },
         ],
@@ -906,13 +1221,13 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'A payment claim sends a fee entry to staff for review. It is useful when a student has paid outside EduVerse and needs the school to mark the entry as paid.',
+            text: 'A payment claim sends an entry to staff for review. It is useful when someone has paid outside EduVerse and needs the school to verify the payment.',
           },
           {
             type: 'list',
             items: [
-              'Students should choose the correct fee entry before claiming payment.',
-              'Receipt links or transaction references should be clear enough for staff to verify.',
+              'Claimants should choose the correct entry and claimed amount before submitting.',
+              'Receipt links, transaction references, and notes should be clear enough for staff to verify.',
               'A claimed payment remains Awaiting Approval until staff confirms it.',
             ],
           },
@@ -930,10 +1245,27 @@ export const docsPages: DocPage[] = [
           {
             type: 'list',
             items: [
+              'Review who claimed, what they claimed, how they paid, when they claimed it, and why or what reference they provided.',
               'Confirm only the amount that was actually verified.',
               'Use partial confirmation when only part of the balance was paid.',
               'Once an entry is fully paid, it appears as paid instead of due or awaiting approval.',
               'Keep receipt and reference details readable so later audits make sense.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'finance-common-mistakes',
+        title: 'Common mistakes',
+        tags: ['mistakes', 'payments', 'structures'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Creating too many duplicate structures instead of assigning one structure to the right targets.',
+              'Confirming a payment claim before checking receipt or reference details.',
+              'Assuming a claimed payment is already paid before staff approval.',
+              'Editing a structure and expecting old entries or transactions to rewrite automatically.',
             ],
           },
         ],
@@ -991,6 +1323,16 @@ export const docsPages: DocPage[] = [
               'Use mail instead when a message needs to feel more formal or easier to review later.',
             ],
           },
+          {
+            type: 'table',
+            headers: ['Need', 'Use', 'Why'],
+            rows: [
+              ['Quick question or coordination', 'Chat', 'Fast and conversational.'],
+              ['Official note or longer explanation', 'Mail', 'Easier to review later as a formal thread.'],
+              ['Announcement to many users', 'Announcements', 'Designed for broad visibility.'],
+              ['System event or reminder', 'Notifications', 'Automatically points users to the action that needs attention.'],
+            ],
+          },
         ],
       },
       {
@@ -1001,6 +1343,15 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'Chat can include attachments and message formatting where available. Keep shared files relevant to the class or school task.',
+          },
+          {
+            type: 'checklist',
+            items: [
+              'The file belongs in this conversation',
+              'The recipients are allowed to see it',
+              'Private student details are only shared when needed',
+              'The file name or message gives enough context',
+            ],
           },
         ],
       },
@@ -1710,11 +2061,216 @@ export const docsPages: DocPage[] = [
           {
             type: 'list',
             items: [
-              'Creating sections before courses — sections need a course to attach to.',
-              'Creating schedules before assigning teachers — only assigned teachers can be selected for a schedule.',
-              'Skipping GPA policy setup — the default policy works, but review it before teachers start grading.',
-              'Creating duplicate courses instead of multiple sections — one course can have many sections.',
-              'Forgetting to set credit hours — the default is 3, but some courses need different values for accurate GPA.',
+              'Creating sections before courses: sections need a course to attach to.',
+              'Creating schedules before assigning teachers: only assigned teachers can be selected for a schedule.',
+              'Skipping GPA policy setup: the default policy works, but review it before teachers start grading.',
+              'Creating duplicate courses instead of multiple sections: one course can have many sections.',
+              'Forgetting to set credit hours: the default is 3, but some courses need different values for accurate GPA.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'admin-guide',
+    title: 'Org Admin Guide',
+    description: 'A plain-language guide for running the school workspace, reviewing setup, and protecting academic records.',
+    category: 'Role Guides',
+    tags: ['org admin', 'operations', 'setup', 'review'],
+    related: ['quick-start', 'school-setup-workflow', 'settings', 'academic-cycles', 'finance'],
+    sections: [
+      {
+        id: 'admin-responsibilities',
+        title: 'What org admins own',
+        tags: ['responsibilities', 'admin'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Org admins manage the school workspace. They set up the academic structure, control sensitive settings, review finance activity, and make sure official records are ready before teachers and students rely on them.',
+          },
+          {
+            type: 'table',
+            headers: ['Area', 'Admin responsibility', 'Why it matters'],
+            rows: [
+              ['Settings', 'Keep school identity, contact email, logo, and appearance accurate.', 'Users trust records more when the workspace clearly belongs to the school.'],
+              ['Academic setup', 'Create cycles, courses, cohorts, sections, and GPA policies in the right order.', 'Bad setup causes missing dropdowns, wrong enrollments, and transcript mistakes.'],
+              ['People', 'Create teacher and student accounts and place them correctly.', 'Portal views depend on correct assignments and placement.'],
+              ['Finance', 'Review structures, payment claims, and confirmed transactions.', 'Fee balances should only change after staff verification.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'admin-daily-workflow',
+        title: 'Daily workflow',
+        tags: ['daily', 'dashboard'],
+        blocks: [
+          {
+            type: 'checklist',
+            items: [
+              'Review dashboard alerts for missing schedules, attendance gaps, or unverified payments',
+              'Check new student or teacher records for correct placement',
+              'Confirm payment claims only after reviewing proof',
+              'Watch for incomplete academic setup before a new cycle starts',
+              'Use docs links from pages when a setting has consequences',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'admin-sensitive-actions',
+        title: 'Sensitive actions',
+        tags: ['finalize', 'policy', 'delete', 'archive'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Action', 'Why it is sensitive', 'Before confirming'],
+            rows: [
+              ['Changing a cycle GPA policy', 'It affects transcript results for that cycle until grades are finalized.', 'Confirm the policy matches school rules before teachers finalize grades.'],
+              ['Finalizing grades', 'Finalized grades are treated as official for transcripts.', 'Review marks, weightage, student names, and feedback.'],
+              ['Deleting or archiving records', 'Old records may explain historical transcripts, payments, or enrollments.', 'Archive when history still needs to remain understandable.'],
+              ['Confirming payments', 'Balances and transaction history change after confirmation.', 'Check receipt, reference, amount, and student before accepting.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Use caution with academic history',
+            text: 'If an action explains a past transcript, enrollment, or payment, avoid removing it just to clean up a current screen. Historical clarity is usually more important.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'teacher-guide',
+    title: 'Teacher Guide',
+    description: 'A practical guide for assigned classes, materials, assessments, submissions, attendance, and grading.',
+    category: 'Role Guides',
+    tags: ['teacher', 'classes', 'grading', 'attendance'],
+    related: ['teachers', 'timetable', 'materials', 'assessments-grading', 'gradebook'],
+    sections: [
+      {
+        id: 'teacher-start',
+        title: 'Where teachers start',
+        tags: ['dashboard', 'assigned classes'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Teachers work from the classes and schedules assigned to them. If a class, timetable slot, or assessment is missing, the first thing to check is whether the teacher is assigned to that section or schedule.',
+          },
+          {
+            type: 'flow',
+            title: 'Typical teaching flow',
+            steps: ['Review timetable', 'Open assigned section', 'Share materials', 'Create assessment', 'Review submissions', 'Enter grades', 'Publish or finalize'],
+          },
+        ],
+      },
+      {
+        id: 'teacher-class-work',
+        title: 'Class work',
+        tags: ['materials', 'assessments', 'submissions'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Task', 'Where it appears', 'What to check'],
+            rows: [
+              ['Share material', 'Teacher and student section views.', 'The file or link belongs to the correct section.'],
+              ['Create assessment', 'Student assessment list and teacher grading view.', 'Due date, total marks, weightage, and submission settings are correct.'],
+              ['Review submissions', 'Assessment grading workflow.', 'Student work is opened before marking late or missing.'],
+              ['Enter grades', 'Gradebook or assessment grading view.', 'Zero grades are intentional and non-zero grades follow the minimum rule.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'teacher-end-of-term',
+        title: 'End-of-term responsibilities',
+        tags: ['finalized grades', 'transcripts'],
+        blocks: [
+          {
+            type: 'checklist',
+            items: [
+              'All assessments that count toward the course have grades',
+              'Late or missing submissions have been handled according to school policy',
+              'Assessment weights and total marks look correct',
+              'Student-visible feedback is appropriate',
+              'Grades are finalized only when they are ready for transcript use',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Final means official',
+            text: 'Finalized grades are used for transcripts. Teachers should treat finalization as the last review step, not as a draft save button.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'student-guide',
+    title: 'Student Guide',
+    description: 'A student-friendly guide for timetable, materials, submissions, grades, fees, and transcripts.',
+    category: 'Role Guides',
+    tags: ['student', 'portal', 'submissions', 'fees'],
+    related: ['students', 'submissions', 'fees', 'transcripts', 'chat'],
+    sections: [
+      {
+        id: 'student-portal',
+        title: 'Student portal basics',
+        tags: ['portal', 'dashboard'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The student portal shows the classes, timetable, materials, assessments, grades, fees, and transcripts connected to the signed-in student. If something is missing, the student may not be enrolled in the right cohort or section yet.',
+          },
+          {
+            type: 'table',
+            headers: ['Need', 'Where to look', 'What it means'],
+            rows: [
+              ['Class schedule', 'Timetable', 'Shows schedule slots for enrolled sections.'],
+              ['Study files', 'Materials', 'Shows files or links teachers shared with the class.'],
+              ['Assignments or exams', 'Assessments', 'Shows due dates, instructions, and submission options.'],
+              ['Marks', 'Grades or transcript views', 'Shows published or finalized academic results depending on the page.'],
+              ['Fee balance', 'Fees', 'Shows due, awaiting approval, partially paid, and paid entries.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'student-submission-workflow',
+        title: 'Submitting work',
+        tags: ['submission', 'assessment'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Open the assessment from the student portal.',
+              'Read the instructions, due date, and allowed submission type.',
+              'Attach the file, link, or response requested by the teacher.',
+              'Review the submission before sending.',
+              'Check the status after submitting so you know it was received.',
+            ],
+          },
+          {
+            type: 'tip',
+            title: 'Keep proof of important work',
+            text: 'For major assignments, keep a copy of the submitted file or link until the teacher has reviewed it.',
+          },
+        ],
+      },
+      {
+        id: 'student-fees-transcripts',
+        title: 'Fees and transcripts',
+        tags: ['fees', 'transcripts', 'gpa'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'A fee marked Awaiting Approval means the school still needs to verify the payment claim.',
+              'A paid fee means staff accepted the payment record.',
+              'Transcript GPA and letter grades come from the school policy for that academic cycle.',
+              'If a grade or fee looks wrong, contact the school instead of creating duplicate claims or submissions.',
             ],
           },
         ],
@@ -1966,7 +2522,9 @@ export const docsPages: DocPage[] = [
 ];
 
 export const docsNavGroups: DocNavGroup[] = [
-  { title: 'Basics', pages: ['getting-started', 'roles-permissions', 'dashboard-insights'] },
+  { title: 'Basics', pages: ['quick-start', 'getting-started', 'roles-permissions', 'glossary', 'dashboard-insights'] },
+  { title: 'Role Guides', pages: ['admin-guide', 'teacher-guide', 'student-guide'] },
+  { title: 'Workflows', pages: ['school-setup-workflow', 'end-of-term-workflow'] },
   { title: 'Administration', pages: ['platform-admin'] },
   { title: 'People', pages: ['students', 'teachers'] },
   {
@@ -2020,32 +2578,38 @@ export function flattenDocSections(page: DocPage) {
 
 export function buildDocsSearchEntries() {
   return docsPages.flatMap((page) =>
-    flattenDocSections(page).map(({ section, parentTitle }) => ({
-      href: `/docs/${page.slug}#${section.id}`,
-      pageTitle: page.title,
-      sectionTitle: section.title,
-      parentTitle,
-      category: page.category,
-      tags: [...page.tags, ...(section.tags ?? [])],
-      text: [
-        page.title,
-        page.description,
-        page.category,
-        ...page.tags,
-        section.title,
-        section.summary,
-        ...(section.tags ?? []),
-        ...section.blocks.flatMap((block) => {
-          if (block.type === 'paragraph') return [block.text];
-          if (block.type === 'note') return [block.title, block.text];
-          if (block.type === 'tip') return [block.title, block.text];
-          if (block.type === 'table') return [...block.headers, ...block.rows.flat()];
-          if (block.type === 'flow') return [block.title, ...block.steps].filter(Boolean);
-          return block.items;
-        }),
-      ]
-        .filter(Boolean)
-        .join(' '),
-    })),
+    flattenDocSections(page).map(({ section, parentTitle }) => {
+      const blockText = section.blocks.flatMap((block) => {
+        if (block.type === 'paragraph') return [block.text];
+        if (block.type === 'note') return [block.title, block.text];
+        if (block.type === 'tip') return [block.title, block.text];
+        if (block.type === 'table') return [...block.headers, ...block.rows.flat()];
+        if (block.type === 'flow') return [block.title, ...block.steps].filter(Boolean);
+        return block.items;
+      });
+      const snippet = section.summary ?? blockText.find((text) => text && text.length > 32) ?? page.description;
+
+      return {
+        href: `/docs/${page.slug}#${section.id}`,
+        pageTitle: page.title,
+        sectionTitle: section.title,
+        parentTitle,
+        category: page.category,
+        tags: [...page.tags, ...(section.tags ?? [])],
+        snippet,
+        text: [
+          page.title,
+          page.description,
+          page.category,
+          ...page.tags,
+          section.title,
+          section.summary,
+          ...(section.tags ?? []),
+          ...blockText,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      };
+    }),
   );
 }

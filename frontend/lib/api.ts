@@ -598,21 +598,23 @@ export const api = {
     },
 
     finance: {
-        getStructures: (token: string, params: { studentId?: string, teacherId?: string } = {}) =>
+        getStructures: (token: string, params: { studentId?: string, teacherId?: string, targetType?: string, category?: string, billingCycle?: string, assignmentSource?: string, isActive?: string, search?: string } = {}) =>
             request<FinancialStructure[]>(`/finance/structures${buildQueryString(params)}`, { token }),
         createStructure: (data: Partial<FinancialStructure>, token: string) =>
             request<FinancialStructure>('/finance/structures', { method: 'POST', body: JSON.stringify(data), token }),
         updateStructure: (id: string, data: Partial<FinancialStructure>, token: string) =>
             request<FinancialStructure>(`/finance/structures/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        getEntries: (token: string, params: { studentId?: string, teacherId?: string } = {}) =>
+        getEntries: (token: string, params: { studentId?: string, teacherId?: string, targetType?: string, category?: string, billingCycle?: string, status?: string, search?: string, dueFrom?: string, dueTo?: string } = {}) =>
             request<FinancialEntry[]>(`/finance/entries${buildQueryString(params)}`, { token }),
         createManualEntry: (data: Partial<FinancialEntry>, token: string) =>
             request<FinancialEntry>('/finance/entries/manual', { method: 'POST', body: JSON.stringify(data), token }),
-        markEntryPaid: (id: string, data: { paymentMethod?: string, receiptUrl?: string }, token: string) =>
+        markEntryPaid: (id: string, data: { claimedAmount?: number, paymentMethod?: string, receiptUrl?: string, referenceNumber?: string, note?: string }, token: string) =>
             request<FinancialEntry>(`/finance/entries/${id}/mark-paid`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        confirmEntry: (id: string, data: { paidAmount?: number }, token: string) =>
+        confirmEntry: (id: string, data: { paidAmount?: number, claimId?: string }, token: string) =>
             request<{ entry: FinancialEntry, transaction: Transaction }>(`/finance/entries/${id}/confirm`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        getTransactions: (token: string, params: { studentId?: string, teacherId?: string } = {}) =>
+        rejectPaymentClaim: (id: string, data: { rejectionReason?: string }, token: string) =>
+            request(`/finance/claims/${id}/reject`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getTransactions: (token: string, params: { studentId?: string, teacherId?: string, targetType?: string, category?: string, billingCycle?: string, type?: string, paymentMethod?: string, search?: string, dateFrom?: string, dateTo?: string } = {}) =>
             request<Transaction[]>(`/finance/transactions${buildQueryString(params)}`, { token }),
         getStats: (token: string) =>
             request<FinanceStats>('/finance/stats', { token }),

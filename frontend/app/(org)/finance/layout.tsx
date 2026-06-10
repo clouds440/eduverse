@@ -23,7 +23,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
     ];
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex h-full min-h-0 flex-col">
             <div className="shrink-0 space-y-3">
                 <PageHeader
                     title="Financial Ledger"
@@ -33,7 +33,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
 
                 <nav
                     aria-label="Finance navigation"
-                    className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/45 p-1 shadow-sm scrollbar-none"
+                    className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-card/95 p-1 shadow-sm scrollbar-none"
                 >
                     {tabs.filter(t => !t.hidden).map((tab) => {
                         const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
@@ -42,9 +42,9 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
                                 key={tab.name}
                                 href={tab.href}
                                 className={cn(
-                                    'flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                                    'flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-32',
                                     isActive
-                                        ? 'bg-card text-foreground shadow-xs'
+                                        ? 'bg-background text-foreground shadow-xs'
                                         : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                                 )}
                                 aria-current={isActive ? 'page' : undefined}
@@ -57,7 +57,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
                 </nav>
             </div>
 
-            <div className="relative flex-1 overflow-y-auto pt-3 custom-scrollbar">
+            <div className="relative min-h-0 flex-1 overflow-y-auto pt-3 custom-scrollbar">
                 {children}
             </div>
         </div>

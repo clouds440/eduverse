@@ -1,7 +1,40 @@
 import Link from 'next/link';
-import { ArrowRight, BookOpen, GraduationCap, Search } from 'lucide-react';
+import { ArrowRight, BookOpen, ClipboardList, GraduationCap, Route, ShieldCheck, UserRound } from 'lucide-react';
 import { PLATFORM_NAME } from '@/lib/constants';
 import { docsNavGroups, getDocPagesForGroup } from '../_data/docs';
+
+const startHereLinks = [
+  {
+    href: '/docs/quick-start',
+    title: 'Quick Start',
+    description: 'Follow the first-time setup order and avoid missing options later.',
+    icon: ClipboardList,
+  },
+  {
+    href: '/docs/school-setup-workflow',
+    title: 'New School Setup',
+    description: 'Walk through the full launch flow from settings to first day of class.',
+    icon: Route,
+  },
+  {
+    href: '/docs/admin-guide',
+    title: 'Org Admin Guide',
+    description: 'Review the daily checks and sensitive actions admins should handle carefully.',
+    icon: ShieldCheck,
+  },
+  {
+    href: '/docs/teacher-guide',
+    title: 'Teacher Guide',
+    description: 'See the normal class workflow from timetable to final grades.',
+    icon: GraduationCap,
+  },
+  {
+    href: '/docs/student-guide',
+    title: 'Student Guide',
+    description: 'Find timetable, materials, submissions, fees, grades, and transcripts.',
+    icon: UserRound,
+  },
+];
 
 export function DocsIndex() {
   return (
@@ -18,6 +51,30 @@ export function DocsIndex() {
           These docs explain workflows, rules, permissions, and consequences in plain operational language.
           Use the docs search to jump directly to the module or section you need.
         </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-black uppercase tracking-wider text-muted-foreground">Start here</h2>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {startHereLinks.map(({ href, title, description, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="group rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary/35 hover:bg-primary/5"
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span>
+                  <span className="block text-base font-black text-foreground group-hover:text-primary">{title}</span>
+                  <span className="mt-1 block text-sm font-medium leading-6 text-muted-foreground">{description}</span>
+                </span>
+                <ArrowRight className="ml-auto mt-1 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
+              </div>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <div className="space-y-8">

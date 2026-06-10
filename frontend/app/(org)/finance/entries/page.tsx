@@ -2,14 +2,14 @@
 
 import React, { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { CheckCircle, Receipt } from 'lucide-react';
+import { CheckCircle, Receipt, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { FinancialEntry, Role, EntryStatus, FinanceTab } from '@/types';
+import { BillingCycle, FinanceCategory, FinancialEntry, FinanceTab, FinanceTargetType, Role, EntryStatus } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { useGlobal } from '@/context/GlobalContext';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { TableActions } from '@/components/ui/TableActions';
@@ -18,6 +18,23 @@ import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { ClaimPaidModal } from './ClaimPaidModal';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
+import { CustomSelect } from '@/components/ui/CustomSelect';
+import { Input } from '@/components/ui/Input';
+import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
+import { FinanceFilterGrid, FinanceFilterToolbar } from '../_components/FinanceFilterToolbar';
+
+function labelize(value: string) {
+    return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getTargetLabel(entry: FinancialEntry) {
+    if (entry.student?.user) return entry.student.user.name || entry.student.user.email;
+    if (entry.teacher?.user) return entry.teacher.user.name || entry.teacher.user.email;
+    if (entry.assignment?.student?.user) return entry.assignment.student.user.name || entry.assignment.student.user.email;
+    if (entry.assignment?.teacher?.user) return entry.assignment.teacher.user.name || entry.assignment.teacher.user.email;
+    if (entry.assignment?.entityName) return entry.assignment.entityName;
+    return 'Unassigned target';
+}
 
 const tabLabels: Record<FinanceTab, string> = {
     [FinanceTab.ALL]: 'All',
@@ -36,14 +53,27 @@ export default function EntriesPage() {
     const page = getNumberParam('page', 1);
     const sortBy = getStringParam('sortBy', 'dueDate');
     const sortOrder = (getStringParam('sortOrder', 'desc') as 'asc' | 'desc');
+    const targetType = getStringParam('targetType', '');
+    const category = getStringParam('category', '');
+    const billingCycle = getStringParam('billingCycle', '');
+    const search = getStringParam('search', '');
+    const dueFrom = getStringParam('dueFrom', '');
+    const dueTo = getStringParam('dueTo', '');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-finance-entries-limit', 10);
 
     const [claimingEntry, setClaimingEntry] = useState<FinancialEntry | null>(null);
     const [confirmingEntry, setConfirmingEntry] = useState<FinancialEntry | null>(null);
 
     const { data: entries, error, mutate, isLoading } = useSWR(
-        token ? ['finance/entries', token] : null,
-        ([, t]) => api.finance.getEntries(t as string)
+        token ? ['finance/entries', token, targetType, category, billingCycle, search, dueFrom, dueTo] : null,
+        ([, t]) => api.finance.getEntries(t as string, {
+            targetType: targetType || undefined,
+            category: category || undefined,
+            billingCycle: billingCycle || undefined,
+            search: search || undefined,
+            dueFrom: dueFrom || undefined,
+            dueTo: dueTo || undefined,
+        })
     );
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
@@ -74,7 +104,7 @@ export default function EntriesPage() {
         };
     }, [entries]);
 
-    const handleClaim = async (data: { paymentMethod?: string; receiptUrl?: string }) => {
+    const handleClaim = async (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string }) => {
         if (!token || !claimingEntry) return;
         try {
             await api.finance.markEntryPaid(claimingEntry.id, data, token);
@@ -87,7 +117,7 @@ export default function EntriesPage() {
         }
     };
 
-    const handleConfirm = async (data: { paidAmount?: number }) => {
+    const handleConfirm = async (data: { paidAmount?: number; claimId?: string }) => {
         if (!token || !confirmingEntry) return;
         try {
             await api.finance.confirmEntry(confirmingEntry.id, data, token);
@@ -113,11 +143,34 @@ export default function EntriesPage() {
                     <div className="min-w-0">
                         <p className="truncate text-sm font-black text-foreground">{entry.title}</p>
                         <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-                            Due {new Date(entry.dueDate).toLocaleDateString()}
+                            {getTargetLabel(entry)} • Due {new Date(entry.dueDate).toLocaleDateString()}
                         </p>
                     </div>
                 </div>
             ),
+        },
+        {
+            header: 'Target',
+            sortable: true,
+            sortKey: 'studentId',
+            accessor: (entry) => (
+                <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">{getTargetLabel(entry)}</p>
+                    <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                        {labelize(entry.assignment?.targetType || (entry.teacherId ? FinanceTargetType.TEACHER : FinanceTargetType.STUDENT))}
+                    </p>
+                </div>
+            ),
+        },
+        {
+            header: 'Category',
+            badge: true,
+            accessor: (entry) => <Badge variant="neutral" size="sm">{entry.structure?.category ? labelize(entry.structure.category) : 'Manual'}</Badge>,
+        },
+        {
+            header: 'Cycle',
+            badge: true,
+            accessor: (entry) => entry.structure?.billingCycle ? <BillingCycleBadge cycle={entry.structure.billingCycle} /> : <Badge variant="neutral" size="sm">Manual</Badge>,
         },
         {
             header: 'Amount',
@@ -130,6 +183,19 @@ export default function EntriesPage() {
             sortable: true,
             sortKey: 'paidAmount',
             accessor: (entry) => <FinancialAmount amount={entry.paidAmount} currency={entry.currency} className="text-muted-foreground" />,
+        },
+        {
+            header: 'Claim',
+            accessor: (entry) => {
+                const claim = entry.claims?.[0];
+                if (!claim) return <span className="text-xs font-semibold text-muted-foreground">No claim</span>;
+                return (
+                    <div className="text-xs font-semibold text-muted-foreground">
+                        <div>{labelize(claim.status)} • {claim.paymentMethod || 'Method n/a'}</div>
+                        <div>{new Date(claim.claimedAt).toLocaleDateString()}</div>
+                    </div>
+                );
+            },
         },
         {
             header: 'Status',
@@ -202,6 +268,32 @@ export default function EntriesPage() {
         }]
         : [];
 
+    activeFilters.push(
+        ...(targetType ? [{ key: 'targetType', label: 'Target', value: labelize(targetType), onRemove: () => updateQueryParams({ targetType: undefined, page: 1 }) }] : []),
+        ...(category ? [{ key: 'category', label: 'Category', value: labelize(category), onRemove: () => updateQueryParams({ category: undefined, page: 1 }) }] : []),
+        ...(billingCycle ? [{ key: 'billingCycle', label: 'Cycle', value: labelize(billingCycle), onRemove: () => updateQueryParams({ billingCycle: undefined, page: 1 }) }] : []),
+        ...(search ? [{ key: 'search', label: 'Search', value: search, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
+        ...(dueFrom ? [{ key: 'dueFrom', label: 'From', value: dueFrom, onRemove: () => updateQueryParams({ dueFrom: undefined, page: 1 }) }] : []),
+        ...(dueTo ? [{ key: 'dueTo', label: 'To', value: dueTo, onRemove: () => updateQueryParams({ dueTo: undefined, page: 1 }) }] : []),
+    );
+
+    const renderFilters = (mode: 'desktop' | 'mobile') => (
+        <FinanceFilterGrid mode={mode}>
+            <Input icon={Search} value={search} onChange={(event) => updateQueryParams({ search: event.target.value || undefined, page: 1 })} placeholder="Search target or entry" />
+            <CustomSelect value={targetType} onChange={(value) => updateQueryParams({ targetType: value || undefined, page: 1 })} options={[{ value: '', label: 'All targets' }, ...Object.values(FinanceTargetType).map((value) => ({ value, label: labelize(value) }))]} />
+            <CustomSelect value={category} onChange={(value) => updateQueryParams({ category: value || undefined, page: 1 })} options={[{ value: '', label: 'All categories' }, ...Object.values(FinanceCategory).map((value) => ({ value, label: labelize(value) }))]} />
+            <CustomSelect value={billingCycle} onChange={(value) => updateQueryParams({ billingCycle: value || undefined, page: 1 })} options={[{ value: '', label: 'All cycles' }, ...Object.values(BillingCycle).map((value) => ({ value, label: labelize(value) }))]} />
+            <div className="space-y-1">
+                {mode === 'mobile' && <span className="text-xs font-black uppercase text-muted-foreground">Due from</span>}
+                <Input type="date" value={dueFrom} onChange={(event) => updateQueryParams({ dueFrom: event.target.value || undefined, page: 1 })} />
+            </div>
+            <div className="space-y-1">
+                {mode === 'mobile' && <span className="text-xs font-black uppercase text-muted-foreground">Due to</span>}
+                <Input type="date" value={dueTo} onChange={(event) => updateQueryParams({ dueTo: event.target.value || undefined, page: 1 })} />
+            </div>
+        </FinanceFilterGrid>
+    );
+
     if (error) {
         return (
             <ErrorState
@@ -215,9 +307,12 @@ export default function EntriesPage() {
 
     return (
         <ResourcePanel>
-            <ResourceToolbar
-                filters={(
-                    <div className="flex w-full gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/45 p-1 scrollbar-none md:w-auto">
+            <FinanceFilterToolbar
+                drawerLabel="Entry filters"
+                renderFilters={renderFilters}
+                activeFilters={activeFilters}
+                leading={(
+                    <div className="flex w-full gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/45 p-1 scrollbar-none lg:w-auto">
                         {Object.values(FinanceTab).map((tab) => (
                             <button
                                 key={tab}
@@ -237,7 +332,6 @@ export default function EntriesPage() {
                         ))}
                     </div>
                 )}
-                activeFilters={activeFilters}
             />
 
             <div className="relative min-h-0 flex-1 overflow-x-hidden">

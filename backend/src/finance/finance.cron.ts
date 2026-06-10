@@ -1,13 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { BillingCycle, EntrySource, EntryStatus, FinanceTargetType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { EntrySource, EntryStatus, BillingCycle } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class FinanceCron {
   private readonly logger = new Logger(FinanceCron.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async generateDailyEntries() {
@@ -15,63 +19,65 @@ export class FinanceCron {
 
     const activeStructures = await this.prisma.financialStructure.findMany({
       where: { isActive: true },
+      include: {
+        assignments: {
+          where: { isActive: true },
+          include: {
+            student: { include: { user: { select: { id: true, name: true, email: true } } } },
+            teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
+          },
+        },
+      },
     });
 
     const now = new Date();
-    // For generating next month's entries a few days early
     const leadDays = 7;
     const targetDate = new Date(now.getTime() + leadDays * 24 * 60 * 60 * 1000);
 
     for (const structure of activeStructures) {
-      if (structure.billingCycle === BillingCycle.ONCE) continue;
+      const period = this.getPeriodForTargetDate(structure.billingCycle, structure.startDate, structure.endDate, targetDate);
+      if (!period) continue;
 
-      // Simplistic approach: if targetDate is a new month/period we should generate an entry.
-      // In a real app, calculate exact periods based on startDate and billingCycle.
-      
-      const periodStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-      const periodEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+      const dueDate = this.getDueDate(structure.billingCycle, period.periodStart, structure.dueDay);
 
-      const existingEntry = await this.prisma.financialEntry.findFirst({
-        where: {
-          structureId: structure.id,
-          periodStart: { gte: periodStart },
-          periodEnd: { lte: periodEnd },
-        },
-      });
+      for (const assignment of structure.assignments) {
+        const existingEntry = await this.prisma.financialEntry.findFirst({
+          where: {
+            assignmentId: assignment.id,
+            periodStart: period.periodStart,
+            periodEnd: period.periodEnd,
+          },
+        });
 
-      if (!existingEntry) {
-        let dueDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), structure.dueDay || 5);
-        if (dueDate < periodStart) {
-          dueDate.setMonth(dueDate.getMonth() + 1);
-        }
+        if (existingEntry) continue;
 
-        await this.prisma.financialEntry.create({
+        const entry = await this.prisma.financialEntry.create({
           data: {
             organizationId: structure.organizationId,
             structureId: structure.id,
-            title: `${structure.title} - ${periodStart.toLocaleString('default', { month: 'long', year: 'numeric' })}`,
-            studentId: structure.studentId,
-            teacherId: structure.teacherId,
-            periodStart,
-            periodEnd,
+            assignmentId: assignment.id,
+            title: `${structure.title} - ${this.formatPeriodLabel(period.periodStart, structure.billingCycle)}`,
+            studentId: assignment.studentId,
+            teacherId: assignment.teacherId,
+            periodStart: period.periodStart,
+            periodEnd: period.periodEnd,
             dueDate,
             amount: structure.amount,
             source: EntrySource.SYSTEM,
           },
         });
-        this.logger.log(`Generated entry for structure ${structure.id}`);
+
+        await this.notifyAssignment(structure.title, entry.id, dueDate, structure.amount, assignment);
+        this.logger.log(`Generated finance entry ${entry.id} for assignment ${assignment.id}`);
       }
     }
 
-    // Mark pending entries as overdue
     const overdueEntries = await this.prisma.financialEntry.updateMany({
       where: {
         status: EntryStatus.PENDING,
         dueDate: { lt: now },
       },
-      data: {
-        status: EntryStatus.OVERDUE,
-      },
+      data: { status: EntryStatus.OVERDUE },
     });
 
     if (overdueEntries.count > 0) {
@@ -79,5 +85,85 @@ export class FinanceCron {
     }
 
     this.logger.log('Daily finance generation cron completed.');
+  }
+
+  private getPeriodForTargetDate(billingCycle: BillingCycle, startDate: Date, endDate: Date | null, targetDate: Date) {
+    if (endDate && targetDate > endDate) return null;
+    if (targetDate < startDate) return null;
+
+    if (billingCycle === BillingCycle.ONCE) {
+      return {
+        periodStart: startDate,
+        periodEnd: endDate || startDate,
+      };
+    }
+
+    if (billingCycle === BillingCycle.SEMESTER) {
+      const startMonth = targetDate.getMonth() < 6 ? 0 : 6;
+      return {
+        periodStart: new Date(targetDate.getFullYear(), startMonth, 1),
+        periodEnd: new Date(targetDate.getFullYear(), startMonth + 6, 0),
+      };
+    }
+
+    if (billingCycle === BillingCycle.YEARLY || billingCycle === BillingCycle.ACADEMIC_CYCLE) {
+      return {
+        periodStart: new Date(targetDate.getFullYear(), 0, 1),
+        periodEnd: new Date(targetDate.getFullYear(), 11, 31),
+      };
+    }
+
+    return {
+      periodStart: new Date(targetDate.getFullYear(), targetDate.getMonth(), 1),
+      periodEnd: new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0),
+    };
+  }
+
+  private getDueDate(billingCycle: BillingCycle, periodStart: Date, dueDay: number | null) {
+    if (billingCycle === BillingCycle.ONCE) return periodStart;
+    return new Date(periodStart.getFullYear(), periodStart.getMonth(), dueDay || 5);
+  }
+
+  private formatPeriodLabel(periodStart: Date, billingCycle: BillingCycle) {
+    if (billingCycle === BillingCycle.YEARLY || billingCycle === BillingCycle.ACADEMIC_CYCLE) {
+      return `${periodStart.getFullYear()}`;
+    }
+    if (billingCycle === BillingCycle.SEMESTER) {
+      return `${periodStart.getFullYear()} ${periodStart.getMonth() < 6 ? 'Spring' : 'Fall'}`;
+    }
+    return periodStart.toLocaleString('default', { month: 'long', year: 'numeric' });
+  }
+
+  private async notifyAssignment(
+    structureTitle: string,
+    entryId: string,
+    dueDate: Date,
+    amount: number,
+    assignment: {
+      targetType: FinanceTargetType;
+      student?: { user?: { id: string; name: string | null; email: string } | null } | null;
+      teacher?: { user?: { id: string; name: string | null; email: string } | null } | null;
+      entityName?: string | null;
+    },
+  ) {
+    const userId = assignment.student?.user?.id || assignment.teacher?.user?.id;
+    if (!userId) return;
+
+    const isExpense = assignment.targetType === FinanceTargetType.TEACHER || assignment.targetType === FinanceTargetType.OTHER_EXPENSE;
+    const title = isExpense ? 'Finance expense entry generated' : 'New payment entry generated';
+    const body = `${structureTitle} for ${amount.toLocaleString()} is due ${dueDate.toLocaleDateString()}.`;
+
+    try {
+      await this.notifications.createNotification({
+        userId,
+        title,
+        body,
+        actionUrl: isExpense ? '/finance/entries' : '/fees',
+        type: 'FINANCE_ENTRY_CREATED',
+        metadata: { entryId, targetType: assignment.targetType },
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to notify finance entry ${entryId}: ${error instanceof Error ? error.message : error}`);
+    }
   }
 }

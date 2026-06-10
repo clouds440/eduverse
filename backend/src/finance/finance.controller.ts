@@ -6,6 +6,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '../common/enums';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { BillingCycle, EntryStatus, FinanceAssignmentSource, FinanceCategory, FinanceTargetType, TransactionType } from '@prisma/client';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard)
@@ -32,8 +33,23 @@ export class FinanceController {
     @Request() req: AuthenticatedRequest,
     @Query('studentId') studentId?: string,
     @Query('teacherId') teacherId?: string,
+    @Query('targetType') targetType?: string,
+    @Query('category') category?: string,
+    @Query('billingCycle') billingCycle?: string,
+    @Query('assignmentSource') assignmentSource?: string,
+    @Query('isActive') isActive?: string,
+    @Query('search') search?: string,
   ) {
-    return this.financeService.getStructures(orgId, req.user, studentId, teacherId);
+    return this.financeService.getStructures(orgId, req.user, {
+      studentId,
+      teacherId,
+      targetType: targetType as FinanceTargetType | undefined,
+      category: category as FinanceCategory | undefined,
+      billingCycle: billingCycle as BillingCycle | undefined,
+      assignmentSource: assignmentSource as FinanceAssignmentSource | undefined,
+      isActive,
+      search,
+    });
   }
 
   @Get('entries')
@@ -42,8 +58,25 @@ export class FinanceController {
     @Request() req: AuthenticatedRequest,
     @Query('studentId') studentId?: string,
     @Query('teacherId') teacherId?: string,
+    @Query('targetType') targetType?: string,
+    @Query('category') category?: string,
+    @Query('billingCycle') billingCycle?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('dueFrom') dueFrom?: string,
+    @Query('dueTo') dueTo?: string,
   ) {
-    return this.financeService.getEntries(orgId, req.user, studentId, teacherId);
+    return this.financeService.getEntries(orgId, req.user, {
+      studentId,
+      teacherId,
+      targetType: targetType as FinanceTargetType | undefined,
+      category: category as FinanceCategory | undefined,
+      billingCycle: billingCycle as BillingCycle | undefined,
+      status: status as EntryStatus | undefined,
+      search,
+      dueFrom,
+      dueTo,
+    });
   }
 
   @Get('transactions')
@@ -52,8 +85,27 @@ export class FinanceController {
     @Request() req: AuthenticatedRequest,
     @Query('studentId') studentId?: string,
     @Query('teacherId') teacherId?: string,
+    @Query('targetType') targetType?: string,
+    @Query('category') category?: string,
+    @Query('billingCycle') billingCycle?: string,
+    @Query('type') type?: string,
+    @Query('paymentMethod') paymentMethod?: string,
+    @Query('search') search?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
-    return this.financeService.getTransactions(orgId, req.user, studentId, teacherId);
+    return this.financeService.getTransactions(orgId, req.user, {
+      studentId,
+      teacherId,
+      targetType: targetType as FinanceTargetType | undefined,
+      category: category as FinanceCategory | undefined,
+      billingCycle: billingCycle as BillingCycle | undefined,
+      type: type as TransactionType | undefined,
+      paymentMethod,
+      search,
+      dateFrom,
+      dateTo,
+    });
   }
 
   @Get('stats')
@@ -81,5 +133,16 @@ export class FinanceController {
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ORG_MANAGER)
   confirmEntry(@Param('id') id: string, @Body() dto: ConfirmEntryDto, @Request() req: AuthenticatedRequest) {
     return this.financeService.confirmEntry(id, req.user, dto);
+  }
+
+  @Patch('claims/:id/reject')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ORG_MANAGER)
+  rejectPaymentClaim(
+    @Param('id') id: string,
+    @Body('rejectionReason') rejectionReason: string | undefined,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.financeService.rejectPaymentClaim(id, req.user, rejectionReason);
   }
 }

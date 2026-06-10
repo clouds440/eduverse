@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect, ReactNode, useId } from 'react';
+import { useState, useRef, useEffect, ReactNode, useId, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Filter, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './Button';
@@ -30,6 +31,25 @@ export function Drawer({
     const drawerId = useId();
     const { isDesktop, mounted } = useUI();
     const effectivePosition = mounted && isDesktop ? 'right' : position;
+    const [coords, setCoords] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+
+    const updateCoords = () => {
+        const trigger = triggerRef.current;
+        if (!trigger) return;
+        const rect = trigger.getBoundingClientRect();
+        const margin = 12;
+        const width = Math.min(384, window.innerWidth - margin * 2);
+        const left = effectivePosition === 'right'
+            ? Math.min(Math.max(margin, rect.right - width), window.innerWidth - width - margin)
+            : Math.min(Math.max(margin, rect.left), window.innerWidth - width - margin);
+        const top = Math.min(rect.bottom + 8, window.innerHeight - 160);
+        setCoords({
+            top,
+            left,
+            width,
+            maxHeight: Math.max(160, window.innerHeight - top - margin),
+        });
+    };
 
     useBackStackEntry({
         enabled: isOpen,
@@ -67,6 +87,19 @@ export function Drawer({
         };
     }, [isOpen]);
 
+    useLayoutEffect(() => {
+        if (!isOpen) return;
+        updateCoords();
+        const frameId = window.requestAnimationFrame(updateCoords);
+        window.addEventListener('resize', updateCoords, { passive: true });
+        window.addEventListener('scroll', updateCoords, { passive: true, capture: true });
+        return () => {
+            window.cancelAnimationFrame(frameId);
+            window.removeEventListener('resize', updateCoords);
+            window.removeEventListener('scroll', updateCoords, { capture: true });
+        };
+    }, [isOpen, effectivePosition]);
+
     return (
         <div className="relative">
             <Button
@@ -84,23 +117,28 @@ export function Drawer({
                 {label}
             </Button>
 
-            {isOpen && (
+            {isOpen && mounted && createPortal(
                 <>
                     <div
                         id={drawerId}
                         ref={drawerRef}
                         className={cn(
-                            'absolute top-full z-999 mt-2 w-[calc(100vw-2rem)] max-w-sm overflow-y-auto rounded-lg border border-border bg-card p-4 shadow-xl custom-scrollbar',
-                            'max-h-[min(70dvh,32rem)] sm:w-80',
-                            effectivePosition === 'right' ? 'right-0' : 'left-0',
+                            'fixed z-9999 overflow-y-auto rounded-lg border border-border bg-card p-4 shadow-xl custom-scrollbar',
                             drawerClassName
                         )}
+                        style={{
+                            top: coords?.top ?? 0,
+                            left: coords?.left ?? 12,
+                            width: coords?.width ?? 'calc(100vw - 1.5rem)',
+                            maxHeight: coords?.maxHeight ?? '70dvh',
+                        }}
                         role="dialog"
                         aria-label={label}
                     >
                         {children}
                     </div>
-                </>
+                </>,
+                document.body,
             )}
         </div>
     );

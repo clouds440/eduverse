@@ -17,14 +17,14 @@ export function BillingCycleBadge({ cycle, className }: BillingCycleBadgeProps) 
         case BillingCycle.MONTHLY:
             label = 'Monthly';
             break;
-        case BillingCycle.QUARTERLY:
-            label = 'Quarterly';
-            break;
         case BillingCycle.SEMESTER:
             label = 'Per Semester';
             break;
-        case BillingCycle.ANNUAL:
-            label = 'Annually';
+        case BillingCycle.YEARLY:
+            label = 'Yearly';
+            break;
+        case BillingCycle.ACADEMIC_CYCLE:
+            label = 'Academic Cycle';
             break;
     }
 

@@ -263,7 +263,7 @@ export function DocsNavigation() {
 
   return (
     <>
-      <aside className="hidden w-72 shrink-0 border-r border-border bg-background/80 px-5 py-6 lg:block">
+      <aside className="hidden w-84 shrink-0 border-r border-border bg-background/80 px-5 py-6 lg:block">
         <nav className="sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col" aria-label="Documentation">
           <Link href="/docs" className="mb-4 flex items-center gap-2 text-base font-black text-foreground">
             <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />

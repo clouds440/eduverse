@@ -1,24 +1,103 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFinancialStructureDto, UpdateFinancialStructureDto, CreateManualEntryDto, MarkPaidDto, ConfirmEntryDto } from './finance.dto';
-import { EntryStatus, EntrySource, TransactionType, FinanceCategory } from '@prisma/client';
+import {
+  BillingCycle,
+  EntrySource,
+  EntryStatus,
+  FinanceAssignmentSource,
+  FinanceCategory,
+  FinanceTargetType,
+  PaymentClaimStatus,
+  Prisma,
+  TransactionType,
+} from '@prisma/client';
 import { Role } from '../common/enums';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
+type FinanceFilters = {
+  studentId?: string;
+  teacherId?: string;
+  targetType?: FinanceTargetType;
+  category?: FinanceCategory;
+  billingCycle?: BillingCycle;
+  assignmentSource?: FinanceAssignmentSource;
+  status?: EntryStatus;
+  isActive?: string;
+  type?: TransactionType;
+  paymentMethod?: string;
+  search?: string;
+  dueFrom?: string;
+  dueTo?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+type AssignmentSeed = {
+  targetType: FinanceTargetType;
+  studentId?: string;
+  teacherId?: string;
+  entityName?: string;
+  sourceType: FinanceAssignmentSource;
+  sourceId?: string;
+};
+
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async createStructure(dto: CreateFinancialStructureDto, user: AuthenticatedRequest['user']) {
     const orgId = dto.organizationId || user.organizationId;
+    if (!orgId) throw new BadRequestException('Organization is required');
     if (user.role !== Role.SUPER_ADMIN && orgId !== user.organizationId) {
       throw new ForbiddenException('Cannot create structures for a different organization');
     }
-    if (!dto.studentId && !dto.teacherId) {
-      throw new BadRequestException('Must provide either studentId or teacherId');
-    }
-    return this.prisma.financialStructure.create({
-      data: { ...dto, organizationId: orgId as string }
+
+    const targetType = dto.targetType || (dto.teacherId ? FinanceTargetType.TEACHER : FinanceTargetType.STUDENT);
+
+    return this.prisma.$transaction(async (tx) => {
+      const structure = await tx.financialStructure.create({
+        data: {
+          organizationId: orgId,
+          title: dto.title,
+          description: dto.description,
+          targetType,
+          studentId: dto.studentId,
+          teacherId: dto.teacherId,
+          category: dto.category,
+          amount: dto.amount,
+          currency: dto.currency || 'USD',
+          billingCycle: dto.billingCycle,
+          dueDay: dto.dueDay,
+          startDate: new Date(dto.startDate),
+          endDate: dto.endDate ? new Date(dto.endDate) : null,
+          metadata: dto.metadata,
+        },
+      });
+
+      const assignments = await this.resolveAssignmentSeeds(tx, orgId, targetType, dto);
+      if (assignments.length === 0) {
+        throw new BadRequestException('Choose at least one target for this structure');
+      }
+
+      await tx.financialStructureAssignment.createMany({
+        data: assignments.map((assignment) => ({
+          organizationId: orgId,
+          structureId: structure.id,
+          targetType: assignment.targetType,
+          studentId: assignment.studentId,
+          teacherId: assignment.teacherId,
+          entityName: assignment.entityName,
+          sourceType: assignment.sourceType,
+          sourceId: assignment.sourceId,
+        })),
+        skipDuplicates: true,
+      });
+
+      return tx.financialStructure.findUnique({
+        where: { id: structure.id },
+        include: this.structureInclude(),
+      });
     });
   }
 
@@ -32,138 +111,125 @@ export class FinanceService {
 
     return this.prisma.financialStructure.update({
       where: { id },
-      data: dto,
+      data: {
+        title: dto.title,
+        description: dto.description,
+        amount: dto.amount,
+        isActive: dto.isActive,
+        category: dto.category,
+        billingCycle: dto.billingCycle,
+        dueDay: dto.dueDay,
+        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+        endDate: dto.endDate ? new Date(dto.endDate) : dto.endDate === null ? null : undefined,
+        metadata: dto.metadata,
+      },
+      include: this.structureInclude(),
     });
   }
 
-  async getStructures(orgId: string | undefined, user: AuthenticatedRequest['user'], studentId?: string, teacherId?: string) {
-    const finalOrgId = orgId || user.organizationId;
-    if (user.role !== Role.SUPER_ADMIN && finalOrgId !== user.organizationId) {
-      throw new ForbiddenException('Cannot view structures of a different organization');
-    }
-
-    let filterStudentId = studentId;
-    let filterTeacherId = teacherId;
-
-    if (user.role === Role.STUDENT) {
-      const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
-      if (!student) throw new NotFoundException('Student profile not found');
-      filterStudentId = student.id;
-      filterTeacherId = undefined; // Students cannot see teacher structures
-    } else if (user.role === Role.TEACHER) {
-      const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
-      if (!teacher) throw new NotFoundException('Teacher profile not found');
-      filterTeacherId = teacher.id;
-      filterStudentId = undefined;
-    }
+  async getStructures(orgId: string | undefined, user: AuthenticatedRequest['user'], filters: FinanceFilters = {}) {
+    const finalOrgId = this.getReadableOrgId(orgId, user, 'structures');
+    const scopedFilters = await this.applyRoleScope(user, filters);
 
     return this.prisma.financialStructure.findMany({
       where: {
-        organizationId: finalOrgId as string,
-        ...(filterStudentId ? { studentId: filterStudentId } : {}),
-        ...(filterTeacherId ? { teacherId: filterTeacherId } : {}),
+        organizationId: finalOrgId,
+        AND: [
+          ...(scopedFilters.studentId ? [{ assignments: { some: { studentId: scopedFilters.studentId } } }] : []),
+          ...(scopedFilters.teacherId ? [{ assignments: { some: { teacherId: scopedFilters.teacherId } } }] : []),
+          ...(scopedFilters.assignmentSource ? [{ assignments: { some: { sourceType: scopedFilters.assignmentSource } } }] : []),
+        ],
+        ...(scopedFilters.targetType ? { targetType: scopedFilters.targetType } : {}),
+        ...(scopedFilters.category ? { category: scopedFilters.category } : {}),
+        ...(scopedFilters.billingCycle ? { billingCycle: scopedFilters.billingCycle } : {}),
+        ...(scopedFilters.isActive ? { isActive: scopedFilters.isActive === 'true' } : {}),
+        ...(scopedFilters.search ? this.structureSearch(scopedFilters.search) : {}),
       },
+      orderBy: { createdAt: 'desc' },
+      include: this.structureInclude(),
     });
   }
 
-  async getEntries(orgId: string | undefined, user: AuthenticatedRequest['user'], studentId?: string, teacherId?: string) {
-    const finalOrgId = orgId || user.organizationId;
-    if (user.role !== Role.SUPER_ADMIN && finalOrgId !== user.organizationId) {
-      throw new ForbiddenException('Cannot view entries of a different organization');
-    }
-
-    let filterStudentId = studentId;
-    let filterTeacherId = teacherId;
-
-    if (user.role === Role.STUDENT) {
-      const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
-      if (!student) throw new NotFoundException('Student profile not found');
-      filterStudentId = student.id;
-      filterTeacherId = undefined;
-    } else if (user.role === Role.TEACHER) {
-      const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
-      if (!teacher) throw new NotFoundException('Teacher profile not found');
-      filterTeacherId = teacher.id;
-      filterStudentId = undefined;
-    }
+  async getEntries(orgId: string | undefined, user: AuthenticatedRequest['user'], filters: FinanceFilters = {}) {
+    const finalOrgId = this.getReadableOrgId(orgId, user, 'entries');
+    const scopedFilters = await this.applyRoleScope(user, filters);
 
     return this.prisma.financialEntry.findMany({
       where: {
-        organizationId: finalOrgId as string,
-        ...(filterStudentId ? { studentId: filterStudentId } : {}),
-        ...(filterTeacherId ? { teacherId: filterTeacherId } : {}),
+        organizationId: finalOrgId,
+        AND: [
+          ...(scopedFilters.category ? [{ structure: { category: scopedFilters.category } }] : []),
+          ...(scopedFilters.billingCycle ? [{ structure: { billingCycle: scopedFilters.billingCycle } }] : []),
+          ...(scopedFilters.search ? [this.entrySearch(scopedFilters.search)] : []),
+        ],
+        ...(scopedFilters.studentId ? { studentId: scopedFilters.studentId } : {}),
+        ...(scopedFilters.teacherId ? { teacherId: scopedFilters.teacherId } : {}),
+        ...(scopedFilters.status ? { status: scopedFilters.status } : {}),
+        ...(scopedFilters.targetType ? { assignment: { targetType: scopedFilters.targetType } } : {}),
+        ...(scopedFilters.dueFrom || scopedFilters.dueTo ? {
+          dueDate: {
+            ...(scopedFilters.dueFrom ? { gte: new Date(scopedFilters.dueFrom) } : {}),
+            ...(scopedFilters.dueTo ? { lte: new Date(scopedFilters.dueTo) } : {}),
+          },
+        } : {}),
       },
       orderBy: { dueDate: 'desc' },
-      include: { structure: true, transactions: true },
+      include: this.entryInclude(),
     });
   }
 
-  async getTransactions(orgId: string | undefined, user: AuthenticatedRequest['user'], studentId?: string, teacherId?: string) {
-    const finalOrgId = orgId || user.organizationId;
-    if (user.role !== Role.SUPER_ADMIN && finalOrgId !== user.organizationId) {
-      throw new ForbiddenException('Cannot view transactions of a different organization');
-    }
-
-    let filterStudentId = studentId;
-    let filterTeacherId = teacherId;
-
-    if (user.role === Role.STUDENT) {
-      const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
-      if (!student) throw new NotFoundException('Student profile not found');
-      filterStudentId = student.id;
-      filterTeacherId = undefined;
-    } else if (user.role === Role.TEACHER) {
-      const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
-      if (!teacher) throw new NotFoundException('Teacher profile not found');
-      filterTeacherId = teacher.id;
-      filterStudentId = undefined;
-    }
+  async getTransactions(orgId: string | undefined, user: AuthenticatedRequest['user'], filters: FinanceFilters = {}) {
+    const finalOrgId = this.getReadableOrgId(orgId, user, 'transactions');
+    const scopedFilters = await this.applyRoleScope(user, filters);
 
     return this.prisma.transaction.findMany({
       where: {
-        organizationId: finalOrgId as string,
-        ...(filterStudentId || filterTeacherId ? {
-          relatedEntry: {
-            ...(filterStudentId ? { studentId: filterStudentId } : {}),
-            ...(filterTeacherId ? { teacherId: filterTeacherId } : {}),
-          }
+        organizationId: finalOrgId,
+        AND: [
+          ...(scopedFilters.studentId || scopedFilters.teacherId || scopedFilters.targetType || scopedFilters.billingCycle || scopedFilters.search ? [{
+            relatedEntry: {
+              AND: [
+                ...(scopedFilters.billingCycle ? [{ structure: { billingCycle: scopedFilters.billingCycle } }] : []),
+                ...(scopedFilters.search ? [this.entrySearch(scopedFilters.search)] : []),
+              ],
+              ...(scopedFilters.studentId ? { studentId: scopedFilters.studentId } : {}),
+              ...(scopedFilters.teacherId ? { teacherId: scopedFilters.teacherId } : {}),
+              ...(scopedFilters.targetType ? { assignment: { targetType: scopedFilters.targetType } } : {}),
+            },
+          }] : []),
+        ],
+        ...(scopedFilters.type ? { type: scopedFilters.type } : {}),
+        ...(scopedFilters.category ? { category: scopedFilters.category } : {}),
+        ...(scopedFilters.paymentMethod ? { paymentMethod: scopedFilters.paymentMethod } : {}),
+        ...(scopedFilters.dateFrom || scopedFilters.dateTo ? {
+          createdAt: {
+            ...(scopedFilters.dateFrom ? { gte: new Date(scopedFilters.dateFrom) } : {}),
+            ...(scopedFilters.dateTo ? { lte: new Date(scopedFilters.dateTo) } : {}),
+          },
         } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      include: { relatedEntry: { include: { structure: true } } },
+      include: {
+        createdBy: { select: { id: true, name: true, email: true, role: true } },
+        relatedEntry: { include: this.entryInclude() },
+      },
     });
   }
 
   async getStats(orgId: string | undefined, user: AuthenticatedRequest['user']) {
-    const finalOrgId = orgId || user.organizationId;
-    if (user.role !== Role.SUPER_ADMIN && finalOrgId !== user.organizationId) {
-      throw new ForbiddenException('Cannot view stats of a different organization');
-    }
-
-    let filterStudentId: string | undefined = undefined;
-    let filterTeacherId: string | undefined = undefined;
-
-    if (user.role === Role.STUDENT) {
-      const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
-      if (student) filterStudentId = student.id;
-    } else if (user.role === Role.TEACHER) {
-      const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
-      if (teacher) filterTeacherId = teacher.id;
-    }
-
-    const baseEntryWhere = {
-      organizationId: finalOrgId as string,
-      ...(filterStudentId ? { studentId: filterStudentId } : {}),
-      ...(filterTeacherId ? { teacherId: filterTeacherId } : {}),
-    };
+    const finalOrgId = this.getReadableOrgId(orgId, user, 'stats');
+    const scopedFilters = await this.applyRoleScope(user, {});
 
     const entries = await this.prisma.financialEntry.findMany({
-      where: baseEntryWhere,
-      select: { amount: true, paidAmount: true, status: true, dueDate: true, studentId: true, teacherId: true }
+      where: {
+        organizationId: finalOrgId,
+        ...(scopedFilters.studentId ? { studentId: scopedFilters.studentId } : {}),
+        ...(scopedFilters.teacherId ? { teacherId: scopedFilters.teacherId } : {}),
+      },
+      select: { amount: true, paidAmount: true, status: true, dueDate: true, studentId: true, teacherId: true, assignment: { select: { targetType: true } } },
     });
 
     const now = new Date();
-
     let totalExpectedIncome = 0;
     let totalCollectedIncome = 0;
     let overdueAmount = 0;
@@ -171,24 +237,20 @@ export class FinanceService {
     let totalSalaryExpenses = 0;
 
     for (const entry of entries) {
-      if (entry.studentId) {
+      const type = this.transactionTypeForEntry(entry);
+      if (type === TransactionType.INCOME) {
         totalExpectedIncome += entry.amount;
         totalCollectedIncome += entry.paidAmount;
-
-        if (entry.status === EntryStatus.PENDING || entry.status === EntryStatus.PARTIAL) {
-          if (entry.dueDate < now) {
-            overdueAmount += (entry.amount - entry.paidAmount);
-          }
+        if ((entry.status === EntryStatus.PENDING || entry.status === EntryStatus.PARTIAL) && entry.dueDate < now) {
+          overdueAmount += entry.amount - entry.paidAmount;
         }
-        if (entry.status === EntryStatus.UNVERIFIED) {
-          pendingConfirmations++;
-        }
-      } else if (entry.teacherId) {
+        if (entry.status === EntryStatus.UNVERIFIED) pendingConfirmations++;
+      } else {
         totalSalaryExpenses += entry.amount;
       }
     }
 
-    const recentTransactions = await this.getTransactions(orgId, user, filterStudentId, filterTeacherId);
+    const recentTransactions = await this.getTransactions(orgId, user, {});
 
     return {
       totalExpectedIncome,
@@ -196,12 +258,13 @@ export class FinanceService {
       overdueAmount,
       totalSalaryExpenses,
       pendingConfirmations,
-      recentTransactions: recentTransactions.slice(0, 5)
+      recentTransactions: recentTransactions.slice(0, 5),
     };
   }
 
   async createManualEntry(dto: CreateManualEntryDto, user: AuthenticatedRequest['user']) {
     const orgId = dto.organizationId || user.organizationId;
+    if (!orgId) throw new BadRequestException('Organization is required');
     if (user.role !== Role.SUPER_ADMIN && orgId !== user.organizationId) {
       throw new ForbiddenException('Cannot create entries for a different organization');
     }
@@ -210,78 +273,101 @@ export class FinanceService {
     }
     return this.prisma.financialEntry.create({
       data: {
-        ...dto,
-        organizationId: orgId as string,
+        organizationId: orgId,
+        title: dto.title,
+        studentId: dto.studentId,
+        teacherId: dto.teacherId,
+        amount: dto.amount,
+        dueDate: new Date(dto.dueDate),
+        periodStart: dto.periodStart ? new Date(dto.periodStart) : null,
+        periodEnd: dto.periodEnd ? new Date(dto.periodEnd) : null,
+        metadata: dto.metadata,
         source: EntrySource.MANUAL,
         status: EntryStatus.PENDING,
       },
+      include: this.entryInclude(),
     });
   }
 
   async markEntryPaid(id: string, user: AuthenticatedRequest['user'], dto: MarkPaidDto) {
-    const entry = await this.prisma.financialEntry.findUnique({ where: { id } });
+    const entry = await this.prisma.financialEntry.findUnique({ where: { id }, include: this.entryInclude() });
     if (!entry) throw new NotFoundException('Entry not found');
+    await this.assertCanAccessEntry(entry, user, 'mark');
 
-    if (user.role === Role.STUDENT) {
-      const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
-      if (!student || entry.studentId !== student.id) {
-        throw new ForbiddenException('You can only mark your own entries as paid');
-      }
-    } else if (user.role === Role.TEACHER) {
-      const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
-      if (!teacher || entry.teacherId !== teacher.id) {
-        throw new ForbiddenException('You can only mark your own entries as paid');
-      }
-    } else if (user.role !== Role.SUPER_ADMIN && entry.organizationId !== user.organizationId) {
-      throw new ForbiddenException('Cannot modify entries of a different organization');
+    if (entry.status === EntryStatus.PAID || entry.paidAmount >= entry.amount) {
+      throw new ConflictException('This entry is already fully paid.');
     }
 
-    return this.prisma.financialEntry.update({
-      where: { id },
-      data: {
-        status: EntryStatus.UNVERIFIED,
-        markedByUser: true,
-        markedAt: new Date(),
-        paymentMethod: dto.paymentMethod,
-        receiptUrl: dto.receiptUrl,
-      },
+    const balance = entry.amount - entry.paidAmount;
+    const claimedAmount = dto.claimedAmount ?? balance;
+    if (claimedAmount <= 0 || claimedAmount > balance) {
+      throw new BadRequestException('Claimed amount must be greater than zero and no more than the remaining balance.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.paymentClaim.create({
+        data: {
+          organizationId: entry.organizationId,
+          entryId: entry.id,
+          claimedAmount,
+          paymentMethod: dto.paymentMethod,
+          referenceNumber: dto.referenceNumber,
+          receiptUrl: dto.receiptUrl,
+          note: dto.note,
+          claimedById: user.id,
+        },
+      });
+
+      return tx.financialEntry.update({
+        where: { id },
+        data: {
+          status: EntryStatus.UNVERIFIED,
+          markedByUser: true,
+          markedAt: new Date(),
+          paymentMethod: dto.paymentMethod,
+          receiptUrl: dto.receiptUrl || dto.referenceNumber,
+        },
+        include: this.entryInclude(),
+      });
     });
   }
 
   async confirmEntry(id: string, user: AuthenticatedRequest['user'], dto: ConfirmEntryDto) {
-    const entry = await this.prisma.financialEntry.findUnique({ where: { id }, include: { structure: true } });
+    const entry = await this.prisma.financialEntry.findUnique({ where: { id }, include: this.entryInclude() });
     if (!entry) throw new NotFoundException('Entry not found');
 
     if (user.role !== Role.SUPER_ADMIN && entry.organizationId !== user.organizationId) {
       throw new ForbiddenException('Cannot confirm entries of a different organization');
     }
 
-    if (entry.status === EntryStatus.PAID) {
-      throw new ConflictException('This entry is already fully paid.');
-    }
-
-    const amountPaid = dto.paidAmount ?? (entry.amount - entry.paidAmount);
-    if (amountPaid <= 0) {
-      throw new BadRequestException('Amount paid must be greater than zero.');
-    }
-
-    const newPaidAmount = entry.paidAmount + amountPaid;
-    const isPartial = newPaidAmount < entry.amount;
-
-    const newStatus = isPartial ? EntryStatus.PARTIAL : EntryStatus.PAID;
-    const type = entry.studentId ? TransactionType.INCOME : TransactionType.EXPENSE;
-    const category = entry.structure?.category || FinanceCategory.OTHER;
-
     return this.prisma.$transaction(async (tx) => {
-      // Find row without modifying so tx can proceed safely if concurrent update happens 
-      // (Since findUnique inside transaction usually acts as snapshot, and update handles conflicts in serializable)
       const lockedEntry = await tx.financialEntry.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+          structure: true,
+          assignment: true,
+          claims: { where: { status: PaymentClaimStatus.PENDING }, orderBy: { claimedAt: 'desc' }, take: 1 },
+        },
       });
 
-      if (!lockedEntry || lockedEntry.status === EntryStatus.PAID) {
-        throw new ConflictException('Entry was modified concurrently.');
+      if (!lockedEntry) throw new NotFoundException('Entry not found');
+      if (lockedEntry.status === EntryStatus.PAID || lockedEntry.paidAmount >= lockedEntry.amount) {
+        throw new ConflictException('This entry is already fully paid.');
       }
+
+      const claim = dto.claimId
+        ? await tx.paymentClaim.findFirst({ where: { id: dto.claimId, entryId: id } })
+        : lockedEntry.claims[0] || null;
+
+      const balance = lockedEntry.amount - lockedEntry.paidAmount;
+      const amountPaid = dto.paidAmount ?? claim?.claimedAmount ?? balance;
+      if (amountPaid <= 0) throw new BadRequestException('Amount paid must be greater than zero.');
+      if (amountPaid > balance) throw new BadRequestException('Amount paid cannot exceed remaining balance.');
+
+      const newPaidAmount = lockedEntry.paidAmount + amountPaid;
+      const newStatus = newPaidAmount < lockedEntry.amount ? EntryStatus.PARTIAL : EntryStatus.PAID;
+      const type = this.transactionTypeForEntry(lockedEntry);
+      const category = lockedEntry.structure?.category || FinanceCategory.OTHER;
 
       const updatedEntry = await tx.financialEntry.update({
         where: { id },
@@ -292,23 +378,243 @@ export class FinanceService {
           confirmedAt: new Date(),
           confirmedById: user.id,
         },
+        include: this.entryInclude(),
       });
+
+      if (claim) {
+        await tx.paymentClaim.update({
+          where: { id: claim.id },
+          data: {
+            status: PaymentClaimStatus.CONFIRMED,
+            reviewedById: user.id,
+            reviewedAt: new Date(),
+            confirmedAmount: amountPaid,
+          },
+        });
+      }
 
       const transaction = await tx.transaction.create({
         data: {
-          organizationId: entry.organizationId,
+          organizationId: lockedEntry.organizationId,
           type,
           category,
           amount: amountPaid,
-          currency: entry.structure?.currency || 'USD',
-          description: `Confirmed payment for ${entry.title}`,
-          relatedEntryId: entry.id,
-          paymentMethod: entry.paymentMethod,
+          currency: lockedEntry.structure?.currency || 'USD',
+          description: `Confirmed payment for ${lockedEntry.title}`,
+          relatedEntryId: lockedEntry.id,
+          paymentMethod: claim?.paymentMethod || lockedEntry.paymentMethod,
+          referenceNumber: claim?.referenceNumber,
           createdById: user.id,
         },
       });
 
       return { entry: updatedEntry, transaction };
     });
+  }
+
+  async rejectPaymentClaim(id: string, user: AuthenticatedRequest['user'], rejectionReason?: string) {
+    const claim = await this.prisma.paymentClaim.findUnique({ where: { id }, include: { entry: true } });
+    if (!claim) throw new NotFoundException('Payment claim not found');
+    if (user.role !== Role.SUPER_ADMIN && claim.organizationId !== user.organizationId) {
+      throw new ForbiddenException('Cannot reject claims for a different organization');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedClaim = await tx.paymentClaim.update({
+        where: { id },
+        data: {
+          status: PaymentClaimStatus.REJECTED,
+          reviewedById: user.id,
+          reviewedAt: new Date(),
+          rejectionReason,
+        },
+      });
+
+      const pendingCount = await tx.paymentClaim.count({
+        where: { entryId: claim.entryId, status: PaymentClaimStatus.PENDING, id: { not: id } },
+      });
+
+      if (pendingCount === 0 && claim.entry.status === EntryStatus.UNVERIFIED) {
+        await tx.financialEntry.update({
+          where: { id: claim.entryId },
+          data: { status: claim.entry.paidAmount > 0 ? EntryStatus.PARTIAL : EntryStatus.PENDING },
+        });
+      }
+
+      return updatedClaim;
+    });
+  }
+
+  private async resolveAssignmentSeeds(
+    tx: Prisma.TransactionClient,
+    orgId: string,
+    targetType: FinanceTargetType,
+    dto: CreateFinancialStructureDto,
+  ): Promise<AssignmentSeed[]> {
+    const seeds = new Map<string, AssignmentSeed>();
+    const add = (seed: AssignmentSeed) => {
+      const key = seed.studentId || seed.teacherId || `${seed.targetType}:${seed.entityName}`;
+      if (key && !seeds.has(key)) seeds.set(key, seed);
+    };
+
+    if (targetType === FinanceTargetType.STUDENT) {
+      for (const studentId of [...(dto.studentIds || []), ...(dto.studentId ? [dto.studentId] : [])]) {
+        add({ targetType, studentId, sourceType: FinanceAssignmentSource.MANUAL });
+      }
+
+      if (dto.sectionIds?.length) {
+        const enrollments = await tx.enrollment.findMany({
+          where: { sectionId: { in: dto.sectionIds }, section: { course: { organizationId: orgId } } },
+          select: { studentId: true, sectionId: true },
+        });
+        enrollments.forEach((enrollment) => add({ targetType, studentId: enrollment.studentId, sourceType: FinanceAssignmentSource.SECTION, sourceId: enrollment.sectionId }));
+      }
+
+      if (dto.cohortIds?.length) {
+        const students = await tx.student.findMany({
+          where: { organizationId: orgId, cohortId: { in: dto.cohortIds } },
+          select: { id: true, cohortId: true },
+        });
+        students.forEach((student) => add({ targetType, studentId: student.id, sourceType: FinanceAssignmentSource.COHORT, sourceId: student.cohortId || undefined }));
+      }
+
+      if (dto.courseIds?.length) {
+        const enrollments = await tx.enrollment.findMany({
+          where: { section: { courseId: { in: dto.courseIds }, course: { organizationId: orgId } } },
+          select: { studentId: true, section: { select: { courseId: true } } },
+        });
+        enrollments.forEach((enrollment) => add({ targetType, studentId: enrollment.studentId, sourceType: FinanceAssignmentSource.COURSE, sourceId: enrollment.section.courseId }));
+      }
+    } else if (targetType === FinanceTargetType.TEACHER) {
+      for (const teacherId of [...(dto.teacherIds || []), ...(dto.teacherId ? [dto.teacherId] : [])]) {
+        add({ targetType, teacherId, sourceType: FinanceAssignmentSource.MANUAL });
+      }
+
+      if (dto.sectionIds?.length) {
+        const sections = await tx.section.findMany({
+          where: { id: { in: dto.sectionIds }, course: { organizationId: orgId } },
+          select: { id: true, teachers: { select: { id: true } } },
+        });
+        sections.forEach((section) => section.teachers.forEach((teacher) => add({ targetType, teacherId: teacher.id, sourceType: FinanceAssignmentSource.SECTION, sourceId: section.id })));
+      }
+
+      if (dto.courseIds?.length) {
+        const sections = await tx.section.findMany({
+          where: { courseId: { in: dto.courseIds }, course: { organizationId: orgId } },
+          select: { courseId: true, teachers: { select: { id: true } } },
+        });
+        sections.forEach((section) => section.teachers.forEach((teacher) => add({ targetType, teacherId: teacher.id, sourceType: FinanceAssignmentSource.COURSE, sourceId: section.courseId })));
+      }
+    } else {
+      if (!dto.entityName?.trim()) {
+        throw new BadRequestException('Entity name is required for other income or expense structures');
+      }
+      add({ targetType, entityName: dto.entityName.trim(), sourceType: FinanceAssignmentSource.OTHER });
+    }
+
+    return [...seeds.values()];
+  }
+
+  private async applyRoleScope(user: AuthenticatedRequest['user'], filters: FinanceFilters): Promise<FinanceFilters> {
+    if (user.role === Role.STUDENT) {
+      const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
+      if (!student) throw new NotFoundException('Student profile not found');
+      return { ...filters, studentId: student.id, teacherId: undefined };
+    }
+    if (user.role === Role.TEACHER) {
+      const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
+      if (!teacher) throw new NotFoundException('Teacher profile not found');
+      return { ...filters, teacherId: teacher.id, studentId: undefined };
+    }
+    return filters;
+  }
+
+  private getReadableOrgId(orgId: string | undefined, user: AuthenticatedRequest['user'], resource: string) {
+    const finalOrgId = orgId || user.organizationId;
+    if (!finalOrgId) throw new BadRequestException('Organization is required');
+    if (user.role !== Role.SUPER_ADMIN && finalOrgId !== user.organizationId) {
+      throw new ForbiddenException(`Cannot view ${resource} of a different organization`);
+    }
+    return finalOrgId;
+  }
+
+  private async assertCanAccessEntry(entry: { studentId: string | null; teacherId: string | null; organizationId: string }, user: AuthenticatedRequest['user'], action: string) {
+    if (user.role === Role.STUDENT) {
+      const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
+      if (!student || entry.studentId !== student.id) throw new ForbiddenException(`You can only ${action} your own entries`);
+    } else if (user.role === Role.TEACHER) {
+      const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
+      if (!teacher || entry.teacherId !== teacher.id) throw new ForbiddenException(`You can only ${action} your own entries`);
+    } else if (user.role !== Role.SUPER_ADMIN && entry.organizationId !== user.organizationId) {
+      throw new ForbiddenException('Cannot modify entries of a different organization');
+    }
+  }
+
+  private transactionTypeForEntry(entry: { studentId?: string | null; teacherId?: string | null; assignment?: { targetType: FinanceTargetType } | null }) {
+    const targetType = entry.assignment?.targetType;
+    if (targetType === FinanceTargetType.TEACHER || targetType === FinanceTargetType.OTHER_EXPENSE || entry.teacherId) {
+      return TransactionType.EXPENSE;
+    }
+    return TransactionType.INCOME;
+  }
+
+  private structureSearch(search: string): Prisma.FinancialStructureWhereInput {
+    return {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { assignments: { some: { entityName: { contains: search, mode: 'insensitive' } } } },
+        { assignments: { some: { student: { user: { name: { contains: search, mode: 'insensitive' } } } } } },
+        { assignments: { some: { teacher: { user: { name: { contains: search, mode: 'insensitive' } } } } } },
+      ],
+    };
+  }
+
+  private entrySearch(search: string): Prisma.FinancialEntryWhereInput {
+    return {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' } },
+        { structure: { title: { contains: search, mode: 'insensitive' } } },
+        { assignment: { entityName: { contains: search, mode: 'insensitive' } } },
+        { student: { user: { name: { contains: search, mode: 'insensitive' } } } },
+        { student: { user: { email: { contains: search, mode: 'insensitive' } } } },
+        { teacher: { user: { name: { contains: search, mode: 'insensitive' } } } },
+        { teacher: { user: { email: { contains: search, mode: 'insensitive' } } } },
+      ],
+    };
+  }
+
+  private structureInclude() {
+    return {
+      assignments: {
+        include: {
+          student: { include: { user: { select: { id: true, name: true, email: true } }, cohort: true } },
+          teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
+        },
+      },
+      _count: { select: { assignments: true, entries: true } },
+    } satisfies Prisma.FinancialStructureInclude;
+  }
+
+  private entryInclude() {
+    return {
+      structure: { include: { _count: { select: { assignments: true } } } },
+      assignment: {
+        include: {
+          student: { include: { user: { select: { id: true, name: true, email: true } }, cohort: true } },
+          teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
+        },
+      },
+      student: { include: { user: { select: { id: true, name: true, email: true } }, cohort: true } },
+      teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
+      claims: {
+        orderBy: { claimedAt: 'desc' },
+        include: {
+          claimedBy: { select: { id: true, name: true, email: true, role: true } },
+          reviewedBy: { select: { id: true, name: true, email: true, role: true } },
+        },
+      },
+      transactions: { orderBy: { createdAt: 'desc' } },
+    } satisfies Prisma.FinancialEntryInclude;
   }
 }

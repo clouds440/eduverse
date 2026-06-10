@@ -1,29 +1,102 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { DocsLink } from '@/components/ui/DocsLink';
-import { FinanceCategory, BillingCycle, FinancialStructure, Student, Teacher, FinanceTargetType, PaginatedResponse } from '@/types';
+import {
+    BillingCycle,
+    Cohort,
+    Course,
+    FinanceAssignmentSource,
+    FinanceCategory,
+    FinancialStructure,
+    FinanceTargetType,
+    PaginatedResponse,
+    Section,
+    Student,
+    Teacher,
+} from '@/types';
 import { api } from '@/lib/api';
-import useSWR from 'swr';
 import { useAuth } from '@/context/AuthContext';
+import { formatCourseSectionLabel } from '@/lib/utils';
+
+type StructurePayload = Partial<FinancialStructure> & {
+    assignmentSource?: FinanceAssignmentSource;
+    studentIds?: string[];
+    teacherIds?: string[];
+    sectionIds?: string[];
+    cohortIds?: string[];
+    courseIds?: string[];
+    entityName?: string;
+};
 
 interface StructureModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: Partial<FinancialStructure>) => Promise<void>;
+    onSave: (data: StructurePayload) => Promise<void>;
     initialData?: FinancialStructure | null;
+}
+
+const studentCategories = [
+    FinanceCategory.TUITION,
+    FinanceCategory.TRANSPORT,
+    FinanceCategory.LIBRARY,
+    FinanceCategory.EXAM,
+    FinanceCategory.ADMISSION,
+    FinanceCategory.HOSTEL,
+    FinanceCategory.ACTIVITY,
+    FinanceCategory.OTHER,
+];
+
+const teacherCategories = [
+    FinanceCategory.SALARY,
+    FinanceCategory.BONUS,
+    FinanceCategory.REIMBURSEMENT,
+    FinanceCategory.OTHER,
+];
+
+const otherIncomeCategories = [
+    FinanceCategory.ADMISSION,
+    FinanceCategory.ACTIVITY,
+    FinanceCategory.LIBRARY,
+    FinanceCategory.OTHER,
+];
+
+const otherExpenseCategories = [
+    FinanceCategory.SALARY,
+    FinanceCategory.BONUS,
+    FinanceCategory.REIMBURSEMENT,
+    FinanceCategory.OTHER,
+];
+
+function labelize(value: string) {
+    return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getCategoryOptions(targetType: FinanceTargetType) {
+    const categories = targetType === FinanceTargetType.STUDENT
+        ? studentCategories
+        : targetType === FinanceTargetType.TEACHER
+            ? teacherCategories
+            : targetType === FinanceTargetType.OTHER_EXPENSE
+                ? otherExpenseCategories
+                : otherIncomeCategories;
+    return categories.map((category) => ({ value: category, label: labelize(category) }));
 }
 
 export function StructureModal({ isOpen, onClose, onSave, initialData }: StructureModalProps) {
     const { token } = useAuth();
-    
+
     const [targetType, setTargetType] = useState<FinanceTargetType>(FinanceTargetType.STUDENT);
-    const [targetId, setTargetId] = useState<string>('');
+    const [assignmentSource, setAssignmentSource] = useState<FinanceAssignmentSource>(FinanceAssignmentSource.MANUAL);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [entityName, setEntityName] = useState('');
     const [title, setTitle] = useState('');
     const [category, setCategory] = useState<FinanceCategory>(FinanceCategory.TUITION);
     const [amount, setAmount] = useState('');
@@ -31,158 +104,261 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
     const [dueDay, setDueDay] = useState<number | ''>('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    
     const [isSaving, setIsSaving] = useState(false);
 
-    // Reset or populate state
     useEffect(() => {
-        if (isOpen) {
-            if (initialData) {
-                setTargetType(initialData.teacherId ? FinanceTargetType.TEACHER : FinanceTargetType.STUDENT);
-                setTargetId(initialData.teacherId || initialData.studentId || '');
-                setTitle(initialData.title);
-                setCategory(initialData.category);
-                setAmount(String(initialData.amount));
-                setBillingCycle(initialData.billingCycle);
-                setDueDay(initialData.dueDay || '');
-                setStartDate(initialData.startDate.split('T')[0]);
-                setEndDate(initialData.endDate ? initialData.endDate.split('T')[0] : '');
-            } else {
-                setTargetType(FinanceTargetType.STUDENT);
-                setTargetId('');
-                setTitle('');
-                setCategory(FinanceCategory.TUITION);
-                setAmount('');
-                setBillingCycle(BillingCycle.MONTHLY);
-                setDueDay('');
-                setStartDate(new Date().toISOString().split('T')[0]);
-                setEndDate('');
-            }
+        if (!isOpen) return;
+        if (initialData) {
+            const nextTargetType = initialData.targetType || (initialData.teacherId ? FinanceTargetType.TEACHER : FinanceTargetType.STUDENT);
+            setTargetType(nextTargetType);
+            setAssignmentSource(initialData.assignments?.[0]?.sourceType || FinanceAssignmentSource.MANUAL);
+            setSelectedIds([]);
+            setEntityName(initialData.assignments?.[0]?.entityName || '');
+            setTitle(initialData.title);
+            setCategory(initialData.category);
+            setAmount(String(initialData.amount));
+            setBillingCycle(initialData.billingCycle);
+            setDueDay(initialData.dueDay || '');
+            setStartDate(initialData.startDate.split('T')[0]);
+            setEndDate(initialData.endDate ? initialData.endDate.split('T')[0] : '');
+        } else {
+            setTargetType(FinanceTargetType.STUDENT);
+            setAssignmentSource(FinanceAssignmentSource.MANUAL);
+            setSelectedIds([]);
+            setEntityName('');
+            setTitle('');
+            setCategory(FinanceCategory.TUITION);
+            setAmount('');
+            setBillingCycle(BillingCycle.MONTHLY);
+            setDueDay('');
+            setStartDate(new Date().toISOString().split('T')[0]);
+            setEndDate('');
         }
     }, [isOpen, initialData]);
 
     const { data: studentsRes } = useSWR<PaginatedResponse<Student>>(
-        isOpen && targetType === FinanceTargetType.STUDENT && token ? ['students', token] : null,
+        isOpen && token ? ['finance-students', token] : null,
         ([, t]) => api.org.getStudents(t as string, { limit: 1000 })
     );
-
     const { data: teachersRes } = useSWR<PaginatedResponse<Teacher>>(
-        isOpen && targetType === FinanceTargetType.TEACHER && token ? ['teachers', token] : null,
+        isOpen && token ? ['finance-teachers', token] : null,
         ([, t]) => api.org.getTeachers(t as string, { limit: 1000 })
     );
+    const { data: sectionsRes } = useSWR<PaginatedResponse<Section>>(
+        isOpen && token ? ['finance-sections', token] : null,
+        ([, t]) => api.org.getSections(t as string, { limit: 1000 })
+    );
+    const { data: coursesRes } = useSWR<PaginatedResponse<Course>>(
+        isOpen && token ? ['finance-courses', token] : null,
+        ([, t]) => api.org.getCourses(t as string, { limit: 1000 })
+    );
+    const { data: cohortsRes } = useSWR<PaginatedResponse<Cohort>>(
+        isOpen && token ? ['finance-cohorts', token] : null,
+        ([, t]) => api.cohorts.getCohorts(t as string, { limit: 1000 })
+    );
 
-    const targetOptions = targetType === FinanceTargetType.STUDENT
-        ? (studentsRes?.data || []).map(s => ({ value: s.id, label: `${s.user.name} (${s.registrationNumber || s.user.email})` }))
-        : (teachersRes?.data || []).map(t => ({ value: t.id, label: t.user.name }));
+    const categoryOptions = useMemo(() => getCategoryOptions(targetType), [targetType]);
+    const cycleOptions = Object.values(BillingCycle).map((cycle) => ({ value: cycle, label: labelize(cycle) }));
 
-    const categoryOptions = Object.values(FinanceCategory).map(c => ({ value: c, label: c }));
-    const cycleOptions = Object.values(BillingCycle).map(c => ({ value: c, label: c }));
+    const assignmentSourceOptions = useMemo(() => {
+        if (targetType === FinanceTargetType.STUDENT) {
+            return [
+                { value: FinanceAssignmentSource.MANUAL, label: 'Specific students' },
+                { value: FinanceAssignmentSource.SECTION, label: 'Students in sections' },
+                { value: FinanceAssignmentSource.COHORT, label: 'Students in cohorts' },
+                { value: FinanceAssignmentSource.COURSE, label: 'Students in courses' },
+            ];
+        }
+        if (targetType === FinanceTargetType.TEACHER) {
+            return [
+                { value: FinanceAssignmentSource.MANUAL, label: 'Specific teachers' },
+                { value: FinanceAssignmentSource.SECTION, label: 'Teachers in sections' },
+                { value: FinanceAssignmentSource.COURSE, label: 'Teachers in courses' },
+            ];
+        }
+        return [{ value: FinanceAssignmentSource.OTHER, label: 'External entity' }];
+    }, [targetType]);
+
+    const assignmentOptions = useMemo(() => {
+        if (targetType === FinanceTargetType.STUDENT && assignmentSource === FinanceAssignmentSource.MANUAL) {
+            return (studentsRes?.data || []).map((student) => ({
+                value: student.id,
+                label: `${student.user.name || student.user.email} (${student.registrationNumber || student.rollNumber || 'Student'})`,
+            }));
+        }
+        if (targetType === FinanceTargetType.TEACHER && assignmentSource === FinanceAssignmentSource.MANUAL) {
+            return (teachersRes?.data || []).map((teacher) => ({
+                value: teacher.id,
+                label: `${teacher.user.name || teacher.user.email} (${teacher.department || teacher.subject || 'Teacher'})`,
+            }));
+        }
+        if (assignmentSource === FinanceAssignmentSource.SECTION) {
+            return (sectionsRes?.data || []).map((section) => ({
+                value: section.id,
+                label: formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name }),
+            }));
+        }
+        if (assignmentSource === FinanceAssignmentSource.COHORT) {
+            return (cohortsRes?.data || []).map((cohort) => ({ value: cohort.id, label: cohort.name }));
+        }
+        if (assignmentSource === FinanceAssignmentSource.COURSE) {
+            return (coursesRes?.data || []).map((course) => ({ value: course.id, label: course.name }));
+        }
+        return [];
+    }, [assignmentSource, cohortsRes?.data, coursesRes?.data, sectionsRes?.data, studentsRes?.data, targetType, teachersRes?.data]);
+
+    const handleTargetTypeChange = (value: string) => {
+        const nextTargetType = value as FinanceTargetType;
+        const nextCategoryOptions = getCategoryOptions(nextTargetType);
+        setTargetType(nextTargetType);
+        setAssignmentSource(nextTargetType === FinanceTargetType.OTHER_EXPENSE || nextTargetType === FinanceTargetType.OTHER_INCOME
+            ? FinanceAssignmentSource.OTHER
+            : FinanceAssignmentSource.MANUAL);
+        setSelectedIds([]);
+        setCategory(nextCategoryOptions[0]?.value as FinanceCategory);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             setIsSaving(true);
-            await onSave({
+            const payload: StructurePayload = {
                 title,
-                studentId: targetType === FinanceTargetType.STUDENT ? targetId : null,
-                teacherId: targetType === FinanceTargetType.TEACHER ? targetId : null,
+                targetType,
                 category,
                 amount: Number(amount),
                 billingCycle,
-                dueDay: dueDay ? Number(dueDay) : null,
+                dueDay: billingCycle === BillingCycle.ONCE ? null : dueDay ? Number(dueDay) : null,
                 startDate: new Date(startDate).toISOString(),
                 endDate: endDate ? new Date(endDate).toISOString() : null,
-            });
+                assignmentSource,
+            };
+
+            if (!initialData) {
+                if (targetType === FinanceTargetType.OTHER_INCOME || targetType === FinanceTargetType.OTHER_EXPENSE) {
+                    payload.entityName = entityName.trim();
+                } else if (targetType === FinanceTargetType.STUDENT && assignmentSource === FinanceAssignmentSource.MANUAL) {
+                    payload.studentIds = selectedIds;
+                } else if (targetType === FinanceTargetType.TEACHER && assignmentSource === FinanceAssignmentSource.MANUAL) {
+                    payload.teacherIds = selectedIds;
+                } else if (assignmentSource === FinanceAssignmentSource.SECTION) {
+                    payload.sectionIds = selectedIds;
+                } else if (assignmentSource === FinanceAssignmentSource.COHORT) {
+                    payload.cohortIds = selectedIds;
+                } else if (assignmentSource === FinanceAssignmentSource.COURSE) {
+                    payload.courseIds = selectedIds;
+                }
+            }
+
+            await onSave(payload);
             onClose();
         } finally {
             setIsSaving(false);
         }
     };
 
+    const isOtherTarget = targetType === FinanceTargetType.OTHER_INCOME || targetType === FinanceTargetType.OTHER_EXPENSE;
+    const hasTargets = initialData ? true : isOtherTarget ? Boolean(entityName.trim()) : selectedIds.length > 0;
+    const canSubmit = Boolean(title && amount && startDate && hasTargets);
+
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={initialData ? "Edit Financial Structure" : "Create Financial Structure"}
+            title={initialData ? 'Edit Financial Structure' : 'Create Financial Structure'}
         >
             <form onSubmit={handleSubmit} className="space-y-6">
                 <p className="text-sm font-semibold text-muted-foreground">
-                    Structures define billing agreements and generated entries. <DocsLink href="/docs/finance#finance-structures">Read finance structure docs</DocsLink>
+                    Structures are reusable billing templates with target assignments. <DocsLink href="/docs/finance#finance-structures">Read finance structure docs</DocsLink>
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <Label>Target Type</Label>
                         <CustomSelect
                             value={targetType}
-                            onChange={(val) => { setTargetType(val as FinanceTargetType); setTargetId(''); }}
+                            onChange={handleTargetTypeChange}
                             options={[
-                                { value: FinanceTargetType.STUDENT, label: 'Student' },
-                                { value: FinanceTargetType.TEACHER, label: 'Teacher' }
+                                { value: FinanceTargetType.STUDENT, label: 'Student income' },
+                                { value: FinanceTargetType.TEACHER, label: 'Teacher expense' },
+                                { value: FinanceTargetType.OTHER_INCOME, label: 'Other income' },
+                                { value: FinanceTargetType.OTHER_EXPENSE, label: 'Other expense' },
                             ]}
                             disabled={!!initialData}
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label>Select {targetType === FinanceTargetType.STUDENT ? 'Student' : 'Teacher'}</Label>
+                        <Label>Assignment</Label>
                         <CustomSelect
-                            value={targetId}
-                            onChange={setTargetId}
-                            options={targetOptions}
-                            searchable
-                            placeholder={`Search ${targetType.toLowerCase()}...`}
-                            disabled={!!initialData}
-                            required
+                            value={assignmentSource}
+                            onChange={(value) => { setAssignmentSource(value as FinanceAssignmentSource); setSelectedIds([]); }}
+                            options={assignmentSourceOptions}
+                            disabled={!!initialData || isOtherTarget}
                         />
                     </div>
                 </div>
 
+                {isOtherTarget ? (
+                    <div className="space-y-2">
+                        <Label>Entity Name</Label>
+                        <Input required={!initialData} value={entityName} onChange={(event) => setEntityName(event.target.value)} placeholder="Vendor, donor, event, or income source" disabled={!!initialData} />
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        <Label>Select Targets</Label>
+                        <CustomMultiSelect
+                            values={selectedIds}
+                            onChange={setSelectedIds}
+                            options={assignmentOptions}
+                            placeholder="Choose one or more targets"
+                            disabled={!!initialData}
+                        />
+                    </div>
+                )}
+
                 <div className="space-y-2">
-                    <Label>Title (e.g. &quot;Monthly Tuition Fee&quot;)</Label>
-                    <Input required value={title} onChange={e => setTitle(e.target.value)} />
+                    <Label>Title</Label>
+                    <Input required value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Monthly tuition fee" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <Label>Category</Label>
-                        <CustomSelect value={category} onChange={(val) => setCategory(val as FinanceCategory)} options={categoryOptions} required />
+                        <CustomSelect value={category} onChange={(value) => setCategory(value as FinanceCategory)} options={categoryOptions} required />
                     </div>
                     <div className="space-y-2">
                         <Label>Amount</Label>
-                        <Input type="number" min={0} step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} />
-                        <p className="text-xs font-semibold text-muted-foreground">
-                            Enter the amount for this agreement. <DocsLink href="/docs/finance#structure-amounts">Amount details</DocsLink>
-                        </p>
+                        <Input type="number" min={0} step="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} />
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <Label>Billing Cycle</Label>
-                        <CustomSelect value={billingCycle} onChange={(val) => setBillingCycle(val as BillingCycle)} options={cycleOptions} required />
+                        <CustomSelect value={billingCycle} onChange={(value) => setBillingCycle(value as BillingCycle)} options={cycleOptions} required />
                     </div>
                     {billingCycle !== BillingCycle.ONCE && (
                         <div className="space-y-2">
                             <Label>Due Day (1-28)</Label>
-                            <Input type="number" min={1} max={28} value={dueDay} onChange={e => setDueDay(e.target.value ? Number(e.target.value) : '')} required />
+                            <Input type="number" min={1} max={28} value={dueDay} onChange={(event) => setDueDay(event.target.value ? Number(event.target.value) : '')} required />
                         </div>
                     )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <Label>Start Date</Label>
-                        <Input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} />
+                        <Input type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} />
                     </div>
                     <div className="space-y-2">
-                        <Label>End Date (Optional)</Label>
-                        <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                        <Label>End Date</Label>
+                        <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t">
+                <div className="flex justify-end gap-3 border-t border-border pt-4">
                     <Button variant="secondary" onClick={onClose} disabled={isSaving}>Cancel</Button>
-                    <Button type="submit" disabled={isSaving || !targetId}>
+                    <Button type="submit" disabled={isSaving || !canSubmit}>
                         {isSaving ? 'Saving...' : (initialData ? 'Save Changes' : 'Create Structure')}
                     </Button>
                 </div>

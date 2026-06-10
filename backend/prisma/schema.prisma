@@ -40,7 +40,9 @@ model Organization {
   academicCycles  AcademicCycle[]
   cohorts         Cohort[]
   financialStructures FinancialStructure[]
+  financialStructureAssignments FinancialStructureAssignment[]
   financialEntries    FinancialEntry[]
+  paymentClaims       PaymentClaim[]
   transactions        Transaction[]
   auditLogs           AuditLog[]
   gpaPolicies         GpaPolicy[]
@@ -82,6 +84,8 @@ model User {
   userNotifications     Notification[]     @relation("UserNotifications")
   createdAnnouncements  Announcement[]     @relation("CreatedAnnouncements")
   confirmedFinancialEntries FinancialEntry[] @relation("AdminConfirmations")
+  claimedPayments           PaymentClaim[]    @relation("PaymentClaimants")
+  reviewedPaymentClaims     PaymentClaim[]    @relation("PaymentClaimReviews")
   createdTransactions       Transaction[]    @relation("UserTransactions")
   pushSubscriptions         WebPushSubscription[]
   passwordResetTokens       PasswordResetToken[]
@@ -170,6 +174,7 @@ model Teacher {
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   sections         Section[]     @relation("SectionToTeacher")
   financialStructures FinancialStructure[]
+  financialStructureAssignments FinancialStructureAssignment[]
   financialEntries    FinancialEntry[]
 
   @@index([organizationId])
@@ -299,6 +304,7 @@ model Student {
   enrollmentHistories     EnrollmentHistory[]
   cohortMembershipHistories CohortMembershipHistory[]
   financialStructures FinancialStructure[]
+  financialStructureAssignments FinancialStructureAssignment[]
   financialEntries    FinancialEntry[]
 
   @@index([organizationId])
@@ -919,12 +925,34 @@ enum TransactionType {
   EXPENSE
 }
 
+enum FinanceTargetType {
+  STUDENT
+  TEACHER
+  OTHER_INCOME
+  OTHER_EXPENSE
+}
+
+enum FinanceAssignmentSource {
+  MANUAL
+  SECTION
+  COHORT
+  COURSE
+  OTHER
+}
+
+enum PaymentClaimStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
 model FinancialStructure {
   id              String           @id @default(uuid())
   organizationId  String
   title           String           // e.g. "Standard Tuition"
   description     String?
 
+  targetType      FinanceTargetType @default(STUDENT)
   studentId       String?
   teacherId       String?
 
@@ -948,18 +976,54 @@ model FinancialStructure {
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   student         Student?         @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacher         Teacher?         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  assignments     FinancialStructureAssignment[]
   entries         FinancialEntry[]
 
   @@index([organizationId])
+  @@index([targetType])
   @@index([studentId])
   @@index([teacherId])
   @@index([isActive])
+}
+
+model FinancialStructureAssignment {
+  id              String                  @id @default(uuid())
+  organizationId  String
+  structureId     String
+  targetType      FinanceTargetType
+  studentId       String?
+  teacherId       String?
+  entityName      String?
+  sourceType      FinanceAssignmentSource @default(MANUAL)
+  sourceId        String?
+  isActive        Boolean                 @default(true)
+  metadata        Json?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  structure       FinancialStructure      @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  student         Student?                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher         Teacher?                @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  entries         FinancialEntry[]
+
+  @@index([organizationId])
+  @@index([structureId])
+  @@index([targetType])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([sourceType])
+  @@index([isActive])
+  @@unique([structureId, studentId])
+  @@unique([structureId, teacherId])
+  @@unique([structureId, targetType, entityName])
 }
 
 model FinancialEntry {
   id                String             @id @default(uuid())
   organizationId    String
   structureId       String?
+  assignmentId      String?
 
   title             String             // e.g. "September Tuition"
   
@@ -995,14 +1059,48 @@ model FinancialEntry {
   student           Student?           @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacher           Teacher?           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   confirmedBy       User?              @relation("AdminConfirmations", fields: [confirmedById], references: [id])
+  assignment        FinancialStructureAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  claims            PaymentClaim[]
   transactions      Transaction[]
 
   @@index([organizationId])
+  @@index([assignmentId])
   @@index([studentId])
   @@index([teacherId])
   @@index([status])
   @@index([dueDate])
-  @@unique([structureId, periodStart, periodEnd])
+  @@unique([assignmentId, periodStart, periodEnd])
+}
+
+model PaymentClaim {
+  id              String             @id @default(uuid())
+  organizationId  String
+  entryId         String
+  claimedAmount   Float
+  paymentMethod   String?
+  referenceNumber String?
+  receiptUrl      String?
+  note            String?
+  status          PaymentClaimStatus @default(PENDING)
+  claimedById     String
+  claimedAt       DateTime           @default(now())
+  reviewedById    String?
+  reviewedAt      DateTime?
+  confirmedAmount Float?
+  rejectionReason String?
+  metadata        Json?
+
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entry           FinancialEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  claimedBy       User               @relation("PaymentClaimants", fields: [claimedById], references: [id])
+  reviewedBy      User?              @relation("PaymentClaimReviews", fields: [reviewedById], references: [id])
+
+  @@index([organizationId])
+  @@index([entryId])
+  @@index([claimedById])
+  @@index([reviewedById])
+  @@index([status])
+  @@index([claimedAt])
 }
 
 model Transaction {

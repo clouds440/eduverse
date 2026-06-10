@@ -96,6 +96,9 @@ export function DocsSearch({ compact, onNavigate, autoFocus, className, resultsM
                     </span>
                   </div>
                   <p className="mt-1 text-xs font-bold text-primary">{result.pageTitle}</p>
+                  <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-muted-foreground">
+                    {result.snippet}
+                  </p>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {result.tags.slice(0, 3).map((tag) => (
                       <span key={tag} className="text-[11px] font-bold text-muted-foreground">

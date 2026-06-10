@@ -2,21 +2,35 @@
 
 import React, { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { Plus, ReceiptText } from 'lucide-react';
+import { Filter, Plus, ReceiptText, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { FinancialStructure, Role } from '@/types';
+import { BillingCycle, FinanceAssignmentSource, FinanceCategory, FinancialStructure, FinanceTargetType, Role } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { ResourcePanel, ResourceToolbar } from '@/components/ui/PageShell';
+import { ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { useGlobal } from '@/context/GlobalContext';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { StructureModal } from './StructureModal';
+import { CustomSelect } from '@/components/ui/CustomSelect';
+import { Input } from '@/components/ui/Input';
+import { FinanceFilterGrid, FinanceFilterToolbar } from '../_components/FinanceFilterToolbar';
+
+function labelize(value: string) {
+    return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getAssignmentSummary(structure: FinancialStructure) {
+    const count = structure._count?.assignments ?? structure.assignments?.length ?? 0;
+    const sources = [...new Set((structure.assignments || []).map((assignment) => assignment.sourceType))];
+    const sourceLabel = sources.length === 0 ? 'No assignments' : sources.map(labelize).join(', ');
+    return `${count} ${count === 1 ? 'target' : 'targets'} • ${sourceLabel}`;
+}
 
 export default function StructuresPage() {
     const { token, user } = useAuth();
@@ -29,11 +43,24 @@ export default function StructuresPage() {
     const page = getNumberParam('page', 1);
     const sortBy = getStringParam('sortBy', 'title');
     const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
+    const targetType = getStringParam('targetType', '');
+    const category = getStringParam('category', '');
+    const billingCycle = getStringParam('billingCycle', '');
+    const assignmentSource = getStringParam('assignmentSource', '');
+    const isActive = getStringParam('isActive', '');
+    const search = getStringParam('search', '');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-finance-structures-limit', 10);
 
     const { data: structures, error, mutate, isLoading } = useSWR(
-        token ? ['finance/structures', token] : null,
-        ([, t]) => api.finance.getStructures(t as string)
+        token ? ['finance/structures', token, targetType, category, billingCycle, assignmentSource, isActive, search] : null,
+        ([, t]) => api.finance.getStructures(t as string, {
+            targetType: targetType || undefined,
+            category: category || undefined,
+            billingCycle: billingCycle || undefined,
+            assignmentSource: assignmentSource || undefined,
+            isActive: isActive || undefined,
+            search: search || undefined,
+        })
     );
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER;
@@ -79,11 +106,18 @@ export default function StructuresPage() {
                     <div className="min-w-0">
                         <p className="truncate text-sm font-black text-foreground">{structure.title}</p>
                         <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-                            {structure.studentId ? 'Student agreement' : 'Teacher agreement'}
+                            {getAssignmentSummary(structure)}
                         </p>
                     </div>
                 </div>
             ),
+        },
+        {
+            header: 'Target',
+            sortable: true,
+            sortKey: 'targetType',
+            badge: true,
+            accessor: (structure) => <Badge variant="neutral" size="sm">{labelize(structure.targetType)}</Badge>,
         },
         {
             header: 'Category',
@@ -145,6 +179,67 @@ export default function StructuresPage() {
         return sortedData.slice(start, start + pageSize);
     }, [page, pageSize, sortedData]);
 
+    const activeFilters: ActiveFilter[] = [
+        ...(targetType ? [{ key: 'targetType', label: 'Target', value: labelize(targetType), onRemove: () => updateQueryParams({ targetType: undefined, page: 1 }) }] : []),
+        ...(category ? [{ key: 'category', label: 'Category', value: labelize(category), onRemove: () => updateQueryParams({ category: undefined, page: 1 }) }] : []),
+        ...(billingCycle ? [{ key: 'billingCycle', label: 'Cycle', value: labelize(billingCycle), onRemove: () => updateQueryParams({ billingCycle: undefined, page: 1 }) }] : []),
+        ...(assignmentSource ? [{ key: 'assignmentSource', label: 'Source', value: labelize(assignmentSource), onRemove: () => updateQueryParams({ assignmentSource: undefined, page: 1 }) }] : []),
+        ...(isActive ? [{ key: 'isActive', label: 'Status', value: isActive === 'true' ? 'Active' : 'Inactive', onRemove: () => updateQueryParams({ isActive: undefined, page: 1 }) }] : []),
+        ...(search ? [{ key: 'search', label: 'Search', value: search, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
+    ];
+
+    const renderFilters = (mode: 'desktop' | 'mobile') => (
+        <FinanceFilterGrid mode={mode}>
+            <Input
+                icon={Search}
+                value={search}
+                onChange={(event) => updateQueryParams({ search: event.target.value || undefined, page: 1 })}
+                placeholder="Search structures"
+            />
+            <CustomSelect
+                value={targetType}
+                onChange={(value) => updateQueryParams({ targetType: value || undefined, page: 1 })}
+                options={[
+                    { value: '', label: 'All targets', icon: Filter },
+                    ...Object.values(FinanceTargetType).map((value) => ({ value, label: labelize(value) })),
+                ]}
+            />
+            <CustomSelect
+                value={category}
+                onChange={(value) => updateQueryParams({ category: value || undefined, page: 1 })}
+                options={[
+                    { value: '', label: 'All categories' },
+                    ...Object.values(FinanceCategory).map((value) => ({ value, label: labelize(value) })),
+                ]}
+            />
+            <CustomSelect
+                value={billingCycle}
+                onChange={(value) => updateQueryParams({ billingCycle: value || undefined, page: 1 })}
+                options={[
+                    { value: '', label: 'All cycles' },
+                    ...Object.values(BillingCycle).map((value) => ({ value, label: labelize(value) })),
+                ]}
+            />
+            <CustomSelect
+                value={assignmentSource}
+                onChange={(value) => updateQueryParams({ assignmentSource: value || undefined, page: 1 })}
+                options={[
+                    { value: '', label: 'All sources' },
+                    ...Object.values(FinanceAssignmentSource).map((value) => ({ value, label: labelize(value) })),
+                ]}
+            />
+            <CustomSelect
+                value={isActive}
+                onChange={(value) => updateQueryParams({ isActive: value || undefined, page: 1 })}
+                options={[
+                    { value: '', label: 'Any status' },
+                    { value: 'true', label: 'Active' },
+                    { value: 'false', label: 'Inactive' },
+                ]}
+            />
+        </FinanceFilterGrid>
+    );
+
     if (error) {
         return (
             <ErrorState
@@ -158,12 +253,15 @@ export default function StructuresPage() {
 
     return (
         <ResourcePanel>
-            <ResourceToolbar
+            <FinanceFilterToolbar
+                drawerLabel="Structure filters"
+                renderFilters={renderFilters}
+                activeFilters={activeFilters}
                 actions={isManagement && (
                     <Button
                         onClick={() => openStructureModal(null)}
                         icon={Plus}
-                        className="shrink-0"
+                        className="min-h-10 w-full shrink-0 sm:w-auto"
                     >
                         Create Structure
                     </Button>
