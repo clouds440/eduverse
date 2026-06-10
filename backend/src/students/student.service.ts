@@ -74,6 +74,37 @@ export class StudentService {
     return Array.from(new Set(sectionIds || [])).filter(Boolean);
   }
 
+  private async validateGuardianAssignment(
+    tx: Prisma.TransactionClient,
+    orgId: string,
+    guardianId?: string | null,
+    guardianRelationship?: string | null,
+  ) {
+    if (!guardianId) {
+      return { guardianId: null, guardianRelationship: null };
+    }
+
+    const relationship = guardianRelationship?.trim();
+    if (!relationship) {
+      throw new BadRequestException(
+        'Guardian relationship is required when assigning a guardian',
+      );
+    }
+
+    const guardian = await tx.guardianProfile.findFirst({
+      where: { id: guardianId, organizationId: orgId },
+      select: { id: true },
+    });
+
+    if (!guardian) {
+      throw new BadRequestException(
+        'Guardian must belong to the same organization',
+      );
+    }
+
+    return { guardianId: guardian.id, guardianRelationship: relationship };
+  }
+
   private async getCohortForEnrollment(
     tx: Prisma.TransactionClient,
     orgId: string,
@@ -358,6 +389,13 @@ export class StudentService {
             },
           },
           cohort: true,
+          guardian: {
+            include: {
+              user: {
+                select: { id: true, name: true, email: true, phone: true },
+              },
+            },
+          },
           enrollments: {
             include: {
               section: {
@@ -403,6 +441,13 @@ export class StudentService {
                 course: true,
                 teachers: { include: { user: true } },
               },
+            },
+          },
+        },
+        guardian: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, phone: true },
             },
           },
         },
@@ -471,10 +516,19 @@ export class StudentService {
             gender: data.gender,
             status: data.status as unknown as StudentStatus,
             cohortId: data.cohortId || null,
+            ...(data.guardianId
+              ? await this.validateGuardianAssignment(
+                  prisma,
+                  orgId,
+                  data.guardianId,
+                  data.guardianRelationship,
+                )
+              : {}),
             updatedBy: userContext.name || userContext.email,
           },
           include: {
             user: { select: { email: true, name: true, phone: true } },
+            guardian: { include: { user: { select: { id: true, name: true, email: true, phone: true } } } },
             enrollments: { include: { section: true } },
           },
         });
@@ -490,6 +544,7 @@ export class StudentService {
           include: {
             user: { select: { email: true, name: true, phone: true } },
             cohort: { select: { id: true, name: true } },
+            guardian: { include: { user: { select: { id: true, name: true, email: true, phone: true } } } },
             enrollments: { include: { section: true } },
           },
         });
@@ -545,6 +600,8 @@ export class StudentService {
       'gender',
       'status',
       'cohortId',
+      'guardianId',
+      'guardianRelationship',
     ];
 
     const { userData, entityData: studentData } = await extractUpdateFields(
@@ -606,13 +663,36 @@ export class StudentService {
         ? data.cohortId
         : undefined;
 
+    const nextGuardianId = data.guardianId === ''
+      ? null
+      : data.guardianId !== undefined
+        ? data.guardianId
+        : undefined;
+
     if (data.cohortId === '') {
       studentData.cohortId = null;
+    }
+
+    if (data.guardianId === '') {
+      studentData.guardianId = null;
+      studentData.guardianRelationship = null;
     }
 
     const updatedStudent = await this.prisma.$transaction(async (tx) => {
       if (Object.keys(userData).length > 0) {
         await this.userService.updateUser(student.userId, userData, tx);
+      }
+
+      if (nextGuardianId !== undefined) {
+        Object.assign(
+          studentData,
+          await this.validateGuardianAssignment(
+            tx,
+            orgId,
+            nextGuardianId,
+            data.guardianRelationship,
+          ),
+        );
       }
 
       if (Object.keys(studentData).length > 0) {
@@ -687,6 +767,7 @@ export class StudentService {
             },
           },
           cohort: { select: { id: true, name: true } },
+          guardian: { include: { user: { select: { id: true, name: true, email: true, phone: true } } } },
           enrollments: { include: { section: true } },
         },
       });

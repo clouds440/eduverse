@@ -102,4 +102,12 @@ export class CreateStudentDto {
   @IsString()
   @IsOptional()
   cohortId?: string;
+
+  @IsString()
+  @IsOptional()
+  guardianId?: string;
+
+  @IsString()
+  @IsOptional()
+  guardianRelationship?: string;
 }

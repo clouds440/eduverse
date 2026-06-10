@@ -6,10 +6,10 @@ import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, CalendarClock } from 'lucide-react';
+import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, CalendarClock, UserRoundCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
-import { Section, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, Cohort, AcademicCycle } from '@/types';
+import { Section, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, Cohort, AcademicCycle, GuardianProfile } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -69,6 +69,8 @@ function getStudentDefaults(initialData?: Student) {
         bloodGroup: initialData.bloodGroup || '',
         address: initialData.address || '',
         cohortId: initialData.cohortId || '',
+        guardianId: initialData.guardianId || '',
+        guardianRelationship: initialData.guardianRelationship || '',
     } : {
         name: '',
         email: '',
@@ -89,6 +91,8 @@ function getStudentDefaults(initialData?: Student) {
         bloodGroup: '',
         address: '',
         cohortId: '',
+        guardianId: '',
+        guardianRelationship: '',
     };
 }
 
@@ -133,6 +137,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     const watchedSectionIds = useWatch({ control, name: 'sectionIds' }) as string[] | undefined;
     const watchedCohortId = useWatch({ control, name: 'cohortId' }) as string | undefined;
     const watchedGender = useWatch({ control, name: 'gender' }) as string | undefined;
+    const watchedGuardianId = useWatch({ control, name: 'guardianId' }) as string | undefined;
 
     const { data: sectionsData } = useSWR<{ data: Section[] }>(token ? ['sections', { limit: 1000 }] as const : null);
     const { data: cohortsData } = useSWR<{ data: (Cohort & { academicCycle?: AcademicCycle })[] }>(token ? ['cohorts', { limit: 500 }] as const : null);
@@ -154,6 +159,20 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     const identityLocked = isProfile || isWatchMode;
     const registrationLocked = isProfile || isWatchMode || (!!studentId && currentUser?.role !== Role.ORG_ADMIN);
     const currentUserAvatarUrl = isProfile ? currentUser?.avatarUrl : '';
+    const canManageGuardianLink = !isProfile && !isWatchMode && (currentUser?.role === Role.ORG_ADMIN || currentUser?.role === Role.ORG_MANAGER);
+
+    const { data: guardians = [] } = useSWR<GuardianProfile[]>(
+        token && canManageGuardianLink ? ['guardians', token] as const : null,
+        ([, t]) => api.org.getGuardians(t as string)
+    );
+
+    const guardianOptions = useMemo(() => [
+        { label: 'No Guardian', value: '' },
+        ...guardians.map(guardian => ({
+            value: guardian.id,
+            label: `${guardian.user?.name || guardian.user?.email || 'Guardian'}${guardian.relationshipLabel ? ` (${guardian.relationshipLabel})` : ''}`,
+        })),
+    ], [guardians]);
 
     const handleStatusChange = useCallback((value: string) => {
         if (isProfile || isWatchMode) return;
@@ -178,6 +197,13 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
         setValue('gender', value);
         trigger('gender');
     }, [isProfile, isWatchMode, setValue, trigger]);
+
+    const handleGuardianChange = useCallback((value: string) => {
+        if (!canManageGuardianLink) return;
+        setValue('guardianId', value);
+        if (!value) setValue('guardianRelationship', '');
+        trigger(['guardianId', 'guardianRelationship']);
+    }, [canManageGuardianLink, setValue, trigger]);
 
     const handlePhotoReady = useCallback((file: File) => {
         setPendingPhoto(file);
@@ -460,6 +486,33 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                             className={isWatchMode ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
                         />
                     </FormField>
+
+                    {canManageGuardianLink && (
+                        <FormField label="Linked Guardian" error={errors.guardianId?.message}>
+                            <CustomSelect
+                                options={guardianOptions}
+                                value={watchedGuardianId || ''}
+                                onChange={handleGuardianChange}
+                                error={!!errors.guardianId}
+                                disabled={false}
+                                icon={UserRoundCheck}
+                                placeholder="Select guardian"
+                            />
+                        </FormField>
+                    )}
+
+                    {canManageGuardianLink && watchedGuardianId && (
+                        <FormField label="Relationship" error={errors.guardianRelationship?.message}>
+                            <Input
+                                type="text"
+                                {...register('guardianRelationship')}
+                                error={!!errors.guardianRelationship}
+                                icon={Users}
+                                placeholder="Father, Uncle, Grandparent"
+                                className={FORM_INPUT_CLASS}
+                            />
+                        </FormField>
+                    )}
 
                     <FormField label="Current Age" error={errors.age?.message}>
                         <Input

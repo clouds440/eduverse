@@ -29,6 +29,7 @@ model Organization {
   courses         Course[]
   students        Student[]
   teachers        Teacher[]
+  guardians       GuardianProfile[]
   users           User[]
   assessments     Assessment[]
   mails           Mail[]
@@ -68,6 +69,7 @@ model User {
   avatarUpdatedAt       DateTime?
   studentProfile        Student?
   teacherProfile        Teacher?
+  guardianProfile       GuardianProfile?
   organization          Organization?      @relation(fields: [organizationId], references: [id])
   sessions             Session[]
   createdMails         Mail[]         @relation("CreatedMails")
@@ -180,6 +182,23 @@ model Teacher {
   @@index([organizationId])
 }
 
+model GuardianProfile {
+  id             String       @id @default(uuid())
+  userId         String       @unique
+  organizationId String
+  phone          String?
+  address        String?
+  relationshipLabel String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  students       Student[]
+
+  @@index([organizationId])
+}
+
 model Course {
   id             String       @id @default(uuid())
   name           String
@@ -278,6 +297,8 @@ model Student {
   userId             String        @unique
   organizationId     String
   cohortId           String?
+  guardianId         String?
+  guardianRelationship String?
   registrationNumber String        @default("TEMP_ID")
   rollNumber         String        @default("TEMP_ROLL")
   fatherName         String?
@@ -298,6 +319,7 @@ model Student {
   organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   cohort             Cohort?       @relation(fields: [cohortId], references: [id])
+  guardian           GuardianProfile? @relation(fields: [guardianId], references: [id], onDelete: SetNull)
   grades             Grade[]
   submissions        Submission[]
   attendanceRecords  AttendanceRecord[]
@@ -309,6 +331,7 @@ model Student {
 
   @@index([organizationId])
   @@index([cohortId])
+  @@index([guardianId])
 }
 
 model Assessment {
@@ -482,10 +505,13 @@ model File {
 enum Role {
   SUPER_ADMIN
   ORG_ADMIN
+  SUB_ADMIN
   TEACHER
   STUDENT
+  GUARDIAN
   PLATFORM_ADMIN
   ORG_MANAGER
+  FINANCE_MANAGER
 }
 
 enum OrgStatus {

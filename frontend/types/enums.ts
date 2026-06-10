@@ -2,9 +2,12 @@ export enum Role {
     SUPER_ADMIN = 'SUPER_ADMIN',
     PLATFORM_ADMIN = 'PLATFORM_ADMIN',
     ORG_ADMIN = 'ORG_ADMIN',
+    SUB_ADMIN = 'SUB_ADMIN',
     ORG_MANAGER = 'ORG_MANAGER',
+    FINANCE_MANAGER = 'FINANCE_MANAGER',
     TEACHER = 'TEACHER',
     STUDENT = 'STUDENT',
+    GUARDIAN = 'GUARDIAN',
 }
 
 export enum OrgStatus {

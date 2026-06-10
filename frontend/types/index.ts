@@ -40,6 +40,19 @@ export interface Teacher {
     sections?: Section[];
 }
 
+export interface GuardianProfile {
+    id: string;
+    userId: string;
+    organizationId: string;
+    phone?: string | null;
+    address?: string | null;
+    relationshipLabel?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+    user: User;
+    students?: Student[];
+}
+
 export interface Course {
     id: string;
     name: string;
@@ -92,6 +105,9 @@ export interface Student {
     updatedBy?: string;
     cohortId?: string | null;
     cohort?: Cohort;
+    guardianId?: string | null;
+    guardianRelationship?: string | null;
+    guardian?: GuardianProfile | null;
 }
 
 export interface Attachment {
@@ -413,9 +429,20 @@ export interface CreateStudentRequest {
     status?: StudentStatus;
     sectionIds?: string[];
     cohortId?: string | null;
+    guardianId?: string | null;
+    guardianRelationship?: string | null;
 }
 
 export type UpdateStudentRequest = Partial<CreateStudentRequest>;
+
+export interface CreateGuardianRequest {
+    name: string;
+    email: string;
+    password: string;
+    phone?: string | null;
+    address?: string | null;
+    relationshipLabel?: string | null;
+}
 
 export interface CreateSectionRequest {
     name: string;

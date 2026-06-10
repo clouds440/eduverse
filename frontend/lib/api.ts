@@ -2,6 +2,7 @@ import type {
     Teacher, Student, Organization, RegisterRequest, LoginRequest, AuthResponse,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateStudentRequest, UpdateStudentRequest,
+    CreateGuardianRequest, GuardianProfile,
     CreateSectionRequest, UpdateSectionRequest, CreateCourseRequest, UpdateCourseRequest,
     PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload,
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
@@ -315,6 +316,13 @@ export const api = {
             request<{ message: string }>(`/org/students/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ status }), token }),
         deleteStudent: (id: string, token: string) =>
             request<void>(`/org/students/${id}`, { method: 'DELETE', token }),
+
+        getGuardians: (token: string, params: { search?: string } = {}) =>
+            request<GuardianProfile[]>(`/org/guardians${buildQueryString(params)}`, { token }),
+        getGuardian: (id: string, token: string) =>
+            request<GuardianProfile>(`/org/guardians/${id}`, { token }),
+        createGuardian: (data: CreateGuardianRequest, token: string) =>
+            request<GuardianProfile>('/org/guardians', { method: 'POST', body: JSON.stringify(data), token }),
 
         getSection: (id: string, token: string) =>
             request<Section>(`/org/sections/${id}`, { token }),
