@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { UserPlus } from 'lucide-react';
 import { Role } from '@/types';
 import TeacherForm from '@/components/forms/TeacherForm';
@@ -11,6 +11,8 @@ import { FormPageHeader, FormPageShell } from '@/components/ui/FormLayout';
 export default function AddTeacherPage() {
     const { user } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const defaultManager = searchParams.get('role') === 'manager';
 
     useEffect(() => {
         if (user && user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN) {
@@ -21,11 +23,11 @@ export default function AddTeacherPage() {
     return (
         <FormPageShell>
             <FormPageHeader
-                title="Add Faculty Member"
-                description="Create a new teacher account for your organization."
+                title={defaultManager ? 'Add Manager' : 'Add Faculty Member'}
+                description={defaultManager ? 'Create an academic manager account for your organization.' : 'Create a new teacher account for your organization.'}
                 icon={UserPlus}
             />
-            <TeacherForm />
+            <TeacherForm defaultManager={defaultManager} />
         </FormPageShell>
     );
 }

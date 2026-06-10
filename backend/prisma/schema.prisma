@@ -374,6 +374,11 @@ model Grade {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   updatedBy       String? // userId
+  finalizedById   String?
+  finalizedAt     DateTime?
+  lastCorrectedById String?
+  lastCorrectedAt DateTime?
+  correctionReason String?
   assessment      Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   student         Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   academicCycle   AcademicCycle? @relation(fields: [academicCycleId], references: [id])

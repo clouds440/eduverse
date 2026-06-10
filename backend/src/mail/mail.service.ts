@@ -16,13 +16,23 @@ import {
 import { CreateMailDto } from './dto/create-mail.dto';
 import { UpdateMailDto } from './dto/update-mail.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { MailUser } from './interfaces/mail-user.interface';
 
 /** Maximum active (non-resolved/closed) mails per user */
 const MAX_ACTIVE_MAILS = 10;
 
 /** Roles that can manage (view all, assign, change status) mails */
 const ADMIN_ROLES = new Set([Role.SUPER_ADMIN, Role.PLATFORM_ADMIN]);
-import { MailUser } from './interfaces/mail-user.interface';
+const ORG_OPERATIONAL_ROLES = new Set([Role.ORG_ADMIN, Role.SUB_ADMIN]);
+const FINANCE_MAIL_CATEGORIES = new Set([
+  'BILLING',
+  'PAYMENT',
+  'PAYMENT_CLAIM',
+  'FEES',
+  'FINANCE',
+  'GENERAL_INQUIRY',
+  'OTHER',
+]);
 
 export interface ContactTarget {
   id: string;
@@ -71,9 +81,7 @@ export class MailService {
       }
     }
 
-    if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Students are not allowed to submit mails.');
-    }
+    await this.validateMailRecipients(dto, user);
 
     // --- Role-based Messaging Restrictions ---
     if (user.role === Role.ORG_MANAGER) {
@@ -250,6 +258,79 @@ export class MailService {
     return transformed;
   }
 
+  private async validateMailRecipients(dto: CreateMailDto, user: MailUser) {
+    if (user.role === Role.STUDENT) {
+      throw new ForbiddenException('Students are not allowed to submit mails.');
+    }
+
+    const recipientRoles = new Set<string>();
+    if (dto.targetRole) recipientRoles.add(dto.targetRole);
+
+    if (dto.assigneeIds?.length) {
+      const recipients = await this.prisma.user.findMany({
+        where: { id: { in: dto.assigneeIds } },
+        select: { id: true, role: true, organizationId: true },
+      });
+
+      if (recipients.length !== dto.assigneeIds.length) {
+        throw new BadRequestException('One or more recipients were not found.');
+      }
+
+      if (
+        user.organizationId &&
+        recipients.some(
+          (recipient) =>
+            recipient.organizationId !== user.organizationId &&
+            recipient.role !== Role.PLATFORM_ADMIN &&
+            recipient.role !== Role.SUPER_ADMIN,
+        )
+      ) {
+        throw new ForbiddenException('Cannot send mail outside your organization.');
+      }
+
+      recipients.forEach((recipient) => recipientRoles.add(recipient.role));
+    }
+
+    if (user.role === Role.GUARDIAN) {
+      const allowedRoles = new Set<string>([
+        Role.ORG_ADMIN,
+        Role.SUB_ADMIN,
+        Role.FINANCE_MANAGER,
+        Role.PLATFORM_ADMIN,
+        Role.SUPER_ADMIN,
+      ]);
+      if ([...recipientRoles].some((role) => !allowedRoles.has(role))) {
+        throw new ForbiddenException(
+          'Guardians can only contact school administration, finance, or platform support.',
+        );
+      }
+    }
+
+    if (user.role === Role.FINANCE_MANAGER) {
+      if (dto.targetRole) {
+        throw new ForbiddenException(
+          'Finance Managers can only send mail to selected individual recipients.',
+        );
+      }
+      const allowedRoles = new Set<string>([
+        Role.ORG_ADMIN,
+        Role.SUB_ADMIN,
+        Role.STUDENT,
+        Role.GUARDIAN,
+      ]);
+      if ([...recipientRoles].some((role) => !allowedRoles.has(role))) {
+        throw new ForbiddenException(
+          'Finance Managers can only mail students, guardians, Admins, or Sub Admins.',
+        );
+      }
+      if (!FINANCE_MAIL_CATEGORIES.has(dto.category)) {
+        throw new ForbiddenException(
+          'Finance Managers can only send finance-related mail.',
+        );
+      }
+    }
+  }
+
   // ───────────────────────────────── List ──────────────────────────────────
 
   async getMails(
@@ -297,8 +378,8 @@ export class MailService {
                   { assigneeId: user.id },
                   { assignees: { some: { id: user.id } } },
                   { targetRole: user.role as Role },
-                  // Organization admins see all mails in their Org
-                  ...(user.role === Role.ORG_ADMIN
+                  // Organization admins and sub admins see all mails in their Org
+                  ...(user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN
                     ? [{ organizationId: user.organizationId }]
                     : []),
                   // Staff see mails targeted to ORG_STAFF
@@ -608,7 +689,10 @@ export class MailService {
     }
 
     // Permission check: creator, assignee (single or M2M), target role, or admin
-    const isAdmin = ADMIN_ROLES.has(user.role as Role);
+    const isAdmin =
+      ADMIN_ROLES.has(user.role as Role) ||
+      (ORG_OPERATIONAL_ROLES.has(user.role as Role) &&
+        mail.organizationId === user.organizationId);
     const isCreator = mail.creatorId === user.id;
     const isSingleAssignee = mail.assigneeId === user.id;
     const isM2MAssignee =
@@ -646,7 +730,10 @@ export class MailService {
     }
 
     // Permission: only admins or the assignee can update
-    const isAdmin = ADMIN_ROLES.has(user.role as Role);
+    const isAdmin =
+      ADMIN_ROLES.has(user.role as Role) ||
+      (ORG_OPERATIONAL_ROLES.has(user.role as Role) &&
+        existing.organizationId === user.organizationId);
     const isAssignee = existing.assigneeId === user.id;
     const isCreator = existing.creatorId === user.id;
 
@@ -809,12 +896,22 @@ export class MailService {
       );
     }
 
-    // Permission: creator, assignee, or admin
-    const isAdmin = ADMIN_ROLES.has(user.role as Role);
+    // Permission: creator, assignee, target role, or admin
+    const isAdmin =
+      ADMIN_ROLES.has(user.role as Role) ||
+      (ORG_OPERATIONAL_ROLES.has(user.role as Role) &&
+        mail.organizationId === user.organizationId);
     const isCreator = mail.creatorId === user.id;
     const isAssignee = mail.assigneeId === user.id;
+    const isM2MAssignee = (await this.prisma.mail.count({
+      where: { id: mailId, assignees: { some: { id: user.id } } },
+    })) > 0;
+    const isTargetRole =
+      mail.targetRole === user.role ||
+      (mail.targetRole === 'ORG_STAFF' &&
+        (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER));
 
-    if (!isAdmin && !isCreator && !isAssignee) {
+    if (!isAdmin && !isCreator && !isAssignee && !isM2MAssignee && !isTargetRole) {
       throw new ForbiddenException(
         'You do not have permission to reply to this mail',
       );
@@ -1001,8 +1098,8 @@ export class MailService {
         role: Role.ORG_ADMIN,
       });
       await addUsers({ role: { in: [Role.SUPER_ADMIN, Role.ORG_ADMIN] } });
-    } else if (role === Role.ORG_ADMIN || role === Role.ORG_MANAGER) {
-      // Org Admin/Manager -> All/Single Teachers, All/Single Managers, All Employees, PLUS PLATFORM ADMIN
+    } else if (role === Role.ORG_ADMIN || role === Role.SUB_ADMIN) {
+      // Org Admin/Sub Admin -> operational org contacts plus platform support.
       targets.push({
         id: `ROLE:${Role.PLATFORM_ADMIN}`,
         label: 'Platform Administrative Team',
@@ -1022,29 +1119,58 @@ export class MailService {
         role: Role.ORG_MANAGER,
       });
       targets.push({
+        id: `ROLE:${Role.FINANCE_MANAGER}`,
+        label: 'All Finance Managers',
+        type: 'ROLE',
+        role: Role.FINANCE_MANAGER,
+      });
+      targets.push({
         id: `ROLE:ORG_STAFF`,
         label: 'All Employees (Teachers & Managers)',
         type: 'ROLE',
         role: 'ORG_STAFF',
       });
 
-      if (role === Role.ORG_MANAGER) {
-        // Org Manager can also contact Org Admin
-        await addUsers({
-          organizationId: user.organizationId,
-          role: Role.ORG_ADMIN,
-        });
-      }
-
       await addUsers({
         organizationId: user.organizationId,
-        role: { in: [Role.TEACHER, Role.ORG_MANAGER] },
+        role: {
+          in: [
+            Role.ORG_ADMIN,
+            Role.SUB_ADMIN,
+            Role.ORG_MANAGER,
+            Role.FINANCE_MANAGER,
+            Role.TEACHER,
+            Role.STUDENT,
+            Role.GUARDIAN,
+          ],
+        },
+      });
+    } else if (role === Role.ORG_MANAGER) {
+      await addUsers({
+        organizationId: user.organizationId,
+        role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER] },
       });
     } else if (role === Role.TEACHER) {
       // Teachers -> Single Org Manager, Single Fellow Teacher
       await addUsers({
         organizationId: user.organizationId,
-        role: { in: [Role.ORG_MANAGER, Role.TEACHER] },
+        role: { in: [Role.ORG_MANAGER, Role.SUB_ADMIN, Role.TEACHER] },
+      });
+    } else if (role === Role.FINANCE_MANAGER) {
+      await addUsers({
+        organizationId: user.organizationId,
+        role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.STUDENT, Role.GUARDIAN] },
+      });
+    } else if (role === Role.GUARDIAN) {
+      targets.push({
+        id: `ROLE:${Role.PLATFORM_ADMIN}`,
+        label: 'Platform Administrative Team',
+        type: 'ROLE',
+        role: Role.PLATFORM_ADMIN,
+      });
+      await addUsers({
+        organizationId: user.organizationId,
+        role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER] },
       });
     }
 
@@ -1099,8 +1225,8 @@ export class MailService {
               { assignees: { some: { id: user.id } } },
               { targetRole: user.role as Role },
               ...(isOrgStaff ? [{ targetRole: 'ORG_STAFF' as Role }] : []),
-              // Org admins see everything in their org
-              ...(user.role === Role.ORG_ADMIN
+              // Org admins and sub admins see everything in their org
+              ...(user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN
                 ? [{ organizationId: user.organizationId }]
                 : []),
             ],

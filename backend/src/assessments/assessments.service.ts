@@ -352,6 +352,13 @@ export class AssessmentsService {
       );
     }
 
+    const isCorrectingFinalizedGrade = grade?.status === GradeStatus.FINALIZED;
+    if (isCorrectingFinalizedGrade && !data.correctionReason?.trim()) {
+      throw new BadRequestException(
+        'A correction reason is required when updating finalized grades',
+      );
+    }
+
     if (
       data.status === GradeStatus.FINALIZED &&
       userRole !== Role.ORG_ADMIN &&
@@ -378,6 +385,10 @@ export class AssessmentsService {
       );
     }
 
+    const now = new Date();
+    const isDirectFinalization =
+      data.status === GradeStatus.FINALIZED && grade?.status !== GradeStatus.FINALIZED;
+
     const result = await this.prisma.grade.upsert({
       where: { assessmentId_studentId: { assessmentId, studentId } },
       create: {
@@ -388,12 +399,25 @@ export class AssessmentsService {
         status: data.status || 'DRAFT',
         updatedBy: userId,
         academicCycleId: assessment.academicCycleId,
+        ...(data.status === GradeStatus.FINALIZED
+          ? { finalizedById: userId, finalizedAt: now }
+          : {}),
       },
       update: {
         marksObtained: data.marksObtained,
         feedback: data.feedback,
         status: data.status,
         updatedBy: userId,
+        ...(isDirectFinalization
+          ? { finalizedById: userId, finalizedAt: now }
+          : {}),
+        ...(isCorrectingFinalizedGrade
+          ? {
+              lastCorrectedById: userId,
+              lastCorrectedAt: now,
+              correctionReason: data.correctionReason?.trim(),
+            }
+          : {}),
       },
     });
 
@@ -506,7 +530,12 @@ export class AssessmentsService {
 
     return this.prisma.grade.updateMany({
       where: { assessmentId, assessment: { organizationId: orgId } },
-      data: { status: 'FINALIZED', updatedBy: user.id },
+      data: {
+        status: 'FINALIZED',
+        updatedBy: user.id,
+        finalizedById: user.id,
+        finalizedAt: new Date(),
+      },
     });
   }
 
@@ -574,6 +603,11 @@ export class AssessmentsService {
             status: true,
             updatedAt: true,
             updatedBy: true,
+            finalizedById: true,
+            finalizedAt: true,
+            lastCorrectedById: true,
+            lastCorrectedAt: true,
+            correctionReason: true,
           },
         },
       },
@@ -583,7 +617,13 @@ export class AssessmentsService {
     const updatedByIds = [
       ...new Set(
         assessments
-          .flatMap((assessment) => assessment.grades.map((grade) => grade.updatedBy))
+          .flatMap((assessment) =>
+            assessment.grades.flatMap((grade) => [
+              grade.updatedBy,
+              grade.finalizedById,
+              grade.lastCorrectedById,
+            ]),
+          )
           .filter((id): id is string => Boolean(id)),
       ),
     ];
@@ -616,6 +656,21 @@ export class AssessmentsService {
       const latestGrade = relevantGrades
         .slice()
         .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
+      const latestFinalizedGrade = relevantGrades
+        .filter((grade) => grade.finalizedAt)
+        .slice()
+        .sort(
+          (a, b) =>
+            (b.finalizedAt?.getTime() || 0) - (a.finalizedAt?.getTime() || 0),
+        )[0];
+      const latestCorrectedGrade = relevantGrades
+        .filter((grade) => grade.lastCorrectedAt)
+        .slice()
+        .sort(
+          (a, b) =>
+            (b.lastCorrectedAt?.getTime() || 0) -
+            (a.lastCorrectedAt?.getTime() || 0),
+        )[0];
 
       let status: GradeFinalizationStatus = 'DRAFT';
       if (totalStudents > 0 && finalizedCount === totalStudents) {
@@ -666,6 +721,17 @@ export class AssessmentsService {
           ? updatedByName.get(latestGrade.updatedBy) || latestGrade.updatedBy
           : null,
         lastUpdatedAt: latestGrade?.updatedAt || null,
+        finalizedBy: latestFinalizedGrade?.finalizedById
+          ? updatedByName.get(latestFinalizedGrade.finalizedById) ||
+            latestFinalizedGrade.finalizedById
+          : null,
+        finalizedAt: latestFinalizedGrade?.finalizedAt || null,
+        lastCorrectedBy: latestCorrectedGrade?.lastCorrectedById
+          ? updatedByName.get(latestCorrectedGrade.lastCorrectedById) ||
+            latestCorrectedGrade.lastCorrectedById
+          : null,
+        lastCorrectedAt: latestCorrectedGrade?.lastCorrectedAt || null,
+        correctionReason: latestCorrectedGrade?.correctionReason || null,
       };
     });
 

@@ -212,6 +212,7 @@ export const gradeSchema = z.object({
         .refine((val) => isAllowedGradeMarks(Number(val)), `Use 0 or at least ${MIN_GRADE_MARKS}`),
     feedback: z.string().optional().or(z.literal('')),
     status: z.nativeEnum(GradeStatus).optional(),
+    correctionReason: z.string().optional().or(z.literal('')),
 });
 
 export type GradeFormData = z.infer<typeof gradeSchema>;

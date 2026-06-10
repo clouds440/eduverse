@@ -104,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         router.replace('/admin');
                     } else {
                         if (user.role === Role.STUDENT) router.replace(`/students/${user.id}`);
+                        else if (user.role === Role.GUARDIAN) router.replace('/guardian');
                         else if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) router.replace(`/teachers/${user.id}`);
                         else if (user.role === Role.FINANCE_MANAGER) router.replace('/finance');
                         else if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) router.replace('/overview');
@@ -145,10 +146,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             router.replace(`/students/${user.id}`);
                             return;
                         }
+                    } else if (user.role === Role.GUARDIAN) {
+                        const isAllowedShared = ['guardian', 'chat', 'mail', 'change-password', 'contact'].includes(pathSegments[1]);
+                        if (!isAllowedShared) {
+                            dispatch({ type: 'TOAST_ADD', payload: { message: 'Access Denied.', type: 'error' } });
+                            router.replace('/guardian');
+                            return;
+                        }
                     } else if (user.role === Role.SUB_ADMIN) {
                         const isMainAdminOnlyPage = ['sub-admins', 'settings'].includes(pathSegments[1]);
                         const isAllowedShared = [
                             'overview',
+                            'users',
                             'courses',
                             'academic-cycles',
                             'cohorts',
@@ -189,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const isTeacherManagementPage = pathSegments[1] === 'teachers' && (!pathSegments[2] || pathSegments[2] === 'add' || pathSegments[2] === 'edit');
                         const isStudentManagementPage = pathSegments[1] === 'students' && pathSegments[2] === 'add';
                         const isSectionManagementPage = pathSegments[1] === 'sections' && (pathSegments[2] === 'create' || pathSegments[2] === 'edit');
-                        const isOrgManagementPage = ['courses', 'academic-cycles', 'cohorts', 'promotions', 'schedules', 'sub-admins', 'finance-managers'].includes(pathSegments[1]);
+                        const isOrgManagementPage = ['users', 'courses', 'academic-cycles', 'cohorts', 'promotions', 'schedules', 'sub-admins', 'finance-managers'].includes(pathSegments[1]);
                         if (isSettingsPage) {
                             // Settings page handles its own redirect, no toast needed
                             router.replace(`/teachers/${user.id}/profile`);
@@ -235,6 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             case Role.ORG_MANAGER: document.title = `${user.name || 'Manager'} – ${orgSuffix}`; break;
             case Role.TEACHER: document.title = `${user.name || 'Teacher'} – ${orgSuffix}`; break;
             case Role.STUDENT: document.title = `${user.name || 'Student'} – ${orgSuffix}`; break;
+            case Role.GUARDIAN: document.title = `${user.name || 'Guardian'} – ${orgSuffix}`; break;
             default: document.title = orgSuffix;
         }
     }, [user, loading, pathname]);

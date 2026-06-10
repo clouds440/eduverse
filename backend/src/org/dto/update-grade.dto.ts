@@ -13,4 +13,8 @@ export class UpdateGradeDto {
   @IsEnum(GradeStatus)
   @IsOptional()
   status?: GradeStatus;
+
+  @IsString()
+  @IsOptional()
+  correctionReason?: string;
 }

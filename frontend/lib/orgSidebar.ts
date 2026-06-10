@@ -1,5 +1,6 @@
 import {
     ArrowRightCircle,
+    Bell,
     Book,
     BookOpen,
     Calendar,
@@ -8,18 +9,18 @@ import {
     Clock,
     FileText,
     GraduationCap,
+    KeyRound,
     Layers,
+    LifeBuoy,
     LayoutDashboard,
     LibraryBig,
     MessageSquare,
     Network,
     ScrollText,
     Settings,
-    ShieldCheck,
     Trophy,
     Users,
     Wallet,
-    WalletCards,
 } from 'lucide-react';
 import { Role } from '@/types';
 import type { SidebarLink } from '@/components/ui/DashboardLayout';
@@ -40,6 +41,7 @@ function overviewHrefFor(user: OrgSidebarUser | null) {
     if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) return `/teachers/${user.id}`;
     if (user.role === Role.FINANCE_MANAGER) return '/finance';
     if (user.role === Role.STUDENT) return `/students/${user.id}`;
+    if (user.role === Role.GUARDIAN) return '/guardian';
     return '/overview';
 }
 
@@ -67,18 +69,15 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'ACADEMIC_CYCLES', label: 'Academic Cycles', href: '/academic-cycles', icon: Calendar });
         links.push({ id: 'COHORTS', label: 'Cohorts', href: '/cohorts', icon: Network });
         links.push({ id: 'SECTIONS', label: 'Sections', href: '/sections', icon: Layers });
-        links.push({ id: 'TEACHERS', label: 'Teachers', href: '/teachers', icon: Users });
-        links.push({ id: 'STUDENTS', label: 'Students', href: '/students', icon: GraduationCap });
+        links.push({ id: 'USERS', label: 'Users', href: '/users', icon: Users });
         links.push({ id: 'ATTENDANCE', label: 'Attendance', href: '/attendance', icon: CheckCircle });
         links.push({ id: 'SCHEDULES', label: 'Schedules', href: '/schedules', icon: CalendarDays });
         links.push({ id: 'TRANSCRIPTS', label: 'Transcripts', href: '/transcripts', icon: FileText });
         links.push({ id: 'PROMOTIONS', label: 'Promotions', href: '/promotions', icon: ArrowRightCircle });
         links.push({ id: 'GRADE_FINALIZATION', label: 'Grade Finalization', href: '/grade-finalization', icon: Trophy });
         links.push({ id: 'FINANCE', label: user.role === Role.SUB_ADMIN ? 'Finance Audit' : 'Finance', href: '/finance', icon: Wallet });
-        links.push({ id: 'FINANCE_MANAGERS', label: 'Finance Managers', href: '/finance-managers', icon: WalletCards });
 
         if (user.role === Role.ORG_ADMIN) {
-            links.push({ id: 'SUB_ADMINS', label: 'Sub Admins', href: '/sub-admins', icon: ShieldCheck });
             links.push({ id: 'GPA_POLICIES', label: 'GPA Policies', href: '/settings/gpa-policies', icon: ScrollText });
             links.push({ id: 'SETTINGS', label: 'Settings', href: '/settings', icon: Settings });
         }
@@ -118,6 +117,20 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'TRANSCRIPT', label: 'Transcript', href: '/transcripts', icon: FileText });
         links.push({ id: 'FEES', label: 'Fees & Payments', href: '/fees', icon: Wallet });
         links.push({ id: 'PROFILE', label: 'Profile Settings', href: `/students/${user.id}?tab=profile`, icon: Settings });
+    }
+
+    if (user?.role === Role.GUARDIAN) {
+        links.push({ id: 'GUARDIAN_OVERVIEW', label: 'Overview', href: '/guardian', icon: LayoutDashboard });
+        links.push({ id: 'GUARDIAN_STUDENTS', label: 'Linked Students', href: '/guardian?view=students', icon: Users });
+        links.push({ id: 'GUARDIAN_ATTENDANCE', label: 'Attendance', href: '/guardian?view=attendance', icon: CheckCircle });
+        links.push({ id: 'GUARDIAN_GRADES', label: 'Grades', href: '/guardian?view=grades', icon: Trophy });
+        links.push({ id: 'GUARDIAN_TIMETABLE', label: 'Timetable', href: '/guardian?view=timetable', icon: Clock });
+        links.push({ id: 'GUARDIAN_TRANSCRIPT', label: 'Transcript', href: '/guardian?view=transcript', icon: FileText });
+        links.push({ id: 'GUARDIAN_FEES', label: 'Fees & Payments', href: '/guardian?view=fees', icon: Wallet });
+        links.push({ id: 'GUARDIAN_ANNOUNCEMENTS', label: 'Announcements', href: '/guardian?view=announcements', icon: Bell });
+        links.push({ id: 'GUARDIAN_PROFILE', label: 'Profile Settings', href: '/guardian?view=profile', icon: Settings });
+        links.push({ id: 'GUARDIAN_PASSWORD', label: 'Change Password', href: '/change-password', icon: KeyRound });
+        links.push({ id: 'GUARDIAN_CONTACT', label: 'Contact Us', href: '/contact', icon: LifeBuoy });
     }
 
     return links;

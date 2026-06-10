@@ -2,7 +2,7 @@ import type {
     Teacher, Student, Organization, RegisterRequest, LoginRequest, AuthResponse,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
-    CreateGuardianRequest, GuardianProfile,
+    CreateGuardianRequest, GuardianOverview, GuardianProfile,
     CreateSectionRequest, UpdateSectionRequest, CreateCourseRequest, UpdateCourseRequest,
     PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload,
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
@@ -350,6 +350,10 @@ export const api = {
             request<GuardianProfile>(`/org/guardians/${id}`, { token }),
         createGuardian: (data: CreateGuardianRequest, token: string) =>
             request<GuardianProfile>('/org/guardians', { method: 'POST', body: JSON.stringify(data), token }),
+        getMyGuardianProfile: (token: string) =>
+            request<GuardianProfile>('/org/guardians/me/profile', { token }),
+        getGuardianOverview: (token: string, studentId?: string) =>
+            request<GuardianOverview>(`/org/guardians/me/overview${buildQueryString({ studentId })}`, { token }),
 
         getSection: (id: string, token: string) =>
             request<Section>(`/org/sections/${id}`, { token }),

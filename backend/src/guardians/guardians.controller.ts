@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '../common/enums';
@@ -27,6 +28,25 @@ export class GuardiansController {
   @Get()
   getGuardians(@OrgId() orgId: string, @Query('search') search?: string) {
     return this.guardiansService.getGuardians(orgId, search);
+  }
+
+  @Roles(Role.GUARDIAN)
+  @Get('me/profile')
+  getMyGuardianProfile(
+    @OrgId() orgId: string,
+    @Request() req: { user: { id: string } },
+  ) {
+    return this.guardiansService.getMyGuardianProfile(orgId, req.user.id);
+  }
+
+  @Roles(Role.GUARDIAN)
+  @Get('me/overview')
+  getMyOverview(
+    @OrgId() orgId: string,
+    @Request() req: { user: { id: string } },
+    @Query('studentId') studentId?: string,
+  ) {
+    return this.guardiansService.getMyOverview(orgId, req.user.id, studentId);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)

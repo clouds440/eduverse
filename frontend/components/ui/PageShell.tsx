@@ -7,7 +7,7 @@ import { ChevronDown, ChevronRight, MoreHorizontal, X, type LucideIcon } from 'l
 import { cn } from '@/lib/utils';
 import { getRouteOrientation } from '@/lib/routeOrientation';
 
-interface PageShellProps {
+interface PageShellProps extends React.HTMLAttributes<HTMLElement> {
     children: React.ReactNode;
     className?: string;
     style?: React.CSSProperties;
@@ -296,9 +296,9 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
     );
 }
 
-export function ResourcePanel({ children, className, style }: PageShellProps) {
+export function ResourcePanel({ children, className, style, ...props }: PageShellProps) {
     return (
-        <section className={cn('flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm', className)} style={style}>
+        <section {...props} className={cn('flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm', className)} style={style}>
             {children}
         </section>
     );

@@ -59,6 +59,8 @@ export default function TeachersPage() {
     const statusFilter = getStringParam('status');
     const isDeletedView = getBooleanParam('deleted');
     const showEmeritus = getBooleanParam('showEmeritus');
+    const roleFilter = getStringParam('role');
+    const isManagersView = roleFilter === 'managers';
     const [pageSize, setPageSize] = usePersistentPageSize('edu-teachers-limit', 10);
     const canManageTeachers = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
@@ -75,11 +77,14 @@ export default function TeachersPage() {
     // SWR for teachers data - replaces usePaginatedData
     const teachersKey = useMemo(() => {
         if (!token) return null;
-        return ['teachers', teacherParams] as const;
-    }, [token, teacherParams]);
+        return ['teachers', isManagersView ? 'managers' : 'faculty', teacherParams] as const;
+    }, [isManagersView, token, teacherParams]);
     const { data: fetchedData, isLoading: isFetching, error: teachersError, mutate: mutateTeachers } = useSWR<
         { data: Teacher[]; totalPages: number; totalRecords: number }
-    >(teachersKey);
+    >(teachersKey, () => isManagersView
+        ? api.org.getManagers(token!, teacherParams)
+        : api.org.getTeachers(token!, teacherParams)
+    );
 
     useEffect(() => {
         if (user && !canManageTeachers) {
@@ -275,6 +280,12 @@ export default function TeachersPage() {
             value: 'Emeritus',
             onRemove: () => updateQueryParams({ showEmeritus: undefined, page: 1 }),
         }] : []),
+        ...(isManagersView ? [{
+            key: 'role',
+            label: 'Role',
+            value: 'Managers',
+            onRemove: () => updateQueryParams({ role: undefined, page: 1 }),
+        }] : []),
     ];
 
 
@@ -285,12 +296,13 @@ export default function TeachersPage() {
     return (
         <PageShell>
             <PageHeader
-                title={isDeletedView ? 'Deleted Faculty' : 'Faculty'}
-                description="Search and maintain faculty records while preserving existing role and restore flows."
+                title={isDeletedView ? (isManagersView ? 'Deleted Managers' : 'Deleted Faculty') : (isManagersView ? 'Managers' : 'Faculty')}
+                description={isManagersView ? 'Create and maintain academic manager accounts with section-based academic scope.' : 'Search and maintain faculty records while preserving existing role and restore flows.'}
                 icon={UserPlus}
                 breadcrumbs={[
                     { label: 'Organization' },
-                    { label: isDeletedView ? 'Deleted Faculty' : 'Faculty' },
+                    { label: 'Users', href: '/users' },
+                    { label: isDeletedView ? (isManagersView ? 'Deleted Managers' : 'Deleted Faculty') : (isManagersView ? 'Managers' : 'Faculty') },
                 ]}
                 meta={isDeletedView ? <Badge variant="neutral" size="sm">Archive</Badge> : undefined}
             />
@@ -298,7 +310,7 @@ export default function TeachersPage() {
                 <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
                     <div className="flex-1 w-full">
-                        <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder="Search faculty..." />
+                        <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder={isManagersView ? 'Search managers...' : 'Search faculty...'} />
                     </div>
 
                     <div className='flex w-full md:w-auto gap-2 justify-between'>
@@ -338,7 +350,7 @@ export default function TeachersPage() {
                                         className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
                                             }`}
                                     >
-                                        View Deleted Faculty
+                                        {isManagersView ? 'View Deleted Managers' : 'View Deleted Faculty'}
                                     </button>
                                 </div>
                             </Drawer>
@@ -350,17 +362,17 @@ export default function TeachersPage() {
                                 className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
                                     }`}
                             >
-                                Back to Active Faculty
+                                {isManagersView ? 'Back to Active Managers' : 'Back to Active Faculty'}
                             </button>
                         )}
 
                         {canManageTeachers && !isDeletedView && (
                             <Button
-                                onClick={() => router.push('/teachers/add')}
+                                onClick={() => router.push(isManagersView ? '/teachers/add?role=manager' : '/teachers/add')}
                                 icon={UserPlus}
                                 className="shrink-0"
                             >
-                                Add Teacher
+                                {isManagersView ? 'Add Manager' : 'Add Teacher'}
                             </Button>
                         )}
                     </div>

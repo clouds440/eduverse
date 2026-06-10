@@ -50,14 +50,17 @@ export default function GradingForm({
             marksObtained: initialData.marksObtained.toString(),
             feedback: initialData.feedback || '',
             status: initialData.status,
+            correctionReason: '',
         } : {
             marksObtained: '',
             feedback: '',
             status: GradeStatus.DRAFT,
+            correctionReason: '',
         }
     });
 
     const formData = watch();
+    const isCorrectingFinalizedGrade = initialData?.status === GradeStatus.FINALIZED;
 
     const onSubmit: SubmitHandler<GradeFormData> = async (data) => {
         const marksObtained = roundGradeMarks(Number(data.marksObtained));
@@ -78,6 +81,7 @@ export default function GradingForm({
                 marksObtained,
                 feedback: data.feedback || undefined,
                 status: data.status,
+                correctionReason: isCorrectingFinalizedGrade ? data.correctionReason?.trim() : undefined,
             };
 
             const savedGrade = await api.org.updateGrade(assessmentId, student.id, payload, token!);
@@ -160,6 +164,20 @@ export default function GradingForm({
                         className="min-h-30 font-medium"
                     />
                 </div>
+
+                {isCorrectingFinalizedGrade && (
+                    <div className="space-y-2 md:space-y-3">
+                        <Label htmlFor="correctionReason">Correction Reason</Label>
+                        <Textarea
+                            id="correctionReason"
+                            {...register('correctionReason')}
+                            icon={MessageCircle}
+                            placeholder="Explain why this finalized grade is being corrected."
+                            className="min-h-24 font-medium"
+                        />
+                        {errors.correctionReason && <p className="text-xs text-danger font-semibold">{errors.correctionReason.message}</p>}
+                    </div>
+                )}
             </div>
 
             {/* Buttons */}

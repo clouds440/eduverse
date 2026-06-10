@@ -53,6 +53,12 @@ const TEACHER_CATEGORIES = [
     { value: MailCategory.GENERAL_INQUIRY, label: 'General Inquiry' },
 ];
 
+const FINANCE_CATEGORIES = [
+    { value: MailCategory.BILLING, label: 'Billing' },
+    { value: MailCategory.GENERAL_INQUIRY, label: 'General Inquiry' },
+    { value: MailCategory.OTHER, label: 'Other' },
+];
+
 const UNIVERSAL_CATEGORIES = [
     { value: MailCategory.GENERAL_INQUIRY, label: 'General Inquiry' },
     { value: MailCategory.OTHER, label: 'Other' },
@@ -71,12 +77,16 @@ function getCategoriesForContext(
             base = recipientUpper === Role.ORG_ADMIN
                 ? [...PLATFORM_TO_ORG_CATEGORIES, ...UNIVERSAL_CATEGORIES]
                 : [...PLATFORM_CATEGORIES, ...UNIVERSAL_CATEGORIES];
-        } else if (senderRole === Role.ORG_ADMIN || senderRole === Role.ORG_MANAGER) {
+        } else if (senderRole === Role.ORG_ADMIN || senderRole === Role.SUB_ADMIN) {
             base = recipientUpper === Role.SUPER_ADMIN || recipientUpper === Role.PLATFORM_ADMIN
                 ? [...PLATFORM_CATEGORIES, ...UNIVERSAL_CATEGORIES]
                 : [...ORG_ADMIN_TO_STAFF_CATEGORIES, ...UNIVERSAL_CATEGORIES];
-        } else if (senderRole === Role.TEACHER) {
+        } else if (senderRole === Role.ORG_MANAGER || senderRole === Role.TEACHER) {
             base = [...TEACHER_CATEGORIES, ...UNIVERSAL_CATEGORIES];
+        } else if (senderRole === Role.FINANCE_MANAGER) {
+            base = [...FINANCE_CATEGORIES, ...UNIVERSAL_CATEGORIES];
+        } else if (senderRole === Role.GUARDIAN) {
+            base = [...FINANCE_CATEGORIES, ...UNIVERSAL_CATEGORIES];
         }
     }
 
@@ -186,7 +196,7 @@ export function NewMailModal({
     const isPlatformAdmin = user?.role === Role.PLATFORM_ADMIN || user?.role === Role.SUPER_ADMIN;
     const primaryTarget = selectedTargets[0];
     const isTargetingPlatform = selectedTargets.some((target) => target.role === Role.PLATFORM_ADMIN || target.role === Role.SUPER_ADMIN);
-    const showNoReply = (isPlatformAdmin || user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) &&
+    const showNoReply = (isPlatformAdmin || user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN) &&
         !(user?.role !== Role.SUPER_ADMIN && user?.role !== Role.PLATFORM_ADMIN && isTargetingPlatform);
 
     const todayLabel = useMemo(() => new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }), []);

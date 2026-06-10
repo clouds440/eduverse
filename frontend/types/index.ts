@@ -56,6 +56,34 @@ export interface GuardianProfile {
     students?: Student[];
 }
 
+export interface GuardianAttendanceSummary {
+    total: number;
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+}
+
+export interface GuardianFinanceSummary {
+    totalDue: number;
+    totalPaid: number;
+    balance: number;
+}
+
+export interface GuardianOverview {
+    guardian: GuardianProfile;
+    linkedStudents: Student[];
+    selectedStudent: Student | null;
+    attendanceSummary: GuardianAttendanceSummary | null;
+    recentAttendance?: AttendanceRecord[];
+    recentGrades: Grade[];
+    upcomingAssessments: Assessment[];
+    upcomingSchedule: SectionSchedule[];
+    financeSummary: GuardianFinanceSummary | null;
+    recentFinanceEntries: FinancialEntry[];
+    recentAnnouncements: Announcement[];
+}
+
 export interface Course {
     id: string;
     name: string;
@@ -525,6 +553,12 @@ export interface Grade {
     createdAt: string;
     updatedAt: string;
     updatedBy?: string;
+    finalizedById?: string | null;
+    finalizedAt?: string | null;
+    lastCorrectedById?: string | null;
+    lastCorrectedAt?: string | null;
+    correctionReason?: string | null;
+    assessment?: Assessment;
     student?: Student;
 }
 
@@ -558,6 +592,7 @@ export interface UpdateGradeRequest {
     marksObtained: number;
     feedback?: string;
     status?: GradeStatus;
+    correctionReason?: string;
 }
 
 export interface CreateSubmissionRequest {
@@ -705,6 +740,11 @@ export interface GradeFinalizationRow {
     finalizedCount: number;
     lastUpdatedBy?: string | null;
     lastUpdatedAt?: string | null;
+    finalizedBy?: string | null;
+    finalizedAt?: string | null;
+    lastCorrectedBy?: string | null;
+    lastCorrectedAt?: string | null;
+    correctionReason?: string | null;
 }
 
 export interface ApiError {

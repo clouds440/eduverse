@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  Request,
 } from '@nestjs/common';
 import { CohortsService } from './cohorts.service';
 import { CreateCohortDto } from './dto/create-cohort.dto';
@@ -20,6 +21,7 @@ import { Role } from '../common/enums';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -143,11 +145,12 @@ export class CohortsController {
     @OrgId() orgId: string,
     @Body('studentId') studentId: string,
     @Body('sectionId') sectionId: string,
+    @Request() req: AuthenticatedRequest,
   ) {
     if (!studentId || !sectionId) {
       throw new BadRequestException('studentId and sectionId are required');
     }
-    return this.cohortsService.excludeStudentFromSection(orgId, studentId, sectionId);
+    return this.cohortsService.excludeStudentFromSection(orgId, studentId, sectionId, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
@@ -157,10 +160,11 @@ export class CohortsController {
     @OrgId() orgId: string,
     @Body('studentId') studentId: string,
     @Body('sectionId') sectionId: string,
+    @Request() req: AuthenticatedRequest,
   ) {
     if (!studentId || !sectionId) {
       throw new BadRequestException('studentId and sectionId are required');
     }
-    return this.cohortsService.includeStudentInSection(orgId, studentId, sectionId);
+    return this.cohortsService.includeStudentInSection(orgId, studentId, sectionId, req.user);
   }
 }

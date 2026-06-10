@@ -28,6 +28,7 @@ interface TeacherFormProps {
     teacherId?: string;
     initialData?: Teacher;
     isProfile?: boolean;
+    defaultManager?: boolean;
 }
 
 const TEACHER_STATUS_OPTIONS = [
@@ -88,13 +89,13 @@ function teacherStatusIcon(status?: TeacherStatus) {
     return CalendarClock;
 }
 
-export default function TeacherForm({ teacherId, initialData, isProfile }: TeacherFormProps) {
+export default function TeacherForm({ teacherId, initialData, isProfile, defaultManager = false }: TeacherFormProps) {
     const { token, user: currentUser, updateUser } = useAuth();
     const router = useRouter();
     const { dispatch } = useGlobal();
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
 
-    const initialIsManager = initialData?.user?.role === Role.ORG_MANAGER || (isProfile && currentUser?.role === Role.ORG_MANAGER);
+    const initialIsManager = initialData?.user?.role === Role.ORG_MANAGER || defaultManager || (isProfile && currentUser?.role === Role.ORG_MANAGER);
     const resolver = useMemo(
         () => zodResolver(isProfile ? teacherProfileSchema : (teacherId ? teacherUpdateSchema : teacherCreateSchema)),
         [isProfile, teacherId]

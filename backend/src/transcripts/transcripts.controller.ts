@@ -42,7 +42,7 @@ export class TranscriptsController {
         throw new ForbiddenException('Students can only view their own transcript');
       }
     }
-    return this.transcriptsService.getStudentTranscript(orgId, studentId, cycleId);
+    return this.transcriptsService.getStudentTranscript(orgId, studentId, cycleId, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER)

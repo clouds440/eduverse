@@ -29,6 +29,13 @@ interface Props {
 export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', chatId, existingParticipantIds = STABLE_EMPTY_ARRAY }: Props) {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
+    const canCreateGroups = !!user &&
+        user.role !== Role.STUDENT &&
+        user?.role !== Role.GUARDIAN &&
+        user?.role !== Role.FINANCE_MANAGER;
+    const canUseOrgWidePresets =
+        user?.role === Role.ORG_ADMIN ||
+        user?.role === Role.SUB_ADMIN;
 
     const [type, setType] = useState<'DIRECT' | 'GROUP'>(mode === 'ADD_PARTICIPANTS' ? 'GROUP' : 'DIRECT');
     const [recipientId, setRecipientId] = useState('');
@@ -42,6 +49,12 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
     const [sections, setSections] = useState<{ value: string; label: string }[]>([]);
     const [selectedSectionId, setSelectedSectionId] = useState('');
     const [isApplyingPreset, setIsApplyingPreset] = useState(false);
+
+    useEffect(() => {
+        if (mode === 'CREATE' && !canCreateGroups && type === 'GROUP') {
+            setType('DIRECT');
+        }
+    }, [canCreateGroups, mode, type]);
 
     useEffect(() => {
         if (!isOpen || !token || user?.role !== Role.TEACHER) return;
@@ -99,12 +112,6 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                 let filteredUsers = mode === 'ADD_PARTICIPANTS'
                     ? users.filter(u => !existingParticipantIds.includes(u.id))
                     : users;
-
-                // POLICY: No 1-to-1 chats with students. 
-                // Exclude students if we are in DIRECT mode
-                if (type === 'DIRECT') {
-                    filteredUsers = filteredUsers.filter(u => u.role !== Role.STUDENT);
-                }
 
                 setContactableUsers(filteredUsers.map(u => ({
                     value: u.id,
@@ -215,7 +222,7 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                 {mode === 'CREATE' && (
                     <div className="bg-card -mx-6 px-6 py-4 border-b border-border">
                         <Label className="text-[10px] font-black tracking-widest text-primary/70 mb-3 block">Conversation Type</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <div className={`grid grid-cols-1 ${canCreateGroups ? 'sm:grid-cols-2' : ''} gap-3 sm:gap-4`}>
                             <button
                                 type="button"
                                 onClick={() => setType('DIRECT')}
@@ -232,22 +239,24 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                                     <span className="text-[10px] sm:text-[11px] text-foreground/70 font-medium tracking-tight">1-on-1 private chat</span>
                                 </div>
                             </button>
-                            <button
-                                type="button"
-                                onClick={() => setType('GROUP')}
-                                className={`flex items-center p-3 sm:p-4 rounded-xl border-2 transition-all group ${type === 'GROUP'
-                                    ? 'border-primary bg-primary/5 ring-4 ring-primary/5'
-                                    : 'border-border bg-card hover:border-border'
-                                    }`}
-                            >
-                                <div className={`p-2.5 sm:p-3 rounded-lg mr-3 sm:mr-4 transition-colors ${type === 'GROUP' ? 'bg-primary text-foreground' : 'bg-background/50 text-primary border border-primary group-hover:bg-background/50'}`}>
-                                    <Users size={20} className="sm:w-6 sm:h-6" />
-                                </div>
-                                <div className="text-left">
-                                    <span className={`block text-xs sm:text-sm font-bold ${type === 'GROUP' ? 'text-primary' : 'text-foreground'}`}>Group Chat</span>
-                                    <span className="text-[10px] sm:text-[11px] text-foreground/70 font-medium tracking-tight">Chat with multiple people</span>
-                                </div>
-                            </button>
+                            {canCreateGroups && (
+                                <button
+                                    type="button"
+                                    onClick={() => setType('GROUP')}
+                                    className={`flex items-center p-3 sm:p-4 rounded-xl border-2 transition-all group ${type === 'GROUP'
+                                        ? 'border-primary bg-primary/5 ring-4 ring-primary/5'
+                                        : 'border-border bg-card hover:border-border'
+                                        }`}
+                                >
+                                    <div className={`p-2.5 sm:p-3 rounded-lg mr-3 sm:mr-4 transition-colors ${type === 'GROUP' ? 'bg-primary text-foreground' : 'bg-background/50 text-primary border border-primary group-hover:bg-background/50'}`}>
+                                        <Users size={20} className="sm:w-6 sm:h-6" />
+                                    </div>
+                                    <div className="text-left">
+                                        <span className={`block text-xs sm:text-sm font-bold ${type === 'GROUP' ? 'text-primary' : 'text-foreground'}`}>Group Chat</span>
+                                        <span className="text-[10px] sm:text-[11px] text-foreground/70 font-medium tracking-tight">Chat with multiple people</span>
+                                    </div>
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
@@ -270,7 +279,7 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                                 <div className="mt-4 pt-4 border-t border-border">
                                     <Label className="text-[10px] font-black text-foreground mb-3 block">Quick Templates</Label>
                                     <div className="flex flex-col gap-2">
-                                        {(user?.role === Role.ORG_ADMIN || user?.role === Role.ORG_MANAGER) && (
+                                        {canUseOrgWidePresets && (
                                             <>
                                                 <button type="button" disabled={isApplyingPreset} onClick={() => applyPresetGroup({ label: '[GROUP] All Teachers', source: 'TEACHERS' })} className="px-4 py-2 bg-accent border border-border hover:border-primary hover:bg-primary/5 rounded-lg text-[12px] font-bold text-foreground transition-all text-left flex items-center justify-between group">
                                                     <span>All Teachers</span>
@@ -280,7 +289,7 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                                                     <span>All Students</span>
                                                     <ChevronLeft className="w-3 h-3 opacity-0 group-hover:opacity-40 rotate-180" />
                                                 </button>
-                                                {user?.role === Role.ORG_ADMIN && (
+                                                {(user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN) && (
                                                     <button type="button" disabled={isApplyingPreset} onClick={() => applyPresetGroup({ label: '[GROUP] All Managers', source: 'MANAGERS' })} className="px-4 py-2 bg-accent border border-border hover:border-primary hover:bg-primary/5 rounded-lg text-[12px] font-bold text-foreground transition-all text-left flex items-center justify-between group">
                                                         <span>All Managers</span>
                                                         <ChevronLeft className="w-3 h-3 opacity-0 group-hover:opacity-40 rotate-180" />

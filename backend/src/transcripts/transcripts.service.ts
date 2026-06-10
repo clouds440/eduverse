@@ -15,7 +15,12 @@ export class TranscriptsService {
    * Get a student's transcript for a specific academic cycle.
    * Includes: enrollments, grades, attendance summary, cohort info.
    */
-  async getStudentTranscript(orgId: string, studentId: string, cycleId?: string) {
+  async getStudentTranscript(
+    orgId: string,
+    studentId: string,
+    cycleId?: string,
+    user?: { id: string; role: string },
+  ) {
     const student = await this.prisma.student.findFirst({
       where: { id: studentId, organizationId: orgId },
       include: {
@@ -25,6 +30,25 @@ export class TranscriptsService {
     });
 
     if (!student) throw new NotFoundException('Student not found');
+
+    if (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) {
+      const assignedEnrollment = await this.prisma.enrollment.findFirst({
+        where: {
+          studentId,
+          section: {
+            course: { organizationId: orgId },
+            teachers: { some: { userId: user.id } },
+          },
+        },
+        select: { id: true },
+      });
+
+      if (!assignedEnrollment) {
+        throw new ForbiddenException(
+          'You can only view transcripts for students in your assigned sections',
+        );
+      }
+    }
 
     // Get all academic cycles this student has enrollment history in
     const cycleFilter = cycleId ? { academicCycleId: cycleId } : {};

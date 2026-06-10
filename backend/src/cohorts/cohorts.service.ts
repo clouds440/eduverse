@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCohortDto } from './dto/create-cohort.dto';
@@ -13,10 +14,38 @@ import {
   PaginationOptions,
 } from '../common/utils';
 import { Prisma, EnrollmentSource } from '@prisma/client';
+import { Role } from '../common/enums';
 
 @Injectable()
 export class CohortsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async assertCanOverrideEnrollment(
+    orgId: string,
+    sectionId: string,
+    user?: { id: string; role: string },
+  ) {
+    if (!user || user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) return;
+
+    if (user.role !== Role.TEACHER && user.role !== Role.ORG_MANAGER) {
+      throw new ForbiddenException('You cannot change cohort enrollment overrides');
+    }
+
+    const assignedSection = await this.prisma.section.findFirst({
+      where: {
+        id: sectionId,
+        course: { organizationId: orgId },
+        teachers: { some: { userId: user.id } },
+      },
+      select: { id: true },
+    });
+
+    if (!assignedSection) {
+      throw new ForbiddenException(
+        'You can only change cohort enrollment overrides for your assigned sections',
+      );
+    }
+  }
 
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
@@ -533,7 +562,14 @@ export class CohortsService {
 
   // ─── EXCLUSION SYSTEM ─────────────────────────────────────────────────────
 
-  async excludeStudentFromSection(orgId: string, studentId: string, sectionId: string) {
+  async excludeStudentFromSection(
+    orgId: string,
+    studentId: string,
+    sectionId: string,
+    user?: { id: string; role: string },
+  ) {
+    await this.assertCanOverrideEnrollment(orgId, sectionId, user);
+
     const enrollment = await this.prisma.enrollment.findFirst({
       where: {
         studentId,
@@ -572,7 +608,14 @@ export class CohortsService {
     return { message: 'Student excluded from cohort section' };
   }
 
-  async includeStudentInSection(orgId: string, studentId: string, sectionId: string) {
+  async includeStudentInSection(
+    orgId: string,
+    studentId: string,
+    sectionId: string,
+    user?: { id: string; role: string },
+  ) {
+    await this.assertCanOverrideEnrollment(orgId, sectionId, user);
+
     const enrollment = await this.prisma.enrollment.findFirst({
       where: {
         studentId,

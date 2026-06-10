@@ -216,14 +216,24 @@ export default function GradeFinalizationPage() {
             width: 160,
         },
         {
-            header: 'Last Updated',
+            header: 'Audit',
             accessor: (row) => (
-                <div className="min-w-0 text-xs font-semibold text-muted-foreground">
-                    <p className="truncate">{row.lastUpdatedBy || 'No grade updates'}</p>
+                <div className="min-w-0 space-y-1 text-xs font-semibold text-muted-foreground">
+                    <p className="truncate">Updated: {row.lastUpdatedBy || 'No grade updates'}</p>
                     <p>{row.lastUpdatedAt ? new Date(row.lastUpdatedAt).toLocaleString() : '-'}</p>
+                    {row.finalizedAt && (
+                        <p className="truncate text-success">
+                            Finalized: {row.finalizedBy || 'Unknown'} - {new Date(row.finalizedAt).toLocaleDateString()}
+                        </p>
+                    )}
+                    {row.lastCorrectedAt && (
+                        <p className="truncate text-warning" title={row.correctionReason || undefined}>
+                            Corrected: {row.lastCorrectedBy || 'Unknown'} - {new Date(row.lastCorrectedAt).toLocaleDateString()}
+                        </p>
+                    )}
                 </div>
             ),
-            width: 190,
+            width: 230,
         },
         {
             header: 'Actions',

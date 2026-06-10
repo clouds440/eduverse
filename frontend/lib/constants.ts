@@ -3,6 +3,7 @@ export const PLATFORM_NAME = 'EduVerse';
 export const DASHBOARD_MODULES = [
     'overview',
     'admin',
+    'users',
     'teachers',
     'sub-admins',
     'finance-managers',
@@ -20,6 +21,7 @@ export const DASHBOARD_MODULES = [
     'courses',
     'grades',
     'grade-finalization',
+    'guardian',
     'schedules',
     'attendance',
     'profile',

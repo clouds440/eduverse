@@ -36,13 +36,114 @@ export class ChatService {
     private readonly teacherService: TeacherService,
   ) { }
 
-  async searchUsers(query: string, user: CurrentUser) {
-    if (user.role === Role.STUDENT) {
-      throw new ForbiddenException(
-        'Students cannot search for users to initiate chats.',
-      );
+  private isPlatformUser(role: Role) {
+    return role === Role.SUPER_ADMIN || role === Role.PLATFORM_ADMIN;
+  }
+
+  private async getAssignedStudentUserIds(userId: string, role: Role) {
+    if (role !== Role.TEACHER && role !== Role.ORG_MANAGER) return [];
+
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { userId },
+      include: { sections: { select: { id: true } } },
+    });
+    const sectionIds = teacher?.sections.map((section) => section.id) || [];
+    if (sectionIds.length === 0) return [];
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { sectionId: { in: sectionIds }, isExcludedFromCohort: false },
+      select: { student: { select: { userId: true } } },
+    });
+
+    return enrollments.map((enrollment) => enrollment.student.userId);
+  }
+
+  private async getAssignedTeacherUserIdsForStudent(userId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { userId },
+      include: {
+        enrollments: {
+          where: { isExcludedFromCohort: false },
+          select: {
+            section: {
+              select: {
+                teachers: { select: { userId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return [
+      ...new Set(
+        student?.enrollments.flatMap((enrollment) =>
+          enrollment.section.teachers.map((teacher) => teacher.userId),
+        ) || [],
+      ),
+    ];
+  }
+
+  private async canCreateDirectChatWith(
+    user: CurrentUser,
+    targetUser: { id: string; role: Role; organizationId: string | null },
+  ) {
+    if (user.id === targetUser.id) return false;
+
+    const userIsPlatform = this.isPlatformUser(user.role);
+    const targetIsPlatform = this.isPlatformUser(targetUser.role);
+    if (userIsPlatform || targetIsPlatform) {
+      return userIsPlatform && targetIsPlatform;
     }
 
+    if (targetUser.organizationId !== user.organizationId) return false;
+
+    if (user.role === Role.STUDENT) {
+      const teacherUserIds = await this.getAssignedTeacherUserIdsForStudent(user.id);
+      return targetUser.role === Role.TEACHER && teacherUserIds.includes(targetUser.id);
+    }
+
+    if (user.role === Role.GUARDIAN) {
+      return ([Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER] as Role[]).includes(targetUser.role);
+    }
+
+    if (user.role === Role.FINANCE_MANAGER) {
+      return ([Role.ORG_ADMIN, Role.SUB_ADMIN] as Role[]).includes(targetUser.role);
+    }
+
+    if (user.role === Role.TEACHER) {
+      if (([Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER] as Role[]).includes(targetUser.role)) {
+        return true;
+      }
+      const studentUserIds = await this.getAssignedStudentUserIds(user.id, user.role);
+      return targetUser.role === Role.STUDENT && studentUserIds.includes(targetUser.id);
+    }
+
+    if (user.role === Role.ORG_MANAGER) {
+      if (([Role.ORG_ADMIN, Role.SUB_ADMIN] as Role[]).includes(targetUser.role)) return true;
+      const studentUserIds = await this.getAssignedStudentUserIds(user.id, user.role);
+      if (targetUser.role === Role.STUDENT) return studentUserIds.includes(targetUser.id);
+      if (targetUser.role === Role.TEACHER) {
+        const manager = await this.prisma.teacher.findUnique({
+          where: { userId: user.id },
+          include: { sections: { select: { teachers: { select: { userId: true } } } } },
+        });
+        const teacherUserIds = manager?.sections.flatMap((section) =>
+          section.teachers.map((teacher) => teacher.userId),
+        ) || [];
+        return teacherUserIds.includes(targetUser.id);
+      }
+      return false;
+    }
+
+    if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
+      return targetUser.organizationId === user.organizationId;
+    }
+
+    return false;
+  }
+
+  async searchUsers(query: string, user: CurrentUser) {
     const searchQuery = query.trim();
 
     let whereClause: Prisma.UserWhereInput = {
@@ -62,37 +163,79 @@ export class ChatService {
 
     // Strict Role-Based Search Filters
     if (user.role === Role.TEACHER) {
-      const teacher = await this.prisma.teacher.findUnique({
-        where: { userId: user.id },
-        include: { sections: { select: { id: true } } },
-      });
-      const sectionIds = teacher?.sections.map((s) => s.id) || [];
+      const assignedStudentUserIds = await this.getAssignedStudentUserIds(
+        user.id,
+        user.role,
+      );
 
-      // Teachers can only see: Org Admins, Org Managers, and their Section Students
+      // Teachers can see academic leadership and assigned students.
       whereClause = {
         ...whereClause,
         AND: [
           {
             OR: [
               { role: Role.ORG_ADMIN },
+              { role: Role.SUB_ADMIN },
               { role: Role.ORG_MANAGER },
               {
                 role: Role.STUDENT,
-                studentProfile: {
-                  enrollments: {
-                    some: { sectionId: { in: sectionIds } },
-                  },
-                },
+                id: { in: assignedStudentUserIds },
               },
             ],
           },
         ],
       };
-    } else if (user.role === Role.ORG_ADMIN || user.role === Role.ORG_MANAGER) {
-      // Org Admins/Managers can see everyone EXCEPT Students for chat
+    } else if (user.role === Role.STUDENT) {
+      const teacherUserIds = await this.getAssignedTeacherUserIdsForStudent(user.id);
       whereClause = {
         ...whereClause,
-        role: { not: Role.STUDENT },
+        role: Role.TEACHER,
+        id: { in: teacherUserIds },
+      };
+    } else if (user.role === Role.GUARDIAN) {
+      whereClause = {
+        ...whereClause,
+        role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER] },
+      };
+    } else if (user.role === Role.FINANCE_MANAGER) {
+      whereClause = {
+        ...whereClause,
+        role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN] },
+      };
+    } else if (user.role === Role.ORG_MANAGER) {
+      const assignedStudentUserIds = await this.getAssignedStudentUserIds(
+        user.id,
+        user.role,
+      );
+      const manager = await this.prisma.teacher.findUnique({
+        where: { userId: user.id },
+        include: { sections: { select: { teachers: { select: { userId: true } } } } },
+      });
+      const teacherUserIds = manager?.sections.flatMap((section) =>
+        section.teachers.map((teacher) => teacher.userId),
+      ) || [];
+      whereClause = {
+        ...whereClause,
+        OR: [
+          { role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN] } },
+          { role: Role.TEACHER, id: { in: teacherUserIds } },
+          { role: Role.STUDENT, id: { in: assignedStudentUserIds } },
+        ],
+      };
+    } else if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
+      whereClause = {
+        ...whereClause,
+        role: {
+          in: [
+            Role.ORG_ADMIN,
+            Role.SUB_ADMIN,
+            Role.ORG_MANAGER,
+            Role.FINANCE_MANAGER,
+            Role.TEACHER,
+            Role.STUDENT,
+            Role.GUARDIAN,
+          ],
+        },
       };
     } else if (
       user.role !== Role.SUPER_ADMIN &&
@@ -123,7 +266,26 @@ export class ChatService {
     ) {
       // For org users, prioritize admins and managers in the initial list
       // For admins/managers, also include students to make group creation easier
-      const defaultRoles = [Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER];
+      const defaultRoles =
+        user.role === Role.STUDENT
+          ? [Role.TEACHER]
+          : user.role === Role.GUARDIAN
+            ? [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER]
+            : user.role === Role.FINANCE_MANAGER
+              ? [Role.ORG_ADMIN, Role.SUB_ADMIN]
+              : user.role === Role.ORG_MANAGER
+                ? [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER, Role.STUDENT]
+                : user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN
+                  ? [
+                      Role.ORG_ADMIN,
+                      Role.SUB_ADMIN,
+                      Role.ORG_MANAGER,
+                      Role.FINANCE_MANAGER,
+                      Role.TEACHER,
+                      Role.STUDENT,
+                      Role.GUARDIAN,
+                    ]
+                  : [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER];
       whereClause.role = { in: defaultRoles };
     }
 
@@ -143,12 +305,6 @@ export class ChatService {
   }
 
   async createDirectChat(dto: CreateDirectChatDto, user: CurrentUser) {
-    if (user.role === Role.STUDENT) {
-      throw new ForbiddenException(
-        'Students cannot initiate 1:1 direct chats.',
-      );
-    }
-
     if (user.id === dto.participantId) {
       throw new BadRequestException('Cannot chat with yourself.');
     }
@@ -159,45 +315,13 @@ export class ChatService {
     });
     if (!targetUser) throw new NotFoundException('User not found.');
 
-    // STRICT POLICY: No 1-to-1 chats are allowed with students at all.
-    if (targetUser.role === Role.STUDENT) {
-      throw new ForbiddenException(
-        'Direct messaging with students is not allowed. Please use the Announcement system for official correspondence.',
-      );
-    }
-
-    // Restriction: Platform Admins can only chat with other Platform Admins
-    const isPlatformUser = (role: Role) =>
-      role === Role.SUPER_ADMIN || role === Role.PLATFORM_ADMIN;
-    const curUserIsPlatform = isPlatformUser(user.role);
-    const targetUserIsPlatform = isPlatformUser(targetUser.role as Role);
-
-    if (curUserIsPlatform && !targetUserIsPlatform) {
-      throw new ForbiddenException(
-        'Platform Administrators can only initiate chats with other Platform Administrators. Please use the Mail system for Organization support.',
-      );
-    }
-    if (!curUserIsPlatform && targetUserIsPlatform) {
-      throw new ForbiddenException(
-        'Organization users cannot initiate 1:1 chats with Platform Administrators. Please use the "Contact Platform Administrative Team" mail feature.',
-      );
-    }
-
-    // Enforce Org isolation (except Platform Admins)
-    if (user.role !== Role.SUPER_ADMIN && user.role !== Role.PLATFORM_ADMIN) {
-      if (targetUser.organizationId !== user.organizationId) {
-        throw new ForbiddenException('Cannot chat outside your organization.');
-      }
-
-      // Teacher Restrictions: Can only 1:1 with Org Admin or Org Manager
-      if (user.role === Role.TEACHER) {
-        const allowedRoles: Role[] = [Role.ORG_ADMIN, Role.ORG_MANAGER];
-        if (!allowedRoles.includes(targetUser.role as Role)) {
-          throw new ForbiddenException(
-            'Teachers can only initiate 1:1 chats with Org Admins or Org Managers.',
-          );
-        }
-      }
+    const allowed = await this.canCreateDirectChatWith(user, {
+      id: targetUser.id,
+      role: targetUser.role as Role,
+      organizationId: targetUser.organizationId,
+    });
+    if (!allowed) {
+      throw new ForbiddenException('You cannot start a direct chat with this user.');
     }
 
     // Check if chat already exists
@@ -277,8 +401,12 @@ export class ChatService {
   }
 
   async createGroupChat(dto: CreateGroupChatDto, user: CurrentUser) {
-    if (user.role === Role.STUDENT) {
-      throw new ForbiddenException('Students cannot create group chats.');
+    if (
+      user.role === Role.STUDENT ||
+      user.role === Role.GUARDIAN ||
+      user.role === Role.FINANCE_MANAGER
+    ) {
+      throw new ForbiddenException('Your role cannot create group chats.');
     }
 
     const participants = Array.from(new Set([...dto.participantIds, user.id]));
@@ -320,9 +448,9 @@ export class ChatService {
       // Organization Policy: Students can only participate in section-based chats initiated by THEIR teachers.
       const studentsInGroup = usersList.filter((u) => u.role === Role.STUDENT);
       if (studentsInGroup.length > 0) {
-        if (user.role !== Role.TEACHER) {
+        if (user.role !== Role.TEACHER && user.role !== Role.ORG_MANAGER) {
           throw new ForbiddenException(
-            'Only teachers can create group chats involving students.',
+            'Only teachers or managers can create group chats involving students.',
           );
         }
       }
@@ -370,6 +498,40 @@ export class ChatService {
         // If there are participants but no students (and we already excluded other staff),
         // this case shouldn't be reachable but good for safety.
         throw new BadRequestException('Group must contain students.');
+      }
+    }
+
+    if (user.role === Role.ORG_MANAGER) {
+      const assignedStudentUserIds = await this.getAssignedStudentUserIds(
+        user.id,
+        user.role,
+      );
+      const manager = await this.prisma.teacher.findUnique({
+        where: { userId: user.id },
+        include: {
+          sections: { select: { teachers: { select: { userId: true } } } },
+        },
+      });
+      const assignedTeacherUserIds = manager?.sections.flatMap((section) =>
+        section.teachers.map((teacher) => teacher.userId),
+      ) || [];
+
+      const disallowed = usersList.filter((participant) => {
+        if (participant.id === user.id) return false;
+        if (([Role.ORG_ADMIN, Role.SUB_ADMIN] as Role[]).includes(participant.role)) return false;
+        if (participant.role === Role.STUDENT) {
+          return !assignedStudentUserIds.includes(participant.id);
+        }
+        if (participant.role === Role.TEACHER) {
+          return !assignedTeacherUserIds.includes(participant.id);
+        }
+        return true;
+      });
+
+      if (disallowed.length > 0) {
+        throw new ForbiddenException(
+          'Managers can only create groups for assigned academic sections.',
+        );
       }
     }
 
@@ -454,7 +616,7 @@ export class ChatService {
 
     // Permission check: Creator or Org Admin
     const isCreator = chat.creatorId === user.id;
-    const isOrgAdmin = user.role === Role.ORG_ADMIN;
+    const isOrgAdmin = user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN;
     if (!isCreator && !isOrgAdmin) {
       throw new ForbiddenException(
         'Only the group creator or an org admin can add participants.',
@@ -477,31 +639,25 @@ export class ChatService {
     // Organization Policy: Only teachers can add students to groups
     const studentsToAdd = newUsersList.filter((u) => u.role === Role.STUDENT);
     if (studentsToAdd.length > 0) {
-      if (user.role !== Role.TEACHER) {
+      if (user.role !== Role.TEACHER && user.role !== Role.ORG_MANAGER) {
         throw new ForbiddenException(
-          'Only teachers can add students to group chats.',
+          'Only teachers or managers can add students to group chats.',
         );
       }
 
-      // Verify they are from the teacher's sections
-      const teacher = await this.prisma.teacher.findUnique({
-        where: { userId: user.id },
-        include: { sections: true },
-      });
-      const teacherSectionIds = teacher?.sections.map((s) => s.id) || [];
-
       const targetStudentUserIds = studentsToAdd.map((u) => u.id);
-      const enrolledStudentsCount = await this.prisma.enrollment.groupBy({
-        by: ['studentId'],
-        where: {
-          student: { userId: { in: targetStudentUserIds } },
-          sectionId: { in: teacherSectionIds },
-        },
-      });
+      const assignedStudentUserIds = await this.getAssignedStudentUserIds(
+        user.id,
+        user.role,
+      );
 
-      if (enrolledStudentsCount.length < targetStudentUserIds.length) {
+      if (
+        targetStudentUserIds.some(
+          (studentUserId) => !assignedStudentUserIds.includes(studentUserId),
+        )
+      ) {
         throw new ForbiddenException(
-          'Teachers can only add students from their assigned sections.',
+          'You can only add students from your assigned sections.',
         );
       }
     }
@@ -653,7 +809,7 @@ export class ChatService {
 
     // Permission check: Creator or Org Admin
     const isCreator = chat.creatorId === user.id;
-    const isOrgAdmin = user.role === Role.ORG_ADMIN;
+    const isOrgAdmin = user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN;
     if (!isCreator && !isOrgAdmin) {
       throw new ForbiddenException(
         'Only the group creator or an org admin can remove participants.',
@@ -779,7 +935,7 @@ export class ChatService {
 
     // Permission check: Creator or Org Admin
     const isCreator = chat.creatorId === user.id;
-    const isOrgAdmin = user.role === Role.ORG_ADMIN;
+    const isOrgAdmin = user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN;
     if (!isCreator && !isOrgAdmin) {
       throw new ForbiddenException(
         'Only the group creator or an org admin can update participant roles.',
@@ -866,7 +1022,7 @@ export class ChatService {
 
     // Permission check: Creator or Org Admin
     const isCreator = chat.creatorId === user.id;
-    const isOrgAdmin = user.role === Role.ORG_ADMIN;
+    const isOrgAdmin = user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN;
     if (!isCreator && !isOrgAdmin) {
       throw new ForbiddenException(
         'Only the group creator or an org admin can update chat settings.',
@@ -965,7 +1121,7 @@ export class ChatService {
       throw new NotFoundException('Message not found.');
 
     // Permission: Org Admin can delete anything, others only own
-    const isOrgAdmin = user.role === Role.ORG_ADMIN;
+    const isOrgAdmin = user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN;
     const isOwnMessage = message.senderId === user.id;
     if (!isOrgAdmin && !isOwnMessage) {
       throw new ForbiddenException('You can only delete your own messages.');
