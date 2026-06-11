@@ -31,4 +31,5 @@ export const DASHBOARD_MODULES = [
     'transcripts',
     'finance',
     'fees',
+    'guardians'
 ];
