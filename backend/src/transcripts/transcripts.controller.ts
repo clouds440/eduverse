@@ -27,7 +27,7 @@ export class TranscriptsController {
     private readonly studentService: StudentService,
   ) {}
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('students/:id')
   async getStudentTranscript(
     @OrgId() orgId: string,

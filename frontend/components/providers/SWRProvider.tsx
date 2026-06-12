@@ -44,14 +44,14 @@ type FetcherKey =
     | readonly ['validate-teacher', string]
     | readonly ['student-grades', string]
     | readonly ['student-attendance', string]
-    | readonly ['section-attendance-range', string]
+    | readonly ['section-attendance-range', string, string | undefined]
     | readonly ['teacher-profile', string]
     | readonly ['student-profile', string]
     | readonly ['transcript', string]
     // Multi-param resources
     | readonly ['attendance-daily', string, string, string | undefined]  // [sectionId, date, scheduleId?]
     | readonly ['attendance-monthly', string, string, string]  // [sectionId, start, end]
-    | readonly ['timetable', string, string]  // [userId, role]
+    | readonly ['timetable', string, string, string | undefined]  // [userId, role, targetStudentId?]
     | readonly ['assessment-detail', string, string]  // [sectionId, assessmentId]
     | readonly ['student-sections', string, object]  // [userId, params]
     // No-param resources
@@ -118,7 +118,7 @@ function createFetcher(token: string | null) {
 
                 // Timetable & Schedules
                 case 'timetable':
-                    return await api.org.getTimetable(token) as T;
+                    return await api.org.getTimetable(token, { studentId: args[2] as string | undefined }) as T;
                 case 'section-schedules':
                     return await api.org.getSchedules(args[0] as string, token) as T;
                 case 'sections-for-schedules':
@@ -170,7 +170,7 @@ function createFetcher(token: string | null) {
                 case 'student-sections':
                     return await api.org.getSections(token, { ...args[1] as object, userId: args[0] as string }) as T;
                 case 'student-grades':
-                    return await api.org.getOwnReleasedGrades(token) as T;
+                    return await api.org.getStudentReleasedGrades(args[0] as string, token) as T;
                 case 'student-assessments':
                     return await api.org.getAssessments(token, args[0] as object) as T;
                 case 'student-insights':
@@ -193,10 +193,11 @@ function createFetcher(token: string | null) {
                     return await api.org.getStudentAttendance(args[0] as string, token) as T;
                 case 'section-attendance-range': {
                     const sectionId = args[0] as string;
+                    const studentId = args[1] as string | undefined;
                     const now = new Date();
                     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
                     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-                    return await api.org.getSectionAttendanceRange(sectionId, start, end, token) as T;
+                    return await api.org.getSectionAttendanceRange(sectionId, start, end, token, studentId) as T;
                 }
 
                 default:

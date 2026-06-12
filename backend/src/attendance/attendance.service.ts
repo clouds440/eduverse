@@ -36,6 +36,7 @@ export class AttendanceService {
     orgId: string,
     sectionId: string,
     user: JwtPayload,
+    targetStudentId?: string,
   ) {
     const section = await this.prisma.section.findUnique({
       where: { id: sectionId },
@@ -70,6 +71,21 @@ export class AttendanceService {
       }
     }
 
+    if (user.role === Role.GUARDIAN) {
+      if (!targetStudentId) {
+        throw new BadRequestException('Query parameter "studentId" is required');
+      }
+
+      const isEnrolled = section.enrollments.some(
+        (enrollment) => enrollment.studentId === targetStudentId,
+      );
+      if (!isEnrolled) {
+        throw new ForbiddenException('This student is not enrolled in this section.');
+      }
+
+      await this.studentService.assertGuardianCanAccessStudent(orgId, user.id, targetStudentId);
+    }
+
     return section;
   }
 
@@ -77,8 +93,9 @@ export class AttendanceService {
     orgId: string,
     sectionId: string,
     user: JwtPayload,
+    targetStudentId?: string,
   ) {
-    return this.getAuthorizedSection(orgId, sectionId, user);
+    return this.getAuthorizedSection(orgId, sectionId, user, targetStudentId);
   }
 
   private async validateAttendanceSchedule(
@@ -407,8 +424,9 @@ export class AttendanceService {
     user: JwtPayload,
     start: string,
     end: string,
+    targetStudentId?: string,
   ) {
-    await this.assertAttendanceSectionAccess(orgId, sectionId, user);
+    await this.assertAttendanceSectionAccess(orgId, sectionId, user, targetStudentId);
 
     const startDate = new Date(start);
     const endDate = new Date(end);
@@ -433,6 +451,9 @@ export class AttendanceService {
         sectionId,
         ...(user.role === Role.STUDENT
           ? { student: { userId: user.id } }
+          : {}),
+        ...(user.role === Role.GUARDIAN && targetStudentId
+          ? { studentId: targetStudentId }
           : {}),
       },
       include: { student: { include: { user: { select: { name: true, email: true, avatarUrl: true } } } } },
@@ -478,8 +499,9 @@ export class AttendanceService {
     user: JwtPayload,
     date: string,
     scheduleId?: string,
+    targetStudentId?: string,
   ) {
-    await this.assertAttendanceSectionAccess(orgId, sectionId, user);
+    await this.assertAttendanceSectionAccess(orgId, sectionId, user, targetStudentId);
     await this.validateAttendanceSchedule(sectionId, scheduleId);
 
     const sessionDate = new Date(date);
@@ -501,6 +523,9 @@ export class AttendanceService {
         sectionId,
         ...(user.role === Role.STUDENT
           ? { student: { userId: user.id } }
+          : {}),
+        ...(user.role === Role.GUARDIAN && targetStudentId
+          ? { studentId: targetStudentId }
           : {}),
       },
       include: { student: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true } } } } },
@@ -528,9 +553,9 @@ export class AttendanceService {
 
   async getStudentAttendance(
     orgId: string,
-    userId: string,
+    studentId: string,
     requester: JwtPayload,
   ) {
-    return this.studentService.getStudentAttendance(orgId, userId, requester);
+    return this.studentService.getStudentAttendance(orgId, studentId, requester);
   }
 }

@@ -3,12 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums';
 import { GpaService } from '../gpa/gpa.service';
 import { GpaRounding, Prisma } from '@prisma/client';
+import { StudentService } from '../students/student.service';
 
 @Injectable()
 export class TranscriptsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gpaService: GpaService,
+    private readonly studentService: StudentService,
   ) {}
 
   /**
@@ -30,6 +32,10 @@ export class TranscriptsService {
     });
 
     if (!student) throw new NotFoundException('Student not found');
+
+    if (user?.role === Role.GUARDIAN) {
+      await this.studentService.assertGuardianCanAccessStudent(orgId, user.id, studentId);
+    }
 
     if (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) {
       const assignedEnrollment = await this.prisma.enrollment.findFirst({

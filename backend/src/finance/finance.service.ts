@@ -521,6 +521,13 @@ export class FinanceService {
       if (!student) throw new NotFoundException('Student profile not found');
       return { ...filters, studentId: student.id, teacherId: undefined };
     }
+    if (user.role === Role.GUARDIAN) {
+      if (!filters.studentId) {
+        throw new BadRequestException('Student is required for guardian finance records');
+      }
+      await this.assertGuardianCanAccessStudent(user, filters.studentId);
+      return { ...filters, studentId: filters.studentId, teacherId: undefined };
+    }
     if (user.role === Role.TEACHER) {
       const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
       if (!teacher) throw new NotFoundException('Teacher profile not found');
@@ -542,11 +549,30 @@ export class FinanceService {
     if (user.role === Role.STUDENT) {
       const student = await this.prisma.student.findUnique({ where: { userId: user.id } });
       if (!student || entry.studentId !== student.id) throw new ForbiddenException(`You can only ${action} your own entries`);
+    } else if (user.role === Role.GUARDIAN) {
+      if (!entry.studentId) throw new ForbiddenException(`Guardians can only ${action} linked student entries`);
+      await this.assertGuardianCanAccessStudent(user, entry.studentId);
     } else if (user.role === Role.TEACHER) {
       const teacher = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
       if (!teacher || entry.teacherId !== teacher.id) throw new ForbiddenException(`You can only ${action} your own entries`);
     } else if (user.role !== Role.SUPER_ADMIN && entry.organizationId !== user.organizationId) {
       throw new ForbiddenException('Cannot modify entries of a different organization');
+    }
+  }
+
+  private async assertGuardianCanAccessStudent(user: AuthenticatedRequest['user'], studentId: string) {
+    if (!user.organizationId) throw new BadRequestException('Organization is required');
+    const link = await this.prisma.guardianStudent.findFirst({
+      where: {
+        studentId,
+        organizationId: user.organizationId,
+        guardian: { userId: user.id, organizationId: user.organizationId },
+      },
+      select: { id: true },
+    });
+
+    if (!link) {
+      throw new ForbiddenException('You can only access finance records for linked students');
     }
   }
 

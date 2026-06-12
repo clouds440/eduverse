@@ -752,6 +752,15 @@ export class AssessmentsService {
     return this.studentService.getStudentReleasedGrades(orgId, userId);
   }
 
+  async getReleasedGradesForStudent(
+    orgId: string,
+    studentId: string,
+    user: JwtPayload,
+    sectionId?: string,
+  ) {
+    return this.studentService.getReleasedGradesForStudent(orgId, studentId, user, sectionId);
+  }
+
   // --- Submissions ---
   async createSubmission(
     orgId: string,

@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { useAuth } from '@/context/AuthContext';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import AttendanceSheet from '@/components/sections/AttendanceSheet';
-import { AttendanceRecord, Role, RangeAttendanceResponse, AttendanceStatus } from '@/types';
+import { AttendanceRecord, RangeAttendanceResponse, AttendanceStatus } from '@/types';
 import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { SkeletonTable } from '@/components/ui/Skeleton';
@@ -27,17 +26,20 @@ interface SectionSummary {
     percentage: number;
 }
 
-export default function Attendance() {
-    const { token, user } = useAuth();
+interface AttendanceProps {
+    studentId: string;
+}
+
+export default function Attendance({ studentId }: AttendanceProps) {
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
 
-    const attendanceKey = token && user?.role === Role.STUDENT
-        ? ['student-attendance', user.id] as const
+    const attendanceKey = studentId
+        ? ['student-attendance', studentId] as const
         : null;
     const { data: records = [], isLoading: fetching, error: attendanceError, mutate: mutateAttendance } = useSWR<AttendanceRecord[]>(attendanceKey);
 
-    const rangeKey = token && selectedSectionId
-        ? ['section-attendance-range', selectedSectionId] as const
+    const rangeKey = selectedSectionId
+        ? ['section-attendance-range', selectedSectionId, studentId] as const
         : null;
     const { data: rangeData, isLoading: fetchingDetail, error: rangeError, mutate: mutateRange } = useSWR<RangeAttendanceResponse>(rangeKey);
 

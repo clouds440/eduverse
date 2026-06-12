@@ -6,6 +6,7 @@ import { Award, FileText, Search, TrendingUp, Trophy } from 'lucide-react';
 import { FinalGradeResponse } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
@@ -14,18 +15,35 @@ function formatPercent(value: number) {
     return `${Math.round(Number(value || 0) * 10) / 10}%`;
 }
 
-export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
+interface GradesProps {
+    grades: FinalGradeResponse[];
+    transcriptHref?: string;
+    showSectionSelector?: boolean;
+}
+
+export default function Grades({ grades, transcriptHref = '/transcripts', showSectionSelector = false }: GradesProps) {
     const [search, setSearch] = useState('');
+    const [selectedSectionId, setSelectedSectionId] = useState('');
+
+    const sectionOptions = useMemo(() => (
+        grades.map((grade) => ({
+            value: grade.sectionId,
+            label: `${grade.courseName} - ${grade.sectionName}`,
+        }))
+    ), [grades]);
 
     const filteredGrades = useMemo(() => {
         const query = search.trim().toLowerCase();
-        if (!query) return grades;
-        return grades.filter((grade) => (
+        const scopedGrades = selectedSectionId
+            ? grades.filter((grade) => grade.sectionId === selectedSectionId)
+            : grades;
+        if (!query) return scopedGrades;
+        return scopedGrades.filter((grade) => (
             grade.courseName.toLowerCase().includes(query)
             || grade.sectionName.toLowerCase().includes(query)
             || grade.letterGrade?.toLowerCase().includes(query)
         ));
-    }, [grades, search]);
+    }, [grades, search, selectedSectionId]);
 
     const averageGrade = grades.length > 0
         ? grades.reduce((acc, grade) => acc + (Number(grade.finalPercentage) || 0), 0) / grades.length
@@ -87,7 +105,19 @@ export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
                         {grades.length} {grades.length === 1 ? 'section' : 'sections'} with grade records
                     </p>
                 </div>
-                <div className="w-full sm:w-80">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-80">
+                    {showSectionSelector && (
+                        <CustomSelect
+                            value={selectedSectionId}
+                            onChange={setSelectedSectionId}
+                            options={[
+                                { value: '', label: 'All courses' },
+                                ...sectionOptions,
+                            ]}
+                            placeholder="Select course"
+                            searchable
+                        />
+                    )}
                     <SearchBar
                         placeholder="Search grades..."
                         value={search}
@@ -160,7 +190,7 @@ export default function Grades({ grades }: { grades: FinalGradeResponse[] }) {
                 </div>
             )}
 
-            <Link href="/transcripts" className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm font-black text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/30">
+            <Link href={transcriptHref} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm font-black text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/30">
                 <FileText className="h-4 w-4 text-primary" />
                 Open Official Transcript
             </Link>

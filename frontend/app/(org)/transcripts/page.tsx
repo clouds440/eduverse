@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import useSWR from 'swr';
 import { AcademicCycle, Role, Student } from '@/types';
 import { api } from '@/lib/api';
@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
 import { BrandIcon } from '@/components/ui/Brand';
-import { PageHeader } from '@/components/ui/PageShell';
+import { PageHeader, type PageBreadcrumb } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { BookOpen, Download, GraduationCap, Printer, Search } from 'lucide-react';
 import { formatCourseSectionLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
@@ -123,9 +123,23 @@ function getCyclePeriodLabel(cycle: TranscriptCycle) {
     return `${name} (${start || 'Start TBD'} - ${end || 'End TBD'})`;
 }
 
-export default function TranscriptsPage() {
+interface StudentTranscriptViewProps {
+    studentId?: string;
+    headerActions?: ReactNode;
+    breadcrumbs?: PageBreadcrumb[];
+    title?: string;
+    description?: ReactNode;
+}
+
+export function StudentTranscriptView({
+    studentId,
+    headerActions,
+    breadcrumbs,
+    title = 'Academic Transcripts',
+    description = <>View and print academic reports by cycle or cumulative history. <DocsLink href="/docs/transcripts#transcript-calculation">Read transcript rules</DocsLink></>,
+}: StudentTranscriptViewProps) {
     const { token, user } = useAuth();
-    const [selectedStudentId, setSelectedStudentId] = useState('');
+    const [selectedStudentId, setSelectedStudentId] = useState(studentId || '');
     const [selectedCycleId, setSelectedCycleId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [isPdfOptionsOpen, setIsPdfOptionsOpen] = useState(false);
@@ -154,10 +168,16 @@ export default function TranscriptsPage() {
             .catch(console.error);
     }, [selectedStudentId, token, user]);
 
+    useEffect(() => {
+        if (studentId && studentId !== selectedStudentId) {
+            setSelectedStudentId(studentId);
+        }
+    }, [selectedStudentId, studentId]);
+
     const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
     const { data: cyclesData } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
 
-    const studentsKey = token && searchTerm.length >= 2 && user?.role !== Role.STUDENT
+    const studentsKey = token && searchTerm.length >= 2 && user?.role !== Role.STUDENT && !studentId
         ? ['studentsSearch', { search: searchTerm, limit: 10 }] as const
         : null;
     const { data: studentsData } = useSWR<{ data: Student[] }>(studentsKey);
@@ -207,12 +227,15 @@ export default function TranscriptsPage() {
     return (
         <div className="flex h-full w-full flex-col space-y-4">
             <PageHeader
-                title="Academic Transcripts"
-                description={<>View and print academic reports by cycle or cumulative history. <DocsLink href="/docs/transcripts#transcript-calculation">Read transcript rules</DocsLink></>}
+                title={title}
+                description={description}
                 icon={GraduationCap}
+                breadcrumbs={breadcrumbs}
                 actions={(
                     <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-end md:w-auto md:items-center">
-                        {user?.role !== Role.STUDENT && (
+                        {headerActions}
+
+                        {user?.role !== Role.STUDENT && !studentId && (
                             <div className="w-full sm:w-72">
                                 <div className="relative group">
                                     <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted-foreground transition-colors group-focus-within:text-primary">
@@ -550,4 +573,8 @@ export default function TranscriptsPage() {
             </div>
         </div>
     );
+}
+
+export default function TranscriptsPage() {
+    return <StudentTranscriptView />;
 }

@@ -31,7 +31,7 @@ export class FinanceController {
   }
 
   @Get('structures')
-  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   getStructures(
     @Query('organizationId') orgId: string | undefined,
     @Request() req: AuthenticatedRequest,
@@ -57,7 +57,7 @@ export class FinanceController {
   }
 
   @Get('entries')
-  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   getEntries(
     @Query('organizationId') orgId: string | undefined,
     @Request() req: AuthenticatedRequest,
@@ -85,7 +85,7 @@ export class FinanceController {
   }
 
   @Get('transactions')
-  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   getTransactions(
     @Query('organizationId') orgId: string | undefined,
     @Request() req: AuthenticatedRequest,
@@ -115,7 +115,7 @@ export class FinanceController {
   }
 
   @Get('stats')
-  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   getStats(
     @Query('organizationId') orgId: string | undefined,
     @Request() req: AuthenticatedRequest,
@@ -131,7 +131,7 @@ export class FinanceController {
   }
 
   @Patch('entries/:id/mark-paid')
-  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Access(AccessLevel.WRITE)
   markEntryPaid(@Param('id') id: string, @Body() dto: MarkPaidDto, @Request() req: AuthenticatedRequest) {
     return this.financeService.markEntryPaid(id, req.user, dto);

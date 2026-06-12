@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { ModalOverlay } from '@/components/ui/Modal';
-import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type PageBreadcrumb } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { PLATFORM_NAME } from '@/lib/constants';
 import { downloadPdfBlob, sanitizePdfFilename } from '@/lib/pdf/core';
@@ -460,16 +460,34 @@ function TimetableGrid({
     );
 }
 
-export default function TimetablePage() {
+interface StudentTimetableViewProps {
+    studentId?: string;
+    headerActions?: React.ReactNode;
+    breadcrumbs?: PageBreadcrumb[];
+    title?: string;
+    description?: React.ReactNode;
+}
+
+export function StudentTimetableView({
+    studentId,
+    headerActions,
+    breadcrumbs = [
+        { label: 'Organization' },
+        { label: 'Academics' },
+        { label: 'Timetable' },
+    ],
+    title = 'Weekly Timetable',
+    description = 'A clear week view with time blocks sized by their real start and end times.',
+}: StudentTimetableViewProps) {
     const router = useRouter();
     const { token, user } = useAuth();
     const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-    const timetableKey = token && user ? ['timetable', user.id, user.role] as const : null;
+    const timetableKey = token && user ? ['timetable', user.id, user.role, studentId] as const : null;
     const { data: entries = [], isLoading, error, mutate } = useSWR<TimetableEntry[]>(timetableKey);
     const profileKey = token && user?.role === Role.STUDENT
-        ? ['student-profile'] as const
+        ? ['student-profile', user.id] as const
         : token && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER)
             ? ['teacher-profile'] as const
             : null;
@@ -594,12 +612,13 @@ export default function TimetablePage() {
     return (
         <PageShell>
             <PageHeader
-                title="Weekly Timetable"
-                description="A clear week view with time blocks sized by their real start and end times."
+                title={title}
+                description={description}
                 icon={Clock}
                 meta={<Badge variant="neutral" size="sm">{entries.length} slots</Badge>}
                 actions={(
-                    <>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                        {headerActions}
                         <Button
                             type="button"
                             variant="secondary"
@@ -619,13 +638,9 @@ export default function TimetablePage() {
                         >
                             PDF
                         </Button>
-                    </>
+                    </div>
                 )}
-                breadcrumbs={[
-                    { label: 'Organization' },
-                    { label: 'Academics' },
-                    { label: 'Timetable' },
-                ]}
+                breadcrumbs={breadcrumbs}
             />
 
             {isLoading && entries.length === 0 ? (
@@ -720,4 +735,8 @@ export default function TimetablePage() {
             )}
         </PageShell>
     );
+}
+
+export default function TimetablePage() {
+    return <StudentTimetableView />;
 }

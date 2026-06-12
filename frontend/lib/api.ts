@@ -425,6 +425,8 @@ export const api = {
         // --- Final Results ---
         getStudentFinalGrades: (studentId: string, token: string, sectionId?: string) =>
             request<FinalGradeResponse[]>(`/org/students/${studentId}/final-grades${buildQueryString({ sectionId })}`, { token }),
+        getStudentReleasedGrades: (studentId: string, token: string, sectionId?: string) =>
+            request<FinalGradeResponse[]>(`/org/students/${studentId}/released-grades${buildQueryString({ sectionId })}`, { token }),
         getProfile: <T = Student | Teacher>(token: string) =>
             request<T>('/org/profile', { token }),
         updateProfile: <T = Student | Teacher>(data: UpdateStudentRequest | UpdateTeacherRequest, token: string) =>
@@ -455,17 +457,17 @@ export const api = {
             request<SectionSchedule>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteSchedule: (sectionId: string, scheduleId: string, token: string) =>
             request<void>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'DELETE', token }),
-        getTimetable: (token: string) =>
-            request<TimetableEntry[]>('/org/timetable', { token }),
+        getTimetable: (token: string, params: { studentId?: string } = {}) =>
+            request<TimetableEntry[]>(`/org/timetable${buildQueryString(params)}`, { token }),
 
         createAttendanceSession: (sectionId: string, date: string, token: string, scheduleId?: string, startTime?: string, endTime?: string) =>
             request<{ id: string }>(`/org/sections/${sectionId}/attendance/sessions`, { method: 'POST', body: JSON.stringify({ date, scheduleId, startTime, endTime }), token }),
         markAttendance: (sessionId: string, records: { studentId: string, status: string }[], token: string) =>
             request<AttendanceRecord[]>(`/org/attendance/${sessionId}`, { method: 'POST', body: JSON.stringify(records), token }),
-        getSectionAttendance: (sectionId: string, date: string, token: string, scheduleId?: string) =>
-            request<SectionAttendanceResponse>(`/org/sections/${sectionId}/attendance${buildQueryString({ date, scheduleId })}`, { token }),
-        getSectionAttendanceRange: (sectionId: string, start: string, end: string, token: string) =>
-            request<RangeAttendanceResponse>(`/org/sections/${sectionId}/attendance/range${buildQueryString({ start, end })}`, { token }),
+        getSectionAttendance: (sectionId: string, date: string, token: string, scheduleId?: string, studentId?: string) =>
+            request<SectionAttendanceResponse>(`/org/sections/${sectionId}/attendance${buildQueryString({ date, scheduleId, studentId })}`, { token }),
+        getSectionAttendanceRange: (sectionId: string, start: string, end: string, token: string, studentId?: string) =>
+            request<RangeAttendanceResponse>(`/org/sections/${sectionId}/attendance/range${buildQueryString({ start, end, studentId })}`, { token }),
         getStudentAttendance: (studentId: string, token: string) =>
             request<AttendanceRecord[]>(`/org/students/${studentId}/attendance`, { token }),
     },

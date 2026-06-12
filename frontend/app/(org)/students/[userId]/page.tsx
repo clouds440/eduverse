@@ -210,7 +210,8 @@ function StudentPortalContent() {
         }
 
         if (tab === 'attendance') {
-            return <Attendance />;
+            if (!studentData?.id) return <DashboardSkeleton />;
+            return <Attendance studentId={studentData.id} />;
         }
 
         if (profileLoading) {

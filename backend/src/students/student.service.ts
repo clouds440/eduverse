@@ -881,6 +881,53 @@ export class StudentService {
     return this.prisma.student.findUnique({ where: { userId } });
   }
 
+  async assertGuardianCanAccessStudent(orgId: string, guardianUserId: string, studentId: string) {
+    const link = await this.prisma.guardianStudent.findFirst({
+      where: {
+        studentId,
+        organizationId: orgId,
+        guardian: { userId: guardianUserId, organizationId: orgId },
+      },
+      select: { id: true },
+    });
+
+    if (!link) {
+      throw new ForbiddenException('You can only view students linked to your guardian account.');
+    }
+  }
+
+  async assertCanViewStudent(orgId: string, studentId: string, requester: JwtPayload) {
+    const student = await this.getStudentById(orgId, studentId);
+    if (!student) throw new NotFoundException('Student not found');
+
+    if (requester.role === Role.STUDENT && requester.id !== student.userId) {
+      throw new ForbiddenException('Students can only view their own records.');
+    }
+
+    if (requester.role === Role.GUARDIAN) {
+      await this.assertGuardianCanAccessStudent(orgId, requester.id, studentId);
+    }
+
+    if (requester.role === Role.TEACHER) {
+      const canAccess = await this.prisma.enrollment.findFirst({
+        where: {
+          studentId,
+          section: {
+            course: { organizationId: orgId },
+            teachers: { some: { userId: requester.id } },
+          },
+        },
+        select: { id: true },
+      });
+
+      if (!canAccess) {
+        throw new ForbiddenException('You are not assigned to this section.');
+      }
+    }
+
+    return student;
+  }
+
   async calculateFinalGrade(
     studentId: string,
     sectionId?: string,
@@ -963,12 +1010,38 @@ export class StudentService {
     ]);
   }
 
+  async getReleasedGradesForStudent(
+    orgId: string,
+    studentId: string,
+    requester: JwtPayload,
+    sectionId?: string,
+  ) {
+    await this.assertCanViewStudent(orgId, studentId, requester);
+
+    return this.calculateFinalGrade(studentId, sectionId, [
+      GradeStatus.PUBLISHED,
+      GradeStatus.FINALIZED,
+    ]);
+  }
+
   async getStudentTimetable(orgId: string, userId: string) {
     const student = await this.getStudentByUserId(userId);
     if (!student) return [];
-    
+
+    return this.getStudentTimetableByStudentId(orgId, student.id);
+  }
+
+  async getStudentTimetableByStudentId(
+    orgId: string,
+    studentId: string,
+    requester?: JwtPayload,
+  ) {
+    if (requester) {
+      await this.assertCanViewStudent(orgId, studentId, requester);
+    }
+
     const enrollments = await this.prisma.enrollment.findMany({
-      where: { studentId: student.id, section: { course: { organizationId: orgId } } },
+      where: { studentId, section: { course: { organizationId: orgId } } },
       include: {
         section: {
           include: {
@@ -990,36 +1063,10 @@ export class StudentService {
 
   async getStudentAttendance(
     orgId: string,
-    userId: string,
+    studentId: string,
     requester: JwtPayload,
   ) {
-    if (requester.role === Role.STUDENT && requester.id !== userId) {
-      throw new ForbiddenException(
-        'Students can only view their own attendance.',
-      );
-    }
-
-    const student = await this.getStudentByUserId(userId);
-    if (!student) return [];
-
-    if (requester.role === Role.TEACHER) {
-      const canAccess = await this.prisma.enrollment.findFirst({
-        where: {
-          studentId: student.id,
-          section: {
-            course: { organizationId: orgId },
-            teachers: { some: { userId: requester.id } },
-          },
-        },
-        select: { id: true },
-      });
-
-      if (!canAccess) {
-        throw new ForbiddenException(
-          'You are not assigned to this section.',
-        );
-      }
-    }
+    const student = await this.assertCanViewStudent(orgId, studentId, requester);
     
     return this.prisma.attendanceRecord.findMany({
       where: { studentId: student.id, session: { section: { course: { organizationId: orgId } } } },

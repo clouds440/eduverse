@@ -473,6 +473,7 @@ export class OrgController {
     return this.assessmentsService.deleteAssessment(orgId, id, req.user);
   }
 
+  @Roles(Role.STUDENT)
   @Get('grades/final')
   getStudentFinalGrades(
     @OrgId() orgId: string,
@@ -481,6 +482,7 @@ export class OrgController {
     return this.assessmentsService.getStudentFinalGrades(orgId, req.user.id);
   }
 
+  @Roles(Role.STUDENT)
   @Get('grades/released')
   getStudentReleasedGrades(
     @OrgId() orgId: string,
@@ -592,13 +594,26 @@ export class OrgController {
   }
 
   // --- Final Results ---
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('students/:id/final-grades')
   getFinalGrades(
     @OrgId() orgId: string,
     @Param('id') studentId: string,
+    @Request() req: AuthenticatedRequest,
     @Query('sectionId') sectionId?: string,
   ) {
-    return this.assessmentsService.calculateFinalGrade(studentId, sectionId);
+    return this.assessmentsService.getReleasedGradesForStudent(orgId, studentId, req.user, sectionId);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
+  @Get('students/:id/released-grades')
+  getReleasedGradesForStudent(
+    @OrgId() orgId: string,
+    @Param('id') studentId: string,
+    @Request() req: AuthenticatedRequest,
+    @Query('sectionId') sectionId?: string,
+  ) {
+    return this.assessmentsService.getReleasedGradesForStudent(orgId, studentId, req.user, sectionId);
   }
 
   // --- Timetable & Schedules ---
@@ -642,9 +657,17 @@ export class OrgController {
     return this.attendanceService.getSchedules(orgId, id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('timetable')
-  getTimetable(@OrgId() orgId: string, @Request() req: AuthenticatedRequest) {
+  getTimetable(
+    @OrgId() orgId: string,
+    @Request() req: AuthenticatedRequest,
+    @Query('studentId') studentId?: string,
+  ) {
+    if (req.user.role === Role.GUARDIAN) {
+      if (!studentId) throw new BadRequestException('Query parameter "studentId" is required');
+      return this.studentService.getStudentTimetableByStudentId(orgId, studentId, req.user);
+    }
     if (req.user.role === Role.STUDENT) {
       return this.studentService.getStudentTimetable(orgId, req.user.id);
     }
@@ -688,7 +711,7 @@ export class OrgController {
     return this.attendanceService.markAttendance(orgId, sessionId, req.user, records);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('sections/:id/attendance')
   getSectionAttendance(
     @OrgId() orgId: string,
@@ -696,12 +719,13 @@ export class OrgController {
     @Request() req: AuthenticatedRequest,
     @Query('date') date: string,
     @Query('scheduleId') scheduleId?: string,
+    @Query('studentId') studentId?: string,
   ) {
     if (!date) throw new BadRequestException('Query parameter "date" is required');
-    return this.attendanceService.getSectionAttendance(orgId, id, req.user, date, scheduleId);
+    return this.attendanceService.getSectionAttendance(orgId, id, req.user, date, scheduleId, studentId);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('sections/:id/attendance/range')
   getSectionAttendanceRange(
     @OrgId() orgId: string,
@@ -709,12 +733,13 @@ export class OrgController {
     @Request() req: AuthenticatedRequest,
     @Query('start') start: string,
     @Query('end') end: string,
+    @Query('studentId') studentId?: string,
   ) {
     if (!start || !end) throw new BadRequestException('Query parameters "start" and "end" are required');
-    return this.attendanceService.getSectionAttendanceRange(orgId, id, req.user, start, end);
+    return this.attendanceService.getSectionAttendanceRange(orgId, id, req.user, start, end, studentId);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('students/:id/attendance')
   getStudentAttendance(
     @OrgId() orgId: string,
