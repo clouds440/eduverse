@@ -81,7 +81,7 @@ export class StudentService {
     guardianRelationship?: string | null,
   ) {
     if (!guardianId) {
-      return { guardianId: null, guardianRelationship: null };
+      return null;
     }
 
     const relationship = guardianRelationship?.trim();
@@ -102,7 +102,74 @@ export class StudentService {
       );
     }
 
-    return { guardianId: guardian.id, guardianRelationship: relationship };
+    return { guardianId: guardian.id, relationshipLabel: relationship };
+  }
+
+  private async setStudentGuardianLink(
+    tx: Prisma.TransactionClient,
+    orgId: string,
+    studentId: string,
+    guardianId?: string | null,
+    guardianRelationship?: string | null,
+  ) {
+    if (!guardianId) {
+      await tx.guardianStudent.deleteMany({ where: { studentId } });
+      return;
+    }
+
+    const assignment = await this.validateGuardianAssignment(
+      tx,
+      orgId,
+      guardianId,
+      guardianRelationship,
+    );
+    if (!assignment) return;
+
+    await tx.guardianStudent.upsert({
+      where: { studentId },
+      create: {
+        studentId,
+        guardianId: assignment.guardianId,
+        organizationId: orgId,
+        relationshipLabel: assignment.relationshipLabel,
+      },
+      update: {
+        guardianId: assignment.guardianId,
+        organizationId: orgId,
+        relationshipLabel: assignment.relationshipLabel,
+      },
+    });
+  }
+
+  private normalizeStudentGuardian<T extends { guardianLinks?: Array<{ guardianId: string; relationshipLabel: string; guardian: unknown }> } | null>(student: T) {
+    if (!student) return student;
+    const guardianLink = student.guardianLinks?.[0] || null;
+    const { guardianLinks, ...rest } = student as T & { guardianLinks?: unknown };
+    return {
+      ...rest,
+      guardianLinks,
+      guardianId: guardianLink?.guardianId || null,
+      guardianRelationship: guardianLink?.relationshipLabel || null,
+      guardian: guardianLink?.guardian || null,
+    };
+  }
+
+  private studentGuardianInclude() {
+    return {
+      guardianLinks: {
+        include: {
+          guardian: {
+            include: {
+              user: {
+                select: { id: true, name: true, email: true, phone: true },
+              },
+            },
+          },
+        },
+        take: 1,
+        orderBy: { updatedAt: 'desc' as const },
+      },
+    };
   }
 
   private async getCohortForEnrollment(
@@ -389,13 +456,7 @@ export class StudentService {
             },
           },
           cohort: true,
-          guardian: {
-            include: {
-              user: {
-                select: { id: true, name: true, email: true, phone: true },
-              },
-            },
-          },
+          ...this.studentGuardianInclude(),
           enrollments: {
             include: {
               section: {
@@ -409,7 +470,7 @@ export class StudentService {
     ]);
 
     return formatPaginatedResponse(
-      students,
+      students.map((student) => this.normalizeStudentGuardian(student)),
       totalRecords,
       options.page,
       options.limit,
@@ -444,13 +505,7 @@ export class StudentService {
             },
           },
         },
-        guardian: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, phone: true },
-            },
-          },
-        },
+        ...this.studentGuardianInclude(),
       },
     });
     if (!student) throw new NotFoundException('Student not found');
@@ -458,7 +513,7 @@ export class StudentService {
     if (userContext?.role === Role.STUDENT && student.userId !== userContext.id) {
         throw new ForbiddenException('You do not have permission to view this student profile');
     }
-    return student;
+    return this.normalizeStudentGuardian(student);
   }
 
   async createStudent(
@@ -516,22 +571,24 @@ export class StudentService {
             gender: data.gender,
             status: data.status as unknown as StudentStatus,
             cohortId: data.cohortId || null,
-            ...(data.guardianId
-              ? await this.validateGuardianAssignment(
-                  prisma,
-                  orgId,
-                  data.guardianId,
-                  data.guardianRelationship,
-                )
-              : {}),
             updatedBy: userContext.name || userContext.email,
           },
           include: {
             user: { select: { email: true, name: true, phone: true } },
-            guardian: { include: { user: { select: { id: true, name: true, email: true, phone: true } } } },
+            ...this.studentGuardianInclude(),
             enrollments: { include: { section: true } },
           },
         });
+
+        if (data.guardianId) {
+          await this.setStudentGuardianLink(
+            prisma,
+            orgId,
+            student.id,
+            data.guardianId,
+            data.guardianRelationship,
+          );
+        }
 
         await this.createManualEnrollments(prisma, student.id, data.sectionIds || []);
 
@@ -539,15 +596,16 @@ export class StudentService {
           await this.moveStudentToCohort(prisma, orgId, student.id, null, data.cohortId);
         }
 
-        return prisma.student.findUnique({
+        const createdStudent = await prisma.student.findUnique({
           where: { id: student.id },
           include: {
             user: { select: { email: true, name: true, phone: true } },
             cohort: { select: { id: true, name: true } },
-            guardian: { include: { user: { select: { id: true, name: true, email: true, phone: true } } } },
+            ...this.studentGuardianInclude(),
             enrollments: { include: { section: true } },
           },
         });
+        return this.normalizeStudentGuardian(createdStudent);
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -600,8 +658,6 @@ export class StudentService {
       'gender',
       'status',
       'cohortId',
-      'guardianId',
-      'guardianRelationship',
     ];
 
     const { userData, entityData: studentData } = await extractUpdateFields(
@@ -663,19 +719,8 @@ export class StudentService {
         ? data.cohortId
         : undefined;
 
-    const nextGuardianId = data.guardianId === ''
-      ? null
-      : data.guardianId !== undefined
-        ? data.guardianId
-        : undefined;
-
     if (data.cohortId === '') {
       studentData.cohortId = null;
-    }
-
-    if (data.guardianId === '') {
-      studentData.guardianId = null;
-      studentData.guardianRelationship = null;
     }
 
     const updatedStudent = await this.prisma.$transaction(async (tx) => {
@@ -683,15 +728,13 @@ export class StudentService {
         await this.userService.updateUser(student.userId, userData, tx);
       }
 
-      if (nextGuardianId !== undefined) {
-        Object.assign(
-          studentData,
-          await this.validateGuardianAssignment(
-            tx,
-            orgId,
-            nextGuardianId,
-            data.guardianRelationship,
-          ),
+      if (data.guardianId !== undefined) {
+        await this.setStudentGuardianLink(
+          tx,
+          orgId,
+          id,
+          data.guardianId === '' ? null : data.guardianId,
+          data.guardianRelationship,
         );
       }
 
@@ -753,7 +796,7 @@ export class StudentService {
         await this.autoEnrollCohortSections(tx, id, cohort.sections, cohort.academicCycleId);
       }
 
-      return tx.student.findUnique({
+      const savedStudent = await tx.student.findUnique({
         where: { id },
         include: {
           user: {
@@ -767,10 +810,11 @@ export class StudentService {
             },
           },
           cohort: { select: { id: true, name: true } },
-          guardian: { include: { user: { select: { id: true, name: true, email: true, phone: true } } } },
+          ...this.studentGuardianInclude(),
           enrollments: { include: { section: true } },
         },
       });
+      return this.normalizeStudentGuardian(savedStudent);
     });
 
     // --- Persistent Notifications ---

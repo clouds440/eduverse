@@ -15,12 +15,12 @@ import { Label } from '@/components/ui/Label';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
-import { Drawer } from '@/components/ui/Drawer';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Badge } from '@/components/ui/Badge';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
@@ -272,105 +272,98 @@ export default function SectionsPage() {
                 ]}
             />
             <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                    <div className="flex-1">
-                        <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder="Search by section name, room..." />
-                    </div>
-
-                    <div className='flex w-full md:w-auto gap-2 justify-between'>
-                        {(canManageSections || user?.role === Role.ORG_MANAGER) && (
-                            <Drawer position='left'>
-                                <div className="flex flex-col gap-6">
-                                    {/* My Sections Toggle */}
-                                    {user?.role === Role.ORG_MANAGER && (
-                                        <div className="flex items-center justify-between bg-muted/20 p-3 rounded-lg border border-border">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-bold uppercase tracking-wider">My Sections</span>
-                                                <span className="text-[10px] text-muted-foreground">Only show sections assigned to me</span>
-                                            </div>
-                                            <Toggle
-                                                checked={showOnlyMySections}
-                                                onCheckedChange={(checked) => updateQueryParams({ my: checked, page: 1 })}
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* Academic Cycle Filter */}
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Academic Cycle</Label>
-                                        <CustomSelect
-                                            options={[
-                                                { label: 'All Academic Cycles', value: '' },
-                                                ...(cyclesData?.data?.map(cycle => ({ value: cycle.id, label: cycle.name })) || [])
-                                            ]}
-                                            value={academicCycleId}
-                                            onChange={(val) => updateQueryParams({ academicCycleId: val, page: 1 })}
-                                            placeholder="All Cycles"
-                                        />
+                <FilterDrawerToolbar
+                    activeFilters={activeFilters}
+                    leading={(
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={(val) => updateQueryParams({ search: val, page: 1 })}
+                            placeholder="Search by section name, room..."
+                        />
+                    )}
+                    actions={canManageSections ? (
+                        <Button
+                            onClick={() => router.push('/sections/create')}
+                            icon={Plus}
+                            className="w-auto shadow-lg shadow-primary/10"
+                        >
+                            New Section
+                        </Button>
+                    ) : undefined}
+                    renderFilters={() => (
+                        <FilterDrawerGrid>
+                            {user?.role === Role.ORG_MANAGER && (
+                                <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-bold uppercase tracking-wider">My Sections</span>
+                                        <span className="text-[10px] text-muted-foreground">Only show sections assigned to me</span>
                                     </div>
-
-                                    <div className="flex items-center justify-between bg-muted/20 p-3 rounded-lg border border-border">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-bold uppercase tracking-wider">Past Cycles</span>
-                                            <span className="text-[10px] text-muted-foreground">Include inactive academic cycle sections</span>
-                                        </div>
-                                        <Toggle
-                                            checked={includeInactiveCycles}
-                                            onCheckedChange={(checked) => updateQueryParams({ includeInactiveCycles: checked, page: 1 })}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Cohort</Label>
-                                        <CustomSelect
-                                            options={[
-                                                { label: 'All Cohorts', value: '' },
-                                                ...(cohortsData?.data?.map(cohort => ({ value: cohort.id, label: cohort.name, icon: School })) || [])
-                                            ]}
-                                            value={cohortId}
-                                            onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}
-                                            placeholder="All Cohorts"
-                                        />
-                                    </div>
-
-                                    {canUseTeacherFilter && (
-                                        <div className="space-y-2">
-                                            <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Assigned Teacher</Label>
-                                            <CustomSelect
-                                                options={[
-                                                    { label: 'All Teachers', value: '' },
-                                                    ...(teachersData?.data?.map(teacher => ({
-                                                        value: teacher.id,
-                                                        label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
-                                                        icon: UserRound,
-                                                    })) || [])
-                                                ]}
-                                                value={teacherId}
-                                                onChange={(val) => updateQueryParams({ teacherId: val, page: 1 })}
-                                                placeholder="All Teachers"
-                                                searchable
-                                            />
-                                        </div>
-                                    )}
+                                    <Toggle
+                                        checked={showOnlyMySections}
+                                        onCheckedChange={(checked) => updateQueryParams({ my: checked, page: 1 })}
+                                    />
                                 </div>
-                            </Drawer>
-                        )}
+                            )}
 
-                        {canManageSections && (
-                            <Button
-                                onClick={() => router.push('/sections/create')}
-                                icon={Plus}
-                                className="w-auto shadow-lg shadow-primary/10"
-                            >
-                                New Section
-                            </Button>
-                        )}
-                    </div>
-                </div>
-                </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Academic Cycle</Label>
+                                <CustomSelect
+                                    options={[
+                                        { label: 'All Academic Cycles', value: '' },
+                                        ...(cyclesData?.data?.map(cycle => ({ value: cycle.id, label: cycle.name })) || [])
+                                    ]}
+                                    value={academicCycleId}
+                                    onChange={(val) => updateQueryParams({ academicCycleId: val, page: 1 })}
+                                    placeholder="All Cycles"
+                                />
+                            </div>
 
-                <ResourceToolbar activeFilters={activeFilters} className="border-t border-border/60" />
+                            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-3">
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-bold uppercase tracking-wider">Past Cycles</span>
+                                    <span className="text-[10px] text-muted-foreground">Include inactive academic cycle sections</span>
+                                </div>
+                                <Toggle
+                                    checked={includeInactiveCycles}
+                                    onCheckedChange={(checked) => updateQueryParams({ includeInactiveCycles: checked, page: 1 })}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Cohort</Label>
+                                <CustomSelect
+                                    options={[
+                                        { label: 'All Cohorts', value: '' },
+                                        ...(cohortsData?.data?.map(cohort => ({ value: cohort.id, label: cohort.name, icon: School })) || [])
+                                    ]}
+                                    value={cohortId}
+                                    onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}
+                                    placeholder="All Cohorts"
+                                />
+                            </div>
+
+                            {canUseTeacherFilter && (
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Assigned Teacher</Label>
+                                    <CustomSelect
+                                        options={[
+                                            { label: 'All Teachers', value: '' },
+                                            ...(teachersData?.data?.map(teacher => ({
+                                                value: teacher.id,
+                                                label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
+                                                icon: UserRound,
+                                            })) || [])
+                                        ]}
+                                        value={teacherId}
+                                        onChange={(val) => updateQueryParams({ teacherId: val, page: 1 })}
+                                        placeholder="All Teachers"
+                                        searchable
+                                    />
+                                </div>
+                            )}
+                        </FilterDrawerGrid>
+                    )}
+                />
 
                 <div className="relative overflow-x-hidden flex-1 min-h-0">
                     <DataTable

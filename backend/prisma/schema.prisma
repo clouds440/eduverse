@@ -46,6 +46,7 @@ model Organization {
   paymentClaims       PaymentClaim[]
   transactions        Transaction[]
   auditLogs           AuditLog[]
+  guardianStudentLinks GuardianStudent[]
   gpaPolicies         GpaPolicy[]
 
   @@index([status])
@@ -188,14 +189,31 @@ model GuardianProfile {
   organizationId String
   phone          String?
   address        String?
-  relationshipLabel String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  students       Student[]
+  studentLinks   GuardianStudent[]
 
+  @@index([organizationId])
+}
+
+model GuardianStudent {
+  id                String          @id @default(uuid())
+  guardianId        String
+  studentId         String          @unique
+  organizationId    String
+  relationshipLabel String
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  guardian          GuardianProfile @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+  student           Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([guardianId, studentId])
+  @@index([guardianId])
   @@index([organizationId])
 }
 
@@ -297,8 +315,6 @@ model Student {
   userId             String        @unique
   organizationId     String
   cohortId           String?
-  guardianId         String?
-  guardianRelationship String?
   registrationNumber String        @default("TEMP_ID")
   rollNumber         String        @default("TEMP_ROLL")
   fatherName         String?
@@ -319,7 +335,7 @@ model Student {
   organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   cohort             Cohort?       @relation(fields: [cohortId], references: [id])
-  guardian           GuardianProfile? @relation(fields: [guardianId], references: [id], onDelete: SetNull)
+  guardianLinks      GuardianStudent[]
   grades             Grade[]
   submissions        Submission[]
   attendanceRecords  AttendanceRecord[]
@@ -331,7 +347,6 @@ model Student {
 
   @@index([organizationId])
   @@index([cohortId])
-  @@index([guardianId])
 }
 
 model Assessment {

@@ -8,7 +8,8 @@ import { PLATFORM_NAME, DASHBOARD_MODULES } from '@/lib/constants';
 import { useAuth } from '@/context/AuthContext';
 import { getPublicUrl, getUserColor } from '@/lib/utils';
 import Link from 'next/link';
-import { Role } from '@/types';
+import { getRoleDashboardPath } from '@/lib/roles';
+import type { Role } from '@/types';
 
 
 type BrandSize = 'sm' | 'md' | 'lg' | 'xl' | 'hero';
@@ -176,16 +177,8 @@ export const Brand = React.memo(function Brand({
     hero: 'text-5xl md:text-7xl',
   };
 
-  const defaultHref = isDashboardContext ?
-    activeUser?.orgName
-      ? activeUser.role === Role.FINANCE_MANAGER
-        ? '/finance'
-        : activeUser.role === Role.ORG_ADMIN || activeUser.role === Role.SUB_ADMIN
-        ? '/overview'
-        : activeUser.role === Role.TEACHER || activeUser.role === Role.ORG_MANAGER
-          ? `/teachers/${activeUser.id}`
-          : `/students/${activeUser.id}`
-      : '/'
+  const defaultHref = isDashboardContext && activeUser?.orgName
+    ? getRoleDashboardPath(activeUser)
     : '/';
 
   const content = (

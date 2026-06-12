@@ -28,6 +28,7 @@ import { BrandIcon } from '@/components/ui/Brand';
 import { ADMIN_REPLY_TEMPLATES } from './MailTemplates';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { getRoleLabel } from '@/lib/roles';
 
 interface MailThreadProps {
     mail: MailDetail;
@@ -66,7 +67,7 @@ function formatDateTime(value: string) {
 }
 
 function formatRole(role?: string | null) {
-    return role ? role.replace(/_/g, ' ') : '';
+    return getRoleLabel(role, '');
 }
 
 function getRecipientLabel(mail: MailDetail) {

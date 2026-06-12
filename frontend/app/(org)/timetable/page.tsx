@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { PLATFORM_NAME } from '@/lib/constants';
 import { downloadPdfBlob, sanitizePdfFilename } from '@/lib/pdf/core';
 import { createTimetablePdf, type TimetablePdfSectionSummary } from '@/lib/pdf/timetable';
+import { getRoleLabel } from '@/lib/roles';
 import { cn, formatCourseSectionLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
@@ -139,21 +140,6 @@ function getTimetableCardStyle(entry: TimetableEntry): React.CSSProperties {
         borderColor: `${hex}66`,
         color: hex,
     };
-}
-
-function getRoleLabel(role?: Role) {
-    switch (role) {
-        case Role.STUDENT:
-            return 'Student';
-        case Role.TEACHER:
-            return 'Teacher';
-        case Role.ORG_MANAGER:
-            return 'Manager';
-        case Role.ORG_ADMIN:
-            return 'Administrator';
-        default:
-            return 'User';
-    }
 }
 
 function getProfileCohortName(profile?: TimetableProfile) {

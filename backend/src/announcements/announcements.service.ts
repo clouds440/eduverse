@@ -5,6 +5,7 @@ import { StudentService } from '../students/student.service';
 import { TeacherService } from '../teacher/teacher.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { Prisma, Role, TargetType } from '@prisma/client';
+import { formatRoleLabel } from '../common/role-labels';
 
 interface CurrentUser {
   id: string;
@@ -36,7 +37,7 @@ export class AnnouncementsService {
     } else if (dto.targetType === TargetType.ORG) {
       if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
         throw new ForbiddenException(
-          `As an ${user.role.replace('_', ' ')}, you are not authorized to create organization-wide announcements.`,
+          `As a ${formatRoleLabel(user.role)}, you are not authorized to create organization-wide announcements.`,
         );
       }
       if (
@@ -66,7 +67,7 @@ export class AnnouncementsService {
         isPlatformTarget
       ) {
         throw new ForbiddenException(
-          `As an ${user.role.replace('_', ' ')}, you cannot target Platform or Super Administrators.`,
+          `As a ${formatRoleLabel(user.role)}, you cannot target Platform or Super Administrators.`,
         );
       }
 

@@ -5,7 +5,7 @@ import { RoleAccountsService } from '../role-accounts/role-accounts.service';
 import { CreateSubAdminDto } from './dto/create-sub-admin.dto';
 import { UpdateSubAdminDto } from './dto/update-sub-admin.dto';
 
-const SUB_ADMIN_LABEL = 'Sub admin';
+const SUB_ADMIN_LABEL = 'Sub Admin';
 
 @Injectable()
 export class SubAdminsService {

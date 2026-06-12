@@ -13,6 +13,7 @@ import { CreateAnnouncementModal } from './CreateAnnouncementModal';
 import { BrandIcon } from '@/components/ui/Brand';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
+import { getRoleLabel } from '@/lib/roles';
 
 export function AnnouncementDropdown() {
     const { token, user } = useAuth();
@@ -209,7 +210,7 @@ export function AnnouncementDropdown() {
                                                     </div>
                                                     <div className="flex items-center justify-between mt-0.5">
                                                         <span className="text-[9px] font-black text-info/70 tracking-widest bg-info/10 border border-info/10 px-1.5 py-0.5 rounded-lg">
-                                                            {creator?.role?.replace('_', ' ') || 'SYSTEM'}
+                                                            {getRoleLabel(creator?.role, 'SYSTEM')}
                                                         </span>
                                                         <div className="text-[9px] text-muted-foreground font-bold tracking-wider">
                                                             {formatDistanceToNow(new Date(announcement.createdAt), { addSuffix: true })}

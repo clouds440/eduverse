@@ -14,6 +14,7 @@ import { Users, Shield, User as UserIcon, ChevronLeft, MessageSquarePlus } from 
 import { useGlobal } from '@/context/GlobalContext';
 import { Role } from '@/types';
 import { formatCourseSectionLabel } from '@/lib/utils';
+import { getRoleLabel } from '@/lib/roles';
 
 const STABLE_EMPTY_ARRAY: string[] = [];
 
@@ -115,7 +116,7 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
 
                 setContactableUsers(filteredUsers.map(u => ({
                     value: u.id,
-                    label: `${u.name || u.email}${u.role ? ` (${u.role.replace('_', ' ')})` : ''}`,
+                    label: `${u.name || u.email}${u.role ? ` (${getRoleLabel(u.role)})` : ''}`,
                     icon: u.role && (u.role.includes('ADMIN') || u.role.includes('MANAGER')) ? Shield : UserIcon
                 })));
             } catch (error) {

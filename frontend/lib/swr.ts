@@ -14,6 +14,8 @@ export type CacheKeyPrefix =
     | 'sub-admin'
     | 'finance-managers'
     | 'finance-manager'
+    | 'guardians'
+    | 'guardian'
     | 'students'
     | 'sections'
     | 'courses'

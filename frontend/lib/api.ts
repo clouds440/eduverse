@@ -2,7 +2,7 @@ import type {
     Teacher, Student, Organization, RegisterRequest, LoginRequest, AuthResponse,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
-    CreateGuardianRequest, GuardianOverview, GuardianProfile,
+    CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
     CreateSectionRequest, UpdateSectionRequest, CreateCourseRequest, UpdateCourseRequest,
     PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload,
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
@@ -13,7 +13,7 @@ import type {
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, MessageResponse, AuditLogItem,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
-    GradeFinalizationFilters, GradeFinalizationRow
+    GradeFinalizationFilters, GradeFinalizationRow, OrgUserCounts
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -274,6 +274,8 @@ export const api = {
     org: {
         getOrgData: (token: string) =>
             request<Organization>('/org/settings', { token }),
+        getUserCounts: (token: string) =>
+            request<OrgUserCounts>('/org/users/counts', { token }),
         updateSettings: (data: UpdateOrgSettingsRequest, token: string) =>
             request<Organization>('/org/settings', { method: 'PATCH', body: JSON.stringify(data), token }),
         reapply: (token: string) =>
@@ -350,6 +352,8 @@ export const api = {
             request<GuardianProfile>(`/org/guardians/${id}`, { token }),
         createGuardian: (data: CreateGuardianRequest, token: string) =>
             request<GuardianProfile>('/org/guardians', { method: 'POST', body: JSON.stringify(data), token }),
+        updateGuardian: (id: string, data: UpdateGuardianRequest, token: string) =>
+            request<GuardianProfile>(`/org/guardians/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         getMyGuardianProfile: (token: string) =>
             request<GuardianProfile>('/org/guardians/me/profile', { token }),
         getGuardianOverview: (token: string, studentId?: string) =>

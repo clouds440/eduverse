@@ -9,9 +9,7 @@ import {
     Clock,
     FileText,
     GraduationCap,
-    KeyRound,
     Layers,
-    LifeBuoy,
     LayoutDashboard,
     LibraryBig,
     MessageSquare,
@@ -21,9 +19,11 @@ import {
     Trophy,
     Users,
     Wallet,
+    UserCog2,
 } from 'lucide-react';
 import { Role } from '@/types';
 import type { SidebarLink } from '@/components/ui/DashboardLayout';
+import { getRoleDashboardPath } from '@/lib/roles';
 
 interface OrgSidebarUser {
     id?: string;
@@ -37,12 +37,8 @@ interface BuildOrgSidebarLinksOptions {
 }
 
 function overviewHrefFor(user: OrgSidebarUser | null) {
-    if (!user) return '/overview';
-    if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) return `/teachers/${user.id}`;
-    if (user.role === Role.FINANCE_MANAGER) return '/finance';
-    if (user.role === Role.STUDENT) return `/students/${user.id}`;
-    if (user.role === Role.GUARDIAN) return '/guardian';
-    return '/overview';
+    const href = getRoleDashboardPath(user);
+    return href === '/' ? '/overview' : href;
 }
 
 export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrgSidebarLinksOptions): SidebarLink[] {
@@ -55,7 +51,9 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         return links;
     }
 
-    links.push({ id: 'DASHBOARD', label: 'Overview', href: overviewHrefFor(user), icon: LayoutDashboard });
+    if (user?.role !== Role.GUARDIAN) {
+        links.push({ id: 'DASHBOARD', label: 'Overview', href: overviewHrefFor(user), icon: LayoutDashboard });
+    }
     links.push({
         id: 'CHAT',
         label: 'Messages',
@@ -69,7 +67,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'ACADEMIC_CYCLES', label: 'Academic Cycles', href: '/academic-cycles', icon: Calendar });
         links.push({ id: 'COHORTS', label: 'Cohorts', href: '/cohorts', icon: Network });
         links.push({ id: 'SECTIONS', label: 'Sections', href: '/sections', icon: Layers });
-        links.push({ id: 'USERS', label: 'Users', href: '/users', icon: Users });
+        links.push({ id: 'USERS', label: 'Users', href: '/users', icon: UserCog2 });
         links.push({ id: 'ATTENDANCE', label: 'Attendance', href: '/attendance', icon: CheckCircle });
         links.push({ id: 'SCHEDULES', label: 'Schedules', href: '/schedules', icon: CalendarDays });
         links.push({ id: 'TRANSCRIPTS', label: 'Transcripts', href: '/transcripts', icon: FileText });
@@ -129,8 +127,6 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'GUARDIAN_FEES', label: 'Fees & Payments', href: '/guardian?view=fees', icon: Wallet });
         links.push({ id: 'GUARDIAN_ANNOUNCEMENTS', label: 'Announcements', href: '/guardian?view=announcements', icon: Bell });
         links.push({ id: 'GUARDIAN_PROFILE', label: 'Profile Settings', href: '/guardian?view=profile', icon: Settings });
-        links.push({ id: 'GUARDIAN_PASSWORD', label: 'Change Password', href: '/change-password', icon: KeyRound });
-        links.push({ id: 'GUARDIAN_CONTACT', label: 'Contact Us', href: '/contact', icon: LifeBuoy });
     }
 
     return links;
@@ -140,3 +136,5 @@ export function getOrgOverviewHref(user: OrgSidebarUser | null) {
     if (user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN) return '/overview';
     return overviewHrefFor(user);
 }
+
+export const getSidebarItemsForRole = buildOrgSidebarLinks;

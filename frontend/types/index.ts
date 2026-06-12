@@ -49,11 +49,23 @@ export interface GuardianProfile {
     organizationId: string;
     phone?: string | null;
     address?: string | null;
-    relationshipLabel?: string | null;
     createdAt?: string;
     updatedAt?: string;
     user: User;
     students?: Student[];
+    studentLinks?: GuardianStudent[];
+}
+
+export interface GuardianStudent {
+    id: string;
+    guardianId: string;
+    studentId: string;
+    organizationId: string;
+    relationshipLabel: string;
+    createdAt?: string;
+    updatedAt?: string;
+    guardian?: GuardianProfile;
+    student?: Student;
 }
 
 export interface GuardianAttendanceSummary {
@@ -70,10 +82,79 @@ export interface GuardianFinanceSummary {
     balance: number;
 }
 
+export interface GuardianStudentInsight {
+    studentId: string;
+    studentName: string;
+    avatarUrl?: string | null;
+    avatarUpdatedAt?: string | null;
+    relationship?: string | null;
+    registrationNumber?: string;
+    rollNumber?: string;
+    status?: StudentStatus | null;
+    cohortName?: string | null;
+    sections: {
+        id: string;
+        name: string;
+        color?: string | null;
+        room?: string | null;
+        courseName: string;
+        academicCycleName?: string | null;
+    }[];
+    attendance: GuardianAttendanceSummary & {
+        rate: number | null;
+        latestStatus?: AttendanceStatus | null;
+        latestDate?: string | null;
+        latestSectionName?: string | null;
+    };
+    grades: {
+        count: number;
+        averagePercentage: number | null;
+        latestTitle?: string | null;
+        latestCourseName?: string | null;
+        latestPercentage?: number | null;
+        latestStatus?: GradeStatus | null;
+        latestUpdatedAt?: string | null;
+    };
+    assessments: {
+        upcomingCount: number;
+        nextTitle?: string | null;
+        nextDueDate?: string | null;
+        nextCourseName?: string | null;
+    };
+    timetable: {
+        scheduledClasses: number;
+        todayCount: number;
+        nextClassName?: string | null;
+        nextClassDay?: number | null;
+        nextClassTime?: string | null;
+        nextClassRoom?: string | null;
+    };
+    finance: GuardianFinanceSummary & {
+        overdueAmount: number;
+        overdueCount: number;
+        pendingCount: number;
+    };
+    announcementsCount: number;
+}
+
+export interface GuardianOverviewTotals {
+    linkedStudents: number;
+    totalSections: number;
+    upcomingAssessments: number;
+    todayClasses: number;
+    totalBalance: number;
+    overdueAmount: number;
+    overdueEntries: number;
+    averageAttendanceRate: number | null;
+}
+
 export interface GuardianOverview {
     guardian: GuardianProfile;
     linkedStudents: Student[];
     selectedStudent: Student | null;
+    selectedInsight?: GuardianStudentInsight | null;
+    studentInsights: GuardianStudentInsight[];
+    overviewTotals: GuardianOverviewTotals;
     attendanceSummary: GuardianAttendanceSummary | null;
     recentAttendance?: AttendanceRecord[];
     recentGrades: Grade[];
@@ -139,6 +220,7 @@ export interface Student {
     guardianId?: string | null;
     guardianRelationship?: string | null;
     guardian?: GuardianProfile | null;
+    guardianLinks?: GuardianStudent[];
 }
 
 export interface Attachment {
@@ -257,6 +339,15 @@ export interface AdminStats {
     TOTAL_MAIL: number;
     UNREAD_MAIL: number;
     PLATFORM_ADMINS: number;
+}
+
+export interface OrgUserCounts {
+    subAdmins?: number;
+    financeManagers: number;
+    managers: number;
+    teachers: number;
+    students: number;
+    guardians: number;
 }
 
 export interface DashboardInsightCard {
@@ -493,10 +584,12 @@ export interface CreateGuardianRequest {
     name: string;
     email: string;
     password: string;
+    status?: UserStatus;
     phone?: string | null;
     address?: string | null;
-    relationshipLabel?: string | null;
 }
+
+export type UpdateGuardianRequest = Partial<CreateGuardianRequest>;
 
 export interface CreateSectionRequest {
     name: string;

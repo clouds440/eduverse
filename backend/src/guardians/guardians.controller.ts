@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Request,
@@ -16,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreateGuardianDto } from './dto/create-guardian.dto';
+import { UpdateGuardianDto } from './dto/update-guardian.dto';
 import { GuardiansService } from './guardians.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -63,5 +65,16 @@ export class GuardiansController {
     @Body() createGuardianDto: CreateGuardianDto,
   ) {
     return this.guardiansService.createGuardian(orgId, createGuardianDto);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Patch(':id')
+  updateGuardian(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Body() updateGuardianDto: UpdateGuardianDto,
+  ) {
+    return this.guardiansService.updateGuardian(orgId, id, updateGuardianDto);
   }
 }

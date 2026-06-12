@@ -5,7 +5,7 @@ import { RoleAccountsService } from '../role-accounts/role-accounts.service';
 import { CreateFinanceManagerDto } from './dto/create-finance-manager.dto';
 import { UpdateFinanceManagerDto } from './dto/update-finance-manager.dto';
 
-const FINANCE_MANAGER_LABEL = 'Finance manager';
+const FINANCE_MANAGER_LABEL = 'Finance Manager';
 
 @Injectable()
 export class FinanceManagersService {

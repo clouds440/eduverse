@@ -13,6 +13,7 @@ import { TargetType, Role, AnnouncementPriority } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { Send, Type, Megaphone, Globe, Building2, Shield, Layout, User } from 'lucide-react';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
+import { getRoleLabel } from '@/lib/roles';
 
 interface Props {
     isOpen: boolean;
@@ -67,12 +68,12 @@ export function CreateAnnouncementModal({ isOpen, onClose, onSuccess }: Props) {
                     setTargetOptions(res.data.map(o => ({ value: o.id, label: o.name, icon: Building2 })));
                 } else if (targetType === TargetType.ROLE) {
                     const roles = [
-                        { value: Role.SUPER_ADMIN, label: 'Super Admin', icon: Shield },
-                        { value: Role.PLATFORM_ADMIN, label: 'Platform Admin', icon: Shield },
-                        { value: Role.ORG_ADMIN, label: 'Org Admin', icon: Shield },
-                        { value: Role.ORG_MANAGER, label: 'Org Manager', icon: Shield },
-                        { value: Role.TEACHER, label: 'Teacher', icon: User },
-                        { value: Role.STUDENT, label: 'Student', icon: User },
+                        { value: Role.SUPER_ADMIN, label: getRoleLabel(Role.SUPER_ADMIN), icon: Shield },
+                        { value: Role.PLATFORM_ADMIN, label: getRoleLabel(Role.PLATFORM_ADMIN), icon: Shield },
+                        { value: Role.ORG_ADMIN, label: getRoleLabel(Role.ORG_ADMIN), icon: Shield },
+                        { value: Role.ORG_MANAGER, label: getRoleLabel(Role.ORG_MANAGER), icon: Shield },
+                        { value: Role.TEACHER, label: getRoleLabel(Role.TEACHER), icon: User },
+                        { value: Role.STUDENT, label: getRoleLabel(Role.STUDENT), icon: User },
                     ].filter(r => {
                         const isPlatformRole = r.value === Role.SUPER_ADMIN || r.value === Role.PLATFORM_ADMIN;
                         if (!isPlatformAdmin && isPlatformRole) return false;

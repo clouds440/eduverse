@@ -42,15 +42,19 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 | Super Admin | Highest platform authority for the deployment. |
 | Platform Admin | Platform-level organization and admin management. |
 | Org Admin | Full administrative control inside one organization. |
-| Org Manager | Operational organization management where allowed. |
+| Sub Admin | Delegated organization operations without main-admin ownership. |
+| Org Manager | Academic oversight for assigned sections and students. |
+| Finance Manager | Finance structures, entries, payment claims, and transaction review. |
 | Teacher | Assigned teaching, attendance, material, assessment, and grading workflows. |
 | Student | Enrolled learning, submissions, timetable, grades, finance, and transcript views. |
+| Guardian | Read-only linked-student overview, attendance, grades, timetable, and fees. |
 
 ### Product Scope
 
 - Multi-organization administration with data isolation.
 - Role-based access control.
 - Student and teacher management.
+- Sub Admin, Finance Manager, and Guardian account flows.
 - Courses, sections, enrollments, cohorts, academic cycles, and promotions.
 - Multi-teacher section support.
 - Teacher-owned schedules and timetables.
@@ -162,6 +166,7 @@ backend/
     events/
     files/
     finance/
+    finance-managers/
     gpa/
     insights/
     mail/
@@ -171,6 +176,9 @@ backend/
     promotions/
     sections/
     students/
+    guardians/
+    role-accounts/
+    sub-admins/
     teacher/
     transcripts/
 
@@ -201,7 +209,10 @@ This section lists the important product models and recent fields. Refer to `bac
 
 - Organizations isolate academic, finance, user, and communication data.
 - Users can hold platform or organization roles.
+- Organization roles include `ORG_ADMIN`, `SUB_ADMIN`, `ORG_MANAGER`, `FINANCE_MANAGER`, `TEACHER`, `STUDENT`, and `GUARDIAN`.
 - Teacher and student profile records connect account identity to academic workflows.
+- Sub Admin and Finance Manager accounts are role accounts managed through shared account-management services.
+- Guardian profiles link guardian users to student records. Guardian reads are checked against those student links.
 - Audit logs record security-sensitive and administrative activity.
 
 ### Courses
@@ -343,6 +354,7 @@ Main responsibilities:
 - Organization-scoped course, section, schedule, and user operations.
 - Active organization enforcement.
 - Organization settings and branding flows.
+- Shared user avatar upload through `PATCH /org/users/:id/avatar`.
 
 Selected routes:
 
@@ -353,6 +365,27 @@ Selected routes:
 - `POST /org/sections/:id/schedules`
 - `PATCH /org/sections/:id/schedules/:scheduleId`
 - `DELETE /org/sections/:id/schedules/:scheduleId`
+
+### Role Account Modules
+
+Main responsibilities:
+
+- `sub-admins`, `finance-managers`, and `role-accounts` implement shared account-list/create/update/delete behavior for non-teaching operational roles.
+- Role account responses include `avatarUrl` and `avatarUpdatedAt` so the frontend `Brand` component can render profile pictures consistently.
+- Sub Admin accounts are main-admin managed.
+- Finance Manager accounts are managed from the organization user area and are limited to finance workflows.
+
+### Guardians
+
+Routes under `/org/guardians`.
+
+Main responsibilities:
+
+- Create and update guardian login accounts.
+- Store guardian contact details and relationship label.
+- Link guardians to students through `Student.guardianId`.
+- Return linked students for guardian edit and guardian portal flows.
+- Enforce guardian portal reads against linked students only.
 
 ### GPA Module
 
@@ -432,6 +465,14 @@ Main responsibilities:
 - Admin verification and rejection.
 - Transaction history.
 
+Role behavior:
+
+- Admin and Finance Manager can perform finance management actions.
+- Sub Admin can view/audit finance where the product exposes it, but finance operations are owned by Admin and Finance Manager.
+- Manager has no finance management authority.
+- Students can view and claim their own payments.
+- Guardians can view linked-student finance status through the guardian portal.
+
 ### Communication
 
 Main responsibilities:
@@ -440,6 +481,22 @@ Main responsibilities:
 - Internal mail.
 - Announcements.
 - Notifications and badges.
+
+Chat rules:
+
+- Student can direct-message assigned teachers and cannot create groups.
+- Guardian can direct-message Admin, Sub Admin, or Finance Manager where available and cannot create groups.
+- Finance Manager can direct-message Admin/Sub Admin and cannot create academic groups.
+- Teacher can direct-message assigned students and academic leadership, and can create section chats for assigned sections.
+- Manager can message assigned academic scope and create academic groups for assigned sections.
+- Admin/Sub Admin can perform organization-level chat management.
+
+Mail rules:
+
+- Guardian mail is limited to administration, finance, or platform support.
+- Finance Manager mail is limited to finance-related categories and selected recipients in Admin/Sub Admin/Student/Guardian roles.
+- Org Admin/Sub Admin can view and manage organization mail.
+- Manager bulk mail is restricted and should not behave like Admin mail.
 
 ---
 
@@ -450,6 +507,7 @@ Main responsibilities:
 ```text
 frontend/app/
   (org)/              Organization dashboard routes
+    users/            User orchestration and canonical user-management routes
   admin/              Platform admin routes
   docs/               Public user-facing documentation
   login/              Authentication
@@ -468,6 +526,8 @@ frontend/app/
 | Transcript PDF | `frontend/lib/pdf/transcript.ts` |
 | PWA prompt/runtime | `frontend/components/ui/PWAInstallPrompt.tsx` |
 | Docs content registry | `frontend/app/docs/_data/docs.ts` |
+| Breadcrumb logic | `frontend/lib/routeOrientation.ts` |
+| Organization sidebar | `frontend/lib/orgSidebar.ts`, `frontend/components/ui/DashboardLayout.tsx` |
 
 ### Docs Architecture
 
@@ -499,6 +559,18 @@ Public docs style rule for the fine-tuning phase:
 - Avoid exposing internal field names, database details, DTOs, services, or implementation structure.
 - Prefer "A schedule has one selected teacher" over "Schedules belong to a teacher through `teacherId`."
 - Keep technical architecture details in this TDD, not in the public `/docs` experience.
+
+### Organization User Routes
+
+`/users` is the organization user orchestration point. Canonical management routes live under:
+
+- `/users/sub-admins`
+- `/users/finance-managers`
+- `/users/teachers`
+- `/users/students`
+- `/users/guardians`
+
+Legacy top-level routes such as `/teachers`, `/students`, `/sub-admins`, `/finance-managers`, and `/guardians` remain compatible where present, but in-app links should prefer `/users/*` for management workflows. Student and teacher self/profile routes can still use their portal paths when the signed-in role is Student, Teacher, or Manager.
 
 ---
 
@@ -546,6 +618,31 @@ Public docs style rule for the fine-tuning phase:
 7. Grades are rounded to one decimal.
 8. Invalid values show explicit form errors.
 
+### Grade Finalization
+
+1. Teacher enters or publishes grades for assigned academic work.
+2. Manager, Admin, or Sub Admin reviews finalization readiness.
+3. Grades are finalized only when they are ready for official records.
+4. Transcript generation reads finalized grades and the cycle GPA policy snapshot.
+5. Finalized-grade audit fields record who finalized or changed official grade state.
+
+### User Management
+
+1. Admin opens `/users`.
+2. Admin creates Sub Admins and Finance Managers where needed.
+3. Admin or Sub Admin creates teachers, managers, students, and guardians where allowed.
+4. Teacher/manager accounts use the teacher form and `isManager` role option.
+5. Sub Admin, Finance Manager, Guardian, Teacher, and Student account forms can upload cropped profile photos through the shared avatar upload route.
+6. Sidebar active state and breadcrumbs treat `/users/*` as the user-management tree.
+
+### Guardian Linking
+
+1. Admin or Sub Admin creates a Guardian account.
+2. Admin or Sub Admin opens a student edit form.
+3. The student record selects `guardianId` and optional relationship text.
+4. Guardian signs in and selects one of the linked students.
+5. Guardian portal queries are filtered to those linked students.
+
 ### Transcript Generation
 
 1. Transcript service loads student enrollments and finalized grades.
@@ -568,9 +665,37 @@ Public docs style rule for the fine-tuning phase:
 ### Role-Based Access Control
 
 - Platform administration is separate from organization administration.
-- GPA policy management is restricted to `ORG_ADMIN`.
-- Teacher access is scoped to assigned teaching workflows.
+- Main organization administration is separate from delegated Sub Admin operations.
+- GPA policy management is restricted to trusted organization administration.
+- Teacher and Manager access is scoped to assigned teaching or academic oversight workflows.
 - Student access is scoped to the signed-in student's own data.
+- Guardian access is scoped to students linked through guardian relationships.
+- Finance Manager access is scoped to finance workflows and finance-related communication.
+
+| Role | Backend authority summary | Frontend route summary |
+| --- | --- | --- |
+| `ORG_ADMIN` | Full organization management, settings, finance, users, academic setup, grade finalization. | `/overview`, `/users/*`, academics, finance, settings. |
+| `SUB_ADMIN` | Delegated operational management; cannot manage main admin-only areas such as Sub Admin creation. | `/overview`, `/users/*` except Sub Admin management, academics, finance audit where visible. |
+| `ORG_MANAGER` | Assigned-section academic oversight, attendance, assessments, grades, transcripts, finalization review. | Academic monitoring routes; no finance/settings/user orchestration. |
+| `FINANCE_MANAGER` | Finance structures, entries, payment claims, transactions, finance mail. | `/finance`, mail/chat support routes. |
+| `TEACHER` | Assigned sections, materials, assessments, submissions, attendance, grading. | Teaching profile, assigned courses/sections, attendance, grades, timetable. |
+| `STUDENT` | Own portal data, own finance claims, own transcript and attendance. | Student portal, fees, timetable, transcript, chat. |
+| `GUARDIAN` | Linked-student read flows only. | `/guardian`, linked-student switcher, communication support routes. |
+
+### Query-Level Scoping
+
+- Teacher and Manager transcript reads are checked against assigned sections.
+- Teacher and Manager cohort include/exclude overrides are checked against assigned sections.
+- Guardian overview reads require the requested student to be linked to the guardian.
+- Student profile, finance, attendance, and transcript reads are self-scoped where exposed.
+- Finance services verify organization ownership for all finance records.
+
+### Navigation and Breadcrumbs
+
+- Organization user-management links should point to `/users/*`.
+- Breadcrumbs for user management use `Organization > Users > Role Area > Action`.
+- Sidebar active matching maps `/users/*` and compatibility user routes back to the Users sidebar item.
+- Frontend visibility is treated as guidance; backend guards and service checks remain authoritative.
 
 ### Sensitive Locks
 
@@ -787,6 +912,14 @@ On Windows, Prisma engine execution may require the environment to allow child p
 
 - `npm run build`
 - DTO validation checks for new endpoints.
+- Role guard and service-scope checks:
+  - Admin can manage organization users and settings.
+  - Sub Admin can manage delegated users but cannot create or edit Sub Admin accounts.
+  - Manager cannot access finance management or settings.
+  - Finance Manager can perform finance actions and cannot access academic setup.
+  - Guardian can read linked-student data and cannot read unrelated students.
+  - Teacher and Manager assigned-section transcript and cohort override checks reject unrelated students.
+  - Student self access rejects other student records.
 - GPA policy validation:
   - overlapping ranges fail
   - gaps fail
@@ -807,10 +940,29 @@ On Windows, Prisma engine execution may require the environment to allow child p
   - course credit hours included
   - cycle policy snapshot used
   - GPA and CGPA calculated centrally
+- Guardian:
+  - create guardian
+  - update guardian
+  - link student through student update
+  - many linked students appear in guardian portal
+- Finance:
+  - Finance Manager can create/update finance records
+  - Manager cannot call finance management endpoints
+  - Student self payment claim remains available
+- Communication:
+  - Student can DM assigned teachers only
+  - Guardian and Finance Manager cannot create groups
+  - Finance Manager mail categories and recipients are enforced
 
 ### Frontend Verification
 
 - `npm run build`
+- Sidebar and route checks:
+  - Users sidebar remains active for `/users/*`.
+  - User-management breadcrumbs link back to `/users`.
+  - `/users/sub-admins` remains Admin-only.
+  - Finance Manager sees finance navigation, not academic management.
+  - Guardian sees the guardian portal and linked-student switcher.
 - Course forms validate credit hours.
 - GPA policy UI:
   - supports multiple policies
@@ -831,6 +983,10 @@ On Windows, Prisma engine execution may require the environment to allow child p
   - `/docs`
   - `/docs/[slug]`
   - section hash links such as `/docs/gpa-policies#policy-locking`
+- User forms:
+  - Sub Admin avatar upload uses the cropped image flow and persists to `avatarUrl`.
+  - Guardian create/edit avatar upload uses the cropped image flow and persists to `avatarUrl`.
+  - Guardian edit shows linked students.
 
 ---
 

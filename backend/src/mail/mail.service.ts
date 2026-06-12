@@ -17,6 +17,7 @@ import { CreateMailDto } from './dto/create-mail.dto';
 import { UpdateMailDto } from './dto/update-mail.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { MailUser } from './interfaces/mail-user.interface';
+import { formatRoleLabel } from '../common/role-labels';
 
 /** Maximum active (non-resolved/closed) mails per user */
 const MAX_ACTIVE_MAILS = 10;
@@ -102,7 +103,7 @@ export class MailService {
         dto.targetRole === Role.SUPER_ADMIN
       ) {
         throw new ForbiddenException(
-          `Teachers are not authorized to send mail to ${dto.targetRole.replace('_', ' ')}s.`,
+          `Teachers are not authorized to send mail to ${formatRoleLabel(dto.targetRole)}s.`,
         );
       }
       if (dto.assigneeIds?.length) {
@@ -1048,7 +1049,7 @@ export class MailService {
           type: 'USER',
           role: u.role,
           avatarUrl: u.avatarUrl,
-          description: profile?.designation || u.role.replace('_', ' '),
+          description: profile?.designation || formatRoleLabel(u.role),
         });
       });
     };

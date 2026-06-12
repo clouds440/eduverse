@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import { BrandIcon } from '@/components/ui/Brand';
 import { Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { getRoleLabel } from '@/lib/roles';
 
 interface MailPageProps {
     localStorageKey?: string;
@@ -159,7 +160,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                     />
                     <div className="min-w-0">
                         <p className="text-xs font-black text-foreground truncate max-w-30">{row.creator?.name || row.creator?.email || 'Unknown'}</p>
-                        <p className="text-[10px] font-bold text-muted-foreground">{row.creatorRole?.replace('_', ' ') || 'N/A'}</p>
+                        <p className="text-[10px] font-bold text-muted-foreground">{getRoleLabel(row.creatorRole, 'N/A')}</p>
                     </div>
                 </div>
             )
@@ -195,7 +196,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                             </div>
                             <div>
                                 <p className="text-xs font-bold text-foreground truncate max-w-30">
-                                    {row.targetRole ? row.targetRole.replace('_', ' ') : 'Platform Support'}
+                                    {row.targetRole ? getRoleLabel(row.targetRole) : 'Platform Support'}
                                 </p>
                                 <p className="text-[10px] font-bold text-warning">Team</p>
                             </div>

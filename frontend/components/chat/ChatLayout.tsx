@@ -9,6 +9,7 @@ import { useUI } from '@/context/UIContext';
 import { useSocket } from '@/hooks/useSocket';
 import Image from 'next/image';
 import { api } from '@/lib/api';
+import { getRoleLabel } from '@/lib/roles';
 import { getUserColor, downloadFile, formatBytes } from '@/lib/utils';
 import {
     getUserChatsCached,
@@ -1447,7 +1448,7 @@ export function ChatLayout() {
                             <ChatAvatar targetUser={member.user} className="w-7 h-7" isOnline={!!onlineUsers[member.userId]} />
                             <div className="text-left min-w-0 flex-1">
                                 <p className="text-[12px] sm:text-[13px] font-semibold text-foreground truncate">{member.user?.name}</p>
-                                <p className="text-[10px] sm:text-[11px] text-muted-foreground capitalize truncate">{member.user?.role?.toLowerCase().replace('_', ' ')}</p>
+                                <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate">{getRoleLabel(member.user?.role, '')}</p>
                             </div>
                         </button>
                     ))}
@@ -2195,7 +2196,7 @@ export function ChatLayout() {
                                         : (() => {
                                             const otherParticipant = activeChat.participants?.find(p => p.userId !== user.id);
                                             const isOnline = onlineUsers[directChatTarget?.id || ''];
-                                            const role = otherParticipant?.user?.role?.replace('_', ' ').toLowerCase() || 'member';
+                                            const role = getRoleLabel(otherParticipant?.user?.role, 'member');
                                             const status = isOnline ? 'Online' : otherParticipant?.lastSeenAt
                                                 ? `Last seen ${formatDistanceToNow(new Date(otherParticipant.lastSeenAt), { addSuffix: true })}`
                                                 : null;
@@ -2353,7 +2354,7 @@ export function ChatLayout() {
                                                 <ChatAvatar targetUser={p.user} className="w-7 h-7 sm:w-8 sm:h-8" isOnline={!!onlineUsers[p.userId]} />
                                                 <div className="min-w-0">
                                                     <p className="text-[12px] sm:text-[13px] font-bold truncate" style={{ color: getUserColor(p.user?.id) }}>{p.user?.name} {p.userId === user.id && <span className="text-muted-foreground font-normal">(You)</span>}</p>
-                                                    <p className="text-[11px] text-muted-foreground font-medium capitalize truncate">{p.user?.role?.toLowerCase().replace('_', ' ')}</p>
+                                                    <p className="text-[11px] text-muted-foreground font-medium truncate">{getRoleLabel(p.user?.role, '')}</p>
                                                 </div>
                                             </div>
                                             {isGroupAdmin && p.userId !== user.id && p.userId !== activeChat.creatorId && (

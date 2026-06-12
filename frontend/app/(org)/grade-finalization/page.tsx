@@ -25,8 +25,9 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
 import { Input } from '@/components/ui/Input';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
@@ -150,6 +151,45 @@ export default function GradeFinalizationPage() {
         ...(teacherId ? [{ key: 'teacherId', label: 'Teacher', value: teacherOptions.find((teacher) => teacher.value === teacherId)?.label || 'Selected teacher', onRemove: () => updateQueryParams({ teacherId: undefined, page: 1 }) }] : []),
         ...(status !== 'ALL' ? [{ key: 'status', label: 'Status', value: statusLabels[status], onRemove: () => updateQueryParams({ status: undefined, page: 1 }) }] : []),
     ];
+    const renderFilters = () => (
+        <FilterDrawerGrid>
+            <Input
+                icon={Search}
+                value={search}
+                onChange={(event) => updateQueryParams({ search: event.target.value || undefined, page: 1 })}
+                placeholder="Search assessment, course, section, teacher..."
+            />
+            <CustomSelect
+                value={academicCycleId}
+                onChange={(value) => updateQueryParams({ academicCycleId: value || undefined, page: 1 })}
+                options={[{ value: '', label: 'All cycles' }, ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.name })) || [])]}
+                searchable
+            />
+            <CustomSelect
+                value={courseId}
+                onChange={(value) => updateQueryParams({ courseId: value || undefined, page: 1 })}
+                options={[{ value: '', label: 'All courses' }, ...(coursesData?.data?.map((course) => ({ value: course.id, label: course.name })) || [])]}
+                searchable
+            />
+            <CustomSelect
+                value={sectionId}
+                onChange={(value) => updateQueryParams({ sectionId: value || undefined, page: 1 })}
+                options={[{ value: '', label: 'All sections' }, ...(sectionsData?.data?.map((section) => ({ value: section.id, label: section.name })) || [])]}
+                searchable
+            />
+            <CustomSelect
+                value={teacherId}
+                onChange={(value) => updateQueryParams({ teacherId: value || undefined, page: 1 })}
+                options={teacherOptions}
+                searchable
+            />
+            <CustomSelect<GradeFinalizationStatus | 'ALL'>
+                value={status}
+                onChange={(value) => updateQueryParams({ status: value === 'ALL' ? undefined : value, page: 1 })}
+                options={STATUS_OPTIONS}
+            />
+        </FilterDrawerGrid>
+    );
 
     const finalizeAssessment = async () => {
         if (!token || !finalizingRow) return;
@@ -290,48 +330,9 @@ export default function GradeFinalizationPage() {
             </div>
 
             <ResourcePanel>
-                <ResourceToolbar
-                    search={(
-                        <Input
-                            icon={Search}
-                            value={search}
-                            onChange={(event) => updateQueryParams({ search: event.target.value || undefined, page: 1 })}
-                            placeholder="Search assessment, course, section, teacher..."
-                        />
-                    )}
-                    filters={(
-                        <div className="grid w-full gap-2 md:w-auto md:grid-cols-5">
-                            <CustomSelect
-                                value={academicCycleId}
-                                onChange={(value) => updateQueryParams({ academicCycleId: value || undefined, page: 1 })}
-                                options={[{ value: '', label: 'All cycles' }, ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.name })) || [])]}
-                                searchable
-                            />
-                            <CustomSelect
-                                value={courseId}
-                                onChange={(value) => updateQueryParams({ courseId: value || undefined, page: 1 })}
-                                options={[{ value: '', label: 'All courses' }, ...(coursesData?.data?.map((course) => ({ value: course.id, label: course.name })) || [])]}
-                                searchable
-                            />
-                            <CustomSelect
-                                value={sectionId}
-                                onChange={(value) => updateQueryParams({ sectionId: value || undefined, page: 1 })}
-                                options={[{ value: '', label: 'All sections' }, ...(sectionsData?.data?.map((section) => ({ value: section.id, label: section.name })) || [])]}
-                                searchable
-                            />
-                            <CustomSelect
-                                value={teacherId}
-                                onChange={(value) => updateQueryParams({ teacherId: value || undefined, page: 1 })}
-                                options={teacherOptions}
-                                searchable
-                            />
-                            <CustomSelect<GradeFinalizationStatus | 'ALL'>
-                                value={status}
-                                onChange={(value) => updateQueryParams({ status: value === 'ALL' ? undefined : value, page: 1 })}
-                                options={STATUS_OPTIONS}
-                            />
-                        </div>
-                    )}
+                <FilterDrawerToolbar
+                    drawerLabel="Grade filters"
+                    renderFilters={renderFilters}
                     actions={(
                         <Button type="button" variant="secondary" icon={RefreshCw} onClick={() => mutate()}>
                             Refresh

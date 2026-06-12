@@ -20,6 +20,7 @@ import { Loading } from '@/components/ui/Loading';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { getRoleLabel } from '@/lib/roles';
 
 interface PlatformAdminParams {
     page: number;
@@ -176,7 +177,7 @@ export default function PlatformAdminsPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                         <h4 className="text-sm font-black text-foreground leading-tight wrap-break-word">{row.name}</h4>
-                        <span className="text-[10px] font-bold text-muted-foreground tracking-widest block mt-0.5">{row.role.replace('_', ' ')}</span>
+                        <span className="text-[10px] font-bold text-muted-foreground tracking-widest block mt-0.5">{getRoleLabel(row.role)}</span>
                     </div>
                 </div>
             )

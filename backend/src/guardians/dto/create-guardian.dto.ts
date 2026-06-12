@@ -1,11 +1,13 @@
 import {
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
   MinLength,
 } from 'class-validator';
+import { UserStatus } from '../../common/enums';
 
 export class CreateGuardianDto {
   @IsEmail()
@@ -29,11 +31,11 @@ export class CreateGuardianDto {
   @IsOptional()
   phone?: string;
 
-  @IsString()
+  @IsEnum(UserStatus)
   @IsOptional()
-  address?: string;
+  status?: UserStatus;
 
   @IsString()
   @IsOptional()
-  relationshipLabel?: string;
+  address?: string;
 }

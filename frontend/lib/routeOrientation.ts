@@ -23,6 +23,10 @@ const SEGMENT_LABELS: Record<string, string> = {
     settings: 'Settings',
     'gpa-policies': 'GPA Policies',
     'change-password': 'Security',
+    users: 'Users',
+    guardians: 'Guardians',
+    'sub-admins': 'Sub Admins',
+    'finance-managers': 'Finance Managers',
     teachers: 'Faculty',
     students: 'Students',
     sections: 'Sections',
@@ -47,12 +51,17 @@ const SEGMENT_LABELS: Record<string, string> = {
     add: 'Add',
     create: 'Create',
     edit: 'Edit',
+    link: 'Link',
 };
 
 const ROOT_SECTIONS: Record<string, string> = {
     admin: 'Platform',
     finance: 'Finance',
     overview: 'Organization',
+    users: 'People',
+    guardians: 'People',
+    'sub-admins': 'People',
+    'finance-managers': 'People',
     students: 'People',
     teachers: 'People',
     sections: 'Academics',
@@ -72,7 +81,8 @@ const ROOT_SECTIONS: Record<string, string> = {
     'change-password': 'Account',
 };
 
-const ACTION_SEGMENTS = ['add', 'create', 'edit'];
+const ACTION_SEGMENTS = ['add', 'create', 'edit', 'link'];
+const USER_AREA_SEGMENTS = ['sub-admins', 'finance-managers', 'teachers', 'students', 'guardians'];
 
 function cleanPath(pathname: string) {
     return pathname.split('?')[0].split('#')[0] || '/';
@@ -104,6 +114,44 @@ function isNonRoutableBreadcrumbSegment(segment: string, segments: string[], ind
     return segment === 'assessments' && isLikelyRecordId(segments[index - 1] || '');
 }
 
+function buildUsersOrientation(segments: string[]): RouteOrientation {
+    const isNestedUsersRoute = segments[0] === 'users';
+    const userArea = isNestedUsersRoute ? segments[1] : segments[0];
+    const actionSegment = segments.find((segment) => ACTION_SEGMENTS.includes(segment));
+    const areaLabel = userArea ? humanizeSegment(userArea) : 'Users';
+    const title = actionSegment && userArea
+        ? `${humanizeSegment(actionSegment)} ${singularize(areaLabel)}`
+        : areaLabel;
+
+    const breadcrumbs: RouteBreadcrumb[] = [
+        { label: 'Organization' },
+        { label: 'Users', href: isNestedUsersRoute && segments.length === 1 ? undefined : '/users' },
+    ];
+
+    if (userArea) {
+        const areaHref = `/users/${userArea}`;
+        const areaIsLast = !actionSegment && (
+            (isNestedUsersRoute && segments.length === 2) ||
+            (!isNestedUsersRoute && segments.length === 1)
+        );
+        breadcrumbs.push({
+            label: areaLabel,
+            href: areaIsLast ? undefined : areaHref,
+        });
+    }
+
+    if (actionSegment) {
+        breadcrumbs.push({ label: humanizeSegment(actionSegment) });
+    }
+
+    return {
+        section: 'People',
+        title: segments.length === 1 && segments[0] === 'users' ? 'Users' : title,
+        breadcrumbs,
+        isDashboardRoute: true,
+    };
+}
+
 export function getRouteOrientation(pathname: string): RouteOrientation {
     const path = cleanPath(pathname);
     const segments = path.split('/').filter(Boolean);
@@ -117,6 +165,10 @@ export function getRouteOrientation(pathname: string): RouteOrientation {
             breadcrumbs: [],
             isDashboardRoute,
         };
+    }
+
+    if (rootSegment === 'users' || USER_AREA_SEGMENTS.includes(rootSegment)) {
+        return buildUsersOrientation(segments);
     }
 
     const labels = segments.map(humanizeSegment);

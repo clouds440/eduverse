@@ -95,18 +95,50 @@ export const docsPages: DocPage[] = [
       {
         id: 'role-summary',
         title: 'Role summary',
-        tags: ['org-admin', 'teacher', 'student'],
+        tags: ['org-admin', 'sub-admin', 'manager', 'finance manager', 'teacher', 'student', 'guardian'],
         blocks: [
           {
-            type: 'list',
-            items: [
-              'Super Admin: platform-wide authority for the deployment.',
-              'Platform Admin: manages organizations and platform-level administration.',
-              'Org Admin: full administrative control inside one organization, including academic settings and GPA policies.',
-              'Org Manager: operational management access where enabled, without full control over academic settings.',
-              'Teacher: manages assigned sections, materials, assessments, attendance, submissions, and grading.',
-              'Student: views enrolled sections, materials, assessments, grades, timetable, finance entries, and transcripts.',
+            type: 'table',
+            headers: ['Role', 'Main job', 'Can manage', 'Cannot access'],
+            rows: [
+              ['Org Admin', 'Owns the organization workspace.', 'All organization users, academic setup, settings, finance, grade finalization, and records.', 'Platform administration outside the organization.'],
+              ['Sub Admin', 'Runs delegated operational administration.', 'Users, academic setup, schedules, cycles, cohorts, promotions, grade review, and operational records.', 'Main admin account management and platform administration.'],
+              ['Manager', 'Monitors academic work for assigned sections.', 'Assigned students, assigned sections, attendance, assessments, grades, and finalization review where allowed.', 'Finance management, settings, broad user administration, and unrestricted student data.'],
+              ['Finance Manager', 'Handles fee and payment operations.', 'Finance structures, entries, payment claims, transactions, and finance communication.', 'Academic setup, teaching workflows, settings, and grade management.'],
+              ['Teacher', 'Runs assigned classes.', 'Assigned sections, materials, assessments, submissions, attendance, and grading.', 'Finance management, school settings, and unassigned student records.'],
+              ['Student', 'Uses the student portal.', 'Own submissions, fee claims, personal timetable, materials, grades, attendance, and transcripts.', 'Other students, staff tools, settings, and management pages.'],
+              ['Guardian', 'Views linked student records.', 'Read-only linked-student overview, attendance, grades, timetable, and fee status.', 'Unlinked students, staff tools, academic setup, and group chat creation.'],
             ],
+          },
+        ],
+      },
+      {
+        id: 'feature-matrix',
+        title: 'Feature matrix',
+        tags: ['matrix', 'features'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Feature', 'Admin', 'SubAdmin', 'Manager', 'FinanceManager', 'Teacher', 'Student', 'Guardian'],
+            rows: [
+              ['Students', 'Create, edit, delete, view all', 'Create, edit, delete, view all', 'View assigned', 'Finance-related view', 'View assigned', 'View self', 'View linked'],
+              ['Teachers and Managers', 'Create, edit, delete', 'Create, edit, delete', 'View assigned context', 'No', 'View peers where allowed', 'No', 'No'],
+              ['Sub Admins', 'Create, edit, delete', 'No', 'No', 'No', 'No', 'No', 'No'],
+              ['Finance Managers', 'Create, edit, delete', 'Create, edit, delete', 'No', 'No', 'No', 'No', 'No'],
+              ['Guardians', 'Create, edit, link to student', 'Create, edit, link to student', 'No', 'Finance communication only', 'No', 'No', 'Own account only'],
+              ['Courses and Sections', 'Manage', 'Manage', 'View assigned', 'No', 'View assigned', 'View enrolled', 'View linked-student context'],
+              ['Academic Cycles and Cohorts', 'Manage', 'Manage', 'Read academic context', 'No', 'Read academic context', 'Read own context', 'Read linked-student context'],
+              ['Timetable and Attendance', 'Manage schedules, view all, mark where allowed', 'Manage schedules, view all, mark where allowed', 'Assigned academic scope', 'No', 'Assigned academic scope', 'View self', 'View linked'],
+              ['Assessments and Grades', 'Review and finalize', 'Review and finalize', 'Assigned academic scope and finalization review', 'No', 'Assigned creation, grading, publish/finalize flow', 'View own visible grades', 'View linked visible grades'],
+              ['Finance', 'Manage', 'Read/audit where allowed', 'No', 'Manage', 'Self/assigned finance view where allowed', 'View and claim own payments', 'View linked-student fees'],
+              ['Settings and GPA Policies', 'Manage', 'Manage GPA/academic settings where allowed', 'No', 'No', 'No', 'No', 'No'],
+              ['Chat and Mail', 'Org-level communication', 'Org-level communication', 'Academic-scope communication', 'Finance mail and limited direct chat', 'Assigned academic communication', 'Assigned-teacher chat and own mail limits', 'Admin/finance/support communication'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Scope matters',
+            text: 'Manager and Teacher access is not school-wide by default. Their student, transcript, attendance, and group-chat access follows assigned academic sections where the workflow depends on student data.',
           },
         ],
       },
@@ -118,6 +150,17 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'EduVerse separates what users can see from what they can change. Some actions are limited by role, school status, or academic rules such as finalized grades.',
+          },
+          {
+            type: 'table',
+            headers: ['Rule', 'What happens'],
+            rows: [
+              ['Account status and organization status', 'Backend access checks can limit read or write actions when an organization is inactive, suspended, rejected, or still pending.'],
+              ['Frontend navigation', 'The sidebar hides pages that do not belong to the signed-in role, but backend guards still decide the final authority.'],
+              ['Assigned-section filtering', 'Teachers and Managers only see or change academic records connected to their assigned sections where the workflow is scoped.'],
+              ['Linked-student filtering', 'Guardians see only students linked to their guardian account.'],
+              ['Finance separation', 'Finance Managers handle finance workflows; Managers do not receive finance management access.'],
+            ],
           },
           {
             type: 'note',
@@ -725,6 +768,16 @@ export const docsPages: DocPage[] = [
             title: 'Cycle lifecycle',
             steps: ['Create cycle', 'Choose GPA policy', 'Create cohorts and sections', 'Run classes', 'Finalize grades', 'Generate transcripts', 'Promote students'],
           },
+          {
+            type: 'table',
+            headers: ['Role', 'Academic cycle access'],
+            rows: [
+              ['Admin/Sub Admin', 'Can create, update, activate, delete where safe, and choose cycle GPA policy.'],
+              ['Manager/Teacher/Student', 'Can read cycle context used by assigned or enrolled academic work.'],
+              ['Guardian', 'Can see cycle context through linked-student records.'],
+              ['Finance Manager', 'No academic cycle management access.'],
+            ],
+          },
         ],
       },
       {
@@ -1027,6 +1080,35 @@ export const docsPages: DocPage[] = [
           },
         ],
       },
+      {
+        id: 'grade-finalization-flow',
+        title: 'Grade finalization flow',
+        tags: ['finalization', 'transcripts', 'manager review'],
+        blocks: [
+          {
+            type: 'flow',
+            title: 'Grade finalization flow',
+            steps: ['Teacher enters or publishes grades', 'Manager, Admin, or Sub Admin reviews readiness', 'Grades are finalized', 'Transcript uses finalized grades and the cycle GPA snapshot'],
+          },
+          {
+            type: 'table',
+            headers: ['Role', 'Finalization responsibility'],
+            rows: [
+              ['Teacher', 'Creates assessments, grades submissions, publishes grades, and finalizes assigned work where allowed by the workflow.'],
+              ['Manager', 'Reviews assigned academic scope and can finalize where allowed.'],
+              ['Admin', 'Can review and finalize organization academic records.'],
+              ['Sub Admin', 'Can review and finalize operational academic records.'],
+              ['Student and Guardian', 'Can view visible/finalized results but cannot finalize grades.'],
+              ['Finance Manager', 'No grade-finalization access.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Transcript consequence',
+            text: 'Only finalized grades are treated as official transcript data. Draft and Published grades remain outside official transcript calculation.',
+          },
+        ],
+      },
     ],
   },
   {
@@ -1108,6 +1190,31 @@ export const docsPages: DocPage[] = [
     tags: ['finance', 'fee', 'structure', 'payment', 'transaction'],
     related: ['students', 'roles-permissions', 'fees'],
     sections: [
+      {
+        id: 'finance-access',
+        title: 'Who can use finance',
+        tags: ['roles', 'finance manager', 'permissions'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Role', 'Finance access'],
+            rows: [
+              ['Admin', 'Can manage finance structures, entries, claims, payment confirmation, and transactions.'],
+              ['Sub Admin', 'Can review finance where available, but finance operations are not the Sub Admin daily role.'],
+              ['Finance Manager', 'Can manage finance structures, entries, claims, payment confirmation, and transaction history.'],
+              ['Manager', 'No finance management access. Managers focus on academic oversight.'],
+              ['Teacher', 'Can view relevant self/assigned finance records where exposed by the portal.'],
+              ['Student', 'Can view own fees and submit payment claims.'],
+              ['Guardian', 'Can view linked-student fee status from the guardian portal.'],
+            ],
+          },
+          {
+            type: 'flow',
+            title: 'Finance manager flow',
+            steps: ['Open Finance', 'Review structures or entries', 'Check payment claims', 'Verify proof', 'Confirm or reject payment', 'Review transaction history'],
+          },
+        ],
+      },
       {
         id: 'finance-structures',
         title: 'Finance structures',
@@ -1293,6 +1400,30 @@ export const docsPages: DocPage[] = [
               'Announcements broadcast organization or platform notices to selected audiences.',
               'Notifications surface workflow events such as submissions, grading reminders, mail, and announcements.',
             ],
+          },
+        ],
+      },
+      {
+        id: 'communication-rules',
+        title: 'Chat and mail rules',
+        tags: ['chat rules', 'mail rules', 'roles'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Role', 'Chat', 'Mail'],
+            rows: [
+              ['Admin/Sub Admin', 'Can start organization-level direct and group conversations according to admin rules.', 'Can contact organization users and platform support where available.'],
+              ['Manager', 'Can message teachers and students in assigned academic scope and create academic groups for assigned sections.', 'Can contact Admin/Sub Admin and teachers; bulk mail is limited.'],
+              ['Teacher', 'Can message Admin/Sub Admin/Manager and assigned students; can create section chats for assigned classes.', 'Can contact managers, Sub Admins, and teachers where available.'],
+              ['Finance Manager', 'Limited direct chat with Admin/Sub Admin; no academic group creation.', 'Can send finance-related mail to students, guardians, Admins, and Sub Admins.'],
+              ['Student', 'Can direct-message assigned teachers where available; cannot create groups.', 'Student mail submission is limited by the current school rules.'],
+              ['Guardian', 'Can direct-message Admin/Sub Admin/Finance Manager where available; cannot create groups.', 'Can contact administration, finance, or platform support where available.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Backend enforced',
+            text: 'Hidden buttons are not the only protection. Chat and mail recipients are checked by the backend before conversations or mail threads are created.',
           },
         ],
       },
@@ -1633,6 +1764,16 @@ export const docsPages: DocPage[] = [
               'Adding students to a cohort can enroll them into the cohort sections.',
               'Assigning a section to a cohort can enroll eligible cohort students into that section.',
               'A student can be excluded from a cohort section when they should not attend that class.',
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Role', 'Cohort access'],
+            rows: [
+              ['Admin/Sub Admin', 'Can create, update, assign sections, add students, and manage cohort placement.'],
+              ['Manager/Teacher', 'Can read academic cohort context and include/exclude students only in assigned section workflows where allowed.'],
+              ['Student/Guardian', 'Can see cohort context only as part of their own or linked-student records.'],
+              ['Finance Manager', 'No cohort management access.'],
             ],
           },
         ],
@@ -2143,6 +2284,151 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'sub-admin-guide',
+    title: 'Sub Admin Guide',
+    description: 'A guide for delegated organization administration without main-admin ownership.',
+    category: 'Role Guides',
+    tags: ['sub admin', 'operations', 'users', 'academic setup'],
+    related: ['roles-permissions', 'admin-guide', 'school-setup-workflow', 'academic-cycles'],
+    sections: [
+      {
+        id: 'sub-admin-role',
+        title: 'What sub admins do',
+        tags: ['responsibilities', 'operations'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Sub admins help run the organization workspace. They handle day-to-day user and academic operations while the main org admin remains the owner of the highest-risk organization controls.',
+          },
+          {
+            type: 'table',
+            headers: ['Area', 'Sub Admin can do', 'Boundary'],
+            rows: [
+              ['People', 'Create and update teachers, managers, students, guardians, and finance managers.', 'Sub admins do not create or manage main admin accounts.'],
+              ['Academic setup', 'Manage cycles, cohorts, sections, schedules, promotions, and operational academic records.', 'Changes should follow the school academic plan.'],
+              ['Grades', 'Review grade-finalization status and finalize where allowed.', 'Finalized grades become official transcript data.'],
+              ['Finance', 'View/audit finance where available.', 'Finance operations belong to Admin and Finance Manager roles.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'sub-admin-flow',
+        title: 'Daily flow',
+        tags: ['flow', 'daily work'],
+        blocks: [
+          {
+            type: 'flow',
+            title: 'Operational flow',
+            steps: ['Review dashboard', 'Create or update users', 'Check academic setup', 'Review schedules and cohorts', 'Monitor grade finalization', 'Escalate owner-level decisions to Admin'],
+          },
+          {
+            type: 'note',
+            title: 'Who can do this?',
+            text: 'Use Sub Admin for trusted staff who should run operations but should not be the organization owner.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'manager-guide',
+    title: 'Manager Guide',
+    description: 'A guide for academic managers who monitor assigned sections, attendance, assessments, and grades.',
+    category: 'Role Guides',
+    tags: ['manager', 'academic monitoring', 'assigned sections', 'grade finalization'],
+    related: ['roles-permissions', 'gradebook', 'attendance', 'transcripts'],
+    sections: [
+      {
+        id: 'manager-scope',
+        title: 'Academic scope',
+        tags: ['assigned sections', 'students'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Managers are academic oversight users. They work with students, teachers, attendance, assessments, and grades through the sections assigned to them.',
+          },
+          {
+            type: 'table',
+            headers: ['Can work with', 'Scope'],
+            rows: [
+              ['Students', 'Students in assigned sections.'],
+              ['Teachers', 'Teachers connected to the same assigned sections.'],
+              ['Attendance', 'Assigned academic sections.'],
+              ['Assessments and grades', 'Assigned academic sections and finalization review where allowed.'],
+              ['Transcripts', 'Students in assigned sections.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Not a finance role',
+            text: 'Managers do not manage finance structures, entries, payment claims, or organization settings. Those belong to Admin/Sub Admin/Finance Manager according to the workflow.',
+          },
+        ],
+      },
+      {
+        id: 'manager-finalization-flow',
+        title: 'Grade review flow',
+        tags: ['finalization', 'review'],
+        blocks: [
+          {
+            type: 'flow',
+            title: 'Academic review flow',
+            steps: ['Open assigned section or grade finalization dashboard', 'Review assessment status', 'Check missing or draft grades', 'Finalize only after review', 'Transcript uses finalized results'],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'finance-manager-guide',
+    title: 'Finance Manager Guide',
+    description: 'A guide for managing finance structures, entries, claims, transactions, and finance communication.',
+    category: 'Role Guides',
+    tags: ['finance manager', 'payments', 'claims', 'transactions'],
+    related: ['finance', 'fees', 'roles-permissions', 'mail'],
+    sections: [
+      {
+        id: 'finance-manager-work',
+        title: 'Finance work',
+        tags: ['entries', 'claims', 'transactions'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Finance managers focus on payment and ledger workflows. They are managed as organization users by the main admin portal, but their daily workspace is the finance area.',
+          },
+          {
+            type: 'flow',
+            title: 'Finance role flow',
+            steps: ['Create or review finance structure', 'Generate or review entries', 'Receive payment claim', 'Verify proof', 'Confirm or reject payment', 'Review transaction history'],
+          },
+          {
+            type: 'table',
+            headers: ['Task', 'Finance Manager role'],
+            rows: [
+              ['Structures and entries', 'Create and manage finance records where allowed.'],
+              ['Payment claims', 'Review, confirm, or reject submitted claims.'],
+              ['Transactions', 'Review confirmed activity and keep references clear.'],
+              ['Communication', 'Use mail for finance-related contact with students, guardians, Admins, and Sub Admins.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'finance-manager-boundaries',
+        title: 'Boundaries',
+        tags: ['access', 'limits'],
+        blocks: [
+          {
+            type: 'note',
+            title: 'Who can do this?',
+            text: 'Finance Managers handle finance operations. They do not receive academic setup, teaching, grade, settings, or unrestricted group-chat power.',
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'teacher-guide',
     title: 'Teacher Guide',
     description: 'A practical guide for assigned classes, materials, assessments, submissions, attendance, and grading.',
@@ -2278,6 +2564,63 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'guardian-guide',
+    title: 'Guardian Guide',
+    description: 'A simple guide for guardians viewing linked student records and fee status.',
+    category: 'Role Guides',
+    tags: ['guardian', 'linked students', 'parents', 'fees'],
+    related: ['roles-permissions', 'student-guide', 'fees', 'communication'],
+    sections: [
+      {
+        id: 'guardian-flow',
+        title: 'Linked-student flow',
+        tags: ['student switcher', 'linked students'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Guardian accounts are linked to one student at a time from the student record. When a guardian signs in, the portal shows the students linked to that guardian and lets them choose which student to view.',
+          },
+          {
+            type: 'flow',
+            title: 'Guardian flow',
+            steps: ['Admin or Sub Admin creates guardian', 'Optional profile photo is cropped and uploaded', 'Guardian is linked from a student record', 'Guardian signs in', 'Guardian selects a linked student', 'Portal shows that student attendance, grades, timetable, and fees'],
+          },
+          {
+            type: 'table',
+            headers: ['Can view', 'Scope'],
+            rows: [
+              ['Student overview', 'Linked students only.'],
+              ['Attendance', 'Linked-student attendance summaries.'],
+              ['Grades and academic status', 'Linked-student visible grades and academic records.'],
+              ['Fees', 'Linked-student finance entries and balances.'],
+              ['Communication', 'Admin, Sub Admin, Finance Manager, or platform support where available.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'guardian-boundaries',
+        title: 'Privacy boundaries',
+        tags: ['privacy', 'access'],
+        blocks: [
+          {
+            type: 'note',
+            title: 'Linked students only',
+            text: 'A guardian cannot view another student by guessing a URL or ID. The backend checks that the selected student is linked to the signed-in guardian.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Edit a guardian account from Users > Guardians.',
+              'Use the student edit form to link or unlink a guardian.',
+              'Guardian profile photos use the same cropped profile-picture upload flow as staff and students.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'school-setup-workflow',
     title: 'Setting Up a New School',
     description: 'End-to-end guide for configuring a new school workspace from registration to first day of class.',
@@ -2298,6 +2641,30 @@ export const docsPages: DocPage[] = [
             type: 'flow',
             title: 'Full setup flow',
             steps: ['Register', 'Configure Org', 'GPA Policy', 'Cycle', 'Courses', 'Cohorts', 'Sections', 'Teachers', 'Students', 'Timetable', 'Content', 'Launch'],
+          },
+        ],
+      },
+      {
+        id: 'user-registration-flow',
+        title: 'User registration flow',
+        tags: ['users', 'registration', 'guardians', 'finance managers'],
+        blocks: [
+          {
+            type: 'flow',
+            title: 'Recommended user flow',
+            steps: ['Admin creates Sub Admins and Finance Managers as needed', 'Admin or Sub Admin creates teachers and managers', 'Admin or Sub Admin creates students', 'Admin or Sub Admin creates guardians', 'Guardian is linked to the student record', 'Users sign in and follow their role dashboard'],
+          },
+          {
+            type: 'table',
+            headers: ['User type', 'Managed from'],
+            rows: [
+              ['Sub Admin', 'Sub Admins page, by Admin.'],
+              ['Finance Manager', 'Finance Managers page, by Admin or Sub Admin where allowed.'],
+              ['Manager', 'Teachers area using the Manager role option.'],
+              ['Teacher', 'Teachers area.'],
+              ['Student', 'Students area.'],
+              ['Guardian', 'Guardians area and student guardian link.'],
+            ],
           },
         ],
       },
@@ -2523,7 +2890,7 @@ export const docsPages: DocPage[] = [
 
 export const docsNavGroups: DocNavGroup[] = [
   { title: 'Basics', pages: ['quick-start', 'getting-started', 'roles-permissions', 'glossary', 'dashboard-insights'] },
-  { title: 'Role Guides', pages: ['admin-guide', 'teacher-guide', 'student-guide'] },
+  { title: 'Role Guides', pages: ['admin-guide', 'sub-admin-guide', 'manager-guide', 'finance-manager-guide', 'teacher-guide', 'student-guide', 'guardian-guide'] },
   { title: 'Workflows', pages: ['school-setup-workflow', 'end-of-term-workflow'] },
   { title: 'Administration', pages: ['platform-admin'] },
   { title: 'People', pages: ['students', 'teachers'] },

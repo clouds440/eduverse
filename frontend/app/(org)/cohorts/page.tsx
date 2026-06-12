@@ -15,12 +15,12 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import { Drawer } from '@/components/ui/Drawer';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
@@ -222,49 +222,43 @@ export default function CohortsPage() {
                 ]}
             />
             <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div className="min-w-0 flex-1">
-                            <SearchBar
-                                value={searchTerm}
-                                onChange={(value) => updateQueryParams({ search: value, page: 1 })}
-                                placeholder="Search cohorts..."
-                            />
-                        </div>
-                        <div className="flex w-full justify-between gap-2 md:w-auto md:justify-end">
-                            <Drawer position="left">
-                                <div className="flex flex-col gap-8">
-                                    <div>
-                                        <label className="mb-1 block text-xs font-bold text-muted-foreground">
-                                            Academic Cycle
-                                        </label>
-                                        <CustomSelect
-                                            options={[
-                                                { label: 'All Academic Cycles', value: '' },
-                                                ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.name })) || []),
-                                            ]}
-                                            value={academicCycleId}
-                                            onChange={(value) => updateQueryParams({ academicCycleId: value, page: 1 })}
-                                            placeholder="Filter Cycle"
-                                        />
-                                    </div>
-                                </div>
-                            </Drawer>
-
-                            {isAdmin && (
-                                <Button
-                                    onClick={() => router.push('/cohorts/create')}
-                                    icon={Plus}
-                                    className="shrink-0"
-                                >
-                                    New Cohort
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                <ResourceToolbar activeFilters={activeFilters} />
+                <FilterDrawerToolbar
+                    activeFilters={activeFilters}
+                    leading={(
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={(value) => updateQueryParams({ search: value, page: 1 })}
+                            placeholder="Search cohorts..."
+                        />
+                    )}
+                    actions={isAdmin ? (
+                        <Button
+                            onClick={() => router.push('/cohorts/create')}
+                            icon={Plus}
+                            className="shrink-0"
+                        >
+                            New Cohort
+                        </Button>
+                    ) : undefined}
+                    renderFilters={() => (
+                        <FilterDrawerGrid>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                                    Academic Cycle
+                                </Label>
+                                <CustomSelect
+                                    options={[
+                                        { label: 'All Academic Cycles', value: '' },
+                                        ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.name })) || []),
+                                    ]}
+                                    value={academicCycleId}
+                                    onChange={(value) => updateQueryParams({ academicCycleId: value, page: 1 })}
+                                    placeholder="Filter Cycle"
+                                />
+                            </div>
+                        </FilterDrawerGrid>
+                    )}
+                />
 
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable

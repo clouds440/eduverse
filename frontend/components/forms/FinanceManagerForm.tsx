@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { financeManagerCreateSchema, financeManagerUpdateSchema } from '@/lib/schemas';
 import { User } from '@/types';
 import RoleAccountForm from '@/components/role-accounts/RoleAccountForm';
+import { usePathname } from 'next/navigation';
 
 interface FinanceManagerFormProps {
     financeManagerId?: string;
@@ -11,6 +12,9 @@ interface FinanceManagerFormProps {
 }
 
 export default function FinanceManagerForm({ financeManagerId, initialData }: FinanceManagerFormProps) {
+    const pathname = usePathname();
+    const listHref = pathname.startsWith('/users/finance-managers') ? '/users/finance-managers' : '/finance-managers';
+
     return (
         <RoleAccountForm
             accountId={financeManagerId}
@@ -22,7 +26,7 @@ export default function FinanceManagerForm({ financeManagerId, initialData }: Fi
             updateSchema={financeManagerUpdateSchema}
             createAccount={api.org.createFinanceManager}
             updateAccount={api.org.updateFinanceManager}
-            listHref="/finance-managers"
+            listHref={listHref}
         />
     );
 }

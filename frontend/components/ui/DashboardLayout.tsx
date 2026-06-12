@@ -12,6 +12,7 @@ import { BackButton } from './BackButton';
 import { DataViewModal } from './DataViewModal';
 import { BrandIcon } from './Brand';
 import { Badge } from './Badge';
+import { getRoleLabel } from '@/lib/roles';
 
 export interface SidebarLink {
     id: string;
@@ -37,6 +38,19 @@ const ReadOnlyBanner = () => (
     </div>
 );
 
+const USER_MANAGEMENT_PREFIXES = [
+    '/users',
+    '/sub-admins',
+    '/finance-managers',
+    '/guardians',
+    '/teachers',
+    '/students',
+];
+
+function isUserManagementPath(pathname: string) {
+    return USER_MANAGEMENT_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
 export function DashboardLayout({ children, links, bottomLinks = [], showPadding = false }: DashboardLayoutProps) {
     const { logout, user } = useAuth();
     const { state } = useGlobal();
@@ -53,6 +67,18 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
         const allLinks = [...links, ...bottomLinks];
         const query = searchParams.toString();
         const fullPath = query ? `${pathname}?${query}` : pathname;
+        const usersLink = allLinks.find((link) => link.id === 'USERS');
+        if (usersLink && isUserManagementPath(pathname)) return usersLink;
+
+        if (user?.role === Role.GUARDIAN && pathname === '/guardian') {
+            const currentView = searchParams.get('view') || 'overview';
+            const guardianMatch = allLinks.find((link) => {
+                if (!link.href.startsWith('/guardian')) return false;
+                const linkView = new URLSearchParams(link.href.split('?')[1] || '').get('view') || 'overview';
+                return linkView === currentView;
+            });
+            if (guardianMatch) return guardianMatch;
+        }
 
         // 1. Try exact match first
         const exactMatch = allLinks.find(l => l.href === fullPath);
@@ -83,6 +109,18 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
     const handleLogout = () => {
         logout();
     };
+
+    const getLinkHref = React.useCallback((href: string) => {
+        if (user?.role !== Role.GUARDIAN || !href.startsWith('/guardian')) return href;
+        const studentId = searchParams.get('studentId');
+        if (!studentId) return href;
+
+        const [path, query = ''] = href.split('?');
+        const params = new URLSearchParams(query);
+        params.set('studentId', studentId);
+        const nextQuery = params.toString();
+        return nextQuery ? `${path}?${nextQuery}` : path;
+    }, [searchParams, user?.role]);
 
     const effectiveExpanded = !mounted || (isDesktop ? isExpanded : true);
 
@@ -138,7 +176,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                         return (
                             <Link
                                 key={link.id}
-                                href={link.href}
+                                href={getLinkHref(link.href)}
                                 onClick={closeMobileSidebar}
                                 className={`
                                     flex items-center rounded-lg transition-colors group relative hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35
@@ -224,7 +262,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                         )}
                                     </Link>
 
-                                    {user?.role != Role.STUDENT &&
+                                    {user?.role !== Role.STUDENT && user?.role !== Role.GUARDIAN &&
                                         <Link
                                             href="/contact"
                                             onClick={closeMobileSidebar}
@@ -276,7 +314,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             </div>
                             <div className={`overflow-hidden transition-all ml-2 ${!effectiveExpanded ? 'lg:hidden lg:w-0' : 'w-auto'}`}>
                                 <div className="text-xs font-black text-sidebar-text truncate max-w-30">{user.name || user.email}</div>
-                                <div className="text-[9px] font-bold text-sidebar-text/60 tracking-tighter leading-none mt-0.5">{user.designation || user.role?.replace('_', ' ')}</div>
+                                <div className="text-[9px] font-bold text-sidebar-text/60 tracking-tighter leading-none mt-0.5">{user.designation || getRoleLabel(user.role, '')}</div>
                             </div>
                         </div>
                     )}

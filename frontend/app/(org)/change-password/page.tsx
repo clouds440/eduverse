@@ -28,6 +28,8 @@ export default function OrganizationChangePasswordPage() {
                             ? `Update administrative password for ${user?.name || 'Organization'}`
                             : user?.role === Role.TEACHER
                                 ? `Update teacher portal password for ${user?.name || 'User'}`
+                                : user?.role === Role.GUARDIAN
+                                    ? `Update guardian portal password for ${user?.name || 'User'}`
                                 : `Update student portal password for ${user?.name || 'User'}`
                     }
                     isRequired={Boolean(user?.isFirstLogin)}
@@ -48,6 +50,8 @@ export default function OrganizationChangePasswordPage() {
                                     ? '/finance'
                                 : user.role === Role.STUDENT
                                     ? `/students/${user.id}`
+                                : user.role === Role.GUARDIAN
+                                    ? '/guardian'
                                     : `/teachers/${user.id}`;
                             router.push(target);
                         }, 100);

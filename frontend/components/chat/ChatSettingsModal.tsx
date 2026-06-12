@@ -13,6 +13,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { Modal } from '../ui/Modal';
 import { Toggle } from '../ui/Toggle';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { getRoleLabel } from '@/lib/roles';
 
 interface ChatSettingsModalProps {
     isOpen: boolean;
@@ -259,7 +260,7 @@ export function ChatSettingsModal({
                                             </p>
                                             <div className="flex items-center space-x-1.5 sm:space-x-2">
                                                 <p className="text-[10px] text-muted-foreground font-bold tracking-tighter">
-                                                    {p.user?.role?.toLowerCase().replace('_', ' ')}
+                                                    {getRoleLabel(p.user?.role, '')}
                                                 </p>
                                                 {isCreator && (
                                                     <span className="bg-primary/10 text-primary text-[10px] font-black px-1 sm:px-1.5 rounded-lg flex items-center">

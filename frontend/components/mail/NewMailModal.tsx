@@ -13,6 +13,7 @@ import { MailTarget, Role, MailCategory } from '@/types';
 import { ADMIN_REPLY_TEMPLATES } from './MailTemplates';
 import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
+import { getRoleLabel } from '@/lib/roles';
 
 interface NewMailModalProps {
     isOpen: boolean;
@@ -112,7 +113,7 @@ const ADMIN_TEMPLATE_OPTIONS = ADMIN_REPLY_TEMPLATES.map((template) => ({
 }));
 
 function formatRole(role?: string) {
-    return role ? role.replace(/_/g, ' ') : 'Unknown role';
+    return getRoleLabel(role, 'Unknown role');
 }
 
 function resolveTargetSelection(incomingIds: string[], previousIds: string[], targets: MailTarget[]) {

@@ -315,7 +315,7 @@ export function ResourceToolbar({ search, filters, actions, activeFilters = [], 
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     {search && <div className="min-w-0 flex-1">{search}</div>}
                     {(filters || actions) && (
-                        <div className="flex w-full flex-wrap items-center justify-between gap-2 md:w-auto md:justify-end">
+                        <div className="flex w-full flex-wrap items-center justify-end gap-2 md:w-auto">
                             {filters}
                             {actions}
                         </div>

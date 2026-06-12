@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { UserPlus, Users } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -13,10 +14,14 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { BrandIcon } from '@/components/ui/Brand';
+import { TableActions } from '@/components/ui/TableActions';
 
 export default function GuardiansPage() {
     const { token, user } = useAuth();
+    const router = useRouter();
+    const pathname = usePathname();
     const canAccess = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const routeBase = pathname.startsWith('/users/guardians') ? '/users/guardians' : '/guardians';
     const { data = [], isLoading, error, mutate } = useSWR<GuardianProfile[]>(
         token && canAccess ? ['guardians', token] as const : null,
         ([, t]) => api.org.getGuardians(t as string)
@@ -52,8 +57,22 @@ export default function GuardiansPage() {
             accessor: (guardian) => guardian.phone || guardian.user?.phone || <span className="text-muted-foreground/50">-</span>,
         },
         {
-            header: 'Relationship',
-            accessor: (guardian) => guardian.relationshipLabel || <span className="text-muted-foreground/50">-</span>,
+            header: 'Actions',
+            width: 190,
+            accessor: (guardian) => (
+                <TableActions
+                    onEdit={() => router.push(`${routeBase}/edit/${guardian.id}`)}
+                    variant="user"
+                    isViewAndEdit
+                    extraActions={[
+                        {
+                            variant: 'link',
+                            title: 'Link Students',
+                            onClick: () => router.push(`${routeBase}/link/${guardian.id}`),
+                        },
+                    ]}
+                />
+            ),
         },
     ];
 
@@ -89,7 +108,7 @@ export default function GuardiansPage() {
 
             <ResourcePanel>
                 <div className="flex shrink-0 justify-end border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                    <Link href="/guardians/add">
+                    <Link href={`${routeBase}/add`}>
                         <Button type="button" icon={UserPlus}>Add Guardian</Button>
                     </Link>
                 </div>
@@ -105,7 +124,7 @@ export default function GuardiansPage() {
                     onPageChange={() => undefined}
                     showSerialNumber
                     emptyTitle="No guardians found"
-                    emptyDescription="Create a guardian account, then link it from the student form."
+                    emptyDescription="Create a guardian account, then use Link Students from the actions menu."
                 />
             </ResourcePanel>
         </PageShell>

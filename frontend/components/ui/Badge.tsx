@@ -10,6 +10,7 @@ interface BadgeProps {
     title?: string;
     size?: BadgeSize;
     className?: string;
+    onClick?: () => void;
     /** Optional dot indicator */
     dot?: boolean;
     /** Optional icon on the left */
@@ -61,20 +62,19 @@ export function Badge({
     icon: Icon,
     shape = 'rounded',
     style,
+    onClick,
 }: BadgeProps) {
-    return (
-        <span
-            className={cn(
-                "inline-flex items-center justify-center border font-semibold leading-none whitespace-nowrap",
-                "select-none shrink-0",
-                sizeStyles[size],
-                shapeStyles[shape],
-                variantStyles[variant],
-                className,
-            )}
-            title={title}
-            style={style}
-        >
+    const classes = cn(
+        "inline-flex items-center justify-center border font-semibold leading-none whitespace-nowrap",
+        "select-none shrink-0",
+        onClick && "cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+        sizeStyles[size],
+        shapeStyles[shape],
+        variantStyles[variant],
+        className,
+    );
+    const content = (
+        <>
             {dot && (
                 <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColors[variant])} />
             )}
@@ -82,6 +82,30 @@ export function Badge({
                 <Icon className="w-3.5 h-3.5 shrink-0" />
             )}
             {children}
+        </>
+    );
+
+    if (onClick) {
+        return (
+            <button
+                type="button"
+                className={classes}
+                title={title}
+                style={style}
+                onClick={onClick}
+            >
+                {content}
+            </button>
+        );
+    }
+
+    return (
+        <span
+            className={classes}
+            title={title}
+            style={style}
+        >
+            {content}
         </span>
     );
 }

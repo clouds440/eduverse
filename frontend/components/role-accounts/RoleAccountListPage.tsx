@@ -214,6 +214,17 @@ export default function RoleAccountListPage({
             onRemove: () => updateQueryParams({ status: undefined, page: 1 }),
         }] : []),
     ];
+    const hasSearchOrFilters = Boolean(searchTerm || activeFilters.length > 0);
+    const emptyTitle = isDeletedView
+        ? `No deleted ${labelPlural.toLowerCase()}`
+        : hasSearchOrFilters
+            ? `No ${labelPlural.toLowerCase()} match this view`
+            : `No ${labelPlural.toLowerCase()} yet`;
+    const emptyDescription = isDeletedView
+        ? `Deleted ${labelPlural.toLowerCase()} will appear here after accounts are removed.`
+        : hasSearchOrFilters
+        ? 'Adjust the search or filters to broaden the result set.'
+        : `Create the first ${labelSingular.toLowerCase()} account from this page.`;
 
     if (!hasAccess) {
         return null;
@@ -231,6 +242,7 @@ export default function RoleAccountListPage({
                 icon={ShieldCheck}
                 breadcrumbs={[
                     { label: 'Organization' },
+                    { label: 'Users', href: '/users' },
                     { label: isDeletedView ? `Deleted ${labelPlural}` : labelPlural },
                 ]}
                 meta={isDeletedView ? <Badge variant="neutral" size="sm">Archive</Badge> : undefined}
@@ -243,7 +255,7 @@ export default function RoleAccountListPage({
                             <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder={`Search ${labelPlural.toLowerCase()}...`} />
                         </div>
 
-                        <div className="flex w-full justify-between gap-2 md:w-auto">
+                        <div className="flex w-full justify-end gap-2 md:w-auto">
                             {!isDeletedView && (
                                 <Drawer position="left">
                                     <div className="flex flex-col gap-8">
@@ -317,8 +329,8 @@ export default function RoleAccountListPage({
                         maxHeight="100%"
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
-                        emptyTitle={isDeletedView ? `No deleted ${labelPlural.toLowerCase()}` : `No ${labelPlural.toLowerCase()} found`}
-                        emptyDescription={searchTerm || activeFilters.length > 0 ? 'Adjust the search or filters to broaden the result set.' : undefined}
+                        emptyTitle={emptyTitle}
+                        emptyDescription={emptyDescription}
                     />
                 </div>
             </ResourcePanel>

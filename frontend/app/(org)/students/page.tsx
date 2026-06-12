@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { UserPlus } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -42,6 +42,7 @@ interface StudentParams {
 export default function StudentsPage() {
     const { token, user } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
     const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const { dispatch } = useGlobal();
 
@@ -61,6 +62,7 @@ export default function StudentsPage() {
     const [initialSubject, setInitialSubject] = useState<string | undefined>(undefined);
     const canManageStudents = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const canViewStudentDetails = canManageStudents || user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
+    const routeBase = pathname.startsWith('/users/students') ? '/users/students' : '/students';
 
     // URL State
     const page = getNumberParam('page', 1);
@@ -74,6 +76,16 @@ export default function StudentsPage() {
     const showAlumni = getBooleanParam('showAlumni');
     const cohortId = getStringParam('cohortId');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-students-limit', 10);
+    const pageBreadcrumbs = pathname.startsWith('/users/students')
+        ? [
+            { label: 'Organization' },
+            { label: 'Users', href: '/users' },
+            { label: isDeletedView ? 'Deleted Students' : 'Students' },
+        ]
+        : [
+            { label: 'Organization' },
+            { label: isDeletedView ? 'Deleted Students' : 'Students' },
+        ];
 
     const studentParams: StudentParams = {
         page,
@@ -236,8 +248,8 @@ export default function StudentsPage() {
             accessor: (row: Student) => {
                 return (
                     <TableActions
-                        onEdit={isDeletedView || !canManageStudents ? undefined : () => router.push(`/students/edit/${row.id}`)}
-                        onView={isDeletedView || !canViewStudentDetails || canManageStudents ? undefined : () => router.push(`/students/edit/${row.id}`)}
+                        onEdit={isDeletedView || !canManageStudents ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
+                        onView={isDeletedView || !canViewStudentDetails || canManageStudents ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
                         onDelete={isDeletedView || !canManageStudents ? undefined : () => handleDeleteClick(row.id)}
                         variant="user"
                         isViewAndEdit={!isDeletedView && canManageStudents}
@@ -344,10 +356,7 @@ export default function StudentsPage() {
                 title={isDeletedView ? 'Deleted Students' : 'Students'}
                 description="Find, filter, and manage student records while keeping saved links intact."
                 icon={UserPlus}
-                breadcrumbs={[
-                    { label: 'Organization' },
-                    { label: isDeletedView ? 'Deleted Students' : 'Students' },
-                ]}
+                breadcrumbs={pageBreadcrumbs}
                 meta={isDeletedView ? <Badge variant="neutral" size="sm">Archive</Badge> : undefined}
             />
             <ResourcePanel>
@@ -363,7 +372,7 @@ export default function StudentsPage() {
                                 />
                             </div>
                         </div>
-                        <div className='flex w-full md:w-auto gap-2 justify-between'>
+                        <div className='flex w-full md:w-auto gap-2 justify-end'>
                             {!isDeletedView && (
                                 <Drawer position='left'>
                                     <div className="flex flex-col gap-8">
@@ -485,7 +494,7 @@ export default function StudentsPage() {
 
                             {!isDeletedView && canManageStudents && (
                                 <Button
-                                    onClick={() => router.push('/students/add')}
+                                    onClick={() => router.push(`${routeBase}/add`)}
                                     icon={UserPlus}
                                     className="shrink-0"
                                 >
@@ -505,7 +514,7 @@ export default function StudentsPage() {
                         keyExtractor={(row) => row.id}
                         isLoading={isFetching}
                         onRowClick={(row) => {
-                            if (canViewStudentDetails) router.push(`/students/edit/${row.id}`);
+                            if (canViewStudentDetails) router.push(`${routeBase}/edit/${row.id}`);
                         }}
                         currentPage={page}
                         totalPages={fetchedData?.totalPages || 1}

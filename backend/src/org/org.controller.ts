@@ -351,6 +351,12 @@ export class OrgController {
     throw new ForbiddenException('Profile update not allowed for this role');
   }
 
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Get('users/counts')
+  getUserCounts(@OrgId() orgId: string, @Request() req: AuthenticatedRequest) {
+    return this.orgService.getUserCounts(orgId, req.user.role);
+  }
+
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.FINANCE_MANAGER)
   @Access(AccessLevel.WRITE)
   @Patch('users/:id/avatar')

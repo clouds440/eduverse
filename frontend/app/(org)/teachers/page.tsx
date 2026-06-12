@@ -61,6 +61,7 @@ export default function TeachersPage() {
     const showEmeritus = getBooleanParam('showEmeritus');
     const roleFilter = getStringParam('role');
     const isManagersView = roleFilter === 'managers';
+    const routeBase = pathname.startsWith('/users/teachers') ? '/users/teachers' : '/teachers';
     const [pageSize, setPageSize] = usePersistentPageSize('edu-teachers-limit', 10);
     const canManageTeachers = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
@@ -230,7 +231,7 @@ export default function TeachersPage() {
             width: 200,
             accessor: (row: Teacher) => (
                 <TableActions
-                    onEdit={isDeletedView ? undefined : () => router.push(`/teachers/edit/${row.id}`)}
+                    onEdit={isDeletedView ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
                     onDelete={isDeletedView ? undefined : () => {
                         setDeletingTeacher(row);
                         setDeleteDialogOpen(true);
@@ -313,7 +314,7 @@ export default function TeachersPage() {
                         <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder={isManagersView ? 'Search managers...' : 'Search faculty...'} />
                     </div>
 
-                    <div className='flex w-full md:w-auto gap-2 justify-between'>
+                    <div className='flex w-full md:w-auto gap-2 justify-end'>
                         {!isDeletedView && (
                             <Drawer position='left'>
                                 <div className="flex flex-col gap-8">
@@ -368,7 +369,7 @@ export default function TeachersPage() {
 
                         {canManageTeachers && !isDeletedView && (
                             <Button
-                                onClick={() => router.push(isManagersView ? '/teachers/add?role=manager' : '/teachers/add')}
+                                onClick={() => router.push(isManagersView ? `${routeBase}/add?role=manager` : `${routeBase}/add`)}
                                 icon={UserPlus}
                                 className="shrink-0"
                             >
@@ -392,7 +393,7 @@ export default function TeachersPage() {
                                 if (user?.id === row.userId) {
                                     router.push(`/teachers/${row.userId}/profile`);
                                 } else {
-                                    router.push(`/teachers/edit/${row.id}`);
+                                    router.push(`${routeBase}/edit/${row.id}`);
                                 }
                             }
                         }}

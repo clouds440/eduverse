@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Role, OrgStatus, TeacherStatus, StudentStatus } from '../common/enums';
+import { Role, OrgStatus, TeacherStatus, StudentStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { UpdateSettingsDto } from './dto/update-settings.dto';
@@ -237,6 +237,68 @@ export class OrgService {
 
     // Update user with new avatar URL and bump cache-buster timestamp
     return this.userService.updateUser(userId, { avatarUrl: publicUrl });
+  }
+
+  async getUserCounts(orgId: string, requesterRole: string) {
+    const [
+      financeManagers,
+      managers,
+      teachers,
+      students,
+      guardians,
+      subAdmins,
+    ] = await this.prisma.$transaction([
+      this.prisma.user.count({
+        where: {
+          organizationId: orgId,
+          role: Role.FINANCE_MANAGER,
+          status: { not: UserStatus.DELETED },
+        },
+      }),
+      this.prisma.teacher.count({
+        where: {
+          organizationId: orgId,
+          status: { not: TeacherStatus.DELETED },
+          user: { role: Role.ORG_MANAGER, status: { not: UserStatus.DELETED } },
+        },
+      }),
+      this.prisma.teacher.count({
+        where: {
+          organizationId: orgId,
+          status: { not: TeacherStatus.DELETED },
+          user: { role: Role.TEACHER, status: { not: UserStatus.DELETED } },
+        },
+      }),
+      this.prisma.student.count({
+        where: {
+          organizationId: orgId,
+          status: { not: StudentStatus.DELETED },
+          user: { status: { not: UserStatus.DELETED } },
+        },
+      }),
+      this.prisma.guardianProfile.count({
+        where: {
+          organizationId: orgId,
+          user: { status: { not: UserStatus.DELETED } },
+        },
+      }),
+      this.prisma.user.count({
+        where: {
+          organizationId: orgId,
+          role: Role.SUB_ADMIN,
+          status: { not: UserStatus.DELETED },
+        },
+      }),
+    ]);
+
+    return {
+      ...(requesterRole === Role.ORG_ADMIN ? { subAdmins } : {}),
+      financeManagers,
+      managers,
+      teachers,
+      students,
+      guardians,
+    };
   }
 
 

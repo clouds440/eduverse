@@ -4,8 +4,9 @@ import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, CalendarClock, UserRoundCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
@@ -105,8 +106,10 @@ function studentStatusIcon(status?: StudentStatus) {
 export default function StudentForm({ studentId, initialData, isProfile }: StudentFormProps) {
     const { token, user: currentUser, updateUser } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
     const { dispatch } = useGlobal();
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+    const listHref = pathname.startsWith('/users/students') ? '/users/students' : '/students';
 
     const resolver = useMemo(
         () => zodResolver(isProfile ? studentProfileSchema : (studentId ? studentUpdateSchema : studentCreateSchema)),
@@ -171,7 +174,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
         { label: 'No Guardian', value: '' },
         ...guardians.map(guardian => ({
             value: guardian.id,
-            label: `${guardian.user?.name || guardian.user?.email || 'Guardian'}${guardian.relationshipLabel ? ` (${guardian.relationshipLabel})` : ''}`,
+            label: guardian.user?.name || guardian.user?.email || 'Guardian',
         })),
     ], [guardians]);
 
@@ -263,7 +266,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             if (isProfile) {
                 router.refresh();
             } else {
-                router.push('/students');
+                router.push(listHref);
             }
 
             mutate(matchesCacheKeyPrefix('students'));
@@ -499,6 +502,15 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 icon={UserRoundCheck}
                                 placeholder="Select guardian"
                             />
+                            <div className="flex flex-wrap gap-2 text-xs font-bold text-muted-foreground">
+                                <Link href="/users/guardians/add" className="text-primary hover:underline">
+                                    Create guardian
+                                </Link>
+                                <span aria-hidden="true">·</span>
+                                <Link href="/users/guardians" className="text-primary hover:underline">
+                                    Manage guardians
+                                </Link>
+                            </div>
                         </FormField>
                     )}
 
