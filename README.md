@@ -910,10 +910,24 @@ On Windows, Prisma engine execution may require the environment to allow child p
 
 ### Backend Verification
 
+18. Departments, Buildings, and Rooms
+
+### Departments, Buildings, and Rooms
 - `npm run build`
 - DTO validation checks for new endpoints.
 - Role guard and service-scope checks:
   - Admin can manage organization users and settings.
+
+### Departments, Buildings, and Rooms
+
+- `Department`: organization-scoped grouping used for academic/administrative scope, filtering, reporting, and scoped access. Key fields: `id`, `organizationId`, `name`, `code?`, `description?`, `color?`, `isActive`, timestamps.
+- `Building`: physical or logical campus location. Key fields: `id`, `organizationId`, `name`, `code?`, `address?`, `description?`, `isActive`, timestamps.
+- `Room`: belongs to a `Building` and represents a schedulable space. Key fields: `id`, `organizationId`, `buildingId`, `name`, `floor?`, `type?` (enum: `CLASSROOM|LAB|AUDITORIUM|OFFICE|LIBRARY|HALL|OTHER`), `capacity?`, `description?`, `isActive`, timestamps.
+- `BuildingDepartment`: join table for optional many-to-many association between buildings and departments. Key fields: `id`, `organizationId`, `buildingId`, `departmentId`.
+
+Notes:
+- Room names may repeat across different buildings but must be unique within a building.
+- `Section` may gain an optional `defaultRoomId` (suggestion only). `Schedule` migrates to using `roomId` as the authoritative room for conflict checks.
   - Sub Admin can manage delegated users but cannot create or edit Sub Admin accounts.
   - Manager cannot access finance management or settings.
   - Finance Manager can perform finance actions and cannot access academic setup.
@@ -922,11 +936,30 @@ On Windows, Prisma engine execution may require the environment to allow child p
   - Student self access rejects other student records.
 - GPA policy validation:
   - overlapping ranges fail
+ - `GET /org/departments`
+ - `POST /org/departments`
+ - `PATCH /org/departments/:id`
+ - `DELETE /org/departments/:id`
+ - `GET /org/buildings`
+ - `POST /org/buildings`
+ - `PATCH /org/buildings/:id`
+ - `DELETE /org/buildings/:id`
+ - `GET /org/rooms`
+ - `POST /org/rooms`
+ - `PATCH /org/rooms/:id`
+ - `DELETE /org/rooms/:id`
+ - `POST /org/buildings/:id/departments` (assign/remove departments)
   - gaps fail
   - points above scale fail
   - points decreasing as marks increase fail
   - more than 20 rules fail
 - GPA calculation:
+
+Room and schedule behavior:
+
+- `Schedule` accepts optional `roomId` (migrated from legacy `room` string). Conflict checks prefer `roomId` when present.
+- Room validation ensures `buildingId` and `organizationId` match the active organization; room must be active when selected for new schedules.
+- Capacity warnings are surfaced during schedule creation but are not hard blocking in v1.
   - simple average
   - credit-hour weighted
   - rounding modes
@@ -934,18 +967,42 @@ On Windows, Prisma engine execution may require the environment to allow child p
   - teacher belongs to section
   - room conflict
   - teacher conflict
+
+Management pages added:
+
+- `/setup/departments` — list, create, edit, enable/disable departments.
+- `/setup/buildings` — list, create, edit, assign departments, enable/disable buildings.
+- `/setup/rooms` — list, create, edit, filter by building/department/type, enable/disable rooms.
+
+UI helpers:
+
+- `formatDepartmentLabel(department)` — renders name (and code if present).
+- `formatBuildingLabel(building)` — renders name (and code if present).
+- `formatRoomLabel(room)` — preferred rendering `Building Name • Room Name` or `BUILDING_CODE • Room Name` when code exists.
   - time-slot conflict
 - Transcript:
   - finalized grades only
   - course credit hours included
   - cycle policy snapshot used
   - GPA and CGPA calculated centrally
+* Schedule/Room migration
+  - Create schedules with `roomId` and with legacy `room` string; legacy records must render fallback room text until migrated.
+  - Room conflict detection uses `roomId` when present; identical room names in different buildings do not conflict.
 - Guardian:
   - create guardian
   - update guardian
   - link student through student update
   - many linked students appear in guardian portal
 - Finance:
+
+### Departments, Buildings, Rooms Migration
+
+- Phase 0: Audit all usages of `room` across backend and frontend; map `section.room`, `schedule.room`, schedule conflict checks, and UI inputs.
+- Phase 1: Add Prisma models for `Department`, `Building`, `Room`, `BuildingDepartment` and `RoomType` enum. Generate migrations and keep `isActive` flags.
+- Phase 2: Add CRUD endpoints and management UI pages. Keep legacy `Section.room` and `Schedule.room` string fields initially.
+- Phase 3: Add nullable `Schedule.roomId` and optional `Section.defaultRoomId`, update DTOs to accept `roomId` while keeping old string fields until stable.
+- Phase 4: Update conflict logic to prefer `roomId`, and migrate existing schedule records to `roomId` where possible.
+- Phase 5: Once stable, mark `Schedule.roomId` required and remove legacy `room` string fields.
   - Finance Manager can create/update finance records
   - Manager cannot call finance management endpoints
   - Student self payment claim remains available
