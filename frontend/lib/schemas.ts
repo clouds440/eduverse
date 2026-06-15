@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { OrganizationType, TeacherStatus, StudentStatus, UserStatus, AssessmentType, GradeStatus } from '@/types';
+import { DepartmentScopeType, OrganizationType, TeacherStatus, StudentStatus, UserStatus, AssessmentType, GradeStatus } from '@/types';
 import { isSafeHttpUrl } from './safeUrl';
 
 // --- Shared Patterns ---
@@ -50,6 +50,9 @@ const teacherBaseSchema = z.object({
     designation: z.string().optional().or(z.literal('')),
     subject: z.string().optional().or(z.literal('')),
     department: z.string().optional().or(z.literal('')),
+    departmentIds: z.array(z.string()).default([]),
+    departmentScopeType: z.nativeEnum(DepartmentScopeType).optional(),
+    scopeDepartmentIds: z.array(z.string()).default([]),
     joiningDate: z.string().optional().or(z.literal('')),
     address: z.string().optional().or(z.literal('')),
     emergencyContact: z.string().optional().or(z.literal('')),
@@ -97,6 +100,8 @@ const subAdminBaseSchema = z.object({
     phone: z.string().regex(phoneRegex, 'Invalid phone number').optional().or(z.literal('')),
     email: z.string().email('Invalid email address'),
     status: z.nativeEnum(UserStatus),
+    departmentScopeType: z.nativeEnum(DepartmentScopeType).optional(),
+    departmentIds: z.array(z.string()).default([]),
 });
 
 export const subAdminCreateSchema = subAdminBaseSchema.extend({
@@ -130,6 +135,8 @@ const studentBaseSchema = z.object({
     status: z.nativeEnum(StudentStatus),
     major: z.string().optional().or(z.literal('')),
     department: z.string().optional().or(z.literal('')),
+    primaryDepartmentId: z.string().optional().or(z.literal('')),
+    departmentIds: z.array(z.string()).default([]),
     fatherName: z.string().optional().or(z.literal('')),
     age: z.string().nullable().optional(),
     gender: z.string().optional().or(z.literal('')),

@@ -27,6 +27,7 @@ export default function SubAdminForm({ subAdminId, initialData }: SubAdminFormPr
             createAccount={api.org.createSubAdmin}
             updateAccount={api.org.updateSubAdmin}
             listHref={listHref}
+            enableDepartmentScope
         />
     );
 }

@@ -7,7 +7,7 @@ import { Calendar, MapPin, Hash, AlertCircle, LibraryBig, Network, Layers } from
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
-import { ApiError, Course, Role, PaginatedResponse, AcademicCycle, Cohort } from '@/types';
+import { ApiError, Course, Role, PaginatedResponse, AcademicCycle, Cohort, Room } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
@@ -15,7 +15,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageShell';
-import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, isSectionPaletteColor } from '@/lib/utils';
+import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, formatRoomLabel, isSectionPaletteColor } from '@/lib/utils';
 
 export default function CreateSectionPage() {
     const { token, user } = useAuth();
@@ -25,6 +25,7 @@ export default function CreateSectionPage() {
     const [formData, setFormData] = useState({
         name: '',
         room: '',
+        defaultRoomId: '',
         courseId: '',
         academicCycleId: '',
         cohortId: '',
@@ -42,6 +43,9 @@ export default function CreateSectionPage() {
 
     const cohortsKey = token ? ['cohorts', { limit: 500 }] as const : null;
     const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
+
+    const roomsKey = token ? ['rooms', { limit: 1000, isActive: true }] as const : null;
+    const { data: roomsData } = useSWR<PaginatedResponse<Room>>(roomsKey);
 
     useEffect(() => {
         if (!user) return;
@@ -82,7 +86,11 @@ export default function CreateSectionPage() {
         try {
             if (!token) return;
 
-            await api.org.createSection(formData, token);
+            await api.org.createSection({
+                ...formData,
+                room: undefined,
+                defaultRoomId: formData.defaultRoomId || null,
+            }, token);
             mutate((key) => Array.isArray(key) && key[0] === 'sections');
 
             window.dispatchEvent(new Event('stats-updated'));
@@ -226,15 +234,20 @@ export default function CreateSectionPage() {
                                             {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
                                         </div>
                                         <div className="space-y-2">
-                                            <Label className="text-sm font-bold ml-1">Location / Room</Label>
-                                            <Input
-                                                type="text"
-                                                name="room"
-                                                value={formData.room}
-                                                onChange={handleChange}
+                                            <Label className="text-sm font-bold ml-1">Default Room</Label>
+                                            <CustomSelect
+                                                value={formData.defaultRoomId}
+                                                onChange={(value) => setFormData({ ...formData, defaultRoomId: value })}
                                                 icon={MapPin}
-                                                placeholder="e.g. Hall 4 / Lab 102"
-                                                className="h-12 md:h-14 font-medium"
+                                                options={[
+                                                    { value: '', label: 'No Default Room' },
+                                                    ...(roomsData?.data?.map((room) => ({
+                                                        value: room.id,
+                                                        label: formatRoomLabel(room),
+                                                    })) || []),
+                                                ]}
+                                                placeholder="Select room..."
+                                                searchable
                                             />
                                         </div>
                                     </div>

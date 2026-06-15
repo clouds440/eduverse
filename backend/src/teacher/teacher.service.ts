@@ -3,12 +3,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UserService } from '../users/user.service';
 import { SectionsService } from '../sections/sections.service';
-import { Role, TeacherStatus, UserStatus } from '../common/enums';
+import { DepartmentScopeType, Role, TeacherStatus, UserStatus } from '../common/enums';
 import { CreateTeacherDto } from '../org/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '../org/dto/update-teacher.dto';
 import { PaginationOptions, getPaginationOptions, formatPaginatedResponse, extractUpdateFields } from '../common/utils';
 import { Prisma } from '@prisma/client';
 import { extractTimetableEntries } from '../common/utils';
+import {
+  assertDepartmentIdsBelongToOrg,
+  getDepartmentScope,
+  teacherDepartmentScopeWhere,
+  type DepartmentScopedUser,
+} from '../common/department-scope';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -40,11 +46,21 @@ export class TeacherService {
     return teacher;
   }
 
-  async getTeachers(orgId: string, options: PaginationOptions) {
+  async getTeachers(
+    orgId: string,
+    options: PaginationOptions,
+    requester?: DepartmentScopedUser,
+  ) {
     const { skip, take, sortBy, sortOrder, status, deleted } = getPaginationOptions(options);
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
+    const scopeWhere = teacherDepartmentScopeWhere(departmentScope);
 
     const where: Prisma.TeacherWhereInput = {
       organizationId: orgId,
+      ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
+      ...(options.departmentId
+        ? { teacherDepartments: { some: { departmentId: options.departmentId } } }
+        : {}),
       status: deleted
         ? TeacherStatus.DELETED
         : status
@@ -105,6 +121,8 @@ export class TeacherService {
             },
           },
           sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
+          teacherDepartments: { include: { department: true } },
+          managerDepartments: { include: { department: true } },
         },
       }),
       this.prisma.teacher.count({ where }),
@@ -118,12 +136,32 @@ export class TeacherService {
     );
   }
 
-  async getManagers(orgId: string, options: PaginationOptions) {
+  async getManagers(
+    orgId: string,
+    options: PaginationOptions,
+    requester?: DepartmentScopedUser,
+  ) {
     const { skip, take, sortBy, sortOrder, status, deleted } = getPaginationOptions(options);
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
+    const scopeWhere: Prisma.TeacherWhereInput =
+      !departmentScope.applies || departmentScope.all
+        ? {}
+        : departmentScope.departmentIds.length === 0
+          ? { id: '__no_department_scope__' }
+          : {
+              OR: [
+                { managerDepartments: { some: { departmentId: { in: departmentScope.departmentIds } } } },
+                { managerDepartments: { none: {} } },
+              ],
+            };
 
     const where: Prisma.TeacherWhereInput = {
       organizationId: orgId,
       user: { role: Role.ORG_MANAGER },
+      ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
+      ...(options.departmentId
+        ? { managerDepartments: { some: { departmentId: options.departmentId } } }
+        : {}),
       status: deleted
         ? TeacherStatus.DELETED
         : status
@@ -183,6 +221,8 @@ export class TeacherService {
             },
           },
           sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
+          teacherDepartments: { include: { department: true } },
+          managerDepartments: { include: { department: true } },
         },
       }),
       this.prisma.teacher.count({ where }),
@@ -216,6 +256,8 @@ export class TeacherService {
           },
         },
         sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
+        teacherDepartments: { include: { department: true } },
+        managerDepartments: { include: { department: true } },
       },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
@@ -239,6 +281,9 @@ export class TeacherService {
 
     try {
       const result = await this.prisma.$transaction(async (prisma) => {
+        const departmentIds = await assertDepartmentIdsBelongToOrg(prisma, orgId, data.departmentIds);
+        const scopeDepartmentIds = await assertDepartmentIdsBelongToOrg(prisma, orgId, data.scopeDepartmentIds);
+
         const user = await this.userService.createUser({
           email: data.email,
           password: data.password,
@@ -257,6 +302,9 @@ export class TeacherService {
             education: data.education,
             designation: data.designation,
             department: data.department,
+            departmentScopeType: data.isManager
+              ? (data.departmentScopeType || DepartmentScopeType.ALL)
+              : DepartmentScopeType.ALL,
             joiningDate: data.joiningDate
               ? new Date(data.joiningDate)
               : undefined,
@@ -267,11 +315,27 @@ export class TeacherService {
             sections: data.sectionIds
               ? { connect: data.sectionIds.map((id) => ({ id })) }
               : undefined,
+            teacherDepartments: departmentIds.length
+              ? {
+                  createMany: {
+                    data: departmentIds.map((departmentId) => ({ organizationId: orgId, departmentId })),
+                  },
+                }
+              : undefined,
+            managerDepartments: data.isManager && scopeDepartmentIds.length
+              ? {
+                  createMany: {
+                    data: scopeDepartmentIds.map((departmentId) => ({ organizationId: orgId, departmentId })),
+                  },
+                }
+              : undefined,
           },
           include: {
             user: {
               select: { email: true, name: true, phone: true },
             },
+            teacherDepartments: { include: { department: true } },
+            managerDepartments: { include: { department: true } },
           },
         });
 
@@ -340,6 +404,7 @@ export class TeacherService {
       'education',
       'designation',
       'department',
+      'departmentScopeType',
       'emergencyContact',
       'bloodGroup',
       'address',
@@ -355,6 +420,9 @@ export class TeacherService {
 
     if (data.isManager !== undefined) {
       userData.role = data.isManager ? Role.ORG_MANAGER : Role.TEACHER;
+      if (!data.isManager && data.departmentScopeType === undefined) {
+        teacherData.departmentScopeType = DepartmentScopeType.ALL;
+      }
     }
 
     if (data.status !== undefined) {
@@ -373,6 +441,13 @@ export class TeacherService {
     }
 
     const updatedTeacher = await this.prisma.$transaction(async (tx) => {
+      const departmentIds = data.departmentIds !== undefined
+        ? await assertDepartmentIdsBelongToOrg(tx, orgId, data.departmentIds)
+        : undefined;
+      const scopeDepartmentIds = data.scopeDepartmentIds !== undefined
+        ? await assertDepartmentIdsBelongToOrg(tx, orgId, data.scopeDepartmentIds)
+        : undefined;
+
       if (Object.keys(userData).length > 0) {
         await this.userService.updateUser(teacher.userId, userData, tx);
       }
@@ -382,6 +457,32 @@ export class TeacherService {
           where: { id },
           data: teacherData,
         });
+      }
+
+      if (departmentIds !== undefined) {
+        await tx.teacherDepartment.deleteMany({ where: { teacherId: id } });
+        if (departmentIds.length) {
+          await tx.teacherDepartment.createMany({
+            data: departmentIds.map((departmentId) => ({
+              organizationId: orgId,
+              teacherId: id,
+              departmentId,
+            })),
+          });
+        }
+      }
+
+      if (scopeDepartmentIds !== undefined || data.isManager === false) {
+        await tx.managerDepartment.deleteMany({ where: { teacherId: id } });
+        if (data.isManager !== false && scopeDepartmentIds?.length) {
+          await tx.managerDepartment.createMany({
+            data: scopeDepartmentIds.map((departmentId) => ({
+              organizationId: orgId,
+              teacherId: id,
+              departmentId,
+            })),
+          });
+        }
       }
 
       return tx.teacher.findUnique({
@@ -399,6 +500,8 @@ export class TeacherService {
             },
           },
           sections: { include: { course: true } },
+          teacherDepartments: { include: { department: true } },
+          managerDepartments: { include: { department: true } },
         },
       });
     });
@@ -534,7 +637,17 @@ export class TeacherService {
       where: { id: { in: sectionIds } },
       include: {
         course: { select: { id: true, name: true } },
-        schedules: { select: { id: true, day: true, startTime: true, endTime: true, room: true } },
+        defaultRoom: { select: { name: true, building: { select: { name: true } } } },
+        schedules: {
+          select: {
+            id: true,
+            day: true,
+            startTime: true,
+            endTime: true,
+            room: true,
+            roomRef: { select: { name: true, building: { select: { name: true } } } },
+          },
+        },
         teachers: {
           select: {
             id: true,

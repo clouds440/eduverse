@@ -284,7 +284,7 @@ export function DataTable<T>({
                                 `}
                             >
                                 <div className="flex items-start justify-between gap-2.5">
-                                    <div className="min-w-0 flex space-y-2">
+                                    <div className="min-w-0 flex-1 space-y-2">
                                         {showSerialNumber && (
                                             <p className="-translate-x-2 -translate-y-2 text-[10px] font-black tracking-[0.2em] text-muted-foreground/60">
                                                 #{(currentPage - 1) * pageSize + rowIndex + 1}
@@ -298,7 +298,7 @@ export function DataTable<T>({
                                                 {badgeItems.map(({ column, content }) => (
                                                     <div
                                                         key={column.header}
-                                                        className="inline-flex max-w-full min-w-0 items-center rounded-full border border-border/50 bg-background/60 px-2 py-1 text-[10px] font-bold leading-none text-foreground/80"
+                                                        className="inline-flex max-w-full min-w-0 items-center rounded-full px-2 py-1 text-[10px] font-bold leading-none text-foreground/80"
                                                         title={column.header}
                                                         aria-label={`${column.header}: ${typeof content === 'string' || typeof content === 'number' ? content : ''}`}
                                                     >

@@ -17,4 +17,8 @@ export class CreateScheduleDto {
   @IsString()
   @IsOptional()
   room?: string;
+
+  @IsString()
+  @IsOptional()
+  roomId?: string;
 }

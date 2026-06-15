@@ -11,7 +11,7 @@ import {
   IsEnum,
   ValidateIf,
 } from 'class-validator';
-import { TeacherStatus } from '../../common/enums';
+import { DepartmentScopeType, TeacherStatus } from '../../common/enums';
 
 export class CreateTeacherDto {
   @IsEmail()
@@ -54,6 +54,20 @@ export class CreateTeacherDto {
   @IsString()
   @IsOptional()
   department?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  departmentIds?: string[];
+
+  @IsEnum(DepartmentScopeType)
+  @IsOptional()
+  departmentScopeType?: DepartmentScopeType;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  scopeDepartmentIds?: string[];
 
   @IsDateString()
   @IsOptional()

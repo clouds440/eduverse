@@ -13,20 +13,36 @@ import {
   formatPaginatedResponse,
   PaginationOptions,
 } from '../common/utils';
+import {
+  courseDepartmentScopeWhere,
+  getDepartmentScope,
+  type DepartmentScopedUser,
+  assertDepartmentIdsBelongToOrg,
+  assertDepartmentInScope,
+} from '../common/department-scope';
 
 @Injectable()
 export class CoursesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getCourses(orgId: string, options: PaginationOptions = {}) {
+  async getCourses(
+    orgId: string,
+    options: PaginationOptions = {},
+    requester?: DepartmentScopedUser,
+  ) {
     const { skip, take, sortBy, sortOrder } = getPaginationOptions({
       ...options,
       sortBy: options.sortBy || 'name',
       sortOrder: options.sortOrder || 'asc',
     });
 
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
+    const scopeWhere = courseDepartmentScopeWhere(departmentScope);
+
     const where: Prisma.CourseWhereInput = {
       organizationId: orgId,
+      ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
+      ...(options.departmentId ? { departmentId: options.departmentId } : {}),
       ...(options.my && options.userId
         ? {
             sections: {
@@ -55,7 +71,7 @@ export class CoursesService {
         where,
         skip,
         take,
-        include: { sections: true },
+        include: { sections: true, department: true },
         orderBy: { [sortBy]: sortOrder },
       }),
       this.prisma.course.count({ where }),
@@ -69,27 +85,46 @@ export class CoursesService {
     );
   }
 
-  async createCourse(orgId: string, data: CreateCourseDto) {
+  async createCourse(orgId: string, data: CreateCourseDto, requester?: DepartmentScopedUser) {
+    if (data.departmentId) {
+      await assertDepartmentIdsBelongToOrg(this.prisma, orgId, [data.departmentId]);
+    }
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
+    assertDepartmentInScope(departmentScope, data.departmentId, 'You cannot create a course outside your department scope');
+
     return this.prisma.course.create({
       data: {
         ...data,
+        departmentId: data.departmentId || null,
         organizationId: orgId,
       },
+      include: { department: true },
     });
   }
 
-  async updateCourse(orgId: string, id: string, data: UpdateCourseDto) {
+  async updateCourse(orgId: string, id: string, data: UpdateCourseDto, requester?: DepartmentScopedUser) {
     const course = await this.prisma.course.findUnique({ where: { id } });
     if (!course || course.organizationId !== orgId) {
       throw new NotFoundException('Course not found');
     }
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
+    assertDepartmentInScope(departmentScope, course.departmentId, 'You cannot update a course outside your department scope');
+    if (data.departmentId) {
+      await assertDepartmentIdsBelongToOrg(this.prisma, orgId, [data.departmentId]);
+    }
+    assertDepartmentInScope(departmentScope, data.departmentId, 'You cannot move a course outside your department scope');
+
     return this.prisma.course.update({
       where: { id },
-      data,
+      data: {
+        ...data,
+        departmentId: data.departmentId === '' ? null : data.departmentId,
+      },
+      include: { department: true },
     });
   }
 
-  async deleteCourse(orgId: string, id: string) {
+  async deleteCourse(orgId: string, id: string, requester?: DepartmentScopedUser) {
     const course = await this.prisma.course.findUnique({
       where: { id },
       include: { sections: true },
@@ -97,6 +132,8 @@ export class CoursesService {
     if (!course || course.organizationId !== orgId) {
       throw new NotFoundException('Course not found');
     }
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
+    assertDepartmentInScope(departmentScope, course.departmentId, 'You cannot delete a course outside your department scope');
     if (course.sections.length > 0) {
       throw new BadRequestException(
         'Cannot delete course with active sections',

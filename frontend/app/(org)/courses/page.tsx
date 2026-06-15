@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { BookOpen, Clock3, Plus } from 'lucide-react';
+import { BookOpen, Building2, Clock3, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { ApiError, Course, Role } from '@/types';
+import { ApiError, Course, Department, Role } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -21,8 +21,10 @@ import { DocsLink } from '@/components/ui/DocsLink';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { formatDepartmentLabel } from '@/lib/utils';
 
 interface CourseParams {
     page: number;
@@ -31,6 +33,7 @@ interface CourseParams {
     sortBy: string;
     sortOrder: 'asc' | 'desc';
     my?: boolean;
+    departmentId?: string;
 }
 
 export default function CoursesPage() {
@@ -45,6 +48,7 @@ export default function CoursesPage() {
     const sortBy = getStringParam('sortBy', 'name');
     const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
     const showOnlyMyCourses = getBooleanParam('my');
+    const departmentId = getStringParam('departmentId');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-courses-limit', 10);
 
     const courseParams: CourseParams = {
@@ -54,6 +58,7 @@ export default function CoursesPage() {
         sortBy,
         sortOrder,
         my: user?.role === Role.TEACHER ? true : (showOnlyMyCourses || undefined),
+        departmentId: departmentId || undefined,
     };
 
     const coursesKey = token ? ['courses', courseParams] as const : null;
@@ -63,9 +68,10 @@ export default function CoursesPage() {
 
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-    const [editFormData, setEditFormData] = useState({ name: '', description: '', creditHours: '3' });
+    const [editFormData, setEditFormData] = useState({ name: '', description: '', creditHours: '3', departmentId: '' });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
+    const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
 
     const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const isTeacher = user?.role === Role.TEACHER;
@@ -87,6 +93,7 @@ export default function CoursesPage() {
             name: course.name,
             description: course.description || '',
             creditHours: String(course.creditHours ?? 3),
+            departmentId: course.departmentId || '',
         });
         setEditModalOpen(true);
     };
@@ -101,6 +108,7 @@ export default function CoursesPage() {
                 name: editFormData.name,
                 description: editFormData.description,
                 creditHours: Number(editFormData.creditHours),
+                departmentId: editFormData.departmentId || null,
             }, token);
             setEditModalOpen(false);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Course updated successfully', type: 'success' } });
@@ -144,6 +152,12 @@ export default function CoursesPage() {
             value: 'My courses',
             onRemove: () => updateQueryParams({ my: undefined, page: 1 }),
         }] : []),
+        ...(departmentId ? [{
+            key: 'departmentId',
+            label: 'Department',
+            value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
+            onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
+        }] : []),
     ];
 
     const columns = useMemo<Column<Course>[]>(() => [
@@ -168,6 +182,12 @@ export default function CoursesPage() {
             sortable: true,
             sortKey: 'description',
             accessor: (row) => row.description || <span className="text-muted-foreground/50 italic">No description</span>,
+        },
+        {
+            header: 'Department',
+            sortable: true,
+            sortKey: 'departmentId',
+            accessor: (row) => row.department ? formatDepartmentLabel(row.department) : <span className="text-muted-foreground/50 italic">Unassigned</span>,
         },
         {
             header: 'Credits',
@@ -240,6 +260,24 @@ export default function CoursesPage() {
                             />
                         </div>
                         <div className="flex w-full justify-between gap-2 md:w-auto md:justify-end">
+                            {isAdmin && (
+                                <div className="min-w-56">
+                                    <CustomSelect
+                                        value={departmentId}
+                                        onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
+                                        icon={Building2}
+                                        options={[
+                                            { value: '', label: 'All Departments' },
+                                            ...(departmentsData?.data?.map((department) => ({
+                                                value: department.id,
+                                                label: formatDepartmentLabel(department),
+                                            })) || []),
+                                        ]}
+                                        placeholder="All Departments"
+                                        searchable
+                                    />
+                                </div>
+                            )}
                             {isAdmin && (
                                 <Button
                                     onClick={() => router.push('/courses/create')}
@@ -317,6 +355,24 @@ export default function CoursesPage() {
                         <p className="text-xs font-semibold text-muted-foreground">
                             Credit hours can affect weighted GPA and transcript totals. <DocsLink href="/docs/courses-sections#course-credit-hours">Credit details</DocsLink>
                         </p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="courseDepartment">Department</Label>
+                        <CustomSelect
+                            value={editFormData.departmentId}
+                            onChange={(value) => setEditFormData({ ...editFormData, departmentId: value })}
+                            icon={Building2}
+                            options={[
+                                { value: '', label: 'No Department' },
+                                ...(departmentsData?.data?.map((department) => ({
+                                    value: department.id,
+                                    label: formatDepartmentLabel(department),
+                                })) || []),
+                            ]}
+                            placeholder="Select department..."
+                            searchable
+                            disabled={!isAdmin}
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="description">Description</Label>

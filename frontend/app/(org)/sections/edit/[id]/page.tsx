@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, Cohort, Course, PaginatedResponse, Role, Section, Student, UpdateSectionRequest } from '@/types';
+import { AcademicCycle, Cohort, Course, PaginatedResponse, Role, Room, Section, Student, UpdateSectionRequest } from '@/types';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -23,12 +23,13 @@ import {
 } from '@/components/ui/FormLayout';
 import { Input } from '@/components/ui/Input';
 import { Loading } from '@/components/ui/Loading';
-import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, getSectionColor, isSectionPaletteColor } from '@/lib/utils';
+import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, formatRoomLabel, getSectionColor, isSectionPaletteColor } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 interface SectionEditFormData {
     name: string;
     room: string;
+    defaultRoomId: string;
     courseId: string;
     academicCycleId: string;
     cohortId: string;
@@ -67,6 +68,7 @@ export default function EditSectionPage() {
     const [formData, setFormData] = useState<SectionEditFormData>({
         name: '',
         room: '',
+        defaultRoomId: '',
         courseId: '',
         academicCycleId: '',
         cohortId: '',
@@ -95,6 +97,9 @@ export default function EditSectionPage() {
     const { data: studentsData, isLoading: isStudentsLoading } = useSWR<PaginatedResponse<Student>>(studentsKey);
     const students = studentsData?.data || [];
 
+    const roomsKey = token && canManage ? ['rooms', { limit: 1000, isActive: true }] as const : null;
+    const { data: roomsData } = useSWR<PaginatedResponse<Room>>(roomsKey);
+
     useEffect(() => {
         if (!user) return;
         if (!canManage) router.replace(`/sections/${sectionId}`);
@@ -106,6 +111,7 @@ export default function EditSectionPage() {
         setFormData({
             name: section.name || '',
             room: section.room || '',
+            defaultRoomId: section.defaultRoomId || '',
             courseId: section.courseId || '',
             academicCycleId: section.academicCycleId || '',
             cohortId: section.cohortId || '',
@@ -139,7 +145,7 @@ export default function EditSectionPage() {
         try {
             const payload: UpdateSectionRequest = {
                 name: formData.name.trim(),
-                room: formData.room,
+                defaultRoomId: formData.defaultRoomId || null,
                 courseId: formData.courseId,
                 academicCycleId: formData.academicCycleId,
                 cohortId: formData.cohortId,
@@ -224,13 +230,20 @@ export default function EditSectionPage() {
                                 error={!!formErrors.name}
                             />
                         </FormField>
-                        <FormField label="Room / Location">
-                            <Input
-                                value={formData.room}
-                                onChange={(event) => setFormData((previous) => ({ ...previous, room: event.target.value }))}
-                                placeholder="e.g. Lab 102"
-                                icon={MapPin}
-                                className={FORM_INPUT_CLASS}
+                        <FormField label="Default Room">
+                            <CustomSelect
+                                value={formData.defaultRoomId}
+                                onChange={(value) => setFormData((previous) => ({ ...previous, defaultRoomId: value }))}
+                                options={[
+                                    { value: '', label: 'No Default Room', icon: MapPin },
+                                    ...(roomsData?.data?.map((room) => ({
+                                        value: room.id,
+                                        label: formatRoomLabel(room),
+                                        icon: MapPin,
+                                    })) || []),
+                                ]}
+                                placeholder={formData.room ? `Legacy: ${formData.room}` : 'Select room'}
+                                searchable
                             />
                         </FormField>
                         <FormField label="Section Color" error={formErrors.color}>

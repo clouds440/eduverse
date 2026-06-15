@@ -17,7 +17,7 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
     return (
         <nav className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-border/60 bg-card/70 px-4 py-3 sm:flex-row sm:px-5" aria-label="Pagination">
             {totalResults !== undefined && pageSize !== undefined && (
-                <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 order-2 sm:order-1 shrink-0">
+                <div className="flex flex-row items-center gap-3 sm:gap-4 order-2 sm:order-1 shrink-0">
                     <div className="text-xs sm:text-sm font-semibold text-muted-foreground">
                         {totalResults > 0 ? (
                             <>Showing <span className="text-primary">{(currentPage - 1) * pageSize + 1}</span> to <span className="text-primary">{Math.min(currentPage * pageSize, totalResults)}</span> of <span className="text-primary">{totalResults}</span> results</>

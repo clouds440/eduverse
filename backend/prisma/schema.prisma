@@ -40,6 +40,13 @@ model Organization {
   announcements   Announcement[]
   academicCycles  AcademicCycle[]
   cohorts         Cohort[]
+  departments     Department[]
+  buildings       Building[]
+  rooms           Room[]
+  teacherDepartments TeacherDepartment[]
+  studentDepartments StudentDepartment[]
+  managerDepartments ManagerDepartment[]
+  subAdminDepartments SubAdminDepartment[]
   financialStructures FinancialStructure[]
   financialStructureAssignments FinancialStructureAssignment[]
   financialEntries    FinancialEntry[]
@@ -68,9 +75,11 @@ model User {
   themeMode             ThemeMode          @default(SYSTEM)
   avatarUrl             String?
   avatarUpdatedAt       DateTime?
+  departmentScopeType   DepartmentScopeType @default(ALL)
   studentProfile        Student?
   teacherProfile        Teacher?
   guardianProfile       GuardianProfile?
+  subAdminDepartments   SubAdminDepartment[]
   organization          Organization?      @relation(fields: [organizationId], references: [id])
   sessions             Session[]
   createdMails         Mail[]         @relation("CreatedMails")
@@ -170,12 +179,15 @@ model Teacher {
   address          String?
   bloodGroup       String?
   department       String?
+  departmentScopeType DepartmentScopeType @default(ALL)
   emergencyContact String?
   joiningDate      DateTime      @default(now())
   status           TeacherStatus @default(ACTIVE)
   organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   sections         Section[]     @relation("SectionToTeacher")
+  teacherDepartments TeacherDepartment[]
+  managerDepartments ManagerDepartment[]
   financialStructures FinancialStructure[]
   financialStructureAssignments FinancialStructureAssignment[]
   financialEntries    FinancialEntry[]
@@ -223,14 +235,170 @@ model Course {
   description    String?
   creditHours    Float        @default(3)
   organizationId String
+  departmentId   String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  department     Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   updatedBy      String?
   sections       Section[]
   assessments    Assessment[]
 
   @@index([organizationId])
+  @@index([departmentId])
+}
+
+model Department {
+  id             String   @id @default(uuid())
+  organizationId String
+
+  name        String
+  code        String?
+  description String?
+  color       String?
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  buildingDepartments BuildingDepartment[]
+  courses             Course[]
+  teacherDepartments  TeacherDepartment[]
+  studentPrimaryLinks Student[]            @relation("StudentPrimaryDepartment")
+  studentDepartments  StudentDepartment[]
+  managerDepartments  ManagerDepartment[]
+  subAdminDepartments SubAdminDepartment[]
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model Building {
+  id             String   @id @default(uuid())
+  organizationId String
+
+  name        String
+  code        String?
+  address     String?
+  description String?
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rooms               Room[]
+  buildingDepartments BuildingDepartment[]
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model Room {
+  id             String @id @default(uuid())
+  organizationId String
+  buildingId     String
+
+  name        String
+  floor       String?
+  type        RoomType?
+  capacity    Int?
+  description String?
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  building     Building     @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  defaultSections Section[] @relation("SectionDefaultRoom")
+  schedules       SectionSchedule[] @relation("ScheduleRoom")
+
+  @@unique([organizationId, buildingId, name])
+  @@index([organizationId])
+  @@index([buildingId])
+  @@index([isActive])
+  @@index([type])
+}
+
+model BuildingDepartment {
+  id             String @id @default(uuid())
+  organizationId String
+  buildingId     String
+  departmentId   String
+
+  building   Building   @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([buildingId, departmentId])
+  @@index([organizationId])
+  @@index([buildingId])
+  @@index([departmentId])
+}
+
+model TeacherDepartment {
+  id             String @id @default(uuid())
+  organizationId String
+  teacherId      String
+  departmentId   String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, departmentId])
+  @@index([organizationId])
+  @@index([departmentId])
+}
+
+model StudentDepartment {
+  id             String @id @default(uuid())
+  organizationId String
+  studentId      String
+  departmentId   String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, departmentId])
+  @@index([organizationId])
+  @@index([departmentId])
+}
+
+model ManagerDepartment {
+  id             String @id @default(uuid())
+  organizationId String
+  teacherId      String
+  departmentId   String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teacher      Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, departmentId])
+  @@index([organizationId])
+  @@index([departmentId])
+}
+
+model SubAdminDepartment {
+  id             String @id @default(uuid())
+  organizationId String
+  userId         String
+  departmentId   String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId])
+  @@index([organizationId])
+  @@index([departmentId])
 }
 
 enum GpaCalculationMethod {
@@ -270,6 +438,7 @@ model Section {
   name             String
   color            String       @default("#3B82F6")
   room             String?
+  defaultRoomId    String?
   courseId         String
   academicCycleId  String
   cohortId         String?
@@ -277,6 +446,7 @@ model Section {
   updatedAt        DateTime     @updatedAt
   enrollments      Enrollment[]
   course           Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  defaultRoom      Room?        @relation("SectionDefaultRoom", fields: [defaultRoomId], references: [id], onDelete: SetNull)
   academicCycle    AcademicCycle @relation(fields: [academicCycleId], references: [id])
   cohort           Cohort?      @relation(fields: [cohortId], references: [id])
   teachers         Teacher[]    @relation("SectionToTeacher")
@@ -287,6 +457,7 @@ model Section {
   enrollmentHistories EnrollmentHistory[]
 
   @@index([courseId])
+  @@index([defaultRoomId])
   @@index([academicCycleId])
   @@index([cohortId])
 }
@@ -327,13 +498,16 @@ model Student {
   admissionDate      DateTime      @default(now())
   bloodGroup         String?
   department         String?
+  primaryDepartmentId String?
   emergencyContact   String?
   gender             String        @default("Unassigned")
   graduationDate     DateTime?
   status             StudentStatus @default(ACTIVE)
   enrollments        Enrollment[]
   organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  primaryDepartment  Department?   @relation("StudentPrimaryDepartment", fields: [primaryDepartmentId], references: [id], onDelete: SetNull)
   user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentDepartments StudentDepartment[]
   cohort             Cohort?       @relation(fields: [cohortId], references: [id])
   guardianLinks      GuardianStudent[]
   grades             Grade[]
@@ -347,6 +521,7 @@ model Student {
 
   @@index([organizationId])
   @@index([cohortId])
+  @@index([primaryDepartmentId])
 }
 
 model Assessment {
@@ -579,6 +754,21 @@ enum GradeStatus {
   FINALIZED
 }
 
+enum RoomType {
+  CLASSROOM
+  LAB
+  AUDITORIUM
+  OFFICE
+  LIBRARY
+  HALL
+  OTHER
+}
+
+enum DepartmentScopeType {
+  ALL
+  SELECTED
+}
+
 enum ThemeMode {
   LIGHT
   DARK
@@ -755,16 +945,19 @@ model SectionSchedule {
   endTime   String   // "10:00"
 
   room      String?  // optional override
+  roomId    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   section       Section        @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  roomRef       Room?          @relation("ScheduleRoom", fields: [roomId], references: [id], onDelete: SetNull)
   academicCycle AcademicCycle? @relation(fields: [academicCycleId], references: [id])
 
   @@index([sectionId])
   @@index([day])
   @@index([academicCycleId])
+  @@index([roomId])
 
   attendanceSessions AttendanceSession[]
 }

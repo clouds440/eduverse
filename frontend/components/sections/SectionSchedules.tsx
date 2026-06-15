@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import useSWR from 'swr';
 import { CalendarDays, CalendarRange, Clock, MapPin, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { ApiError, SectionSchedule, Section, Role } from '@/types';
+import { ApiError, PaginatedResponse, Room, SectionSchedule, Section, Role } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -17,7 +18,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { Toggle } from '@/components/ui/Toggle';
 import { DocsLink } from '@/components/ui/DocsLink';
-import { getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
+import { formatRoomLabel, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
 const DAY_OPTIONS = [
     { value: '0', label: 'Sunday' },
@@ -89,11 +90,20 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         startTime: '09:00',
         endTime: '10:00',
         room: section.room || '',
+        roomId: section.defaultRoomId || '',
     });
     const [repeatWeekdays, setRepeatWeekdays] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
     const canManageSchedules = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
+    const { data: roomsData } = useSWR<PaginatedResponse<Room>>(token ? ['rooms', { limit: 1000, isActive: true }] as const : null);
+    const roomOptions = [
+        { value: '', label: 'Use Section Default' },
+        ...(roomsData?.data?.map((room) => ({
+            value: room.id,
+            label: formatRoomLabel(room),
+        })) || []),
+    ];
 
     useEffect(() => {
         dispatchRef.current = dispatch;
@@ -126,6 +136,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             startTime: '09:00',
             endTime: '10:00',
             room: section.room || '',
+            roomId: section.defaultRoomId || '',
         });
         setIsModalOpen(true);
     };
@@ -139,6 +150,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             startTime: schedule.startTime,
             endTime: schedule.endTime,
             room: schedule.room || '',
+            roomId: schedule.roomId || section.defaultRoomId || '',
         });
         setIsModalOpen(true);
     };
@@ -178,7 +190,8 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                 day: parseInt(formData.day, 10),
                 startTime: formData.startTime,
                 endTime: formData.endTime,
-                room: formData.room || undefined,
+                room: undefined,
+                roomId: formData.roomId || null,
             };
 
             if (target) {
@@ -202,6 +215,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                 startTime: '09:00',
                 endTime: '10:00',
                 room: section.room || '',
+                roomId: section.defaultRoomId || '',
             });
             fetchSchedules();
         } catch (err: unknown) {
@@ -322,7 +336,13 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                 </div>
                                 <div className="flex min-w-0 items-center gap-2 rounded-md border border-border/60 bg-background/70 px-3 py-2 text-sm font-semibold text-foreground">
                                     <MapPin className="h-4 w-4 shrink-0 text-primary" />
-                                    <span className="min-w-0 truncate">{schedule.room || section.room || 'Room TBD'}</span>
+                                    <span className="min-w-0 truncate">
+                                        {schedule.roomRef
+                                            ? formatRoomLabel(schedule.roomRef)
+                                            : section.defaultRoom
+                                                ? formatRoomLabel(section.defaultRoom)
+                                                : schedule.room || section.room || 'Room TBD'}
+                                    </span>
                                 </div>
                             </div>
                         </article>
@@ -487,23 +507,22 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                     <div className="space-y-2 rounded-lg border border-border/70 bg-card p-3 shadow-sm">
                         <div className="flex items-center justify-between gap-2">
                             <Label htmlFor="room">Room</Label>
-                            {section.room && (
+                            {(section.defaultRoom || section.room) && (
                                 <button
                                     type="button"
-                                    onClick={() => setFormData({ ...formData, room: section.room || '' })}
+                                    onClick={() => setFormData({ ...formData, roomId: section.defaultRoomId || '', room: section.room || '' })}
                                     className="rounded-md px-2 py-1 text-xs font-black text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                                 >
                                     Use section room
                                 </button>
                             )}
                         </div>
-                        <Input
-                            id="room"
-                            type="text"
-                            placeholder={section.room ? `Default: ${section.room}` : 'Room, lab, or location'}
-                            value={formData.room}
-                            onChange={(event) => setFormData({ ...formData, room: event.target.value })}
-                            icon={MapPin}
+                        <CustomSelect
+                            options={roomOptions}
+                            value={formData.roomId || ''}
+                            onChange={(value) => setFormData({ ...formData, roomId: value })}
+                            placeholder={section.defaultRoom ? `Default: ${formatRoomLabel(section.defaultRoom)}` : section.room ? `Legacy: ${section.room}` : 'Select room'}
+                            searchable
                         />
                     </div>
                 </div>

@@ -1005,7 +1005,7 @@ Section.defaultRoomId optional
 
 ---
 
-# Phase 9: UI and Navigation Restructure
+# Phase 8: UI and Navigation Restructure
 
 ## Goal
 
@@ -1073,6 +1073,8 @@ Setup
 * Filter by department through building
 * Filter by room type
 
+Filters should use the filter drawer. Follow the style, layout, and design consistency with the rest of the website.
+
 ## Verification
 
 * Management pages are not noisy.
@@ -1082,7 +1084,7 @@ Setup
 
 ---
 
-# Phase 10: Reports, Filters, and Timetable Display
+# Phase 9: Reports, Filters, and Timetable Display
 
 ## Goal
 
@@ -1152,11 +1154,9 @@ Science Block • Lab 2
 
 ---
 
-# Phase 12: Tests (Manual testing scope and cases. NOT FOR AGENT)
+# Phase 10: Tests (Manual testing scope and cases. NOT FOR AGENT)
 
 ## Backend tests
-
-Add tests for:
 
 ### Department
 
@@ -1200,8 +1200,6 @@ Add tests for:
 
 ## Frontend tests
 
-Add tests for:
-
 * Room selector display.
 * Building department selector.
 * Schedule form requires room.
@@ -1211,7 +1209,7 @@ Add tests for:
 
 ---
 
-# Phase 13: Documentation
+# Phase 11: Documentation
 
 ## Update docs
 
@@ -1263,7 +1261,7 @@ This does not make buildings the main permission source.
 
 ---
 
-# Phase 14: Final Cleanup
+# Phase 12: Final Cleanup
 
 ## Tasks
 

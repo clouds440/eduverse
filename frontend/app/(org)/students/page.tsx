@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { usePathname, useRouter } from 'next/navigation';
-import { UserPlus } from 'lucide-react';
+import { Building2, UserPlus } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useGlobal } from '@/context/GlobalContext';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import { BadgeVariant, Role, Student, Section, StudentStatus } from '@/types';
+import { BadgeVariant, Department, Role, Student, Section, StudentStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { TableActions } from '@/components/ui/TableActions';
@@ -24,7 +24,7 @@ import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilte
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
-import { formatCourseSectionLabel, getSectionSurfaceStyle } from '@/lib/utils';
+import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
 
 interface StudentParams {
     page: number;
@@ -37,6 +37,7 @@ interface StudentParams {
     status?: string;
     deleted?: boolean;
     cohortId?: string;
+    departmentId?: string;
 }
 
 export default function StudentsPage() {
@@ -75,6 +76,7 @@ export default function StudentsPage() {
     const isDeletedView = getBooleanParam('deleted');
     const showAlumni = getBooleanParam('showAlumni');
     const cohortId = getStringParam('cohortId');
+    const departmentId = getStringParam('departmentId');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-students-limit', 10);
     const pageBreadcrumbs = pathname.startsWith('/users/students')
         ? [
@@ -96,6 +98,7 @@ export default function StudentsPage() {
         my: user?.role === Role.TEACHER ? true : showOnlyMyStudents,
         sectionId: sectionId || undefined,
         cohortId: cohortId || undefined,
+        departmentId: departmentId || undefined,
         status: isDeletedView ? undefined : (statusFilter || (showAlumni ? undefined : 'ACTIVE,SUSPENDED')),
         deleted: isDeletedView,
     };
@@ -111,6 +114,8 @@ export default function StudentsPage() {
         : null;
     const { data: cohortsData } = useSWR<{ data: { id: string, name: string }[] }>(cohortsKey);
     const cohorts = cohortsData?.data || [];
+    const departmentsKey = token && canManageStudents ? ['departments', { limit: 1000, isActive: true }] as const : null;
+    const { data: departmentsData } = useSWR<{ data: Department[] }>(departmentsKey);
 
     useEffect(() => {
         if (user && user.role === Role.STUDENT) {
@@ -176,6 +181,34 @@ export default function StudentsPage() {
             sortable: true,
             sortKey: 'major',
             accessor: (row: Student) => row.major || '-'
+        },
+        {
+            header: 'Department',
+            sortable: false,
+            accessor: (row: Student) => {
+                const extraDepartments = row.studentDepartments || [];
+                return row.primaryDepartment || extraDepartments.length ? (
+                    <div className="flex flex-wrap gap-1">
+                        {row.primaryDepartment && (
+                            <Badge
+                                variant="primary"
+                                size="sm"
+                                style={row.primaryDepartment.color ? { borderColor: `${row.primaryDepartment.color}55`, backgroundColor: `${row.primaryDepartment.color}18`, color: row.primaryDepartment.color } : undefined}
+                            >
+                                {formatDepartmentLabel(row.primaryDepartment)}
+                            </Badge>
+                        )}
+                        {extraDepartments.slice(0, row.primaryDepartment ? 1 : 2).map((entry) => (
+                            <Badge key={entry.departmentId} variant="neutral" size="sm">
+                                {formatDepartmentLabel(entry.department)}
+                            </Badge>
+                        ))}
+                        {extraDepartments.length > (row.primaryDepartment ? 1 : 2) && (
+                            <Badge variant="neutral" size="sm">+{extraDepartments.length - (row.primaryDepartment ? 1 : 2)}</Badge>
+                        )}
+                    </div>
+                ) : <span className="text-muted-foreground/30 italic">Unassigned</span>;
+            },
         },
         {
             header: 'Cohort',
@@ -329,6 +362,12 @@ export default function StudentsPage() {
             value: cohorts.find((cohort) => cohort.id === cohortId)?.name || 'Selected cohort',
             onRemove: () => updateQueryParams({ cohortId: undefined, page: 1 }),
         }] : []),
+        ...(departmentId ? [{
+            key: 'department',
+            label: 'Department',
+            value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
+            onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
+        }] : []),
         ...(sectionId ? [{
             key: 'section',
             label: 'Section',
@@ -407,6 +446,29 @@ export default function StudentsPage() {
                                                     value={cohortId}
                                                     onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}
                                                     placeholder="Filter Cohort"
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Show Alumni Toggle */}
+                                        {canManageStudents && (
+                                            <div>
+                                                <label className="text-xs font-bold text-muted-foreground mb-1 block">
+                                                    Department
+                                                </label>
+                                                <CustomSelect
+                                                    options={[
+                                                        { label: 'All Departments', value: '', icon: Building2 },
+                                                        ...(departmentsData?.data?.map((department) => ({
+                                                            value: department.id,
+                                                            label: formatDepartmentLabel(department),
+                                                            icon: Building2,
+                                                        })) || []),
+                                                    ]}
+                                                    value={departmentId}
+                                                    onChange={(val) => updateQueryParams({ departmentId: val, page: 1 })}
+                                                    placeholder="All Departments"
+                                                    searchable
                                                 />
                                             </div>
                                         )}

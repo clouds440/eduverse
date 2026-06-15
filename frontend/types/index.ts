@@ -1,5 +1,5 @@
-import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone } from './enums';
-export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, Tone, UiVariant } from './enums';
+import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
+export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
 
 export interface PaginatedResponse<T> {
@@ -23,6 +23,8 @@ export interface User {
     avatarUrl?: string | null;
     avatarUpdatedAt?: string | null;
     organizationId?: string | null;
+    departmentScopeType?: DepartmentScopeType;
+    subAdminDepartments?: { department: Department; departmentId: string }[];
     createdAt?: string;
     updatedAt?: string;
 }
@@ -39,8 +41,11 @@ export interface Teacher {
     bloodGroup?: string;
     address?: string;
     status?: TeacherStatus;
+    departmentScopeType?: DepartmentScopeType;
     user: User;
     sections?: Section[];
+    teacherDepartments?: { department: Department; departmentId: string }[];
+    managerDepartments?: { department: Department; departmentId: string }[];
 }
 
 export interface GuardianProfile {
@@ -172,13 +177,95 @@ export interface Course {
     creditHours: number;
     updatedBy?: string;
     updatedAt?: string;
+    departmentId?: string | null;
+    department?: Department | null;
 }
+
+export interface Department {
+    id: string;
+    organizationId: string;
+    name: string;
+    code?: string | null;
+    description?: string | null;
+    color?: string | null;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+    buildings?: Building[];
+}
+
+export interface Building {
+    id: string;
+    organizationId: string;
+    name: string;
+    code?: string | null;
+    address?: string | null;
+    description?: string | null;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+    departments?: Department[];
+    rooms?: Room[];
+    _count?: {
+        rooms?: number;
+    };
+}
+
+export interface Room {
+    id: string;
+    organizationId: string;
+    buildingId: string;
+    name: string;
+    floor?: string | null;
+    type?: RoomType | null;
+    capacity?: number | null;
+    description?: string | null;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+    building?: Building;
+}
+
+export interface CreateDepartmentRequest {
+    name: string;
+    code?: string | null;
+    description?: string | null;
+    color?: string | null;
+    isActive?: boolean;
+}
+
+export type UpdateDepartmentRequest = Partial<CreateDepartmentRequest>;
+
+export interface CreateBuildingRequest {
+    name: string;
+    code?: string | null;
+    address?: string | null;
+    description?: string | null;
+    isActive?: boolean;
+    departmentIds?: string[];
+}
+
+export type UpdateBuildingRequest = Partial<CreateBuildingRequest>;
+
+export interface CreateRoomRequest {
+    buildingId: string;
+    name: string;
+    floor?: string | null;
+    type?: RoomType | null;
+    capacity?: number | null;
+    description?: string | null;
+    isActive?: boolean;
+}
+
+export type UpdateRoomRequest = Partial<CreateRoomRequest>;
 
 export interface Section {
     id: string;
     name: string;
     color?: string | null;
     room?: string;
+    defaultRoomId?: string | null;
+    defaultRoom?: Room | null;
     courseId?: string;
     course?: Course;
     teachers?: Teacher[];
@@ -204,6 +291,9 @@ export interface Student {
     major?: string;
     userId: string;
     department?: string;
+    primaryDepartmentId?: string | null;
+    primaryDepartment?: Department | null;
+    studentDepartments?: { department: Department; departmentId: string }[];
     admissionDate?: string;
     graduationDate?: string;
     createdAt?: string;
@@ -595,6 +685,9 @@ export interface CreateTeacherRequest {
     isManager?: boolean;
     status?: TeacherStatus;
     sectionIds?: string[];
+    departmentIds?: string[];
+    departmentScopeType?: DepartmentScopeType;
+    scopeDepartmentIds?: string[];
 }
 
 export type UpdateTeacherRequest = Partial<CreateTeacherRequest>;
@@ -605,6 +698,8 @@ export interface CreateSubAdminRequest {
     phone?: string | null;
     password?: string;
     status?: UserStatus;
+    departmentScopeType?: DepartmentScopeType;
+    departmentIds?: string[];
 }
 
 export type UpdateSubAdminRequest = Partial<CreateSubAdminRequest>;
@@ -615,6 +710,8 @@ export interface CreateRoleAccountRequest {
     phone?: string | null;
     password?: string;
     status?: UserStatus;
+    departmentScopeType?: DepartmentScopeType;
+    departmentIds?: string[];
 }
 
 export type UpdateRoleAccountRequest = Partial<CreateRoleAccountRequest>;
@@ -644,6 +741,8 @@ export interface CreateStudentRequest {
     cohortId?: string | null;
     guardianId?: string | null;
     guardianRelationship?: string | null;
+    primaryDepartmentId?: string | null;
+    departmentIds?: string[];
 }
 
 export type UpdateStudentRequest = Partial<CreateStudentRequest>;
@@ -663,6 +762,7 @@ export interface CreateSectionRequest {
     name: string;
     color?: string;
     room?: string;
+    defaultRoomId?: string | null;
     courseId: string;
     academicCycleId: string;
     cohortId?: string | null;
@@ -674,6 +774,7 @@ export interface CreateCourseRequest {
     name: string;
     description?: string;
     creditHours?: number;
+    departmentId?: string | null;
 }
 
 
@@ -1007,6 +1108,9 @@ export interface SectionSchedule {
     startTime: string;
     endTime: string;
     room?: string | null;
+    roomId?: string | null;
+    roomRef?: Room | null;
+    capacityWarning?: string | null;
     createdAt?: string;
     updatedAt?: string;
     section?: Section;

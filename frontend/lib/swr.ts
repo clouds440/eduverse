@@ -39,6 +39,9 @@ export type CacheKeyPrefix =
     | 'unread-count'
     | 'academicCycles'
     | 'cohorts'
+    | 'departments'
+    | 'buildings'
+    | 'rooms'
     | 'transcript'
     | 'studentsSearch';
 

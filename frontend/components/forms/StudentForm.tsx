@@ -10,7 +10,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, CalendarClock, UserRoundCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
-import { Section, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, Cohort, AcademicCycle, GuardianProfile } from '@/types';
+import { Department, Section, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, Cohort, AcademicCycle, GuardianProfile } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -18,7 +18,7 @@ import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { FormActions, FormField, FormGrid, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
 import { DocsLink } from '@/components/ui/DocsLink';
-import { formatCourseSectionLabel } from '@/lib/utils';
+import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
 import { useForm, SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { studentCreateSchema, studentUpdateSchema, studentProfileSchema, StudentCreateFormData, StudentUpdateFormData, StudentProfileFormData } from '@/lib/schemas';
@@ -61,6 +61,8 @@ function getStudentDefaults(initialData?: Student) {
         sectionIds: initialData.enrollments?.filter(e => e.source !== 'COHORT').map(e => e.section.id) || [],
         major: initialData.major || '',
         department: initialData.department || '',
+        primaryDepartmentId: initialData.primaryDepartmentId || '',
+        departmentIds: initialData.studentDepartments?.map((entry) => entry.departmentId) || [],
         fatherName: initialData.fatherName || '',
         age: initialData.age?.toString() || '',
         gender: initialData.gender || '',
@@ -83,6 +85,8 @@ function getStudentDefaults(initialData?: Student) {
         sectionIds: [],
         major: '',
         department: '',
+        primaryDepartmentId: '',
+        departmentIds: [],
         fatherName: '',
         age: '',
         gender: '',
@@ -141,9 +145,12 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     const watchedCohortId = useWatch({ control, name: 'cohortId' }) as string | undefined;
     const watchedGender = useWatch({ control, name: 'gender' }) as string | undefined;
     const watchedGuardianId = useWatch({ control, name: 'guardianId' }) as string | undefined;
+    const watchedPrimaryDepartmentId = useWatch({ control, name: 'primaryDepartmentId' }) as string | undefined;
+    const watchedDepartmentIds = useWatch({ control, name: 'departmentIds' }) as string[] | undefined;
 
     const { data: sectionsData } = useSWR<{ data: Section[] }>(token ? ['sections', { limit: 1000 }] as const : null);
     const { data: cohortsData } = useSWR<{ data: (Cohort & { academicCycle?: AcademicCycle })[] }>(token ? ['cohorts', { limit: 500 }] as const : null);
+    const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
 
     const sectionOptions = useMemo(() => (sectionsData?.data || []).map(section => ({
         value: section.id,
@@ -157,6 +164,19 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             label: `${cohort.name} (${cohort.academicCycle?.name || 'No Cycle'})`,
         })) || []),
     ], [cohortsData?.data]);
+
+    const departmentOptions = useMemo(() => [
+        { label: 'No Primary Department', value: '' },
+        ...(departmentsData?.data?.map(department => ({
+            value: department.id,
+            label: formatDepartmentLabel(department),
+        })) || []),
+    ], [departmentsData?.data]);
+
+    const extraDepartmentOptions = useMemo(() => (departmentsData?.data || []).map(department => ({
+        value: department.id,
+        label: formatDepartmentLabel(department),
+    })), [departmentsData?.data]);
 
     const canManageStudentRecords = currentUser?.role === Role.ORG_ADMIN || currentUser?.role === Role.SUB_ADMIN;
     const isWatchMode = !isProfile && (currentUser?.role === Role.TEACHER || currentUser?.role === Role.ORG_MANAGER);
@@ -201,6 +221,18 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
         setValue('gender', value);
         trigger('gender');
     }, [isProfile, isWatchMode, setValue, trigger]);
+
+    const handlePrimaryDepartmentChange = useCallback((value: string) => {
+        if (identityLocked) return;
+        setValue('primaryDepartmentId', value);
+        trigger('primaryDepartmentId');
+    }, [identityLocked, setValue, trigger]);
+
+    const handleDepartmentsChange = useCallback((values: string[]) => {
+        if (identityLocked) return;
+        setValue('departmentIds', values);
+        trigger('departmentIds');
+    }, [identityLocked, setValue, trigger]);
 
     const handleGuardianChange = useCallback((value: string) => {
         if (!canManageGuardianLink) return;
@@ -406,16 +438,16 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 />
                             </FormField>
 
-                            <FormField label="Department" error={errors.department?.message}>
-                                <Input
-                                    type="text"
-                                    {...register('department')}
-                                    readOnly={identityLocked}
-                                    error={!!errors.department}
+                            <FormField label="Primary Department" error={errors.primaryDepartmentId?.message}>
+                                <CustomSelect
+                                    options={departmentOptions}
+                                    value={watchedPrimaryDepartmentId || ''}
+                                    onChange={handlePrimaryDepartmentChange}
+                                    error={!!errors.primaryDepartmentId}
                                     disabled={identityLocked}
                                     icon={BookOpen}
-                                    placeholder="Engineering & Tech"
-                                    className={identityLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
+                                    placeholder="Select department"
+                                    searchable
                                 />
                             </FormField>
                         </FormGrid>
@@ -448,6 +480,17 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                             onChange={handleSectionsChange}
                             placeholder="Select one or more sections..."
                             error={!!errors.sectionIds}
+                            disabled={identityLocked}
+                        />
+                    </FormField>
+
+                    <FormField label="Additional Departments" error={errors.departmentIds?.message}>
+                        <CustomMultiSelect
+                            options={extraDepartmentOptions}
+                            values={watchedDepartmentIds || []}
+                            onChange={handleDepartmentsChange}
+                            placeholder="Choose additional departments..."
+                            error={!!errors.departmentIds}
                             disabled={identityLocked}
                         />
                     </FormField>

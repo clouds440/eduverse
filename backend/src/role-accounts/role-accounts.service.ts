@@ -7,13 +7,14 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { Role, UserStatus } from '../common/enums';
+import { DepartmentScopeType, Role, UserStatus } from '../common/enums';
 import {
   formatPaginatedResponse,
   getPaginationOptions,
   PaginationOptions,
 } from '../common/utils';
 import { UserService } from '../users/user.service';
+import { assertDepartmentIdsBelongToOrg } from '../common/department-scope';
 
 export interface CreateRoleAccountInput {
   email: string;
@@ -21,6 +22,8 @@ export interface CreateRoleAccountInput {
   name: string;
   phone?: string;
   status?: UserStatus;
+  departmentScopeType?: DepartmentScopeType;
+  departmentIds?: string[];
 }
 
 export interface UpdateRoleAccountInput {
@@ -29,6 +32,8 @@ export interface UpdateRoleAccountInput {
   name?: string;
   phone?: string;
   status?: UserStatus;
+  departmentScopeType?: DepartmentScopeType;
+  departmentIds?: string[];
 }
 
 const roleAccountSelect = {
@@ -41,6 +46,8 @@ const roleAccountSelect = {
   organizationId: true,
   avatarUrl: true,
   avatarUpdatedAt: true,
+  departmentScopeType: true,
+  subAdminDepartments: { include: { department: true } },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.UserSelect;
@@ -117,6 +124,9 @@ export class RoleAccountsService {
         phone: data.phone,
         status: data.status,
       });
+      if (role === Role.SUB_ADMIN) {
+        await this.updateSubAdminDepartmentScope(orgId, user.id, data);
+      }
       return this.getAccount(orgId, role, user.id, label);
     } catch (error) {
       if (
@@ -152,12 +162,18 @@ export class RoleAccountsService {
       updateData.password = data.password;
     }
     if (data.status !== undefined) updateData.status = data.status;
-
-    if (Object.keys(updateData).length === 0) {
-      return this.getAccount(orgId, role, id, label);
+    if (role === Role.SUB_ADMIN && data.departmentScopeType !== undefined) {
+      updateData.departmentScopeType = data.departmentScopeType;
     }
 
-    await this.userService.updateUser(id, updateData);
+    if (Object.keys(updateData).length > 0) {
+      await this.userService.updateUser(id, updateData);
+    }
+
+    if (role === Role.SUB_ADMIN && (data.departmentIds !== undefined || data.departmentScopeType !== undefined)) {
+      await this.updateSubAdminDepartmentScope(orgId, id, data);
+    }
+
     return this.getAccount(orgId, role, id, label);
   }
 
@@ -246,5 +262,35 @@ export class RoleAccountsService {
     return {
       [allowedSortFields.has(sortBy) ? sortBy : 'createdAt']: sortOrder,
     };
+  }
+
+  private async updateSubAdminDepartmentScope(
+    orgId: string,
+    userId: string,
+    data: Pick<CreateRoleAccountInput, 'departmentIds' | 'departmentScopeType'>,
+  ) {
+    const departmentIds = await assertDepartmentIdsBelongToOrg(
+      this.prisma,
+      orgId,
+      data.departmentIds,
+    );
+
+    if (data.departmentScopeType === DepartmentScopeType.ALL) {
+      await this.prisma.subAdminDepartment.deleteMany({ where: { userId } });
+      return;
+    }
+
+    if (data.departmentIds !== undefined) {
+      await this.prisma.subAdminDepartment.deleteMany({ where: { userId } });
+      if (departmentIds.length) {
+        await this.prisma.subAdminDepartment.createMany({
+          data: departmentIds.map((departmentId) => ({
+            organizationId: orgId,
+            userId,
+            departmentId,
+          })),
+        });
+      }
+    }
   }
 }

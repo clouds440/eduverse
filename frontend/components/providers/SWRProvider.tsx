@@ -28,6 +28,9 @@ type FetcherKey =
     | readonly ['teacher-sections', object]
     | readonly ['academicCycles', object]
     | readonly ['cohorts', object]
+    | readonly ['departments', object]
+    | readonly ['buildings', object]
+    | readonly ['rooms', object]
     | readonly ['studentsSearch', object]
     // Single string ID resources
     | readonly ['attendance-section', string]
@@ -93,6 +96,12 @@ function createFetcher(token: string | null) {
                     return await api.academicCycles.getCycles(token, args[0] as object) as T;
                 case 'cohorts':
                     return await api.cohorts.getCohorts(token, args[0] as object) as T;
+                case 'departments':
+                    return await api.org.getDepartments(token, args[0] as object) as T;
+                case 'buildings':
+                    return await api.org.getBuildings(token, args[0] as object) as T;
+                case 'rooms':
+                    return await api.org.getRooms(token, args[0] as object) as T;
                 case 'studentsSearch':
                     return await api.org.getStudents(token, args[0] as object) as T;
 

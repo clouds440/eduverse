@@ -40,6 +40,8 @@ export class TeacherController {
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('status') status?: string,
     @Query('deleted') deleted?: string,
+    @Query('departmentId') departmentId?: string,
+    @Request() req?: AuthenticatedRequest,
   ) {
     return this.teacherService.getTeachers(orgId, {
       page: page ? parseInt(page, 10) : 1,
@@ -49,7 +51,8 @@ export class TeacherController {
       sortOrder,
       status,
       deleted: deleted === 'true',
-    });
+      departmentId,
+    }, req?.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -63,6 +66,8 @@ export class TeacherController {
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('status') status?: string,
     @Query('deleted') deleted?: string,
+    @Query('departmentId') departmentId?: string,
+    @Request() req?: AuthenticatedRequest,
   ) {
     return this.teacherService.getManagers(orgId, {
       page: page ? parseInt(page, 10) : 1,
@@ -72,7 +77,8 @@ export class TeacherController {
       sortOrder,
       status,
       deleted: deleted === 'true',
-    });
+      departmentId,
+    }, req?.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER)

@@ -11,6 +11,10 @@ export class CreateSectionDto {
   room?: string;
 
   @IsString()
+  @IsOptional()
+  defaultRoomId?: string;
+
+  @IsString()
   @IsNotEmpty()
   courseId: string;
 

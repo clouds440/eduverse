@@ -3,16 +3,20 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Clock3, LibraryBig, FileText } from 'lucide-react';
+import { Clock3, LibraryBig, FileText, Building2 } from 'lucide-react';
 import Link from 'next/link';
+import useSWR from 'swr';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { Role } from '@/types';
+import type { Department } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
+import { formatDepartmentLabel } from '@/lib/utils';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import { mutate } from 'swr';
 import { PageHeader } from '@/components/ui/PageShell';
 
@@ -25,7 +29,9 @@ export default function CreateCoursePage() {
         name: '',
         description: '',
         creditHours: '3',
+        departmentId: '',
     });
+    const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
 
     useEffect(() => {
         if (!token || !user) return;
@@ -50,6 +56,7 @@ export default function CreateCoursePage() {
                 name: formData.name,
                 description: formData.description,
                 creditHours: Number(formData.creditHours),
+                departmentId: formData.departmentId || null,
             }, token);
             // Invalidate courses cache using SWR mutate
             mutate((key) => Array.isArray(key) && key[0] === 'courses');
@@ -134,6 +141,24 @@ export default function CreateCoursePage() {
                                                 icon={Clock3}
                                                 placeholder="3"
                                                 className="h-12 md:h-14 font-medium"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-bold ml-1">Department</Label>
+                                            <CustomSelect
+                                                value={formData.departmentId}
+                                                onChange={(value) => setFormData({ ...formData, departmentId: value })}
+                                                icon={Building2}
+                                                options={[
+                                                    { value: '', label: 'No Department' },
+                                                    ...(departmentsData?.data?.map((department) => ({
+                                                        value: department.id,
+                                                        label: formatDepartmentLabel(department),
+                                                    })) || []),
+                                                ]}
+                                                placeholder="Select department..."
+                                                searchable
                                             />
                                         </div>
 

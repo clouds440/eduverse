@@ -22,6 +22,13 @@ import {
   PaginationOptions,
   extractTimetableEntries,
 } from '../common/utils';
+import {
+  assertDepartmentIdsBelongToOrg,
+  assertDepartmentInScope,
+  getDepartmentScope,
+  studentDepartmentScopeWhere,
+  type DepartmentScopedUser,
+} from '../common/department-scope';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -367,11 +374,29 @@ export class StudentService {
     }
   }
 
-  async getStudents(orgId: string, options: PaginationOptions) {
+  async getStudents(
+    orgId: string,
+    options: PaginationOptions,
+    requester?: DepartmentScopedUser,
+  ) {
     const { skip, take, sortBy, sortOrder, status, deleted } = getPaginationOptions(options);
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
+    const scopeWhere = studentDepartmentScopeWhere(departmentScope);
+    const andFilters: Prisma.StudentWhereInput[] = [
+      ...(Object.keys(scopeWhere).length ? [scopeWhere] : []),
+      ...(options.departmentId
+        ? [{
+            OR: [
+              { primaryDepartmentId: options.departmentId },
+              { studentDepartments: { some: { departmentId: options.departmentId } } },
+            ],
+          }]
+        : []),
+    ];
 
     const where: Prisma.StudentWhereInput = {
       organizationId: orgId,
+      ...(andFilters.length ? { AND: andFilters } : {}),
       status: deleted
         ? StudentStatus.DELETED
         : status
@@ -456,6 +481,8 @@ export class StudentService {
             },
           },
           cohort: true,
+          primaryDepartment: true,
+          studentDepartments: { include: { department: true } },
           ...this.studentGuardianInclude(),
           enrollments: {
             include: {
@@ -495,6 +522,8 @@ export class StudentService {
             avatarUpdatedAt: true,
           },
         },
+        primaryDepartment: true,
+        studentDepartments: { include: { department: true } },
         enrollments: {
           include: {
             section: {
@@ -519,7 +548,7 @@ export class StudentService {
   async createStudent(
     orgId: string,
     data: CreateStudentDto,
-    userContext: { name?: string | null; email: string },
+    userContext: { id?: string; role?: string; name?: string | null; email: string },
   ) {
     const existingRegNum = await this.getStudentByRegistrationNumber(orgId, data.registrationNumber);
 
@@ -539,6 +568,20 @@ export class StudentService {
 
     try {
       return await this.prisma.$transaction(async (prisma) => {
+        const departmentIds = await assertDepartmentIdsBelongToOrg(
+          prisma,
+          orgId,
+          [
+            ...(data.primaryDepartmentId ? [data.primaryDepartmentId] : []),
+            ...(data.departmentIds || []),
+          ],
+        );
+        const departmentScope = await getDepartmentScope(this.prisma, orgId, userContext.id && userContext.role ? { id: userContext.id, role: userContext.role } : undefined);
+        assertDepartmentInScope(departmentScope, data.primaryDepartmentId, 'You cannot create a student outside your department scope');
+        departmentIds.forEach((departmentId) =>
+          assertDepartmentInScope(departmentScope, departmentId, 'You cannot assign a student outside your department scope'),
+        );
+
         const user = await this.userService.createUser({
           email: data.email,
           password: data.password,
@@ -560,6 +603,7 @@ export class StudentService {
             address: data.address,
             major: data.major,
             department: data.department,
+            primaryDepartmentId: data.primaryDepartmentId || null,
             admissionDate: data.admissionDate
               ? new Date(data.admissionDate)
               : undefined,
@@ -572,9 +616,21 @@ export class StudentService {
             status: data.status as unknown as StudentStatus,
             cohortId: data.cohortId || null,
             updatedBy: userContext.name || userContext.email,
+            studentDepartments: data.departmentIds?.length
+              ? {
+                  createMany: {
+                    data: Array.from(new Set(data.departmentIds.filter(Boolean))).map((departmentId) => ({
+                      organizationId: orgId,
+                      departmentId,
+                    })),
+                  },
+                }
+              : undefined,
           },
           include: {
             user: { select: { email: true, name: true, phone: true } },
+            primaryDepartment: true,
+            studentDepartments: { include: { department: true } },
             ...this.studentGuardianInclude(),
             enrollments: { include: { section: true } },
           },
@@ -601,6 +657,8 @@ export class StudentService {
           include: {
             user: { select: { email: true, name: true, phone: true } },
             cohort: { select: { id: true, name: true } },
+            primaryDepartment: true,
+            studentDepartments: { include: { department: true } },
             ...this.studentGuardianInclude(),
             enrollments: { include: { section: true } },
           },
@@ -633,7 +691,7 @@ export class StudentService {
     orgId: string,
     id: string,
     data: UpdateStudentDto,
-    userContext: { role: Role; name?: string | null; email: string },
+    userContext: { id?: string; role: Role; name?: string | null; email: string },
   ) {
     const student = await this.prisma.student.findFirst({
       where: { id, organizationId: orgId },
@@ -651,6 +709,7 @@ export class StudentService {
       'address',
       'major',
       'department',
+      'primaryDepartmentId',
       'admissionDate',
       'graduationDate',
       'emergencyContact',
@@ -723,7 +782,25 @@ export class StudentService {
       studentData.cohortId = null;
     }
 
+    const departmentScope = await getDepartmentScope(
+      this.prisma,
+      orgId,
+      userContext.id ? { id: userContext.id, role: userContext.role } : undefined,
+    );
+    assertDepartmentInScope(departmentScope, student.primaryDepartmentId, 'You cannot update a student outside your department scope');
+    if (data.primaryDepartmentId) {
+      await assertDepartmentIdsBelongToOrg(this.prisma, orgId, [data.primaryDepartmentId]);
+    }
+    assertDepartmentInScope(departmentScope, data.primaryDepartmentId, 'You cannot move a student outside your department scope');
+
     const updatedStudent = await this.prisma.$transaction(async (tx) => {
+      const departmentIds = data.departmentIds !== undefined
+        ? await assertDepartmentIdsBelongToOrg(tx, orgId, data.departmentIds)
+        : undefined;
+      departmentIds?.forEach((departmentId) =>
+        assertDepartmentInScope(departmentScope, departmentId, 'You cannot assign a student outside your department scope'),
+      );
+
       if (Object.keys(userData).length > 0) {
         await this.userService.updateUser(student.userId, userData, tx);
       }
@@ -740,10 +817,26 @@ export class StudentService {
 
       if (Object.keys(studentData).length > 0) {
         studentData.updatedBy = userContext.name || userContext.email;
+        if (studentData.primaryDepartmentId === '') {
+          studentData.primaryDepartmentId = null;
+        }
         await tx.student.update({
           where: { id },
           data: studentData,
         });
+      }
+
+      if (departmentIds !== undefined) {
+        await tx.studentDepartment.deleteMany({ where: { studentId: id } });
+        if (departmentIds.length) {
+          await tx.studentDepartment.createMany({
+            data: departmentIds.map((departmentId) => ({
+              organizationId: orgId,
+              studentId: id,
+              departmentId,
+            })),
+          });
+        }
       }
 
       if (data.sectionIds !== undefined) {
@@ -810,6 +903,8 @@ export class StudentService {
             },
           },
           cohort: { select: { id: true, name: true } },
+          primaryDepartment: true,
+          studentDepartments: { include: { department: true } },
           ...this.studentGuardianInclude(),
           enrollments: { include: { section: true } },
         },
@@ -832,13 +927,15 @@ export class StudentService {
     return updatedStudent;
   }
 
-  async deleteStudent(orgId: string, id: string) {
+  async deleteStudent(orgId: string, id: string, requester?: DepartmentScopedUser) {
     const student = await this.prisma.student.findUnique({
       where: { id },
-      select: { userId: true },
+      select: { userId: true, organizationId: true, primaryDepartmentId: true },
     });
 
-    if (!student) throw new NotFoundException('Student not found');
+    if (!student || student.organizationId !== orgId) throw new NotFoundException('Student not found');
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
+    assertDepartmentInScope(departmentScope, student.primaryDepartmentId, 'You cannot delete a student outside your department scope');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.student.update({
@@ -1046,7 +1143,17 @@ export class StudentService {
         section: {
           include: {
             course: { select: { id: true, name: true } },
-            schedules: { select: { id: true, day: true, startTime: true, endTime: true, room: true } },
+            defaultRoom: { select: { name: true, building: { select: { name: true } } } },
+            schedules: {
+              select: {
+                id: true,
+                day: true,
+                startTime: true,
+                endTime: true,
+                room: true,
+                roomRef: { select: { name: true, building: { select: { name: true } } } },
+              },
+            },
             teachers: {
               select: {
                 id: true,

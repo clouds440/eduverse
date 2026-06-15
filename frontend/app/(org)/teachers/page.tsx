@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { UserPlus, BadgeCheck } from 'lucide-react';
+import { UserPlus, BadgeCheck, Building2 } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { usePathname, useRouter } from 'next/navigation';
-import { BadgeVariant, Teacher, Role, TeacherStatus } from '@/types';
+import { BadgeVariant, Department, Teacher, Role, TeacherStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
@@ -25,7 +25,7 @@ import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilte
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
-import { formatCourseSectionLabel, getSectionSurfaceStyle } from '@/lib/utils';
+import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
 
 interface TeacherParams {
     page: number;
@@ -35,6 +35,7 @@ interface TeacherParams {
     sortOrder: 'asc' | 'desc';
     status?: string;
     deleted?: boolean;
+    departmentId?: string;
 }
 
 export default function TeachersPage() {
@@ -60,6 +61,7 @@ export default function TeachersPage() {
     const isDeletedView = getBooleanParam('deleted');
     const showEmeritus = getBooleanParam('showEmeritus');
     const roleFilter = getStringParam('role');
+    const departmentId = getStringParam('departmentId');
     const isManagersView = roleFilter === 'managers';
     const routeBase = pathname.startsWith('/users/teachers') ? '/users/teachers' : '/teachers';
     const [pageSize, setPageSize] = usePersistentPageSize('edu-teachers-limit', 10);
@@ -73,7 +75,9 @@ export default function TeachersPage() {
         sortOrder,
         status: isDeletedView ? undefined : (statusFilter || (showEmeritus ? undefined : 'ACTIVE,SUSPENDED,ON_LEAVE')),
         deleted: isDeletedView,
-    }), [page, pageSize, searchTerm, sortBy, sortOrder, statusFilter, showEmeritus, isDeletedView]);
+        departmentId: departmentId || undefined,
+    }), [page, pageSize, searchTerm, sortBy, sortOrder, statusFilter, showEmeritus, isDeletedView, departmentId]);
+    const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
 
     // SWR for teachers data - replaces usePaginatedData
     const teachersKey = useMemo(() => {
@@ -192,6 +196,28 @@ export default function TeachersPage() {
             )
         },
         {
+            header: isManagersView ? 'Scope' : 'Departments',
+            sortable: false,
+            accessor: (row: Teacher) => {
+                const departmentLinks = isManagersView ? row.managerDepartments : row.teacherDepartments;
+                return departmentLinks?.length ? (
+                    <div className="flex flex-wrap gap-1">
+                        {departmentLinks.slice(0, 2).map((entry) => (
+                            <Badge
+                                key={entry.departmentId}
+                                variant="primary"
+                                size="sm"
+                                style={entry.department.color ? { borderColor: `${entry.department.color}55`, backgroundColor: `${entry.department.color}18`, color: entry.department.color } : undefined}
+                            >
+                                {formatDepartmentLabel(entry.department)}
+                            </Badge>
+                        ))}
+                        {departmentLinks.length > 2 && <Badge variant="neutral" size="sm">+{departmentLinks.length - 2}</Badge>}
+                    </div>
+                ) : <span className="text-muted-foreground/30 italic">{isManagersView ? 'All departments' : 'Unassigned'}</span>;
+            },
+        },
+        {
             header: 'Assigned Sections',
             sortable: false,
             badge: true,
@@ -260,7 +286,7 @@ export default function TeachersPage() {
                 />
             )
         }
-    ], [isDeletedView, router, handleRestore]);
+    ], [isDeletedView, router, handleRestore, isManagersView]);
 
     const activeFilters: ActiveFilter[] = [
         ...(isDeletedView ? [{
@@ -286,6 +312,12 @@ export default function TeachersPage() {
             label: 'Role',
             value: 'Managers',
             onRemove: () => updateQueryParams({ role: undefined, page: 1 }),
+        }] : []),
+        ...(departmentId ? [{
+            key: 'departmentId',
+            label: 'Department',
+            value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
+            onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
         }] : []),
     ];
 
@@ -333,6 +365,27 @@ export default function TeachersPage() {
                                             value={statusFilter}
                                             onChange={(val) => updateQueryParams({ status: val, page: 1 })}
                                             placeholder="Filter Status"
+                                        />
+                                    </div>
+
+                                    {/* Show Emeritus Toggle */}
+                                    <div>
+                                        <label className="text-xs font-bold text-muted-foreground mb-1 block">
+                                            Department
+                                        </label>
+                                        <CustomSelect
+                                            options={[
+                                                { label: 'All Departments', value: '', icon: Building2 },
+                                                ...(departmentsData?.data?.map((department) => ({
+                                                    value: department.id,
+                                                    label: formatDepartmentLabel(department),
+                                                    icon: Building2,
+                                                })) || []),
+                                            ]}
+                                            value={departmentId}
+                                            onChange={(val) => updateQueryParams({ departmentId: val, page: 1 })}
+                                            placeholder="All Departments"
+                                            searchable
                                         />
                                     </div>
 

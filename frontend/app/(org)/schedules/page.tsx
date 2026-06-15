@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/Input';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { formatCourseSectionLabel, getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
+import { formatCourseSectionLabel, formatRoomLabel, getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -126,7 +126,13 @@ function SectionScheduleCard({ section }: { section: Section }) {
                                     </div>
                                     <div className="flex min-w-0 items-center gap-2 text-xs font-semibold opacity-80" style={{ color: sectionColor }}>
                                         <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
-                                        <span className="truncate">{schedule.room || section.room || 'Venue TBD'}</span>
+                                        <span className="truncate">
+                                            {schedule.roomRef
+                                                ? formatRoomLabel(schedule.roomRef)
+                                                : section.defaultRoom
+                                                    ? formatRoomLabel(section.defaultRoom)
+                                                    : schedule.room || section.room || 'Venue TBD'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

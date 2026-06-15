@@ -94,6 +94,26 @@ export function getCourseSectionLabelParts({
     };
 }
 
+export function formatDepartmentLabel(department?: { name?: string | null; code?: string | null } | null) {
+    if (!department) return 'Unassigned department';
+    return department.code ? `${department.code} - ${department.name || 'Unnamed department'}` : department.name || 'Unnamed department';
+}
+
+export function formatBuildingLabel(building?: { name?: string | null; code?: string | null } | null) {
+    if (!building) return 'Unassigned building';
+    return building.code ? `${building.code} - ${building.name || 'Unnamed building'}` : building.name || 'Unnamed building';
+}
+
+export function formatRoomLabel(room?: {
+    name?: string | null;
+    building?: { name?: string | null; code?: string | null } | null;
+} | null) {
+    if (!room) return 'Room TBD';
+    const roomName = room.name || 'Unnamed room';
+    if (!room.building) return roomName;
+    return `${formatBuildingLabel(room.building)} - ${roomName}`;
+}
+
 /**
  * Standardizes image and file URLs by prepending the base API URL 
  * and handling fallbacks and cache-busting timestamps.

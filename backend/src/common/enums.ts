@@ -50,6 +50,11 @@ export enum UserStatus {
   DELETED = 'DELETED',
 }
 
+export enum DepartmentScopeType {
+  ALL = 'ALL',
+  SELECTED = 'SELECTED',
+}
+
 export enum OrganizationType {
   KINDERGARTEN = 'KINDERGARTEN',
   PRE_SCHOOL = 'PRE_SCHOOL',

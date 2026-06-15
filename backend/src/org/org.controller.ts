@@ -161,6 +161,7 @@ export class OrgController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('my') my?: string,
+    @Query('departmentId') departmentId?: string,
     @Request() req?: AuthenticatedRequest,
   ) {
     return this.coursesService.getCourses(orgId, {
@@ -171,7 +172,8 @@ export class OrgController {
       sortOrder,
       my: my === 'true',
       userId: req?.user?.id,
-    });
+      departmentId,
+    }, req?.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -183,7 +185,7 @@ export class OrgController {
     @Request() req: AuthenticatedRequest,
   ) {
     createCourseDto.updatedBy = req.user.name || req.user.email;
-    return this.coursesService.createCourse(orgId, createCourseDto);
+    return this.coursesService.createCourse(orgId, createCourseDto, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -196,14 +198,18 @@ export class OrgController {
     @Request() req: AuthenticatedRequest,
   ) {
     updateCourseDto.updatedBy = req.user.name || req.user.email;
-    return this.coursesService.updateCourse(orgId, id, updateCourseDto);
+    return this.coursesService.updateCourse(orgId, id, updateCourseDto, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete('courses/:id')
-  deleteCourse(@OrgId() orgId: string, @Param('id') id: string) {
-    return this.coursesService.deleteCourse(orgId, id);
+  deleteCourse(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.coursesService.deleteCourse(orgId, id, req.user);
   }
 
   // --- Sections ---
@@ -219,6 +225,7 @@ export class OrgController {
     @Query('academicCycleId') academicCycleId?: string,
     @Query('cohortId') cohortId?: string,
     @Query('teacherId') teacherId?: string,
+    @Query('departmentId') departmentId?: string,
     @Query('activeAcademicCycleOnly') activeAcademicCycleOnly?: string,
     @Request() req?: AuthenticatedRequest,
   ) {
@@ -233,8 +240,9 @@ export class OrgController {
       academicCycleId,
       cohortId,
       teacherId,
+      departmentId,
       activeAcademicCycleOnly: activeAcademicCycleOnly === 'true',
-    });
+    }, req?.user);
   }
 
   @Get('sections/:id')
@@ -253,8 +261,9 @@ export class OrgController {
   createSection(
     @OrgId() orgId: string,
     @Body() createSectionDto: CreateSectionDto,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.sectionsService.createSection(orgId, createSectionDto);
+    return this.sectionsService.createSection(orgId, createSectionDto, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -264,15 +273,20 @@ export class OrgController {
     @OrgId() orgId: string,
     @Param('id') id: string,
     @Body() updateSectionDto: UpdateSectionDto,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.sectionsService.updateSection(orgId, id, updateSectionDto);
+    return this.sectionsService.updateSection(orgId, id, updateSectionDto, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete('sections/:id')
-  deleteSection(@OrgId() orgId: string, @Param('id') id: string) {
-    return this.sectionsService.deleteSection(orgId, id);
+  deleteSection(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.sectionsService.deleteSection(orgId, id, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)

@@ -16,5 +16,9 @@ export class CreateCourseDto {
 
   @IsString()
   @IsOptional()
+  departmentId?: string;
+
+  @IsString()
+  @IsOptional()
   updatedBy?: string;
 }

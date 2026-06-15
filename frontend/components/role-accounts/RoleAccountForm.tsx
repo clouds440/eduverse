@@ -4,18 +4,20 @@ import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, SubmitHandler, useWatch, Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CalendarClock, Lock, Mail, Phone, ShieldCheck, User, UserX } from 'lucide-react';
-import { mutate } from 'swr';
+import { Building2, CalendarClock, Lock, Mail, Phone, ShieldCheck, User, UserX } from 'lucide-react';
+import useSWR, { mutate } from 'swr';
 import { ZodType } from 'zod';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { matchesCacheKeyPrefix, CacheKeyPrefix } from '@/lib/swr';
-import { CreateRoleAccountRequest, UpdateRoleAccountRequest, User as AppUser, UserStatus } from '@/types';
+import { CreateRoleAccountRequest, Department, DepartmentScopeType, UpdateRoleAccountRequest, User as AppUser, UserStatus } from '@/types';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { Input } from '@/components/ui/Input';
 import { FormActions, FormField, FormGrid, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { api } from '@/lib/api';
+import { formatDepartmentLabel } from '@/lib/utils';
 
 export type RoleAccountFormData = {
     name: string;
@@ -23,6 +25,8 @@ export type RoleAccountFormData = {
     phone?: string;
     password?: string;
     status: UserStatus;
+    departmentScopeType?: DepartmentScopeType;
+    departmentIds?: string[];
 };
 
 interface RoleAccountFormProps {
@@ -36,6 +40,7 @@ interface RoleAccountFormProps {
     createAccount: (data: CreateRoleAccountRequest, token: string) => Promise<AppUser>;
     updateAccount: (id: string, data: UpdateRoleAccountRequest, token: string) => Promise<AppUser>;
     listHref: string;
+    enableDepartmentScope?: boolean;
 }
 
 const USER_STATUS_OPTIONS = [
@@ -51,12 +56,16 @@ function getAccountDefaults(initialData?: AppUser): RoleAccountFormData {
         phone: initialData.phone || '',
         password: '',
         status: initialData.status || UserStatus.ACTIVE,
+        departmentScopeType: initialData.departmentScopeType || DepartmentScopeType.ALL,
+        departmentIds: initialData.subAdminDepartments?.map((entry) => entry.departmentId) || [],
     } : {
         name: '',
         email: '',
         phone: '',
         password: '',
         status: UserStatus.ACTIVE,
+        departmentScopeType: DepartmentScopeType.ALL,
+        departmentIds: [],
     };
 }
 
@@ -77,6 +86,7 @@ export default function RoleAccountForm({
     createAccount,
     updateAccount,
     listHref,
+    enableDepartmentScope = false,
 }: RoleAccountFormProps) {
     const { token } = useAuth();
     const router = useRouter();
@@ -101,10 +111,28 @@ export default function RoleAccountForm({
     });
 
     const watchedStatus = useWatch({ control, name: 'status' }) as UserStatus | undefined;
+    const watchedDepartmentScopeType = useWatch({ control, name: 'departmentScopeType' }) as DepartmentScopeType | undefined;
+    const watchedDepartmentIds = useWatch({ control, name: 'departmentIds' }) as string[] | undefined;
+    const { data: departmentsData } = useSWR<{ data: Department[] }>(token && enableDepartmentScope ? ['departments', { limit: 1000, isActive: true }] as const : null);
+    const departmentOptions = useMemo(() => (departmentsData?.data || []).map((department) => ({
+        value: department.id,
+        label: formatDepartmentLabel(department),
+    })), [departmentsData?.data]);
 
     const handleStatusChange = useCallback((value: string) => {
         setValue('status', value as UserStatus);
         trigger('status');
+    }, [setValue, trigger]);
+
+    const handleScopeTypeChange = useCallback((value: string) => {
+        setValue('departmentScopeType', value as DepartmentScopeType);
+        if (value === DepartmentScopeType.ALL) setValue('departmentIds', []);
+        trigger(['departmentScopeType', 'departmentIds']);
+    }, [setValue, trigger]);
+
+    const handleDepartmentsChange = useCallback((values: string[]) => {
+        setValue('departmentIds', values);
+        trigger('departmentIds');
     }, [setValue, trigger]);
 
     const handleCancel = useCallback(() => {
@@ -123,6 +151,12 @@ export default function RoleAccountForm({
             const { password, ...rest } = data;
             const payload: CreateRoleAccountRequest | UpdateRoleAccountRequest = {
                 ...rest,
+                ...(enableDepartmentScope
+                    ? {
+                        departmentScopeType: data.departmentScopeType || DepartmentScopeType.ALL,
+                        departmentIds: data.departmentScopeType === DepartmentScopeType.SELECTED ? data.departmentIds || [] : [],
+                    }
+                    : {}),
                 ...(accountId ? (password ? { password } : {}) : { password }),
             };
 
@@ -243,6 +277,39 @@ export default function RoleAccountForm({
                     </div>
                 </div>
             </FormSection>
+
+            {enableDepartmentScope && (
+                <FormSection
+                    title="Department Scope"
+                    description="Limit operational access to selected academic departments."
+                    icon={Building2}
+                >
+                    <FormGrid>
+                        <FormField label="Access Scope">
+                            <CustomSelect
+                                options={[
+                                    { value: DepartmentScopeType.ALL, label: 'All Departments' },
+                                    { value: DepartmentScopeType.SELECTED, label: 'Selected Departments' },
+                                ]}
+                                value={watchedDepartmentScopeType || DepartmentScopeType.ALL}
+                                onChange={handleScopeTypeChange}
+                                icon={Building2}
+                            />
+                        </FormField>
+
+                        {watchedDepartmentScopeType === DepartmentScopeType.SELECTED && (
+                            <FormField label="Departments">
+                                <CustomMultiSelect
+                                    options={departmentOptions}
+                                    values={watchedDepartmentIds || []}
+                                    onChange={handleDepartmentsChange}
+                                    placeholder="Choose departments..."
+                                />
+                            </FormField>
+                        )}
+                    </FormGrid>
+                </FormSection>
+            )}
 
             <FormActions
                 onCancel={handleCancel}

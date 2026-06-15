@@ -3,11 +3,13 @@ import {
   IsEnum,
   IsNotEmpty,
   IsOptional,
+  IsArray,
   IsString,
   Matches,
   MinLength,
 } from 'class-validator';
 import { UserStatus } from '../../common/enums';
+import { DepartmentScopeType } from '../../common/enums';
 
 export class CreateSubAdminDto {
   @IsEmail()
@@ -34,4 +36,13 @@ export class CreateSubAdminDto {
   @IsEnum(UserStatus)
   @IsOptional()
   status?: UserStatus;
+
+  @IsEnum(DepartmentScopeType)
+  @IsOptional()
+  departmentScopeType?: DepartmentScopeType;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  departmentIds?: string[];
 }

@@ -13,6 +13,7 @@ import { Role } from '../common/enums';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { AttendanceRecordDto } from './dto/mark-attendance.dto';
+import { validateRoomBelongsToOrg } from '../common/department-scope';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -155,7 +156,8 @@ export class AttendanceService {
         academicCycle: true,
         cohort: true,
         assessments: true,
-        schedules: true,
+        defaultRoom: { include: { building: true } },
+        schedules: { include: { roomRef: { include: { building: true } } } },
       },
     });
 
@@ -181,15 +183,18 @@ export class AttendanceService {
 
   // --- Timetable & Attendance ---
   async createSchedule(orgId: string, sectionId: string, dto: CreateScheduleDto) {
-    await this.validateScheduleConflict(sectionId, dto);
+    if (dto.roomId) {
+      await validateRoomBelongsToOrg(this.prisma, orgId, dto.roomId);
+    }
+    await this.validateScheduleConflict(orgId, sectionId, dto);
 
     // Derive academicCycleId from section
     const section = await this.prisma.section.findUnique({
       where: { id: sectionId },
-      select: { academicCycleId: true },
+      select: { academicCycleId: true, defaultRoomId: true, _count: { select: { enrollments: true } } },
     });
-    
-    return this.prisma.sectionSchedule.create({
+
+    const schedule = await this.prisma.sectionSchedule.create({
       data: {
         sectionId,
         academicCycleId: section?.academicCycleId,
@@ -197,18 +202,32 @@ export class AttendanceService {
         startTime: dto.startTime,
         endTime: dto.endTime,
         room: dto.room,
+        roomId: dto.roomId || null,
       },
+      include: { roomRef: { include: { building: true } } },
     });
+
+    const capacityWarning = await this.getCapacityWarning(
+      orgId,
+      dto.roomId || section?.defaultRoomId,
+      section?._count.enrollments || 0,
+    );
+
+    return capacityWarning ? { ...schedule, capacityWarning } : schedule;
   }
 
   async updateSchedule(orgId: string, scheduleId: string, dto: UpdateScheduleDto) {
     const existing = await this.prisma.sectionSchedule.findUnique({
       where: { id: scheduleId },
-      include: { section: { include: { course: true } } },
+      include: { section: { include: { course: true, _count: { select: { enrollments: true } } } } },
     });
 
     if (!existing || existing.section.course.organizationId !== orgId) {
       throw new NotFoundException('Schedule not found');
+    }
+
+    if (dto.roomId) {
+      await validateRoomBelongsToOrg(this.prisma, orgId, dto.roomId);
     }
 
     // Prepare full data for validation
@@ -217,14 +236,27 @@ export class AttendanceService {
       startTime: dto.startTime ?? existing.startTime,
       endTime: dto.endTime ?? existing.endTime,
       room: dto.room === undefined ? (existing.room ?? undefined) : (dto.room ?? undefined),
+      roomId: dto.roomId === undefined ? (existing.roomId ?? undefined) : (dto.roomId ?? undefined),
     };
 
-    await this.validateScheduleConflict(existing.sectionId, validationDto, scheduleId);
+    await this.validateScheduleConflict(orgId, existing.sectionId, validationDto, scheduleId);
 
-    return this.prisma.sectionSchedule.update({
+    const schedule = await this.prisma.sectionSchedule.update({
       where: { id: scheduleId },
-      data: dto,
+      data: {
+        ...dto,
+        roomId: dto.roomId === '' ? null : dto.roomId,
+      },
+      include: { roomRef: { include: { building: true } } },
     });
+
+    const capacityWarning = await this.getCapacityWarning(
+      orgId,
+      schedule.roomId || existing.section.defaultRoomId,
+      existing.section._count.enrollments,
+    );
+
+    return capacityWarning ? { ...schedule, capacityWarning } : schedule;
   }
 
   async deleteSchedule(orgId: string, scheduleId: string) {
@@ -240,24 +272,28 @@ export class AttendanceService {
     return this.prisma.sectionSchedule.delete({ where: { id: scheduleId } });
   }
 
-  private async validateScheduleConflict(sectionId: string, dto: CreateScheduleDto, excludeId?: string) {
+  private async validateScheduleConflict(orgId: string, sectionId: string, dto: CreateScheduleDto, excludeId?: string) {
     const section = await this.prisma.section.findUnique({
       where: { id: sectionId },
       include: { 
+        course: true,
         teachers: { select: { id: true } },
-        enrollments: { select: { studentId: true } }
+        enrollments: { select: { studentId: true } },
+        defaultRoom: true,
       },
     });
 
-    if (!section) throw new NotFoundException('Section not found');
+    if (!section || section.course.organizationId !== orgId) throw new NotFoundException('Section not found');
 
     const teacherIds = section.teachers.map(t => t.id);
     const studentIds = section.enrollments.map(e => e.studentId);
     const targetRoom = dto.room || section.room;
+    const targetRoomId = dto.roomId || section.defaultRoomId;
 
     // Check for overlaps using the rule: aStart < bEnd && bStart < aEnd
     const conflicts = await this.prisma.sectionSchedule.findMany({
       where: {
+        section: { course: { organizationId: orgId } },
         day: dto.day,
         startTime: { lt: dto.endTime },
         endTime: { gt: dto.startTime },
@@ -267,9 +303,11 @@ export class AttendanceService {
         section: {
           include: {
             teachers: { select: { id: true, user: { select: { name: true } } } },
-            enrollments: { select: { studentId: true } }
+            enrollments: { select: { studentId: true } },
+            defaultRoom: true,
           }
-        }
+        },
+        roomRef: true,
       }
     });
 
@@ -280,8 +318,14 @@ export class AttendanceService {
       }
 
       // 2. Room Conflict
+      const conflictRoomId = conflict.roomId || conflict.section.defaultRoomId;
+      if (targetRoomId && conflictRoomId === targetRoomId) {
+          const roomName = conflict.roomRef?.name || 'Selected room';
+          throw new ConflictException(`${roomName} is already occupied at this time`);
+      }
+
       const conflictRoom = conflict.room || conflict.section.room;
-      if (targetRoom && conflictRoom === targetRoom) {
+      if (!targetRoomId && targetRoom && conflictRoom === targetRoom) {
           throw new ConflictException(`Room "${targetRoom}" is already occupied at this time`);
       }
 
@@ -309,8 +353,19 @@ export class AttendanceService {
     }
     return this.prisma.sectionSchedule.findMany({
       where: { sectionId },
+      include: { roomRef: { include: { building: true } } },
       orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
     });
+  }
+
+  private async getCapacityWarning(orgId: string, roomId: string | null | undefined, enrolledCount: number) {
+    if (!roomId) return null;
+    const room = await this.prisma.room.findFirst({
+      where: { id: roomId, organizationId: orgId },
+      select: { name: true, capacity: true },
+    });
+    if (!room?.capacity || room.capacity >= enrolledCount) return null;
+    return `Room "${room.name}" capacity is ${room.capacity}, below the current enrollment of ${enrolledCount}.`;
   }
 
   async getStudentTimetable(orgId: string, userId: string) {

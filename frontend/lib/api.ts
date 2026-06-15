@@ -11,6 +11,7 @@ import type {
     ThemeMode, SectionSchedule, TimetableEntry, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
+    Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, MessageResponse, AuditLogItem,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, OrgUserCounts
@@ -292,7 +293,7 @@ export const api = {
             request<Teacher>(`/org/teachers/${id}`, { token }),
         getTeacherByUserId: (userId: string, token: string) =>
             request<Teacher>(`/org/teachers/by-user/${userId}`, { token }),
-        getTeachers: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, deleted?: boolean } = {}) =>
+        getTeachers: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, deleted?: boolean, departmentId?: string } = {}) =>
             request<PaginatedResponse<Teacher>>(`/org/teachers${buildQueryString(params)}`, { token }),
         createTeacher: (data: CreateTeacherRequest, token: string) =>
             request<Teacher>('/org/teachers', { method: 'POST', body: JSON.stringify(data), token }),
@@ -302,7 +303,7 @@ export const api = {
             request<{ message: string }>(`/org/teachers/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ status }), token }),
         deleteTeacher: (id: string, token: string) =>
             request<void>(`/org/teachers/${id}`, { method: 'DELETE', token }),
-        getManagers: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, deleted?: boolean } = {}) =>
+        getManagers: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, deleted?: boolean, departmentId?: string } = {}) =>
             request<PaginatedResponse<Teacher>>(`/org/managers${buildQueryString(params)}`, { token }),
 
         getSubAdmins: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, deleted?: boolean } = {}) =>
@@ -335,7 +336,7 @@ export const api = {
             request<Student>(`/org/students/${id}`, { token }),
         getStudentByUserId: (userId: string, token: string) =>
             request<Student>(`/org/students/by-user/${userId}`, { token }),
-        getStudents: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, sectionId?: string, status?: string, deleted?: boolean, cohortId?: string } = {}) =>
+        getStudents: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, sectionId?: string, status?: string, deleted?: boolean, cohortId?: string, departmentId?: string } = {}) =>
             request<PaginatedResponse<Student>>(`/org/students${buildQueryString(params)}`, { token }),
         createStudent: (data: CreateStudentRequest, token: string) =>
             request<Student>('/org/students', { method: 'POST', body: JSON.stringify(data), token }),
@@ -361,7 +362,7 @@ export const api = {
 
         getSection: (id: string, token: string) =>
             request<Section>(`/org/sections/${id}`, { token }),
-        getSections: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, userId?: string, academicCycleId?: string, cohortId?: string, teacherId?: string, activeAcademicCycleOnly?: boolean } = {}) =>
+        getSections: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, userId?: string, academicCycleId?: string, cohortId?: string, teacherId?: string, departmentId?: string, activeAcademicCycleOnly?: boolean } = {}) =>
             request<PaginatedResponse<Section>>(`/org/sections${buildQueryString(params)}`, { token }),
         createSection: (data: CreateSectionRequest, token: string) =>
             request<Section>('/org/sections', { method: 'POST', body: JSON.stringify(data), token }),
@@ -370,7 +371,7 @@ export const api = {
         deleteSection: (id: string, token: string) =>
             request<void>(`/org/sections/${id}`, { method: 'DELETE', token }),
 
-        getCourses: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean } = {}) =>
+        getCourses: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, departmentId?: string } = {}) =>
             request<PaginatedResponse<Course>>(`/org/courses${buildQueryString(params)}`, { token }),
         createCourse: (data: CreateCourseRequest, token: string) =>
             request<Course>('/org/courses', { method: 'POST', body: JSON.stringify(data), token }),
@@ -378,6 +379,43 @@ export const api = {
             request<Course>(`/org/courses/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteCourse: (id: string, token: string) =>
             request<void>(`/org/courses/${id}`, { method: 'DELETE', token }),
+
+        getDepartments: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', isActive?: boolean } = {}) =>
+            request<PaginatedResponse<Department>>(`/org/departments${buildQueryString(params)}`, { token }),
+        getDepartment: (id: string, token: string) =>
+            request<Department>(`/org/departments/${id}`, { token }),
+        createDepartment: (data: CreateDepartmentRequest, token: string) =>
+            request<Department>('/org/departments', { method: 'POST', body: JSON.stringify(data), token }),
+        updateDepartment: (id: string, data: UpdateDepartmentRequest, token: string) =>
+            request<Department>(`/org/departments/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        setDepartmentActive: (id: string, isActive: boolean, token: string) =>
+            request<Department>(`/org/departments/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
+
+        getBuildings: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', isActive?: boolean, departmentId?: string } = {}) =>
+            request<PaginatedResponse<Building>>(`/org/buildings${buildQueryString(params)}`, { token }),
+        getBuilding: (id: string, token: string) =>
+            request<Building>(`/org/buildings/${id}`, { token }),
+        createBuilding: (data: CreateBuildingRequest, token: string) =>
+            request<Building>('/org/buildings', { method: 'POST', body: JSON.stringify(data), token }),
+        updateBuilding: (id: string, data: UpdateBuildingRequest, token: string) =>
+            request<Building>(`/org/buildings/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        setBuildingActive: (id: string, isActive: boolean, token: string) =>
+            request<Building>(`/org/buildings/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
+        assignBuildingDepartments: (id: string, departmentIds: string[], token: string) =>
+            request<Building>(`/org/buildings/${id}/departments`, { method: 'POST', body: JSON.stringify({ departmentIds }), token }),
+        removeBuildingDepartment: (id: string, departmentId: string, token: string) =>
+            request<Building>(`/org/buildings/${id}/departments/${departmentId}`, { method: 'DELETE', token }),
+
+        getRooms: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', isActive?: boolean, buildingId?: string, departmentId?: string, type?: RoomType } = {}) =>
+            request<PaginatedResponse<Room>>(`/org/rooms${buildQueryString(params)}`, { token }),
+        getRoom: (id: string, token: string) =>
+            request<Room>(`/org/rooms/${id}`, { token }),
+        createRoom: (data: CreateRoomRequest, token: string) =>
+            request<Room>('/org/rooms', { method: 'POST', body: JSON.stringify(data), token }),
+        updateRoom: (id: string, data: UpdateRoomRequest, token: string) =>
+            request<Room>(`/org/rooms/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        setRoomActive: (id: string, isActive: boolean, token: string) =>
+            request<Room>(`/org/rooms/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
 
         // FIX 3 applied: was duplicating raw fetch + 401 handling
         uploadAvatar: (userId: string, file: File, token: string): Promise<{ avatarUrl: string; avatarUpdatedAt: string }> => {
@@ -449,11 +487,11 @@ export const api = {
             request<GpaPolicyPreviewResponse>('/org/gpa-policies/preview', { method: 'POST', body: JSON.stringify(data), token }),
 
         // --- Timetable & Attendance ---
-        createSchedule: (id: string, data: { day: number, startTime: string, endTime: string, room?: string }, token: string) =>
+        createSchedule: (id: string, data: { day: number, startTime: string, endTime: string, room?: string, roomId?: string | null }, token: string) =>
             request<SectionSchedule>(`/org/sections/${id}/schedules`, { method: 'POST', body: JSON.stringify(data), token }),
         getSchedules: (id: string, token: string) =>
             request<SectionSchedule[]>(`/org/sections/${id}/schedules`, { token }),
-        updateSchedule: (sectionId: string, scheduleId: string, data: Partial<{ day: number, startTime: string, endTime: string, room?: string }>, token: string) =>
+        updateSchedule: (sectionId: string, scheduleId: string, data: Partial<{ day: number, startTime: string, endTime: string, room?: string, roomId?: string | null }>, token: string) =>
             request<SectionSchedule>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteSchedule: (sectionId: string, scheduleId: string, token: string) =>
             request<void>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'DELETE', token }),

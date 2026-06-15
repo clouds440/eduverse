@@ -432,7 +432,7 @@ export const docsPages: DocPage[] = [
             type: 'list',
             items: [
               'Create a new section when the same course is taught to a different group, cycle, teacher, or schedule.',
-              'Use the room field when the class has a regular location.',
+              'Choose a default room when the class usually meets in the same place. The schedule room still decides the actual timetable location.',
               'Open the section detail page to manage schedules, materials, assessments, attendance, and enrollment.',
             ],
           },
@@ -910,7 +910,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Repeating a schedule Monday through Friday creates the same class time for each weekday. Use it only when the class truly meets at the same time and room every weekday.',
+            text: 'Repeating a schedule Monday through Friday creates the same class time for each weekday. Use it only when the class truly meets at the same time, room, and teacher every weekday.',
           },
           {
             type: 'list',
@@ -943,7 +943,7 @@ export const docsPages: DocPage[] = [
             type: 'list',
             items: [
               'A teacher should not be assigned to two class slots at the same time.',
-              'A room should not be assigned to two class slots at the same time.',
+              'A structured room should not be assigned to two class slots at the same time. Rooms with the same name in different buildings are treated separately.',
               'End time must be later than start time.',
               'If a conflict appears, adjust the teacher, room, day, or time before trying again.',
             ],
@@ -2886,12 +2886,127 @@ export const docsPages: DocPage[] = [
       },
     ],
   },
+  {
+    slug: 'departments-buildings-rooms',
+    title: 'Departments, Buildings, and Rooms',
+    description: 'Set up department grouping, campus buildings, schedulable rooms, and department-scoped users.',
+    category: 'Setup',
+    tags: ['departments', 'buildings', 'rooms', 'setup', 'schedule rooms', 'scope'],
+    related: ['roles-permissions', 'courses-sections', 'timetable', 'school-setup-workflow'],
+    sections: [
+      {
+        id: 'what-each-record-means',
+        title: 'What Each Record Means',
+        tags: ['departments', 'buildings', 'rooms'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Record', 'Use it for', 'Do not use it for'],
+            rows: [
+              ['Department', 'Academic grouping, filtering, reporting, and scoped access for selected users.', 'Replacing courses, sections, cohorts, or enrollments.'],
+              ['Building', 'Physical or logical campus locations such as Main Block or Science Block.', 'Primary permission rules.'],
+              ['Room', 'The actual schedulable space used by section schedules and timetable conflict checks.', 'Broad academic grouping.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Keep the jobs separate',
+            text: 'A department describes academic or administrative scope. A building describes where rooms live. A room is the space selected for a schedule.',
+          },
+        ],
+      },
+      {
+        id: 'department-setup',
+        title: 'Department Setup',
+        tags: ['department', 'scope', 'filters'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Departments are organization-defined groups such as Computer Science, English, Commerce, or Science. They make course, section, teacher, and student lists easier to filter and can limit what selected Sub Admins or Managers can manage.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Assign one department to a course when the course has a clear owner.',
+              'Assign one or more departments to teachers when they work across academic groups.',
+              'Assign a primary department and optional extra departments to students.',
+              'Use All Departments for unrestricted Managers or Sub Admins, and Selected Departments when their work should stay inside a specific scope.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'buildings-and-room-setup',
+        title: 'Buildings and Rooms',
+        tags: ['buildings', 'rooms', 'capacity'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Buildings contain rooms. A room name only needs to be unique inside its building, so Main Block 101 and Science Block 101 can both exist.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Create buildings before creating rooms.',
+              'Optionally link buildings to departments to make filtering and suggestions easier.',
+              'Set room type and capacity when known. Capacity creates a scheduling warning, not a hard block.',
+              'Deactivate rooms that should no longer appear in new schedule selectors.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'schedule-room-behavior',
+        title: 'Schedule Room Behavior',
+        tags: ['schedules', 'default room', 'conflicts'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A section default room is only a suggestion. The room selected on a schedule is the actual room shown on timetables and used for room conflict checks.',
+          },
+          {
+            type: 'list',
+            items: [
+              'When a section has a default room, new schedule slots preselect it.',
+              'A schedule can use a different room from the section default.',
+              'Room conflicts compare the selected structured room, day, and overlapping time.',
+              'Older records without a structured room may still show their saved legacy room text until updated.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'department-scoped-users',
+        title: 'Department-Scoped Users',
+        tags: ['sub admin', 'manager', 'scope'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Sub Admins and Managers can be allowed to work across all departments or limited to selected departments. Org Admins remain organization-wide.',
+          },
+          {
+            type: 'table',
+            headers: ['Role', 'Department scope behavior'],
+            rows: [
+              ['Org Admin', 'Can manage organization records across departments.'],
+              ['Sub Admin', 'Can be scoped to all departments or selected departments for operational academic records.'],
+              ['Manager', 'Can be scoped to all departments or selected departments for academic management.'],
+              ['Teacher', 'Still follows assigned-section access for teaching work.'],
+              ['Student and Guardian', 'Still follow self and linked-student access.'],
+              ['Finance Manager', 'Finance access stays separate from department scope in this version.'],
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 export const docsNavGroups: DocNavGroup[] = [
   { title: 'Basics', pages: ['quick-start', 'getting-started', 'roles-permissions', 'glossary', 'dashboard-insights'] },
   { title: 'Role Guides', pages: ['admin-guide', 'sub-admin-guide', 'manager-guide', 'finance-manager-guide', 'teacher-guide', 'student-guide', 'guardian-guide'] },
   { title: 'Workflows', pages: ['school-setup-workflow', 'end-of-term-workflow'] },
+  { title: 'Setup', pages: ['departments-buildings-rooms'] },
   { title: 'Administration', pages: ['platform-admin'] },
   { title: 'People', pages: ['students', 'teachers'] },
   {

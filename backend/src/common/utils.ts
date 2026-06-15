@@ -16,6 +16,7 @@ export interface PaginationOptions {
   academicCycleId?: string;
   cohortId?: string;
   teacherId?: string;
+  departmentId?: string;
   activeAcademicCycleOnly?: boolean;
 }
 
@@ -31,8 +32,16 @@ export interface TimetableSection {
   name: string;
   color?: string | null;
   room: string | null;
+  defaultRoom?: { name: string; building?: { name: string } | null } | null;
   course: { id?: string; name: string };
-  schedules: { id: string; day: number; startTime: string; endTime: string; room: string | null }[];
+  schedules: {
+    id: string;
+    day: number;
+    startTime: string;
+    endTime: string;
+    room: string | null;
+    roomRef?: { name: string; building?: { name: string } | null } | null;
+  }[];
   teachers?: { id: string; user?: { name: string | null; email?: string | null } | null }[];
 }
 
@@ -69,6 +78,12 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
 
   for (const section of sections) {
     for (const schedule of section.schedules) {
+      const scheduleRoom = schedule.roomRef
+        ? [schedule.roomRef.building?.name, schedule.roomRef.name].filter(Boolean).join(' - ')
+        : null;
+      const defaultRoom = section.defaultRoom
+        ? [section.defaultRoom.building?.name, section.defaultRoom.name].filter(Boolean).join(' - ')
+        : null;
       timetable.push({
         scheduleId: schedule.id,
         sectionId: section.id,
@@ -79,7 +94,7 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
         day: schedule.day,
         startTime: schedule.startTime,
         endTime: schedule.endTime,
-        room: schedule.room || section.room,
+        room: scheduleRoom || defaultRoom || schedule.room || section.room,
         teacherName: section.teachers?.[0]?.user?.name || section.teachers?.[0]?.user?.email || null,
         additionalTeachersCount: Math.max(0, (section.teachers?.length || 0) - 1),
       });

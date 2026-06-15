@@ -68,6 +68,15 @@ export class CreateStudentDto {
   @IsOptional()
   department?: string;
 
+  @IsString()
+  @IsOptional()
+  primaryDepartmentId?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  departmentIds?: string[];
+
   @IsDateString()
   @IsOptional()
   @ValidateIf((o) => o.admissionDate !== '' && o.admissionDate !== null)

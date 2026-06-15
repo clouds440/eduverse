@@ -163,6 +163,21 @@ export enum AttendanceStatus {
     EXCUSED = 'EXCUSED',
 }
 
+export enum RoomType {
+    CLASSROOM = 'CLASSROOM',
+    LAB = 'LAB',
+    AUDITORIUM = 'AUDITORIUM',
+    OFFICE = 'OFFICE',
+    LIBRARY = 'LIBRARY',
+    HALL = 'HALL',
+    OTHER = 'OTHER',
+}
+
+export enum DepartmentScopeType {
+    ALL = 'ALL',
+    SELECTED = 'SELECTED',
+}
+
 // Insights
 export enum Tone {
     DEFAULT = 'DEFAULT',

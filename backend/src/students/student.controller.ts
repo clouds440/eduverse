@@ -40,6 +40,7 @@ export class StudentController {
     @Query('sectionId') sectionId?: string,
     @Query('status') status?: string,
     @Query('deleted') deleted?: string,
+    @Query('departmentId') departmentId?: string,
     @Request() req?: AuthenticatedRequest,
   ) {
     return this.studentService.getStudents(orgId, {
@@ -53,7 +54,8 @@ export class StudentController {
       userId: req?.user?.id,
       status,
       deleted: deleted === 'true',
-    });
+      departmentId,
+    }, req?.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
@@ -75,6 +77,8 @@ export class StudentController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.studentService.createStudent(orgId, createStudentDto, {
+      id: req.user.id,
+      role: req.user.role,
       name: req.user.name,
       email: req.user.email!,
     });
@@ -90,6 +94,7 @@ export class StudentController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.studentService.updateStudent(orgId, id, updateStudentDto, {
+      id: req.user.id,
       role: req.user.role.toString() as Role,
       name: req.user.name,
       email: req.user.email!,
@@ -113,7 +118,8 @@ export class StudentController {
   deleteStudent(
     @OrgId() orgId: string,
     @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.studentService.deleteStudent(orgId, id);
+    return this.studentService.deleteStudent(orgId, id, req.user);
   }
 }

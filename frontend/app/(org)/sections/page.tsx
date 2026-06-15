@@ -9,7 +9,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { usePathname, useRouter } from 'next/navigation';
-import { Section, Role, AcademicCycle, Cohort, Teacher } from '@/types';
+import { Section, Role, AcademicCycle, Cohort, Teacher, Department } from '@/types';
 import { TableActions } from '@/components/ui/TableActions';
 import { Label } from '@/components/ui/Label';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -24,7 +24,7 @@ import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/compo
 import { DocsLink } from '@/components/ui/DocsLink';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
-import { getSectionSurfaceStyle, getSectionTextStyle } from '@/lib/utils';
+import { formatDepartmentLabel, formatRoomLabel, getSectionSurfaceStyle, getSectionTextStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 interface SectionParams {
@@ -37,6 +37,7 @@ interface SectionParams {
     academicCycleId?: string;
     cohortId?: string;
     teacherId?: string;
+    departmentId?: string;
     activeAcademicCycleOnly?: boolean;
 }
 
@@ -57,6 +58,7 @@ export default function SectionsPage() {
     const academicCycleId = getStringParam('academicCycleId');
     const cohortId = getStringParam('cohortId');
     const teacherId = getStringParam('teacherId');
+    const departmentId = getStringParam('departmentId');
     const includeInactiveCycles = getBooleanParam('includeInactiveCycles');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-sections-limit', 10);
     const canManageSections = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
@@ -72,6 +74,7 @@ export default function SectionsPage() {
         academicCycleId: academicCycleId || undefined,
         cohortId: cohortId || undefined,
         teacherId: teacherId || undefined,
+        departmentId: departmentId || undefined,
         activeAcademicCycleOnly: !includeInactiveCycles && !academicCycleId ? true : undefined,
     };
 
@@ -87,6 +90,8 @@ export default function SectionsPage() {
     const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
     const teachersKey = token && canUseTeacherFilter ? ['teachers', { limit: 1000 }] as const : null;
     const { data: teachersData } = useSWR<{ data: Teacher[] }>(teachersKey);
+    const departmentsKey = token && canManageSections ? ['departments', { limit: 1000, isActive: true }] as const : null;
+    const { data: departmentsData } = useSWR<{ data: Department[] }>(departmentsKey);
 
     useEffect(() => {
         if (user && user.role === Role.STUDENT) {
@@ -191,7 +196,9 @@ export default function SectionsPage() {
             header: 'Room',
             sortable: true,
             sortKey: 'room',
-            accessor: (row: Section) => row.room || <span className="text-muted-foreground/50 italic">TBD</span>
+            accessor: (row: Section) => row.defaultRoom
+                ? formatRoomLabel(row.defaultRoom)
+                : row.room || <span className="text-muted-foreground/50 italic">TBD</span>
         },
         {
             header: 'Actions',
@@ -243,6 +250,12 @@ export default function SectionsPage() {
             label: 'Teacher',
             value: teachersData?.data?.find((teacher) => teacher.id === teacherId)?.user?.name || 'Selected teacher',
             onRemove: () => updateQueryParams({ teacherId: undefined, page: 1 }),
+        }] : []),
+        ...(departmentId ? [{
+            key: 'departmentId',
+            label: 'Department',
+            value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
+            onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
         }] : []),
         ...(includeInactiveCycles ? [{
             key: 'includeInactiveCycles',
@@ -304,6 +317,23 @@ export default function SectionsPage() {
                                     />
                                 </div>
                             )}
+
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Department</Label>
+                                <CustomSelect
+                                    options={[
+                                        { label: 'All Departments', value: '' },
+                                        ...(departmentsData?.data?.map(department => ({
+                                            value: department.id,
+                                            label: formatDepartmentLabel(department),
+                                        })) || [])
+                                    ]}
+                                    value={departmentId}
+                                    onChange={(val) => updateQueryParams({ departmentId: val, page: 1 })}
+                                    placeholder="All Departments"
+                                    searchable
+                                />
+                            </div>
 
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Academic Cycle</Label>

@@ -29,6 +29,9 @@ import { GpaModule } from './gpa/gpa.module';
 import { GuardiansModule } from './guardians/guardians.module';
 import { SubAdminsModule } from './sub-admins/sub-admins.module';
 import { FinanceManagersModule } from './finance-managers/finance-managers.module';
+import { DepartmentsModule } from './departments/departments.module';
+import { BuildingsModule } from './buildings/buildings.module';
+import { RoomsModule } from './rooms/rooms.module';
 
 @Module({
   imports: [
@@ -62,6 +65,9 @@ import { FinanceManagersModule } from './finance-managers/finance-managers.modul
     GuardiansModule,
     SubAdminsModule,
     FinanceManagersModule,
+    DepartmentsModule,
+    BuildingsModule,
+    RoomsModule,
   ],
   providers: [
     {

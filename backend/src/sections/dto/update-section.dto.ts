@@ -12,6 +12,10 @@ export class UpdateSectionDto {
 
   @IsString()
   @IsOptional()
+  defaultRoomId?: string;
+
+  @IsString()
+  @IsOptional()
   courseId?: string;
 
   @IsString()
