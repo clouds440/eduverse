@@ -27,10 +27,6 @@ export function InsightRangeControl({
 }) {
   return (
     <div className={`flex min-w-0 flex-wrap items-center gap-2 ${className}`}>
-      <div className="inline-flex h-9 items-center gap-2 rounded-md border border-border/70 bg-background/80 px-3 text-xs font-black text-muted-foreground">
-        <CalendarRange className="h-4 w-4 text-primary" />
-        <span>Range</span>
-      </div>
       <div className="inline-flex max-w-full overflow-x-auto rounded-md border border-border/70 bg-background/80 p-1 shadow-xs">
         {INSIGHT_TIME_RANGE_OPTIONS.map((option) => (
           <button

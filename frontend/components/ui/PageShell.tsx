@@ -155,6 +155,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, show
     useEffect(() => {
         const mediaQuery = window.matchMedia('(max-width: 767px)');
         const updateMobile = () => setIsMobile(mediaQuery.matches);
+        setActionsOpen(!mediaQuery.matches);
 
         updateMobile();
         mediaQuery.addEventListener('change', updateMobile);
@@ -282,7 +283,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, show
                     </div>
                 </div>
                 <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
-                    {showDateTime && (
+                    {showDateTime && !isMobile && (
                         <time
                             dateTime={currentDateTime.toISOString()}
                             className={cn(
