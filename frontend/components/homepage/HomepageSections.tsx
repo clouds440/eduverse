@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 
 import { Reveal } from '@/components/ui/Reveal';
-import { PLATFORM_NAME } from '@/lib/constants';
 
 const TRUST_METRICS = [
     { value: 'One', label: 'connected workspace', icon: Layers },

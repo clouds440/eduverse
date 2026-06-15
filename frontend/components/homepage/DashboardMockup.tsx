@@ -5,7 +5,6 @@ import {
     Bell,
     BookOpen,
     CalendarCheck,
-    CheckCircle2,
     ChevronRight,
     ClipboardList,
     Clock,
