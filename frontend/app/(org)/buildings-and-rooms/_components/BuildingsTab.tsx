@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import useSWR, { mutate } from 'swr';
-import { Building2, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -20,7 +20,7 @@ import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDra
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
-import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
@@ -29,7 +29,7 @@ import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 const emptyForm = { name: '', code: '', address: '', description: '', isActive: true, departmentIds: [] as string[] };
 
-export default function BuildingsPage() {
+export default function BuildingsTab() {
     const { token, user } = useAuth();
     const { dispatch, state } = useGlobal();
     const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
@@ -197,13 +197,7 @@ export default function BuildingsPage() {
     if (error) return <ErrorState error={error} onRetry={() => mutateBuildings()} />;
 
     return (
-        <PageShell>
-            <PageHeader
-                title="Buildings"
-                description="Maintain campus blocks and optionally link them to departments for filtering and reporting."
-                icon={Building2}
-                breadcrumbs={[{ label: 'Organization' }, { label: 'Setup' }, { label: 'Buildings' }]}
-            />
+        <>
             <ResourcePanel>
                 <FilterDrawerToolbar
                     activeFilters={activeFilters}
@@ -300,6 +294,6 @@ export default function BuildingsPage() {
                 confirmText={activeTarget?.isActive ? 'Deactivate' : 'Activate'}
                 isDestructive={activeTarget?.isActive}
             />
-        </PageShell>
+        </>
     );
 }

@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import useSWR, { mutate } from 'swr';
-import { DoorOpen, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -19,7 +19,7 @@ import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDra
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
-import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
@@ -52,7 +52,7 @@ function formatRoomType(type?: RoomType | null) {
     return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function RoomsPage() {
+export default function RoomsTab() {
     const { token, user } = useAuth();
     const { dispatch, state } = useGlobal();
     const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
@@ -232,13 +232,7 @@ export default function RoomsPage() {
     if (error) return <ErrorState error={error} onRetry={() => mutateRooms()} />;
 
     return (
-        <PageShell>
-            <PageHeader
-                title="Rooms"
-                description="Create schedulable rooms inside buildings, with type and capacity metadata ready for later timetable phases."
-                icon={DoorOpen}
-                breadcrumbs={[{ label: 'Organization' }, { label: 'Setup' }, { label: 'Rooms' }]}
-            />
+        <>
             <ResourcePanel>
                 <FilterDrawerToolbar
                     activeFilters={activeFilters}
@@ -367,6 +361,6 @@ export default function RoomsPage() {
                 confirmText={activeTarget?.isActive ? 'Deactivate' : 'Activate'}
                 isDestructive={activeTarget?.isActive}
             />
-        </PageShell>
+        </>
     );
 }

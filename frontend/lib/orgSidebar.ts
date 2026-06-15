@@ -8,7 +8,6 @@ import {
     CalendarDays,
     CheckCircle,
     Clock,
-    DoorOpen,
     FileText,
     GraduationCap,
     Layers,
@@ -66,8 +65,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
 
     if (user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN) {
         links.push({ id: 'DEPARTMENTS', label: 'Departments', href: '/departments', icon: BookOpen });
-        links.push({ id: 'BUILDINGS', label: 'Buildings', href: '/buildings', icon: Building2 });
-        links.push({ id: 'ROOMS', label: 'Rooms', href: '/rooms', icon: DoorOpen });
+        links.push({ id: 'BUILDINGS_AND_ROOMS', label: 'Buildings & Rooms', href: '/buildings-and-rooms', icon: Building2 });
         links.push({ id: 'COURSES', label: 'Courses', href: '/courses', icon: LibraryBig });
         links.push({ id: 'ACADEMIC_CYCLES', label: 'Academic Cycles', href: '/academic-cycles', icon: Calendar });
         links.push({ id: 'COHORTS', label: 'Cohorts', href: '/cohorts', icon: Network });
