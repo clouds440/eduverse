@@ -33,7 +33,8 @@ import { useTheme } from '@/context/ThemeContext';
 import SessionManagement from '@/components/SessionManagement';
 import { Loading } from '@/components/ui/Loading';
 import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
-import { getPrimaryColorError, getSafePrimaryColor, isPrimaryColorAllowed } from '@/lib/themeColor';
+import { getSafePrimaryColor } from '@/lib/themeColor';
+import { ColorSelector } from '@/components/ui/ColorSelector';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
@@ -153,7 +154,7 @@ export default function SettingsPage() {
     }, [token, dispatch, user, router]);
 
     useEffect(() => {
-        if (!redirecting && isPrimaryColorAllowed(formData.accentColor.primary)) {
+        if (!redirecting && formData.accentColor.primary) {
             setPrimaryColor(formData.accentColor.primary);
         }
     }, [formData.accentColor.primary, setPrimaryColor, redirecting]);
@@ -168,12 +169,6 @@ export default function SettingsPage() {
     }, []);
 
     const handlePrimaryColorChange = (newPrimary: string) => {
-        const colorError = getPrimaryColorError(newPrimary);
-        if (colorError) {
-            setFormErrors((current) => ({ ...current, accentColor: colorError }));
-            return;
-        }
-
         setFormErrors((current) => ({ ...current, accentColor: undefined }));
         setFormData((current) => ({
             ...current,
@@ -208,11 +203,7 @@ export default function SettingsPage() {
             newErrors.contactEmail = 'Contact email is required';
             hasError = true;
         }
-        const colorError = getPrimaryColorError(formData.accentColor.primary);
-        if (colorError) {
-            newErrors.accentColor = colorError;
-            hasError = true;
-        }
+
 
         if (hasError) {
             setFormErrors(newErrors);
@@ -444,20 +435,16 @@ export default function SettingsPage() {
                             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.65fr)]">
                                 <div className="space-y-3">
                                     <Label htmlFor="settings-primary-color" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Primary Accent Color</Label>
-                                    <div className="flex items-center gap-3 h-30 rounded-2xl border border-border/70 bg-background/70 p-3">
-                                        <input
-                                            id="settings-primary-color"
-                                            type="color"
+                                    <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/70 p-3">
+                                        <ColorSelector
                                             value={formData.accentColor.primary}
-                                            onChange={(event) => handlePrimaryColorChange(event.target.value)}
-                                            className={`h-12 w-16 shrink-0 cursor-pointer rounded-xl border bg-transparent p-1 ${formErrors.accentColor ? 'border-danger' : 'border-border/70'}`}
-                                            title="Primary accent color"
+                                            onChange={handlePrimaryColorChange}
+                                            ariaLabelPrefix="accent color"
                                         />
-                                        <div className="min-w-0 flex-1">
-                                            <FieldError>{formErrors.accentColor}</FieldError>
+                                        <div className="min-w-0 flex-1 border-t border-border/50 pt-2 flex items-center justify-between">
                                             <p className="font-mono text-sm font-black uppercase text-foreground">{formData.accentColor.primary}</p>
-                                            <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">
-                                                Contrast is checked before saving.
+                                            <p className="text-xs font-semibold leading-relaxed text-muted-foreground">
+                                                Predefined brand palette.
                                             </p>
                                         </div>
                                     </div>

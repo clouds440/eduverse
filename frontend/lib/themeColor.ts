@@ -3,10 +3,6 @@ import { ThemeMode } from '@/types';
 export const DEFAULT_PRIMARY = '#0052FF';
 export const DEFAULT_SECONDARY = '#5B616E';
 export const THEME_PRIMARY_STORAGE_KEY = 'eduverse:last-valid-primary';
-export const NEAR_BLACK_MAX_CHANNEL = 130;
-export const NEAR_WHITE_MIN_CHANNEL = 170;
-export const PRIMARY_COLOR_ERROR =
-    'Choose a primary color that is not too close to black or white.';
 
 export function normalizeHexColor(value: string | null | undefined) {
     if (!value) return null;
@@ -35,19 +31,16 @@ export function hexToRgb(hex: string) {
 }
 
 export function isPrimaryColorAllowed(value: string | null | undefined) {
-    const normalized = normalizeHexColor(value);
-    if (!normalized) return false;
-
-    return !isNearBlackColor(normalized) && !isNearWhiteColor(normalized);
+    return !!normalizeHexColor(value);
 }
 
 export function getSafePrimaryColor(value: string | null | undefined) {
     const normalized = normalizeHexColor(value);
-    return normalized && isPrimaryColorAllowed(normalized) ? normalized : DEFAULT_PRIMARY;
+    return normalized ? normalized : DEFAULT_PRIMARY;
 }
 
 export function getPrimaryColorError(value: string | null | undefined) {
-    return isPrimaryColorAllowed(value) ? null : PRIMARY_COLOR_ERROR;
+    return null;
 }
 
 export function getBrightness(hex: string) {
@@ -97,18 +90,6 @@ export function getContrastRatio(colorA: string, colorB: string) {
     const darker = Math.min(luminanceA, luminanceB);
 
     return (lighter + 0.05) / (darker + 0.05);
-}
-
-function isNearBlackColor(hex: string) {
-    const rgb = hexToRgb(hex);
-    if (!rgb) return true;
-    return Math.max(rgb.r, rgb.g, rgb.b) <= NEAR_BLACK_MAX_CHANNEL;
-}
-
-function isNearWhiteColor(hex: string) {
-    const rgb = hexToRgb(hex);
-    if (!rgb) return true;
-    return Math.min(rgb.r, rgb.g, rgb.b) >= NEAR_WHITE_MIN_CHANNEL;
 }
 
 export function getContrastColor(hex: string) {

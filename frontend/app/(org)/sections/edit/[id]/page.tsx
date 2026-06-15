@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/Input';
 import { Loading } from '@/components/ui/Loading';
 import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, formatRoomLabel, getSectionColor, isSectionPaletteColor } from '@/lib/utils';
+import { ColorSelector } from '@/components/ui/ColorSelector';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 interface SectionEditFormData {
@@ -247,19 +248,11 @@ export default function EditSectionPage() {
                             />
                         </FormField>
                         <FormField label="Section Color" error={formErrors.color}>
-                            <div className="flex flex-wrap gap-2">
-                                {SECTION_COLOR_PALETTE.map((color) => (
-                                    <button
-                                        key={color}
-                                        type="button"
-                                        onClick={() => setFormData((previous) => ({ ...previous, color }))}
-                                        className={`h-9 w-9 rounded-md border transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${formData.color === color ? 'scale-110 border-foreground ring-2 ring-primary/30' : 'border-border/70'}`}
-                                        style={{ backgroundColor: color }}
-                                        aria-label={`Use section color ${color}`}
-                                        aria-pressed={formData.color === color}
-                                    />
-                                ))}
-                            </div>
+                            <ColorSelector
+                                value={formData.color}
+                                onChange={(color) => setFormData((previous) => ({ ...previous, color }))}
+                                ariaLabelPrefix="section color"
+                            />
                         </FormField>
                     </FormGrid>
                 </FormSection>

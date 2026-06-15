@@ -9,20 +9,40 @@ export function cn(...inputs: ClassValue[]) {
 export const DEFAULT_SECTION_COLOR = '#3B82F6';
 
 export const SECTION_COLOR_PALETTE = [
-    '#3B82F6',
-    '#10B981',
-    '#F59E0B',
-    '#EF4444',
-    '#8B5CF6',
-    '#06B6D4',
-    '#EC4899',
-    '#6366F1',
-    '#14B8A6',
-    '#0EA5E9',
-    '#F43F5E',
-    '#F97316',
-    '#22C55E',
+    '#3B82F6', // Blue
+    '#10B981', // Emerald
+    '#F59E0B', // Amber
+    '#EF4444', // Red
+    '#8B5CF6', // Violet
+    '#06B6D4', // Cyan
+    '#EC4899', // Pink
+    '#F97316', // Orange
+    '#14B8A6', // Teal
+    '#6366F1', // Indigo
+    '#84CC16', // Lime
+    '#0EA5E9', // Sky
+    '#F43F5E', // Rose
+    '#D946EF', // Fuchsia
+    '#64748B', // Slate
+    '#B45309', // Dark Amber
+    '#059669', // Dark Emerald
+    '#0284C7', // Dark Sky
+    '#BE185D', // Dark Pink
+    '#7C3AED', // Dark Violet
+    '#1D4ED8', // Dark Blue
+    '#B91C1C', // Dark Red
+    '#0F766E', // Dark Teal
+    '#4F46E5', // Dark Indigo
+    '#9333EA', // Purple
+    '#475569', // Dark Slate
+    '#EA580C', // Orange-600
+    '#E11D48', // Rose-600
+    '#C084FC', // Light Purple
+    '#38BDF8', // Light Sky
+    '#818CF8', // Light Indigo
+    '#FB7185', // Light Rose
 ] as const;
+
 
 type SectionColorInput = string | null | undefined | { color?: string | null };
 

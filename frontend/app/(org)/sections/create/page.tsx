@@ -16,6 +16,7 @@ import { DocsLink } from '@/components/ui/DocsLink';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageShell';
 import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, formatRoomLabel, isSectionPaletteColor } from '@/lib/utils';
+import { ColorSelector } from '@/components/ui/ColorSelector';
 
 export default function CreateSectionPage() {
     const { token, user } = useAuth();
@@ -271,19 +272,11 @@ export default function CreateSectionPage() {
 
                                     <div className="space-y-3">
                                         <Label className="text-sm font-bold ml-1">Section Color</Label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {SECTION_COLOR_PALETTE.map((color) => (
-                                                <button
-                                                    key={color}
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, color })}
-                                                    className={`h-9 w-9 rounded-md border transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${formData.color === color ? 'scale-110 border-foreground ring-2 ring-primary/30' : 'border-border/70'}`}
-                                                    style={{ backgroundColor: color }}
-                                                    aria-label={`Use section color ${color}`}
-                                                    aria-pressed={formData.color === color}
-                                                />
-                                            ))}
-                                        </div>
+                                        <ColorSelector
+                                            value={formData.color}
+                                            onChange={(color) => setFormData({ ...formData, color })}
+                                            ariaLabelPrefix="section color"
+                                        />
                                         {formErrors.color && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.color}</p>}
                                     </div>
                                 </div>

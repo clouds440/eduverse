@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
+import { normalizeEntityColor } from '../common/colors';
 
 @Injectable()
 export class DepartmentsService {
@@ -57,13 +58,15 @@ export class DepartmentsService {
   async createDepartment(orgId: string, dto: CreateDepartmentDto) {
     await this.assertUnique(orgId, dto);
 
+    const color = normalizeEntityColor(dto.color, `${orgId}:${dto.name}`, '#3B82F6');
+
     const department = await this.prisma.department.create({
       data: {
         organizationId: orgId,
         name: dto.name.trim(),
         code: this.normalizeText(dto.code),
         description: this.normalizeText(dto.description),
-        color: this.normalizeText(dto.color),
+        color,
         isActive: dto.isActive ?? true,
       },
       include: this.includeRelations,
@@ -138,13 +141,17 @@ export class DepartmentsService {
       );
     }
 
+    const color = dto.color !== undefined
+      ? normalizeEntityColor(dto.color, `${orgId}:${dto.name ?? existing.name}`, '#3B82F6')
+      : undefined;
+
     const department = await this.prisma.department.update({
       where: { id },
       data: {
         name: dto.name !== undefined ? dto.name.trim() : undefined,
         code: dto.code !== undefined ? this.normalizeText(dto.code) : undefined,
         description: dto.description !== undefined ? this.normalizeText(dto.description) : undefined,
-        color: dto.color !== undefined ? this.normalizeText(dto.color) : undefined,
+        color,
         isActive: dto.isActive,
       },
       include: this.includeRelations,

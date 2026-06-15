@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { formatBuildingLabel, formatDepartmentLabel } from '@/lib/utils';
+import { ColorSelector } from '@/components/ui/ColorSelector';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { ApiError, Department, PaginatedResponse, Role } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -233,15 +234,17 @@ export default function DepartmentsPage() {
                         <Label htmlFor="department-name">Name *</Label>
                         <Input id="department-name" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Computer Science" />
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-[1fr_96px]">
-                        <div className="space-y-2">
-                            <Label htmlFor="department-code">Code</Label>
-                            <Input id="department-code" value={formData.code} onChange={(event) => setFormData({ ...formData, code: event.target.value })} placeholder="CS" />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="department-color">Color</Label>
-                            <input id="department-color" type="color" value={formData.color} onChange={(event) => setFormData({ ...formData, color: event.target.value })} className="h-11 w-full rounded-md border border-border bg-input p-1" />
-                        </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="department-code">Code</Label>
+                        <Input id="department-code" value={formData.code} onChange={(event) => setFormData({ ...formData, code: event.target.value })} placeholder="CS" />
+                    </div>
+                    <div className="space-y-3">
+                        <Label className="text-sm font-bold">Department Color</Label>
+                        <ColorSelector
+                            value={formData.color}
+                            onChange={(color) => setFormData({ ...formData, color })}
+                            ariaLabelPrefix="department color"
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="department-description">Description</Label>
