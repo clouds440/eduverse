@@ -5,6 +5,8 @@ import {
   AreaChart,
   BarChart,
   Bar,
+  ComposedChart,
+  Line,
   PieChart,
   Pie,
   XAxis,
@@ -277,7 +279,11 @@ export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, c
             radius={horizontal ? [0, 6, 6, 0] : [6, 6, 0, 0]}
             isAnimationActive={false}
             {...(disableHover ? { activeShape: (props: SVGProps<SVGRectElement>) => <rect {...props} /> } : {})}
-          />
+          >
+            {data.map((entry, index) => (
+              <Cell key={`bar-cell-${index}`} fill={typeof entry.color === 'string' ? entry.color : color} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -388,7 +394,7 @@ export function InsightPieChart({ data, height = 300, title, showLegend = true }
 
 // Stacked Bar Chart for completion rates
 interface StackedBarChartProps {
-  data: { section: string; completed: number; total: number }[];
+  data: { section: string; courseName?: string; color?: string; completed: number; total: number }[];
   height?: number;
   title?: string;
 }
@@ -434,7 +440,11 @@ export function CompletionBarChart({ data, height = 300, title }: StackedBarChar
             formatter={(value) => [value ?? 0, 'Students']}
           />
           <Legend wrapperStyle={getLegendStyle()} />
-          <Bar dataKey="completed" stackId="a" fill={COLORS.success} name="Submitted" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="completed" stackId="a" fill={COLORS.success} name="Submitted" radius={[4, 4, 0, 0]}>
+            {chartData.map((entry, index) => (
+              <Cell key={`completed-cell-${index}`} fill={entry.color || COLORS.success} />
+            ))}
+          </Bar>
           <Bar dataKey="remaining" stackId="a" fill={CHART_THEME.border} name="Pending" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
@@ -444,7 +454,7 @@ export function CompletionBarChart({ data, height = 300, title }: StackedBarChar
 
 // Radar/Scatter-like chart for student performance
 interface PerformanceChartProps {
-  data: { subject: string; grade: number; attendance: number }[];
+  data: { subject: string; sectionName?: string; courseName?: string; color?: string; grade: number; attendance: number }[];
   height?: number;
   title?: string;
 }
@@ -488,9 +498,138 @@ export function PerformanceChart({ data, height = 300, title }: PerformanceChart
             formatter={(value, name) => [`${value ?? 0}%`, name === 'grade' ? 'Grade' : 'Attendance']}
           />
           <Legend wrapperStyle={getLegendStyle()} />
-          <Bar dataKey="grade" fill={COLORS.primary} name="Grade" radius={[0, 6, 6, 0]} isAnimationActive={false} />
-          <Bar dataKey="attendance" fill={COLORS.success} name="Attendance" radius={[0, 6, 6, 0]} isAnimationActive={false} />
+          <Bar dataKey="grade" fill={COLORS.primary} name="Grade" radius={[0, 6, 6, 0]} isAnimationActive={false}>
+            {data.map((entry, index) => (
+              <Cell key={`grade-cell-${index}`} fill={entry.color || COLORS.primary} />
+            ))}
+          </Bar>
+          <Bar dataKey="attendance" fill={COLORS.success} name="Attendance" radius={[0, 6, 6, 0]} isAnimationActive={false}>
+            {data.map((entry, index) => (
+              <Cell key={`attendance-cell-${index}`} fill={entry.color || COLORS.success} fillOpacity={0.55} />
+            ))}
+          </Bar>
         </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+interface MoneyFlowChartProps {
+  data: Array<{ label: string; income: number; expense: number; netFlow: number }>;
+  height?: number;
+  title?: string;
+}
+
+export function MoneyFlowChart({ data, height = 320, title }: MoneyFlowChartProps) {
+  const isCompact = useCompactChart();
+
+  if (!data || data.length === 0) return null;
+
+  const chartHeight = isCompact ? Math.min(height, 260) : height;
+
+  return (
+    <div className="w-full">
+      <ChartTitle title={title} detail={`${data.length} periods`} />
+      <ResponsiveContainer width="100%" height={chartHeight}>
+        <ComposedChart data={data} margin={{ top: 8, right: isCompact ? 6 : 16, left: isCompact ? -24 : -8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} strokeOpacity={0.5} vertical={!isCompact} />
+          <XAxis
+            dataKey="label"
+            tick={getAxisTick(isCompact)}
+            interval={getTickInterval(data.length, isCompact)}
+            minTickGap={isCompact ? 12 : 20}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={getAxisTick(isCompact)}
+            width={isCompact ? 34 : 48}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip
+            cursor={{ fill: CHART_THEME.muted, opacity: 0.22 }}
+            contentStyle={getTooltipStyle()}
+            itemStyle={getTooltipItemStyle()}
+            labelStyle={getTooltipLabelStyle()}
+            wrapperStyle={getTooltipWrapperStyle()}
+          />
+          <Legend wrapperStyle={getLegendStyle()} />
+          <Bar dataKey="income" fill={COLORS.success} name="Income" radius={[5, 5, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="expense" fill={COLORS.danger} name="Expense" radius={[5, 5, 0, 0]} isAnimationActive={false} />
+          <Line
+            type="monotone"
+            dataKey="netFlow"
+            stroke={COLORS.primary}
+            strokeWidth={2.5}
+            name="Net Flow"
+            dot={isCompact || data.length > 14 ? false : { r: 3, fill: COLORS.primary }}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: CHART_THEME.background }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+interface MultiLineChartProps {
+  data: Array<{ label: string; [seriesName: string]: string | number }>;
+  height?: number;
+  title?: string;
+}
+
+export function MultiLineChart({ data, height = 300, title }: MultiLineChartProps) {
+  const isCompact = useCompactChart();
+
+  if (!data || data.length === 0) return null;
+
+  const series = Object.keys(data[0] || {}).filter((key) => key !== 'label');
+  if (series.length === 0) return null;
+
+  const chartHeight = isCompact ? Math.min(height, 240) : height;
+  const palette = [COLORS.primary, COLORS.success, COLORS.warning, COLORS.danger, COLORS.info, COLORS.purple];
+
+  return (
+    <div className="w-full">
+      <ChartTitle title={title} detail={`${series.length} sources`} />
+      <ResponsiveContainer width="100%" height={chartHeight}>
+        <AreaChart data={data} margin={{ top: 8, right: isCompact ? 6 : 16, left: isCompact ? -24 : -8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} strokeOpacity={0.5} vertical={!isCompact} />
+          <XAxis
+            dataKey="label"
+            tick={getAxisTick(isCompact)}
+            interval={getTickInterval(data.length, isCompact)}
+            minTickGap={isCompact ? 12 : 20}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={getAxisTick(isCompact)}
+            width={isCompact ? 34 : 48}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip
+            contentStyle={getTooltipStyle()}
+            itemStyle={getTooltipItemStyle()}
+            labelStyle={getTooltipLabelStyle()}
+            wrapperStyle={getTooltipWrapperStyle()}
+          />
+          <Legend wrapperStyle={getLegendStyle()} />
+          {series.map((key, index) => (
+            <Area
+              key={key}
+              type="monotone"
+              dataKey={key}
+              stroke={palette[index % palette.length]}
+              strokeWidth={2}
+              fill={palette[index % palette.length]}
+              fillOpacity={0.08}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 2, stroke: CHART_THEME.background }}
+            />
+          ))}
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

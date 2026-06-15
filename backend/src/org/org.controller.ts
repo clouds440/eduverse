@@ -50,6 +50,7 @@ import { UpdateScheduleDto } from '../attendance/dto/update-schedule.dto';
 import { AttendanceRecordDto } from '../attendance/dto/mark-attendance.dto';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
+import { InsightsQueryDto } from '../insights/dto/insights-query.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -66,10 +67,14 @@ export class OrgController {
     private readonly attendanceService: AttendanceService,
   ) { }
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('insights')
-  getInsights(@OrgId() orgId: string, @Request() req: AuthenticatedRequest) {
-    return this.insightsService.getInsights(orgId, req.user);
+  getInsights(
+    @OrgId() orgId: string,
+    @Request() req: AuthenticatedRequest,
+    @Query() query: InsightsQueryDto,
+  ) {
+    return this.insightsService.getInsights(orgId, req.user, query);
   }
 
   // --- Settings ---

@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import useSWR from 'swr';
+import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
-import { DashboardInsights, Role, Teacher } from '@/types';
+import { DashboardInsights, Role, Teacher, type InsightTimeRange } from '@/types';
 import { Loading } from '@/components/ui/Loading';
 import InsightsOverview from '@/components/dashboard/InsightsOverview';
+import { getInsightRangePreview, InsightRangeControl } from '@/components/dashboard/InsightRangeControl';
 import { NotFound } from '@/components/NotFound';
 import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { Badge } from '@/components/ui/Badge';
@@ -18,6 +20,7 @@ export default function TeacherLandingPage() {
     const params = useParams();
     const router = useRouter();
     const { dispatch } = useGlobal();
+    const [range, setRange] = useState<InsightTimeRange>('1M');
 
     const userId = params.userId as string;
 
@@ -32,8 +35,11 @@ export default function TeacherLandingPage() {
     const isOwnProfile = user?.id === userId;
 
     // SWR: Insights fetch (conditional - only if validation passed AND viewing own profile)
-    const insightsKey = token && teacherData && isOwnProfile ? ['teacher-insights'] as const : null;
-    const { data: insights, isLoading: insightsLoading } = useSWR<DashboardInsights>(insightsKey);
+    const insightsKey = token && teacherData && isOwnProfile ? ['teacher-insights', token, { range }] as const : null;
+    const { data: insights, isLoading: insightsLoading } = useSWR<DashboardInsights>(
+        insightsKey,
+        ([, t]) => api.org.getInsights(t as string, { range })
+    );
 
     // Authorization effect - handles redirects based on validation and role
     useEffect(() => {
@@ -93,6 +99,7 @@ export default function TeacherLandingPage() {
                     { label: 'Teacher Portal' },
                     { label: 'Overview' },
                 ]}
+                actions={<InsightRangeControl value={range} onChange={setRange} preview={getInsightRangePreview(insights.filters)} />}
             />
             <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
                 <InsightsOverview insights={insights} />

@@ -158,7 +158,7 @@ function createFetcher(token: string | null) {
 
                 // Insights
                 case 'insights':
-                    return await api.org.getInsights(token) as T;
+                    return await api.org.getInsights(token, args[0] as object) as T;
 
                 // Validation lookups
                 case 'validate-student':
@@ -174,9 +174,9 @@ function createFetcher(token: string | null) {
                 case 'student-assessments':
                     return await api.org.getAssessments(token, args[0] as object) as T;
                 case 'student-insights':
-                    return await api.org.getInsights(token) as T;
+                    return await api.org.getInsights(token, args[0] as object) as T;
                 case 'teacher-insights':
-                    return await api.org.getInsights(token) as T;
+                    return await api.org.getInsights(token, args[0] as object) as T;
                 case 'teacher-sections':
                     return await api.org.getSections(token, args[0] as object) as T;
 

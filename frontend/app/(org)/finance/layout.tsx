@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Wallet, ListTree, Receipt, FileText } from 'lucide-react';
@@ -8,10 +8,12 @@ import { useAuth } from '@/context/AuthContext';
 import { Role } from '@/types';
 import { PageHeader } from '@/components/ui/PageShell';
 import { cn } from '@/lib/utils';
+import { FinanceHeaderActionsProvider } from './FinanceHeaderActionsContext';
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const { user } = useAuth();
+    const [headerActions, setHeaderActions] = useState<ReactNode>(null);
 
     const isStudentOrTeacher = user?.role === Role.STUDENT || user?.role === Role.TEACHER;
 
@@ -23,43 +25,46 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
     ];
 
     return (
-        <div className="flex h-full min-h-0 flex-col">
-            <div className="shrink-0 space-y-3">
-                <PageHeader
-                    title="Financial Ledger"
-                    description="Manage agreements, billing, and transactions."
-                    icon={Wallet}
-                />
+        <FinanceHeaderActionsProvider setActions={setHeaderActions}>
+            <div className="flex h-full min-h-0 flex-col">
+                <div className="shrink-0 space-y-3">
+                    <PageHeader
+                        title="Financial Ledger"
+                        description="Manage agreements, billing, and transactions."
+                        icon={Wallet}
+                        actions={headerActions}
+                    />
 
-                <nav
-                    aria-label="Finance navigation"
-                    className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-card/95 p-1 shadow-sm scrollbar-none"
-                >
-                    {tabs.filter(t => !t.hidden).map((tab) => {
-                        const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
-                        return (
-                            <Link
-                                key={tab.name}
-                                href={tab.href}
-                                className={cn(
-                                    'flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-32',
-                                    isActive
-                                        ? 'bg-background text-foreground shadow-xs'
-                                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                                )}
-                                aria-current={isActive ? 'page' : undefined}
-                            >
-                                <tab.icon className="w-4 h-4" />
-                                {tab.name}
-                            </Link>
-                        );
-                    })}
-                </nav>
-            </div>
+                    <nav
+                        aria-label="Finance navigation"
+                        className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-card/95 p-1 shadow-sm scrollbar-none"
+                    >
+                        {tabs.filter(t => !t.hidden).map((tab) => {
+                            const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
+                            return (
+                                <Link
+                                    key={tab.name}
+                                    href={tab.href}
+                                    className={cn(
+                                        'flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-32',
+                                        isActive
+                                            ? 'bg-background text-foreground shadow-xs'
+                                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                                    )}
+                                    aria-current={isActive ? 'page' : undefined}
+                                >
+                                    <tab.icon className="w-4 h-4" />
+                                    {tab.name}
+                                </Link>
+                            );
+                        })}
+                    </nav>
+                </div>
 
-            <div className="relative min-h-0 flex-1 overflow-y-auto pt-3 custom-scrollbar">
-                {children}
+                <div className="relative min-h-0 flex-1 overflow-y-auto pt-3 custom-scrollbar">
+                    {children}
+                </div>
             </div>
-        </div>
+        </FinanceHeaderActionsProvider>
     );
 }

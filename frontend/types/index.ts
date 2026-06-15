@@ -385,8 +385,75 @@ export interface DashboardInsightActivity {
     tone?: Tone;
 }
 
+export interface DashboardInsightCharts {
+    attendanceTrend?: { date: string; value: number }[];
+    enrollmentTrend?: { date: string; value: number }[];
+    gradeDistribution?: { range: string; count: number }[];
+    sectionCapacity?: { name: string; courseName?: string; color?: string; enrolled: number; capacity?: number }[];
+    mailStatus?: { status: string; count: number }[];
+    assessmentCompletion?: { section: string; courseName?: string; color?: string; completed: number; total: number }[];
+    teacherWorkload?: { name: string; sections: number; students: number }[];
+    studentPerformance?: { subject: string; sectionName?: string; courseName?: string; color?: string; grade: number; attendance: number }[];
+    moneyFlowTrend?: Array<{
+        label: string;
+        income: number;
+        expense: number;
+        netFlow: number;
+    }>;
+    incomeSources?: Array<{
+        source: string;
+        amount: number;
+        percentage: number;
+    }>;
+    expenseSources?: Array<{
+        source: string;
+        amount: number;
+        percentage: number;
+    }>;
+    incomeSourceTrend?: Array<{
+        label: string;
+        [sourceName: string]: string | number;
+    }>;
+    expenseSourceTrend?: Array<{
+        label: string;
+        [sourceName: string]: string | number;
+    }>;
+    topMonths?: {
+        highestIncomeMonth: { label: string; amount: number } | null;
+        highestExpenseMonth: { label: string; amount: number } | null;
+        bestNetFlowMonth: { label: string; amount: number } | null;
+        worstNetFlowMonth: { label: string; amount: number } | null;
+    };
+    collectionHealth?: {
+        collectedAmount: number;
+        pendingAmount: number;
+        overdueAmount: number;
+        collectionRatePercent: number;
+        chartData: Array<{
+            status: 'Collected' | 'Pending' | 'Overdue';
+            amount: number;
+        }>;
+    };
+    chartRecommendations?: {
+        moneyFlowTrend: 'ComposedChart';
+        incomeSources: 'BarChart';
+        expenseSources: 'BarChart';
+        incomeSourceTrend: 'LineChart';
+        expenseSourceTrend: 'LineChart';
+        collectionHealth?: 'RadialBarChart' | 'PieChart';
+        topMonths: 'BarChart' | 'Cards';
+    };
+}
+
 export interface DashboardInsights {
     role: string;
+    filters?: {
+        selectedRange?: InsightTimeRange;
+        interval?: InsightInterval;
+        from?: string;
+        to?: string;
+        selectedStudentId?: string | null;
+    };
     headline: {
         eyebrow?: string;
         title: string;
@@ -397,16 +464,17 @@ export interface DashboardInsights {
     groups: DashboardInsightGroup[];
     recentActivity: DashboardInsightActivity[];
     // Visualization data
-    charts?: {
-        attendanceTrend?: { date: string; value: number }[];
-        enrollmentTrend?: { date: string; value: number }[];
-        gradeDistribution?: { range: string; count: number }[];
-        sectionCapacity?: { name: string; enrolled: number; capacity?: number }[];
-        mailStatus?: { status: string; count: number }[];
-        assessmentCompletion?: { section: string; completed: number; total: number }[];
-        teacherWorkload?: { name: string; sections: number; students: number }[];
-        studentPerformance?: { subject: string; grade: number; attendance: number }[];
-    };
+    charts?: DashboardInsightCharts;
+}
+
+export type InsightTimeRange = '1D' | '3D' | '7D' | '15D' | '1M' | '3M' | '6M' | '1Y';
+export type InsightInterval = 'daily' | 'weekly' | 'monthly';
+export interface InsightsQueryParams {
+    range?: InsightTimeRange;
+    from?: string;
+    to?: string;
+    interval?: InsightInterval;
+    studentId?: string;
 }
 
 // ─── Mail System Types ────────────────────────────────────────────────────────
@@ -1353,6 +1421,21 @@ export interface FinanceStats {
     pendingConfirmations: number;
     recentTransactions: Transaction[];
 }
+
+export type FinanceInsightCharts = Required<Pick<
+    DashboardInsightCharts,
+    'moneyFlowTrend' |
+    'incomeSources' |
+    'expenseSources' |
+    'incomeSourceTrend' |
+    'expenseSourceTrend' |
+    'topMonths' |
+    'chartRecommendations'
+>> & Pick<DashboardInsightCharts, 'collectionHealth'>;
+
+export type FinanceInsights = DashboardInsights & {
+    charts: FinanceInsightCharts;
+};
 
 
 export interface UpdateAcademicCycleDto {

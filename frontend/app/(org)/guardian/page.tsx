@@ -1,24 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import useSWR from 'swr';
 import {
     Bell,
     CalendarClock,
-    CheckCircle2,
     Clock,
     CreditCard,
     FileText,
     GraduationCap,
     Rows3,
-    Search,
     UserRoundCheck,
     Users,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { AttendanceStatus, FinalGradeResponse, GuardianOverview, GuardianStudentInsight, Role } from '@/types';
+import { AttendanceStatus, DashboardInsights, FinalGradeResponse, GuardianOverview, GuardianStudentInsight, Role, type InsightTimeRange } from '@/types';
+import InsightsOverview from '@/components/dashboard/InsightsOverview';
+import { getInsightRangePreview, InsightRangeControl } from '@/components/dashboard/InsightRangeControl';
 import { Badge } from '@/components/ui/Badge';
 import { BrandIcon } from '@/components/ui/Brand';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -227,11 +227,19 @@ interface TabProps {
     selectedInsight: GuardianStudentInsight;
     studentInsights: GuardianStudentInsight[];
     selectedStudentName: string;
+    insights?: DashboardInsights | null;
+    insightsLoading?: boolean;
 }
 
-function OverviewTab({ data, selectedInsight, studentInsights }: TabProps) {
+function OverviewTab({ data, selectedInsight, studentInsights, insights, insightsLoading }: TabProps) {
     return (
         <div className="space-y-3">
+            {insights ? (
+                <InsightsOverview insights={insights} />
+            ) : insightsLoading ? (
+                <Skeleton className="h-96 rounded-lg" />
+            ) : null}
+
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <ResourcePanel className="overflow-visible p-4">
                     <DetailCard label="Linked Students" value={data.overviewTotals.linkedStudents ?? studentInsights.length} helper="guardian account scope" />
@@ -569,6 +577,7 @@ export default function GuardianPortalPage() {
     const { getStringParam, updateQueryParams } = useUrlQueryState();
     const selectedStudentId = getStringParam('studentId', '');
     const view = normalizeView(getStringParam('view', 'overview'));
+    const [insightRange, setInsightRange] = useState<InsightTimeRange>('1M');
 
     const { data, isLoading, error, mutate } = useSWR<GuardianOverview>(
         token ? ['guardian-overview', selectedStudentId] as const : null,
@@ -580,6 +589,17 @@ export default function GuardianPortalPage() {
     const studentInsights = data?.studentInsights || [];
     const selectedInsight = data?.selectedInsight || studentInsights.find((insight) => insight.studentId === selectedStudent?.id) || null;
     const selectedStudentName = selectedInsight?.studentName || selectedStudent?.user?.name || 'Selected student';
+    const selectedInsightStudentId = selectedInsight?.studentId || selectedStudentId || undefined;
+
+    const { data: guardianInsights, isLoading: guardianInsightsLoading } = useSWR<DashboardInsights>(
+        token && selectedInsightStudentId && view === 'overview'
+            ? ['guardian-insights', token, selectedInsightStudentId, insightRange] as const
+            : null,
+        ([, t, studentId]) => api.org.getInsights(t as string, {
+            studentId: studentId as string,
+            range: insightRange,
+        })
+    );
 
     const studentOptions = useMemo(() => studentInsights.map((insight) => ({
         value: insight.studentId,
@@ -638,6 +658,8 @@ export default function GuardianPortalPage() {
         studentInsights,
         selectedStudentName,
         linkedStudents,
+        insights: guardianInsights,
+        insightsLoading: guardianInsightsLoading,
     };
 
     const studentHeaderAction = view === 'profile' ? null : (
@@ -647,6 +669,19 @@ export default function GuardianPortalPage() {
             onSelect={selectStudent}
         />
     );
+    const rangeHeaderAction = view === 'overview' ? (
+        <InsightRangeControl
+            value={insightRange}
+            onChange={setInsightRange}
+            preview={getInsightRangePreview(guardianInsights?.filters)}
+        />
+    ) : null;
+    const headerActions = studentHeaderAction || rangeHeaderAction ? (
+        <>
+            {studentHeaderAction}
+            {rangeHeaderAction}
+        </>
+    ) : null;
 
     if (view === 'timetable') {
         return (
@@ -683,7 +718,7 @@ export default function GuardianPortalPage() {
                     : [{ label: 'Guardian' }, { label: viewLabels[view] }, { label: selectedStudentName }]
                 }
                 meta={<Badge variant="primary" size="sm">{linkedStudents.length} linked</Badge>}
-                actions={studentHeaderAction}
+                actions={headerActions}
             />
 
             <div className="min-w-0">

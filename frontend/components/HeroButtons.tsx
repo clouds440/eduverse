@@ -8,6 +8,31 @@ import { BookOpen } from 'lucide-react';
 export function HeroButtons() {
     const { user, loading } = useAuth();
 
+    const dashboardRoutes: Partial<Record<Role, string | ((userId: string) => string)>> = {
+        [Role.SUPER_ADMIN]: "/admin",
+        [Role.PLATFORM_ADMIN]: "/admin",
+
+        [Role.FINANCE_MANAGER]: "/finance",
+
+        [Role.ORG_ADMIN]: "/overview",
+        [Role.SUB_ADMIN]: "/overview",
+
+        [Role.TEACHER]: (userId) => `/teachers/${userId}`,
+        [Role.ORG_MANAGER]: (userId) => `/teachers/${userId}`,
+
+        [Role.GUARDIAN]: "/guardian",
+        };
+
+        const getDashboardLink = () => {
+        if (!user) return "/not-found";
+
+        const route = dashboardRoutes[user.role as Role];
+
+        if (!route) return "/not-found";
+
+        return typeof route === "function" ? route(user.id) : route;
+    };
+
     if (loading) {
         return <div className="h-12"></div>; // Placeholder to avoid layout shift
     }
@@ -17,15 +42,7 @@ export function HeroButtons() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                     href={
-                        user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN
-                            ? '/admin'
-                            : user.role === Role.FINANCE_MANAGER
-                                ? '/finance'
-                            : user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN
-                                ? '/overview'
-                                : user.role === Role.TEACHER || user.role === Role.ORG_MANAGER
-                                    ? `/teachers/${user.id}`
-                                    : `/students/${user.id}`
+                        getDashboardLink()
                     }
                     className="bg-primary text-white px-8 py-3 text-center rounded-lg font-semibold hover:bg-primary/80 hover:-translate-y-0.5 transition-all shadow-lg"
                 >

@@ -1,17 +1,19 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import useSWR from 'swr';
+import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
-import { Section, FinalGradeResponse, Student, Role, Assessment, DashboardInsights, PaginatedResponse } from '@/types';
+import { Section, FinalGradeResponse, Student, Role, Assessment, DashboardInsights, PaginatedResponse, type InsightTimeRange } from '@/types';
 import { ShieldOff, GraduationCap, LayoutDashboard, Book, BookOpen, Trophy, CheckCircle, UserCircle, type LucideIcon } from 'lucide-react';
 import { Skeleton, DashboardSkeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import { NotFound } from '@/components/NotFound';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader, PageShell, ResourcePanel, type PageBreadcrumb } from '@/components/ui/PageShell';
+import { getInsightRangePreview, InsightRangeControl } from '@/components/dashboard/InsightRangeControl';
 
 import Overview from './_components/Overview';
 import Courses from './_components/Courses';
@@ -93,6 +95,7 @@ function StudentPortalContent() {
     const tabMeta = STUDENT_PORTAL_TABS[tab];
     const { user, token } = useAuth();
     const { dispatch } = useGlobal();
+    const [insightRange, setInsightRange] = useState<InsightTimeRange>('1M');
 
     const userId = params.userId as string;
 
@@ -116,8 +119,11 @@ function StudentPortalContent() {
     const assessmentsKey = shouldFetchData && (tab === 'courses' || tab === 'assessments') ? ['student-assessments', {}] as const : null;
     const { data: assessments, isLoading: assessmentsLoading, error: assessmentsError, mutate: mutateAssessments } = useSWR<Assessment[]>(assessmentsKey);
 
-    const insightsKey = shouldFetchData && tab === 'overview' ? ['student-insights'] as const : null;
-    const { data: insights, isLoading: insightsLoading, error: insightsError, mutate: mutateInsights } = useSWR<DashboardInsights>(insightsKey);
+    const insightsKey = shouldFetchData && tab === 'overview' ? ['student-insights', token, { range: insightRange }] as const : null;
+    const { data: insights, isLoading: insightsLoading, error: insightsError, mutate: mutateInsights } = useSWR<DashboardInsights>(
+        insightsKey,
+        ([, t]) => api.org.getInsights(t as string, { range: insightRange })
+    );
 
     const studentExists = validationError ? false : (studentData ? true : null);
     const sections = sectionsData?.data || [];
@@ -240,6 +246,11 @@ function StudentPortalContent() {
                 description={tabMeta.description}
                 icon={tabMeta.icon}
                 breadcrumbs={tabMeta.breadcrumbs}
+                actions={
+                    tab === 'overview'
+                        ? <InsightRangeControl value={insightRange} onChange={setInsightRange} preview={getInsightRangePreview(insights?.filters)} />
+                        : undefined
+                }
             />
 
             {user?.status === 'ALUMNI' && (

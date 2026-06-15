@@ -195,6 +195,15 @@ export default function LoginPage() {
                 Get started free
               </Link>
             </p>
+            {/* Test Login */}
+            <div className="text-center space-y-2">
+              <p>OR</p>
+              <p>
+                <Link href="/test-login" className="text-primary mx-auto hover:text-primary/80 transition-colors font-bold">
+                  Use test login
+                </Link>
+              </p>
+            </div>
           </form>
         </div>
 

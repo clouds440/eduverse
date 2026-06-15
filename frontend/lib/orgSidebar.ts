@@ -51,7 +51,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         return links;
     }
 
-    if (user?.role !== Role.GUARDIAN) {
+    if (user?.role !== Role.GUARDIAN && user?.role !== Role.FINANCE_MANAGER) {
         links.push({ id: 'DASHBOARD', label: 'Overview', href: overviewHrefFor(user), icon: LayoutDashboard });
     }
     links.push({

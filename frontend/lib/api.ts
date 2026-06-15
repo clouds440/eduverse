@@ -9,9 +9,9 @@ import type {
     UpdateGradeRequest, CreateSubmissionRequest, FinalGradeResponse, MailTarget,
     Chat, ChatMessage, Notification, Announcement, TargetType, AnnouncementPriority, User,
     ThemeMode, SectionSchedule, TimetableEntry, AttendanceRecord, SectionAttendanceResponse,
-    RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights,
+    RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
-    FinancialStructure, FinancialEntry, Transaction, FinanceStats, MessageResponse, AuditLogItem,
+    FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, MessageResponse, AuditLogItem,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, OrgUserCounts
 } from '@/types';
@@ -431,8 +431,8 @@ export const api = {
             request<T>('/org/profile', { token }),
         updateProfile: <T = Student | Teacher>(data: UpdateStudentRequest | UpdateTeacherRequest, token: string) =>
             request<T>('/org/profile', { method: 'PATCH', body: JSON.stringify(data), token }),
-        getInsights: (token: string) =>
-            request<DashboardInsights>('/org/insights', { token }),
+        getInsights: (token: string, params: InsightsQueryParams = {}) =>
+            request<DashboardInsights>(`/org/insights${buildQueryString(params as QueryParams)}`, { token }),
 
         // --- GPA Policies ---
         getGpaPolicies: (token: string, params: { includeArchived?: boolean } = {}) =>
@@ -667,5 +667,7 @@ export const api = {
             request<Transaction[]>(`/finance/transactions${buildQueryString(params)}`, { token }),
         getStats: (token: string) =>
             request<FinanceStats>('/finance/stats', { token }),
+        getInsights: (token: string, params: InsightsQueryParams & { currency?: string } = {}) =>
+            request<FinanceInsights>(`/finance/insights${buildQueryString(params as QueryParams)}`, { token }),
     }
 };

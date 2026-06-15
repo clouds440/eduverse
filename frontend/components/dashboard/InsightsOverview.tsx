@@ -3,19 +3,13 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight, CalendarDays, Sparkles, TrendingUp, BarChart3, ChevronDown, ChevronUp, Activity, Users, BookOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { DashboardInsights, DashboardInsightItem, Tone, Role } from '@/types';
+import { DashboardInsights, DashboardInsightItem, Tone } from '@/types';
 import { Badge } from '@/components/ui/Badge';
-import {
-  InsightLineChart,
-  InsightBarChart,
-  InsightPieChart,
-  CompletionBarChart,
-  PerformanceChart,
-  COLORS,
-} from '@/components/charts/ChartComponents';
+import { hasInsightCharts, InsightChartsGrid } from './InsightChartsGrid';
 
 interface InsightsOverviewProps {
   insights: DashboardInsights;
+  actions?: ReactNode;
 }
 
 const toneClasses: Record<Tone, string> = {
@@ -80,14 +74,6 @@ function ToggleButton({
       {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       <span className="hidden sm:inline">{isOpen ? openLabel : closedLabel}</span>
     </button>
-  );
-}
-
-function ChartPanel({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <section className={`rounded-lg border border-border/70 bg-background/60 p-3 shadow-xs sm:p-4 ${className}`}>
-      {children}
-    </section>
   );
 }
 
@@ -171,92 +157,12 @@ function SummaryCard({ card, index }: { card: DashboardInsights['summaryCards'][
   return card.href ? <Link key={uniqueKey} href={card.href}>{content}</Link> : <div key={uniqueKey}>{content}</div>;
 }
 
-export default function InsightsOverview({ insights }: InsightsOverviewProps) {
+export default function InsightsOverview({ insights, actions }: InsightsOverviewProps) {
   const { charts } = insights;
   const [showCharts, setShowCharts] = useState(true);
   const [showGroups, setShowGroups] = useState(true);
   const [showActivity, setShowActivity] = useState(true);
-
-  // Org Admin Charts
-  const orgAdminCharts = insights.role === Role.ORG_ADMIN || insights.role === Role.SUB_ADMIN || insights.role === Role.ORG_MANAGER ? (
-    <>
-      {charts?.enrollmentTrend && charts.enrollmentTrend.length > 0 && (
-        <ChartPanel>
-          <InsightLineChart data={charts.enrollmentTrend} title="Student Enrollment Trend (30 Days)" color={COLORS.info} />
-        </ChartPanel>
-      )}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-          <ChartPanel>
-            <InsightLineChart data={charts.attendanceTrend} title="Attendance Coverage Trend (30 Days)" color={COLORS.success} />
-          </ChartPanel>
-        )}
-        {charts?.mailStatus && charts.mailStatus.length > 0 && (
-          <ChartPanel>
-            <InsightPieChart data={charts.mailStatus.map(item => ({ name: item.status, value: item.count }))} title="Mail Status Distribution" />
-          </ChartPanel>
-        )}
-      </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {charts?.sectionCapacity && charts.sectionCapacity.length > 0 && (
-          <ChartPanel>
-            <InsightBarChart data={charts.sectionCapacity} dataKey="enrolled" nameKey="name" title="Section Capacity" color={COLORS.purple} disableHover />
-          </ChartPanel>
-        )}
-        {charts?.teacherWorkload && charts.teacherWorkload.length > 0 && (
-          <ChartPanel>
-            <InsightBarChart data={charts.teacherWorkload} dataKey="sections" nameKey="name" title="Teacher Workload" color={COLORS.warning} horizontal disableHover />
-          </ChartPanel>
-        )}
-      </div>
-    </>
-  ) : null;
-
-  // Teacher Charts
-  const teacherCharts = insights.role === Role.TEACHER ? (
-    <>
-      {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-        <ChartPanel>
-          <InsightLineChart data={charts.attendanceTrend} title="Attendance Follow-Through Trend (30 Days)" color={COLORS.success} />
-        </ChartPanel>
-      )}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {charts?.gradeDistribution && charts.gradeDistribution.length > 0 && (
-          <ChartPanel>
-            <InsightPieChart data={charts.gradeDistribution.map(item => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
-          </ChartPanel>
-        )}
-        {charts?.assessmentCompletion && charts.assessmentCompletion.length > 0 && (
-          <ChartPanel>
-            <CompletionBarChart data={charts.assessmentCompletion} title="Assessment Completion Rates" />
-          </ChartPanel>
-        )}
-      </div>
-    </>
-  ) : null;
-
-  // Student Charts
-  const studentCharts = insights.role === Role.STUDENT ? (
-    <>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {charts?.attendanceTrend && charts.attendanceTrend.length > 0 && (
-          <ChartPanel>
-            <InsightLineChart data={charts.attendanceTrend} title="Attendance Trend (30 Days)" color={COLORS.success} />
-          </ChartPanel>
-        )}
-        {charts?.gradeDistribution && charts.gradeDistribution.length > 0 && (
-          <ChartPanel>
-            <InsightPieChart data={charts.gradeDistribution.map(item => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
-          </ChartPanel>
-        )}
-      </div>
-      {charts?.studentPerformance && charts.studentPerformance.length > 0 && (
-        <ChartPanel>
-          <PerformanceChart data={charts.studentPerformance} title="Performance by Subject" />
-        </ChartPanel>
-      )}
-    </>
-  ) : null;
+  const hasCharts = hasInsightCharts(insights.role, charts);
 
   return (
     <div className="space-y-6">
@@ -278,13 +184,20 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
               {insights.headline.subtitle}
             </p>
           </div>
-          <div className="relative inline-flex items-center gap-3 rounded-md border border-border bg-background/80 px-3 py-2 shadow-xs">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-[10px] font-black tracking-[0.25em] text-muted-foreground">Live snapshot</p>
-              <p className="text-sm font-black text-foreground">
-                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-              </p>
+          <div className="relative flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+            {actions}
+            <div className="inline-flex items-center gap-3 rounded-md border border-border bg-background/80 px-3 py-2 shadow-xs">
+              <CalendarDays className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-[10px] font-black tracking-[0.25em] text-muted-foreground">
+                  {insights.filters?.selectedRange ? `${insights.filters.selectedRange} window` : 'Live snapshot'}
+                </p>
+                <p className="text-sm font-black text-foreground">
+                  {insights.filters?.from && insights.filters?.to
+                    ? `${new Date(insights.filters.from).toLocaleDateString()} - ${new Date(insights.filters.to).toLocaleDateString()}`
+                    : new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -334,16 +247,14 @@ export default function InsightsOverview({ insights }: InsightsOverviewProps) {
       )}
 
       {/* Charts Section with Toggle */}
-      {charts && (orgAdminCharts || teacherCharts || studentCharts) && (
+      {charts && hasCharts && (
         <SectionFrame
           title="Data Visualizations"
           icon={<BarChart3 className="h-5 w-5" />}
           action={<ToggleButton isOpen={showCharts} onClick={() => setShowCharts(!showCharts)} openLabel="Hide charts" closedLabel="Show charts" />}
         >
           {showCharts && (
-            <div className="space-y-6">
-              {orgAdminCharts || teacherCharts || studentCharts}
-            </div>
+            <InsightChartsGrid role={insights.role} charts={charts} />
           )}
         </SectionFrame>
       )}

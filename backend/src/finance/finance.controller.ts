@@ -1,6 +1,8 @@
-import { Controller, Post, Get, Patch, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { BadRequestException, Controller, Post, Get, Patch, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { FinanceService } from './finance.service';
 import { CreateFinancialStructureDto, UpdateFinancialStructureDto, CreateManualEntryDto, MarkPaidDto, ConfirmEntryDto } from './finance.dto';
+import { InsightsService } from '../insights/insights.service';
+import { FinanceInsightsQueryDto } from '../insights/dto/insights-query.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -14,7 +16,10 @@ import { BillingCycle, EntryStatus, FinanceAssignmentSource, FinanceCategory, Fi
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
 export class FinanceController {
-  constructor(private readonly financeService: FinanceService) { }
+  constructor(
+    private readonly financeService: FinanceService,
+    private readonly insightsService: InsightsService,
+  ) { }
 
   @Post('structures')
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
@@ -121,6 +126,20 @@ export class FinanceController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.financeService.getStats(orgId, req.user);
+  }
+
+  @Get('insights')
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER)
+  getInsights(
+    @Query('organizationId') orgId: string | undefined,
+    @Request() req: AuthenticatedRequest,
+    @Query() query: FinanceInsightsQueryDto,
+  ) {
+    const finalOrgId = orgId || req.user.organizationId;
+    if (!finalOrgId) {
+      throw new BadRequestException('Organization is required');
+    }
+    return this.insightsService.getFinanceInsights(finalOrgId, req.user, query);
   }
 
   @Post('entries/manual')
