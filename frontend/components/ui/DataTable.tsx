@@ -284,9 +284,9 @@ export function DataTable<T>({
                                 `}
                             >
                                 <div className="flex items-start justify-between gap-2.5">
-                                    <div className="min-w-0 flex-1 space-y-2">
+                                    <div className="min-w-0 flex space-y-2">
                                         {showSerialNumber && (
-                                            <p className="text-[10px] font-black tracking-[0.2em] text-muted-foreground/60">
+                                            <p className="-translate-x-2 -translate-y-2 text-[10px] font-black tracking-[0.2em] text-muted-foreground/60">
                                                 #{(currentPage - 1) * pageSize + rowIndex + 1}
                                             </p>
                                         )}
@@ -364,7 +364,7 @@ export function DataTable<T>({
                     className={`w-full text-left text-xs sm:text-sm text-foreground ${tableLayout === 'fixed' ? 'table-fixed' : 'table-auto'}`}
                     style={{ minWidth: columnWidths.reduce((a, b) => a + b, 0) }}
                 >
-                    <thead className="bg-primary/10 text-[10px] sm:text-[11px] tracking-wider font-semibold opacity-95 border-b border-border/50 select-none sticky top-0 z-10 backdrop-blur-xl shadow-md">
+                    <thead className="bg-primary/10 text-[10px] sm:text-[11px] tracking-wider font-semibold opacity-95 select-none sticky top-0 z-10 backdrop-blur-xl shadow-md">
                         <tr>
                             {displayColumns.map((col, index) => {
                                 const key = col.sortKey || (typeof col.accessor === 'string' ? col.accessor : '');
@@ -377,7 +377,7 @@ export function DataTable<T>({
                                             width: columnWidths[index]
                                         }}
                                         className={`
-                                            py-3 sm:py-5 border-b border-border/50 whitespace-nowrap relative group/th overflow-visible
+                                            py-2.5 whitespace-nowrap relative group/th overflow-visible
                                             ${isSerialColumn(index) ? 'text-center' : 'px-3 sm:px-6'}
                                             ${col.sortable ? 'cursor-pointer hover:bg-primary/10' : ''}
                                         `}
@@ -420,7 +420,7 @@ export function DataTable<T>({
                     <tbody className="divide-y divide-border/10 relative">
                         {data.length === 0 && !isLoading ? (
                             <tr>
-                                <td colSpan={displayColumns.length} className="p-8 sm:p-12 text-center bg-card/30 border border-dashed border-border/50">
+                                <td colSpan={displayColumns.length} className="p-8 sm:p-12 text-center bg-card/30">
                                     <EmptyState title={emptyTitle} description={emptyDescription} />
                                 </td>
                             </tr>
@@ -432,7 +432,7 @@ export function DataTable<T>({
                                     onKeyDown={(event) => handleRowKeyDown(event, row)}
                                     tabIndex={onRowClick ? 0 : undefined}
                                     className={`
-                                        transition-colors duration-200 group relative h-16 sm:h-20 border-b border-border/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30
+                                        transition-colors duration-200 group relative h-16 sm:h-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30
                                         ${(!disableZebra && rowIndex % 2 === 0) ? 'bg-card' : (!disableZebra ? 'bg-muted/20' : '')}
                                         ${onRowClick ? 'cursor-pointer hover:bg-primary/5' : ''}
                                         ${getRowClassName ? getRowClassName(row) : ''}
@@ -448,7 +448,7 @@ export function DataTable<T>({
                                                 style={{
                                                     width: columnWidths[index]
                                                 }}
-                                                className={`py-2 sm:py-3 align-middle border border-border px-2 ${isSerialColumn(index) ? 'pl-1 text-center' : (isActions ? 'overflow-visible' : 'overflow-hidden px-3 sm:px-6')}`}
+                                                className={`py-2 sm:py-3 align-middle border-b border-border px-2 ${isSerialColumn(index) ? 'pl-1 text-center' : (isActions ? 'overflow-visible' : 'overflow-hidden px-3 sm:px-6')}`}
                                             >
                                                 {isActions ? (
                                                     <div className="flex shrink-0 flex-nowrap w-max">

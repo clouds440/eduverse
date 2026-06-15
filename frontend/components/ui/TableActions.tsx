@@ -58,7 +58,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
     const { canWrite } = useAccess();
     // Select the appropriate icon based on variant
     const EditIcon = variant === 'user' ? UserPen : Pencil;
-    const actionButtonClass = "inline-flex h-9 min-w-9 items-center justify-center gap-2 rounded-lg border px-2.5 text-sm shadow-xs transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50";
+    const actionButtonClass = "inline-flex h-7 items-center justify-center gap-1.5 rounded-lg border p-2 text-sm shadow-xs transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50";
 
     return (
         <div className={`flex gap-1 items-center ${className}`} role="group" aria-label="Row actions">
