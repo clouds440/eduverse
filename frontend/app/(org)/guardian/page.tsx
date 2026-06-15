@@ -151,54 +151,6 @@ function StudentInsightCard({
     );
 }
 
-function StudentSwitcher({
-    selectedInsight,
-    studentInsights,
-    studentOptions,
-    onSelect,
-}: {
-    selectedInsight: GuardianStudentInsight;
-    studentInsights: GuardianStudentInsight[];
-    studentOptions: { value: string; label: string }[];
-    onSelect: (studentId: string) => void;
-}) {
-    return (
-        <ResourcePanel className="sticky top-0 z-30 overflow-visible border-primary/10 bg-card/95 p-3 shadow-md backdrop-blur">
-            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,320px)_minmax(0,1fr)] lg:items-center">
-                <div className="min-w-0">
-                    <p className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">Currently viewing</p>
-                    <CustomSelect
-                        value={selectedInsight.studentId}
-                        onChange={onSelect}
-                        options={studentOptions}
-                        searchable
-                    />
-                    <div className="mt-2 flex min-w-0 flex-wrap gap-2">
-                        <Badge variant="neutral" size="sm">{selectedInsight.sections.length} sections</Badge>
-                        <Badge variant={selectedInsight.finance.overdueCount > 0 ? 'warning' : 'success'} size="sm">
-                            {selectedInsight.finance.overdueCount > 0 ? `${selectedInsight.finance.overdueCount} overdue` : 'Fees ok'}
-                        </Badge>
-                        <Badge variant={attendanceVariant(selectedInsight.attendance.latestStatus)} size="sm">
-                            {selectedInsight.attendance.latestStatus || 'No attendance yet'}
-                        </Badge>
-                    </div>
-                </div>
-                <div className="hidden min-w-0 gap-2 overflow-x-auto pb-1 md:flex custom-scrollbar">
-                    {studentInsights.map((insight) => (
-                        <StudentInsightCard
-                            key={insight.studentId}
-                            insight={insight}
-                            selected={insight.studentId === selectedInsight.studentId}
-                            onSelect={() => onSelect(insight.studentId)}
-                            compact
-                        />
-                    ))}
-                </div>
-            </div>
-        </ResourcePanel>
-    );
-}
-
 function GuardianStudentHeaderAction({
     selectedInsight,
     studentOptions,
@@ -232,8 +184,16 @@ interface TabProps {
 }
 
 function OverviewTab({ data, selectedInsight, studentInsights, insights, insightsLoading }: TabProps) {
+    const otherStudents = studentInsights.filter((insight) => insight.studentId !== selectedInsight.studentId);
+
     return (
         <div className="space-y-3">
+            <StudentInsightCard
+                insight={selectedInsight}
+                selected
+                onSelect={() => undefined}
+            />
+
             {insights ? (
                 <InsightsOverview insights={insights} />
             ) : insightsLoading ? (
@@ -255,16 +215,18 @@ function OverviewTab({ data, selectedInsight, studentInsights, insights, insight
                 </ResourcePanel>
             </div>
 
+            {otherStudents.length > 0 && (
             <div className="grid min-w-0 gap-3 xl:grid-cols-3">
-                {studentInsights.map((insight) => (
+                {otherStudents.map((insight) => (
                     <StudentInsightCard
                         key={insight.studentId}
                         insight={insight}
-                        selected={insight.studentId === selectedInsight.studentId}
+                        selected={false}
                         onSelect={() => undefined}
                     />
                 ))}
             </div>
+            )}
         </div>
     );
 }
@@ -642,6 +604,7 @@ export default function GuardianPortalPage() {
                     description="Student updates will appear here after your account is linked to a student."
                     icon={UserRoundCheck}
                     breadcrumbs={[{ label: 'Guardian' }, { label: 'Overview' }]}
+                    showDateTime
                 />
                 <EmptyState
                     icon={Users}
@@ -708,7 +671,7 @@ export default function GuardianPortalPage() {
     }
 
     return (
-        <PageShell className="overflow-visible">
+        <PageShell>
             <PageHeader
                 title={viewLabels[view]}
                 description={view === 'profile' ? 'Guardian account details and linked-student summary.' : 'Use the student switcher, then open a guardian section from the sidebar.'}
@@ -719,9 +682,10 @@ export default function GuardianPortalPage() {
                 }
                 meta={<Badge variant="primary" size="sm">{linkedStudents.length} linked</Badge>}
                 actions={headerActions}
+                showDateTime
             />
 
-            <div className="min-w-0">
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto custom-scrollbar">
                 {renderGuardianTab(view, tabProps)}
             </div>
         </PageShell>

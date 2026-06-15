@@ -19,6 +19,7 @@ interface PageHeaderProps {
     icon?: LucideIcon;
     meta?: React.ReactNode;
     actions?: React.ReactNode;
+    showDateTime?: boolean;
     breadcrumbs?: PageBreadcrumb[];
     className?: string;
 }
@@ -139,7 +140,7 @@ function getPageScrollState(header: HTMLElement) {
     return { scrollTop: maxScrollTop, scrollRange: maxScrollRange };
 }
 
-export function PageHeader({ title, description, icon: Icon, meta, actions, breadcrumbs, className }: PageHeaderProps) {
+export function PageHeader({ title, description, icon: Icon, meta, actions, showDateTime = true, breadcrumbs, className }: PageHeaderProps) {
     const pathname = usePathname();
     const headerRef = useRef<HTMLElement>(null);
     const compactAllowedRef = useRef(false);
@@ -147,6 +148,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
     const [isScrolled, setIsScrolled] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [actionsOpen, setActionsOpen] = useState(true);
+    const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
     const isCompact = isMobile || isScrolled;
     const hasActions = Boolean(actions);
 
@@ -158,6 +160,13 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
         mediaQuery.addEventListener('change', updateMobile);
         return () => mediaQuery.removeEventListener('change', updateMobile);
     }, []);
+
+    useEffect(() => {
+        if (!showDateTime) return;
+
+        const interval = window.setInterval(() => setCurrentDateTime(new Date()), 1000);
+        return () => window.clearInterval(interval);
+    }, [showDateTime]);
 
     useEffect(() => {
         const header = headerRef.current;
@@ -272,18 +281,34 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, brea
                         )}
                     </div>
                 </div>
-                {hasActions && (
-                    <button
-                        type="button"
-                        onClick={() => setActionsOpen((open) => !open)}
-                        className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                        aria-expanded={actionsOpen}
-                        aria-label={actionsOpen ? 'Collapse page actions' : 'Expand page actions'}
-                        title={actionsOpen ? 'Collapse actions' : 'Expand actions'}
-                    >
-                        {actionsOpen ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <MoreHorizontal className="h-4 w-4" aria-hidden="true" />}
-                    </button>
-                )}
+                <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
+                    {showDateTime && (
+                        <time
+                            dateTime={currentDateTime.toISOString()}
+                            className={cn(
+                                'min-w-0 rounded-md border border-border/70 bg-background/70 px-2.5 py-1.5 text-right font-black text-foreground shadow-xs',
+                                isCompact
+                                    ? 'max-w-36 truncate text-[11px] sm:max-w-52'
+                                    : 'hidden max-w-64 text-xs sm:block',
+                            )}
+                            title={currentDateTime.toLocaleString()}
+                        >
+                            {currentDateTime.toLocaleString()}
+                        </time>
+                    )}
+                    {hasActions && (
+                        <button
+                            type="button"
+                            onClick={() => setActionsOpen((open) => !open)}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                            aria-expanded={actionsOpen}
+                            aria-label={actionsOpen ? 'Collapse page actions' : 'Expand page actions'}
+                            title={actionsOpen ? 'Collapse actions' : 'Expand actions'}
+                        >
+                            {actionsOpen ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <MoreHorizontal className="h-4 w-4" aria-hidden="true" />}
+                        </button>
+                    )}
+                </div>
             </div>
             {hasActions && actionsOpen && (
                 <div className="mt-3 border-t border-border/60 pt-3">
