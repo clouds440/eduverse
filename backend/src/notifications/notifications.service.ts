@@ -18,6 +18,8 @@ export interface CreateNotificationDto {
   metadata?: Prisma.JsonValue;
 }
 
+export type NotificationDedupeMetadata = Record<string, string | number | boolean>;
+
 export interface WebPushSubscriptionDto {
   endpoint?: string;
   expirationTime?: number | null;
@@ -67,6 +69,34 @@ export class NotificationsService {
     }).catch((e) => console.error('Failed to send push notification:', e));
 
     return notification;
+  }
+
+  async createNotificationOnce(
+    dto: CreateNotificationDto,
+    metadataMatch: NotificationDedupeMetadata = {},
+  ) {
+    const metadataFilters: Prisma.NotificationWhereInput[] = Object.entries(metadataMatch)
+      .map(([key, value]) => ({
+        metadata: {
+          path: [key],
+          equals: value as Prisma.InputJsonValue,
+        },
+      }));
+
+    const where: Prisma.NotificationWhereInput = {
+      userId: dto.userId,
+      ...(dto.type ? { type: dto.type } : {}),
+      ...(metadataFilters.length > 0
+        ? { AND: metadataFilters }
+        : dto.actionUrl
+          ? { actionUrl: dto.actionUrl }
+          : {}),
+    };
+
+    const existing = await this.prisma.notification.findFirst({ where });
+    if (existing) return existing;
+
+    return this.createNotification(dto);
   }
 
   async getUserNotifications(

@@ -154,14 +154,14 @@ export class FinanceCron {
     const body = `${structureTitle} for ${amount.toLocaleString()} is due ${dueDate.toLocaleDateString()}.`;
 
     try {
-      await this.notifications.createNotification({
+      await this.notifications.createNotificationOnce({
         userId,
         title,
         body,
         actionUrl: isExpense ? '/finance/entries' : '/fees',
         type: 'FINANCE_ENTRY_CREATED',
         metadata: { entryId, targetType: assignment.targetType },
-      });
+      }, { entryId });
     } catch (error) {
       this.logger.warn(`Failed to notify finance entry ${entryId}: ${error instanceof Error ? error.message : error}`);
     }

@@ -53,32 +53,14 @@ export class RemindersService {
       for (const enrollment of enrollments) {
         const studentUser = enrollment.student.user;
 
-        // Avoid duplicate notifications (idempotency check)
-        const existing = await this.prisma.notification.findFirst({
-          where: {
-            userId: studentUser.id,
-            type: 'ASSESSMENT_DUE_SOON',
-            createdAt: {
-              gte: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), // within last 48h
-            },
-            // Prisma Json filter
-            metadata: {
-              path: ['assessmentId'],
-              equals: assessment.id,
-            },
-          },
-        });
-
-        if (!existing) {
-          await this.notifications.createNotification({
-            userId: studentUser.id,
-            title: 'Assignment Due Soon',
-            body: `Reminder: Your assessment "${assessment.title}" is due in 24 hours.`,
-            type: 'ASSESSMENT_DUE_SOON',
-            actionUrl: `/assessments/${assessment.id}`,
-            metadata: { assessmentId: assessment.id },
-          });
-        }
+        await this.notifications.createNotificationOnce({
+          userId: studentUser.id,
+          title: 'Assignment Due Soon',
+          body: `Reminder: Your assessment "${assessment.title}" is due in 24 hours.`,
+          type: 'ASSESSMENT_DUE_SOON',
+          actionUrl: `/assessments/${assessment.id}`,
+          metadata: { assessmentId: assessment.id },
+        }, { assessmentId: assessment.id });
       }
     }
   }
@@ -142,65 +124,31 @@ export class RemindersService {
       for (const enrollment of missingSubmissions) {
         const studentUser = enrollment.student.user;
 
-        // Avoid duplicate notifications (idempotency check)
-        const existing = await this.prisma.notification.findFirst({
-          where: {
-            userId: studentUser.id,
-            type: 'ASSESSMENT_OVERDUE',
-            createdAt: {
-              gte: new Date(now.getTime() - 24 * 60 * 60 * 1000), // within last 24h
-            },
-            metadata: {
-              path: ['assessmentId'],
-              equals: assessment.id,
-            },
-          },
-        });
-
-        if (!existing) {
-          await this.notifications.createNotification({
-            userId: studentUser.id,
-            title: 'Assessment Overdue',
-            body: `Your assessment "${assessment.title}" is overdue. Please provide an excuse or submit your work as soon as possible.`,
-            type: 'ASSESSMENT_OVERDUE',
-            actionUrl: `/students/${studentUser.id}?tab=assessments&assessmentId=${assessment.id}`,
-            metadata: { assessmentId: assessment.id },
-          });
-        }
+        await this.notifications.createNotificationOnce({
+          userId: studentUser.id,
+          title: 'Assessment Overdue',
+          body: `Your assessment "${assessment.title}" is overdue. Please provide an excuse or submit your work as soon as possible.`,
+          type: 'ASSESSMENT_OVERDUE',
+          actionUrl: `/students/${studentUser.id}?tab=assessments&assessmentId=${assessment.id}`,
+          metadata: { assessmentId: assessment.id },
+        }, { assessmentId: assessment.id });
       }
 
       // Notify teachers about missing submissions (only if there are missing submissions)
       if (missingSubmissions.length > 0) {
         for (const teacher of assessment.section.teachers) {
-          // Avoid duplicate notifications (idempotency check)
-          const existing = await this.prisma.notification.findFirst({
-            where: {
-              userId: teacher.user.id,
-              type: 'ASSESSMENT_OVERDUE_TEACHER',
-              createdAt: {
-                gte: new Date(now.getTime() - 24 * 60 * 60 * 1000), // within last 24h
-              },
-              metadata: {
-                path: ['assessmentId'],
-                equals: assessment.id,
-              },
-            },
-          });
+          const studentNames = missingSubmissions
+            .map(e => e.student.user.name)
+            .join(', ');
 
-          if (!existing) {
-            const studentNames = missingSubmissions
-              .map(e => e.student.user.name)
-              .join(', ');
-
-            await this.notifications.createNotification({
-              userId: teacher.user.id,
-              title: 'Assessment Overdue - Missing Submissions',
-              body: `${missingSubmissions.length} student(s) have not submitted "${assessment.title}": ${studentNames}`,
-              type: 'ASSESSMENT_OVERDUE_TEACHER',
-              actionUrl: `/sections/${assessment.sectionId}/assessments/${assessment.id}`,
-              metadata: { assessmentId: assessment.id },
-            });
-          }
+          await this.notifications.createNotificationOnce({
+            userId: teacher.user.id,
+            title: 'Assessment Overdue - Missing Submissions',
+            body: `${missingSubmissions.length} student(s) have not submitted "${assessment.title}": ${studentNames}`,
+            type: 'ASSESSMENT_OVERDUE_TEACHER',
+            actionUrl: `/sections/${assessment.sectionId}/assessments/${assessment.id}`,
+            metadata: { assessmentId: assessment.id, sectionId: assessment.sectionId },
+          }, { assessmentId: assessment.id, sectionId: assessment.sectionId });
         }
       }
     }
