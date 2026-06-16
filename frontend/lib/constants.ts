@@ -33,5 +33,6 @@ export const DASHBOARD_MODULES = [
     'finance',
     'fees',
     'guardians',
+    'departments',
     'buildings-and-rooms'
 ];

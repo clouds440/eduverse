@@ -13,6 +13,7 @@ import { CreateAssessmentDto } from './dto/create-assessment.dto';
 import { UpdateAssessmentDto } from './dto/update-assessment.dto';
 import { UpdateGradeDto } from './dto/update-grade.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
+import { getDepartmentScope, sectionDepartmentScopeWhere } from '../common/department-scope';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -33,6 +34,7 @@ export type GradeFinalizationStatus =
 interface GradeFinalizationFilters {
   academicCycleId?: string;
   courseId?: string;
+  departmentId?: string;
   sectionId?: string;
   teacherId?: string;
   status?: GradeFinalizationStatus | 'ALL';
@@ -553,6 +555,12 @@ export class AssessmentsService {
     }
 
     const andFilters: import('@prisma/client').Prisma.AssessmentWhereInput[] = [];
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, user);
+    const scopeWhere = sectionDepartmentScopeWhere(departmentScope);
+
+    if (Object.keys(scopeWhere).length > 0) {
+      andFilters.push({ section: scopeWhere });
+    }
 
     if (filters.teacherId) {
       andFilters.push({
@@ -570,6 +578,7 @@ export class AssessmentsService {
       organizationId: orgId,
       ...(filters.academicCycleId ? { academicCycleId: filters.academicCycleId } : {}),
       ...(filters.courseId ? { courseId: filters.courseId } : {}),
+      ...(filters.departmentId ? { course: { departmentId: filters.departmentId } } : {}),
       ...(filters.sectionId ? { sectionId: filters.sectionId } : {}),
       ...(andFilters.length ? { AND: andFilters } : {}),
     };
@@ -578,7 +587,14 @@ export class AssessmentsService {
       where: whereClause,
       include: {
         academicCycle: { select: { id: true, name: true, gpaPolicy: { select: { id: true, name: true } } } },
-        course: { select: { id: true, name: true } },
+        course: {
+          select: {
+            id: true,
+            name: true,
+            departmentId: true,
+            department: { select: { id: true, name: true, code: true, color: true } },
+          },
+        },
         section: {
           select: {
             id: true,

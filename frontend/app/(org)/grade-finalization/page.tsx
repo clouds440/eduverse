@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { AlertTriangle, CheckCircle2, FileText, GraduationCap, RefreshCw, Search, Users } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle2, FileText, GraduationCap, RefreshCw, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -11,6 +11,7 @@ import {
     AcademicCycle,
     BadgeVariant,
     Course,
+    Department,
     GradeFinalizationFilters,
     GradeFinalizationRow,
     GradeFinalizationStatus,
@@ -32,6 +33,7 @@ import { StatusBanner } from '@/components/ui/StatusBanner';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { formatDepartmentLabel } from '@/lib/utils';
 
 const STATUS_OPTIONS: { value: GradeFinalizationStatus | 'ALL'; label: string }[] = [
     { value: 'ALL', label: 'All statuses' },
@@ -75,6 +77,7 @@ export default function GradeFinalizationPage() {
     const search = getStringParam('search', '');
     const academicCycleId = getStringParam('academicCycleId', '');
     const courseId = getStringParam('courseId', '');
+    const departmentId = getStringParam('departmentId', '');
     const sectionId = getStringParam('sectionId', '');
     const teacherId = getStringParam('teacherId', '');
     const status = (getStringParam('status', 'ALL') as GradeFinalizationStatus | 'ALL');
@@ -83,9 +86,10 @@ export default function GradeFinalizationPage() {
     const filters = useMemo<GradeFinalizationFilters>(() => ({
         academicCycleId: academicCycleId || undefined,
         courseId: courseId || undefined,
+        departmentId: departmentId || undefined,
         sectionId: sectionId || undefined,
         status: status === 'ALL' ? undefined : status,
-    }), [academicCycleId, courseId, sectionId, status]);
+    }), [academicCycleId, courseId, departmentId, sectionId, status]);
 
     const dashboardKey = token && canAccess ? ['grade-finalization', filters] as const : null;
     const { data: rows = [], error, isLoading, mutate } = useSWR<GradeFinalizationRow[]>(
@@ -98,6 +102,9 @@ export default function GradeFinalizationPage() {
     );
     const { data: coursesData } = useSWR<PaginatedResponse<Course>>(
         token && canAccess ? ['courses', { limit: 1000 }] as const : null
+    );
+    const { data: departmentsData } = useSWR<PaginatedResponse<Department>>(
+        token && canAccess ? ['departments', { limit: 1000, isActive: true }] as const : null
     );
     const { data: sectionsData } = useSWR<PaginatedResponse<Section>>(
         token && canAccess ? ['sections', { limit: 1000 }] as const : null
@@ -122,6 +129,8 @@ export default function GradeFinalizationPage() {
                 row.assessmentTitle,
                 row.assessmentType,
                 row.course.name,
+                row.course.department?.name,
+                row.course.department?.code,
                 row.section.name,
                 row.academicCycle?.name,
                 row.academicCycle?.gpaPolicyName,
@@ -147,6 +156,7 @@ export default function GradeFinalizationPage() {
         ...(search ? [{ key: 'search', label: 'Search', value: search, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
         ...(academicCycleId ? [{ key: 'academicCycleId', label: 'Cycle', value: cyclesData?.data?.find((cycle) => cycle.id === academicCycleId)?.name || 'Selected cycle', onRemove: () => updateQueryParams({ academicCycleId: undefined, page: 1 }) }] : []),
         ...(courseId ? [{ key: 'courseId', label: 'Course', value: coursesData?.data?.find((course) => course.id === courseId)?.name || 'Selected course', onRemove: () => updateQueryParams({ courseId: undefined, page: 1 }) }] : []),
+        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }) }] : []),
         ...(sectionId ? [{ key: 'sectionId', label: 'Section', value: sectionsData?.data?.find((section) => section.id === sectionId)?.name || 'Selected section', onRemove: () => updateQueryParams({ sectionId: undefined, page: 1 }) }] : []),
         ...(teacherId ? [{ key: 'teacherId', label: 'Teacher', value: teacherOptions.find((teacher) => teacher.value === teacherId)?.label || 'Selected teacher', onRemove: () => updateQueryParams({ teacherId: undefined, page: 1 }) }] : []),
         ...(status !== 'ALL' ? [{ key: 'status', label: 'Status', value: statusLabels[status], onRemove: () => updateQueryParams({ status: undefined, page: 1 }) }] : []),
@@ -169,6 +179,18 @@ export default function GradeFinalizationPage() {
                 value={courseId}
                 onChange={(value) => updateQueryParams({ courseId: value || undefined, page: 1 })}
                 options={[{ value: '', label: 'All courses' }, ...(coursesData?.data?.map((course) => ({ value: course.id, label: course.name })) || [])]}
+                searchable
+            />
+            <CustomSelect
+                value={departmentId}
+                onChange={(value) => updateQueryParams({ departmentId: value || undefined, page: 1 })}
+                options={[
+                    { value: '', label: 'All departments', icon: Building2 },
+                    ...(departmentsData?.data?.map((department) => ({
+                        value: department.id,
+                        label: formatDepartmentLabel(department),
+                    })) || []),
+                ]}
                 searchable
             />
             <CustomSelect
@@ -225,6 +247,16 @@ export default function GradeFinalizationPage() {
                 <div className="min-w-0">
                     <p className="truncate font-bold text-foreground">{row.course.name}</p>
                     <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">{row.section.name}</p>
+                    {row.course.department && (
+                        <Badge
+                            variant="neutral"
+                            size="sm"
+                            className="mt-1"
+                            style={row.course.department.color ? { borderColor: `${row.course.department.color}55`, backgroundColor: `${row.course.department.color}18`, color: row.course.department.color } : undefined}
+                        >
+                            {formatDepartmentLabel(row.course.department)}
+                        </Badge>
+                    )}
                 </div>
             ),
             width: 240,

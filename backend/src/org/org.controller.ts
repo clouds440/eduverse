@@ -569,6 +569,7 @@ export class OrgController {
     @Request() req: AuthenticatedRequest,
     @Query('academicCycleId') academicCycleId?: string,
     @Query('courseId') courseId?: string,
+    @Query('departmentId') departmentId?: string,
     @Query('sectionId') sectionId?: string,
     @Query('teacherId') teacherId?: string,
     @Query('status') status?: string,
@@ -576,6 +577,7 @@ export class OrgController {
     return this.assessmentsService.getGradeFinalizationDashboard(orgId, req.user, {
       academicCycleId,
       courseId,
+      departmentId,
       sectionId,
       teacherId,
       status: status as GradeFinalizationStatus | 'ALL' | undefined,

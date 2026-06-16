@@ -131,7 +131,7 @@ export function formatRoomLabel(room?: {
     if (!room) return 'Room TBD';
     const roomName = room.name || 'Unnamed room';
     if (!room.building) return roomName;
-    return `${formatBuildingLabel(room.building)} - ${roomName}`;
+    return `${room.building.code || room.building.name || 'Unnamed building'} - ${roomName}`;
 }
 
 /**

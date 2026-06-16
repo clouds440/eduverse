@@ -25,7 +25,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Loading } from '@/components/ui/Loading';
 import { NotFound } from '@/components/NotFound';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
-import { formatCourseSectionLabel, getSectionSurfaceStyle, getSectionTextStyle, getSectionTintStyle } from '@/lib/utils';
+import { formatCourseSectionLabel, formatRoomLabel, getSectionSurfaceStyle, getSectionTextStyle, getSectionTintStyle } from '@/lib/utils';
 
 interface SummaryTileProps {
     icon: LucideIcon;
@@ -99,7 +99,7 @@ export default function SectionDetailPage() {
     const sectionLabel = formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name });
     const cycleName = section.academicCycle?.name || 'Academic cycle unavailable';
     const cohortName = section.cohort?.name || 'No cohort assigned';
-    const roomLabel = section.room || 'Room TBD';
+    const roomLabel = section.defaultRoom ? formatRoomLabel(section.defaultRoom) : section.room || 'Room TBD';
 
     return (
         <PageShell className="overflow-x-hidden overflow-y-auto custom-scrollbar">

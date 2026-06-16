@@ -962,6 +962,7 @@ export type GradeFinalizationStatus =
 export interface GradeFinalizationFilters {
     academicCycleId?: string;
     courseId?: string;
+    departmentId?: string;
     sectionId?: string;
     teacherId?: string;
     status?: GradeFinalizationStatus | 'ALL';
@@ -982,6 +983,8 @@ export interface GradeFinalizationRow {
     course: {
         id: string;
         name: string;
+        departmentId?: string | null;
+        department?: Department | null;
     };
     section: {
         id: string;
