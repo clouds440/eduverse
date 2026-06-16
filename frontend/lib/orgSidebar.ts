@@ -81,6 +81,8 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         if (user.role === Role.ORG_ADMIN) {
             links.push({ id: 'GPA_POLICIES', label: 'GPA Policies', href: '/settings/gpa-policies', icon: ScrollText });
             links.push({ id: 'SETTINGS', label: 'Settings', href: '/settings', icon: Settings });
+        } else if (user.id) {
+            links.push({ id: 'PROFILE', label: 'Profile Settings', href: `/sub-admins/${user.id}/profile`, icon: Settings });
         }
     }
 

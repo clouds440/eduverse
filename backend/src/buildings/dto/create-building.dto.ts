@@ -21,6 +21,10 @@ export class CreateBuildingDto {
   @MaxLength(500)
   description?: string;
 
+  @IsString()
+  @IsOptional()
+  imageUrl?: string;
+
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;

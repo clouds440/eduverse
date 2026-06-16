@@ -211,6 +211,7 @@ export class FinanceService {
       orderBy: { createdAt: 'desc' },
       include: {
         createdBy: { select: { id: true, name: true, email: true, role: true } },
+        attachments: this.attachmentRelationInclude(),
         relatedEntry: { include: this.entryInclude() },
       },
     });
@@ -305,7 +306,7 @@ export class FinanceService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.paymentClaim.create({
+      const claim = await tx.paymentClaim.create({
         data: {
           organizationId: entry.organizationId,
           entryId: entry.id,
@@ -316,6 +317,14 @@ export class FinanceService {
           note: dto.note,
           claimedById: user.id,
         },
+      });
+
+      await this.createFinanceAttachments(tx, {
+        organizationId: entry.organizationId,
+        entryId: entry.id,
+        claimId: claim.id,
+        attachmentIds: dto.attachmentIds,
+        requesterId: user.id,
       });
 
       return tx.financialEntry.update({
@@ -408,7 +417,24 @@ export class FinanceService {
         },
       });
 
-      return { entry: updatedEntry, transaction };
+      await this.createFinanceAttachments(tx, {
+        organizationId: lockedEntry.organizationId,
+        entryId: lockedEntry.id,
+        transactionId: transaction.id,
+        attachmentIds: dto.attachmentIds,
+        requesterId: user.id,
+      });
+
+      const transactionWithAttachments = await tx.transaction.findUnique({
+        where: { id: transaction.id },
+        include: {
+          createdBy: { select: { id: true, name: true, email: true, role: true } },
+          attachments: this.attachmentRelationInclude(),
+          relatedEntry: { include: this.entryInclude() },
+        },
+      });
+
+      return { entry: updatedEntry, transaction: transactionWithAttachments || transaction };
     });
   }
 
@@ -638,9 +664,67 @@ export class FinanceService {
         include: {
           claimedBy: { select: { id: true, name: true, email: true, role: true } },
           reviewedBy: { select: { id: true, name: true, email: true, role: true } },
+          attachments: this.attachmentRelationInclude(),
         },
       },
-      transactions: { orderBy: { createdAt: 'desc' } },
+      transactions: {
+        orderBy: { createdAt: 'desc' },
+        include: { attachments: this.attachmentRelationInclude() },
+      },
+      attachments: this.attachmentRelationInclude(),
     } satisfies Prisma.FinancialEntryInclude;
+  }
+
+  private attachmentInclude() {
+    return {
+      uploadedBy: { select: { id: true, name: true, email: true, role: true } },
+    } satisfies Prisma.FinanceAttachmentInclude;
+  }
+
+  private attachmentRelationInclude() {
+    return {
+      include: this.attachmentInclude(),
+    };
+  }
+
+  private async createFinanceAttachments(
+    tx: Prisma.TransactionClient,
+    input: {
+      organizationId: string;
+      entryId: string;
+      claimId?: string;
+      transactionId?: string;
+      attachmentIds?: string[];
+      requesterId: string;
+    },
+  ) {
+    const attachmentIds = [...new Set((input.attachmentIds || []).filter(Boolean))];
+    if (attachmentIds.length === 0) return;
+
+    const files = await tx.file.findMany({
+      where: {
+        id: { in: attachmentIds },
+        orgId: input.organizationId,
+      },
+    });
+
+    if (files.length !== attachmentIds.length) {
+      throw new BadRequestException('Some attachments could not be found for this organization');
+    }
+
+    await tx.financeAttachment.createMany({
+      data: files.map((file) => ({
+        organizationId: input.organizationId,
+        entryId: input.entryId,
+        claimId: input.claimId,
+        transactionId: input.transactionId,
+        fileId: file.id,
+        url: file.path,
+        filename: file.filename,
+        mimeType: file.mimeType,
+        size: file.size,
+        uploadedById: file.uploadedBy || input.requesterId,
+      })),
+    });
   }
 }

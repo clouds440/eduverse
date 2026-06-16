@@ -2,13 +2,17 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
+import { FilesService } from '../files/files.service';
 import { AssignBuildingDepartmentsDto } from './dto/assign-building-departments.dto';
 import { CreateBuildingDto } from './dto/create-building.dto';
 import { UpdateBuildingDto } from './dto/update-building.dto';
 
 @Injectable()
 export class BuildingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly filesService: FilesService,
+  ) {}
 
   private normalizeText(value?: string | null) {
     const trimmed = value?.trim();
@@ -84,6 +88,8 @@ export class BuildingsService {
         code: this.normalizeText(dto.code),
         address: this.normalizeText(dto.address),
         description: this.normalizeText(dto.description),
+        imageUrl: this.normalizeText(dto.imageUrl),
+        imageUpdatedAt: dto.imageUrl ? new Date() : undefined,
         isActive: dto.isActive ?? true,
         buildingDepartments: {
           create: departmentIds.map((departmentId) => ({
@@ -190,6 +196,8 @@ export class BuildingsService {
           code: dto.code !== undefined ? this.normalizeText(dto.code) : undefined,
           address: dto.address !== undefined ? this.normalizeText(dto.address) : undefined,
           description: dto.description !== undefined ? this.normalizeText(dto.description) : undefined,
+          imageUrl: dto.imageUrl !== undefined ? this.normalizeText(dto.imageUrl) : undefined,
+          imageUpdatedAt: dto.imageUrl !== undefined ? new Date() : undefined,
           isActive: dto.isActive,
         },
       });
@@ -220,6 +228,21 @@ export class BuildingsService {
   async setActive(orgId: string, id: string, isActive: boolean) {
     await this.getBuilding(orgId, id);
     return this.updateBuilding(orgId, id, { isActive });
+  }
+
+  async updateImage(orgId: string, id: string, file: Express.Multer.File) {
+    const building = await this.prisma.building.findFirst({
+      where: { id, organizationId: orgId },
+      select: { id: true, imageUrl: true },
+    });
+    if (!building) throw new NotFoundException('Building not found');
+
+    const imageUrl = await this.filesService.replaceFile(building.imageUrl, file);
+    return this.prisma.building.update({
+      where: { id },
+      data: { imageUrl, imageUpdatedAt: new Date() },
+      include: this.includeRelations,
+    }).then((updated) => this.shapeBuilding(updated));
   }
 
   async assignDepartments(orgId: string, buildingId: string, dto: AssignBuildingDepartmentsDto) {

@@ -14,6 +14,7 @@ import { SectionsModule } from '../sections/sections.module';
 import { UserModule } from '../users/user.module';
 import { AuthModule } from '../auth/auth.module';
 import { SecurityModule } from '../security/security.module';
+import { RoleAccountsModule } from '../role-accounts/role-accounts.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { SecurityModule } from '../security/security.module';
     UserModule,
     AuthModule,
     SecurityModule,
+    RoleAccountsModule,
   ],
   controllers: [OrgController],
   providers: [OrgService, RemindersService],

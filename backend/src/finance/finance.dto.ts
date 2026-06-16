@@ -188,6 +188,11 @@ export class MarkPaidDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  attachmentIds?: string[];
 }
 
 export class ConfirmEntryDto {
@@ -199,4 +204,9 @@ export class ConfirmEntryDto {
   @IsString()
   @IsOptional()
   claimId?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  attachmentIds?: string[];
 }

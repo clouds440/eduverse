@@ -24,11 +24,13 @@ export default function TeacherProfilePage() {
 
     // SWR: Validation fetch
     const validationKey = token && userId ? ['validate-teacher', userId] as const : null;
-    const { data: validatedTeacher } = useSWR<Teacher>(validationKey);
+    const { data: validatedTeacher, isLoading: validationLoading, error: validationError } = useSWR<Teacher>(validationKey);
 
     // Fetch teacher profile if not already in state
     const profileKey = token && validatedTeacher?.id && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) ? ['teacher', validatedTeacher.id] as const : null;
     const { data: fetchedProfile, isLoading: profileLoading, error: profileError, mutate } = useSWR<Teacher>(profileKey);
+    const isProfileLoading = loading || validationLoading || profileLoading || (Boolean(validationKey) && !validatedTeacher && !validationError);
+    const profileIssue = validationError || profileError;
 
     // Use fetched profile if available, otherwise use state. The profile endpoint
     // may return the teacher row without a nested user, so merge auth user data for
@@ -48,11 +50,6 @@ export default function TeacherProfilePage() {
             organizationId: user?.organizationId ?? user?.orgId ?? null,
         },
     } : null;
-
-    // Log error for debugging
-    if (profileError) {
-        console.error('Failed to fetch teacher profile:', profileError);
-    }
 
     // Scroll to section if hash is present
     useEffect(() => {
@@ -74,7 +71,7 @@ export default function TeacherProfilePage() {
                 icon={UserCircle}
             />
 
-            {loading || profileLoading ? (
+            {isProfileLoading ? (
                 <div className="flex justify-center rounded-lg border border-border/70 bg-card/90 py-20 shadow-sm">
                     <Loading size="lg" />
                 </div>
@@ -83,14 +80,18 @@ export default function TeacherProfilePage() {
                     initialData={effectiveTeacherData}
                     isProfile={true}
                 />
-            ) : (
+            ) : profileIssue ? (
                 <div className="rounded-lg border border-border/70 bg-card/90 p-6 shadow-sm">
-                    <ErrorState error={profileError} onRetry={() => mutate()} />
+                    <ErrorState error={profileIssue} onRetry={() => mutate()} />
+                </div>
+            ) : (
+                <div className="flex justify-center rounded-lg border border-border/70 bg-card/90 py-20 shadow-sm">
+                    <Loading size="lg" />
                 </div>
             )}
 
             {/* Session Management */}
-            {!loading && !profileLoading && effectiveTeacherData && (
+            {!isProfileLoading && effectiveTeacherData && (
                 <div id="sessions">
                     <SessionManagement userId={effectiveTeacherData.id} />
                 </div>

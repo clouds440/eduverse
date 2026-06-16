@@ -2,12 +2,16 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, RoomType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
+import { FilesService } from '../files/files.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 
 @Injectable()
 export class RoomsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly filesService: FilesService,
+  ) {}
 
   private normalizeText(value?: string | null) {
     const trimmed = value?.trim();
@@ -85,6 +89,8 @@ export class RoomsService {
         type: dto.type,
         capacity: dto.capacity,
         description: this.normalizeText(dto.description),
+        imageUrl: this.normalizeText(dto.imageUrl),
+        imageUpdatedAt: dto.imageUrl ? new Date() : undefined,
         isActive: dto.isActive ?? true,
       },
       include: this.includeRelations,
@@ -184,6 +190,8 @@ export class RoomsService {
         type: dto.type,
         capacity: dto.capacity,
         description: dto.description !== undefined ? this.normalizeText(dto.description) : undefined,
+        imageUrl: dto.imageUrl !== undefined ? this.normalizeText(dto.imageUrl) : undefined,
+        imageUpdatedAt: dto.imageUrl !== undefined ? new Date() : undefined,
         isActive: dto.isActive,
       },
       include: this.includeRelations,
@@ -195,5 +203,22 @@ export class RoomsService {
   async setActive(orgId: string, id: string, isActive: boolean) {
     await this.getRoom(orgId, id);
     return this.updateRoom(orgId, id, { isActive });
+  }
+
+  async updateImage(orgId: string, id: string, file: Express.Multer.File) {
+    const room = await this.prisma.room.findFirst({
+      where: { id, organizationId: orgId },
+      select: { id: true, imageUrl: true },
+    });
+    if (!room) throw new NotFoundException('Room not found');
+
+    const imageUrl = await this.filesService.replaceFile(room.imageUrl, file);
+    const updated = await this.prisma.room.update({
+      where: { id },
+      data: { imageUrl, imageUpdatedAt: new Date() },
+      include: this.includeRelations,
+    });
+
+    return this.shapeRoom(updated);
   }
 }

@@ -9,12 +9,13 @@ import { EntryStatus, FinancialEntry, PaymentClaimStatus } from '@/types';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { Badge } from '@/components/ui/Badge';
+import { FinanceAttachments } from '@/components/finance/FinanceAttachments';
 
 interface ConfirmPaymentModalProps {
     isOpen: boolean;
     onClose: () => void;
     entry: FinancialEntry;
-    onConfirm: (data: { paidAmount?: number; claimId?: string }) => Promise<void>;
+    onConfirm: (data: { paidAmount?: number; claimId?: string; attachmentFiles?: File[] }) => Promise<void>;
 }
 
 export function ConfirmPaymentModal({ isOpen, onClose, entry, onConfirm }: ConfirmPaymentModalProps) {
@@ -25,10 +26,12 @@ export function ConfirmPaymentModal({ isOpen, onClose, entry, onConfirm }: Confi
     );
     const isFullyPaid = entry.status === EntryStatus.PAID || remainingAmount <= 0;
     const [paidAmount, setPaidAmount] = useState<number>(latestClaim?.claimedAmount || remainingAmount);
+    const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
     const [isConfirming, setIsConfirming] = useState(false);
 
     useEffect(() => {
         setPaidAmount(latestClaim?.claimedAmount || remainingAmount);
+        setAttachmentFiles([]);
     }, [latestClaim?.claimedAmount, remainingAmount]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -36,7 +39,7 @@ export function ConfirmPaymentModal({ isOpen, onClose, entry, onConfirm }: Confi
         if (isFullyPaid) return;
         try {
             setIsConfirming(true);
-            await onConfirm({ paidAmount: Number(paidAmount), claimId: latestClaim?.id });
+            await onConfirm({ paidAmount: Number(paidAmount), claimId: latestClaim?.id, attachmentFiles });
             onClose();
         } finally {
             setIsConfirming(false);
@@ -92,6 +95,7 @@ export function ConfirmPaymentModal({ isOpen, onClose, entry, onConfirm }: Confi
                             <p><span className="font-bold">Why:</span> {latestClaim.note || 'No note'}</p>
                         </div>
                         {latestClaim.receiptUrl && <p className="mt-2 break-all"><span className="font-bold">Receipt:</span> <a href={latestClaim.receiptUrl} target="_blank" className="underline">{latestClaim.receiptUrl}</a></p>}
+                        <FinanceAttachments attachments={latestClaim.attachments} />
                     </div>
                 ) : entry.paymentMethod && (
                     <div className="rounded-lg border border-warning/20 bg-warning/10 p-4 text-xs text-warning">
@@ -114,6 +118,21 @@ export function ConfirmPaymentModal({ isOpen, onClose, entry, onConfirm }: Confi
                         disabled={isFullyPaid}
                     />
                     <p className="text-xs text-muted-foreground mt-1">Leave as default to confirm the remaining full amount.</p>
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Confirmation Attachment</Label>
+                    <Input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                        onChange={(event) => setAttachmentFiles(Array.from(event.target.files || []))}
+                        disabled={isFullyPaid}
+                    />
+                    {attachmentFiles.length > 0 && (
+                        <p className="text-xs font-semibold text-muted-foreground">
+                            {attachmentFiles.map((file) => file.name).join(', ')}
+                        </p>
+                    )}
                 </div>
 
                 {entry.transactions && entry.transactions.length > 0 && (

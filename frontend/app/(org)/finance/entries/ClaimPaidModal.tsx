@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -13,7 +13,7 @@ interface ClaimPaidModalProps {
     isOpen: boolean;
     onClose: () => void;
     entry: FinancialEntry;
-    onSubmit: (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string }) => Promise<void>;
+    onSubmit: (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string; attachmentFiles?: File[] }) => Promise<void>;
 }
 
 export function ClaimPaidModal({ isOpen, onClose, entry, onSubmit }: ClaimPaidModalProps) {
@@ -23,13 +23,19 @@ export function ClaimPaidModal({ isOpen, onClose, entry, onSubmit }: ClaimPaidMo
     const [receiptUrl, setReceiptUrl] = useState('');
     const [referenceNumber, setReferenceNumber] = useState('');
     const [note, setNote] = useState('');
+    const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setAttachmentFiles([]);
+    }, [isOpen, entry.id]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             setIsSubmitting(true);
-            await onSubmit({ claimedAmount: Number(claimedAmount), paymentMethod, receiptUrl, referenceNumber, note });
+            await onSubmit({ claimedAmount: Number(claimedAmount), paymentMethod, receiptUrl, referenceNumber, note, attachmentFiles });
             onClose();
         } finally {
             setIsSubmitting(false);
@@ -82,6 +88,20 @@ export function ClaimPaidModal({ isOpen, onClose, entry, onSubmit }: ClaimPaidMo
                         value={receiptUrl}
                         onChange={(e) => setReceiptUrl(e.target.value)}
                     />
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Attachment</Label>
+                    <Input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                        onChange={(event) => setAttachmentFiles(Array.from(event.target.files || []))}
+                    />
+                    {attachmentFiles.length > 0 && (
+                        <p className="text-xs font-semibold text-muted-foreground">
+                            {attachmentFiles.map((file) => file.name).join(', ')}
+                        </p>
+                    )}
                 </div>
 
                 <div className="space-y-2">

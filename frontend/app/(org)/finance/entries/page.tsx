@@ -22,6 +22,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
 import { FinanceFilterGrid, FinanceFilterToolbar } from '../_components/FinanceFilterToolbar';
+import { FinanceAttachments } from '@/components/finance/FinanceAttachments';
 
 function labelize(value: string) {
     return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -77,7 +78,7 @@ export default function EntriesPage() {
     );
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.FINANCE_MANAGER;
-    const canSelfClaim = user?.role === Role.STUDENT || user?.role === Role.TEACHER;
+    const canSelfClaim = user?.role === Role.STUDENT || user?.role === Role.TEACHER || user?.role === Role.GUARDIAN;
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
@@ -105,10 +106,20 @@ export default function EntriesPage() {
         };
     }, [entries]);
 
-    const handleClaim = async (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string }) => {
+    const uploadFinanceAttachments = async (entry: FinancialEntry, files: File[] = [], entityType: string) => {
+        if (!token || files.length === 0) return [];
+        const uploads = await Promise.all(
+            files.map((file) => api.files.uploadFile(entry.organizationId, entityType, entry.id, file, token)),
+        );
+        return uploads.map((upload) => upload.id).filter((id): id is string => Boolean(id));
+    };
+
+    const handleClaim = async (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string; attachmentFiles?: File[] }) => {
         if (!token || !claimingEntry) return;
         try {
-            await api.finance.markEntryPaid(claimingEntry.id, data, token);
+            const { attachmentFiles, ...claimPayload } = data;
+            const attachmentIds = await uploadFinanceAttachments(claimingEntry, attachmentFiles, 'FINANCE_PAYMENT_CLAIM');
+            await api.finance.markEntryPaid(claimingEntry.id, { ...claimPayload, attachmentIds }, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Payment claim submitted', type: 'success' } });
             mutate();
         } catch (error: unknown) {
@@ -118,10 +129,12 @@ export default function EntriesPage() {
         }
     };
 
-    const handleConfirm = async (data: { paidAmount?: number; claimId?: string }) => {
+    const handleConfirm = async (data: { paidAmount?: number; claimId?: string; attachmentFiles?: File[] }) => {
         if (!token || !confirmingEntry) return;
         try {
-            await api.finance.confirmEntry(confirmingEntry.id, data, token);
+            const { attachmentFiles, ...confirmPayload } = data;
+            const attachmentIds = await uploadFinanceAttachments(confirmingEntry, attachmentFiles, 'FINANCE_PAYMENT_CONFIRMATION');
+            await api.finance.confirmEntry(confirmingEntry.id, { ...confirmPayload, attachmentIds }, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Payment confirmed securely', type: 'success' } });
             mutate();
         } catch (error: unknown) {
@@ -194,9 +207,16 @@ export default function EntriesPage() {
                     <div className="text-xs font-semibold text-muted-foreground">
                         <div>{labelize(claim.status)} • {claim.paymentMethod || 'Method n/a'}</div>
                         <div>{new Date(claim.claimedAt).toLocaleDateString()}</div>
+                        <FinanceAttachments attachments={claim.attachments} compact />
                     </div>
                 );
             },
+        },
+        {
+            header: 'Attachments',
+            accessor: (entry) => entry.attachments?.length
+                ? <FinanceAttachments attachments={entry.attachments} compact />
+                : <span className="text-xs font-semibold text-muted-foreground">None</span>,
         },
         {
             header: 'Status',

@@ -399,6 +399,11 @@ export const api = {
             request<Building>('/org/buildings', { method: 'POST', body: JSON.stringify(data), token }),
         updateBuilding: (id: string, data: UpdateBuildingRequest, token: string) =>
             request<Building>(`/org/buildings/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        uploadBuildingImage: (id: string, file: File, token: string): Promise<Building> => {
+            const formData = new FormData();
+            formData.append('file', file);
+            return uploadFormData(`/org/buildings/${id}/image`, formData, token, 'PATCH');
+        },
         setBuildingActive: (id: string, isActive: boolean, token: string) =>
             request<Building>(`/org/buildings/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
         assignBuildingDepartments: (id: string, departmentIds: string[], token: string) =>
@@ -414,6 +419,11 @@ export const api = {
             request<Room>('/org/rooms', { method: 'POST', body: JSON.stringify(data), token }),
         updateRoom: (id: string, data: UpdateRoomRequest, token: string) =>
             request<Room>(`/org/rooms/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        uploadRoomImage: (id: string, file: File, token: string): Promise<Room> => {
+            const formData = new FormData();
+            formData.append('file', file);
+            return uploadFormData(`/org/rooms/${id}/image`, formData, token, 'PATCH');
+        },
         setRoomActive: (id: string, isActive: boolean, token: string) =>
             request<Room>(`/org/rooms/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
 
@@ -465,9 +475,9 @@ export const api = {
             request<FinalGradeResponse[]>(`/org/students/${studentId}/final-grades${buildQueryString({ sectionId })}`, { token }),
         getStudentReleasedGrades: (studentId: string, token: string, sectionId?: string) =>
             request<FinalGradeResponse[]>(`/org/students/${studentId}/released-grades${buildQueryString({ sectionId })}`, { token }),
-        getProfile: <T = Student | Teacher>(token: string) =>
+        getProfile: <T = Student | Teacher | User>(token: string) =>
             request<T>('/org/profile', { token }),
-        updateProfile: <T = Student | Teacher>(data: UpdateStudentRequest | UpdateTeacherRequest, token: string) =>
+        updateProfile: <T = Student | Teacher | User>(data: UpdateStudentRequest | UpdateTeacherRequest | (Partial<Pick<User, 'name' | 'phone'>> & { password?: string }), token: string) =>
             request<T>('/org/profile', { method: 'PATCH', body: JSON.stringify(data), token }),
         getInsights: (token: string, params: InsightsQueryParams = {}) =>
             request<DashboardInsights>(`/org/insights${buildQueryString(params as QueryParams)}`, { token }),
@@ -512,7 +522,7 @@ export const api = {
 
     files: {
         // FIX 3 applied: was duplicating raw fetch + 401 handling + error parsing
-        uploadFile: (orgId: string, entityType: string, entityId: string, file: File, token: string): Promise<{ id?: string; url?: string; path?: string }> => {
+        uploadFile: (orgId: string, entityType: string, entityId: string, file: File, token: string): Promise<{ id?: string; url?: string; path?: string; filename?: string; mimeType?: string; size?: number; uploadedBy?: string }> => {
             const formData = new FormData();
             formData.append('orgId', orgId);
             formData.append('entityType', entityType);
@@ -695,9 +705,9 @@ export const api = {
             request<FinancialEntry[]>(`/finance/entries${buildQueryString(params)}`, { token }),
         createManualEntry: (data: Partial<FinancialEntry>, token: string) =>
             request<FinancialEntry>('/finance/entries/manual', { method: 'POST', body: JSON.stringify(data), token }),
-        markEntryPaid: (id: string, data: { claimedAmount?: number, paymentMethod?: string, receiptUrl?: string, referenceNumber?: string, note?: string }, token: string) =>
+        markEntryPaid: (id: string, data: { claimedAmount?: number, paymentMethod?: string, receiptUrl?: string, referenceNumber?: string, note?: string, attachmentIds?: string[] }, token: string) =>
             request<FinancialEntry>(`/finance/entries/${id}/mark-paid`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        confirmEntry: (id: string, data: { paidAmount?: number, claimId?: string }, token: string) =>
+        confirmEntry: (id: string, data: { paidAmount?: number, claimId?: string, attachmentIds?: string[] }, token: string) =>
             request<{ entry: FinancialEntry, transaction: Transaction }>(`/finance/entries/${id}/confirm`, { method: 'PATCH', body: JSON.stringify(data), token }),
         rejectPaymentClaim: (id: string, data: { rejectionReason?: string }, token: string) =>
             request(`/finance/claims/${id}/reject`, { method: 'PATCH', body: JSON.stringify(data), token }),

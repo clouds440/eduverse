@@ -51,6 +51,7 @@ import { AttendanceRecordDto } from '../attendance/dto/mark-attendance.dto';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import { InsightsQueryDto } from '../insights/dto/insights-query.dto';
+import { RoleAccountsService, type UpdateRoleAccountInput } from '../role-accounts/role-accounts.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -65,6 +66,7 @@ export class OrgController {
     private readonly insightsService: InsightsService,
     private readonly assessmentsService: AssessmentsService,
     private readonly attendanceService: AttendanceService,
+    private readonly roleAccountsService: RoleAccountsService,
   ) { }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
@@ -289,9 +291,13 @@ export class OrgController {
     return this.sectionsService.deleteSection(orgId, id, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('profile')
   async getProfile(@OrgId() orgId: string, @Request() req: AuthenticatedRequest) {
+    if (req.user.role === Role.SUB_ADMIN) {
+      return this.roleAccountsService.getAccount(orgId, Role.SUB_ADMIN, req.user.id, 'Sub Admin');
+    }
+
     if (req.user.role === Role.STUDENT) {
       const student = await this.studentService.getStudentByUserId(req.user.id);
       if (!student) throw new NotFoundException('Student profile not found');
@@ -307,14 +313,32 @@ export class OrgController {
     throw new ForbiddenException('Profile access not allowed for this role');
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Access(AccessLevel.WRITE)
   @Patch('profile')
   async updateProfile(
     @OrgId() orgId: string,
     @Request() req: AuthenticatedRequest,
-    @Body() updateDto: UpdateStudentDto | UpdateTeacherDto,
+    @Body() updateDto: UpdateStudentDto | UpdateTeacherDto | UpdateRoleAccountInput,
   ) {
+    if (req.user.role === Role.SUB_ADMIN) {
+      const allowedFields = ['name', 'phone', 'password'];
+      const filteredData = Object.keys(updateDto)
+        .filter((key) => allowedFields.includes(key))
+        .reduce((obj, key) => {
+          obj[key] = updateDto[key];
+          return obj;
+        }, {});
+
+      return this.roleAccountsService.updateAccount(
+        orgId,
+        Role.SUB_ADMIN,
+        req.user.id,
+        filteredData,
+        'Sub Admin',
+      );
+    }
+
     if (req.user.role === Role.STUDENT) {
       const student = await this.studentService.getStudentByUserId(req.user.id);
       if (!student) throw new NotFoundException('Student profile not found');

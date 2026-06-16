@@ -1,12 +1,13 @@
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
+import Image from 'next/image';
 import useSWR, { mutate } from 'swr';
-import { Plus } from 'lucide-react';
+import { Building2, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
-import { formatBuildingLabel, formatDepartmentLabel } from '@/lib/utils';
+import { formatBuildingLabel, formatDepartmentLabel, getPublicUrl } from '@/lib/utils';
 import { matchesAnyCacheKeyPrefix, matchesCacheKeyPrefix } from '@/lib/swr';
 import { ApiError, Building, Department, PaginatedResponse, Role } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -20,6 +21,7 @@ import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDra
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
+import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
@@ -37,6 +39,7 @@ export default function BuildingsTab() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingBuilding, setEditingBuilding] = useState<Building | null>(null);
     const [formData, setFormData] = useState(emptyForm);
+    const [pendingImage, setPendingImage] = useState<File | null>(null);
     const [activeTarget, setActiveTarget] = useState<Building | null>(null);
 
     const page = getNumberParam('page', 1);
@@ -74,6 +77,7 @@ export default function BuildingsTab() {
     const openCreate = () => {
         setEditingBuilding(null);
         setFormData(emptyForm);
+        setPendingImage(null);
         setModalOpen(true);
     };
 
@@ -87,6 +91,7 @@ export default function BuildingsTab() {
             isActive: building.isActive,
             departmentIds: building.departments?.map((department) => department.id) || [],
         });
+        setPendingImage(null);
         setModalOpen(true);
     };
 
@@ -103,14 +108,22 @@ export default function BuildingsTab() {
                 isActive: formData.isActive,
                 departmentIds: formData.departmentIds,
             };
+            let savedBuilding: Building;
             if (editingBuilding) {
-                await api.org.updateBuilding(editingBuilding.id, payload, token);
+                savedBuilding = await api.org.updateBuilding(editingBuilding.id, payload, token);
+                if (pendingImage) {
+                    savedBuilding = await api.org.uploadBuildingImage(savedBuilding.id, pendingImage, token);
+                }
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Building updated', type: 'success' } });
             } else {
-                await api.org.createBuilding(payload, token);
+                savedBuilding = await api.org.createBuilding(payload, token);
+                if (pendingImage) {
+                    savedBuilding = await api.org.uploadBuildingImage(savedBuilding.id, pendingImage, token);
+                }
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Building created', type: 'success' } });
             }
             setModalOpen(false);
+            setPendingImage(null);
             mutate(matchesAnyCacheKeyPrefix(['buildings', 'rooms']));
         } catch (err: unknown) {
             const apiError = err as ApiError;
@@ -150,9 +163,18 @@ export default function BuildingsTab() {
             sortable: true,
             sortKey: 'name',
             accessor: (row) => (
-                <div className="min-w-0">
-                    <p className="truncate text-sm font-black text-foreground">{formatBuildingLabel(row)}</p>
-                    {row.address && <p className="truncate text-xs text-muted-foreground">{row.address}</p>}
+                <div className="flex min-w-0 items-center gap-3">
+                    <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/70 bg-primary/10 text-primary">
+                        {row.imageUrl ? (
+                            <Image src={getPublicUrl(row.imageUrl, row.imageUpdatedAt)} alt={row.name} fill className="object-cover" sizes="44px" />
+                        ) : (
+                            <Building2 className="h-5 w-5" aria-hidden="true" />
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-foreground">{formatBuildingLabel(row)}</p>
+                        {row.address && <p className="truncate text-xs text-muted-foreground">{row.address}</p>}
+                    </div>
                 </div>
             ),
         },
@@ -257,6 +279,14 @@ export default function BuildingsTab() {
                 submitText={editingBuilding ? 'Save Changes' : 'Create Building'}
             >
                 <div className="space-y-4 py-2">
+                    <PhotoUploadPicker
+                        currentImageUrl={editingBuilding?.imageUrl}
+                        updatedAt={editingBuilding?.imageUpdatedAt}
+                        onFileReady={setPendingImage}
+                        type="org"
+                        sizeClassName="w-28 h-28"
+                        hint="Optional building picture. Crop a square image for tables and setup views."
+                    />
                     <div className="space-y-2">
                         <Label htmlFor="building-name">Name *</Label>
                         <Input id="building-name" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Science Block" />

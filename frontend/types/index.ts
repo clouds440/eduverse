@@ -201,6 +201,8 @@ export interface Building {
     code?: string | null;
     address?: string | null;
     description?: string | null;
+    imageUrl?: string | null;
+    imageUpdatedAt?: string | null;
     isActive: boolean;
     createdAt?: string;
     updatedAt?: string;
@@ -220,6 +222,8 @@ export interface Room {
     type?: RoomType | null;
     capacity?: number | null;
     description?: string | null;
+    imageUrl?: string | null;
+    imageUpdatedAt?: string | null;
     isActive: boolean;
     createdAt?: string;
     updatedAt?: string;
@@ -241,6 +245,7 @@ export interface CreateBuildingRequest {
     code?: string | null;
     address?: string | null;
     description?: string | null;
+    imageUrl?: string | null;
     isActive?: boolean;
     departmentIds?: string[];
 }
@@ -254,6 +259,7 @@ export interface CreateRoomRequest {
     type?: RoomType | null;
     capacity?: number | null;
     description?: string | null;
+    imageUrl?: string | null;
     isActive?: boolean;
 }
 
@@ -1463,6 +1469,23 @@ export interface PaymentClaim {
     metadata: Record<string, unknown> | null;
     claimedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'>;
     reviewedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
+    attachments?: FinanceAttachment[];
+}
+
+export interface FinanceAttachment {
+    id: string;
+    organizationId: string;
+    entryId: string;
+    claimId?: string | null;
+    transactionId?: string | null;
+    fileId?: string | null;
+    url: string;
+    filename: string;
+    mimeType?: string | null;
+    size?: number | null;
+    uploadedById: string;
+    uploadedAt: string;
+    uploadedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'>;
 }
 
 export interface FinancialEntry {
@@ -1499,6 +1522,7 @@ export interface FinancialEntry {
     teacher?: Teacher | null;
     claims?: PaymentClaim[];
     transactions?: Transaction[];
+    attachments?: FinanceAttachment[];
 }
 
 export interface Transaction {
@@ -1518,6 +1542,7 @@ export interface Transaction {
     // Relations (if included)
     relatedEntry?: FinancialEntry | null;
     createdBy?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
+    attachments?: FinanceAttachment[];
 }
 
 export interface FinanceStats {

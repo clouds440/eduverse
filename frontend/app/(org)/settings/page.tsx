@@ -120,6 +120,10 @@ export default function SettingsPage() {
             router.push(`/teachers/${user.id}/profile${hash}`);
             return;
         }
+        if (user.role === Role.SUB_ADMIN) {
+            router.push(`/sub-admins/${user.id}/profile${hash}`);
+            return;
+        }
         if (user.role === Role.STUDENT) {
             router.push(`/students/${user.id}?tab=profile${hash}`);
             return;

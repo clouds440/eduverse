@@ -1,4 +1,7 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import { OrgId } from '../common/decorators/org-id.decorator';
@@ -13,6 +16,14 @@ import { UpdateBuildingDto } from './dto/update-building.dto';
 @Controller('org/buildings')
 export class BuildingsController {
   constructor(private readonly buildingsService: BuildingsService) {}
+
+  private assertImageFile(file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file provided');
+    const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+    if (!allowedImageTypes.has(file.mimetype)) {
+      throw new BadRequestException(`File type "${file.mimetype}" is not allowed.`);
+    }
+  }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
@@ -59,6 +70,35 @@ export class BuildingsController {
     @Body() dto: UpdateBuildingDto,
   ) {
     return this.buildingsService.updateBuilding(orgId, id, dto);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Patch(':id/image')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: new CloudinaryStorage({
+        cloudinary,
+        params: (req: any, file: any) => {
+          const buildingId = req.params.id as string;
+          const fileName = file.originalname.replace(/\s+/g, '-').split('.').slice(0, -1).join('.');
+          return {
+            folder: `eduverse/buildings/${buildingId}/image`,
+            resource_type: 'image',
+            public_id: `${Date.now()}-${fileName}`,
+          };
+        },
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  updateImage(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    this.assertImageFile(file);
+    return this.buildingsService.updateImage(orgId, id, file);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)

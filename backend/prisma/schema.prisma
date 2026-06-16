@@ -51,6 +51,7 @@ model Organization {
   financialStructureAssignments FinancialStructureAssignment[]
   financialEntries    FinancialEntry[]
   paymentClaims       PaymentClaim[]
+  financeAttachments  FinanceAttachment[]
   transactions        Transaction[]
   auditLogs           AuditLog[]
   guardianStudentLinks GuardianStudent[]
@@ -98,6 +99,7 @@ model User {
   confirmedFinancialEntries FinancialEntry[] @relation("AdminConfirmations")
   claimedPayments           PaymentClaim[]    @relation("PaymentClaimants")
   reviewedPaymentClaims     PaymentClaim[]    @relation("PaymentClaimReviews")
+  uploadedFinanceAttachments FinanceAttachment[] @relation("FinanceAttachmentUploaders")
   createdTransactions       Transaction[]    @relation("UserTransactions")
   pushSubscriptions         WebPushSubscription[]
   passwordResetTokens       PasswordResetToken[]
@@ -284,6 +286,8 @@ model Building {
   code        String?
   address     String?
   description String?
+  imageUrl    String?
+  imageUpdatedAt DateTime?
   isActive    Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -309,6 +313,8 @@ model Room {
   type        RoomType?
   capacity    Int?
   description String?
+  imageUrl    String?
+  imageUpdatedAt DateTime?
   isActive    Boolean @default(true)
 
   createdAt DateTime @default(now())
@@ -1301,6 +1307,7 @@ model FinancialEntry {
   assignment        FinancialStructureAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
   claims            PaymentClaim[]
   transactions      Transaction[]
+  attachments       FinanceAttachment[]
 
   @@index([organizationId])
   @@index([assignmentId])
@@ -1333,6 +1340,7 @@ model PaymentClaim {
   entry           FinancialEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
   claimedBy       User               @relation("PaymentClaimants", fields: [claimedById], references: [id])
   reviewedBy      User?              @relation("PaymentClaimReviews", fields: [reviewedById], references: [id])
+  attachments     FinanceAttachment[]
 
   @@index([organizationId])
   @@index([entryId])
@@ -1340,6 +1348,33 @@ model PaymentClaim {
   @@index([reviewedById])
   @@index([status])
   @@index([claimedAt])
+}
+
+model FinanceAttachment {
+  id              String   @id @default(uuid())
+  organizationId  String
+  entryId         String
+  claimId         String?
+  transactionId   String?
+  fileId          String?
+  url             String
+  filename        String
+  mimeType        String?
+  size            Int?
+  uploadedById    String
+  uploadedAt      DateTime @default(now())
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entry           FinancialEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  claim           PaymentClaim?  @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  transaction     Transaction?   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  uploadedBy      User           @relation("FinanceAttachmentUploaders", fields: [uploadedById], references: [id])
+
+  @@index([organizationId])
+  @@index([entryId])
+  @@index([claimId])
+  @@index([transactionId])
+  @@index([uploadedById])
 }
 
 model Transaction {
@@ -1363,6 +1398,7 @@ model Transaction {
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   relatedEntry    FinancialEntry?  @relation(fields: [relatedEntryId], references: [id], onDelete: SetNull)
   createdBy       User             @relation("UserTransactions", fields: [createdById], references: [id])
+  attachments     FinanceAttachment[]
 
   @@index([organizationId])
   @@index([relatedEntryId])

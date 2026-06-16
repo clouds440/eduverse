@@ -140,10 +140,15 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
         return byStructureId;
     }, [entries]);
 
-    const handleClaim = async (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string }) => {
+    const handleClaim = async (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string; attachmentFiles?: File[] }) => {
         if (!token || !claimingEntry) return;
         try {
-            await api.finance.markEntryPaid(claimingEntry.id, data, token);
+            const { attachmentFiles, ...claimPayload } = data;
+            const uploads = await Promise.all(
+                (attachmentFiles || []).map((file) => api.files.uploadFile(claimingEntry.organizationId, 'FINANCE_PAYMENT_CLAIM', claimingEntry.id, file, token)),
+            );
+            const attachmentIds = uploads.map((upload) => upload.id).filter((id): id is string => Boolean(id));
+            await api.finance.markEntryPaid(claimingEntry.id, { ...claimPayload, attachmentIds }, token);
             dispatch({
                 type: 'TOAST_ADD',
                 payload: { message: 'Payment claim submitted for approval', type: 'success' },

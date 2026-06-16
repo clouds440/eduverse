@@ -18,6 +18,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
 import { FinanceFilterGrid, FinanceFilterToolbar } from '../_components/FinanceFilterToolbar';
+import { FinanceAttachments } from '@/components/finance/FinanceAttachments';
 
 function labelize(value: string) {
     return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -151,6 +152,18 @@ export default function TransactionsPage() {
                     {transaction.paymentMethod || 'System'}{transaction.createdBy ? ` • ${transaction.createdBy.name || transaction.createdBy.email}` : ''}
                 </span>
             ),
+        },
+        {
+            header: 'Attachments',
+            accessor: (transaction) => {
+                const attachments = [
+                    ...(transaction.attachments || []),
+                    ...(transaction.relatedEntry?.claims?.flatMap((claim) => claim.attachments || []) || []),
+                ];
+                return attachments.length
+                    ? <FinanceAttachments attachments={attachments} compact />
+                    : <span className="text-xs font-semibold text-muted-foreground">None</span>;
+            },
         },
     ], []);
 

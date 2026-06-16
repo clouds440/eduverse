@@ -147,10 +147,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         }
                     } else if (user.role === Role.SUB_ADMIN) {
                         const usersChildRoute = pathSegments[1] === 'users' ? pathSegments[2] : pathSegments[1];
-                        const isMainAdminOnlyPage = usersChildRoute === 'sub-admins' || pathSegments[1] === 'settings';
+                        const isOwnSubAdminProfile = pathSegments[1] === 'sub-admins' && pathSegments[2] === user.id && pathSegments[3] === 'profile';
+                        const isSettingsPage = pathSegments[1] === 'settings';
+                        const isMainAdminOnlyPage = (usersChildRoute === 'sub-admins' && !isOwnSubAdminProfile) || isSettingsPage;
                         const isAllowedShared = [
                             'overview',
                             'users',
+                            'sub-admins',
                             'courses',
                             'academic-cycles',
                             'cohorts',
@@ -170,6 +173,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'change-password',
                             'contact',
                         ].includes(pathSegments[1]);
+
+                        if (isSettingsPage) {
+                            router.replace(`/sub-admins/${user.id}/profile`);
+                            return;
+                        }
 
                         if (isMainAdminOnlyPage || !isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: isMainAdminOnlyPage ? 'Only the main admin can access that area.' : 'Sub Admins can only access delegated organization tools.', type: 'error' } });
