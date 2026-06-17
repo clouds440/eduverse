@@ -1,10 +1,12 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { normalizeEntityColor } from '../common/colors';
+import { getDepartmentScope, assertDepartmentInScope, type DepartmentScopedUser } from '../common/department-scope';
+import { Role } from '../common/enums';
 
 @Injectable()
 export class DepartmentsService {
@@ -124,11 +126,20 @@ export class DepartmentsService {
     return this.shapeDepartment(department);
   }
 
-  async updateDepartment(orgId: string, id: string, dto: UpdateDepartmentDto) {
+  async updateDepartment(orgId: string, id: string, dto: UpdateDepartmentDto, actor?: DepartmentScopedUser) {
     const existing = await this.prisma.department.findFirst({
       where: { id, organizationId: orgId },
     });
     if (!existing) throw new NotFoundException('Department not found');
+
+    if (actor?.role === Role.SUB_ADMIN) {
+      if (dto.isActive !== undefined) {
+        throw new ForbiddenException('Sub Admins cannot change department status');
+      }
+
+      const scope = await getDepartmentScope(this.prisma, orgId, actor);
+      assertDepartmentInScope(scope, id, 'Sub Admins can only edit departments in their assigned scope');
+    }
 
     if (dto.name !== undefined || dto.code !== undefined) {
       await this.assertUnique(

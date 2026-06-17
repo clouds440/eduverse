@@ -139,10 +139,8 @@ export default function HomePage() {
             {/* Mobile mockup only */}
             <section className="block border-b border-border/60 bg-muted/10 px-4 py-7 lg:hidden">
                 <Reveal>
-                    <div className="mx-auto max-w-130 overflow-hidden rounded-3xl border border-border bg-card shadow-2xl shadow-primary/10">
-                        <div className="origin-top scale-[0.78] sm:scale-[0.9]">
-                            <DashboardMockup />
-                        </div>
+                    <div className="origin-top scale-[0.78] sm:scale-[0.9]">
+                        <DashboardMockup />
                     </div>
                 </Reveal>
             </section>
@@ -240,20 +238,28 @@ export default function HomePage() {
 
                         <Reveal delay={150}>
                             <div className="relative">
-                                <div className="absolute inset-4 rounded-4xl bg-primary/10 blur-3xl" />
+                                <div className="absolute inset-6 rounded-4xl bg-primary/8 blur-3xl" />
 
-                                <div className="relative grid grid-cols-2 gap-2.5 sm:grid-cols-5 lg:grid-cols-2 xl:grid-cols-5">
+                                <div className="pointer-events-none absolute inset-x-8 top-1/2 hidden h-px -translate-y-1/2 bg-linear-to-r from-transparent via-primary/25 to-transparent sm:block" />
+
+                                <div className="relative grid grid-cols-2 gap-4 sm:grid-cols-5 lg:grid-cols-2 xl:grid-cols-5">
                                     {FLOW_ITEMS.map((item, index) => (
                                         <div
                                             key={item}
-                                            className={[
-                                                'rounded-2xl border border-border bg-background/70 p-3.5 shadow-sm backdrop-blur transition-all hover:-translate-y-1 hover:border-primary/30 hover:bg-primary/5',
-                                                index % 3 === 1 ? 'lg:translate-y-3' : '',
-                                                index % 4 === 0 ? 'xl:-translate-y-2' : '',
-                                            ].join(' ')}
+                                            style={{
+                                                '--flow-delay': `${index * 75}ms`,
+                                                '--flow-cycle-delay': `${index * 130}ms`,
+                                                '--flow-y': index % 2 === 0 ? '0.45rem' : '-0.25rem',
+                                            } as React.CSSProperties}
+                                            className="flow-card-shell"
                                         >
-                                            <div className="mb-2 h-1.5 w-8 rounded-full bg-primary/50" />
-                                            <p className="text-sm font-black text-foreground">{item}</p>
+                                            <div className="flow-card group">
+                                                <div className="mb-2 flex items-center justify-between gap-2">
+                                                    <div className="h-1.5 w-8 rounded-full bg-primary/55 transition-all duration-300 group-hover:w-10 group-hover:bg-primary" />
+                                                    <span className="flow-node-signal" />
+                                                </div>
+                                                <p className="text-sm font-black text-foreground">{item}</p>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

@@ -16,7 +16,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
@@ -44,7 +44,9 @@ export default function DepartmentsPage() {
     const sortBy = getStringParam('sortBy', 'name');
     const sortOrder = getStringParam('sortOrder', 'asc') as 'asc' | 'desc';
     const status = getStringParam('status');
-    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const canCreateDepartments = user?.role === Role.ORG_ADMIN;
+    const canEditDepartments = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const canChangeDepartmentStatus = user?.role === Role.ORG_ADMIN;
     const isProcessing = state.ui.processing['department-form'];
 
     const params = {
@@ -87,7 +89,6 @@ export default function DepartmentsPage() {
                 code: formData.code || null,
                 description: formData.description || null,
                 color: formData.color || null,
-                isActive: formData.isActive,
             };
             if (editingDepartment) {
                 await api.org.updateDepartment(editingDepartment.id, payload, token);
@@ -159,9 +160,9 @@ export default function DepartmentsPage() {
             width: 180,
             accessor: (row) => (
                 <TableActions
-                    onEdit={isAdmin ? () => openEdit(row) : undefined}
+                    onEdit={canEditDepartments ? () => openEdit(row) : undefined}
                     editTitle="Edit Department"
-                    extraActions={isAdmin ? [{
+                    extraActions={canChangeDepartmentStatus ? [{
                         variant: row.isActive ? 'suspend' : 'restore',
                         title: row.isActive ? 'Deactivate' : 'Activate',
                         onClick: () => setActiveTarget(row),
@@ -169,7 +170,7 @@ export default function DepartmentsPage() {
                 />
             ),
         },
-    ], [isAdmin]);
+    ], [canChangeDepartmentStatus, canEditDepartments]);
 
     if (error) return <ErrorState error={error} onRetry={() => mutateDepartments()} />;
 
@@ -180,12 +181,11 @@ export default function DepartmentsPage() {
                 description="Create organization-defined academic and administrative groups for reporting, filtering, and future scoped access."
                 icon={BookOpen}
                 breadcrumbs={[{ label: 'Organization' }, { label: 'Setup' }, { label: 'Departments' }]}
-            />
-            <ResourcePanel>
-                <FilterDrawerToolbar
+                actions={(
+                    <PageControls
                     activeFilters={activeFilters}
-                    leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search departments..." />}
-                    actions={isAdmin ? <Button icon={Plus} onClick={openCreate}>New Department</Button> : undefined}
+                    leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search departments..." mobileMode="expandable" />}
+                    actions={canCreateDepartments ? <Button icon={Plus} onClick={openCreate}>New Department</Button> : undefined}
                     renderFilters={() => (
                         <FilterDrawerGrid>
                             <div className="space-y-2">
@@ -199,7 +199,10 @@ export default function DepartmentsPage() {
                             </div>
                         </FilterDrawerGrid>
                     )}
-                />
+                    />
+                )}
+            />
+            <ResourcePanel>
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable
                         data={data?.data || []}

@@ -16,12 +16,13 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { formatDepartmentLabel } from '@/lib/utils';
@@ -160,6 +161,30 @@ export default function CoursesPage() {
         }] : []),
     ];
 
+    const filters = (
+        <FilterDrawerGrid>
+            {isAdmin && (
+                <div>
+                    <Label className="mb-1 block text-xs font-bold uppercase tracking-widest text-muted-foreground">Department</Label>
+                    <CustomSelect
+                        value={departmentId}
+                        onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
+                        icon={Building2}
+                        options={[
+                            { value: '', label: 'All Departments' },
+                            ...(departmentsData?.data?.map((department) => ({
+                                value: department.id,
+                                label: formatDepartmentLabel(department),
+                            })) || []),
+                        ]}
+                        placeholder="All Departments"
+                        searchable
+                    />
+                </div>
+            )}
+        </FilterDrawerGrid>
+    );
+
     const columns = useMemo<Column<Course>[]>(() => [
         {
             header: 'Course Name',
@@ -248,50 +273,37 @@ export default function CoursesPage() {
                     { label: 'Academics' },
                     { label: 'Courses' },
                 ]}
-            />
-            <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div className="min-w-0 flex-1">
-                            <SearchBar
-                                value={searchTerm}
-                                onChange={(value) => updateQueryParams({ search: value, page: 1 })}
-                                placeholder="Search by name or description..."
-                            />
-                        </div>
-                        <div className="flex w-full justify-between gap-2 md:w-auto md:justify-end">
-                            {isAdmin && (
-                                <div className="min-w-56">
-                                    <CustomSelect
-                                        value={departmentId}
-                                        onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
-                                        icon={Building2}
-                                        options={[
-                                            { value: '', label: 'All Departments' },
-                                            ...(departmentsData?.data?.map((department) => ({
-                                                value: department.id,
-                                                label: formatDepartmentLabel(department),
-                                            })) || []),
-                                        ]}
-                                        placeholder="All Departments"
-                                        searchable
-                                    />
-                                </div>
-                            )}
+                actions={(
+                    <PageControls
+                    drawerLabel="Course filters"
+                    leading={(
+                        <SearchBar
+                            value={searchTerm}
+                            onChange={(value) => updateQueryParams({ search: value, page: 1 })}
+                            placeholder="Search by name or description..."
+                            mobileMode="expandable"
+                        />
+                    )}
+                    renderFilters={() => filters}
+                    showDrawer={isAdmin}
+                    activeFilters={activeFilters}
+                    actions={(
+                        <>
                             {isAdmin && (
                                 <Button
                                     onClick={() => router.push('/courses/create')}
                                     icon={Plus}
-                                    className="shrink-0"
+                                    className="shrink-0 whitespace-nowrap"
                                 >
                                     Create Course
                                 </Button>
                             )}
-                        </div>
-                    </div>
-                </div>
-
-                <ResourceToolbar activeFilters={activeFilters} />
+                        </>
+                    )}
+                    />
+                )}
+            />
+            <ResourcePanel>
 
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable

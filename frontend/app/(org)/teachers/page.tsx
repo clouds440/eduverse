@@ -20,8 +20,8 @@ import { NewMailModal } from '@/components/mail/NewMailModal';
 import { BrandIcon } from '@/components/ui/Brand';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Toggle } from '@/components/ui/Toggle';
-import { Drawer } from '@/components/ui/Drawer';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
@@ -321,6 +321,66 @@ export default function TeachersPage() {
         }] : []),
     ];
 
+    const filters = (
+        <FilterDrawerGrid>
+            {!isDeletedView && (
+                <>
+                    <div>
+                        <label className="text-xs font-bold text-muted-foreground mb-1 block">
+                            Status
+                        </label>
+                        <CustomSelect
+                            options={[
+                                { label: 'All Statuses', value: '' },
+                                { label: 'Active', value: TeacherStatus.ACTIVE },
+                                { label: 'Suspended', value: TeacherStatus.SUSPENDED },
+                                { label: 'On Leave', value: TeacherStatus.ON_LEAVE },
+                            ]}
+                            value={statusFilter}
+                            onChange={(val) => updateQueryParams({ status: val, page: 1 })}
+                            placeholder="Filter Status"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold text-muted-foreground mb-1 block">
+                            Department
+                        </label>
+                        <CustomSelect
+                            options={[
+                                { label: 'All Departments', value: '', icon: Building2 },
+                                ...(departmentsData?.data?.map((department) => ({
+                                    value: department.id,
+                                    label: formatDepartmentLabel(department),
+                                    icon: Building2,
+                                })) || []),
+                            ]}
+                            value={departmentId}
+                            onChange={(val) => updateQueryParams({ departmentId: val, page: 1 })}
+                            placeholder="All Departments"
+                            searchable
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 rounded-md border border-border/60 bg-background/50 px-3 py-2">
+                        <span className="text-sm font-medium">Show Emeritus</span>
+                        <Toggle
+                            checked={showEmeritus}
+                            onCheckedChange={(val) => updateQueryParams({ showEmeritus: val ? 'true' : undefined, page: 1 })}
+                        />
+                    </div>
+
+                    <button
+                        onClick={() => updateQueryParams({ deleted: 'true', page: 1, status: undefined, showEmeritus: undefined })}
+                        className="cursor-pointer text-left text-xs font-bold tracking-tighter text-muted-foreground/60 hover:text-primary hover:underline"
+                    >
+                        {isManagersView ? 'View Deleted Managers' : 'View Deleted Faculty'}
+                    </button>
+                </>
+            )}
+        </FilterDrawerGrid>
+    );
+
 
     if (teachersError) {
         return <ErrorState error={teachersError} onRetry={() => mutateTeachers()} />;
@@ -338,83 +398,19 @@ export default function TeachersPage() {
                     { label: isDeletedView ? (isManagersView ? 'Deleted Managers' : 'Deleted Faculty') : (isManagersView ? 'Managers' : 'Faculty') },
                 ]}
                 meta={isDeletedView ? <Badge variant="neutral" size="sm">Archive</Badge> : undefined}
-            />
-            <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-                    <div className="flex-1 w-full">
-                        <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder={isManagersView ? 'Search managers...' : 'Search faculty...'} />
-                    </div>
-
-                    <div className='flex w-full md:w-auto gap-2 justify-end'>
-                        {!isDeletedView && (
-                            <Drawer position='left'>
-                                <div className="flex flex-col gap-8">
-                                    {/* Status Filter */}
-                                    <div>
-                                        <label className="text-xs font-bold text-muted-foreground mb-1 block">
-                                            Status
-                                        </label>
-                                        <CustomSelect
-                                            options={[
-                                                { label: 'All Statuses', value: '' },
-                                                { label: 'Active', value: TeacherStatus.ACTIVE },
-                                                { label: 'Suspended', value: TeacherStatus.SUSPENDED },
-                                                { label: 'On Leave', value: TeacherStatus.ON_LEAVE },
-                                            ]}
-                                            value={statusFilter}
-                                            onChange={(val) => updateQueryParams({ status: val, page: 1 })}
-                                            placeholder="Filter Status"
-                                        />
-                                    </div>
-
-                                    {/* Show Emeritus Toggle */}
-                                    <div>
-                                        <label className="text-xs font-bold text-muted-foreground mb-1 block">
-                                            Department
-                                        </label>
-                                        <CustomSelect
-                                            options={[
-                                                { label: 'All Departments', value: '', icon: Building2 },
-                                                ...(departmentsData?.data?.map((department) => ({
-                                                    value: department.id,
-                                                    label: formatDepartmentLabel(department),
-                                                    icon: Building2,
-                                                })) || []),
-                                            ]}
-                                            value={departmentId}
-                                            onChange={(val) => updateQueryParams({ departmentId: val, page: 1 })}
-                                            placeholder="All Departments"
-                                            searchable
-                                        />
-                                    </div>
-
-                                    {/* Show Emeritus Toggle */}
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-sm font-medium">Show Emeritus</span>
-                                        <Toggle
-                                            checked={showEmeritus}
-                                            onCheckedChange={(val) => updateQueryParams({ showEmeritus: val ? 'true' : undefined, page: 1 })}
-                                        />
-                                    </div>
-
-                                    {/* View Deleted Faculty */}
-                                    <button
-                                        onClick={() => updateQueryParams({ deleted: isDeletedView ? undefined : 'true', page: 1, status: undefined, showEmeritus: undefined })}
-                                        className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
-                                            }`}
-                                    >
-                                        {isManagersView ? 'View Deleted Managers' : 'View Deleted Faculty'}
-                                    </button>
-                                </div>
-                            </Drawer>
-                        )}
-
-                        {isDeletedView && (
+                actions={(
+                    <PageControls
+                    drawerLabel={isManagersView ? 'Manager filters' : 'Faculty filters'}
+                    leading={<SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder={isManagersView ? 'Search managers...' : 'Search faculty...'} mobileMode="expandable" />}
+                    renderFilters={() => filters}
+                    showDrawer={!isDeletedView}
+                    activeFilters={activeFilters}
+                    actions={(
+                        <>
+                            {isDeletedView && (
                             <button
                                 onClick={() => updateQueryParams({ deleted: undefined, page: 1 })}
-                                className={`text-xs font-bold tracking-tighter hover:underline hover:text-primary cursor-pointer ${isDeletedView ? 'text-primary' : 'text-muted-foreground/40'
-                                    }`}
+                                className="shrink-0 cursor-pointer whitespace-nowrap text-xs font-bold tracking-tighter text-primary hover:text-primary hover:underline"
                             >
                                 {isManagersView ? 'Back to Active Managers' : 'Back to Active Faculty'}
                             </button>
@@ -424,16 +420,17 @@ export default function TeachersPage() {
                             <Button
                                 onClick={() => router.push(isManagersView ? `${routeBase}/add?role=manager` : `${routeBase}/add`)}
                                 icon={UserPlus}
-                                className="shrink-0"
+                                className="shrink-0 whitespace-nowrap"
                             >
                                 {isManagersView ? 'Add Manager' : 'Add Teacher'}
                             </Button>
                         )}
-                    </div>
-                </div>
-                </div>
-
-                <ResourceToolbar activeFilters={activeFilters} className="border-t border-border/60" />
+                        </>
+                    )}
+                    />
+                )}
+            />
+            <ResourcePanel>
 
                 <div className="relative overflow-x-hidden flex-1 min-h-0">
                     <DataTable

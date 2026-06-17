@@ -550,38 +550,38 @@ export default function AttendanceSheet({
 
     return (
         <>
-        <section className="rounded-2xl border border-border/70 bg-card/80 shadow-sm">
-            <div className="sticky top-3 z-30 flex flex-col gap-3 rounded-t-2xl border-b border-border/60 bg-background/90 p-3 shadow-sm backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+        <section className="rounded-lg border border-border/70 bg-card/80 shadow-sm">
+            <div className="sticky top-2 z-30 flex flex-col gap-2 rounded-t-lg border-b border-border/60 bg-background/90 p-2.5 shadow-sm backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-primary">
                         <CheckSquare className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                         <h2 className="text-sm font-black text-foreground">Daily Marking Sheet</h2>
-                        <p className="text-xs font-semibold text-muted-foreground">
+                        <p className="truncate text-xs font-semibold text-muted-foreground">
                             {date ? new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Select a date'}
                         </p>
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-3 md:flex-row lg:items-center">
+                <div className="flex flex-col gap-2 md:flex-row lg:items-center">
                     {SearchControl}
                     {!readOnly && (
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[max-content_max-content] xl:grid-cols-[max-content_max-content_max-content]">
+                        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-[max-content_max-content_max-content] sm:gap-2">
                             <Button
                                 variant="secondary"
                                 onClick={handleMarkAllPresent}
                                 icon={CheckSquare}
-                                className="h-10 min-w-38 whitespace-nowrap px-4 text-xs font-bold"
+                                className="h-9 min-w-0 whitespace-nowrap px-2 text-xs font-bold sm:min-w-38 sm:px-4"
                             >
-                                Mark All Present
+                                <span className="hidden min-[420px]:inline">Mark All </span>Present
                             </Button>
                             <Button
                                 variant="secondary"
                                 onClick={() => setIsResetAllConfirmOpen(true)}
                                 disabled={!hasSaveableDraft}
                                 icon={RotateCcw}
-                                className="h-10 min-w-24 whitespace-nowrap px-4 text-xs font-bold"
+                                className="h-9 min-w-0 whitespace-nowrap px-2 text-xs font-bold sm:min-w-24 sm:px-4"
                             >
                                 Reset All
                             </Button>
@@ -591,7 +591,7 @@ export default function AttendanceSheet({
                                 disabled={!hasChanges || isSaving}
                                 isLoading={isSaving}
                                 icon={Save}
-                                className="h-10 min-w-24 whitespace-nowrap px-4 text-xs font-bold"
+                                className="h-9 min-w-0 whitespace-nowrap px-2 text-xs font-bold sm:min-w-24 sm:px-4"
                             >
                                 Save
                             </Button>

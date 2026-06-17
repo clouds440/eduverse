@@ -13,11 +13,11 @@ import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import { Drawer } from '@/components/ui/Drawer';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { BrandIcon } from '@/components/ui/Brand';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
@@ -226,6 +226,38 @@ export default function RoleAccountListPage({
         ? 'Adjust the search or filters to broaden the result set.'
         : `Create the first ${labelSingular.toLowerCase()} account from this page.`;
 
+    const filters = (
+        <FilterDrawerGrid>
+            {!isDeletedView && (
+                <>
+                    <div>
+                        <label className="mb-1 block text-xs font-bold text-muted-foreground">
+                            Status
+                        </label>
+                        <CustomSelect
+                            options={[
+                                { label: 'All Statuses', value: '' },
+                                { label: 'Active', value: UserStatus.ACTIVE },
+                                { label: 'Suspended', value: UserStatus.SUSPENDED },
+                                { label: 'On Leave', value: UserStatus.ON_LEAVE },
+                            ]}
+                            value={statusFilter}
+                            onChange={(val) => updateQueryParams({ status: val, page: 1 })}
+                            placeholder="Filter Status"
+                        />
+                    </div>
+
+                    <button
+                        onClick={() => updateQueryParams({ deleted: 'true', page: 1, status: undefined })}
+                        className="cursor-pointer text-left text-xs font-bold tracking-tighter text-muted-foreground/60 hover:text-primary hover:underline"
+                    >
+                        View Deleted {labelPlural}
+                    </button>
+                </>
+            )}
+        </FilterDrawerGrid>
+    );
+
     if (!hasAccess) {
         return null;
     }
@@ -246,50 +278,19 @@ export default function RoleAccountListPage({
                     { label: isDeletedView ? `Deleted ${labelPlural}` : labelPlural },
                 ]}
                 meta={isDeletedView ? <Badge variant="neutral" size="sm">Archive</Badge> : undefined}
-            />
-
-            <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div className="w-full flex-1">
-                            <SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder={`Search ${labelPlural.toLowerCase()}...`} />
-                        </div>
-
-                        <div className="flex w-full justify-end gap-2 md:w-auto">
-                            {!isDeletedView && (
-                                <Drawer position="left">
-                                    <div className="flex flex-col gap-8">
-                                        <div>
-                                            <label className="mb-1 block text-xs font-bold text-muted-foreground">
-                                                Status
-                                            </label>
-                                            <CustomSelect
-                                                options={[
-                                                    { label: 'All Statuses', value: '' },
-                                                    { label: 'Active', value: UserStatus.ACTIVE },
-                                                    { label: 'Suspended', value: UserStatus.SUSPENDED },
-                                                    { label: 'On Leave', value: UserStatus.ON_LEAVE },
-                                                ]}
-                                                value={statusFilter}
-                                                onChange={(val) => updateQueryParams({ status: val, page: 1 })}
-                                                placeholder="Filter Status"
-                                            />
-                                        </div>
-
-                                        <button
-                                            onClick={() => updateQueryParams({ deleted: 'true', page: 1, status: undefined })}
-                                            className="cursor-pointer text-xs font-bold tracking-tighter text-muted-foreground/40 hover:text-primary hover:underline"
-                                        >
-                                            View Deleted {labelPlural}
-                                        </button>
-                                    </div>
-                                </Drawer>
-                            )}
-
+                actions={(
+                    <PageControls
+                    drawerLabel={`${labelSingular} filters`}
+                    leading={<SearchBar value={searchTerm} onChange={(val) => updateQueryParams({ search: val, page: 1 })} placeholder={`Search ${labelPlural.toLowerCase()}...`} mobileMode="expandable" />}
+                    renderFilters={() => filters}
+                    showDrawer={!isDeletedView}
+                    activeFilters={activeFilters}
+                    actions={(
+                        <>
                             {isDeletedView && (
                                 <button
                                     onClick={() => updateQueryParams({ deleted: undefined, page: 1 })}
-                                    className="cursor-pointer text-xs font-bold tracking-tighter text-primary hover:text-primary hover:underline"
+                                    className="shrink-0 cursor-pointer whitespace-nowrap text-xs font-bold tracking-tighter text-primary hover:text-primary hover:underline"
                                 >
                                     Back to Active {labelPlural}
                                 </button>
@@ -299,16 +300,18 @@ export default function RoleAccountListPage({
                                 <Button
                                     onClick={() => router.push(`${routeBase}/add`)}
                                     icon={UserPlus}
-                                    className="shrink-0"
+                                    className="shrink-0 whitespace-nowrap"
                                 >
                                     Add {labelSingular}
                                 </Button>
                             )}
-                        </div>
-                    </div>
-                </div>
+                        </>
+                    )}
+                    />
+                )}
+            />
 
-                <ResourceToolbar activeFilters={activeFilters} className="border-t border-border/60" />
+            <ResourcePanel>
 
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable

@@ -74,7 +74,7 @@ export default function AttendanceLandingPage() {
                             placeholder="Search sections..."
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
-                            className="h-11 border-border/60 bg-background/70 pl-10 text-sm font-medium"
+                            className="h-11 border-border/60 bg-input pl-10 text-sm font-medium"
                         />
                     </div>
                 )}

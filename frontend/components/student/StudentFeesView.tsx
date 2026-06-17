@@ -29,6 +29,9 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { FinanceStatusBadge } from '@/components/finance/FinanceStatusBadge';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { ClaimPaidModal } from '@/app/(org)/finance/entries/ClaimPaidModal';
+import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
+import { PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { SearchBar } from '@/components/ui/SearchBar';
 
 const statusTabs = [
     { id: 'DUE', label: 'Due' },
@@ -83,6 +86,7 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
     const { token } = useAuth();
     const { dispatch } = useGlobal();
     const [activeTab, setActiveTab] = useState<FeeTab>('DUE');
+    const [search, setSearch] = useState('');
     const [claimingEntry, setClaimingEntry] = useState<FinancialEntry | null>(null);
 
     const query = { studentId };
@@ -120,12 +124,31 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
         };
     }, [entries]);
 
+    const searchQuery = search.trim().toLowerCase();
+
+    const filteredStructures = useMemo(() => {
+        if (!searchQuery) return structures;
+        return structures.filter((structure: FinancialStructure) => (
+            structure.title.toLowerCase().includes(searchQuery)
+            || structure.description?.toLowerCase().includes(searchQuery)
+            || structure.category.toLowerCase().includes(searchQuery)
+        ));
+    }, [searchQuery, structures]);
+
     const filteredEntries = useMemo(() => {
         if (activeTab === 'DUE') return stats.dueEntries;
-        if (activeTab === 'UNVERIFIED') return stats.awaitingApproval;
-        if (activeTab === 'PAID') return stats.paidEntries;
-        return entries;
-    }, [activeTab, entries, stats]);
+        const tabEntries = activeTab === 'UNVERIFIED'
+            ? stats.awaitingApproval
+            : activeTab === 'PAID'
+                ? stats.paidEntries
+                : entries;
+        if (!searchQuery) return tabEntries;
+        return tabEntries.filter((entry) => (
+            entry.title.toLowerCase().includes(searchQuery)
+            || entry.status.toLowerCase().includes(searchQuery)
+            || entry.category?.toLowerCase().includes(searchQuery)
+        ));
+    }, [activeTab, entries, searchQuery, stats]);
 
     const structureClaimEntries = useMemo(() => {
         const byStructureId = new Map<string, FinancialEntry>();
@@ -180,35 +203,60 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Amount Due</p>
-                            <FinancialAmount amount={stats.dueAmount} currency={entries[0]?.currency || structures[0]?.currency} className="mt-2 block text-2xl text-warning" />
+            <DismissiblePanel title="Fee summary" storageKey={`student-fees-summary-${studentId}`} defaultCollapsedOnMobile>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Amount Due</p>
+                                <FinancialAmount amount={stats.dueAmount} currency={entries[0]?.currency || structures[0]?.currency} className="mt-2 block text-2xl text-warning" />
+                            </div>
+                            <AlertCircle className="h-5 w-5 text-warning" />
                         </div>
-                        <AlertCircle className="h-5 w-5 text-warning" />
-                    </div>
-                </Card>
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Awaiting Approval</p>
-                            <p className="mt-2 text-2xl font-black text-info">{stats.awaitingCount}</p>
+                    </Card>
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Awaiting Approval</p>
+                                <p className="mt-2 text-2xl font-black text-info">{stats.awaitingCount}</p>
+                            </div>
+                            <Clock className="h-5 w-5 text-info" />
                         </div>
-                        <Clock className="h-5 w-5 text-info" />
-                    </div>
-                </Card>
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Confirmed Paid</p>
-                            <FinancialAmount amount={stats.paidAmount} currency={entries[0]?.currency || structures[0]?.currency} className="mt-2 block text-2xl text-success" />
+                    </Card>
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Confirmed Paid</p>
+                                <FinancialAmount amount={stats.paidAmount} currency={entries[0]?.currency || structures[0]?.currency} className="mt-2 block text-2xl text-success" />
+                            </div>
+                            <CheckCircle className="h-5 w-5 text-success" />
                         </div>
-                        <CheckCircle className="h-5 w-5 text-success" />
-                    </div>
-                </Card>
-            </div>
+                    </Card>
+                </div>
+            </DismissiblePanel>
+
+            <PageControls
+                showDrawer={false}
+                renderFilters={() => null}
+                leading={<SearchBar placeholder="Search fees or entries..." value={search} onChange={setSearch} mobileMode="expandable" />}
+                actions={(
+                    <>
+                        {statusTabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`min-h-9 shrink-0 rounded-md px-3 py-2 text-xs font-black transition-colors ${activeTab === tab.id
+                                    ? 'bg-card text-foreground shadow-xs'
+                                    : 'text-muted-foreground hover:bg-card/60 hover:text-foreground'
+                                    }`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </>
+                )}
+            />
 
             <section className="space-y-3">
                 <div>
@@ -216,17 +264,17 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
                     <p className="text-sm font-medium text-muted-foreground">Fee plans configured by the organization.</p>
                 </div>
 
-                {structures.length === 0 ? (
+                {filteredStructures.length === 0 ? (
                     <EmptyState
                         icon={CreditCard}
-                        title="No fee structures assigned"
-                        description="Assigned tuition, exam, transport, or other fee plans will appear here."
+                        title={structures.length === 0 ? 'No fee structures assigned' : 'No fee structures found'}
+                        description={structures.length === 0 ? 'Assigned tuition, exam, transport, or other fee plans will appear here.' : 'Try another fee search.'}
                         size="sm"
                         className="min-h-56"
                     />
                 ) : (
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                        {structures.map((structure: FinancialStructure) => {
+                        {filteredStructures.map((structure: FinancialStructure) => {
                             const claimEntry = structureClaimEntries.get(structure.id);
                             return (
                                 <Card key={structure.id} padding="sm" hoverable={false}>
@@ -281,25 +329,10 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
             </section>
 
             <section className="space-y-3">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div>
                     <div>
                         <h2 className="text-base font-black text-foreground">Fee Book</h2>
                         <p className="text-sm font-medium text-muted-foreground">Current and previous payment requests.</p>
-                    </div>
-                    <div className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/45 p-1 scrollbar-none">
-                        {statusTabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`min-h-9 shrink-0 rounded-md px-3 py-2 text-xs font-black transition-colors ${activeTab === tab.id
-                                    ? 'bg-card text-foreground shadow-xs'
-                                    : 'text-muted-foreground hover:bg-card/60 hover:text-foreground'
-                                    }`}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
                     </div>
                 </div>
 

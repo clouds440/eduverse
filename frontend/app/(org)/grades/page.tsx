@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { AlertTriangle, BookOpen, CheckCircle2, ChevronRight, Edit3, GraduationCap, Layers, RefreshCw, Search, Users } from 'lucide-react';
+import { AlertTriangle, BookOpen, CheckCircle2, ChevronRight, Edit3, GraduationCap, Layers, RefreshCw, Users } from 'lucide-react';
 import { Assessment, BadgeVariant, Grade, GradeStatus, Role, Section, UnfinalizedGradeReviewRow } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -14,11 +14,12 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StatusBanner } from '@/components/ui/StatusBanner';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { SearchBar } from '@/components/ui/SearchBar';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 import { BrandIcon } from '@/components/ui/Brand';
@@ -221,35 +222,30 @@ function UnfinalizedGradesPanel({ token, canReview }: { token: string | null; ca
                     description={<>Review Draft and Published grades before transcripts use them. <DocsLink href="/docs/gradebook#grades-page">Read gradebook rules</DocsLink></>}
                     dismissible={true}
                 />
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_auto] lg:items-center">
-                    <Input
-                        placeholder="Search student, assessment, course, or section..."
-                        value={searchTerm}
-                        onChange={(event) => setSearchTerm(event.target.value)}
-                        icon={Search}
-                        className="h-11 border-border/60 bg-background/70"
-                    />
-                    <CustomSelect<UnfinalizedStatusFilter>
-                        value={statusFilter}
-                        onChange={setStatusFilter}
-                        options={UNFINALIZED_STATUS_OPTIONS}
-                    />
-                    <CustomSelect
-                        value={sectionFilter}
-                        onChange={setSectionFilter}
-                        options={sectionOptions}
-                        searchable
-                    />
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        icon={RefreshCw}
-                        onClick={() => mutate()}
-                        className="w-full lg:w-auto"
-                    >
-                        Refresh
-                    </Button>
-                </div>
+                <PageControls
+                    drawerLabel="Grade review filters"
+                    leading={<SearchBar placeholder="Search student, assessment, course, or section..." value={searchTerm} onChange={setSearchTerm} mobileMode="expandable" />}
+                    actions={(
+                        <Button type="button" variant="secondary" icon={RefreshCw} onClick={() => mutate()}>
+                            Refresh
+                        </Button>
+                    )}
+                    renderFilters={() => (
+                        <FilterDrawerGrid>
+                            <CustomSelect<UnfinalizedStatusFilter>
+                                value={statusFilter}
+                                onChange={setStatusFilter}
+                                options={UNFINALIZED_STATUS_OPTIONS}
+                            />
+                            <CustomSelect
+                                value={sectionFilter}
+                                onChange={setSectionFilter}
+                                options={sectionOptions}
+                                searchable
+                            />
+                        </FilterDrawerGrid>
+                    )}
+                />
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
@@ -461,21 +457,17 @@ export default function GradesPage() {
             ) : (
                 <ResourcePanel className="overflow-y-auto">
                     <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="w-full max-w-md">
-                                <Input
-                                    placeholder="Search sections or courses..."
-                                    value={searchTerm}
-                                    onChange={(event) => setSearchTerm(event.target.value)}
-                                    icon={Search}
-                                    className="h-11 border-border/60 bg-background/70"
-                                />
-                            </div>
-                            <div className="hidden items-center gap-2 text-xs font-black text-muted-foreground sm:flex">
-                                <GraduationCap className="h-4 w-4" />
-                                <span>Total Sections: {sections.length}</span>
-                            </div>
-                        </div>
+                        <PageControls
+                            showDrawer={false}
+                            renderFilters={() => null}
+                            leading={<SearchBar placeholder="Search sections or courses..." value={searchTerm} onChange={setSearchTerm} mobileMode="expandable" />}
+                            actions={(
+                                <div className="flex min-h-10 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-3 text-xs font-black text-muted-foreground">
+                                    <GraduationCap className="h-4 w-4" />
+                                    <span>Total Sections: {sections.length}</span>
+                                </div>
+                            )}
+                        />
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">

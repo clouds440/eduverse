@@ -19,7 +19,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { TableActions } from '@/components/ui/TableActions';
@@ -260,19 +261,19 @@ export default function AcademicCyclesPage() {
                     { label: 'Academics' },
                     { label: 'Academic Cycles' },
                 ]}
-            />
-            <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div className="min-w-0 flex-1">
+                actions={(
+                    <PageControls
+                        activeFilters={activeFilters}
+                        showDrawer={false}
+                        leading={(
                             <SearchBar
                                 value={searchTerm}
                                 onChange={(value) => updateQueryParams({ search: value, page: 1 })}
                                 placeholder="Search academic cycles..."
+                                mobileMode="expandable"
                             />
-                        </div>
-
-                        {isAdmin && (
+                        )}
+                        actions={isAdmin ? (
                             <Button
                                 onClick={() => router.push('/academic-cycles/create')}
                                 icon={Plus}
@@ -280,12 +281,12 @@ export default function AcademicCyclesPage() {
                             >
                                 New Cycle
                             </Button>
-                        )}
-                    </div>
-                </div>
-
-                <ResourceToolbar activeFilters={activeFilters} />
-
+                        ) : undefined}
+                        renderFilters={() => null}
+                    />
+                )}
+            />
+            <ResourcePanel>
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable
                         data={fetchedData?.data || []}

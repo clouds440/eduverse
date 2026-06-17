@@ -27,7 +27,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
     return (
         <FinanceHeaderActionsProvider setActions={setHeaderActions}>
             <div className="flex h-full min-h-0 flex-col">
-                <div className="shrink-0 space-y-3">
+                <div className="shrink-0 space-y-2">
                     <PageHeader
                         title="Financial Ledger"
                         description="Manage agreements, billing, and transactions."
@@ -46,14 +46,14 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
                                     key={tab.name}
                                     href={tab.href}
                                     className={cn(
-                                        'flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-32',
+                                        'flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-black transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-28 sm:px-3',
                                         isActive
                                             ? 'bg-background text-foreground shadow-xs'
                                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                                     )}
                                     aria-current={isActive ? 'page' : undefined}
                                 >
-                                    <tab.icon className="w-4 h-4" />
+                                    <tab.icon className="h-4 w-4" />
                                     {tab.name}
                                 </Link>
                             );
@@ -61,7 +61,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
                     </nav>
                 </div>
 
-                <div className="relative min-h-0 flex-1 overflow-y-auto pt-3 custom-scrollbar">
+                <div className="relative min-h-0 flex-1 overflow-y-auto pt-2 custom-scrollbar">
                     {children}
                 </div>
             </div>

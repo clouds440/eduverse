@@ -16,7 +16,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
@@ -256,53 +256,55 @@ export default function RoomsTab() {
     return (
         <>
             <ResourcePanel>
-                <FilterDrawerToolbar
-                    activeFilters={activeFilters}
-                    leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search rooms..." />}
-                    actions={isAdmin ? <Button icon={Plus} onClick={openCreate}>New Room</Button> : undefined}
-                    renderFilters={() => (
-                        <FilterDrawerGrid>
-                            <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Status</Label>
-                                <CustomSelect
-                                    options={[{ label: 'All Rooms', value: '' }, { label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]}
-                                    value={status}
-                                    onChange={(value) => updateQueryParams({ status: value, page: 1 })}
-                                    placeholder="All Rooms"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Building</Label>
-                                <CustomSelect
-                                    options={[{ label: 'All Buildings', value: '' }, ...buildingOptions]}
-                                    value={buildingId}
-                                    onChange={(value) => updateQueryParams({ buildingId: value, page: 1 })}
-                                    placeholder="All Buildings"
-                                    searchable
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Department</Label>
-                                <CustomSelect
-                                    options={[{ label: 'All Departments', value: '' }, ...departmentOptions]}
-                                    value={departmentId}
-                                    onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
-                                    placeholder="All Departments"
-                                    searchable
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Room Type</Label>
-                                <CustomSelect
-                                    options={roomTypeOptions}
-                                    value={type}
-                                    onChange={(value) => updateQueryParams({ type: value, page: 1 })}
-                                    placeholder="Any Type"
-                                />
-                            </div>
-                        </FilterDrawerGrid>
-                    )}
-                />
+                <div className="shrink-0 border-b border-border/60 bg-card/95 p-2.5 sm:p-3">
+                    <PageControls
+                        activeFilters={activeFilters}
+                        leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search rooms..." mobileMode="expandable" />}
+                        actions={isAdmin ? <Button icon={Plus} onClick={openCreate}>New Room</Button> : undefined}
+                        renderFilters={() => (
+                            <FilterDrawerGrid>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Status</Label>
+                                    <CustomSelect
+                                        options={[{ label: 'All Rooms', value: '' }, { label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]}
+                                        value={status}
+                                        onChange={(value) => updateQueryParams({ status: value, page: 1 })}
+                                        placeholder="All Rooms"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Building</Label>
+                                    <CustomSelect
+                                        options={[{ label: 'All Buildings', value: '' }, ...buildingOptions]}
+                                        value={buildingId}
+                                        onChange={(value) => updateQueryParams({ buildingId: value, page: 1 })}
+                                        placeholder="All Buildings"
+                                        searchable
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Department</Label>
+                                    <CustomSelect
+                                        options={[{ label: 'All Departments', value: '' }, ...departmentOptions]}
+                                        value={departmentId}
+                                        onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
+                                        placeholder="All Departments"
+                                        searchable
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Room Type</Label>
+                                    <CustomSelect
+                                        options={roomTypeOptions}
+                                        value={type}
+                                        onChange={(value) => updateQueryParams({ type: value, page: 1 })}
+                                        placeholder="Any Type"
+                                    />
+                                </div>
+                            </FilterDrawerGrid>
+                        )}
+                    />
+                </div>
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable
                         data={data?.data || []}

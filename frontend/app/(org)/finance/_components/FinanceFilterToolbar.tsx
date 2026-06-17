@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import type { ActiveFilter } from '@/components/ui/PageShell';
 
 interface FinanceFilterToolbarProps {
@@ -20,13 +20,15 @@ export function FinanceFilterToolbar({
     renderFilters,
 }: FinanceFilterToolbarProps) {
     return (
-        <FilterDrawerToolbar
-            drawerLabel={drawerLabel}
-            leading={leading}
-            actions={actions}
-            activeFilters={activeFilters}
-            renderFilters={() => renderFilters('mobile')}
-        />
+        <div className="shrink-0 border-b border-border/60 bg-card/95 p-2.5 sm:p-3">
+            <PageControls
+                drawerLabel={drawerLabel}
+                leading={leading}
+                actions={actions}
+                activeFilters={activeFilters}
+                renderFilters={() => renderFilters('mobile')}
+            />
+        </div>
     );
 }
 

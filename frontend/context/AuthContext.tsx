@@ -154,6 +154,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'overview',
                             'users',
                             'sub-admins',
+                            'buildings-and-rooms',
+                            'departments',
                             'courses',
                             'academic-cycles',
                             'cohorts',

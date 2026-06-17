@@ -19,7 +19,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Badge } from '@/components/ui/Badge';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
@@ -283,15 +283,15 @@ export default function SectionsPage() {
                     { label: 'Academics' },
                     { label: 'Sections' },
                 ]}
-            />
-            <ResourcePanel>
-                <FilterDrawerToolbar
+                actions={(
+                    <PageControls
                     activeFilters={activeFilters}
                     leading={(
                         <SearchBar
                             value={searchTerm}
                             onChange={(val) => updateQueryParams({ search: val, page: 1 })}
                             placeholder="Search by section name, room..."
+                            mobileMode="expandable"
                         />
                     )}
                     actions={canManageSections ? (
@@ -393,7 +393,10 @@ export default function SectionsPage() {
                             )}
                         </FilterDrawerGrid>
                     )}
-                />
+                    />
+                )}
+            />
+            <ResourcePanel>
 
                 <div className="relative overflow-x-hidden flex-1 min-h-0">
                     <DataTable

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import { OrgId } from '../common/decorators/org-id.decorator';
@@ -13,7 +13,7 @@ import { DepartmentsService } from './departments.service';
 export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentsService) {}
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Roles(Role.ORG_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
   create(@OrgId() orgId: string, @Body() dto: CreateDepartmentDto) {
@@ -54,11 +54,12 @@ export class DepartmentsController {
     @OrgId() orgId: string,
     @Param('id') id: string,
     @Body() dto: UpdateDepartmentDto,
+    @Req() req: any,
   ) {
-    return this.departmentsService.updateDepartment(orgId, id, dto);
+    return this.departmentsService.updateDepartment(orgId, id, dto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Roles(Role.ORG_ADMIN)
   @Access(AccessLevel.WRITE)
   @Patch(':id/active')
   setActive(

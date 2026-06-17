@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogIn, UserPlus, Menu, X } from 'lucide-react';
@@ -26,14 +27,134 @@ export default function Navbar() {
     const { state } = useGlobal();
     const pathname = usePathname();
     const { themeMode, setThemeMode } = useTheme();
+    const navRef = useRef<HTMLElement>(null);
+    const lastScrollTopRef = useRef(0);
+    const activeScrollTargetRef = useRef<HTMLElement | null>(null);
+    const lastScrollTargetRef = useRef<HTMLElement | null>(null);
+    const [isNavHidden, setIsNavHidden] = useState(false);
+    const [hasFocusWithin, setHasFocusWithin] = useState(false);
     const chatUnread = state.stats.chat?.unread || 0;
     const mailUnread = state.stats.mail?.unread || 0;
 
     const isDashboard = user && new RegExp(`^/(${DASHBOARD_MODULES.join('|')})(/|$)`).test(pathname);
     const totalUnread = chatUnread + mailUnread;
+    const keepNavVisible = isMobileOpen || hasFocusWithin;
+
+    const isScrollableElement = (element?: HTMLElement | null) => {
+        if (!element || element === document.documentElement || element === document.body) return false;
+        return element.scrollHeight - element.clientHeight > 2;
+    };
+
+    const getPrimaryScrollTop = (preferredTarget?: HTMLElement | null) => {
+        if (typeof window === 'undefined') return 0;
+
+        const preferredScrollable = isScrollableElement(preferredTarget) ? preferredTarget : null;
+        if (preferredScrollable) {
+            return preferredScrollable.scrollTop;
+        }
+
+        const candidates = [
+            document.querySelector<HTMLElement>('[data-dashboard-scroll-container="true"]'),
+            document.querySelector<HTMLElement>('.app-shell-main'),
+            document.scrollingElement as HTMLElement | null,
+            document.documentElement,
+            document.body,
+        ].filter(Boolean) as HTMLElement[];
+
+        const scrollableCandidate = candidates.find(isScrollableElement);
+
+        return Math.max(
+            window.scrollY || 0,
+            scrollableCandidate?.scrollTop || 0,
+            document.documentElement.scrollTop || 0,
+            document.body.scrollTop || 0,
+        );
+    };
+
+    useEffect(() => {
+        const root = document.documentElement;
+        root.style.setProperty('--dashboard-nav-offset', 'var(--app-nav-height)');
+        setIsNavHidden(false);
+        lastScrollTopRef.current = 0;
+
+        return () => {
+            root.style.setProperty('--dashboard-nav-offset', 'var(--app-nav-height)');
+        };
+    }, [pathname]);
+
+    useEffect(() => {
+        const root = document.documentElement;
+        root.style.setProperty('--dashboard-nav-offset', isNavHidden ? '0px' : 'var(--app-nav-height)');
+    }, [isNavHidden]);
+
+    useEffect(() => {
+        if (keepNavVisible) {
+            setIsNavHidden(false);
+            return;
+        }
+
+        let frameId: number | null = null;
+
+        const updateNavVisibility = () => {
+            frameId = null;
+            const currentScrollTop = getPrimaryScrollTop(activeScrollTargetRef.current);
+            const delta = currentScrollTop - lastScrollTopRef.current;
+            lastScrollTopRef.current = currentScrollTop;
+
+            if (window.innerWidth >= 1024) {
+                setIsNavHidden(false);
+                return;
+            }
+
+            if (currentScrollTop <= 12 || delta < -8) {
+                setIsNavHidden(false);
+                return;
+            }
+
+            if (delta > 10 && currentScrollTop > 80) {
+                setIsNavHidden(true);
+            }
+        };
+
+        const scheduleUpdate = (event?: Event) => {
+            const target = event?.target;
+            const nextTarget = target instanceof HTMLElement ? target : null;
+            if (nextTarget !== lastScrollTargetRef.current) {
+                lastScrollTargetRef.current = nextTarget;
+                lastScrollTopRef.current = getPrimaryScrollTop(nextTarget);
+            }
+            activeScrollTargetRef.current = nextTarget;
+            if (frameId !== null) return;
+            frameId = window.requestAnimationFrame(updateNavVisibility);
+        };
+
+        lastScrollTopRef.current = getPrimaryScrollTop();
+        lastScrollTargetRef.current = null;
+        activeScrollTargetRef.current = null;
+        document.addEventListener('scroll', scheduleUpdate, { capture: true, passive: true });
+        window.addEventListener('scroll', scheduleUpdate, { passive: true });
+        window.addEventListener('resize', scheduleUpdate, { passive: true });
+        scheduleUpdate();
+
+        return () => {
+            if (frameId !== null) window.cancelAnimationFrame(frameId);
+            document.removeEventListener('scroll', scheduleUpdate, true);
+            window.removeEventListener('scroll', scheduleUpdate);
+            window.removeEventListener('resize', scheduleUpdate);
+        };
+    }, [keepNavVisible, pathname]);
 
     return (
-        <nav className="fixed top-0 left-0 right-0 z-100 h-16 border-b border-border/70 bg-background/85 backdrop-blur-md shadow-sm text-navbar-foreground">
+        <nav
+            ref={navRef}
+            onFocusCapture={() => setHasFocusWithin(true)}
+            onBlurCapture={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setHasFocusWithin(false);
+                }
+            }}
+            className={`fixed top-0 left-0 right-0 z-100 h-16 border-b border-border/70 bg-background/85 text-navbar-foreground shadow-sm backdrop-blur-md transition-transform duration-200 ease-out ${isNavHidden ? '-translate-y-full' : 'translate-y-0'}`}
+        >
             <div className="mx-auto flex h-full w-full items-center justify-between gap-2 px-3 sm:px-4 lg:pr-8">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                     {isDashboard && (

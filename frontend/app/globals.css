@@ -9,6 +9,7 @@
   --app-viewport-top: 0px;
   --app-keyboard-inset: 0px;
   --app-nav-height: calc(4rem + env(safe-area-inset-top, 0px));
+  --dashboard-nav-offset: var(--app-nav-height);
   --font-geist-sans: var(--font-dm-sans), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: var(--font-jetbrains-mono), "Cascadia Code", "Fira Code", Consolas, monospace;
 
@@ -228,12 +229,20 @@ html.pwa-standalone nav {
 html.pwa-standalone .app-shell-main {
   height: var(--app-height) !important;
   max-height: var(--app-height);
-  padding-top: var(--app-nav-height);
+  padding-top: var(--dashboard-nav-offset);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 html.pwa-standalone.virtual-keyboard-open .app-shell-main {
   padding-bottom: 0;
+}
+
+.app-shell-main[data-shell-mode="public"] > div > .min-h-screen {
+  min-height: 100%;
+}
+
+.app-shell-main[data-shell-mode="public"] > div > .h-screen {
+  height: 100%;
 }
 
 /* Custom Utilities */
@@ -310,6 +319,117 @@ html.pwa-standalone.virtual-keyboard-open .app-shell-main {
 
   .animate-scale-in {
     animation: scale-in 0.3s ease-out forwards;
+  }
+
+  @keyframes flow-card-enter {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.97);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(var(--flow-y, 0)) scale(1);
+    }
+  }
+
+  @keyframes flow-card-breathe {
+
+    0%,
+    100% {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+      border-color: color-mix(in srgb, var(--border-color) 100%, transparent);
+      background-color: color-mix(in srgb, var(--background) 70%, transparent);
+    }
+
+    10% {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 28px rgba(var(--primary-rgb), 0.11);
+      border-color: color-mix(in srgb, var(--primary) 32%, var(--border-color));
+      background-color: color-mix(in srgb, var(--primary) 7%, var(--background));
+    }
+
+    20% {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes flow-node-pulse {
+
+    0%,
+    100% {
+      opacity: 0.34;
+      transform: scale(0.82);
+    }
+
+    10% {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    22% {
+      opacity: 0.48;
+      transform: scale(0.86);
+    }
+  }
+
+  .flow-card-shell {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+    animation: flow-card-enter 520ms cubic-bezier(0.16, 1, 0.3, 1) var(--flow-delay, 0ms) forwards;
+  }
+
+  .flow-card {
+    position: relative;
+    height: 100%;
+    border-radius: 1rem;
+    border: 1px solid color-mix(in srgb, var(--border-color) 100%, transparent);
+    background: color-mix(in srgb, var(--background) 70%, transparent);
+    padding: 0.875rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    backdrop-filter: blur(12px);
+    animation: flow-card-breathe 7.2s ease-in-out calc(900ms + var(--flow-cycle-delay, 0ms)) infinite;
+    transition: border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+  }
+
+  .flow-card:hover {
+    animation-play-state: paused;
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--primary) 38%, var(--border-color));
+    background: color-mix(in srgb, var(--primary) 8%, var(--background));
+    box-shadow: 0 14px 34px rgba(var(--primary-rgb), 0.14);
+  }
+
+  .flow-node-signal {
+    position: relative;
+    display: inline-flex;
+    width: 0.5rem;
+    height: 0.5rem;
+    flex: none;
+    border-radius: 9999px;
+    background: var(--primary);
+    opacity: 0.45;
+    animation: flow-node-pulse 7.2s ease-in-out calc(900ms + var(--flow-cycle-delay, 0ms)) infinite;
+  }
+
+  .flow-node-signal::after {
+    content: "";
+    position: absolute;
+    inset: -0.25rem;
+    border-radius: inherit;
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+
+    .flow-card-shell,
+    .flow-card,
+    .flow-node-signal {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
   }
 
   /* --- New Auth Animations --- */

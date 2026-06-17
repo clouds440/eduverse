@@ -67,6 +67,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
         const allLinks = [...links, ...bottomLinks];
         const query = searchParams.toString();
         const fullPath = query ? `${pathname}?${query}` : pathname;
+        const getHrefPath = (href: string) => href.split('?')[0];
         const usersLink = allLinks.find((link) => link.id === 'USERS');
         if (usersLink && isUserManagementPath(pathname)) return usersLink;
 
@@ -84,6 +85,10 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
         const exactMatch = allLinks.find(l => l.href === fullPath);
         if (exactMatch) return exactMatch;
 
+        // 1b. Match parent routes when the current URL only differs by query params.
+        const pathOnlyMatch = allLinks.find(l => getHrefPath(l.href) === pathname && !l.href.includes('?'));
+        if (pathOnlyMatch) return pathOnlyMatch;
+
         // 2. Intelligent Tab/Query Match (ignores extra params like sectionId)
         const currentTab = searchParams.get('tab') || 'overview';
         const tabMatch = allLinks.find(l => {
@@ -91,7 +96,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
             if (isTabLink) {
                 const linkUrlPart = l.href.split('?')[1] || '';
                 const linkTab = new URLSearchParams(linkUrlPart).get('tab');
-                return linkTab === currentTab && l.href.split('?')[0] === pathname;
+                return linkTab === currentTab && getHrefPath(l.href) === pathname;
             }
             return currentTab === 'overview' && l.href === pathname;
         });
@@ -103,7 +108,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
         return allLinks
             .filter(l => !l.href.endsWith('/dashboard') && !l.href.endsWith('/admin') && !l.href.includes('?'))
             .sort((a, b) => (b.href?.length || 0) - (a.href?.length || 0))
-            .find(l => pathname.startsWith(`${l.href}/`));
+            .find(l => pathname === l.href || pathname.startsWith(`${l.href}/`));
     }, [pathname, searchParams, links, bottomLinks]);
 
     const handleLogout = () => {
@@ -223,12 +228,12 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                     <button
                         type="button"
                         onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
-                        className={`absolute -top-3 left-1/2 -translate-x-1/2 px-1 py-0 rounded-md text-sidebar-text/60 bg-background hover:bg-card transition-all shadow-sm`}
+                        className={`absolute -top-2 left-1/2 -translate-x-1/2 px-5 py-0 rounded-md border border-border/40 text-sidebar-text/60 bg-background hover:bg-card transition-all shadow-sm`}
                         title={isBottomSectionCollapsed ? "Show more" : "Show less"}
                     >
                         {isBottomSectionCollapsed ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronUp className="w-4 h-4 shrink-0" />}
                         {isBottomSectionCollapsed && mailCount.unread > 0 && (
-                            <span className="absolute -top-2.5 -right-2">
+                            <span className="absolute -top-2 -right-2">
                                 <Badge variant="error" size="xs">
                                     {mailCount.unread > 9 ? '9+' : mailCount.unread}
                                 </Badge>
@@ -295,6 +300,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             <div className="border-t-2 my-2 border-border"></div>
 
                             <button
+                                type="button"
                                 onClick={handleLogout}
                                 className={`flex items-center cursor-pointer ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} w-full rounded-md text-danger bg-danger/10 hover:bg-danger/30 transition-all py-3`}
                                 title="Log out"

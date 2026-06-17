@@ -147,7 +147,7 @@ export function DocsNavigation() {
   const mobileHeader = (
     <div
       className={cn(
-        'fixed left-0 right-0 top-(--app-nav-height) z-90 w-full border-b border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur-md transition-transform duration-200 lg:hidden',
+        'fixed left-0 right-0 top-(--dashboard-nav-offset) z-90 w-full border-b border-border bg-background/95 px-3 py-2 shadow-sm backdrop-blur-md transition-[transform,top] duration-200 lg:hidden',
         isMobileHeaderVisible ? 'translate-y-0' : '-translate-y-full',
       )}
     >
@@ -264,7 +264,7 @@ export function DocsNavigation() {
   return (
     <>
       <aside className="hidden w-84 shrink-0 border-r border-border bg-background/80 px-5 py-6 lg:block">
-        <nav className="sticky top-20 flex max-h-[calc(100vh-6rem)] flex-col" aria-label="Documentation">
+        <nav className="sticky top-[calc(var(--dashboard-nav-offset)+1rem)] flex max-h-[calc(100vh-6rem)] flex-col transition-[top] duration-200" aria-label="Documentation">
           <Link href="/docs" className="mb-4 flex items-center gap-2 text-base font-black text-foreground">
             <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
             EduVerse Docs

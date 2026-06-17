@@ -12,6 +12,9 @@ import { SkeletonTable } from '@/components/ui/Skeleton';
 import { Card } from '@/components/ui/Card';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { getSectionColor, getSectionSurfaceStyle } from '@/lib/utils';
+import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
+import { PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { SearchBar } from '@/components/ui/SearchBar';
 
 interface SectionSummary {
     id: string;
@@ -32,6 +35,7 @@ interface AttendanceProps {
 
 export default function Attendance({ studentId }: AttendanceProps) {
     const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+    const [search, setSearch] = useState('');
 
     const attendanceKey = studentId
         ? ['student-attendance', studentId] as const
@@ -92,6 +96,15 @@ export default function Attendance({ studentId }: AttendanceProps) {
         };
     }, [records]);
 
+    const filteredSectionSummaries = useMemo(() => {
+        const query = search.trim().toLowerCase();
+        if (!query) return sectionSummaries;
+        return sectionSummaries.filter((summary) => (
+            summary.courseName.toLowerCase().includes(query)
+            || summary.sectionName.toLowerCase().includes(query)
+        ));
+    }, [search, sectionSummaries]);
+
     if (fetching) {
         return <SkeletonTable rows={4} columns={4} />;
     }
@@ -104,20 +117,26 @@ export default function Attendance({ studentId }: AttendanceProps) {
         const summary = sectionSummaries.find((section) => section.id === selectedSectionId);
         return (
             <div className="space-y-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <Button
-                        variant="secondary"
-                        onClick={() => setSelectedSectionId(null)}
-                        icon={ChevronLeft}
-                    >
-                        Back to Attendance
-                    </Button>
-                    {summary && (
-                        <div className="rounded-md border border-border bg-muted/25 px-3 py-2 text-sm font-bold text-foreground">
-                            {summary.percentage}% attendance
-                        </div>
+                <PageControls
+                    showDrawer={false}
+                    renderFilters={() => null}
+                    actions={(
+                        <>
+                            <Button
+                                variant="secondary"
+                                onClick={() => setSelectedSectionId(null)}
+                                icon={ChevronLeft}
+                            >
+                                Back
+                            </Button>
+                            {summary && (
+                                <div className="flex min-h-10 items-center rounded-md border border-border bg-muted/25 px-3 text-sm font-bold text-foreground">
+                                    {summary.percentage}% attendance
+                                </div>
+                            )}
+                        </>
                     )}
-                </div>
+                />
 
                 {summary && (
                     <Card
@@ -172,46 +191,54 @@ export default function Attendance({ studentId }: AttendanceProps) {
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Overall Attendance</p>
-                            <p className={`mt-2 text-3xl font-black ${overall.percentage >= 85 ? 'text-success' : 'text-warning'}`}>{overall.percentage}%</p>
+            <DismissiblePanel title="Attendance summary" storageKey="student-attendance-summary" defaultCollapsedOnMobile>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Overall Attendance</p>
+                                <p className={`mt-2 text-3xl font-black ${overall.percentage >= 85 ? 'text-success' : 'text-warning'}`}>{overall.percentage}%</p>
+                            </div>
+                            <CheckCircle className="h-5 w-5 text-success" />
                         </div>
-                        <CheckCircle className="h-5 w-5 text-success" />
-                    </div>
-                </Card>
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Recorded Sessions</p>
-                            <p className="mt-2 text-3xl font-black text-foreground">{overall.total}</p>
+                    </Card>
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Recorded Sessions</p>
+                                <p className="mt-2 text-3xl font-black text-foreground">{overall.total}</p>
+                            </div>
+                            <Clock className="h-5 w-5 text-primary" />
                         </div>
-                        <Clock className="h-5 w-5 text-primary" />
-                    </div>
-                </Card>
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Absences</p>
-                            <p className="mt-2 text-3xl font-black text-foreground">{overall.absent}</p>
+                    </Card>
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Absences</p>
+                                <p className="mt-2 text-3xl font-black text-foreground">{overall.absent}</p>
+                            </div>
+                            <AlertCircle className="h-5 w-5 text-warning" />
                         </div>
-                        <AlertCircle className="h-5 w-5 text-warning" />
-                    </div>
-                </Card>
-            </div>
+                    </Card>
+                </div>
+            </DismissiblePanel>
 
-            {sectionSummaries.length === 0 ? (
+            <PageControls
+                showDrawer={false}
+                renderFilters={() => null}
+                leading={<SearchBar placeholder="Search attendance sections..." value={search} onChange={setSearch} mobileMode="expandable" />}
+            />
+
+            {filteredSectionSummaries.length === 0 ? (
                 <EmptyState
                     icon={CheckCircle}
-                    title="No attendance records"
-                    description="Attendance records will appear after sessions are marked."
+                    title={sectionSummaries.length === 0 ? 'No attendance records' : 'No sections found'}
+                    description={sectionSummaries.length === 0 ? 'Attendance records will appear after sessions are marked.' : 'Try another course or section search.'}
                     className="min-h-80"
                 />
             ) : (
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                    {sectionSummaries.map((summary) => {
+                    {filteredSectionSummaries.map((summary) => {
                         const sectionColor = getSectionColor(summary.sectionColor);
                         const sectionPanelStyle = getSectionSurfaceStyle(summary.sectionColor, '0C', '38');
                         return (

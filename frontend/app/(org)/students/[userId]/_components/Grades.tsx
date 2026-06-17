@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/Card';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
@@ -59,71 +61,79 @@ export default function Grades({ grades, transcriptHref = '/transcripts', showSe
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Average</p>
-                            <p className="mt-2 text-3xl font-black text-foreground">{formatPercent(averageGrade)}</p>
+            <DismissiblePanel title="Grade summary" storageKey="student-grades-summary" defaultCollapsedOnMobile>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Average</p>
+                                <p className="mt-2 text-3xl font-black text-foreground">{formatPercent(averageGrade)}</p>
+                            </div>
+                            <Trophy className="h-5 w-5 text-primary" />
                         </div>
-                        <Trophy className="h-5 w-5 text-primary" />
-                    </div>
-                </Card>
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Graded Work</p>
-                            <p className="mt-2 text-3xl font-black text-foreground">{gradedAssessments}/{totalAssessments}</p>
+                    </Card>
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Graded Work</p>
+                                <p className="mt-2 text-3xl font-black text-foreground">{gradedAssessments}/{totalAssessments}</p>
+                            </div>
+                            <Award className="h-5 w-5 text-success" />
                         </div>
-                        <Award className="h-5 w-5 text-success" />
-                    </div>
-                </Card>
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Strongest</p>
-                            <p className="mt-2 truncate text-lg font-black text-foreground">{strongestGrade?.courseName || 'No grades yet'}</p>
+                    </Card>
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Strongest</p>
+                                <p className="mt-2 truncate text-lg font-black text-foreground">{strongestGrade?.courseName || 'No grades yet'}</p>
+                            </div>
+                            <TrendingUp className="h-5 w-5 text-info" />
                         </div>
-                        <TrendingUp className="h-5 w-5 text-info" />
-                    </div>
-                </Card>
-                <Card padding="sm" hoverable={false}>
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Needs Attention</p>
-                            <p className="mt-2 text-3xl font-black text-foreground">{attentionCount}</p>
+                    </Card>
+                    <Card padding="sm" hoverable={false}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Needs Attention</p>
+                                <p className="mt-2 text-3xl font-black text-foreground">{attentionCount}</p>
+                            </div>
+                            <Search className="h-5 w-5 text-warning" />
                         </div>
-                        <Search className="h-5 w-5 text-warning" />
-                    </div>
-                </Card>
-            </div>
+                    </Card>
+                </div>
+            </DismissiblePanel>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-3">
                 <div>
                     <h2 className="text-base font-black text-foreground">Course Results</h2>
                     <p className="mt-1 text-sm font-medium text-muted-foreground">
                         {grades.length} {grades.length === 1 ? 'section' : 'sections'} with grade records
                     </p>
                 </div>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-80">
-                    {showSectionSelector && (
-                        <CustomSelect
-                            value={selectedSectionId}
-                            onChange={setSelectedSectionId}
-                            options={[
-                                { value: '', label: 'All courses' },
-                                ...sectionOptions,
-                            ]}
-                            placeholder="Select course"
-                            searchable
-                        />
+                <PageControls
+                    drawerLabel="Grade filters"
+                    showDrawer={showSectionSelector}
+                    leading={<SearchBar placeholder="Search grades..." value={search} onChange={setSearch} mobileMode="expandable" />}
+                    actions={(
+                        <Link href={transcriptHref} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-black text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/30">
+                            <FileText className="h-4 w-4 text-primary" />
+                            Transcript
+                        </Link>
                     )}
-                    <SearchBar
-                        placeholder="Search grades..."
-                        value={search}
-                        onChange={setSearch}
-                    />
-                </div>
+                    renderFilters={() => (
+                        <FilterDrawerGrid>
+                            <CustomSelect
+                                value={selectedSectionId}
+                                onChange={setSelectedSectionId}
+                                options={[
+                                    { value: '', label: 'All courses' },
+                                    ...sectionOptions,
+                                ]}
+                                placeholder="Select course"
+                                searchable
+                            />
+                        </FilterDrawerGrid>
+                    )}
+                />
             </div>
 
             {filteredGrades.length === 0 ? (
@@ -189,11 +199,6 @@ export default function Grades({ grades, transcriptHref = '/transcripts', showSe
                     })}
                 </div>
             )}
-
-            <Link href={transcriptHref} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-3 text-sm font-black text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/30">
-                <FileText className="h-4 w-4 text-primary" />
-                Open Official Transcript
-            </Link>
         </div>
     );
 }

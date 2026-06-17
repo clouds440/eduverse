@@ -16,7 +16,7 @@ import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
@@ -220,15 +220,15 @@ export default function CohortsPage() {
                     { label: 'Academics' },
                     { label: 'Cohorts' },
                 ]}
-            />
-            <ResourcePanel>
-                <FilterDrawerToolbar
+                actions={(
+                    <PageControls
                     activeFilters={activeFilters}
                     leading={(
                         <SearchBar
                             value={searchTerm}
                             onChange={(value) => updateQueryParams({ search: value, page: 1 })}
                             placeholder="Search cohorts..."
+                            mobileMode="expandable"
                         />
                     )}
                     actions={isAdmin ? (
@@ -258,7 +258,10 @@ export default function CohortsPage() {
                             </div>
                         </FilterDrawerGrid>
                     )}
-                />
+                    />
+                )}
+            />
+            <ResourcePanel>
 
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable

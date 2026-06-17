@@ -19,6 +19,7 @@ interface PageHeaderProps {
     icon?: LucideIcon;
     meta?: React.ReactNode;
     actions?: React.ReactNode;
+    actionsDefaultOpen?: boolean;
     showDateTime?: boolean;
     breadcrumbs?: PageBreadcrumb[];
     className?: string;
@@ -41,6 +42,7 @@ interface ResourceToolbarProps {
     filters?: React.ReactNode;
     actions?: React.ReactNode;
     activeFilters?: ActiveFilter[];
+    activeFiltersLayout?: 'scroll' | 'wrap';
     className?: string;
 }
 
@@ -51,7 +53,7 @@ interface RouteBreadcrumbsProps {
 
 export function PageShell({ children, className, style }: PageShellProps) {
     return (
-        <div className={cn('flex h-full w-full min-w-0 flex-col gap-3 overflow-hidden', className)} style={style}>
+        <div className={cn('flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden sm:gap-3', className)} style={style}>
             {children}
         </div>
     );
@@ -140,27 +142,29 @@ function getPageScrollState(header: HTMLElement) {
     return { scrollTop: maxScrollTop, scrollRange: maxScrollRange };
 }
 
-export function PageHeader({ title, description, icon: Icon, meta, actions, showDateTime = true, breadcrumbs, className }: PageHeaderProps) {
+export function PageHeader({ title, description, icon: Icon, meta, actions, actionsDefaultOpen, showDateTime = true, breadcrumbs, className }: PageHeaderProps) {
     const pathname = usePathname();
     const headerRef = useRef<HTMLElement>(null);
     const compactAllowedRef = useRef(false);
     const isScrolledRef = useRef(false);
     const [isScrolled, setIsScrolled] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
+    const [isCompactViewport, setIsCompactViewport] = useState(false);
     const [actionsOpen, setActionsOpen] = useState(true);
     const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
-    const isCompact = isMobile || isScrolled;
+    const isCompact = isCompactViewport || isScrolled;
     const hasActions = Boolean(actions);
 
     useEffect(() => {
-        const mediaQuery = window.matchMedia('(max-width: 767px)');
-        const updateMobile = () => setIsMobile(mediaQuery.matches);
-        setActionsOpen(!mediaQuery.matches);
+        const mediaQuery = window.matchMedia('(max-width: 1023px)');
+        const updateCompactViewport = () => {
+            setIsCompactViewport(mediaQuery.matches);
+            setActionsOpen(actionsDefaultOpen ?? !mediaQuery.matches);
+        };
 
-        updateMobile();
-        mediaQuery.addEventListener('change', updateMobile);
-        return () => mediaQuery.removeEventListener('change', updateMobile);
-    }, []);
+        updateCompactViewport();
+        mediaQuery.addEventListener('change', updateCompactViewport);
+        return () => mediaQuery.removeEventListener('change', updateCompactViewport);
+    }, [actionsDefaultOpen]);
 
     useEffect(() => {
         if (!showDateTime) return;
@@ -245,8 +249,8 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, show
         <header
             ref={headerRef}
             className={cn(
-                'shrink-0 rounded-lg border border-border bg-card/80 shadow-xl backdrop-blur-2xl print:hidden',
-                isCompact ? 'p-2' : 'p-2 md:p-3',
+                'shrink-0 rounded-lg border border-border bg-card/85 shadow-sm backdrop-blur-xl print:hidden',
+                isCompact ? 'p-2' : 'p-2.5 md:p-3',
                 className,
             )}
         >
@@ -257,24 +261,31 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, show
                 <div className={cn('flex min-w-0 flex-1 items-start gap-3', isCompact && 'items-center gap-2')}>
                     {Icon && (
                         <div className={cn(
-                            'flex shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary shadow-inner',
-                            isCompact ? 'h-7 w-7' : 'h-12 w-12',
+                            'flex shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary shadow-inner',
+                            isCompact ? 'h-7 w-7' : 'h-10 w-10',
                         )}>
-                            <Icon className={cn(isCompact ? 'h-4 w-4' : 'h-6 w-6')} aria-hidden="true" />
+                            <Icon className={cn(isCompact ? 'h-4 w-4' : 'h-5 w-5')} aria-hidden="true" />
                         </div>
                     )}
-                    <div className={cn('min-w-0', isCompact && 'flex min-h-7 items-center')}>
-                        <RouteBreadcrumbs breadcrumbs={breadcrumbs} className={cn(!isCompact && 'mb-1.5')} />
-                        {!isCompact && (
+                    <div className={cn('min-w-0', isCompact && 'flex min-h-7 flex-1 items-center')}>
+                        {!isCompact && <RouteBreadcrumbs breadcrumbs={breadcrumbs} className="mb-1.5" />}
+                        {isCompact ? (
+                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                                <h1 className="min-w-0 truncate text-base font-black leading-tight text-foreground">
+                                    {title}
+                                </h1>
+                                {meta && <div className="hidden shrink-0 min-[420px]:block">{meta}</div>}
+                            </div>
+                        ) : (
                             <>
                                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                    <h1 className="min-w-0 text-2xl font-bold leading-tight tracking-tight text-foreground">
+                                    <h1 className="min-w-0 text-xl font-black leading-tight text-foreground xl:text-2xl">
                                         {title}
                                     </h1>
                                     {meta}
                                 </div>
                                 {description && (
-                                    <p className="mt-1 max-w-3xl text-sm font-medium leading-6 text-muted-foreground">
+                                    <p className="mt-1 max-w-3xl text-sm font-medium leading-5 text-muted-foreground">
                                         {description}
                                     </p>
                                 )}
@@ -283,7 +294,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, show
                     </div>
                 </div>
                 <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
-                    {showDateTime && !isMobile && (
+                    {showDateTime && !isCompactViewport && (
                         <time
                             dateTime={currentDateTime.toISOString()}
                             className={cn(
@@ -312,8 +323,8 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, show
                 </div>
             </div>
             {hasActions && actionsOpen && (
-                <div className="mt-3 border-t border-border/60 pt-3">
-                    <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end md:items-center md:justify-end">
+                <div className="mt-2 border-t border-border/60 pt-2">
+                    <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end md:items-center md:justify-end">
                         {actions}
                     </div>
                 </div>
@@ -330,18 +341,18 @@ export function ResourcePanel({ children, className, style, ...props }: PageShel
     );
 }
 
-export function ResourceToolbar({ search, filters, actions, activeFilters = [], className }: ResourceToolbarProps) {
+export function ResourceToolbar({ search, filters, actions, activeFilters = [], activeFiltersLayout = 'scroll', className }: ResourceToolbarProps) {
     const hasControls = search || filters || actions;
 
     if (!hasControls && activeFilters.length === 0) return null;
 
     return (
-        <div className={cn('shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4', className)}>
+        <div className={cn('shrink-0 border-b border-border/60 bg-card/85 p-2.5 sm:p-3', className)}>
             {hasControls && (
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     {search && <div className="min-w-0 flex-1">{search}</div>}
                     {(filters || actions) && (
-                        <div className="flex w-full flex-wrap items-center justify-end gap-2 md:w-auto">
+                        <div className="flex w-full min-w-0 items-center justify-end gap-2 overflow-x-auto scrollbar-none lg:w-auto lg:overflow-visible">
                             {filters}
                             {actions}
                         </div>
@@ -350,11 +361,16 @@ export function ResourceToolbar({ search, filters, actions, activeFilters = [], 
             )}
 
             {activeFilters.length > 0 && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div className={cn(
+                    'mt-2 flex items-center gap-2',
+                    activeFiltersLayout === 'scroll'
+                        ? 'overflow-x-auto pb-0.5 scrollbar-none'
+                        : 'flex-wrap',
+                )}>
                     {activeFilters.map((filter) => (
                         <span
                             key={filter.key}
-                            className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground"
+                            className="inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground"
                         >
                             <span className="shrink-0 text-muted-foreground">{filter.label}</span>
                             {filter.value && <span className="min-w-0 truncate">{filter.value}</span>}

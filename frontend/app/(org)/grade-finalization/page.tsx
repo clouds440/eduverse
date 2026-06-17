@@ -26,10 +26,11 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { FilterDrawerGrid, FilterDrawerToolbar } from '@/components/ui/FilterDrawerToolbar';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { Input } from '@/components/ui/Input';
 import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { StatusBanner } from '@/components/ui/StatusBanner';
+import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
@@ -353,26 +354,29 @@ export default function GradeFinalizationPage() {
                     { label: 'Grade Finalization' },
                 ]}
                 meta={<Badge variant="primary" size="sm">{statusCounts.ready} ready</Badge>}
+                actions={(
+                    <PageControls
+                        drawerLabel="Grade filters"
+                        renderFilters={renderFilters}
+                        actions={(
+                            <Button type="button" variant="secondary" icon={RefreshCw} onClick={() => mutate()}>
+                                Refresh
+                            </Button>
+                        )}
+                        activeFilters={activeFilters}
+                    />
+                )}
             />
 
-            <div className="grid gap-3 md:grid-cols-3">
-                <StatusBanner variant="info" title="Ready" description={`${statusCounts.ready} assessments can be finalized.`} icon={CheckCircle2} />
-                <StatusBanner variant="success" title="Finalized" description={`${statusCounts.finalized} assessments are transcript-ready.`} icon={GraduationCap} />
-                <StatusBanner variant="warning" title="Needs Review" description={`${statusCounts.review} assessments have missing or draft grades.`} icon={AlertTriangle} />
-            </div>
+            <DismissiblePanel title="Summary" defaultCollapsedOnMobile>
+                <div className="grid gap-3 md:grid-cols-3">
+                    <StatusBanner variant="info" title="Ready" description={`${statusCounts.ready} assessments can be finalized.`} icon={CheckCircle2} />
+                    <StatusBanner variant="success" title="Finalized" description={`${statusCounts.finalized} assessments are transcript-ready.`} icon={GraduationCap} />
+                    <StatusBanner variant="warning" title="Needs Review" description={`${statusCounts.review} assessments have missing or draft grades.`} icon={AlertTriangle} />
+                </div>
+            </DismissiblePanel>
 
             <ResourcePanel>
-                <FilterDrawerToolbar
-                    drawerLabel="Grade filters"
-                    renderFilters={renderFilters}
-                    actions={(
-                        <Button type="button" variant="secondary" icon={RefreshCw} onClick={() => mutate()}>
-                            Refresh
-                        </Button>
-                    )}
-                    activeFilters={activeFilters}
-                />
-
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     {error ? (
                         <ErrorState error={error} onRetry={() => mutate()} />

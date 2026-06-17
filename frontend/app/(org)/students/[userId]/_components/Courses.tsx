@@ -8,6 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/Card'
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
@@ -50,53 +51,50 @@ export default function Courses({ sections, assessments }: { sections: Section[]
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-3">
                 <div>
                     <h2 className="text-base font-black text-foreground">Enrolled Sections</h2>
                     <p className="mt-1 text-sm font-medium text-muted-foreground">
                         {sections.length} active {sections.length === 1 ? 'section' : 'sections'}
                     </p>
                 </div>
-                <div className="w-full sm:w-80">
-                    <SearchBar
-                        placeholder="Search courses or teachers..."
-                        value={search}
-                        onChange={setSearch}
-                    />
-                </div>
-            </div>
-
-            {sections.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                    <button
-                        type="button"
-                        onClick={() => setSectionFilter('')}
-                        className={`min-h-9 shrink-0 rounded-md border px-3 text-xs font-black transition-colors ${sectionFilter === '' ? 'border-foreground/20 bg-foreground text-background' : 'border-border/70 bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}
-                    >
-                        All sections
-                    </button>
-                    {sections.map((section) => {
-                        const sectionColor = getSectionColor(section.color);
-                        const isActive = sectionFilter === section.id;
-                        return (
+                <PageControls
+                    showDrawer={false}
+                    renderFilters={() => null}
+                    leading={<SearchBar placeholder="Search courses or teachers..." value={search} onChange={setSearch} mobileMode="expandable" />}
+                    actions={sections.length > 0 ? (
+                        <>
                             <button
-                                key={section.id}
                                 type="button"
-                                onClick={() => setSectionFilter(section.id)}
-                                className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:scale-101 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                style={{
-                                    ...(isActive ? getSectionSurfaceStyle(section, '24', 'CC') : {}),
-                                    borderColor: isActive ? `${sectionColor}CC` : undefined,
-                                    backgroundColor: isActive ? `${sectionColor}24` : 'transparent',
-                                    color: sectionColor,
-                                }}
+                                onClick={() => setSectionFilter('')}
+                                className={`min-h-9 shrink-0 rounded-md border px-3 text-xs font-black transition-colors ${sectionFilter === '' ? 'border-foreground/20 bg-foreground text-background' : 'border-border/70 bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}
                             >
-                                {section.course?.name || 'Course'} - {section.name}
+                                All sections
                             </button>
-                        );
-                    })}
-                </div>
-            )}
+                            {sections.map((section) => {
+                                const sectionColor = getSectionColor(section.color);
+                                const isActive = sectionFilter === section.id;
+                                return (
+                                    <button
+                                        key={section.id}
+                                        type="button"
+                                        onClick={() => setSectionFilter(section.id)}
+                                        className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:scale-101 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                        style={{
+                                            ...(isActive ? getSectionSurfaceStyle(section, '24', 'CC') : {}),
+                                            borderColor: isActive ? `${sectionColor}CC` : undefined,
+                                            backgroundColor: isActive ? `${sectionColor}24` : 'transparent',
+                                            color: sectionColor,
+                                        }}
+                                    >
+                                        {section.course?.name || 'Course'} - {section.name}
+                                    </button>
+                                );
+                            })}
+                        </>
+                    ) : undefined}
+                />
+            </div>
 
             {filteredSections.length === 0 ? (
                 <EmptyState

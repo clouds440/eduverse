@@ -21,7 +21,7 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, string> = {
     success: "border-success/20 bg-success/10 text-success dark:bg-success/20",
-    error: "border-danger/20 bg-danger/10 text-danger dark:bg-danger/20",
+    error: "border-danger/20 bg-danger/50 text-white dark:bg-danger/70",
     warning: "border-warning/25 bg-warning/10 text-warning dark:bg-warning/20",
     neutral: "border-border bg-muted/55 text-muted-foreground",
     primary: "border-primary/20 bg-primary/10 text-primary dark:bg-primary/20",
@@ -42,7 +42,7 @@ const dotColors: Record<BadgeVariant, string> = {
 };
 
 const sizeStyles: Record<BadgeSize, string> = {
-    xs: "min-h-4 px-1.5 py-0.5 text-[10px] gap-1",
+    xs: "min-h-3 px-1.5 py-0 text-[10px] gap-1",
     sm: "min-h-5 px-2 py-0.5 text-[11px] gap-1",
     md: "min-h-6 px-2.5 py-1 text-xs gap-1.5",
 };

@@ -144,18 +144,18 @@ export function FormActions({
     onCancel,
 }: FormActionsProps) {
     return (
-        <div className="sticky bottom-3 z-20 rounded-2xl border border-border/70 bg-card/95 p-3 shadow-2xl backdrop-blur-xl">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 px-3">
+        <div className="sticky bottom-2 z-20 rounded-lg border border-border/70 bg-card/95 p-2.5 shadow-xl backdrop-blur-xl sm:bottom-3 sm:p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="hidden min-w-0 px-3 sm:block">
                     <p className="text-sm font-black text-foreground">{title}</p>
                     <p className="text-xs font-semibold text-muted-foreground">{description}</p>
                 </div>
-                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
-                    <Button type="button" variant="secondary" onClick={onCancel} className="h-12 w-full px-6 text-sm font-semibold sm:w-auto">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row sm:items-center sm:gap-3">
+                    <Button type="button" variant="secondary" onClick={onCancel} className="h-10 w-full px-4 text-sm font-semibold sm:h-12 sm:w-auto sm:px-6">
                         {cancelText}
                     </Button>
                     {showSubmit && (
-                        <Button type="submit" loadingId={loadingId} loadingText={loadingText} className="h-12 w-full px-6 text-sm font-semibold sm:w-auto" icon={Save}>
+                        <Button type="submit" loadingId={loadingId} loadingText={loadingText} className="h-10 w-full px-4 text-sm font-semibold sm:h-12 sm:w-auto sm:px-6" icon={Save}>
                             {submitText}
                         </Button>
                     )}

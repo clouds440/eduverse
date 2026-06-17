@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, Info, LucideIcon, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, Info, LucideIcon, MoreHorizontal, X, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StatusBannerVariant } from '@/types';
 
@@ -18,6 +18,7 @@ interface StatusBannerProps {
     icon?: LucideIcon;
     action?: StatusBannerAction;
     dismissible?: boolean;
+    compact?: boolean | 'auto';
     children?: React.ReactNode;
     className?: string;
 }
@@ -75,6 +76,7 @@ export function StatusBanner({
     icon,
     action,
     dismissible = false,
+    compact = 'auto',
     children,
     className,
 }: StatusBannerProps) {
@@ -82,13 +84,28 @@ export function StatusBanner({
     const Icon = icon || DEFAULT_ICONS[variant];
 
     const [visible, setVisible] = React.useState(true);
+    const [detailsOpen, setDetailsOpen] = React.useState(false);
+    const [isCompactViewport, setIsCompactViewport] = React.useState(false);
+
+    React.useEffect(() => {
+        const mediaQuery = window.matchMedia('(max-width: 767px)');
+        const updateCompactViewport = () => setIsCompactViewport(mediaQuery.matches);
+        updateCompactViewport();
+        mediaQuery.addEventListener('change', updateCompactViewport);
+        return () => mediaQuery.removeEventListener('change', updateCompactViewport);
+    }, []);
+
     if (!visible) return null;
 
+    const isCompact = compact === true || (compact === 'auto' && isCompactViewport);
+    const hasDetails = Boolean(description || children);
+    const showDetails = !isCompact || detailsOpen;
+
     return (
-        <section className={cn('relative rounded-lg border p-3 shadow-sm sm:p-4', tone.shell, className)}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <section className={cn('relative rounded-lg border p-2.5 shadow-sm sm:p-3', tone.shell, className)}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 {dismissible && (
-                    <div className="absolute top-4 right-2">
+                    <div className="absolute top-2 right-2">
                         <button
                             type="button"
                             onClick={() => setVisible(false)}
@@ -99,29 +116,45 @@ export function StatusBanner({
                         </button>
                     </div>
                 )}
-                <div className="flex min-w-0 items-start gap-3">
-                    <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-current/10', tone.icon)}>
-                        <Icon className="h-5 w-5" aria-hidden="true" />
+                <div className="flex min-w-0 justify-between gap-2.5">
+                    <div className="flex min-w-0 items-start gap-2.5">
+                        <div className={cn('flex shrink-0 items-center justify-center rounded-md border border-current/10', isCompact ? 'h-8 w-8' : 'h-9 w-9', tone.icon)}>
+                            <Icon className={cn(isCompact ? 'h-4 w-4' : 'h-5 w-5')} aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                            <h2 className={cn('text-sm font-black leading-5', tone.title)}>{title}</h2>
+                            {description && showDetails && (
+                                <div className="mt-1 text-sm font-medium leading-5 text-current/80">
+                                    {description}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    <div className="min-w-0">
-                        <h2 className={cn('text-sm font-black leading-5', tone.title)}>{title}</h2>
-                        {description && (
-                            <div className="mt-1 text-sm font-medium leading-5 text-current/80">
-                                {description}
-                            </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                        {hasDetails && isCompact && (
+                            <button
+                                type="button"
+                                onClick={() => setDetailsOpen((open) => !open)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-current/20 text-current transition-colors hover:bg-current/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                                aria-expanded={detailsOpen}
+                                aria-label={detailsOpen ? 'Hide banner details' : 'Show banner details'}
+                                title={detailsOpen ? 'Hide details' : 'Show details'}
+                            >
+                                {detailsOpen ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <MoreHorizontal className="h-4 w-4" aria-hidden="true" />}
+                            </button>
+                        )}
+                        {action && (
+                            <Link
+                                href={action.href}
+                                className={cn('inline-flex min-h-9 shrink-0 items-center justify-center rounded-md px-3 py-2 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30', tone.action)}
+                            >
+                                {action.label}
+                            </Link>
                         )}
                     </div>
                 </div>
-                {action && (
-                    <Link
-                        href={action.href}
-                        className={cn('inline-flex min-h-10 shrink-0 items-center justify-center rounded-md px-3 py-2 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30', tone.action)}
-                    >
-                        {action.label}
-                    </Link>
-                )}
             </div>
-            {children && <div className="mt-3 text-current">{children}</div>}
+            {children && showDetails && <div className="mt-2 text-current">{children}</div>}
         </section>
     );
 }
