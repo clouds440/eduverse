@@ -25,6 +25,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { PageActionsHostProvider } from '@/components/ui/PageActionsHost';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
@@ -540,6 +541,7 @@ export default function GuardianPortalPage() {
     const selectedStudentId = getStringParam('studentId', '');
     const view = normalizeView(getStringParam('view', 'overview'));
     const [insightRange, setInsightRange] = useState<InsightTimeRange>('1M');
+    const [tabHeaderActions, setTabHeaderActions] = useState<ReactNode>(null);
 
     const { data, isLoading, error, mutate } = useSWR<GuardianOverview>(
         token ? ['guardian-overview', selectedStudentId] as const : null,
@@ -577,6 +579,10 @@ export default function GuardianPortalPage() {
             selectStudent(studentInsights[0].studentId);
         }
     }, [selectedStudentId, selectStudent, studentInsights, view]);
+
+    useEffect(() => {
+        setTabHeaderActions(null);
+    }, [view, selectedStudentId]);
 
     if (error) {
         return (
@@ -639,10 +645,11 @@ export default function GuardianPortalPage() {
             preview={getInsightRangePreview(guardianInsights?.filters)}
         />
     ) : null;
-    const headerActions = studentHeaderAction || rangeHeaderAction ? (
+    const headerActions = studentHeaderAction || rangeHeaderAction || tabHeaderActions ? (
         <>
             {studentHeaderAction}
             {rangeHeaderAction}
+            {tabHeaderActions}
         </>
     ) : null;
 
@@ -671,23 +678,25 @@ export default function GuardianPortalPage() {
     }
 
     return (
-        <PageShell>
-            <PageHeader
-                title={viewLabels[view]}
-                description={view === 'profile' ? 'Guardian account details and linked-student summary.' : 'Use the student switcher, then open a guardian section from the sidebar.'}
-                icon={UserRoundCheck}
-                breadcrumbs={view === 'profile'
-                    ? [{ label: 'Guardian' }, { label: 'Profile Settings' }]
-                    : [{ label: 'Guardian' }, { label: viewLabels[view] }, { label: selectedStudentName }]
-                }
-                meta={<Badge variant="primary" size="sm">{linkedStudents.length} linked</Badge>}
-                actions={headerActions}
-                showDateTime
-            />
+        <PageActionsHostProvider setActions={setTabHeaderActions}>
+            <PageShell>
+                <PageHeader
+                    title={viewLabels[view]}
+                    description={view === 'profile' ? 'Guardian account details and linked-student summary.' : 'Use the student switcher, then open a guardian section from the sidebar.'}
+                    icon={UserRoundCheck}
+                    breadcrumbs={view === 'profile'
+                        ? [{ label: 'Guardian' }, { label: 'Profile Settings' }]
+                        : [{ label: 'Guardian' }, { label: viewLabels[view] }, { label: selectedStudentName }]
+                    }
+                    meta={<Badge variant="primary" size="sm">{linkedStudents.length} linked</Badge>}
+                    actions={headerActions}
+                    showDateTime
+                />
 
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto custom-scrollbar">
-                {renderGuardianTab(view, tabProps)}
-            </div>
-        </PageShell>
+                <div className="min-h-0 min-w-0 flex-1 overflow-y-auto custom-scrollbar">
+                    {renderGuardianTab(view, tabProps)}
+                </div>
+            </PageShell>
+        </PageActionsHostProvider>
     );
 }

@@ -14,6 +14,7 @@ import { NotFound } from '@/components/NotFound';
 import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { Badge } from '@/components/ui/Badge';
 import { LayoutDashboard } from 'lucide-react';
+import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 export default function TeacherLandingPage() {
     const { token, loading, user } = useAuth();
@@ -70,24 +71,6 @@ export default function TeacherLandingPage() {
         return <NotFound page="Teacher" />;
     }
 
-    // Show loading while fetching insights (only for own profile view)
-    if (isOwnProfile && insightsLoading) {
-        return (
-            <div className="flex flex-1 items-center justify-center py-12">
-                <Loading size="lg" />
-            </div>
-        );
-    }
-
-    // If viewing someone else's profile (already redirected), or no insights to show
-    if (!insights) {
-        return (
-            <div className="flex flex-1 items-center justify-center py-12">
-                <Loading size="lg" />
-            </div>
-        );
-    }
-
     return (
         <PageShell>
             <PageHeader
@@ -99,10 +82,10 @@ export default function TeacherLandingPage() {
                     { label: 'Teacher Portal' },
                     { label: 'Overview' },
                 ]}
-                actions={<InsightRangeControl value={range} onChange={setRange} preview={getInsightRangePreview(insights.filters)} />}
+                actions={<InsightRangeControl value={range} onChange={setRange} preview={getInsightRangePreview(insights?.filters)} />}
             />
             <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-                <InsightsOverview insights={insights} />
+                {insightsLoading || !insights ? <DashboardSkeleton /> : <InsightsOverview insights={insights} />}
             </div>
         </PageShell>
     );

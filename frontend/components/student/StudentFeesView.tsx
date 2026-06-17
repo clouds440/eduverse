@@ -26,11 +26,14 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import { FinanceStatusBadge } from '@/components/finance/FinanceStatusBadge';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { ClaimPaidModal } from '@/app/(org)/finance/entries/ClaimPaidModal';
 import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
-import { PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { usePageActionsHost } from '@/components/ui/PageActionsHost';
+import type { ActiveFilter } from '@/components/ui/PageShell';
 import { SearchBar } from '@/components/ui/SearchBar';
 
 const statusTabs = [
@@ -41,6 +44,7 @@ const statusTabs = [
 ] as const;
 
 type FeeTab = typeof statusTabs[number]['id'];
+const feeTabOptions = statusTabs.map((tab) => ({ value: tab.id, label: tab.label }));
 
 interface StudentFeesViewProps {
     studentId: string;
@@ -136,12 +140,13 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
     }, [searchQuery, structures]);
 
     const filteredEntries = useMemo(() => {
-        if (activeTab === 'DUE') return stats.dueEntries;
-        const tabEntries = activeTab === 'UNVERIFIED'
-            ? stats.awaitingApproval
-            : activeTab === 'PAID'
-                ? stats.paidEntries
-                : entries;
+        const tabEntries = activeTab === 'DUE'
+            ? stats.dueEntries
+            : activeTab === 'UNVERIFIED'
+                ? stats.awaitingApproval
+                : activeTab === 'PAID'
+                    ? stats.paidEntries
+                    : entries;
         if (!searchQuery) return tabEntries;
         return tabEntries.filter((entry) => (
             entry.title.toLowerCase().includes(searchQuery)
@@ -158,9 +163,35 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
                 if (entry.structureId && !byStructureId.has(entry.structureId)) {
                     byStructureId.set(entry.structureId, entry);
                 }
-            });
+        });
         return byStructureId;
     }, [entries]);
+    const activeFilters = useMemo<ActiveFilter[]>(() => [
+        {
+            key: 'feeBookStatus',
+            label: 'Fee Book',
+            value: statusTabs.find((tab) => tab.id === activeTab)?.label || 'Due',
+            onRemove: () => setActiveTab('DUE'),
+        },
+    ], [activeTab]);
+    const pageControls = useMemo(() => (
+        <PageControls
+            drawerLabel="Fee filters"
+            activeFilters={activeFilters}
+            leading={<SearchBar placeholder="Search fees or entries..." value={search} onChange={setSearch} mobileMode="expandable" />}
+            renderFilters={() => (
+                <FilterDrawerGrid>
+                    <CustomSelect<FeeTab>
+                        value={activeTab}
+                        onChange={setActiveTab}
+                        options={feeTabOptions}
+                        placeholder="Fee book status"
+                    />
+                </FilterDrawerGrid>
+            )}
+        />
+    ), [activeFilters, activeTab, search]);
+    const controlsHosted = usePageActionsHost(error || isLoading ? null : pageControls);
 
     const handleClaim = async (data: { claimedAmount?: number; paymentMethod?: string; receiptUrl?: string; referenceNumber?: string; note?: string; attachmentFiles?: File[] }) => {
         if (!token || !claimingEntry) return;
@@ -234,28 +265,7 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
                 </div>
             </DismissiblePanel>
 
-            <PageControls
-                showDrawer={false}
-                renderFilters={() => null}
-                leading={<SearchBar placeholder="Search fees or entries..." value={search} onChange={setSearch} mobileMode="expandable" />}
-                actions={(
-                    <>
-                        {statusTabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`min-h-9 shrink-0 rounded-md px-3 py-2 text-xs font-black transition-colors ${activeTab === tab.id
-                                    ? 'bg-card text-foreground shadow-xs'
-                                    : 'text-muted-foreground hover:bg-card/60 hover:text-foreground'
-                                    }`}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </>
-                )}
-            />
+            {!controlsHosted && pageControls}
 
             <section className="space-y-3">
                 <div>

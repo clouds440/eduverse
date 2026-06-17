@@ -16,7 +16,10 @@ import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
-import { PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { CustomSelect } from '@/components/ui/CustomSelect';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { usePageActionsHost } from '@/components/ui/PageActionsHost';
+import type { ActiveFilter } from '@/components/ui/PageShell';
 
 function getGradeTone(marks: number, total: number) {
     const percentage = total > 0 ? (marks / total) * 100 : 0;
@@ -110,7 +113,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
         if (assessmentIdFromUrl) router.back();
     };
 
-    const handleSelectSection = (id: string | null) => {
+    const handleSelectSection = useCallback((id: string | null) => {
         const params = new URLSearchParams(searchParams.toString());
         if (id) {
             params.set('sectionId', id);
@@ -119,7 +122,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
             params.delete('assessmentId');
         }
         router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
+    }, [pathname, router, searchParams]);
 
     const handleOpenAssessment = (assessment: Assessment) => {
         setSelectedAssessment(assessment);
@@ -187,45 +190,44 @@ export default function Assessments({ sections, assessments }: { sections: Secti
     const selectedExternalLink = normalizeSafeUrl(selectedAssessment?.externalLink, { allowRelative: false });
     const selectedAssessmentGraded = selectedAssessment ? isPublishedGrade(selectedAssessment) : false;
     const selectedAssessmentSubmitted = selectedAssessment ? isSubmitted(selectedAssessment, submittedAssessmentIds) : false;
+    const selectedFilterSection = sectionOptions.find((section) => section.id === selectedSectionId);
+    const activeFilters = useMemo<ActiveFilter[]>(() => (
+        selectedFilterSection ? [{
+            key: 'sectionId',
+            label: 'Section',
+            value: `${selectedFilterSection.course?.name || 'Course'} - ${selectedFilterSection.name}`,
+            onRemove: () => handleSelectSection(null),
+        }] : []
+    ), [handleSelectSection, selectedFilterSection]);
+    const pageControls = useMemo(() => (
+        <PageControls
+            drawerLabel="Assessment filters"
+            activeFilters={activeFilters}
+            leading={<SearchBar placeholder="Search assessments..." value={search} onChange={setSearch} mobileMode="expandable" />}
+            renderFilters={() => (
+                <FilterDrawerGrid>
+                    <CustomSelect
+                        value={selectedSectionId || ''}
+                        onChange={(value) => handleSelectSection(value || null)}
+                        options={[
+                            { value: '', label: 'All sections' },
+                            ...sectionOptions.map((section) => ({
+                                value: section.id,
+                                label: `${section.course?.name || 'Course'} - ${section.name}`,
+                            })),
+                        ]}
+                        placeholder="All sections"
+                        searchable
+                    />
+                </FilterDrawerGrid>
+            )}
+        />
+    ), [activeFilters, handleSelectSection, search, sectionOptions, selectedSectionId]);
+    const controlsHosted = usePageActionsHost(pageControls);
 
     return (
         <div className="space-y-4">
-            <PageControls
-                showDrawer={false}
-                renderFilters={() => null}
-                leading={<SearchBar placeholder="Search assessments..." value={search} onChange={setSearch} mobileMode="expandable" />}
-                actions={(
-                    <>
-                        <button
-                            type="button"
-                            onClick={() => handleSelectSection(null)}
-                            className={`min-h-9 shrink-0 rounded-md border px-3 text-xs font-black transition-colors ${!selectedSectionId ? 'border-foreground/20 bg-foreground text-background' : 'border-border/70 bg-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}
-                        >
-                            All
-                        </button>
-                        {sectionOptions.map((section) => {
-                            const sectionColor = getSectionColor(section.color);
-                            const isActive = selectedSectionId === section.id;
-                            return (
-                                <button
-                                    key={section.id}
-                                    type="button"
-                                    onClick={() => handleSelectSection(section.id)}
-                                    className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:scale-101 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                    style={{
-                                        ...(isActive ? getSectionSurfaceStyle(section, '24', 'CC') : {}),
-                                        borderColor: isActive ? `${sectionColor}CC` : undefined,
-                                        backgroundColor: isActive ? `${sectionColor}24` : 'transparent',
-                                        color: sectionColor,
-                                    }}
-                                >
-                                    {section.course?.name || 'Course'} - {section.name}
-                                </button>
-                            );
-                        })}
-                    </>
-                )}
-            />
+            {!controlsHosted && pageControls}
 
             {filteredAssessments.length === 0 ? (
                 <EmptyState

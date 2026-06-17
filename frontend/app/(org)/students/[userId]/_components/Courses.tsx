@@ -8,7 +8,10 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/Card'
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { CustomSelect } from '@/components/ui/CustomSelect';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { usePageActionsHost } from '@/components/ui/PageActionsHost';
+import type { ActiveFilter } from '@/components/ui/PageShell';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
@@ -48,6 +51,41 @@ export default function Courses({ sections, assessments }: { sections: Section[]
             return matchesSection && matchesSearch;
         });
     }, [search, sectionFilter, sections]);
+    const selectedSection = sections.find((section) => section.id === sectionFilter);
+    const activeFilters = useMemo<ActiveFilter[]>(() => (
+        selectedSection ? [{
+            key: 'section',
+            label: 'Section',
+            value: `${selectedSection.course?.name || 'Course'} - ${selectedSection.name}`,
+            onRemove: () => setSectionFilter(''),
+        }] : []
+    ), [selectedSection]);
+
+    const pageControls = useMemo(() => (
+        <PageControls
+            drawerLabel="Course filters"
+            activeFilters={activeFilters}
+            leading={<SearchBar placeholder="Search courses or teachers..." value={search} onChange={setSearch} mobileMode="expandable" />}
+            renderFilters={() => (
+                <FilterDrawerGrid>
+                    <CustomSelect
+                        value={sectionFilter}
+                        onChange={setSectionFilter}
+                        options={[
+                            { value: '', label: 'All sections' },
+                            ...sections.map((section) => ({
+                                value: section.id,
+                                label: `${section.course?.name || 'Course'} - ${section.name}`,
+                            })),
+                        ]}
+                        placeholder="All sections"
+                        searchable
+                    />
+                </FilterDrawerGrid>
+            )}
+        />
+    ), [activeFilters, search, sectionFilter, sections]);
+    const controlsHosted = usePageActionsHost(pageControls);
 
     return (
         <div className="space-y-4">
@@ -58,42 +96,7 @@ export default function Courses({ sections, assessments }: { sections: Section[]
                         {sections.length} active {sections.length === 1 ? 'section' : 'sections'}
                     </p>
                 </div>
-                <PageControls
-                    showDrawer={false}
-                    renderFilters={() => null}
-                    leading={<SearchBar placeholder="Search courses or teachers..." value={search} onChange={setSearch} mobileMode="expandable" />}
-                    actions={sections.length > 0 ? (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => setSectionFilter('')}
-                                className={`min-h-9 shrink-0 rounded-md border px-3 text-xs font-black transition-colors ${sectionFilter === '' ? 'border-foreground/20 bg-foreground text-background' : 'border-border/70 bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}
-                            >
-                                All sections
-                            </button>
-                            {sections.map((section) => {
-                                const sectionColor = getSectionColor(section.color);
-                                const isActive = sectionFilter === section.id;
-                                return (
-                                    <button
-                                        key={section.id}
-                                        type="button"
-                                        onClick={() => setSectionFilter(section.id)}
-                                        className="min-h-9 max-w-56 shrink-0 truncate rounded-md border px-3 text-xs font-black transition-transform hover:scale-101 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                        style={{
-                                            ...(isActive ? getSectionSurfaceStyle(section, '24', 'CC') : {}),
-                                            borderColor: isActive ? `${sectionColor}CC` : undefined,
-                                            backgroundColor: isActive ? `${sectionColor}24` : 'transparent',
-                                            color: sectionColor,
-                                        }}
-                                    >
-                                        {section.course?.name || 'Course'} - {section.name}
-                                    </button>
-                                );
-                            })}
-                        </>
-                    ) : undefined}
-                />
+                {!controlsHosted && pageControls}
             </div>
 
             {filteredSections.length === 0 ? (

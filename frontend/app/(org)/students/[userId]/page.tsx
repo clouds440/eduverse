@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams, useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import useSWR from 'swr';
@@ -13,6 +13,7 @@ import { NotFound } from '@/components/NotFound';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader, PageShell, ResourcePanel, type PageBreadcrumb } from '@/components/ui/PageShell';
+import { PageActionsHostProvider } from '@/components/ui/PageActionsHost';
 import { getInsightRangePreview, InsightRangeControl } from '@/components/dashboard/InsightRangeControl';
 
 import Overview from './_components/Overview';
@@ -96,6 +97,7 @@ function StudentPortalContent() {
     const { user, token } = useAuth();
     const { dispatch } = useGlobal();
     const [insightRange, setInsightRange] = useState<InsightTimeRange>('1M');
+    const [tabHeaderActions, setTabHeaderActions] = useState<ReactNode>(null);
 
     const userId = params.userId as string;
 
@@ -134,6 +136,10 @@ function StudentPortalContent() {
         const element = document.getElementById(hash.substring(1));
         element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, []);
+
+    useEffect(() => {
+        setTabHeaderActions(null);
+    }, [tab]);
 
     useEffect(() => {
         if (!user || !studentData) return;
@@ -239,18 +245,19 @@ function StudentPortalContent() {
         return <Profile profile={profile || studentData || null} />;
     };
 
+    const headerActions = tab === 'overview'
+        ? <InsightRangeControl value={insightRange} onChange={setInsightRange} preview={getInsightRangePreview(insights?.filters)} />
+        : tabHeaderActions;
+
     return (
-        <PageShell>
+        <PageActionsHostProvider setActions={setTabHeaderActions}>
+            <PageShell>
             <PageHeader
                 title={tabMeta.title}
                 description={tabMeta.description}
                 icon={tabMeta.icon}
                 breadcrumbs={tabMeta.breadcrumbs}
-                actions={
-                    tab === 'overview'
-                        ? <InsightRangeControl value={insightRange} onChange={setInsightRange} preview={getInsightRangePreview(insights?.filters)} />
-                        : undefined
-                }
+                actions={headerActions}
             />
 
             {user?.status === 'ALUMNI' && (
@@ -272,7 +279,8 @@ function StudentPortalContent() {
                     {renderTabContent()}
                 </div>
             </ResourcePanel>
-        </PageShell>
+            </PageShell>
+        </PageActionsHostProvider>
     );
 }
 

@@ -14,6 +14,7 @@ import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { getSectionColor, getSectionSurfaceStyle } from '@/lib/utils';
 import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
 import { PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import { SearchBar } from '@/components/ui/SearchBar';
 
 interface SectionSummary {
@@ -104,6 +105,41 @@ export default function Attendance({ studentId }: AttendanceProps) {
             || summary.sectionName.toLowerCase().includes(query)
         ));
     }, [search, sectionSummaries]);
+    const selectedSummary = useMemo(() => (
+        selectedSectionId ? sectionSummaries.find((section) => section.id === selectedSectionId) : undefined
+    ), [sectionSummaries, selectedSectionId]);
+    const detailControls = useMemo(() => (
+        <PageControls
+            showDrawer={false}
+            renderFilters={() => null}
+            actions={(
+                <>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setSelectedSectionId(null)}
+                        icon={ChevronLeft}
+                    >
+                        Back
+                    </Button>
+                    {selectedSummary && (
+                        <div className="flex min-h-10 items-center rounded-md border border-border bg-muted/25 px-3 text-sm font-bold text-foreground">
+                            {selectedSummary.percentage}% attendance
+                        </div>
+                    )}
+                </>
+            )}
+        />
+    ), [selectedSummary]);
+    const listControls = useMemo(() => (
+        <PageControls
+            showDrawer={false}
+            renderFilters={() => null}
+            leading={<SearchBar placeholder="Search attendance sections..." value={search} onChange={setSearch} mobileMode="expandable" />}
+        />
+    ), [search]);
+    const controlsHosted = usePageActionsHost(
+        fetching || attendanceError ? null : selectedSectionId ? detailControls : listControls,
+    );
 
     if (fetching) {
         return <SkeletonTable rows={4} columns={4} />;
@@ -114,29 +150,10 @@ export default function Attendance({ studentId }: AttendanceProps) {
     }
 
     if (selectedSectionId) {
-        const summary = sectionSummaries.find((section) => section.id === selectedSectionId);
+        const summary = selectedSummary;
         return (
             <div className="space-y-4">
-                <PageControls
-                    showDrawer={false}
-                    renderFilters={() => null}
-                    actions={(
-                        <>
-                            <Button
-                                variant="secondary"
-                                onClick={() => setSelectedSectionId(null)}
-                                icon={ChevronLeft}
-                            >
-                                Back
-                            </Button>
-                            {summary && (
-                                <div className="flex min-h-10 items-center rounded-md border border-border bg-muted/25 px-3 text-sm font-bold text-foreground">
-                                    {summary.percentage}% attendance
-                                </div>
-                            )}
-                        </>
-                    )}
-                />
+                {!controlsHosted && detailControls}
 
                 {summary && (
                     <Card
@@ -223,11 +240,7 @@ export default function Attendance({ studentId }: AttendanceProps) {
                 </div>
             </DismissiblePanel>
 
-            <PageControls
-                showDrawer={false}
-                renderFilters={() => null}
-                leading={<SearchBar placeholder="Search attendance sections..." value={search} onChange={setSearch} mobileMode="expandable" />}
-            />
+            {!controlsHosted && listControls}
 
             {filteredSectionSummaries.length === 0 ? (
                 <EmptyState

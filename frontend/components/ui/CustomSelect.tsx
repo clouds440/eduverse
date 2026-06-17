@@ -70,6 +70,7 @@ function CustomSelectComponent<T extends string = string>({
         [value, visibleOptions],
     );
     const getOptionId = useCallback((index: number) => `${listboxId}-option-${index}`, [listboxId]);
+    const isSearchTrigger = searchable && isOpen;
 
     // Clear search term when closed
     useEffect(() => {
@@ -104,14 +105,14 @@ function CustomSelectComponent<T extends string = string>({
                 anchorRect: rect,
                 floatingRect: dropdownRect
                     ? { width: dropdownRect.width, height: dropdownRect.height }
-                    : { width: rect.width, height: searchable ? 360 : 320 },
+                    : { width: rect.width, height: 320 },
                 matchAnchorWidth: true,
                 preferredPlacement: 'bottom',
                 margin: 8,
                 gap: 8,
             }));
         }
-    }, [searchable]);
+    }, []);
 
     useLayoutEffect(() => {
         if (isOpen) {
@@ -164,6 +165,25 @@ function CustomSelectComponent<T extends string = string>({
         containerRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus({ preventScroll: true });
     }, []);
 
+    const handleTriggerClick = useCallback(() => {
+        if (disabled) return;
+        if (!isOpen) {
+            setIsOpen(true);
+            return;
+        }
+        if (!searchable) setIsOpen(false);
+    }, [disabled, isOpen, searchable]);
+
+    const handleChevronMouseDown = useCallback((event: React.MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!disabled) setIsOpen((open) => !open);
+    }, [disabled]);
+
+    const stopChevronClickPropagation = useCallback((event: React.MouseEvent) => {
+        event.stopPropagation();
+    }, []);
+
     const handleComboboxKeyDown = useCallback((event: React.KeyboardEvent) => {
         if (disabled) return;
 
@@ -203,7 +223,7 @@ function CustomSelectComponent<T extends string = string>({
             </select>
 
             <div
-                onClick={() => !disabled && setIsOpen(!isOpen)}
+                onClick={handleTriggerClick}
                 onKeyDown={handleComboboxKeyDown}
                 className={cn(
                     "flex min-h-11 w-full items-center rounded-md border px-3.5 py-2.5 text-left text-sm font-medium outline-none transition-colors duration-200",
@@ -225,29 +245,57 @@ function CustomSelectComponent<T extends string = string>({
                 aria-disabled={disabled || undefined}
                 tabIndex={disabled ? -1 : 0}
             >
-                {/* Prefix Icon (Prop) or Selected Option Icon */}
-                {(selectedOption?.icon || Icon) && (
-                    <div className="mr-2 shrink-0">
-                        {selectedOption?.icon ? (
-                            <selectedOption.icon className={cn("h-4 w-4", selectedOption.iconClassName || (isOpen ? 'text-primary' : 'text-muted-foreground'))} />
-                        ) : (
-                            Icon && <Icon className={cn("h-4 w-4 transition-colors", isOpen ? 'text-primary' : error ? 'text-danger' : 'text-muted-foreground group-focus-within:text-primary')} />
+                {isSearchTrigger ? (
+                    <>
+                        <Search className="mr-2 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        <input
+                            ref={searchInputRef}
+                            type="text"
+                            className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+                            placeholder={selectedOption ? selectedOption.label : placeholder}
+                            value={searchTerm}
+                            onChange={(event) => setSearchTerm(event.target.value)}
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={handleComboboxKeyDown}
+                            aria-label={`Search ${placeholder}`}
+                        />
+                    </>
+                ) : (
+                    <>
+                        {/* Prefix Icon (Prop) or Selected Option Icon */}
+                        {(selectedOption?.icon || Icon) && (
+                            <div className="mr-2 shrink-0">
+                                {selectedOption?.icon ? (
+                                    <selectedOption.icon className={cn("h-4 w-4", selectedOption.iconClassName || (isOpen ? 'text-primary' : 'text-muted-foreground'))} />
+                                ) : (
+                                    Icon && <Icon className={cn("h-4 w-4 transition-colors", isOpen ? 'text-primary' : error ? 'text-danger' : 'text-muted-foreground group-focus-within:text-primary')} />
+                                )}
+                            </div>
                         )}
-                    </div>
+
+                        <span className={`flex-1 truncate ${!selectedOption ? 'text-muted-foreground' : ''}`}>
+                            {selectedOption ? selectedOption.label : placeholder}
+                        </span>
+
+                        {/* Selected Option Badge (Visible when closed too) */}
+                        {selectedOption?.badge !== undefined && (
+                            <span className="mx-2 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary shrink-0">
+                                {selectedOption.badge}
+                            </span>
+                        )}
+                    </>
                 )}
 
-                <span className={`flex-1 truncate ${!selectedOption ? 'text-muted-foreground' : ''}`}>
-                    {selectedOption ? selectedOption.label : placeholder}
-                </span>
-
-                {/* Selected Option Badge (Visible when closed too) */}
-                {selectedOption?.badge !== undefined && (
-                    <span className="mx-2 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary shrink-0">
-                        {selectedOption.badge}
-                    </span>
-                )}
-
-                <ChevronDown className={cn("ml-2 h-4 w-4 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
+                <button
+                    type="button"
+                    tabIndex={-1}
+                    onMouseDown={handleChevronMouseDown}
+                    onClick={stopChevronClickPropagation}
+                    className="ml-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
+                    aria-label={isOpen ? 'Close options' : 'Open options'}
+                >
+                    <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isOpen && "rotate-180")} />
+                </button>
             </div>
 
             {isOpen && coords && createPortal(
@@ -272,27 +320,6 @@ function CustomSelectComponent<T extends string = string>({
                     onMouseDown={(event) => event.stopPropagation()}
                     onKeyDown={handleComboboxKeyDown}
                 >
-                    {searchable && (
-                        <div className="border-b border-border/60 px-3 pb-2">
-                            <div className="relative">
-                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                    <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                                </div>
-                                <input
-                                    ref={searchInputRef}
-                                    type="text"
-                                    className="block w-full rounded-md border border-border bg-input py-2 pl-9 pr-3 text-sm text-foreground transition-colors placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                    placeholder="Search..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onKeyDown={handleComboboxKeyDown}
-                                    aria-label={`Search ${placeholder}`}
-                                />
-                            </div>
-                        </div>
-                    )}
-
                     <div className="overflow-y-auto flex-1 custom-scrollbar">
                         {visibleOptions.length === 0 ? (
                             <div className="px-4 py-4 text-sm sm:text-base text-muted-foreground text-center text-balance">{searchable ? `No results found for "${searchTerm}"` : 'No options available'}</div>

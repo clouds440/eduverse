@@ -20,6 +20,10 @@ export interface CreateNotificationDto {
 
 export type NotificationDedupeMetadata = Record<string, string | number | boolean>;
 
+export interface NotificationDedupeOptions {
+  includeActionUrlFallback?: boolean;
+}
+
 export interface WebPushSubscriptionDto {
   endpoint?: string;
   expirationTime?: number | null;
@@ -74,6 +78,7 @@ export class NotificationsService {
   async createNotificationOnce(
     dto: CreateNotificationDto,
     metadataMatch: NotificationDedupeMetadata = {},
+    options: NotificationDedupeOptions = {},
   ) {
     const metadataFilters: Prisma.NotificationWhereInput[] = Object.entries(metadataMatch)
       .map(([key, value]) => ({
@@ -83,14 +88,25 @@ export class NotificationsService {
         },
       }));
 
+    const dedupeMatches: Prisma.NotificationWhereInput[] = [];
+
+    if (metadataFilters.length > 0) {
+      dedupeMatches.push({ AND: metadataFilters });
+    }
+
+    if (
+      dto.actionUrl &&
+      (metadataFilters.length === 0 || options.includeActionUrlFallback)
+    ) {
+      dedupeMatches.push({ actionUrl: dto.actionUrl });
+    }
+
     const where: Prisma.NotificationWhereInput = {
       userId: dto.userId,
       ...(dto.type ? { type: dto.type } : {}),
-      ...(metadataFilters.length > 0
-        ? { AND: metadataFilters }
-        : dto.actionUrl
-          ? { actionUrl: dto.actionUrl }
-          : {}),
+      ...(dedupeMatches.length > 1
+        ? { OR: dedupeMatches }
+        : dedupeMatches[0] ?? {}),
     };
 
     const existing = await this.prisma.notification.findFirst({ where });

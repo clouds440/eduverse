@@ -10,6 +10,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
@@ -58,6 +59,34 @@ export default function Grades({ grades, transcriptHref = '/transcripts', showSe
         sum + (grade.assessments || []).filter((assessment) => assessment.status !== 'NOT_GRADED').length
     ), 0);
     const totalAssessments = grades.reduce((sum, grade) => sum + (grade.assessments || []).length, 0);
+    const pageControls = useMemo(() => (
+        <PageControls
+            drawerLabel="Grade filters"
+            showDrawer={showSectionSelector}
+            leading={<SearchBar placeholder="Search grades..." value={search} onChange={setSearch} mobileMode="expandable" />}
+            actions={(
+                <Link href={transcriptHref} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-black text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/30">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Transcript
+                </Link>
+            )}
+            renderFilters={() => (
+                <FilterDrawerGrid>
+                    <CustomSelect
+                        value={selectedSectionId}
+                        onChange={setSelectedSectionId}
+                        options={[
+                            { value: '', label: 'All courses' },
+                            ...sectionOptions,
+                        ]}
+                        placeholder="Select course"
+                        searchable
+                    />
+                </FilterDrawerGrid>
+            )}
+        />
+    ), [search, sectionOptions, selectedSectionId, showSectionSelector, transcriptHref]);
+    const controlsHosted = usePageActionsHost(pageControls);
 
     return (
         <div className="space-y-4">
@@ -109,31 +138,7 @@ export default function Grades({ grades, transcriptHref = '/transcripts', showSe
                         {grades.length} {grades.length === 1 ? 'section' : 'sections'} with grade records
                     </p>
                 </div>
-                <PageControls
-                    drawerLabel="Grade filters"
-                    showDrawer={showSectionSelector}
-                    leading={<SearchBar placeholder="Search grades..." value={search} onChange={setSearch} mobileMode="expandable" />}
-                    actions={(
-                        <Link href={transcriptHref} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-black text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/30">
-                            <FileText className="h-4 w-4 text-primary" />
-                            Transcript
-                        </Link>
-                    )}
-                    renderFilters={() => (
-                        <FilterDrawerGrid>
-                            <CustomSelect
-                                value={selectedSectionId}
-                                onChange={setSelectedSectionId}
-                                options={[
-                                    { value: '', label: 'All courses' },
-                                    ...sectionOptions,
-                                ]}
-                                placeholder="Select course"
-                                searchable
-                            />
-                        </FilterDrawerGrid>
-                    )}
-                />
+                {!controlsHosted && pageControls}
             </div>
 
             {filteredGrades.length === 0 ? (

@@ -22,12 +22,6 @@ export default function AdminPage() {
         refreshInterval: 30000, // 30 seconds for live dashboard feel
     });
 
-    if (loading || (!insights && insightsLoading)) {
-        return <DashboardSkeleton />;
-    }
-
-    if (!insights) return null;
-
     return (
         <PageShell>
             <PageHeader
@@ -39,10 +33,10 @@ export default function AdminPage() {
                     { label: 'Organization' },
                     { label: 'Overview' },
                 ]}
-                actions={<InsightRangeControl value={range} onChange={setRange} preview={getInsightRangePreview(insights.filters)} />}
+                actions={<InsightRangeControl value={range} onChange={setRange} preview={getInsightRangePreview(insights?.filters)} />}
             />
             <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-                <InsightsOverview insights={insights} />
+                {loading || insightsLoading || !insights ? <DashboardSkeleton /> : <InsightsOverview insights={insights} />}
             </div>
         </PageShell>
     );

@@ -21,6 +21,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { ModalForm } from '@/components/ui/ModalForm';
+import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -146,7 +147,7 @@ export default function BuildingsTab() {
         }
     };
 
-    const activeFilters: ActiveFilter[] = [
+    const activeFilters = useMemo<ActiveFilter[]>(() => [
         ...(searchTerm ? [{ key: 'search', label: 'Search', value: searchTerm, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
         ...(status ? [{ key: 'status', label: 'Status', value: status === 'active' ? 'Active' : 'Inactive', onRemove: () => updateQueryParams({ status: undefined, page: 1 }) }] : []),
         ...(departmentId ? [{
@@ -155,7 +156,39 @@ export default function BuildingsTab() {
             value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
             onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
         }] : []),
-    ];
+    ], [departmentId, departmentsData?.data, searchTerm, status, updateQueryParams]);
+
+    const pageControls = useMemo(() => (
+        <PageControls
+            activeFilters={activeFilters}
+            leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search buildings..." mobileMode="expandable" />}
+            actions={isAdmin ? <Button icon={Plus} onClick={openCreate}>New Building</Button> : undefined}
+            renderFilters={() => (
+                <FilterDrawerGrid>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Status</Label>
+                        <CustomSelect
+                            options={[{ label: 'All Buildings', value: '' }, { label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]}
+                            value={status}
+                            onChange={(value) => updateQueryParams({ status: value, page: 1 })}
+                            placeholder="All Buildings"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Department</Label>
+                        <CustomSelect
+                            options={[{ label: 'All Departments', value: '' }, ...departmentOptions]}
+                            value={departmentId}
+                            onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
+                            placeholder="All Departments"
+                            searchable
+                        />
+                    </div>
+                </FilterDrawerGrid>
+            )}
+        />
+    ), [activeFilters, departmentId, departmentOptions, isAdmin, searchTerm, status, updateQueryParams]);
+    const controlsHosted = usePageActionsHost(pageControls);
 
     const columns = useMemo<Column<Building>[]>(() => [
         {
@@ -221,36 +254,11 @@ export default function BuildingsTab() {
     return (
         <>
             <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/95 p-2.5 sm:p-3">
-                    <PageControls
-                        activeFilters={activeFilters}
-                        leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search buildings..." mobileMode="expandable" />}
-                        actions={isAdmin ? <Button icon={Plus} onClick={openCreate}>New Building</Button> : undefined}
-                        renderFilters={() => (
-                            <FilterDrawerGrid>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Status</Label>
-                                    <CustomSelect
-                                        options={[{ label: 'All Buildings', value: '' }, { label: 'Active', value: 'active' }, { label: 'Inactive', value: 'inactive' }]}
-                                        value={status}
-                                        onChange={(value) => updateQueryParams({ status: value, page: 1 })}
-                                        placeholder="All Buildings"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Department</Label>
-                                    <CustomSelect
-                                        options={[{ label: 'All Departments', value: '' }, ...departmentOptions]}
-                                        value={departmentId}
-                                        onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
-                                        placeholder="All Departments"
-                                        searchable
-                                    />
-                                </div>
-                            </FilterDrawerGrid>
-                        )}
-                    />
-                </div>
+                {!controlsHosted && (
+                    <div className="shrink-0 border-b border-border/60 bg-card/95 p-2.5 sm:p-3">
+                        {pageControls}
+                    </div>
+                )}
                 <div className="relative min-h-0 flex-1 overflow-x-hidden">
                     <DataTable
                         data={data?.data || []}

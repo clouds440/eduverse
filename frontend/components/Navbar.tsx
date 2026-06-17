@@ -21,6 +21,12 @@ const PUBLIC_NAV_LINKS = [
     { name: 'About Us', href: '/about' },
 ];
 
+const NAV_HIDE_ENTER_SCROLL = 104;
+const NAV_HIDE_EXIT_SCROLL = 28;
+const NAV_MIN_SCROLL_RANGE = 128;
+const NAV_HIDE_DELTA = 12;
+const NAV_SHOW_DELTA = -12;
+
 export default function Navbar() {
     const { token, user } = useAuth();
     const { toggleMobileSidebar, toggleSidebar, isMobileOpen, isExpanded, isDesktop, mounted } = useUI();
@@ -31,6 +37,7 @@ export default function Navbar() {
     const lastScrollTopRef = useRef(0);
     const activeScrollTargetRef = useRef<HTMLElement | null>(null);
     const lastScrollTargetRef = useRef<HTMLElement | null>(null);
+    const navHiddenRef = useRef(false);
     const [isNavHidden, setIsNavHidden] = useState(false);
     const [hasFocusWithin, setHasFocusWithin] = useState(false);
     const chatUnread = state.stats.chat?.unread || 0;
@@ -45,12 +52,15 @@ export default function Navbar() {
         return element.scrollHeight - element.clientHeight > 2;
     };
 
-    const getPrimaryScrollTop = (preferredTarget?: HTMLElement | null) => {
-        if (typeof window === 'undefined') return 0;
+    const getPrimaryScrollState = (preferredTarget?: HTMLElement | null) => {
+        if (typeof window === 'undefined') return { scrollTop: 0, scrollRange: 0 };
 
         const preferredScrollable = isScrollableElement(preferredTarget) ? preferredTarget : null;
         if (preferredScrollable) {
-            return preferredScrollable.scrollTop;
+            return {
+                scrollTop: preferredScrollable.scrollTop,
+                scrollRange: Math.max(0, preferredScrollable.scrollHeight - preferredScrollable.clientHeight),
+            };
         }
 
         const candidates = [
@@ -62,19 +72,27 @@ export default function Navbar() {
         ].filter(Boolean) as HTMLElement[];
 
         const scrollableCandidate = candidates.find(isScrollableElement);
+        const documentScrollRange = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const candidateScrollRange = scrollableCandidate
+            ? Math.max(0, scrollableCandidate.scrollHeight - scrollableCandidate.clientHeight)
+            : 0;
 
-        return Math.max(
-            window.scrollY || 0,
-            scrollableCandidate?.scrollTop || 0,
-            document.documentElement.scrollTop || 0,
-            document.body.scrollTop || 0,
-        );
+        return {
+            scrollTop: Math.max(
+                window.scrollY || 0,
+                scrollableCandidate?.scrollTop || 0,
+                document.documentElement.scrollTop || 0,
+                document.body.scrollTop || 0,
+            ),
+            scrollRange: Math.max(documentScrollRange, candidateScrollRange),
+        };
     };
 
     useEffect(() => {
         const root = document.documentElement;
         root.style.setProperty('--dashboard-nav-offset', 'var(--app-nav-height)');
         setIsNavHidden(false);
+        navHiddenRef.current = false;
         lastScrollTopRef.current = 0;
 
         return () => {
@@ -90,6 +108,7 @@ export default function Navbar() {
     useEffect(() => {
         if (keepNavVisible) {
             setIsNavHidden(false);
+            navHiddenRef.current = false;
             return;
         }
 
@@ -97,21 +116,32 @@ export default function Navbar() {
 
         const updateNavVisibility = () => {
             frameId = null;
-            const currentScrollTop = getPrimaryScrollTop(activeScrollTargetRef.current);
+            const { scrollTop: currentScrollTop, scrollRange } = getPrimaryScrollState(activeScrollTargetRef.current);
             const delta = currentScrollTop - lastScrollTopRef.current;
             lastScrollTopRef.current = currentScrollTop;
 
             if (window.innerWidth >= 1024) {
                 setIsNavHidden(false);
+                navHiddenRef.current = false;
                 return;
             }
 
-            if (currentScrollTop <= 12 || delta < -8) {
+            if (scrollRange < NAV_MIN_SCROLL_RANGE) {
                 setIsNavHidden(false);
+                navHiddenRef.current = false;
                 return;
             }
 
-            if (delta > 10 && currentScrollTop > 80) {
+            if (navHiddenRef.current) {
+                if (currentScrollTop <= NAV_HIDE_EXIT_SCROLL || delta <= NAV_SHOW_DELTA) {
+                    navHiddenRef.current = false;
+                    setIsNavHidden(false);
+                }
+                return;
+            }
+
+            if (delta >= NAV_HIDE_DELTA && currentScrollTop > NAV_HIDE_ENTER_SCROLL) {
+                navHiddenRef.current = true;
                 setIsNavHidden(true);
             }
         };
@@ -121,14 +151,14 @@ export default function Navbar() {
             const nextTarget = target instanceof HTMLElement ? target : null;
             if (nextTarget !== lastScrollTargetRef.current) {
                 lastScrollTargetRef.current = nextTarget;
-                lastScrollTopRef.current = getPrimaryScrollTop(nextTarget);
+                lastScrollTopRef.current = getPrimaryScrollState(nextTarget).scrollTop;
             }
             activeScrollTargetRef.current = nextTarget;
             if (frameId !== null) return;
             frameId = window.requestAnimationFrame(updateNavVisibility);
         };
 
-        lastScrollTopRef.current = getPrimaryScrollTop();
+        lastScrollTopRef.current = getPrimaryScrollState().scrollTop;
         lastScrollTargetRef.current = null;
         activeScrollTargetRef.current = null;
         document.addEventListener('scroll', scheduleUpdate, { capture: true, passive: true });

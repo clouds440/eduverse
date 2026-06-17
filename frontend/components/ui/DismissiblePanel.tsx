@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface DismissiblePanelProps {
-    children: React.ReactNode;
-    title?: React.ReactNode;
+    children: ReactNode;
+    title?: ReactNode;
     className?: string;
     contentClassName?: string;
+    storageKey?: string;
     defaultCollapsedOnMobile?: boolean;
     dismissible?: boolean;
     collapsible?: boolean;

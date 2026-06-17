@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, type ReactNode } from 'react';
 import useSWR from 'swr';
 import { Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -10,10 +11,12 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { DocsLink } from '@/components/ui/DocsLink';
+import { PageActionsHostProvider } from '@/components/ui/PageActionsHost';
 import { StudentFeesView } from '@/components/student/StudentFeesView';
 
 export default function StudentFeesPage() {
     const { token, user } = useAuth();
+    const [headerActions, setHeaderActions] = useState<ReactNode>(null);
     const profileKey = token && user?.role === Role.STUDENT ? ['student-profile', user.id] as const : null;
     const { data: profile, isLoading, error, mutate } = useSWR<Student>(profileKey);
 
@@ -41,28 +44,31 @@ export default function StudentFeesPage() {
     }
 
     return (
-        <PageShell>
-            <PageHeader
-                title="Fees & Payments"
-                description={<>View fee plans, payment requests, and fee history. <DocsLink href="/docs/finance#payment-claims">Read payment guide</DocsLink></>}
-                icon={Wallet}
-                breadcrumbs={[{ label: 'Student Portal' }, { label: 'Fees & Payments' }]}
-            />
+        <PageActionsHostProvider setActions={setHeaderActions}>
+            <PageShell>
+                <PageHeader
+                    title="Fees & Payments"
+                    description={<>View fee plans, payment requests, and fee history. <DocsLink href="/docs/finance#payment-claims">Read payment guide</DocsLink></>}
+                    icon={Wallet}
+                    breadcrumbs={[{ label: 'Student Portal' }, { label: 'Fees & Payments' }]}
+                    actions={headerActions}
+                />
 
-            <ResourcePanel>
-                <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar sm:p-4">
-                    {error ? (
-                        <ErrorState error={error} onRetry={() => mutate()} />
-                    ) : isLoading || !profile?.id ? (
-                        <div className="space-y-3">
-                            <Skeleton className="h-28 rounded-lg" />
-                            <Skeleton className="h-64 rounded-lg" />
-                        </div>
-                    ) : (
-                        <StudentFeesView studentId={profile.id} viewerRole={Role.STUDENT} />
-                    )}
-                </div>
-            </ResourcePanel>
-        </PageShell>
+                <ResourcePanel>
+                    <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar sm:p-4">
+                        {error ? (
+                            <ErrorState error={error} onRetry={() => mutate()} />
+                        ) : isLoading || !profile?.id ? (
+                            <div className="space-y-3">
+                                <Skeleton className="h-28 rounded-lg" />
+                                <Skeleton className="h-64 rounded-lg" />
+                            </div>
+                        ) : (
+                            <StudentFeesView studentId={profile.id} viewerRole={Role.STUDENT} />
+                        )}
+                    </div>
+                </ResourcePanel>
+            </PageShell>
+        </PageActionsHostProvider>
     );
 }

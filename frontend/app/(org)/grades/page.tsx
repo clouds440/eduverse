@@ -99,7 +99,6 @@ function SectionGradeCard({ section }: { section: Section }) {
     );
 }
 
-type GradesView = 'sections' | 'unfinalized';
 type UnfinalizedStatusFilter = 'ALL' | GradeStatus.DRAFT | GradeStatus.PUBLISHED;
 
 const UNFINALIZED_STATUS_OPTIONS: { value: UnfinalizedStatusFilter; label: string }[] = [
@@ -385,7 +384,6 @@ function UnfinalizedGradesPanel({ token, canReview }: { token: string | null; ca
 export default function GradesPage() {
     const { token, user } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
-    const [view, setView] = useState<GradesView>('sections');
     const canReviewUnfinalized = false;
 
     const sectionsKey = token && user
@@ -404,6 +402,20 @@ export default function GradesPage() {
         ));
     }, [searchTerm, sections]);
 
+    const headerActions = (
+        <PageControls
+            showDrawer={false}
+            renderFilters={() => null}
+            leading={<SearchBar placeholder="Search sections or courses..." value={searchTerm} onChange={setSearchTerm} mobileMode="expandable" />}
+            actions={(
+                <div className="flex min-h-10 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-3 text-xs font-black text-muted-foreground">
+                    <GraduationCap className="h-4 w-4" />
+                    <span>Total Sections: {sections.length}</span>
+                </div>
+            )}
+        />
+    );
+
     return (
         <PageShell>
             <PageHeader
@@ -416,28 +428,10 @@ export default function GradesPage() {
                     { label: 'Grades' },
                 ]}
                 meta={<Badge variant="neutral" size="sm">{sections.length} sections</Badge>}
+                actions={headerActions}
             />
 
-            <div className="inline-flex w-full rounded-lg border border-border/70 bg-card p-1 shadow-sm sm:w-auto">
-                <button
-                    type="button"
-                    onClick={() => setView('sections')}
-                    className={`min-h-10 flex-1 rounded-md px-4 text-sm font-black transition-colors sm:flex-none ${view === 'sections' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-primary/10 hover:text-foreground'}`}
-                >
-                    Sections
-                </button>
-                {canReviewUnfinalized && (
-                    <button
-                        type="button"
-                        onClick={() => setView('unfinalized')}
-                        className={`min-h-10 flex-1 rounded-md px-4 text-sm font-black transition-colors sm:flex-none ${view === 'unfinalized' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-primary/10 hover:text-foreground'}`}
-                    >
-                        Unfinalized
-                    </button>
-                )}
-            </div>
-
-            {view === 'unfinalized' ? (
+            {canReviewUnfinalized ? (
                 <UnfinalizedGradesPanel token={token} canReview={Boolean(canReviewUnfinalized)} />
             ) : isLoading ? (
                 <>
@@ -456,20 +450,6 @@ export default function GradesPage() {
                 </>
             ) : (
                 <ResourcePanel className="overflow-y-auto">
-                    <div className="shrink-0 border-b border-border/60 bg-card/80 p-3 sm:p-4">
-                        <PageControls
-                            showDrawer={false}
-                            renderFilters={() => null}
-                            leading={<SearchBar placeholder="Search sections or courses..." value={searchTerm} onChange={setSearchTerm} mobileMode="expandable" />}
-                            actions={(
-                                <div className="flex min-h-10 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-3 text-xs font-black text-muted-foreground">
-                                    <GraduationCap className="h-4 w-4" />
-                                    <span>Total Sections: {sections.length}</span>
-                                </div>
-                            )}
-                        />
-                    </div>
-
                     <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
                         {filteredSections.length === 0 ? (
                             <EmptyState
