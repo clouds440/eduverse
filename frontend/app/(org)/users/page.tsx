@@ -12,7 +12,7 @@ import {
     WalletCards,
     type LucideIcon,
 } from 'lucide-react';
-import { OrgUserCounts, Role } from '@/types';
+import { BadgeVariant, OrgUserCounts, Role } from '@/types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -41,7 +41,7 @@ interface UserAreaGroup {
     areas: UserArea[];
 }
 
-const toneClasses: Record<UserAreaTone, { icon: string; strip: string; badge: 'primary' | 'info' | 'success' | 'warning' | 'rose' }> = {
+const toneClasses: Record<UserAreaTone, { icon: string; strip: string; badge: BadgeVariant }> = {
     primary: { 
         icon: 'border-primary/20 bg-primary/10 text-primary',
         strip: 'bg-primary',
@@ -65,12 +65,12 @@ const toneClasses: Record<UserAreaTone, { icon: string; strip: string; badge: 'p
     purple: {
         icon: 'border-purple/20 bg-purple/10 text-purple',
         strip: 'bg-purple',
-        badge: 'primary',
+        badge: 'purple',
     },
     teal: {
         icon: 'border-teal/20 bg-teal/10 text-teal',
         strip: 'bg-teal',
-        badge: 'info',
+        badge: 'teal',
     },
     rose: {
         icon: 'border-rose/20 bg-rose/10 text-rose',
