@@ -229,7 +229,9 @@ export default function UsersPage() {
                                     <h2 className="text-sm font-black uppercase tracking-widest text-foreground">{group.title}</h2>
                                     <p className="mt-1 text-sm font-semibold text-muted-foreground">{group.description}</p>
                                 </div>
-                                <Badge variant="neutral" size="sm">{group.areas.length} types</Badge>
+                                <div className="hidden md:block">
+                                    <Badge variant="neutral" size="sm">{group.areas.length} types</Badge>
+                                </div>
                             </div>
 
                             <div className="grid gap-3 xl:grid-cols-2">

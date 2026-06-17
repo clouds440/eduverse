@@ -20,8 +20,8 @@ export function ColorSelector({ value, onChange, ariaLabelPrefix = 'color' }: Co
         : SECTION_COLOR_PALETTE.slice(0, INITIAL_VISIBLE_COUNT);
 
     return (
-        <div className="space-y-2.5">
-            <div className="flex flex-wrap gap-2 p-1.5 border border-border/70 rounded-xl bg-background/50 transition-all">
+        <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5 p-1 border border-border/70 rounded-xl bg-background/50 transition-all">
                 {visibleColors.map((color) => (
                     <button
                         key={color}
@@ -39,25 +39,27 @@ export function ColorSelector({ value, onChange, ariaLabelPrefix = 'color' }: Co
                 ))}
             </div>
             
-            {SECTION_COLOR_PALETTE.length > INITIAL_VISIBLE_COUNT && (
-                <button
-                    type="button"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 focus-visible:outline-none transition-colors"
-                >
-                    {isExpanded ? (
-                        <>
-                            <span>Less</span>
-                            <ChevronUp className="w-3.5 h-3.5" />
-                        </>
-                    ) : (
-                        <>
-                            <span>More</span>
-                            <ChevronDown className="w-3.5 h-3.5" />
-                        </>
-                    )}
-                </button>
-            )}
+            <div className="flex items-center justify-end">
+                {SECTION_COLOR_PALETTE.length > INITIAL_VISIBLE_COUNT && (
+                    <button
+                        type="button"
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80 focus-visible:outline-none transition-colors"
+                    >
+                        {isExpanded ? (
+                            <>
+                                <span>Less</span>
+                                <ChevronUp className="w-3.5 h-3.5" />
+                            </>
+                        ) : (
+                            <>
+                                <span>More</span>
+                                <ChevronDown className="w-3.5 h-3.5" />
+                            </>
+                        )}
+                    </button>
+                )}
+            </div>
         </div>
     );
 }

@@ -447,9 +447,10 @@ export default function SettingsPage() {
                                         />
                                         <div className="min-w-0 flex-1 border-t border-border/50 pt-2 flex items-center justify-between">
                                             <p className="font-mono text-sm font-black uppercase text-foreground">{formData.accentColor.primary}</p>
-                                            <p className="text-xs font-semibold leading-relaxed text-muted-foreground">
-                                                Predefined brand palette.
-                                            </p>
+                                            <div className="flex items-center gap-2 -translate-x-2">
+                                                <p className="text-sm font-medium text-muted-foreground">Selected: </p>
+                                                <div className="flex items-center bg-primary p-3 rounded-md" />
+                                            </div>                                        
                                         </div>
                                     </div>
                                 </div>
