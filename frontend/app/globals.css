@@ -8,8 +8,10 @@
   --app-width: 100vw;
   --app-viewport-top: 0px;
   --app-keyboard-inset: 0px;
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
   --app-nav-height: calc(4rem + env(safe-area-inset-top, 0px));
   --dashboard-nav-offset: var(--app-nav-height);
+  --app-content-height: calc(var(--app-height) - var(--dashboard-nav-offset) - var(--app-safe-bottom));
   --font-geist-sans: var(--font-dm-sans), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: var(--font-jetbrains-mono), "Cascadia Code", "Fira Code", Consolas, monospace;
 
@@ -237,13 +239,15 @@ html.pwa-standalone nav {
 }
 
 html.pwa-standalone .app-shell-main {
+  box-sizing: border-box;
   height: var(--app-height) !important;
   max-height: var(--app-height);
   padding-top: var(--dashboard-nav-offset);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--app-safe-bottom);
 }
 
 html.pwa-standalone.virtual-keyboard-open .app-shell-main {
+  --app-safe-bottom: 0px;
   padding-bottom: 0;
 }
 

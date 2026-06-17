@@ -10,6 +10,7 @@ import { useBackStackEntry } from '@/context/BackNavigationContext';
 interface ThemeDropdownProps {
     currentMode: ThemeMode;
     onModeChange: (mode: ThemeMode) => void;
+    onOpenChange?: (open: boolean) => void;
     className?: string;
     variant?: 'full' | 'compact';
 }
@@ -20,7 +21,7 @@ const themeOptions = [
     { mode: ThemeMode.DARK, label: 'Dark', icon: Moon }
 ];
 
-export function ThemeDropdown({ currentMode, onModeChange, className = '', variant = 'full' }: ThemeDropdownProps) {
+export function ThemeDropdown({ currentMode, onModeChange, onOpenChange, className = '', variant = 'full' }: ThemeDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState<FloatingPosition | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -32,6 +33,13 @@ export function ThemeDropdown({ currentMode, onModeChange, className = '', varia
         priority: 30,
         onBack: () => setIsOpen(false),
     });
+
+    useEffect(() => {
+        onOpenChange?.(isOpen);
+        return () => {
+            if (isOpen) onOpenChange?.(false);
+        };
+    }, [isOpen, onOpenChange]);
 
     // Handle outside click to close dropdown
     useEffect(() => {

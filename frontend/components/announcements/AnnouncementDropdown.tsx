@@ -15,7 +15,11 @@ import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
 import { getRoleLabel } from '@/lib/roles';
 
-export function AnnouncementDropdown() {
+interface AnnouncementDropdownProps {
+    onOpenChange?: (open: boolean) => void;
+}
+
+export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps = {}) {
     const { token, user } = useAuth();
     const { subscribe } = useSocket({ token, userId: user?.id, enabled: !!token });
     const { dispatch } = useGlobal();
@@ -36,6 +40,13 @@ export function AnnouncementDropdown() {
         priority: 30,
         onBack: () => setIsOpen(false),
     });
+
+    useEffect(() => {
+        onOpenChange?.(isOpen);
+        return () => {
+            if (isOpen) onOpenChange?.(false);
+        };
+    }, [isOpen, onOpenChange]);
 
     const markAllAsSeen = useCallback((currentAnnouncements: Announcement[]) => {
         setUnreadCount(0);

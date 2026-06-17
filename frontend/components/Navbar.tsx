@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LogIn, UserPlus, Menu, X } from 'lucide-react';
@@ -26,6 +26,10 @@ const NAV_HIDE_EXIT_SCROLL = 28;
 const NAV_MIN_SCROLL_RANGE = 128;
 const NAV_HIDE_DELTA = 12;
 const NAV_SHOW_DELTA = -12;
+const NAV_BOTTOM_ZONE = 64;
+const NAV_BOTTOM_SHOW_DISTANCE = 36;
+const NAV_LAYOUT_LOCK_MS = 260;
+const NAV_INTERACTION_HOLD_MS = 900;
 
 export default function Navbar() {
     const { token, user } = useAuth();
@@ -38,14 +42,21 @@ export default function Navbar() {
     const activeScrollTargetRef = useRef<HTMLElement | null>(null);
     const lastScrollTargetRef = useRef<HTMLElement | null>(null);
     const navHiddenRef = useRef(false);
+    const upwardDeltaRef = useRef(0);
+    const layoutLockUntilRef = useRef(0);
+    const interactionHoldTimerRef = useRef<number | null>(null);
     const [isNavHidden, setIsNavHidden] = useState(false);
-    const [hasFocusWithin, setHasFocusWithin] = useState(false);
+    const [isNavInteractionHeld, setIsNavInteractionHeld] = useState(false);
+    const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+    const [isAnnouncementMenuOpen, setIsAnnouncementMenuOpen] = useState(false);
+    const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
     const chatUnread = state.stats.chat?.unread || 0;
     const mailUnread = state.stats.mail?.unread || 0;
 
     const isDashboard = user && new RegExp(`^/(${DASHBOARD_MODULES.join('|')})(/|$)`).test(pathname);
     const totalUnread = chatUnread + mailUnread;
-    const keepNavVisible = isMobileOpen || hasFocusWithin;
+    const hasOpenNavDropdown = isThemeMenuOpen || isAnnouncementMenuOpen || isNotificationMenuOpen;
+    const keepNavVisible = isMobileOpen || hasOpenNavDropdown || isNavInteractionHeld;
 
     const isScrollableElement = (element?: HTMLElement | null) => {
         if (!element || element === document.documentElement || element === document.body) return false;
@@ -88,17 +99,54 @@ export default function Navbar() {
         };
     };
 
+    const setNavHiddenState = useCallback((nextHidden: boolean) => {
+        if (navHiddenRef.current === nextHidden) return;
+        navHiddenRef.current = nextHidden;
+        upwardDeltaRef.current = 0;
+        layoutLockUntilRef.current = Date.now() + NAV_LAYOUT_LOCK_MS;
+        setIsNavHidden(nextHidden);
+    }, []);
+
+    const releaseNavInteractionHold = useCallback(() => {
+        if (interactionHoldTimerRef.current !== null) {
+            window.clearTimeout(interactionHoldTimerRef.current);
+            interactionHoldTimerRef.current = null;
+        }
+        setIsNavInteractionHeld(false);
+        lastScrollTopRef.current = getPrimaryScrollState(activeScrollTargetRef.current).scrollTop;
+    }, []);
+
+    const holdNavForInteraction = useCallback(() => {
+        if (interactionHoldTimerRef.current !== null) {
+            window.clearTimeout(interactionHoldTimerRef.current);
+        }
+
+        setIsNavInteractionHeld(true);
+        setNavHiddenState(false);
+        interactionHoldTimerRef.current = window.setTimeout(() => {
+            interactionHoldTimerRef.current = null;
+            setIsNavInteractionHeld(false);
+            lastScrollTopRef.current = getPrimaryScrollState(activeScrollTargetRef.current).scrollTop;
+        }, NAV_INTERACTION_HOLD_MS);
+    }, [setNavHiddenState]);
+
     useEffect(() => {
         const root = document.documentElement;
         root.style.setProperty('--dashboard-nav-offset', 'var(--app-nav-height)');
         setIsNavHidden(false);
         navHiddenRef.current = false;
+        upwardDeltaRef.current = 0;
+        layoutLockUntilRef.current = 0;
         lastScrollTopRef.current = 0;
+        releaseNavInteractionHold();
+        setIsThemeMenuOpen(false);
+        setIsAnnouncementMenuOpen(false);
+        setIsNotificationMenuOpen(false);
 
         return () => {
             root.style.setProperty('--dashboard-nav-offset', 'var(--app-nav-height)');
         };
-    }, [pathname]);
+    }, [pathname, releaseNavInteractionHold]);
 
     useEffect(() => {
         const root = document.documentElement;
@@ -107,8 +155,7 @@ export default function Navbar() {
 
     useEffect(() => {
         if (keepNavVisible) {
-            setIsNavHidden(false);
-            navHiddenRef.current = false;
+            setNavHiddenState(false);
             return;
         }
 
@@ -119,30 +166,45 @@ export default function Navbar() {
             const { scrollTop: currentScrollTop, scrollRange } = getPrimaryScrollState(activeScrollTargetRef.current);
             const delta = currentScrollTop - lastScrollTopRef.current;
             lastScrollTopRef.current = currentScrollTop;
+            const now = Date.now();
 
             if (window.innerWidth >= 1024) {
-                setIsNavHidden(false);
-                navHiddenRef.current = false;
+                setNavHiddenState(false);
                 return;
             }
 
             if (scrollRange < NAV_MIN_SCROLL_RANGE) {
-                setIsNavHidden(false);
-                navHiddenRef.current = false;
+                setNavHiddenState(false);
                 return;
             }
 
+            if (now < layoutLockUntilRef.current) {
+                return;
+            }
+
+            const remainingScroll = Math.max(0, scrollRange - currentScrollTop);
+            const isNearBottom = remainingScroll <= NAV_BOTTOM_ZONE;
+
             if (navHiddenRef.current) {
-                if (currentScrollTop <= NAV_HIDE_EXIT_SCROLL || delta <= NAV_SHOW_DELTA) {
-                    navHiddenRef.current = false;
-                    setIsNavHidden(false);
+                if (delta < 0) {
+                    upwardDeltaRef.current += Math.abs(delta);
+                } else if (delta > 0) {
+                    upwardDeltaRef.current = 0;
+                }
+
+                const hasMeaningfulUpwardScroll = isNearBottom
+                    ? upwardDeltaRef.current >= NAV_BOTTOM_SHOW_DISTANCE
+                    : delta <= NAV_SHOW_DELTA;
+
+                if (currentScrollTop <= NAV_HIDE_EXIT_SCROLL || hasMeaningfulUpwardScroll) {
+                    setNavHiddenState(false);
                 }
                 return;
             }
 
+            upwardDeltaRef.current = 0;
             if (delta >= NAV_HIDE_DELTA && currentScrollTop > NAV_HIDE_ENTER_SCROLL) {
-                navHiddenRef.current = true;
-                setIsNavHidden(true);
+                setNavHiddenState(true);
             }
         };
 
@@ -152,6 +214,7 @@ export default function Navbar() {
             if (nextTarget !== lastScrollTargetRef.current) {
                 lastScrollTargetRef.current = nextTarget;
                 lastScrollTopRef.current = getPrimaryScrollState(nextTarget).scrollTop;
+                upwardDeltaRef.current = 0;
             }
             activeScrollTargetRef.current = nextTarget;
             if (frameId !== null) return;
@@ -172,15 +235,22 @@ export default function Navbar() {
             window.removeEventListener('scroll', scheduleUpdate);
             window.removeEventListener('resize', scheduleUpdate);
         };
-    }, [keepNavVisible, pathname]);
+    }, [keepNavVisible, pathname, setNavHiddenState]);
+
+    useEffect(() => () => {
+        if (interactionHoldTimerRef.current !== null) {
+            window.clearTimeout(interactionHoldTimerRef.current);
+        }
+    }, []);
 
     return (
         <nav
             ref={navRef}
-            onFocusCapture={() => setHasFocusWithin(true)}
+            onPointerDownCapture={holdNavForInteraction}
+            onFocusCapture={holdNavForInteraction}
             onBlurCapture={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                    setHasFocusWithin(false);
+                    releaseNavInteractionHold();
                 }
             }}
             className={`fixed top-0 left-0 right-0 z-100 h-16 border-b border-border/70 bg-background/85 text-navbar-foreground shadow-sm backdrop-blur-md transition-transform duration-200 ease-out ${isNavHidden ? '-translate-y-full' : 'translate-y-0'}`}
@@ -242,14 +312,15 @@ export default function Navbar() {
                     <ThemeDropdown
                         currentMode={themeMode}
                         onModeChange={(mode) => setThemeMode(mode)}
+                        onOpenChange={setIsThemeMenuOpen}
                         variant="compact"
                         className="shrink-0"
                     />
 
                     {token && user ? (
                         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-                            <AnnouncementDropdown />
-                            <NotificationDropdown />
+                            <AnnouncementDropdown onOpenChange={setIsAnnouncementMenuOpen} />
+                            <NotificationDropdown onOpenChange={setIsNotificationMenuOpen} />
                         </div>
                     ) : (
                         <div className="ml-1 flex min-w-0 overflow-hidden items-center rounded-full border border-border/70 bg-card/55 p-1 shadow-sm">

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function ChatPage() {
     return (
-        <div className="flex h-[calc(100vh-4rem)] flex-col gap-2 overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
             <div className="min-h-0 flex-1 overflow-hidden">
                 <ChatLayout />
             </div>

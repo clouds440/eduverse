@@ -12,7 +12,11 @@ import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { PushNotificationBanner } from '@/components/ui/PushNotificationPrompt';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
 
-export function NotificationDropdown() {
+interface NotificationDropdownProps {
+    onOpenChange?: (open: boolean) => void;
+}
+
+export function NotificationDropdown({ onOpenChange }: NotificationDropdownProps = {}) {
     const { token, user } = useAuth();
     const { subscribe } = useSocket({ token, userId: user?.id, enabled: !!token });
 
@@ -29,6 +33,13 @@ export function NotificationDropdown() {
         priority: 30,
         onBack: () => setIsOpen(false),
     });
+
+    useEffect(() => {
+        onOpenChange?.(isOpen);
+        return () => {
+            if (isOpen) onOpenChange?.(false);
+        };
+    }, [isOpen, onOpenChange]);
 
     // Fetch notifications initially via notificationsStore
     useEffect(() => {
