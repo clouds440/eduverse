@@ -61,7 +61,7 @@ export default function Grades({ grades, transcriptHref = '/transcripts', showSe
 
     return (
         <div className="space-y-4">
-            <DismissiblePanel title="Grade summary" storageKey="student-grades-summary" defaultCollapsedOnMobile>
+            <DismissiblePanel title="Grade summary" defaultCollapsedOnMobile>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <Card padding="sm" hoverable={false}>
                         <div className="flex items-start justify-between gap-3">

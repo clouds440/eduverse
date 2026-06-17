@@ -195,9 +195,12 @@ export const UiVariant = {
     SECONDARY: 'secondary',
     SUCCESS: 'success',
     ERROR: 'error',
+    ROSE: 'rose',
     WARNING: 'warning',
     INFO: 'info',
     DANGER: 'danger',
+    TEAL: 'teal',
+    CYAN: 'cyan',
     NEUTRAL: 'neutral',
     PURPLE: 'purple',
     BLACK: 'black',
@@ -207,7 +210,7 @@ export const UiVariant = {
 
 export type UiVariant = typeof UiVariant[keyof typeof UiVariant];
 export type FeedbackVariant = typeof UiVariant.SUCCESS | typeof UiVariant.ERROR | typeof UiVariant.WARNING | typeof UiVariant.INFO | typeof UiVariant.NEUTRAL;
-export type BadgeVariant = FeedbackVariant | typeof UiVariant.PRIMARY | typeof UiVariant.SECONDARY | typeof UiVariant.PURPLE;
+export type BadgeVariant = FeedbackVariant | typeof UiVariant.PRIMARY | typeof UiVariant.SECONDARY | typeof UiVariant.PURPLE | typeof UiVariant.TEAL | typeof UiVariant.CYAN | typeof UiVariant.ROSE;
 export type StatusBannerVariant = typeof UiVariant.INFO | typeof UiVariant.SUCCESS | typeof UiVariant.WARNING | typeof UiVariant.DANGER | typeof UiVariant.NEUTRAL;
 export type ButtonVariant = typeof UiVariant.PRIMARY | typeof UiVariant.SECONDARY | typeof UiVariant.DANGER | typeof UiVariant.SUCCESS | typeof UiVariant.WARNING | typeof UiVariant.BLACK | typeof UiVariant.GHOST | typeof UiVariant.OUTLINE;
 export type StatToneVariant = typeof UiVariant.SUCCESS | typeof UiVariant.DANGER | typeof UiVariant.WARNING | typeof UiVariant.INFO;

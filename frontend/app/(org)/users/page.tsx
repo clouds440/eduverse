@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 
-type UserAreaTone = 'primary' | 'info' | 'success' | 'warning' | 'neutral';
+type UserAreaTone = 'primary' | 'info' | 'success' | 'warning' | 'purple' | 'teal' | 'rose';
 
 interface UserArea {
     id: string;
@@ -41,12 +41,42 @@ interface UserAreaGroup {
     areas: UserArea[];
 }
 
-const toneClasses: Record<UserAreaTone, { icon: string; strip: string; badge: 'primary' | 'info' | 'success' | 'warning' | 'neutral' }> = {
-    primary: { icon: 'border-primary/20 bg-primary/10 text-primary', strip: 'bg-primary', badge: 'primary' },
-    info: { icon: 'border-info/20 bg-info/10 text-info', strip: 'bg-info', badge: 'info' },
-    success: { icon: 'border-success/20 bg-success/10 text-success', strip: 'bg-success', badge: 'success' },
-    warning: { icon: 'border-warning/25 bg-warning/10 text-warning', strip: 'bg-warning', badge: 'warning' },
-    neutral: { icon: 'border-border bg-muted/50 text-muted-foreground', strip: 'bg-muted-foreground', badge: 'neutral' },
+const toneClasses: Record<UserAreaTone, { icon: string; strip: string; badge: 'primary' | 'info' | 'success' | 'warning' | 'rose' }> = {
+    primary: { 
+        icon: 'border-primary/20 bg-primary/10 text-primary',
+        strip: 'bg-primary',
+        badge: 'primary'
+    },
+    info: { 
+        icon: 'border-info/20 bg-info/10 text-info',
+        strip: 'bg-info',
+        badge: 'info' 
+    },
+    success: { 
+        icon: 'border-success/20 bg-success/10 text-success',
+        strip: 'bg-success',
+        badge: 'success'
+    },
+    warning: { 
+        icon: 'border-warning/25 bg-warning/10 text-warning',
+        strip: 'bg-warning',
+        badge: 'warning'
+    },
+    purple: {
+        icon: 'border-purple/20 bg-purple/10 text-purple',
+        strip: 'bg-purple',
+        badge: 'primary',
+    },
+    teal: {
+        icon: 'border-teal/20 bg-teal/10 text-teal',
+        strip: 'bg-teal',
+        badge: 'info',
+    },
+    rose: {
+        icon: 'border-rose/20 bg-rose/10 text-rose',
+        strip: 'bg-rose',
+        badge: 'rose',
+    },
 };
 
 const userGroups: UserAreaGroup[] = [
@@ -106,7 +136,7 @@ const userGroups: UserAreaGroup[] = [
                 countKey: 'teachers',
                 icon: UserCog,
                 roles: [Role.ORG_ADMIN, Role.SUB_ADMIN],
-                tone: 'success',
+                tone: 'rose',
             },
         ],
     },
@@ -124,7 +154,7 @@ const userGroups: UserAreaGroup[] = [
                 countKey: 'students',
                 icon: GraduationCap,
                 roles: [Role.ORG_ADMIN, Role.SUB_ADMIN],
-                tone: 'success',
+                tone: 'teal',
             },
             {
                 id: 'guardians',
@@ -136,7 +166,7 @@ const userGroups: UserAreaGroup[] = [
                 countKey: 'guardians',
                 icon: Users,
                 roles: [Role.ORG_ADMIN, Role.SUB_ADMIN],
-                tone: 'neutral',
+                tone: 'purple',
             },
         ],
     },

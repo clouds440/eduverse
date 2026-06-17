@@ -146,7 +146,6 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
         return tabEntries.filter((entry) => (
             entry.title.toLowerCase().includes(searchQuery)
             || entry.status.toLowerCase().includes(searchQuery)
-            || entry.category?.toLowerCase().includes(searchQuery)
         ));
     }, [activeTab, entries, searchQuery, stats]);
 
@@ -203,7 +202,7 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
 
     return (
         <div className="space-y-4">
-            <DismissiblePanel title="Fee summary" storageKey={`student-fees-summary-${studentId}`} defaultCollapsedOnMobile>
+            <DismissiblePanel title="Fee summary" defaultCollapsedOnMobile>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <Card padding="sm" hoverable={false}>
                         <div className="flex items-start justify-between gap-3">

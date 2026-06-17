@@ -27,7 +27,10 @@ const variantStyles: Record<BadgeVariant, string> = {
     primary: "border-primary/20 bg-primary/10 text-primary dark:bg-primary/20",
     secondary: "border-secondary/35 bg-secondary/35 text-secondary-foreground dark:bg-secondary/30",
     info: "border-info/20 bg-info/10 text-info dark:bg-info/20",
-    purple: "border-purple-500/20 bg-purple-100 text-purple-700 dark:bg-purple-900/25 dark:text-purple-300",
+    purple: "border-purple/20 bg-purple text-purple dark:bg-purple/25 dark:text-purple",
+    teal: "border-teal/20 bg-teal text-teal dark:bg-teal/25 dark:text-teal",
+    cyan: "border-cyan/20 bg-cyan text-cyan dark:bg-cyan/25 dark:text-cyan",
+    rose: "border-rose/20 bg-rose text-rose dark:bg-rose/25 dark:text-rose",
 };
 
 const dotColors: Record<BadgeVariant, string> = {
@@ -38,7 +41,10 @@ const dotColors: Record<BadgeVariant, string> = {
     primary: "bg-primary",
     secondary: "bg-secondary",
     info: "bg-info",
-    purple: "bg-purple-600",
+    purple: "bg-purple",
+    teal: "bg-teal",
+    cyan: "bg-cyan",
+    rose: "bg-rose",
 };
 
 const sizeStyles: Record<BadgeSize, string> = {

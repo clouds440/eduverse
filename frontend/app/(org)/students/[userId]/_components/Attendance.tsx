@@ -191,7 +191,7 @@ export default function Attendance({ studentId }: AttendanceProps) {
 
     return (
         <div className="space-y-4">
-            <DismissiblePanel title="Attendance summary" storageKey="student-attendance-summary" defaultCollapsedOnMobile>
+            <DismissiblePanel title="Attendance summary" defaultCollapsedOnMobile>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <Card padding="sm" hoverable={false}>
                         <div className="flex items-start justify-between gap-3">
