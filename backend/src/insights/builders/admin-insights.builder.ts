@@ -8,6 +8,8 @@ import { processDateTrendData } from '../shared/insights-chart.util';
 import { resolveInsightDateRange } from '../shared/insights-date.util';
 import { formatPercent, formatSectionLabel } from '../shared/insights-format.util';
 import type { DashboardInsightItem, InsightsUser, StandardDashboardInsightsResponse } from '../shared/insights.types';
+import { getBuildingRoomInsights } from '../helpers/building-room-insights.helper';
+import { getDepartmentAdminInsights } from '../helpers/department-admin-insights.helper';
 
 @Injectable()
 export class AdminInsightsBuilder {
@@ -41,6 +43,8 @@ export class AdminInsightsBuilder {
       attendanceCoverageByDate,
       pendingSubmissions,
       teacherWorkload,
+      departmentInsights,
+      buildingRoomInsights,
     ] = await Promise.all([
       this.prisma.teacher.count({
         where: { organizationId: orgId, status: { not: TeacherStatus.DELETED } },
@@ -165,6 +169,8 @@ export class AdminInsightsBuilder {
       }),
       this.getGradingBacklogCount(orgId, now),
       this.getTeacherWorkload(orgId),
+      getDepartmentAdminInsights(this.prisma, orgId),
+      getBuildingRoomInsights(this.prisma, orgId),
     ]);
 
     const attendanceCoverage = getAttendanceCoverage(
@@ -299,6 +305,7 @@ export class AdminInsightsBuilder {
       ],
       spotlight,
       groups: [
+        ...[departmentInsights.group, buildingRoomInsights.group].filter((group) => group !== null),
         {
           id: 'attendance-hotspots',
           title: 'Attendance hotspots',
@@ -367,6 +374,10 @@ export class AdminInsightsBuilder {
         mailStatus,
         sectionCapacity,
         teacherWorkload,
+        departmentActivity: departmentInsights.chart,
+        departmentPerformance: departmentInsights.performance,
+        roomUsage: buildingRoomInsights.roomUsage,
+        buildingUsage: buildingRoomInsights.buildingUsage,
       },
     };
   }

@@ -19,6 +19,7 @@ import type {
   DashboardInsightsResponse,
   InsightsUser,
 } from '../shared/insights.types';
+import { getDepartmentFinanceInsights } from '../helpers/department-finance-insights.helper';
 
 export type FinanceInsightsQuery = FinanceInsightsQueryDto;
 
@@ -60,6 +61,16 @@ export interface FinanceInsightCharts {
       amount: number;
     }>;
   };
+  departmentFinance?: Array<{
+    departmentId: string;
+    department: string;
+    expectedAmount: number;
+    collectedAmount: number;
+    pendingAmount: number;
+    overdueAmount: number;
+    collectionRatePercent: number;
+    estimated: boolean;
+  }>;
   chartRecommendations: {
     moneyFlowTrend: 'ComposedChart';
     incomeSources: 'BarChart';
@@ -89,11 +100,12 @@ export class FinanceInsightsBuilder {
     const currency = query.currency || 'USD';
     const { previousFrom, previousTo } = previousEqualRange(from, to);
 
-    const [transactions, previousTransactions, entries, recentEntries] = await Promise.all([
+    const [transactions, previousTransactions, entries, recentEntries, departmentFinanceInsights] = await Promise.all([
       this.getTransactions(orgId, from, to, currency),
       this.getTransactions(orgId, previousFrom, previousTo, currency),
       this.getEntriesForHealth(orgId, currency),
       this.getRecentConfirmedEntries(orgId, currency),
+      getDepartmentFinanceInsights(this.prisma, orgId, currency),
     ]);
 
     const totalIncome = this.sumTransactions(transactions, TransactionType.INCOME);
@@ -228,6 +240,7 @@ export class FinanceInsightsBuilder {
           description: 'Open receivables and payable records separated from actual cash flow.',
           items: this.getCollectionItems(collection, currency),
         },
+        ...(departmentFinanceInsights.group ? [departmentFinanceInsights.group] : []),
       ],
       recentActivity,
       charts: {
@@ -248,6 +261,7 @@ export class FinanceInsightsBuilder {
             { status: 'Overdue', amount: collection.overdueAmount },
           ],
         },
+        departmentFinance: departmentFinanceInsights.chart,
         chartRecommendations: {
           moneyFlowTrend: 'ComposedChart',
           incomeSources: 'BarChart',

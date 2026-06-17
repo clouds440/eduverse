@@ -5,6 +5,7 @@ import { Role, type DashboardInsights } from '@/types';
 import {
   COLORS,
   CompletionBarChart,
+  GroupedBarChart,
   InsightBarChart,
   InsightLineChart,
   InsightPieChart,
@@ -70,6 +71,7 @@ export function hasInsightCharts(role: string, charts: InsightCharts) {
     charts.expenseSources?.length ||
     charts.incomeSourceTrend?.length ||
     charts.expenseSourceTrend?.length ||
+    charts.departmentFinance?.length ||
     charts.collectionHealth?.chartData.length ||
     charts.topMonths
   ) {
@@ -80,7 +82,11 @@ export function hasInsightCharts(role: string, charts: InsightCharts) {
     charts.enrollmentTrend?.length ||
     charts.mailStatus?.length ||
     charts.sectionCapacity?.length ||
-    charts.teacherWorkload?.length,
+    charts.teacherWorkload?.length ||
+    charts.departmentActivity?.length ||
+    charts.departmentPerformance?.length ||
+    charts.roomUsage?.length ||
+    charts.buildingUsage?.length,
   );
   const hasTeacherCharts = Boolean(charts.assessmentCompletion?.length);
   const hasStudentCharts = Boolean(charts.studentPerformance?.length);
@@ -91,7 +97,11 @@ export function hasInsightCharts(role: string, charts: InsightCharts) {
       charts.attendanceTrend?.length ||
       charts.mailStatus?.length ||
       charts.sectionCapacity?.length ||
-      charts.teacherWorkload?.length,
+      charts.teacherWorkload?.length ||
+      charts.departmentActivity?.length ||
+      charts.departmentPerformance?.length ||
+      charts.roomUsage?.length ||
+      charts.buildingUsage?.length,
     );
   }
 
@@ -123,6 +133,7 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
     charts.expenseSources?.length ||
     charts.incomeSourceTrend?.length ||
     charts.expenseSourceTrend?.length ||
+    charts.departmentFinance?.length ||
     charts.collectionHealth?.chartData.length ||
     charts.topMonths
   ) {
@@ -165,6 +176,23 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
           )}
           <TopMonthCards charts={charts} />
         </div>
+        {charts.departmentFinance && charts.departmentFinance.length > 0 && (
+          <ChartPanel>
+            <GroupedBarChart
+              data={charts.departmentFinance}
+              nameKey="department"
+              title="Finance by Department"
+              horizontal
+              valueFormatter={(value) => formatChartAmount(value)}
+              bars={[
+                { key: 'expectedAmount', name: 'Expected', color: COLORS.info },
+                { key: 'collectedAmount', name: 'Collected', color: COLORS.success },
+                { key: 'pendingAmount', name: 'Pending', color: COLORS.warning },
+                { key: 'overdueAmount', name: 'Overdue', color: COLORS.danger },
+              ]}
+            />
+          </ChartPanel>
+        )}
       </div>
     );
   }
@@ -173,7 +201,11 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
     charts.enrollmentTrend?.length ||
     charts.mailStatus?.length ||
     charts.sectionCapacity?.length ||
-    charts.teacherWorkload?.length,
+    charts.teacherWorkload?.length ||
+    charts.departmentActivity?.length ||
+    charts.departmentPerformance?.length ||
+    charts.roomUsage?.length ||
+    charts.buildingUsage?.length,
   );
   const hasTeacherCharts = Boolean(charts.assessmentCompletion?.length);
   const hasStudentCharts = Boolean(charts.studentPerformance?.length);
@@ -210,6 +242,51 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
             </ChartPanel>
           )}
         </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {charts.departmentActivity && charts.departmentActivity.length > 0 && (
+            <ChartPanel>
+              <GroupedBarChart
+                data={charts.departmentActivity}
+                nameKey="department"
+                title="Department Academic Footprint"
+                horizontal
+                bars={[
+                  { key: 'students', name: 'Students', color: COLORS.info },
+                  { key: 'teachers', name: 'Teachers', color: COLORS.warning },
+                  { key: 'sections', name: 'Sections', color: COLORS.success },
+                  { key: 'courses', name: 'Courses', color: COLORS.purple },
+                ]}
+              />
+            </ChartPanel>
+          )}
+          {charts.departmentPerformance && charts.departmentPerformance.length > 0 && (
+            <ChartPanel>
+              <GroupedBarChart
+                data={charts.departmentPerformance}
+                nameKey="department"
+                title="Department Performance"
+                horizontal
+                valueFormatter={(value) => `${value.toFixed(1)}%`}
+                bars={[
+                  { key: 'averageGradePercent', name: 'Avg Grade', color: COLORS.primary },
+                  { key: 'attendanceRatePercent', name: 'Attendance', color: COLORS.success },
+                ]}
+              />
+            </ChartPanel>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {charts.roomUsage && charts.roomUsage.length > 0 && (
+            <ChartPanel>
+              <InsightBarChart data={charts.roomUsage} dataKey="scheduledSlots" nameKey="room" title="Room Usage" color={COLORS.teal} horizontal disableHover />
+            </ChartPanel>
+          )}
+        </div>
+        {charts.buildingUsage && charts.buildingUsage.length > 0 && (
+          <ChartPanel>
+            <InsightBarChart data={charts.buildingUsage} dataKey="scheduledSlots" nameKey="building" title="Building Scheduled Slots" color={COLORS.orange} horizontal disableHover />
+          </ChartPanel>
+        )}
       </div>
     );
   }

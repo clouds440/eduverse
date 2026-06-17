@@ -290,6 +290,83 @@ export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, c
   );
 }
 
+interface GroupedBarChartProps {
+  data: Array<Record<string, string | number | boolean | null | undefined>>;
+  nameKey: string;
+  bars: Array<{ key: string; name: string; color: string }>;
+  height?: number;
+  title?: string;
+  horizontal?: boolean;
+  valueFormatter?: (value: number, key: string) => string;
+}
+
+export function GroupedBarChart({
+  data,
+  nameKey,
+  bars,
+  height = 320,
+  title,
+  horizontal = false,
+  valueFormatter,
+}: GroupedBarChartProps) {
+  const isCompact = useCompactChart();
+
+  if (!data || data.length === 0 || bars.length === 0) return null;
+
+  const chartHeight = isCompact ? Math.min(height, horizontal ? 300 : 240) : height;
+
+  return (
+    <div className="w-full">
+      <ChartTitle title={title} detail={`${data.length} ${data.length === 1 ? 'department' : 'departments'}`} />
+      <ResponsiveContainer width="100%" height={chartHeight}>
+        <BarChart data={data} layout={horizontal ? 'vertical' : undefined} margin={{ top: 8, right: 8, left: horizontal ? 4 : -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.border} strokeOpacity={0.5} vertical={!horizontal && !isCompact} horizontal={horizontal ? false : undefined} />
+          {horizontal ? (
+            <>
+              <XAxis type="number" tick={getAxisTick(isCompact)} axisLine={false} tickLine={false} />
+              <YAxis
+                dataKey={nameKey}
+                type="category"
+                tick={getAxisTick(isCompact)}
+                axisLine={false}
+                tickLine={false}
+                width={isCompact ? 86 : 118}
+              />
+            </>
+          ) : (
+            <>
+              <XAxis
+                dataKey={nameKey}
+                tick={getAxisTick(isCompact)}
+                axisLine={false}
+                tickLine={false}
+                interval={getTickInterval(data.length, isCompact)}
+              />
+              <YAxis tick={getAxisTick(isCompact)} axisLine={false} tickLine={false} width={isCompact ? 34 : 48} />
+            </>
+          )}
+          <Tooltip
+            cursor={{ fill: CHART_THEME.muted, opacity: 0.22 }}
+            contentStyle={getTooltipStyle()}
+            itemStyle={getTooltipItemStyle()}
+            labelStyle={getTooltipLabelStyle()}
+            wrapperStyle={getTooltipWrapperStyle()}
+            formatter={(value, name, item) => {
+              const numeric = Number(value || 0);
+              const key = String(item.dataKey || '');
+              return [valueFormatter ? valueFormatter(numeric, key) : numeric, name];
+            }}
+          />
+          <Legend wrapperStyle={getLegendStyle()} />
+          {bars.map((bar) => (
+            <Bar key={bar.key} dataKey={bar.key} name={bar.name} fill={bar.color} radius={horizontal ? [0, 5, 5, 0] : [5, 5, 0, 0]} isAnimationActive={false} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 // Pie Chart Component
 interface PieChartProps {
   data: Array<{ name: string; value: number }>;

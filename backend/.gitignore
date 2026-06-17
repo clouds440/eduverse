@@ -31,6 +31,9 @@ lerna-debug.log*
 # Uploads
 uploads/
 
+# cloc
+cloc.exe
+
 # IDE - VSCode
 .vscode/*
 !.vscode/settings.json
