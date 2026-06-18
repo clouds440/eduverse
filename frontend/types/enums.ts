@@ -164,6 +164,11 @@ export enum HolidayMatchMode {
     DAILY_IN_RANGE = 'DAILY_IN_RANGE',
 }
 
+export enum EvaluationType {
+    TEACHER = 'TEACHER',
+    COURSE = 'COURSE',
+}
+
 export enum ThemeMode {
     LIGHT = 'LIGHT',
     DARK = 'DARK',

@@ -1,5 +1,5 @@
-import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
-export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
+import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
+export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
 
 export interface PaginatedResponse<T> {
@@ -1230,6 +1230,113 @@ export interface CreateHolidayRequest {
 }
 
 export type UpdateHolidayRequest = Partial<CreateHolidayRequest>;
+
+export interface EvaluationWindow {
+    id: string;
+    organizationId: string;
+    academicCycleId: string;
+    courseId?: string | null;
+    sectionId?: string | null;
+    title: string;
+    description?: string | null;
+    startDate: string;
+    endDate: string;
+    isActive: boolean;
+    createdById: string;
+    updatedById?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    academicCycle?: Pick<AcademicCycle, 'id' | 'name'>;
+    course?: Pick<Course, 'id' | 'name' | 'departmentId'> | null;
+    section?: Pick<Section, 'id' | 'name' | 'courseId'> | null;
+    createdBy?: Pick<User, 'id' | 'name' | 'email'>;
+    updatedBy?: Pick<User, 'id' | 'name' | 'email'> | null;
+}
+
+export interface Evaluation {
+    id: string;
+    organizationId: string;
+    type: EvaluationType;
+    studentId: string;
+    sectionId: string;
+    courseId: string;
+    teacherId?: string | null;
+    academicCycleId: string;
+    windowId?: string | null;
+    rating: number;
+    feedback?: string | null;
+    isHidden: boolean;
+    hiddenById?: string | null;
+    hiddenAt?: string | null;
+    hiddenReason?: string | null;
+    createdById: string;
+    updatedById?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    student?: Student;
+    section?: Section;
+    course?: Course;
+    teacher?: Teacher | null;
+    academicCycle?: AcademicCycle;
+    window?: EvaluationWindow | null;
+    hiddenBy?: Pick<User, 'id' | 'name' | 'email'> | null;
+}
+
+export interface EvaluationPendingTask {
+    key: string;
+    type: EvaluationType;
+    eligible: boolean;
+    reason?: 'FINALIZED_GRADE_REQUIRED' | 'ACTIVE_WINDOW_REQUIRED' | null;
+    window?: EvaluationWindow | null;
+    evaluation?: Evaluation | null;
+    section: Section;
+    course: Course;
+    academicCycle?: AcademicCycle;
+    teacher?: Teacher | null;
+}
+
+export interface EvaluationPendingResponse {
+    student: { id: string; user?: Pick<User, 'id' | 'name' | 'email'> };
+    pending: EvaluationPendingTask[];
+    completed: EvaluationPendingTask[];
+    locked: EvaluationPendingTask[];
+    tasks: EvaluationPendingTask[];
+}
+
+export interface EvaluationSummary {
+    averageRating: number | null;
+    totalRatings: number;
+    distribution: Record<1 | 2 | 3 | 4 | 5, number>;
+    feedback: Evaluation[];
+    teacher?: Teacher;
+    course?: Course;
+}
+
+export interface CreateEvaluationRequest {
+    type: EvaluationType;
+    sectionId: string;
+    teacherId?: string;
+    rating: number;
+    feedback?: string;
+}
+
+export interface UpdateEvaluationRequest {
+    rating?: number;
+    feedback?: string;
+}
+
+export interface CreateEvaluationWindowRequest {
+    academicCycleId: string;
+    courseId?: string | null;
+    sectionId?: string | null;
+    title: string;
+    description?: string | null;
+    startDate: string;
+    endDate: string;
+    isActive?: boolean;
+}
+
+export type UpdateEvaluationWindowRequest = Partial<CreateEvaluationWindowRequest>;
 
 export interface SectionSchedule {
     id: string;

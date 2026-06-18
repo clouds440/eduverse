@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { AlertTriangle, ArrowRight, CheckCircle2, Lightbulb, ListChecks, Square } from 'lucide-react';
 import type { DocBlock, DocPage, DocSection } from '../_data/docs';
 import { docsPages, flattenDocSections, getDocPage } from '../_data/docs';
@@ -6,6 +7,139 @@ import { docsPages, flattenDocSections, getDocPage } from '../_data/docs';
 type DocArticleProps = {
   page: DocPage;
 };
+
+type AppLinkTerm = {
+  phrase: string;
+  href: string;
+};
+
+const appLinkTerms: AppLinkTerm[] = [
+  { phrase: 'Import monthly attendance CSV', href: '/attendance' },
+  { phrase: 'Import attendance CSV', href: '/attendance' },
+  { phrase: 'Import students CSV', href: '/students' },
+  { phrase: 'Import teachers CSV', href: '/teachers' },
+  { phrase: 'Import courses CSV', href: '/courses' },
+  { phrase: 'Import sections CSV', href: '/sections' },
+  { phrase: 'Import guardians CSV', href: '/guardians' },
+  { phrase: 'Import departments CSV', href: '/departments' },
+  { phrase: 'Import buildings CSV', href: '/buildings-and-rooms' },
+  { phrase: 'Import rooms CSV', href: '/buildings-and-rooms' },
+  { phrase: 'Grade Finalization', href: '/grade-finalization' },
+  { phrase: 'Academic Cycles', href: '/academic-cycles' },
+  { phrase: 'Academic Cycle', href: '/academic-cycles' },
+  { phrase: 'Academic Calendar', href: '/holidays' },
+  { phrase: 'Buildings and Rooms', href: '/buildings-and-rooms' },
+  { phrase: 'Building and Room', href: '/buildings-and-rooms' },
+  { phrase: 'GPA Policies', href: '/settings/gpa-policies' },
+  { phrase: 'GPA Policy', href: '/settings/gpa-policies' },
+  { phrase: 'Evaluation windows', href: '/evaluations' },
+  { phrase: 'Evaluation window', href: '/evaluations' },
+  { phrase: 'Evaluations and Feedback', href: '/evaluations' },
+  { phrase: 'Teacher feedback', href: '/evaluations' },
+  { phrase: 'Course feedback', href: '/evaluations' },
+  { phrase: 'Feedback page', href: '/evaluations' },
+  { phrase: 'Payment claims', href: '/finance' },
+  { phrase: 'Payment claim', href: '/finance' },
+  { phrase: 'Finance structures', href: '/finance/structures' },
+  { phrase: 'Finance structure', href: '/finance/structures' },
+  { phrase: 'Finance entries', href: '/finance/entries' },
+  { phrase: 'Finance entry', href: '/finance/entries' },
+  { phrase: 'Transactions', href: '/finance/transactions' },
+  { phrase: 'Course Materials', href: '/courses' },
+  { phrase: 'Gradebook', href: '/grades' },
+  { phrase: 'Transcripts', href: '/transcripts' },
+  { phrase: 'Transcript', href: '/transcripts' },
+  { phrase: 'Timetable', href: '/timetable' },
+  { phrase: 'Schedules', href: '/schedules' },
+  { phrase: 'Schedule', href: '/schedules' },
+  { phrase: 'Attendance', href: '/attendance' },
+  { phrase: 'Assessments', href: '/sections' },
+  { phrase: 'Assessment', href: '/sections' },
+  { phrase: 'Submissions', href: '/sections' },
+  { phrase: 'Submission', href: '/sections' },
+  { phrase: 'Materials', href: '/courses' },
+  { phrase: 'Promotions', href: '/promotions' },
+  { phrase: 'Cohorts', href: '/cohorts' },
+  { phrase: 'Cohort', href: '/cohorts' },
+  { phrase: 'Courses', href: '/courses' },
+  { phrase: 'Course', href: '/courses' },
+  { phrase: 'Sections', href: '/sections' },
+  { phrase: 'Section', href: '/sections' },
+  { phrase: 'Students', href: '/students' },
+  { phrase: 'Student', href: '/students' },
+  { phrase: 'Teachers', href: '/teachers' },
+  { phrase: 'Teacher', href: '/teachers' },
+  { phrase: 'Managers', href: '/teachers' },
+  { phrase: 'Manager', href: '/teachers' },
+  { phrase: 'Guardians', href: '/guardians' },
+  { phrase: 'Guardian', href: '/guardian' },
+  { phrase: 'Finance Managers', href: '/finance-managers' },
+  { phrase: 'Finance Manager', href: '/finance-managers' },
+  { phrase: 'Sub Admins', href: '/sub-admins' },
+  { phrase: 'Sub Admin', href: '/sub-admins' },
+  { phrase: 'Departments', href: '/departments' },
+  { phrase: 'Department', href: '/departments' },
+  { phrase: 'Buildings', href: '/buildings-and-rooms' },
+  { phrase: 'Building', href: '/buildings-and-rooms' },
+  { phrase: 'Rooms', href: '/buildings-and-rooms' },
+  { phrase: 'Room', href: '/buildings-and-rooms' },
+  { phrase: 'Holidays', href: '/holidays' },
+  { phrase: 'Holiday', href: '/holidays' },
+  { phrase: 'Finance', href: '/finance' },
+  { phrase: 'Fees', href: '/fees' },
+  { phrase: 'Mail', href: '/mail' },
+  { phrase: 'Messages', href: '/chat' },
+  { phrase: 'Chat', href: '/chat' },
+  { phrase: 'Settings', href: '/settings' },
+  { phrase: 'Users', href: '/users' },
+  { phrase: 'Overview', href: '/overview' },
+  { phrase: 'Dashboard', href: '/overview' },
+  { phrase: 'Evaluations', href: '/evaluations' },
+  { phrase: 'Grades', href: '/grades' },
+  { phrase: 'Profile Settings', href: '/settings' },
+].sort((a, b) => b.phrase.length - a.phrase.length);
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const appLinkPattern = new RegExp(`\\b(${appLinkTerms.map((term) => escapeRegExp(term.phrase)).join('|')})\\b`, 'gi');
+const appLinkByPhrase = new Map(appLinkTerms.map((term) => [term.phrase.toLowerCase(), term.href]));
+
+function LinkedText({ text }: { text: string }) {
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(appLinkPattern)) {
+    const phrase = match[0];
+    const index = match.index ?? 0;
+    const href = appLinkByPhrase.get(phrase.toLowerCase());
+    if (!href) continue;
+
+    if (index > lastIndex) {
+      parts.push(text.slice(lastIndex, index));
+    }
+
+    parts.push(
+      <Link
+        key={`${phrase}-${index}`}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-bold text-primary underline-offset-4 transition-colors hover:text-primary-hover hover:underline"
+      >
+        {phrase}
+      </Link>,
+    );
+    lastIndex = index + phrase.length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <>{parts.length ? parts : text}</>;
+}
 
 export function DocArticle({ page }: DocArticleProps) {
   const sectionLinks = flattenDocSections(page);
@@ -19,7 +153,7 @@ export function DocArticle({ page }: DocArticleProps) {
         <p className="mb-3 text-xs font-bold uppercase tracking-wider text-primary">{page.category}</p>
         <h1 className="text-3xl font-black leading-tight text-foreground sm:text-4xl">{page.title}</h1>
         <p className="mt-4 max-w-3xl text-base font-medium leading-relaxed text-muted-foreground">
-          {page.description}
+          <LinkedText text={page.description} />
         </p>
         <div className="mt-5 hidden flex-wrap gap-2 sm:flex">
           {page.tags.map((tag) => (
@@ -91,7 +225,7 @@ function DocSectionView({ section, depth = 2 }: { section: DocSection; depth?: 2
           {section.title}
         </HeadingTag>
         {section.summary && (
-          <p className="mt-2 text-sm font-semibold leading-relaxed text-muted-foreground">{section.summary}</p>
+          <p className="mt-2 text-sm font-semibold leading-relaxed text-muted-foreground"><LinkedText text={section.summary} /></p>
         )}
         {section.tags?.length ? (
           <div className="mt-3 hidden flex-wrap gap-1.5 sm:flex">
@@ -121,7 +255,7 @@ function DocSectionView({ section, depth = 2 }: { section: DocSection; depth?: 2
 
 function DocBlockView({ block }: { block: DocBlock }) {
   if (block.type === 'paragraph') {
-    return <p className="text-sm font-medium leading-7 text-muted-foreground">{block.text}</p>;
+    return <p className="text-sm font-medium leading-7 text-muted-foreground"><LinkedText text={block.text} /></p>;
   }
 
   if (block.type === 'note') {
@@ -131,7 +265,7 @@ function DocBlockView({ block }: { block: DocBlock }) {
           <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" />
           {block.title}
         </h3>
-        <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">{block.text}</p>
+        <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground"><LinkedText text={block.text} /></p>
       </div>
     );
   }
@@ -143,7 +277,7 @@ function DocBlockView({ block }: { block: DocBlock }) {
           <Lightbulb className="h-4 w-4 text-success" aria-hidden="true" />
           {block.title}
         </h3>
-        <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">{block.text}</p>
+        <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground"><LinkedText text={block.text} /></p>
       </div>
     );
   }
@@ -156,7 +290,7 @@ function DocBlockView({ block }: { block: DocBlock }) {
             <tr className="border-b border-border bg-muted/50">
               {block.headers.map((header) => (
                 <th key={header} className="px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider text-foreground">
-                  {header}
+                  <LinkedText text={header} />
                 </th>
               ))}
             </tr>
@@ -166,7 +300,7 @@ function DocBlockView({ block }: { block: DocBlock }) {
               <tr key={rowIndex} className="transition-colors hover:bg-muted/30">
                 {row.map((cell, cellIndex) => (
                   <td key={cellIndex} className="px-4 py-2.5 font-medium text-muted-foreground">
-                    {cell}
+                    <LinkedText text={cell} />
                   </td>
                 ))}
               </tr>
@@ -187,7 +321,7 @@ function DocBlockView({ block }: { block: DocBlock }) {
           {block.steps.map((step, index) => (
             <div key={index} className="flex items-center gap-1.5">
               <span className="rounded-md border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">
-                {step}
+                <LinkedText text={step} />
               </span>
               {index < block.steps.length - 1 && (
                 <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
@@ -205,7 +339,7 @@ function DocBlockView({ block }: { block: DocBlock }) {
         {block.items.map((item) => (
           <li key={item} className="flex gap-3 text-sm font-medium leading-6 text-muted-foreground">
             <Square className="mt-0.5 h-4 w-4 shrink-0 text-primary/60" aria-hidden="true" />
-            <span>{item}</span>
+            <span><LinkedText text={item} /></span>
           </li>
         ))}
       </ul>
@@ -226,7 +360,7 @@ function DocBlockView({ block }: { block: DocBlock }) {
           ) : (
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
           )}
-          <span>{item}</span>
+          <span><LinkedText text={item} /></span>
         </li>
       ))}
     </ListTag>

@@ -362,7 +362,7 @@ export const docsPages: DocPage[] = [
     description: 'Understand course credit hours, section creation, safe colors, enrollments, teachers, and materials.',
     category: 'Academics',
     tags: ['courses', 'sections', 'credit hours', 'materials'],
-    related: ['teachers', 'materials', 'gpa-policies', 'gradebook', 'csv-imports'],
+    related: ['teachers', 'materials', 'gpa-policies', 'gradebook', 'evaluations-feedback', 'csv-imports'],
     sections: [
       {
         id: 'core-academic-terms',
@@ -1111,7 +1111,7 @@ export const docsPages: DocPage[] = [
     description: 'Review section grades, enter marks, use bulk grading, and understand grade visibility.',
     category: 'Academics',
     tags: ['grades', 'gradebook', 'marks', 'bulk grading'],
-    related: ['assessments-grading', 'submissions', 'transcripts'],
+    related: ['assessments-grading', 'submissions', 'evaluations-feedback', 'transcripts'],
     sections: [
       {
         id: 'grades-page',
@@ -1198,6 +1198,91 @@ export const docsPages: DocPage[] = [
             type: 'note',
             title: 'Transcript consequence',
             text: 'Only finalized grades are treated as official transcript data. Draft and Published grades remain outside official transcript calculation.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'evaluations-feedback',
+    title: 'Evaluations and Feedback',
+    description: 'Collect concise course and teacher feedback from eligible enrolled students.',
+    category: 'Academics',
+    tags: ['evaluations', 'feedback', 'ratings', 'teacher feedback', 'course feedback'],
+    related: ['student-guide', 'teacher-guide', 'manager-guide', 'admin-guide', 'courses-sections', 'gradebook'],
+    sections: [
+      {
+        id: 'eligibility',
+        title: 'Eligibility rules',
+        tags: ['eligibility', 'finalized grades', 'evaluation window'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Evaluations open only for real academic history. A student can evaluate a section after the student is enrolled, at least one grade in that section is finalized, and an active evaluation window covers the academic cycle, course, or section.',
+          },
+          {
+            type: 'table',
+            headers: ['Requirement', 'What it protects'],
+            rows: [
+              ['Enrolled student', 'Prevents feedback from students who did not take the class.'],
+              ['Assigned teacher for teacher feedback', 'Prevents rating unrelated teachers.'],
+              ['Finalized grade in the section', 'Collects feedback after meaningful course experience.'],
+              ['Active evaluation window', 'Keeps feedback inside the review period chosen by Admin or Sub Admin.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'student-workflow',
+        title: 'Student workflow',
+        tags: ['student', 'submission'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Open the Evaluations tab from the student portal.',
+              'Review pending teacher and course evaluation cards.',
+              'Select a 1-5 star rating.',
+              'Add concise optional feedback if it helps explain the rating.',
+              'Submit before the evaluation window closes.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Keep feedback useful',
+            text: 'Feedback should describe what helped learning and what could improve. Inappropriate language is blocked before feedback is saved.',
+          },
+        ],
+      },
+      {
+        id: 'visibility',
+        title: 'Visibility rules',
+        tags: ['visibility', 'privacy', 'moderation'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Feedback type', 'Who can see it', 'Important boundary'],
+            rows: [
+              ['Teacher feedback', 'The evaluated teacher, Admin, Sub Admin, and scoped Manager views.', 'Teacher feedback text is not shown to unrelated teachers or students.'],
+              ['Course feedback', 'Admin, Sub Admin, scoped Manager, and anonymized summary views where available.', 'Course feedback is anonymized outside management contexts.'],
+              ['Hidden feedback', 'Management users can review moderation status.', 'Hidden text is excluded from public or anonymized feedback lists.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'management',
+        title: 'Admin and manager review',
+        tags: ['admin', 'manager', 'windows', 'moderation'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Admin and Sub Admin users create evaluation windows by academic cycle, optionally narrowing to a course or section.',
+              'Managers review feedback only inside their assigned and scoped academic sections.',
+              'Evaluation lists can be filtered by cycle, course, section, teacher, rating, feedback presence, and visibility.',
+              'Moderation hides or shows written feedback without changing the submitted rating.',
+            ],
           },
         ],
       },
@@ -2311,7 +2396,7 @@ export const docsPages: DocPage[] = [
     description: 'A plain-language guide for running the school workspace, reviewing setup, and protecting academic records.',
     category: 'Role Guides',
     tags: ['org admin', 'operations', 'setup', 'review'],
-    related: ['quick-start', 'school-setup-workflow', 'settings', 'academic-cycles', 'finance'],
+    related: ['quick-start', 'school-setup-workflow', 'settings', 'academic-cycles', 'evaluations-feedback', 'finance'],
     sections: [
       {
         id: 'admin-responsibilities',
@@ -2328,6 +2413,7 @@ export const docsPages: DocPage[] = [
             rows: [
               ['Settings', 'Keep school identity, contact email, logo, and appearance accurate.', 'Users trust records more when the workspace clearly belongs to the school.'],
               ['Academic setup', 'Create cycles, courses, cohorts, sections, and GPA policies in the right order.', 'Bad setup causes missing dropdowns, wrong enrollments, and transcript mistakes.'],
+              ['Evaluation windows', 'Open and manage teacher/course feedback periods.', 'Feedback should be collected only after enough academic activity has happened.'],
               ['People', 'Create teacher and student accounts and place them correctly.', 'Portal views depend on correct assignments and placement.'],
               ['Finance', 'Review structures, payment claims, and confirmed transactions.', 'Fee balances should only change after staff verification.'],
             ],
@@ -2362,6 +2448,7 @@ export const docsPages: DocPage[] = [
             rows: [
               ['Changing a cycle GPA policy', 'It affects transcript results for that cycle until grades are finalized.', 'Confirm the policy matches school rules before teachers finalize grades.'],
               ['Finalizing grades', 'Finalized grades are treated as official for transcripts.', 'Review marks, weightage, student names, and feedback.'],
+              ['Opening evaluation windows', 'Students can submit evaluations only while a matching window is active.', 'Confirm grades have been finalized and the window scope is correct.'],
               ['Deleting or archiving records', 'Old records may explain historical transcripts, payments, or enrollments.', 'Archive when history still needs to remain understandable.'],
               ['Confirming payments', 'Balances and transaction history change after confirmation.', 'Check receipt, reference, amount, and student before accepting.'],
             ],
@@ -2381,7 +2468,7 @@ export const docsPages: DocPage[] = [
     description: 'A guide for delegated organization administration without main-admin ownership.',
     category: 'Role Guides',
     tags: ['sub admin', 'operations', 'users', 'academic setup'],
-    related: ['roles-permissions', 'admin-guide', 'school-setup-workflow', 'academic-cycles'],
+    related: ['roles-permissions', 'admin-guide', 'school-setup-workflow', 'academic-cycles', 'evaluations-feedback'],
     sections: [
       {
         id: 'sub-admin-role',
@@ -2399,6 +2486,7 @@ export const docsPages: DocPage[] = [
               ['People', 'Create and update teachers, managers, students, guardians, and finance managers.', 'Sub admins do not create or manage main admin accounts.'],
               ['Academic setup', 'Manage cycles, cohorts, sections, schedules, promotions, and operational academic records.', 'Changes should follow the school academic plan.'],
               ['Grades', 'Review grade-finalization status and finalize where allowed.', 'Finalized grades become official transcript data.'],
+              ['Evaluations', 'Create windows and review teacher/course feedback where delegated.', 'Feedback review follows department scope where applicable.'],
               ['Finance', 'View/audit finance where available.', 'Finance operations belong to Admin and Finance Manager roles.'],
             ],
           },
@@ -2429,7 +2517,7 @@ export const docsPages: DocPage[] = [
     description: 'A guide for academic managers who monitor assigned sections, attendance, assessments, and grades.',
     category: 'Role Guides',
     tags: ['manager', 'academic monitoring', 'assigned sections', 'grade finalization'],
-    related: ['roles-permissions', 'gradebook', 'attendance', 'transcripts'],
+    related: ['roles-permissions', 'gradebook', 'evaluations-feedback', 'attendance', 'transcripts'],
     sections: [
       {
         id: 'manager-scope',
@@ -2448,6 +2536,7 @@ export const docsPages: DocPage[] = [
               ['Teachers', 'Teachers connected to the same assigned sections.'],
               ['Attendance', 'Assigned academic sections.'],
               ['Assessments and grades', 'Assigned academic sections and finalization review where allowed.'],
+              ['Evaluations', 'Teacher and course feedback for assigned academic sections.'],
               ['Transcripts', 'Students in assigned sections.'],
             ],
           },
@@ -2466,7 +2555,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'flow',
             title: 'Academic review flow',
-            steps: ['Open assigned section or grade finalization dashboard', 'Review assessment status', 'Check missing or draft grades', 'Finalize only after review', 'Transcript uses finalized results'],
+            steps: ['Open assigned section or grade finalization dashboard', 'Review assessment status', 'Check missing or draft grades', 'Finalize only after review', 'Review evaluations after windows open', 'Transcript uses finalized results'],
           },
         ],
       },
@@ -2526,7 +2615,7 @@ export const docsPages: DocPage[] = [
     description: 'A practical guide for assigned classes, materials, assessments, submissions, attendance, and grading.',
     category: 'Role Guides',
     tags: ['teacher', 'classes', 'grading', 'attendance'],
-    related: ['teachers', 'timetable', 'materials', 'assessments-grading', 'gradebook'],
+    related: ['teachers', 'timetable', 'materials', 'assessments-grading', 'gradebook', 'evaluations-feedback'],
     sections: [
       {
         id: 'teacher-start',
@@ -2557,6 +2646,7 @@ export const docsPages: DocPage[] = [
               ['Create assessment', 'Student assessment list and teacher grading view.', 'Due date, total marks, weightage, and submission settings are correct.'],
               ['Review submissions', 'Assessment grading workflow.', 'Student work is opened before marking late or missing.'],
               ['Enter grades', 'Gradebook or assessment grading view.', 'Zero grades are intentional and non-zero grades follow the minimum rule.'],
+              ['Review feedback', 'Feedback page.', 'Teacher feedback appears only for the evaluated teacher and authorized management views.'],
             ],
           },
         ],
@@ -2591,7 +2681,7 @@ export const docsPages: DocPage[] = [
     description: 'A student-friendly guide for timetable, materials, submissions, grades, fees, and transcripts.',
     category: 'Role Guides',
     tags: ['student', 'portal', 'submissions', 'fees'],
-    related: ['students', 'submissions', 'fees', 'transcripts', 'chat'],
+    related: ['students', 'submissions', 'evaluations-feedback', 'fees', 'transcripts', 'chat'],
     sections: [
       {
         id: 'student-portal',
@@ -2610,6 +2700,7 @@ export const docsPages: DocPage[] = [
               ['Study files', 'Materials', 'Shows files or links teachers shared with the class.'],
               ['Assignments or exams', 'Assessments', 'Shows due dates, instructions, and submission options.'],
               ['Marks', 'Grades or transcript views', 'Shows published or finalized academic results depending on the page.'],
+              ['Evaluations', 'Evaluations tab', 'Shows teacher and course feedback tasks after finalized grades and active windows unlock them.'],
               ['Fee balance', 'Fees', 'Shows due, awaiting approval, partially paid, and paid entries.'],
             ],
           },
@@ -2994,7 +3085,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'steps',
             items: [
-              'Open the module that supports CSV import and choose Import CSV.',
+              'Open the module that supports CSV import and choose the Import CSV action on that page.',
               'Download the template from the import modal. Keep the header row exactly as provided.',
               'Fill one record per row. Leave optional fields blank when they do not apply.',
               'Validate the CSV before importing. Validation checks headers, required fields, duplicates, formats, and linked records.',
@@ -3018,14 +3109,14 @@ export const docsPages: DocPage[] = [
             type: 'table',
             headers: ['Module', 'Who can import', 'Required columns', 'Relationship or optional columns'],
             rows: [
-              ['Students', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, major, gender', 'phone, fatherName, age, address, admissionDate, graduationDate, emergencyContact, bloodGroup, status, primaryDepartmentId, departmentIds'],
-              ['Teachers', 'Org Admin or Sub Admin', 'name, email, password, phone, education, designation, subject', 'department, joiningDate, emergencyContact, bloodGroup, address, status, departmentIds'],
-              ['Guardians', 'Org Admin or Sub Admin', 'name, email, password', 'phone, status, address'],
-              ['Courses', 'Org Admin or Sub Admin', 'name', 'description, creditHours, departmentId'],
-              ['Sections', 'Org Admin or Sub Admin', 'name, courseId, academicCycleId', 'room, defaultRoomId, cohortId, color'],
-              ['Departments', 'Org Admin only', 'name', 'code, description, color, isActive'],
-              ['Buildings', 'Org Admin or Sub Admin', 'name', 'code, address, description, isActive, departmentIds'],
-              ['Rooms', 'Org Admin or Sub Admin', 'buildingId, name', 'floor, type, capacity, description, isActive'],
+              ['Import students CSV', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, major, gender', 'phone, fatherName, age, address, admissionDate, graduationDate, emergencyContact, bloodGroup, status, primaryDepartmentId, departmentIds'],
+              ['Import teachers CSV', 'Org Admin or Sub Admin', 'name, email, password, phone, education, designation, subject', 'department, joiningDate, emergencyContact, bloodGroup, address, status, departmentIds'],
+              ['Import guardians CSV', 'Org Admin or Sub Admin', 'name, email, password', 'phone, status, address'],
+              ['Import courses CSV', 'Org Admin or Sub Admin', 'name', 'description, creditHours, departmentId'],
+              ['Import sections CSV', 'Org Admin or Sub Admin', 'name, courseId, academicCycleId', 'room, defaultRoomId, cohortId, color'],
+              ['Import departments CSV', 'Org Admin only', 'name', 'code, description, color, isActive'],
+              ['Import buildings CSV', 'Org Admin or Sub Admin', 'name', 'code, address, description, isActive, departmentIds'],
+              ['Import rooms CSV', 'Org Admin or Sub Admin', 'buildingId, name', 'floor, type, capacity, description, isActive'],
             ],
           },
         ],
@@ -3056,7 +3147,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Monthly attendance import is available from a section attendance page. The template contains name, rollNumber, and one column for each day in the selected month.',
+            text: 'Import monthly attendance CSV from a section attendance page. The template contains name, rollNumber, and one column for each day in the selected month.',
           },
           {
             type: 'table',
@@ -3232,6 +3323,7 @@ export const docsNavGroups: DocNavGroup[] = [
       'assessments-grading',
       'submissions',
       'gradebook',
+      'evaluations-feedback',
       'gpa-policies',
       'timetable',
       'attendance',

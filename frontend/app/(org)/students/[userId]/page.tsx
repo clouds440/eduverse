@@ -7,7 +7,7 @@ import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
 import { Section, FinalGradeResponse, Student, Role, Assessment, DashboardInsights, PaginatedResponse, type InsightTimeRange } from '@/types';
-import { ShieldOff, GraduationCap, LayoutDashboard, Book, BookOpen, Trophy, CheckCircle, UserCircle, type LucideIcon } from 'lucide-react';
+import { ShieldOff, GraduationCap, LayoutDashboard, Book, BookOpen, Trophy, CheckCircle, ClipboardList, UserCircle, type LucideIcon } from 'lucide-react';
 import { Skeleton, DashboardSkeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import { NotFound } from '@/components/NotFound';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -22,8 +22,9 @@ import Grades from './_components/Grades';
 import Attendance from './_components/Attendance';
 import Profile from './_components/Profile';
 import Assessments from './_components/Assessments';
+import Evaluations from './_components/Evaluations';
 
-type StudentPortalTab = 'overview' | 'courses' | 'assessments' | 'grades' | 'attendance' | 'profile';
+type StudentPortalTab = 'overview' | 'courses' | 'assessments' | 'grades' | 'attendance' | 'evaluations' | 'profile';
 
 const STUDENT_PORTAL_TABS: Record<StudentPortalTab, {
     id: StudentPortalTab;
@@ -72,6 +73,14 @@ const STUDENT_PORTAL_TABS: Record<StudentPortalTab, {
         description: 'See your attendance summary by course section and drill into monthly records.',
         icon: CheckCircle,
         breadcrumbs: [{ label: 'Student Portal' }, { label: 'Attendance' }],
+    },
+    evaluations: {
+        id: 'evaluations',
+        label: 'Evaluations',
+        title: 'Evaluations',
+        description: 'Share concise course and teacher feedback when evaluation windows are open.',
+        icon: ClipboardList,
+        breadcrumbs: [{ label: 'Student Portal' }, { label: 'Evaluations' }],
     },
     profile: {
         id: 'profile',
@@ -224,6 +233,10 @@ function StudentPortalContent() {
         if (tab === 'attendance') {
             if (!studentData?.id) return <DashboardSkeleton />;
             return <Attendance studentId={studentData.id} />;
+        }
+
+        if (tab === 'evaluations') {
+            return <Evaluations />;
         }
 
         if (profileLoading) {

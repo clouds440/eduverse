@@ -7,6 +7,7 @@ import {
     Calendar,
     CalendarDays,
     CheckCircle,
+    ClipboardList,
     Clock,
     FileText,
     GraduationCap,
@@ -80,6 +81,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'TRANSCRIPTS', label: 'Transcripts', href: '/transcripts', icon: FileText });
         links.push({ id: 'PROMOTIONS', label: 'Promotions', href: '/promotions', icon: ArrowRightCircle });
         links.push({ id: 'GRADE_FINALIZATION', label: 'Grade Finalization', href: '/grade-finalization', icon: Trophy });
+        links.push({ id: 'EVALUATIONS', label: 'Evaluations', href: '/evaluations', icon: ClipboardList });
         links.push({ id: 'FINANCE', label: user.role === Role.SUB_ADMIN ? 'Finance Audit' : 'Finance', href: '/finance', icon: Wallet });
 
         if (user.role === Role.ORG_ADMIN) {
@@ -95,6 +97,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'SECTIONS', label: 'My Sections', href: '/sections', icon: Layers });
         links.push({ id: 'STUDENTS', label: 'My Students', href: '/students', icon: GraduationCap });
         links.push({ id: 'ATTENDANCE', label: 'Attendance', href: '/attendance', icon: CheckCircle });
+        links.push({ id: 'FEEDBACK', label: 'Feedback', href: `/teachers/${user.id}/feedback`, icon: ClipboardList });
     }
 
     if (user?.role === Role.ORG_MANAGER) {
@@ -103,6 +106,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'ATTENDANCE', label: 'Attendance', href: '/attendance', icon: CheckCircle });
         links.push({ id: 'TRANSCRIPTS', label: 'Transcripts', href: '/transcripts', icon: FileText });
         links.push({ id: 'GRADE_FINALIZATION', label: 'Grade Finalization', href: '/grade-finalization', icon: Trophy });
+        links.push({ id: 'EVALUATIONS', label: 'Evaluations', href: '/evaluations', icon: ClipboardList });
     }
 
     if (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) {
@@ -120,6 +124,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'ASSESSMENTS', label: 'Assessments', href: `/students/${user.id}?tab=assessments`, icon: BookOpen });
         links.push({ id: 'GRADES', label: 'Grades', href: `/students/${user.id}?tab=grades`, icon: Trophy });
         links.push({ id: 'ATTENDANCE', label: 'Attendance', href: `/students/${user.id}?tab=attendance`, icon: CheckCircle });
+        links.push({ id: 'EVALUATIONS', label: 'Evaluations', href: `/students/${user.id}?tab=evaluations`, icon: ClipboardList });
         links.push({ id: 'TIMETABLE', label: 'Timetable', href: '/timetable', icon: Clock });
         links.push({ id: 'TRANSCRIPT', label: 'Transcript', href: '/transcripts', icon: FileText });
         links.push({ id: 'FEES', label: 'Fees & Payments', href: '/fees', icon: Wallet });

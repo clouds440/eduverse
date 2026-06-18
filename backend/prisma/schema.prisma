@@ -39,6 +39,8 @@ model Organization {
   chats           Chat[]
   announcements   Announcement[]
   holidays        Holiday[]
+  evaluationWindows EvaluationWindow[]
+  evaluations       Evaluation[]
   academicCycles  AcademicCycle[]
   cohorts         Cohort[]
   departments     Department[]
@@ -99,6 +101,11 @@ model User {
   createdAnnouncements  Announcement[]     @relation("CreatedAnnouncements")
   createdHolidays        Holiday[]          @relation("CreatedHolidays")
   updatedHolidays        Holiday[]          @relation("UpdatedHolidays")
+  createdEvaluationWindows EvaluationWindow[] @relation("CreatedEvaluationWindows")
+  updatedEvaluationWindows EvaluationWindow[] @relation("UpdatedEvaluationWindows")
+  createdEvaluations      Evaluation[]      @relation("CreatedEvaluations")
+  updatedEvaluations      Evaluation[]      @relation("UpdatedEvaluations")
+  hiddenEvaluations       Evaluation[]      @relation("HiddenEvaluations")
   confirmedFinancialEntries FinancialEntry[] @relation("AdminConfirmations")
   claimedPayments           PaymentClaim[]    @relation("PaymentClaimants")
   reviewedPaymentClaims     PaymentClaim[]    @relation("PaymentClaimReviews")
@@ -196,6 +203,7 @@ model Teacher {
   financialStructures FinancialStructure[]
   financialStructureAssignments FinancialStructureAssignment[]
   financialEntries    FinancialEntry[]
+  evaluations          Evaluation[]
 
   @@index([organizationId])
 }
@@ -248,6 +256,8 @@ model Course {
   updatedBy      String?
   sections       Section[]
   assessments    Assessment[]
+  evaluationWindows EvaluationWindow[]
+  evaluations       Evaluation[]
 
   @@index([organizationId])
   @@index([departmentId])
@@ -463,6 +473,8 @@ model Section {
   schedules          SectionSchedule[]
   attendanceSessions AttendanceSession[]
   assessments        Assessment[]
+  evaluationWindows  EvaluationWindow[]
+  evaluations        Evaluation[]
   courseMaterials    CourseMaterial[]
   enrollmentHistories EnrollmentHistory[]
 
@@ -521,6 +533,7 @@ model Student {
   cohort             Cohort?       @relation(fields: [cohortId], references: [id])
   guardianLinks      GuardianStudent[]
   grades             Grade[]
+  evaluations         Evaluation[]
   submissions        Submission[]
   attendanceRecords  AttendanceRecord[]
   enrollmentHistories     EnrollmentHistory[]
@@ -764,6 +777,11 @@ enum GradeStatus {
   FINALIZED
 }
 
+enum EvaluationType {
+  TEACHER
+  COURSE
+}
+
 enum RoomType {
   CLASSROOM
   LAB
@@ -1003,6 +1021,81 @@ model HolidayDepartment {
   @@index([departmentId])
 }
 
+model EvaluationWindow {
+  id              String   @id @default(uuid())
+  organizationId  String
+  academicCycleId String
+  courseId        String?
+  sectionId       String?
+  title           String
+  description     String?
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean  @default(true)
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  academicCycle AcademicCycle @relation(fields: [academicCycleId], references: [id], onDelete: Cascade)
+  course        Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  section       Section?      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  createdBy     User         @relation("CreatedEvaluationWindows", fields: [createdById], references: [id])
+  updatedBy     User?        @relation("UpdatedEvaluationWindows", fields: [updatedById], references: [id])
+  evaluations   Evaluation[]
+
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@index([academicCycleId])
+  @@index([courseId])
+  @@index([sectionId])
+  @@index([startDate, endDate])
+}
+
+model Evaluation {
+  id              String         @id @default(uuid())
+  organizationId  String
+  type            EvaluationType
+  studentId       String
+  sectionId       String
+  courseId        String
+  teacherId       String?
+  academicCycleId String
+  windowId        String?
+  rating          Int
+  feedback        String?
+  isHidden        Boolean        @default(false)
+  hiddenById      String?
+  hiddenAt        DateTime?
+  hiddenReason    String?
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  section       Section           @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  course        Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher       Teacher?          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  academicCycle AcademicCycle     @relation(fields: [academicCycleId], references: [id], onDelete: Cascade)
+  window        EvaluationWindow? @relation(fields: [windowId], references: [id], onDelete: SetNull)
+  createdBy     User              @relation("CreatedEvaluations", fields: [createdById], references: [id])
+  updatedBy     User?             @relation("UpdatedEvaluations", fields: [updatedById], references: [id])
+  hiddenBy      User?             @relation("HiddenEvaluations", fields: [hiddenById], references: [id])
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([courseId])
+  @@index([sectionId])
+  @@index([academicCycleId])
+  @@index([windowId])
+  @@index([isHidden])
+}
+
 model SectionSchedule {
   id              String         @id @default(uuid())
   sectionId       String
@@ -1125,6 +1218,8 @@ model AcademicCycle {
   submissions         Submission[]
   attendanceSessions  AttendanceSession[]
   courseMaterials     CourseMaterial[]
+  evaluationWindows   EvaluationWindow[]
+  evaluations         Evaluation[]
   sectionSchedules    SectionSchedule[]
 
     @@index([organizationId])

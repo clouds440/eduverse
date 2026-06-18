@@ -16,7 +16,9 @@ import type {
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, OrgUserCounts,
     ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions,
-    Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType
+    Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
+    Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
+    CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -538,6 +540,30 @@ export const api = {
             request<Holiday>(`/org/holidays/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
         deleteHoliday: (id: string, token: string) =>
             request<void>(`/org/holidays/${id}`, { method: 'DELETE', token }),
+
+        // --- Evaluations & Feedback ---
+        getEvaluationPending: (token: string) =>
+            request<EvaluationPendingResponse>('/org/evaluations/pending', { token }),
+        createEvaluation: (data: CreateEvaluationRequest, token: string) =>
+            request<Evaluation>('/org/evaluations', { method: 'POST', body: JSON.stringify(data), token }),
+        updateEvaluation: (id: string, data: UpdateEvaluationRequest, token: string) =>
+            request<Evaluation>(`/org/evaluations/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getTeacherFeedback: (token: string, params: { academicCycleId?: string, courseId?: string, sectionId?: string, rating?: number } = {}) =>
+            request<EvaluationSummary>(`/org/evaluations/teacher/me${buildQueryString(params)}`, { token }),
+        getTeacherEvaluationSummary: (teacherId: string, token: string, params: { academicCycleId?: string, courseId?: string, sectionId?: string, rating?: number } = {}) =>
+            request<EvaluationSummary>(`/org/evaluations/teacher/${teacherId}/summary${buildQueryString(params)}`, { token }),
+        getCourseEvaluationSummary: (courseId: string, token: string, params: { academicCycleId?: string, sectionId?: string, rating?: number } = {}) =>
+            request<EvaluationSummary>(`/org/evaluations/course/${courseId}/summary${buildQueryString(params)}`, { token }),
+        getEvaluations: (token: string, params: { page?: number, limit?: number, type?: EvaluationType, academicCycleId?: string, courseId?: string, sectionId?: string, teacherId?: string, rating?: number, ratingMin?: number, ratingMax?: number, hasFeedback?: boolean, isHidden?: boolean } = {}) =>
+            request<PaginatedResponse<Evaluation>>(`/org/evaluations${buildQueryString(params)}`, { token }),
+        setEvaluationVisibility: (id: string, data: { isHidden: boolean, hiddenReason?: string }, token: string) =>
+            request<Evaluation>(`/org/evaluations/${id}/visibility`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getEvaluationWindows: (token: string, params: { academicCycleId?: string, isActive?: boolean } = {}) =>
+            request<EvaluationWindow[]>(`/org/evaluations/windows${buildQueryString(params)}`, { token }),
+        createEvaluationWindow: (data: CreateEvaluationWindowRequest, token: string) =>
+            request<EvaluationWindow>('/org/evaluations/windows', { method: 'POST', body: JSON.stringify(data), token }),
+        updateEvaluationWindow: (id: string, data: UpdateEvaluationWindowRequest, token: string) =>
+            request<EvaluationWindow>(`/org/evaluations/windows/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
 
         // --- GPA Policies ---
         getGpaPolicies: (token: string, params: { includeArchived?: boolean } = {}) =>
