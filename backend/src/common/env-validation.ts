@@ -35,6 +35,9 @@ export function validateEnv() {
     'THROTTLE_LIMIT',
     'RESEND_API_KEY',
     'RESEND_FROM_EMAIL',
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'GOOGLE_REDIRECT_URI',
   ];
   const missingRecommended = recommendedEnvs.filter((env) => !process.env[env]);
   if (missingRecommended.length > 0) {

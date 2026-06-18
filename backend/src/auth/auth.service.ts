@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Inject,
@@ -12,7 +13,14 @@ import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { randomBytes, randomInt, createHash } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma, User, Organization, Teacher, ThemeMode } from '@prisma/client';
+import {
+  LinkedAccountProvider,
+  Prisma,
+  User,
+  Organization,
+  Teacher,
+  ThemeMode,
+} from '@prisma/client';
 import { Role, OrgStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { BCRYPT_ROUNDS } from '../common/utils';
@@ -151,7 +159,7 @@ export class AuthService {
   async generateToken(
     user: TokenUser,
     rememberMe: boolean = false,
-    loginDto?: LoginDto,
+    loginDto?: SessionDeviceInput,
     ip: string = 'unknown',
   ) {
     const payload = {
@@ -303,6 +311,362 @@ export class AuthService {
         orgStatus: (user.organization?.status as unknown as OrgStatus) || OrgStatus.APPROVED,
       }),
     };
+  }
+
+  async getGoogleAuthorizationUrl(
+    purpose: GoogleOAuthPurpose,
+    options: {
+      userId?: string;
+      device?: SessionDeviceInput;
+      returnTo?: string;
+    } = {},
+  ) {
+    const config = this.getGoogleConfig();
+    const state = await this.jwtService.signAsync(
+      {
+        purpose,
+        userId: options.userId,
+        device: options.device,
+        returnTo: this.sanitizeFrontendPath(options.returnTo),
+        nonce: randomBytes(16).toString('hex'),
+      } satisfies GoogleOAuthState,
+      {
+        secret: this.getGoogleStateSecret(),
+        expiresIn: '10m',
+      },
+    );
+
+    const params = new URLSearchParams({
+      client_id: config.clientId,
+      redirect_uri: config.redirectUri,
+      response_type: 'code',
+      scope: 'openid email',
+      state,
+      prompt: 'select_account',
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  async handleGoogleCallback(input: {
+    code?: string;
+    state?: string;
+    currentToken?: string;
+    ip?: string;
+  }) {
+    if (!input.code || !input.state) {
+      throw new BadRequestException('Google sign-in was cancelled or incomplete.');
+    }
+
+    const state = await this.verifyGoogleState(input.state);
+    const googleIdentity = await this.verifyGoogleCode(input.code);
+
+    if (state.purpose === 'link') {
+      if (!state.userId) {
+        throw new BadRequestException('Invalid Google link state.');
+      }
+      if (!input.currentToken) {
+        throw new UnauthorizedException('Please log in before linking Google.');
+      }
+
+      await this.assertTokenBelongsToUser(input.currentToken, state.userId);
+      await this.linkGoogleAccount(state.userId, googleIdentity);
+
+      return {
+        purpose: state.purpose,
+        redirectUrl: this.buildFrontendRedirect('/settings', {
+          googleLink: 'success',
+        }, 'linked-accounts'),
+      };
+    }
+
+    const result = await this.loginWithGoogle(
+      googleIdentity.providerAccountId,
+      state.device,
+      input.ip,
+    );
+
+    return {
+      purpose: state.purpose,
+      access_token: result.access_token,
+      rememberMe: state.device?.rememberMe === true,
+      redirectUrl: this.buildFrontendRedirect(state.returnTo || '/login', {
+        google: 'success',
+      }),
+    };
+  }
+
+  async getLinkedAccounts(userId: string) {
+    const accounts = await this.prisma.linkedAccount.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        provider: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return accounts.map((account) => ({
+      ...account,
+      provider: account.provider.toLowerCase(),
+    }));
+  }
+
+  async unlinkGoogleAccount(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    if (!user.password) {
+      throw new BadRequestException(
+        'Cannot unlink Google until another login method is available.',
+      );
+    }
+
+    await this.prisma.linkedAccount.deleteMany({
+      where: {
+        userId,
+        provider: LinkedAccountProvider.GOOGLE,
+      },
+    });
+
+    return { message: 'Google account unlinked successfully.' };
+  }
+
+  private async loginWithGoogle(
+    providerAccountId: string,
+    device?: SessionDeviceInput,
+    ip = 'unknown',
+  ) {
+    const linkedAccount = await this.prisma.linkedAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider: LinkedAccountProvider.GOOGLE,
+          providerAccountId,
+        },
+      },
+      include: {
+        user: {
+          include: { organization: true, teacherProfile: true },
+        },
+      },
+    });
+
+    if (!linkedAccount) {
+      throw new UnauthorizedException(
+        'No EduVerse account is linked to this Google account. Log in with your EduVerse password first, then link Google from settings.',
+      );
+    }
+
+    const user = linkedAccount.user;
+    if (user.status === UserStatus.DELETED) {
+      throw new UnauthorizedException(
+        'Your account has been deleted by your organization',
+      );
+    }
+
+    await this.cleanupOldSessions(user.id);
+
+    const sessionDevice = device?.deviceId
+      ? device
+      : {
+          ...device,
+          deviceId: `fallback-${randomBytes(16).toString('hex')}`,
+          deviceName: device?.deviceName || 'Unknown device',
+          deviceType: device?.deviceType || 'unknown',
+          browser: device?.browser || 'Unknown',
+          os: device?.os || 'Unknown',
+          rememberMe: device?.rememberMe,
+        };
+
+    return this.generateToken(
+      user,
+      device?.rememberMe === true,
+      sessionDevice,
+      ip,
+    );
+  }
+
+  private async linkGoogleAccount(
+    userId: string,
+    googleIdentity: GoogleIdentity,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true },
+    });
+    if (!user || user.status === UserStatus.DELETED) {
+      throw new UnauthorizedException('User is not allowed to link Google.');
+    }
+
+    const existing = await this.prisma.linkedAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider: LinkedAccountProvider.GOOGLE,
+          providerAccountId: googleIdentity.providerAccountId,
+        },
+      },
+    });
+
+    if (existing) {
+      if (existing.userId === userId) {
+        return existing;
+      }
+      throw new ConflictException(
+        'This Google account is already linked to another EduVerse account.',
+      );
+    }
+
+    return this.prisma.linkedAccount.upsert({
+      where: {
+        userId_provider: {
+          userId,
+          provider: LinkedAccountProvider.GOOGLE,
+        },
+      },
+      update: {
+        providerAccountId: googleIdentity.providerAccountId,
+        email: googleIdentity.email,
+      },
+      create: {
+        userId,
+        provider: LinkedAccountProvider.GOOGLE,
+        providerAccountId: googleIdentity.providerAccountId,
+        email: googleIdentity.email,
+      },
+    });
+  }
+
+  private async assertTokenBelongsToUser(token: string, expectedUserId: string) {
+    const isValidSession = await this.validateSessionToken(token);
+    if (!isValidSession) {
+      throw new UnauthorizedException('Session expired or revoked. Please log in again.');
+    }
+
+    const payload = await this.jwtService.verifyAsync<{ sub?: string }>(token, {
+      secret: this.configService.get<string>('JWT_SECRET') || '',
+    });
+
+    if (payload.sub !== expectedUserId) {
+      throw new UnauthorizedException('Google link session mismatch.');
+    }
+  }
+
+  private async verifyGoogleState(state: string) {
+    try {
+      return await this.jwtService.verifyAsync<GoogleOAuthState>(state, {
+        secret: this.getGoogleStateSecret(),
+      });
+    } catch {
+      throw new BadRequestException('Google sign-in state expired. Please try again.');
+    }
+  }
+
+  private async verifyGoogleCode(code: string): Promise<GoogleIdentity> {
+    const config = this.getGoogleConfig();
+    const tokenParams = new URLSearchParams({
+      code,
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      redirect_uri: config.redirectUri,
+      grant_type: 'authorization_code',
+    });
+
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams,
+    });
+
+    if (!tokenResponse.ok) {
+      throw new UnauthorizedException('Google could not verify this sign-in.');
+    }
+
+    const tokenData = (await tokenResponse.json()) as { id_token?: string };
+    if (!tokenData.id_token) {
+      throw new UnauthorizedException('Google did not return an identity token.');
+    }
+
+    const tokenInfoResponse = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenData.id_token)}`,
+    );
+    if (!tokenInfoResponse.ok) {
+      throw new UnauthorizedException('Google identity token is invalid.');
+    }
+
+    const tokenInfo = (await tokenInfoResponse.json()) as GoogleTokenInfo;
+    const issuer = tokenInfo.iss;
+    const expiresAt = Number(tokenInfo.exp || 0) * 1000;
+
+    if (
+      tokenInfo.aud !== config.clientId ||
+      (issuer !== 'https://accounts.google.com' && issuer !== 'accounts.google.com') ||
+      !tokenInfo.sub ||
+      !Number.isFinite(expiresAt) ||
+      expiresAt <= Date.now()
+    ) {
+      throw new UnauthorizedException('Google identity token failed validation.');
+    }
+
+    return {
+      providerAccountId: tokenInfo.sub,
+      email: tokenInfo.email,
+    };
+  }
+
+  private getGoogleConfig() {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
+    const redirectUri = this.configService.get<string>('GOOGLE_REDIRECT_URI');
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      throw new BadRequestException('Google sign-in is not configured.');
+    }
+
+    return { clientId, clientSecret, redirectUri };
+  }
+
+  private getGoogleStateSecret() {
+    return (
+      this.configService.get<string>('GOOGLE_OAUTH_STATE_SECRET') ||
+      this.configService.get<string>('JWT_SECRET') ||
+      ''
+    );
+  }
+
+  private buildFrontendRedirect(
+    path: string,
+    params: Record<string, string>,
+    hash?: string,
+  ) {
+    const frontendBase = this.getPrimaryFrontendUrl();
+    const url = new URL(this.sanitizeFrontendPath(path), frontendBase);
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+    if (hash) url.hash = hash;
+    return url.toString();
+  }
+
+  private sanitizeFrontendPath(path?: string) {
+    if (!path || !path.startsWith('/') || path.startsWith('//')) {
+      return '/login';
+    }
+    return path;
+  }
+
+  private getPrimaryFrontendUrl() {
+    return this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean)[0];
   }
 
   async updateProfile(
@@ -995,4 +1359,36 @@ interface AuditLogInput extends RequestMetadata {
   organizationId?: string;
   sessionId?: string;
   details?: Record<string, unknown>;
+}
+
+type GoogleOAuthPurpose = 'login' | 'link';
+
+interface SessionDeviceInput {
+  rememberMe?: boolean;
+  deviceId?: string;
+  deviceName?: string;
+  deviceType?: string;
+  browser?: string;
+  os?: string;
+}
+
+interface GoogleOAuthState {
+  purpose: GoogleOAuthPurpose;
+  userId?: string;
+  device?: SessionDeviceInput;
+  returnTo?: string;
+  nonce: string;
+}
+
+interface GoogleIdentity {
+  providerAccountId: string;
+  email?: string;
+}
+
+interface GoogleTokenInfo {
+  aud?: string;
+  iss?: string;
+  sub?: string;
+  exp?: string;
+  email?: string;
 }

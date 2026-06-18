@@ -858,6 +858,10 @@ Important assessment notification rules:
 | `AUTH_COOKIE_DOMAIN` | Cookie domain. |
 | `AUTH_COOKIE_SECURE` | Secure cookie flag. |
 | `AUTH_COOKIE_SAME_SITE` | Cookie SameSite policy. |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID for linked-account sign-in. |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret used by the backend code exchange. |
+| `GOOGLE_REDIRECT_URI` | Backend callback URL, usually `/auth/google/callback`. |
+| `GOOGLE_OAUTH_STATE_SECRET` | Optional separate secret for signed Google OAuth state. Defaults to `JWT_SECRET`. |
 | `THROTTLE_TTL` | Rate-limit TTL. |
 | `THROTTLE_LIMIT` | Rate-limit request count. |
 

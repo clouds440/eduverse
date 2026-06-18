@@ -2,13 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { ChangeEvent, FormEvent, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
 import {
     AlertCircle,
     Building2,
+    Chrome,
     CheckCircle,
     ExternalLink,
+    Link as LinkIcon,
     Mail,
     MapPin,
     Palette,
@@ -19,10 +21,11 @@ import {
     Settings,
     ShieldCheck,
     TriangleAlert,
+    Unlink,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { Organization, Role, ThemeMode } from '@/types';
+import { LinkedAccount, Organization, Role, ThemeMode } from '@/types';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useGlobal } from '@/context/GlobalContext';
@@ -77,11 +80,14 @@ function FieldError({ children }: { children?: string }) {
 export default function SettingsPage() {
     const { token, user } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { dispatch } = useGlobal();
     const { setPrimaryColor, setThemeMode, themeMode } = useTheme();
     const [loading, setLoading] = useState(false);
     const [reapplying, setReapplying] = useState(false);
     const [orgData, setOrgData] = useState<Organization | null>(null);
+    const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
+    const [linkedAccountsLoading, setLinkedAccountsLoading] = useState(false);
     const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
     const [redirecting, setRedirecting] = useState(user?.role === Role.ORG_ADMIN ? false : true);
     const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; accentColor?: string; general?: string }>({});
@@ -96,16 +102,42 @@ export default function SettingsPage() {
             mode: ThemeMode.SYSTEM,
         },
     });
+    const googleAccount = linkedAccounts.find((account) => account.provider === 'google');
+
+    const fetchLinkedAccounts = useCallback(async () => {
+        if (!token) return;
+        setLinkedAccountsLoading(true);
+        try {
+            const accounts = await api.auth.getLinkedAccounts(token);
+            setLinkedAccounts(accounts);
+        } catch (error) {
+            console.error('Failed to load linked accounts', error);
+            const message = error instanceof Error ? error.message : 'Failed to load linked accounts';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            setLinkedAccountsLoading(false);
+        }
+    }, [dispatch, token]);
 
     useEffect(() => {
         const hash = window.location.hash;
-        if ((hash === '#sessions' || hash === '#contact-email') && !redirecting && !loading) {
+        if ((hash === '#sessions' || hash === '#contact-email' || hash === '#linked-accounts') && !redirecting && !loading) {
             const element = document.getElementById(hash.slice(1));
             if (element) {
                 element.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
     }, [redirecting, loading]);
+
+    useEffect(() => {
+        const linkStatus = searchParams.get('googleLink');
+        if (!linkStatus) return;
+
+        if (linkStatus === 'success') {
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Google account linked successfully.', type: 'success' } });
+            void fetchLinkedAccounts();
+        }
+    }, [dispatch, fetchLinkedAccounts, searchParams]);
 
     useEffect(() => {
         if (!token || !user) return;
@@ -145,6 +177,7 @@ export default function SettingsPage() {
                         mode: (data.accentColor?.mode as ThemeMode) || ThemeMode.SYSTEM,
                     },
                 });
+                void fetchLinkedAccounts();
             })
             .catch((err) => {
                 console.error('Failed to load settings', err);
@@ -155,7 +188,7 @@ export default function SettingsPage() {
                 setLoading(false);
                 setRedirecting(false);
             });
-    }, [token, dispatch, user, router]);
+    }, [token, dispatch, user, router, fetchLinkedAccounts]);
 
     useEffect(() => {
         if (!redirecting && formData.accentColor.primary) {
@@ -285,6 +318,25 @@ export default function SettingsPage() {
             console.error('Failed to re-apply', error);
         } finally {
             setReapplying(false);
+        }
+    };
+
+    const handleStartGoogleLink = () => {
+        window.location.href = api.auth.getGoogleLinkUrl();
+    };
+
+    const handleUnlinkGoogle = async () => {
+        if (!token) return;
+        dispatch({ type: 'UI_START_PROCESSING', payload: 'unlink-google' });
+        try {
+            await api.auth.unlinkGoogle(token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Google account unlinked successfully.', type: 'success' } });
+            await fetchLinkedAccounts();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to unlink Google account';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'unlink-google' });
         }
     };
 
@@ -535,6 +587,79 @@ export default function SettingsPage() {
                                 </div>
                             </Link>
 
+                        </section>
+
+                        <section id="linked-accounts" className="scroll-mt-24 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm sm:p-5">
+                            <div className="flex items-start gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
+                                    <LinkIcon className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-base font-black text-foreground">Linked Accounts</h2>
+                                    <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">
+                                        Use linked providers as alternate sign-in methods.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-3">
+                                <div className="flex items-start gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card text-foreground">
+                                        <Chrome className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <p className="text-sm font-black text-foreground">Google</p>
+                                            {googleAccount ? (
+                                                <Badge variant="success" size="sm" dot>Linked</Badge>
+                                            ) : (
+                                                <Badge variant="secondary" size="sm">Not linked</Badge>
+                                            )}
+                                        </div>
+                                        {googleAccount ? (
+                                            <div className="mt-1 space-y-0.5 text-xs font-semibold text-muted-foreground">
+                                                {googleAccount.email && <p className="truncate">Linked as {googleAccount.email}</p>}
+                                                <p>Linked on {new Date(googleAccount.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                        ) : (
+                                            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                                Link Google after signing in with your EduVerse password.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="mt-4">
+                                    {googleAccount ? (
+                                        <Button
+                                            type="button"
+                                            variant="danger"
+                                            icon={Unlink}
+                                            onClick={handleUnlinkGoogle}
+                                            loadingId="unlink-google"
+                                            disabled={linkedAccountsLoading}
+                                            className="w-full text-xs"
+                                            px="px-4"
+                                            py="py-2.5"
+                                        >
+                                            Unlink Google
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            icon={Chrome}
+                                            onClick={handleStartGoogleLink}
+                                            disabled={linkedAccountsLoading}
+                                            className="w-full text-xs"
+                                            px="px-4"
+                                            py="py-2.5"
+                                        >
+                                            Link Google Account
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
                         </section>
                     </aside>
                 </div>

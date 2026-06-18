@@ -8,6 +8,7 @@ import {
   Patch,
   Delete,
   Param,
+  Query,
   Res,
 } from '@nestjs/common';
 import type { Request as ExpressRequest, Response } from 'express';
@@ -75,6 +76,79 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('google/login')
+  async googleLogin(
+    @Query()
+    query: {
+      rememberMe?: string;
+      deviceId?: string;
+      deviceName?: string;
+      deviceType?: string;
+      browser?: string;
+      os?: string;
+      returnTo?: string;
+    },
+    @Res() res: Response,
+  ) {
+    const url = await this.authService.getGoogleAuthorizationUrl('login', {
+      returnTo: query.returnTo,
+      device: {
+        rememberMe: query.rememberMe === 'true',
+        deviceId: query.deviceId,
+        deviceName: query.deviceName,
+        deviceType: query.deviceType,
+        browser: query.browser,
+        os: query.os,
+      },
+    });
+
+    return res.redirect(url);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('google/link')
+  async googleLink(
+    @Request() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    const url = await this.authService.getGoogleAuthorizationUrl('link', {
+      userId: req.user.id,
+    });
+
+    return res.redirect(url);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('google/callback')
+  async googleCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Request() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    try {
+      const result = await this.authService.handleGoogleCallback({
+        code,
+        state,
+        currentToken: this.getAuthToken(req),
+        ip: this.getRequestMeta(req).ip,
+      });
+
+      if (result.access_token) {
+        this.setAuthCookie(res, result.access_token, result.rememberMe === true, req);
+      }
+
+      return res.redirect(result.redirectUrl);
+    } catch (error) {
+      return res.redirect(this.getGoogleErrorRedirect(error));
+    }
+  }
+
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
   @Post('forgot-password')
   async forgotPassword(
@@ -133,6 +207,20 @@ export class AuthController {
   ) {
     const userId = req.user.id;
     return this.authService.updateProfile(userId, updateDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Get('linked-accounts/me')
+  async getLinkedAccounts(@Request() req: AuthenticatedRequest) {
+    return this.authService.getLinkedAccounts(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Delete('linked-accounts/google')
+  async unlinkGoogle(@Request() req: AuthenticatedRequest) {
+    return this.authService.unlinkGoogleAccount(req.user.id);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -347,5 +435,24 @@ export class AuthController {
       ip,
       userAgent: req.headers['user-agent'],
     };
+  }
+
+  private getGoogleErrorRedirect(error: unknown) {
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean)[0];
+
+    const url = new URL('/login', frontendUrl);
+    const response = error as {
+      response?: { message?: string | string[] };
+      message?: string;
+    };
+    const rawMessage = response.response?.message || response.message;
+    const message = Array.isArray(rawMessage)
+      ? rawMessage[0]
+      : rawMessage || 'Google sign-in failed. Please try again.';
+    url.searchParams.set('googleError', message);
+    return url.toString();
   }
 }

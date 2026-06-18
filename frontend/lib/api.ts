@@ -18,7 +18,8 @@ import type {
     ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions,
     Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
-    CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest
+    CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest,
+    LinkedAccount
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -265,6 +266,20 @@ export const api = {
             request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
         login: (data: LoginRequest) =>
             request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+        getGoogleLoginUrl: (params: Partial<LoginRequest> & { returnTo?: string } = {}) => {
+            const query = buildQueryString({
+                rememberMe: params.rememberMe,
+                deviceId: params.deviceId,
+                deviceName: params.deviceName,
+                deviceType: params.deviceType,
+                browser: params.browser,
+                os: params.os,
+                returnTo: params.returnTo,
+            });
+            return `${getApiBaseUrl()}/auth/google/login${query}`;
+        },
+        getGoogleLinkUrl: () =>
+            `${getApiBaseUrl()}/auth/google/link`,
         session: (options: Pick<RequestOptions, 'signal'> = {}) =>
             request<AuthResponse | null>('/auth/session', options),
         forgotPassword: (email: string) =>
@@ -283,6 +298,10 @@ export const api = {
             }),
         updateProfile: (data: Partial<{ themeMode?: ThemeMode; name?: string }>, token: string) =>
             request('/auth/profile', { method: 'PATCH', body: JSON.stringify(data), token }),
+        getLinkedAccounts: (token: string) =>
+            request<LinkedAccount[]>('/auth/linked-accounts/me', { token }),
+        unlinkGoogle: (token: string) =>
+            request<MessageResponse>('/auth/linked-accounts/google', { method: 'DELETE', token }),
         getSessions: (token: string) =>
             request<AuthSessionSummary[]>('/auth/sessions', { token }),
         revokeSession: (sessionId: string, token: string) =>

@@ -1,17 +1,19 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { MessageSquare, ArrowUpRight, CheckCircle2, XCircle, Tag, Calendar, Filter, Clock, MailPlus, Hash } from 'lucide-react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { MessageSquare, ArrowUpRight, CheckCircle2, XCircle, Tag, Calendar, Filter, Clock, MailPlus, Hash, Inbox } from 'lucide-react';
 import useSWR, { mutate as mutateCache } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { api } from '@/lib/api';
-import { MailItem, MailStatus, PaginatedResponse } from '@/types';
+import { MailItem, MailStatus, PaginatedResponse, Role } from '@/types';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { MailStatusBadge, MailPriorityBadge, useMailRowClassName } from '@/components/mail/MailStatusBadge';
 import { MailDetailsModal } from '@/components/mail/MailDetailsModal';
 import { NewMailModal } from '@/components/mail/NewMailModal';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { PageControls, FilterDrawerGrid } from '@/components/ui/FilterDrawerToolbar';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import notificationsStore from '@/lib/notificationsStore';
@@ -22,6 +24,7 @@ import { BrandIcon } from '@/components/ui/Brand';
 import { Skeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { getRoleLabel } from '@/lib/roles';
+import { DocsLink } from '@/components/ui/DocsLink';
 
 interface MailPageProps {
     localStorageKey?: string;
@@ -53,14 +56,22 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     const statusFilter = searchParams.get('status') || '';
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
+    const isAdminMail = user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN;
 
-    const updateFilters = (key: string, value: string) => {
+    const updateFilters = useCallback((key: string, value: string) => {
         const params = new URLSearchParams(searchParams.toString());
         if (value) params.set(key, value);
         else params.delete(key);
         params.set('page', '1');
         router.push(`${pathname}?${params.toString()}`, { scroll: false });
-    };
+    }, [pathname, router, searchParams]);
+
+    const clearFilter = useCallback((key: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete(key);
+        params.set('page', '1');
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    }, [pathname, router, searchParams]);
 
     // SWR for mails data
     const mailsKey = useMemo(() => {
@@ -76,6 +87,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     }, [token, page, pageSize, searchQuery, statusFilter, sortBy, sortOrder]);
 
     const { data: paginatedData, error: fetchError, isLoading: fetching, mutate: retryMails } = useSWR<PaginatedResponse<MailItem>>(mailsKey);
+    const totalMails = paginatedData?.totalRecords ?? state.stats.mail?.total;
 
     // Sync stats when data loads
     useEffect(() => {
@@ -128,6 +140,52 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
         localStorage.setItem(localStorageKey, String(newSize));
         updateFilters('page', '1');
     };
+
+    const statusOptions = [
+        { value: '', label: 'All Statuses', badge: state.stats.mail?.total },
+        { value: MailStatus.OPEN, label: 'Open', badge: state.stats.mail?.countsByStatus?.[MailStatus.OPEN], icon: Clock, iconClassName: 'text-info' },
+        { value: MailStatus.IN_PROGRESS, label: 'In Progress', badge: state.stats.mail?.countsByStatus?.[MailStatus.IN_PROGRESS], icon: ArrowUpRight, iconClassName: 'text-warning' },
+        { value: MailStatus.AWAITING_RESPONSE, label: 'Awaiting Response', badge: state.stats.mail?.countsByStatus?.[MailStatus.AWAITING_RESPONSE], icon: MessageSquare, iconClassName: 'text-primary/80' },
+        { value: MailStatus.RESOLVED, label: 'Resolved', badge: state.stats.mail?.countsByStatus?.[MailStatus.RESOLVED], icon: CheckCircle2, iconClassName: 'text-success' },
+        { value: MailStatus.CLOSED, label: 'Closed', badge: state.stats.mail?.countsByStatus?.[MailStatus.CLOSED], icon: XCircle, iconClassName: 'text-muted-foreground' },
+    ];
+
+    const statusFilterLabel = statusOptions.find((option) => option.value === statusFilter)?.label;
+    const activeFilters = useMemo<ActiveFilter[]>(() => {
+        const filters: ActiveFilter[] = [];
+
+        if (searchQuery) {
+            filters.push({
+                key: 'search',
+                label: 'Search',
+                value: searchQuery,
+                onRemove: () => clearFilter('search'),
+            });
+        }
+
+        if (statusFilter && statusFilterLabel) {
+            filters.push({
+                key: 'status',
+                label: 'Status',
+                value: statusFilterLabel,
+                onRemove: () => clearFilter('status'),
+            });
+        }
+
+        return filters;
+    }, [clearFilter, searchQuery, statusFilter, statusFilterLabel]);
+
+    const filters = (
+        <FilterDrawerGrid>
+            <CustomSelect
+                options={statusOptions}
+                value={statusFilter}
+                onChange={(val: string) => updateFilters('status', val)}
+                placeholder="Filter Status"
+                icon={Filter}
+            />
+        </FilterDrawerGrid>
+    );
 
     const columns = useMemo<Column<MailItem>[]>(() => [
         {
@@ -259,22 +317,23 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
 
     if (authLoading || (!user && !authLoading)) {
         return (
-            <div className="flex flex-col h-full w-full">
-                <div className="bg-card/80 backdrop-blur-2xl p-1 md:p-2 rounded-lg border border-border shadow-xl flex flex-col flex-1 min-h-0 overflow-hidden">
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-2 mb-2 shrink-0">
-                        <div className="flex flex-1 items-center gap-2 w-full">
-                            <Skeleton className="h-10 w-full" />
-                        </div>
-                        <div className='flex gap-2 w-full md:w-auto'>
-                            <Skeleton className="h-10 w-32" />
-                            <Skeleton className="h-10 w-24" />
+            <PageShell>
+                <Skeleton className="h-24 w-full rounded-lg" />
+                <ResourcePanel>
+                    <div className="border-b border-border/60 bg-card/85 p-3">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <Skeleton className="h-10 w-full md:max-w-xl" />
+                            <div className="flex gap-2">
+                                <Skeleton className="h-10 w-32" />
+                                <Skeleton className="h-10 w-28" />
+                            </div>
                         </div>
                     </div>
-                    <div className="relative overflow-x-hidden flex-1 min-h-0">
+                    <div className="relative min-h-0 flex-1 overflow-x-hidden">
                         <SkeletonTable rows={8} columns={8} />
                     </div>
-                </div>
-            </div>
+                </ResourcePanel>
+            </PageShell>
         );
     }
 
@@ -291,47 +350,46 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     }
 
     return (
-        <div className="flex flex-col h-full w-full">
-            <div className="bg-card/80 backdrop-blur-2xl p-1 md:p-2 rounded-lg border border-border shadow-xl flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-2 mb-2 shrink-0">
-                    <div className="flex flex-1 items-center gap-2 w-full">
-                        <div className="flex w-full gap-2">
+        <PageShell>
+            <PageHeader
+                title={isAdminMail ? 'Platform Mail' : 'Mail'}
+                description={<>Track support conversations, assignments, and internal replies from one inbox. <DocsLink href="/docs/mail">Read mail docs</DocsLink></>}
+                icon={Inbox}
+                breadcrumbs={isAdminMail
+                    ? [{ label: 'Admin' }, { label: 'Mail' }]
+                    : [{ label: 'Organization' }, { label: 'Communication' }, { label: 'Mail' }]}
+                meta={totalMails !== undefined ? (
+                    <span className="rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-xs font-black text-muted-foreground">
+                        {totalMails} total
+                    </span>
+                ) : undefined}
+                actions={(
+                    <PageControls
+                        drawerLabel="Mail filters"
+                        leading={(
                             <SearchBar
                                 placeholder="Search mail by subject or content..."
                                 value={searchQuery}
                                 onChange={(val: string) => updateFilters('search', val)}
-                                className="w-full"
+                                mobileMode="expandable"
                             />
-                        </div>
-                    </div>
-                    <div className='flex gap-2 w-full md:w-auto'>
-                        <div className='w-7/12 sm:w-8/12 md:w-auto'>
-                            <CustomSelect
-                                options={[
-                                    { value: '', label: 'All Statuses', badge: state.stats.mail?.total },
-                                    { value: MailStatus.OPEN, label: 'Open', badge: state.stats.mail?.countsByStatus?.[MailStatus.OPEN], icon: Clock, iconClassName: 'text-info' },
-                                    { value: MailStatus.IN_PROGRESS, label: 'In Progress', badge: state.stats.mail?.countsByStatus?.[MailStatus.IN_PROGRESS], icon: ArrowUpRight, iconClassName: 'text-warning' },
-                                    { value: MailStatus.AWAITING_RESPONSE, label: 'Awaiting Response', badge: state.stats.mail?.countsByStatus?.[MailStatus.AWAITING_RESPONSE], icon: MessageSquare, iconClassName: 'text-primary/80' },
-                                    { value: MailStatus.RESOLVED, label: 'Resolved', badge: state.stats.mail?.countsByStatus?.[MailStatus.RESOLVED], icon: CheckCircle2, iconClassName: 'text-success' },
-                                    { value: MailStatus.CLOSED, label: 'Closed', badge: state.stats.mail?.countsByStatus?.[MailStatus.CLOSED], icon: XCircle, iconClassName: 'text-muted-foreground' },
-                                ]}
-                                value={statusFilter}
-                                onChange={(val: string) => updateFilters('status', val)}
-                                placeholder="Filter Status"
-                                icon={Filter}
-                            />
-                        </div>
-                        <div className='w-5/12 sm:w-4/12 md:w-auto'>
+                        )}
+                        renderFilters={() => filters}
+                        activeFilters={activeFilters}
+                        actions={(
                             <Button
                                 onClick={() => setNewMailOpen(true)}
                                 icon={MailPlus}
-                                className="flex w-full"
+                                className="shrink-0 whitespace-nowrap"
                             >
                                 New Mail
                             </Button>
-                        </div>
-                    </div>
-                </div>
+                        )}
+                    />
+                )}
+            />
+
+            <ResourcePanel>
 
                 <div className="relative overflow-x-hidden flex-1 min-h-0">
                     <DataTable
@@ -354,9 +412,12 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                             updateFilters('sortBy', key);
                             updateFilters('sortOrder', direction);
                         }}
+                        emptyTitle="No mail found"
+                        emptyDescription={searchQuery || activeFilters.length > 0 ? 'Adjust the search or filters to broaden the result set.' : 'Create a new mail thread to start a conversation.'}
+                        mobileDetailLimit={3}
                     />
                 </div>
-            </div>
+            </ResourcePanel>
 
             <MailDetailsModal
                 isOpen={!!selectedMailId}
@@ -379,6 +440,6 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent', type: 'success' } });
                 }}
             />
-        </div>
+        </PageShell>
     );
 }

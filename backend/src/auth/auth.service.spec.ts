@@ -202,3 +202,197 @@ describe('AuthService forgotPassword', () => {
     );
   });
 });
+
+describe('AuthService Google linked accounts', () => {
+  let service: AuthService;
+  let prisma: {
+    linkedAccount: {
+      findUnique: jest.Mock;
+      upsert: jest.Mock;
+    };
+    user: {
+      findUnique: jest.Mock;
+    };
+    session: {
+      deleteMany: jest.Mock;
+      findFirst: jest.Mock;
+      findMany: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+    };
+  };
+
+  const linkedUser = {
+    id: 'user-1',
+    email: 'admin@school.test',
+    name: 'Admin User',
+    role: Role.ORG_ADMIN,
+    status: 'ACTIVE',
+    organizationId: 'org-1',
+    isFirstLogin: false,
+    avatarUrl: null,
+    avatarUpdatedAt: null,
+    themeMode: 'SYSTEM',
+    organization: {
+      id: 'org-1',
+      name: 'Test School',
+      status: 'APPROVED',
+      logoUrl: null,
+      contactEmailVerifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+    },
+    teacherProfile: null,
+  };
+
+  beforeEach(() => {
+    prisma = {
+      linkedAccount: {
+        findUnique: jest.fn(),
+        upsert: jest.fn(),
+      },
+      user: {
+        findUnique: jest.fn(),
+      },
+      session: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({ id: 'session-1' }),
+        update: jest.fn(),
+      },
+    };
+
+    const jwtService = {
+      signAsync: jest.fn().mockResolvedValue('eduverse-jwt'),
+      verifyAsync: jest.fn(),
+    };
+
+    const configService = {
+      get: jest.fn((key: string) => (key === 'JWT_SECRET' ? 'secret' : undefined)),
+      getOrThrow: jest.fn((key: string) => {
+        if (key === 'FRONTEND_URL') return 'https://app.test';
+        throw new Error(`Missing config ${key}`);
+      }),
+    };
+
+    service = new AuthService(
+      jwtService as unknown as JwtService,
+      prisma as unknown as PrismaService,
+      { send: jest.fn() } as unknown as EmailService,
+      configService as unknown as ConfigService,
+      { createNotification: jest.fn() } as NotificationCreator,
+    );
+  });
+
+  it('logs in with Google by resolving an existing linked account and using the EduVerse user', async () => {
+    prisma.linkedAccount.findUnique.mockResolvedValue({
+      id: 'linked-1',
+      userId: linkedUser.id,
+      provider: 'GOOGLE',
+      providerAccountId: 'google-sub-1',
+      user: linkedUser,
+    });
+
+    const result = await (service as unknown as {
+      loginWithGoogle: (
+        providerAccountId: string,
+        device: {
+          rememberMe: boolean;
+          deviceId: string;
+          deviceName: string;
+          deviceType: string;
+          browser: string;
+          os: string;
+        },
+      ) => Promise<{ access_token: string; role: string }>;
+    }).loginWithGoogle('google-sub-1', {
+      rememberMe: true,
+      deviceId: 'device-1',
+      deviceName: 'Chrome on Windows',
+      deviceType: 'desktop',
+      browser: 'Chrome',
+      os: 'Windows',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      access_token: 'eduverse-jwt',
+      role: Role.ORG_ADMIN,
+    }));
+    expect(prisma.linkedAccount.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          provider_providerAccountId: {
+            provider: 'GOOGLE',
+            providerAccountId: 'google-sub-1',
+          },
+        },
+      }),
+    );
+    expect(prisma.session.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: linkedUser.id,
+          token: 'eduverse-jwt',
+        }),
+      }),
+    );
+  });
+
+  it('rejects Google login when no linked EduVerse account exists', async () => {
+    prisma.linkedAccount.findUnique.mockResolvedValue(null);
+
+    await expect(
+      (service as unknown as {
+        loginWithGoogle: (providerAccountId: string) => Promise<unknown>;
+      }).loginWithGoogle('missing-google-sub'),
+    ).rejects.toThrow(
+      'No EduVerse account is linked to this Google account. Log in with your EduVerse password first, then link Google from settings.',
+    );
+  });
+
+  it('treats linking the same Google account to the same user as safe', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-1', status: 'ACTIVE' });
+    prisma.linkedAccount.findUnique.mockResolvedValue({
+      id: 'linked-1',
+      userId: 'user-1',
+      provider: 'GOOGLE',
+      providerAccountId: 'google-sub-1',
+    });
+
+    const result = await (service as unknown as {
+      linkGoogleAccount: (
+        userId: string,
+        googleIdentity: { providerAccountId: string; email?: string },
+      ) => Promise<unknown>;
+    }).linkGoogleAccount('user-1', {
+      providerAccountId: 'google-sub-1',
+      email: 'admin@gmail.test',
+    });
+
+    expect(result).toEqual(expect.objectContaining({ id: 'linked-1' }));
+    expect(prisma.linkedAccount.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects linking a Google account already linked to another EduVerse user', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-1', status: 'ACTIVE' });
+    prisma.linkedAccount.findUnique.mockResolvedValue({
+      id: 'linked-1',
+      userId: 'user-2',
+      provider: 'GOOGLE',
+      providerAccountId: 'google-sub-1',
+    });
+
+    await expect(
+      (service as unknown as {
+        linkGoogleAccount: (
+          userId: string,
+          googleIdentity: { providerAccountId: string; email?: string },
+        ) => Promise<unknown>;
+      }).linkGoogleAccount('user-1', {
+        providerAccountId: 'google-sub-1',
+        email: 'admin@gmail.test',
+      }),
+    ).rejects.toThrow(
+      'This Google account is already linked to another EduVerse account.',
+    );
+  });
+});

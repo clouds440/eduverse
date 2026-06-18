@@ -392,6 +392,14 @@ export interface AuthResponse {
     avatarUpdatedAt?: string | null;
 }
 
+export interface LinkedAccount {
+    id: string;
+    provider: 'google';
+    email?: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface MessageResponse {
     message: string;
 }

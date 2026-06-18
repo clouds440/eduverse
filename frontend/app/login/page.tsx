@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Chrome } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useGlobal } from '@/context/GlobalContext';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -14,7 +15,8 @@ import { getDeviceId, getDeviceInfo } from '@/lib/deviceUtils';
 import Image from 'next/image';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loading } = useAuth();
+  const searchParams = useSearchParams();
   const { state, dispatch } = useGlobal();
   const [formData, setFormData] = useState({
     email: '',
@@ -22,6 +24,26 @@ export default function LoginPage() {
     rememberMe: false,
   });
   const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
+
+  useEffect(() => {
+    const googleError = searchParams.get('googleError');
+    if (googleError) {
+      setErrors({ general: googleError });
+      return;
+    }
+
+    if (searchParams.get('google') !== 'success' || loading) return;
+
+    dispatch({ type: 'UI_START_PROCESSING', payload: 'google-session' });
+    login()
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : 'Google sign-in failed';
+        setErrors({ general: message });
+      })
+      .finally(() => {
+        dispatch({ type: 'UI_STOP_PROCESSING', payload: 'google-session' });
+      });
+  }, [dispatch, loading, login, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +88,21 @@ export default function LoginPage() {
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? checked : value
+    });
+  };
+
+  const handleGoogleLogin = () => {
+    if (state.ui.processing['google-session']) return;
+    const deviceId = getDeviceId();
+    const deviceInfo = getDeviceInfo();
+    window.location.href = api.auth.getGoogleLoginUrl({
+      rememberMe: formData.rememberMe,
+      deviceId,
+      deviceName: deviceInfo?.deviceName,
+      deviceType: deviceInfo?.deviceType,
+      browser: deviceInfo?.browser,
+      os: deviceInfo?.os,
+      returnTo: '/login',
     });
   };
 
@@ -186,6 +223,29 @@ export default function LoginPage() {
               className="w-full h-12 font-bold text-base shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
             >
               Sign In
+            </Button>
+
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-border/60" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-card px-3 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                  Or
+                </span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              icon={Chrome}
+              onClick={handleGoogleLogin}
+              loadingId="google-session"
+              loadingText="Continuing..."
+              className="h-12 w-full font-bold text-base"
+            >
+              Continue with Google
             </Button>
 
             {/* Sign up link */}

@@ -113,9 +113,26 @@ model User {
   createdTransactions       Transaction[]    @relation("UserTransactions")
   pushSubscriptions         WebPushSubscription[]
   passwordResetTokens       PasswordResetToken[]
+  linkedAccounts            LinkedAccount[]
 
   @@index([organizationId])
   @@index([role])
+}
+
+model LinkedAccount {
+  id                String                @id @default(uuid())
+  userId            String
+  provider          LinkedAccountProvider
+  providerAccountId String
+  email             String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
 }
 
 model PasswordResetToken {
@@ -801,6 +818,10 @@ enum ThemeMode {
   LIGHT
   DARK
   SYSTEM
+}
+
+enum LinkedAccountProvider {
+  GOOGLE
 }
 
 enum UserStatus {
