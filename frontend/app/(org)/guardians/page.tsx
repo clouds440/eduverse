@@ -1,9 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { UserPlus, Users } from 'lucide-react';
+import { FileUp, UserPlus, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { GuardianProfile, Role } from '@/types';
@@ -15,11 +16,13 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { BrandIcon } from '@/components/ui/Brand';
 import { TableActions } from '@/components/ui/TableActions';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 export default function GuardiansPage() {
     const { token, user } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
+    const [importOpen, setImportOpen] = useState(false);
     const canAccess = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const routeBase = pathname.startsWith('/users/guardians') ? '/users/guardians' : '/guardians';
     const { data = [], isLoading, error, mutate } = useSWR<GuardianProfile[]>(
@@ -107,7 +110,8 @@ export default function GuardiansPage() {
             />
 
             <ResourcePanel>
-                <div className="flex shrink-0 justify-end border-b border-border/60 bg-card/80 p-3 sm:p-4">
+                <div className="flex shrink-0 justify-end gap-2 border-b border-border/60 bg-card/80 p-3 sm:p-4">
+                    <Button type="button" variant="secondary" icon={FileUp} onClick={() => setImportOpen(true)}>Import CSV</Button>
                     <Link href={`${routeBase}/add`}>
                         <Button type="button" icon={UserPlus}>Add Guardian</Button>
                     </Link>
@@ -127,6 +131,13 @@ export default function GuardiansPage() {
                     emptyDescription="Create a guardian account, then use Link Students from the actions menu."
                 />
             </ResourcePanel>
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="guardians"
+                title="Guardians"
+                cachePrefix="guardians"
+            />
         </PageShell>
     );
 }

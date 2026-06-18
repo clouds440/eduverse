@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { UserPlus, BadgeCheck, Building2 } from 'lucide-react';
+import { UserPlus, BadgeCheck, Building2, FileUp } from 'lucide-react';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -26,6 +26,7 @@ import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 interface TeacherParams {
     page: number;
@@ -48,6 +49,7 @@ export default function TeachersPage() {
     // We no longer need local paginatedData state as fetchedData is used directly
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
+    const [importOpen, setImportOpen] = useState(false);
     const [newMailOpen, setNewMailOpen] = useState(false);
     const [initialTargetId, setInitialTargetId] = useState<string | undefined>(undefined);
     const [initialSubject, setInitialSubject] = useState<string | undefined>(undefined);
@@ -417,13 +419,25 @@ export default function TeachersPage() {
                         )}
 
                         {canManageTeachers && !isDeletedView && (
-                            <Button
-                                onClick={() => router.push(isManagersView ? `${routeBase}/add?role=manager` : `${routeBase}/add`)}
-                                icon={UserPlus}
-                                className="shrink-0 whitespace-nowrap"
-                            >
-                                {isManagersView ? 'Add Manager' : 'Add Teacher'}
-                            </Button>
+                            <>
+                                {!isManagersView && (
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => setImportOpen(true)}
+                                        icon={FileUp}
+                                        className="shrink-0 whitespace-nowrap"
+                                    >
+                                        Import CSV
+                                    </Button>
+                                )}
+                                <Button
+                                    onClick={() => router.push(isManagersView ? `${routeBase}/add?role=manager` : `${routeBase}/add`)}
+                                    icon={UserPlus}
+                                    className="shrink-0 whitespace-nowrap"
+                                >
+                                    {isManagersView ? 'Add Manager' : 'Add Teacher'}
+                                </Button>
+                            </>
                         )}
                         </>
                     )}
@@ -485,6 +499,13 @@ export default function TeachersPage() {
                 onSuccess={() => {
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });
                 }}
+            />
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="teachers"
+                title="Teachers"
+                cachePrefix="teachers"
             />
         </PageShell>
     );

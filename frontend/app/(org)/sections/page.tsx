@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Layers, Plus, School, UserRound } from 'lucide-react';
+import { FileUp, Layers, Plus, School, UserRound } from 'lucide-react';
 import { DataTable } from '@/components/ui/DataTable';
 import { api } from '@/lib/api';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -26,6 +26,7 @@ import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { formatDepartmentLabel, formatRoomLabel, getSectionSurfaceStyle, getSectionTextStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 interface SectionParams {
     page: number;
@@ -101,6 +102,7 @@ export default function SectionsPage() {
 
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingSection, setDeletingSection] = useState<Section | null>(null);
+    const [importOpen, setImportOpen] = useState(false);
     const queryString = searchParams.toString();
     const currentListPath = queryString ? `${pathname}?${queryString}` : pathname;
 
@@ -295,13 +297,23 @@ export default function SectionsPage() {
                         />
                     )}
                     actions={canManageSections ? (
-                        <Button
-                            onClick={() => router.push('/sections/create')}
-                            icon={Plus}
-                            className="w-auto shadow-lg shadow-primary/10"
-                        >
-                            New Section
-                        </Button>
+                        <>
+                            <Button
+                                variant="secondary"
+                                onClick={() => setImportOpen(true)}
+                                icon={FileUp}
+                                className="w-auto"
+                            >
+                                Import CSV
+                            </Button>
+                            <Button
+                                onClick={() => router.push('/sections/create')}
+                                icon={Plus}
+                                className="w-auto shadow-lg shadow-primary/10"
+                            >
+                                New Section
+                            </Button>
+                        </>
                     ) : undefined}
                     renderFilters={() => (
                         <FilterDrawerGrid>
@@ -428,6 +440,13 @@ export default function SectionsPage() {
                 description={<>Are you sure you want to delete <strong>{deletingSection?.name}</strong>?</>}
                 confirmText="Yes, Delete Section"
                 isDestructive={true}
+            />
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="sections"
+                title="Sections"
+                cachePrefix="sections"
             />
         </PageShell>
     );

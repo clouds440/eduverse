@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import Image from 'next/image';
 import useSWR, { mutate } from 'swr';
-import { DoorOpen, Plus } from 'lucide-react';
+import { DoorOpen, FileUp, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -28,6 +28,7 @@ import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 const roomTypeOptions = [
     { value: '', label: 'Any Type' },
@@ -61,6 +62,7 @@ export default function RoomsTab() {
     const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const [pageSize, setPageSize] = usePersistentPageSize('edu-rooms-limit', 10);
     const [modalOpen, setModalOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editingRoom, setEditingRoom] = useState<Room | null>(null);
     const [formData, setFormData] = useState(emptyForm);
     const [pendingImage, setPendingImage] = useState<File | null>(null);
@@ -197,7 +199,12 @@ export default function RoomsTab() {
         <PageControls
             activeFilters={activeFilters}
             leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search rooms..." mobileMode="expandable" />}
-            actions={isAdmin ? <Button icon={Plus} onClick={openCreate}>New Room</Button> : undefined}
+            actions={isAdmin ? (
+                <>
+                    <Button variant="secondary" icon={FileUp} onClick={() => setImportOpen(true)}>Import CSV</Button>
+                    <Button icon={Plus} onClick={openCreate}>New Room</Button>
+                </>
+            ) : undefined}
             renderFilters={() => (
                 <FilterDrawerGrid>
                     <div className="space-y-2">
@@ -400,6 +407,13 @@ export default function RoomsTab() {
                 description={`This will ${activeTarget?.isActive ? 'hide this room from active setup filters and future schedule selectors' : 'make this room available again'}.`}
                 confirmText={activeTarget?.isActive ? 'Deactivate' : 'Activate'}
                 isDestructive={activeTarget?.isActive}
+            />
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="rooms"
+                title="Rooms"
+                cachePrefix="rooms"
             />
         </>
     );

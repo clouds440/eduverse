@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import Image from 'next/image';
 import useSWR, { mutate } from 'swr';
-import { Building2, Plus } from 'lucide-react';
+import { Building2, FileUp, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -29,6 +29,7 @@ import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 const emptyForm = { name: '', code: '', address: '', description: '', isActive: true, departmentIds: [] as string[] };
 
@@ -38,6 +39,7 @@ export default function BuildingsTab() {
     const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const [pageSize, setPageSize] = usePersistentPageSize('edu-buildings-limit', 10);
     const [modalOpen, setModalOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editingBuilding, setEditingBuilding] = useState<Building | null>(null);
     const [formData, setFormData] = useState(emptyForm);
     const [pendingImage, setPendingImage] = useState<File | null>(null);
@@ -162,7 +164,12 @@ export default function BuildingsTab() {
         <PageControls
             activeFilters={activeFilters}
             leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search buildings..." mobileMode="expandable" />}
-            actions={isAdmin ? <Button icon={Plus} onClick={openCreate}>New Building</Button> : undefined}
+            actions={isAdmin ? (
+                <>
+                    <Button variant="secondary" icon={FileUp} onClick={() => setImportOpen(true)}>Import CSV</Button>
+                    <Button icon={Plus} onClick={openCreate}>New Building</Button>
+                </>
+            ) : undefined}
             renderFilters={() => (
                 <FilterDrawerGrid>
                     <div className="space-y-2">
@@ -333,6 +340,13 @@ export default function BuildingsTab() {
                 description={`This will ${activeTarget?.isActive ? 'hide this building from active setup filters' : 'make this building available again'}.`}
                 confirmText={activeTarget?.isActive ? 'Deactivate' : 'Activate'}
                 isDestructive={activeTarget?.isActive}
+            />
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="buildings"
+                title="Buildings"
+                cachePrefix={['buildings', 'rooms']}
             />
         </>
     );

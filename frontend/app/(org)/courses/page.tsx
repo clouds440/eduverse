@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { BookOpen, Building2, Clock3, Plus } from 'lucide-react';
+import { BookOpen, Building2, Clock3, FileUp, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -26,6 +26,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { formatDepartmentLabel } from '@/lib/utils';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 interface CourseParams {
     page: number;
@@ -68,6 +69,7 @@ export default function CoursesPage() {
     >(coursesKey);
 
     const [editModalOpen, setEditModalOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
     const [editFormData, setEditFormData] = useState({ name: '', description: '', creditHours: '3', departmentId: '' });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -290,13 +292,23 @@ export default function CoursesPage() {
                     actions={(
                         <>
                             {isAdmin && (
-                                <Button
-                                    onClick={() => router.push('/courses/create')}
-                                    icon={Plus}
-                                    className="shrink-0 whitespace-nowrap"
-                                >
-                                    Create Course
-                                </Button>
+                                <>
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => setImportOpen(true)}
+                                        icon={FileUp}
+                                        className="shrink-0 whitespace-nowrap"
+                                    >
+                                        Import CSV
+                                    </Button>
+                                    <Button
+                                        onClick={() => router.push('/courses/create')}
+                                        icon={Plus}
+                                        className="shrink-0 whitespace-nowrap"
+                                    >
+                                        Create Course
+                                    </Button>
+                                </>
                             )}
                         </>
                     )}
@@ -407,6 +419,13 @@ export default function CoursesPage() {
                 description={<>Are you sure you want to delete <strong>{deletingCourse?.name}</strong>? This action cannot be undone.</>}
                 confirmText="Yes, Delete Course"
                 isDestructive={true}
+            />
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="courses"
+                title="Courses"
+                cachePrefix="courses"
             />
         </PageShell>
     );

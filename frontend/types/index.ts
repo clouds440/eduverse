@@ -791,6 +791,70 @@ export interface CreateCourseRequest {
 
 export type UpdateCourseRequest = Partial<CreateCourseRequest>;
 
+export type ImportEntity =
+    | 'students'
+    | 'teachers'
+    | 'guardians'
+    | 'courses'
+    | 'sections'
+    | 'departments'
+    | 'buildings'
+    | 'rooms';
+
+export type AttendanceImportTargetMode =
+    | 'FIRST_SCHEDULE_OR_ADHOC'
+    | 'ALL_SCHEDULES_OR_ADHOC'
+    | 'ADHOC_ONLY';
+
+export interface ImportRowError {
+    rowNumber: number;
+    field?: string;
+    message: string;
+}
+
+export interface ImportPreviewRow<T = Record<string, unknown>> {
+    rowNumber: number;
+    data: T;
+    raw: Record<string, string>;
+}
+
+export interface InvalidImportRow {
+    rowNumber: number;
+    raw: Record<string, string>;
+    errors: ImportRowError[];
+}
+
+export interface ImportValidationResult<T = Record<string, unknown>> {
+    entity: string;
+    headers: string[];
+    totalRows: number;
+    validRows: ImportPreviewRow<T>[];
+    invalidRows: InvalidImportRow[];
+    summary: {
+        valid: number;
+        invalid: number;
+        duplicate: number;
+        skipped: number;
+    };
+    options?: Record<string, unknown>;
+}
+
+export interface ImportConfirmResult {
+    entity: string;
+    importedCount: number;
+    skippedCount: number;
+    failedCount: number;
+    duplicateCount: number;
+    errors: InvalidImportRow[];
+}
+
+export interface AttendanceMonthlyImportOptions {
+    sectionId: string;
+    year: number;
+    month: number;
+    targetMode: AttendanceImportTargetMode;
+}
+
 export interface Assessment {
     id: string;
     sectionId: string;

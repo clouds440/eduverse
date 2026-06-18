@@ -14,7 +14,8 @@ import type {
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, MessageResponse, AuditLogItem,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
-    GradeFinalizationFilters, GradeFinalizationRow, OrgUserCounts
+    GradeFinalizationFilters, GradeFinalizationRow, OrgUserCounts,
+    ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -189,6 +190,49 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
             throw new ApiNetworkError(error.message || 'Unable to reach the server');
         }
 
+        throw new ApiNetworkError();
+    }
+}
+
+async function requestText(endpoint: string, options: RequestOptions = {}): Promise<string> {
+    const { token, signal, ...rest } = options;
+    const headers: HeadersInit = {
+        ...(rest.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(rest.headers as Record<string, string> ?? {}),
+    };
+
+    try {
+        const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+            ...rest,
+            credentials: 'include',
+            headers,
+            signal,
+        });
+
+        if (response.status === 401 && unauthorizedHandler) {
+            unauthorizedHandler(token);
+        }
+
+        if (!response.ok) {
+            let message = `Request failed with status ${response.status}`;
+            const contentType = response.headers.get('content-type');
+            if (contentType?.includes('application/json')) {
+                const data = await response.json();
+                message = Array.isArray(data.message) ? data.message[0] : data.message || message;
+            } else {
+                const text = await response.text();
+                if (text && text.length < 200) message = text;
+            }
+            throw new ApiRequestError(message, response.status);
+        }
+
+        return response.text();
+    } catch (error: unknown) {
+        if (error instanceof ApiRequestError) throw error;
+        if (error instanceof Error) {
+            throw new ApiNetworkError(error.message || 'Unable to reach the server');
+        }
         throw new ApiNetworkError();
     }
 }
@@ -518,6 +562,51 @@ export const api = {
             request<RangeAttendanceResponse>(`/org/sections/${sectionId}/attendance/range${buildQueryString({ start, end, studentId })}`, { token }),
         getStudentAttendance: (studentId: string, token: string) =>
             request<AttendanceRecord[]>(`/org/students/${studentId}/attendance`, { token }),
+    },
+
+    imports: {
+        getTemplate: (entity: ImportEntity, token: string) =>
+            requestText(`/org/imports/${entity}/template`, { token }),
+        validate: (entity: ImportEntity, file: File, token: string) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            return uploadFormData<ImportValidationResult>(`/org/imports/${entity}/validate`, formData, token);
+        },
+        confirm: (entity: ImportEntity, rows: ImportPreviewRow[], token: string) =>
+            request<ImportConfirmResult>(`/org/imports/${entity}/confirm`, {
+                method: 'POST',
+                body: JSON.stringify({ rows }),
+                token,
+            }),
+        getErrorReport: (entity: ImportEntity, rows: InvalidImportRow[], token: string) =>
+            requestText(`/org/imports/${entity}/error-report`, {
+                method: 'POST',
+                body: JSON.stringify({ rows }),
+                token,
+            }),
+        getAttendanceMonthlyTemplate: (options: Pick<AttendanceMonthlyImportOptions, 'sectionId' | 'year' | 'month'>, token: string) =>
+            requestText(`/org/imports/attendance/monthly/template${buildQueryString(options)}`, { token }),
+        validateAttendanceMonthly: (options: AttendanceMonthlyImportOptions, file: File, token: string) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('sectionId', options.sectionId);
+            formData.append('year', String(options.year));
+            formData.append('month', String(options.month));
+            formData.append('targetMode', options.targetMode);
+            return uploadFormData<ImportValidationResult>('/org/imports/attendance/monthly/validate', formData, token);
+        },
+        confirmAttendanceMonthly: (options: AttendanceMonthlyImportOptions, rows: ImportPreviewRow[], token: string) =>
+            request<ImportConfirmResult>('/org/imports/attendance/monthly/confirm', {
+                method: 'POST',
+                body: JSON.stringify({ ...options, rows }),
+                token,
+            }),
+        getAttendanceMonthlyErrorReport: (year: number, month: number, rows: InvalidImportRow[], token: string) =>
+            requestText('/org/imports/attendance/monthly/error-report', {
+                method: 'POST',
+                body: JSON.stringify({ year, month, rows }),
+                token,
+            }),
     },
 
     files: {

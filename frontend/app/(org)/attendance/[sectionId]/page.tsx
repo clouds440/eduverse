@@ -14,11 +14,12 @@ import AttendanceSheet from '@/components/sections/AttendanceSheet';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
-import { CalendarDays, BarChart3, Edit3, ChevronLeft, ChevronRight, Clock, Table2 } from 'lucide-react';
+import { CalendarDays, BarChart3, Edit3, ChevronLeft, ChevronRight, Clock, Table2, FileUp } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { PageHeader } from '@/components/ui/PageShell';
 import { cn, getSectionTintStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { AttendanceMonthlyImportModal } from '@/components/imports/AttendanceMonthlyImportModal';
 
 function parseDateInput(dateStr: string) {
     const [year, month, day] = dateStr.split('-').map(Number);
@@ -53,9 +54,11 @@ export default function SectionAttendancePage() {
     const [saving, setSaving] = useState(false);
     const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(paramScheduleId);
     const [adhocTime, setAdhocTime] = useState({ start: '09:00', end: '10:00' });
+    const [importOpen, setImportOpen] = useState(false);
 
     const isStudent = user?.role === Role.STUDENT;
     const isReadOnly = isStudent;
+    const canImportAttendance = !isStudent && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN);
     const selectedDayLabel = useMemo(
         () => parseDateInput(date).toLocaleDateString('en-US', { weekday: 'long' }),
         [date]
@@ -197,32 +200,45 @@ export default function SectionAttendancePage() {
                         </div>
                     )}
                     actions={(
-                        <div className="grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-background p-1">
-                            {!isStudent && (
+                        <div className="flex flex-wrap items-center gap-2">
+                            {canImportAttendance && (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    icon={FileUp}
+                                    onClick={() => setImportOpen(true)}
+                                    className="h-10"
+                                >
+                                    Import CSV
+                                </Button>
+                            )}
+                            <div className="grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-background p-1">
+                                {!isStudent && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewMode('daily')}
+                                        className={cn(
+                                            'flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition-colors',
+                                            viewMode === 'daily' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-card'
+                                        )}
+                                    >
+                                        <Edit3 className="h-4 w-4" />
+                                        Mark
+                                    </button>
+                                )}
                                 <button
                                     type="button"
-                                    onClick={() => setViewMode('daily')}
+                                    onClick={() => setViewMode('monthly')}
                                     className={cn(
                                         'flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition-colors',
-                                        viewMode === 'daily' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-card'
+                                        viewMode === 'monthly' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-card',
+                                        isStudent && 'col-span-2'
                                     )}
                                 >
-                                    <Edit3 className="h-4 w-4" />
-                                    Mark
+                                    <BarChart3 className="h-4 w-4" />
+                                    Overview
                                 </button>
-                            )}
-                            <button
-                                type="button"
-                                onClick={() => setViewMode('monthly')}
-                                className={cn(
-                                    'flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition-colors',
-                                    viewMode === 'monthly' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-card',
-                                    isStudent && 'col-span-2'
-                                )}
-                            >
-                                <BarChart3 className="h-4 w-4" />
-                                Overview
-                            </button>
+                            </div>
                         </div>
                     )}
                 />
@@ -336,6 +352,13 @@ export default function SectionAttendancePage() {
             ) : (
                 rangeData && <AttendanceSheet students={[]} mode="monthly" rangeData={rangeData} readOnly={isReadOnly} />
             )}
+            <AttendanceMonthlyImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                sectionId={sectionId}
+                initialYear={currentYear}
+                initialMonth={currentMonth + 1}
+            />
         </div>
     );
 }

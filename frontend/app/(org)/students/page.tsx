@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, UserPlus } from 'lucide-react';
+import { Building2, FileUp, UserPlus } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useGlobal } from '@/context/GlobalContext';
@@ -25,6 +25,7 @@ import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 interface StudentParams {
     page: number;
@@ -50,6 +51,7 @@ export default function StudentsPage() {
     // Redundant paginatedData state removed
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+    const [importOpen, setImportOpen] = useState(false);
 
     // SWR for sections (for filter dropdown) - reduced limit for performance
     const sectionsKey = token && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER)
@@ -550,13 +552,23 @@ export default function StudentsPage() {
                             )}
 
                             {!isDeletedView && canManageStudents && (
-                                <Button
-                                    onClick={() => router.push(`${routeBase}/add`)}
-                                    icon={UserPlus}
-                                    className="shrink-0 whitespace-nowrap"
-                                >
-                                    Add Student
-                                </Button>
+                                <>
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => setImportOpen(true)}
+                                        icon={FileUp}
+                                        className="shrink-0 whitespace-nowrap"
+                                    >
+                                        Import CSV
+                                    </Button>
+                                    <Button
+                                        onClick={() => router.push(`${routeBase}/add`)}
+                                        icon={UserPlus}
+                                        className="shrink-0 whitespace-nowrap"
+                                    >
+                                        Add Student
+                                    </Button>
+                                </>
                             )}
                         </>
                     )}
@@ -613,6 +625,13 @@ export default function StudentsPage() {
                 onSuccess={() => {
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });
                 }}
+            />
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="students"
+                title="Students"
+                cachePrefix="students"
             />
         </PageShell>
     );

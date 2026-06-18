@@ -32,6 +32,7 @@ import { FinanceManagersModule } from './finance-managers/finance-managers.modul
 import { DepartmentsModule } from './departments/departments.module';
 import { BuildingsModule } from './buildings/buildings.module';
 import { RoomsModule } from './rooms/rooms.module';
+import { ImportsModule } from './imports/imports.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { RoomsModule } from './rooms/rooms.module';
     DepartmentsModule,
     BuildingsModule,
     RoomsModule,
+    ImportsModule,
   ],
   providers: [
     {

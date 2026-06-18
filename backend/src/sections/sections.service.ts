@@ -187,6 +187,7 @@ export class SectionsService {
     const course = await this.coursesService.validateCourseBelongsToOrg(data.courseId, orgId);
     const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
     assertDepartmentInScope(departmentScope, course.departmentId, 'You cannot create a section outside your department scope');
+    await this.validateAcademicPlacement(orgId, data.academicCycleId, data.cohortId);
     if (data.defaultRoomId) {
       await validateRoomBelongsToOrg(this.prisma, orgId, data.defaultRoomId);
     }
@@ -222,6 +223,14 @@ export class SectionsService {
     if (data.courseId && data.courseId !== existing.courseId) {
       const nextCourse = await this.coursesService.validateCourseBelongsToOrg(data.courseId, orgId);
       assertDepartmentInScope(departmentScope, nextCourse.departmentId, 'You cannot move a section outside your department scope');
+    }
+
+    if (data.academicCycleId || data.cohortId) {
+      await this.validateAcademicPlacement(
+        orgId,
+        data.academicCycleId || existing.academicCycleId,
+        data.cohortId === '' ? null : (data.cohortId || existing.cohortId),
+      );
     }
 
     if (data.defaultRoomId) {
@@ -290,5 +299,28 @@ export class SectionsService {
     }
 
     return section;
+  }
+
+  private async validateAcademicPlacement(
+    orgId: string,
+    academicCycleId?: string | null,
+    cohortId?: string | null,
+  ) {
+    if (!academicCycleId) throw new NotFoundException('Academic cycle not found');
+
+    const cycle = await this.prisma.academicCycle.findFirst({
+      where: { id: academicCycleId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!cycle) throw new NotFoundException('Academic cycle not found');
+
+    if (!cohortId) return;
+    const cohort = await this.prisma.cohort.findFirst({
+      where: { id: cohortId, organizationId: orgId, academicCycleId },
+      select: { id: true },
+    });
+    if (!cohort) {
+      throw new NotFoundException('Cohort not found for this academic cycle');
+    }
   }
 }

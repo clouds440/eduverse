@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import useSWR, { mutate } from 'swr';
-import { BookOpen, Plus } from 'lucide-react';
+import { BookOpen, FileUp, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -26,6 +26,7 @@ import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 const emptyForm = { name: '', code: '', description: '', color: '#3B82F6', isActive: true };
 
@@ -35,6 +36,7 @@ export default function DepartmentsPage() {
     const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const [pageSize, setPageSize] = usePersistentPageSize('edu-departments-limit', 10);
     const [modalOpen, setModalOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
     const [formData, setFormData] = useState(emptyForm);
     const [activeTarget, setActiveTarget] = useState<Department | null>(null);
@@ -185,7 +187,12 @@ export default function DepartmentsPage() {
                     <PageControls
                     activeFilters={activeFilters}
                     leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search departments..." mobileMode="expandable" />}
-                    actions={canCreateDepartments ? <Button icon={Plus} onClick={openCreate}>New Department</Button> : undefined}
+                    actions={canCreateDepartments ? (
+                        <>
+                            <Button variant="secondary" icon={FileUp} onClick={() => setImportOpen(true)}>Import CSV</Button>
+                            <Button icon={Plus} onClick={openCreate}>New Department</Button>
+                        </>
+                    ) : undefined}
                     renderFilters={() => (
                         <FilterDrawerGrid>
                             <div className="space-y-2">
@@ -264,6 +271,13 @@ export default function DepartmentsPage() {
                 description={`This will ${activeTarget?.isActive ? 'hide this department from active setup filters' : 'make this department available again'}.`}
                 confirmText={activeTarget?.isActive ? 'Deactivate' : 'Activate'}
                 isDestructive={activeTarget?.isActive}
+            />
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="departments"
+                title="Departments"
+                cachePrefix="departments"
             />
         </PageShell>
     );

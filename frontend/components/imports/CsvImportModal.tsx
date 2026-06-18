@@ -1,0 +1,210 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { mutate } from 'swr';
+import { Download, FileUp, UploadCloud } from 'lucide-react';
+import { api } from '@/lib/api';
+import { CacheKeyPrefix, matchesCacheKeyPrefix } from '@/lib/swr';
+import { ImportConfirmResult, ImportEntity, ImportValidationResult, InvalidImportRow } from '@/types';
+import { useAuth } from '@/context/AuthContext';
+import { useGlobal } from '@/context/GlobalContext';
+import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/Input';
+import { StatusBanner } from '@/components/ui/StatusBanner';
+import { downloadCsv, formatImportErrors } from './importUtils';
+
+interface CsvImportModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    entity: ImportEntity;
+    title: string;
+    cachePrefix: CacheKeyPrefix | CacheKeyPrefix[];
+}
+
+export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: CsvImportModalProps) {
+    const { token } = useAuth();
+    const { dispatch } = useGlobal();
+    const [file, setFile] = useState<File | null>(null);
+    const [validation, setValidation] = useState<ImportValidationResult | null>(null);
+    const [result, setResult] = useState<ImportConfirmResult | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const invalidRows = result?.errors || validation?.invalidRows || [];
+    const canConfirm = Boolean(validation?.validRows.length && !result);
+    const cachePrefixes = useMemo(() => Array.isArray(cachePrefix) ? cachePrefix : [cachePrefix], [cachePrefix]);
+
+    const handleDownloadTemplate = async () => {
+        if (!token) return;
+        setLoading(true);
+        try {
+            const csv = await api.imports.getTemplate(entity, token);
+            downloadCsv(`${entity}-template.csv`, csv);
+        } catch (error) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download template', type: 'error' } });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleValidate = async () => {
+        if (!token || !file) return;
+        setLoading(true);
+        setResult(null);
+        try {
+            const response = await api.imports.validate(entity, file, token);
+            setValidation(response);
+        } catch (error) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to validate CSV', type: 'error' } });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleConfirm = async () => {
+        if (!token || !validation) return;
+        setLoading(true);
+        try {
+            const response = await api.imports.confirm(entity, validation.validRows, token);
+            setResult(response);
+            cachePrefixes.forEach((prefix) => mutate(matchesCacheKeyPrefix(prefix)));
+            dispatch({ type: 'TOAST_ADD', payload: { message: `Imported ${response.importedCount} row${response.importedCount === 1 ? '' : 's'}`, type: 'success' } });
+        } catch (error) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to import rows', type: 'error' } });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDownloadErrors = async () => {
+        if (!token || invalidRows.length === 0) return;
+        setLoading(true);
+        try {
+            const csv = await api.imports.getErrorReport(entity, invalidRows, token);
+            downloadCsv(`${entity}-import-errors.csv`, csv);
+        } catch (error) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download error report', type: 'error' } });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const resetAndClose = () => {
+        setFile(null);
+        setValidation(null);
+        setResult(null);
+        onClose();
+    };
+
+    return (
+        <Modal
+            isOpen={isOpen}
+            onClose={resetAndClose}
+            title={`Import ${title}`}
+            subtitle="Download the template, validate your CSV, then confirm valid rows."
+            maxWidth="max-w-5xl"
+            footer={(
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+                    <Button type="button" variant="secondary" icon={Download} onClick={handleDownloadTemplate} isLoading={loading}>
+                        Template
+                    </Button>
+                    <div className="flex gap-2">
+                        {invalidRows.length > 0 && (
+                            <Button type="button" variant="outline" icon={Download} onClick={handleDownloadErrors} isLoading={loading}>
+                                Error CSV
+                            </Button>
+                        )}
+                        <Button type="button" variant="secondary" onClick={resetAndClose}>Close</Button>
+                        <Button type="button" icon={UploadCloud} onClick={handleConfirm} disabled={!canConfirm} isLoading={loading}>
+                            Import Valid Rows
+                        </Button>
+                    </div>
+                </div>
+            )}
+        >
+            <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <Input
+                        type="file"
+                        accept=".csv,text/csv"
+                        onChange={(event) => {
+                            setFile(event.target.files?.[0] || null);
+                            setValidation(null);
+                            setResult(null);
+                        }}
+                    />
+                    <Button type="button" icon={FileUp} onClick={handleValidate} disabled={!file} isLoading={loading}>
+                        Validate
+                    </Button>
+                </div>
+
+                {validation && (
+                    <div className="grid gap-2 sm:grid-cols-4">
+                        <Metric label="Valid" value={validation.summary.valid} variant="success" />
+                        <Metric label="Invalid" value={validation.summary.invalid} variant="danger" />
+                        <Metric label="Duplicates" value={validation.summary.duplicate} variant="warning" />
+                        <Metric label="Rows" value={validation.totalRows} variant="neutral" />
+                    </div>
+                )}
+
+                {result && (
+                    <StatusBanner
+                        title="Import finished"
+                        variant={result.failedCount ? 'warning' : 'success'}
+                        description={`Imported ${result.importedCount}, skipped ${result.skippedCount}, failed ${result.failedCount}, duplicates ${result.duplicateCount}.`}
+                    />
+                )}
+
+                {validation && validation.validRows.length > 0 && !result && (
+                    <PreviewTable
+                        title="Valid rows"
+                        rows={validation.validRows.map((row) => ({ rowNumber: row.rowNumber, detail: Object.values(row.raw).filter(Boolean).slice(0, 4).join(' | ') }))}
+                    />
+                )}
+
+                {invalidRows.length > 0 && (
+                    <PreviewTable
+                        title="Invalid or failed rows"
+                        rows={invalidRows.map((row: InvalidImportRow) => ({ rowNumber: row.rowNumber, detail: formatImportErrors(row.errors) }))}
+                        danger
+                    />
+                )}
+            </div>
+        </Modal>
+    );
+}
+
+function Metric({ label, value, variant }: { label: string; value: number; variant: 'success' | 'danger' | 'warning' | 'neutral' }) {
+    return (
+        <div className="rounded-lg border border-border/70 bg-background/60 p-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
+            <div className="mt-1 flex items-center justify-between">
+                <p className="font-mono text-xl font-black text-foreground">{value}</p>
+                <Badge variant={variant === 'danger' ? 'error' : variant} size="sm">{label}</Badge>
+            </div>
+        </div>
+    );
+}
+
+function PreviewTable({ title, rows, danger }: { title: string; rows: { rowNumber: number; detail: string }[]; danger?: boolean }) {
+    return (
+        <section className="overflow-hidden rounded-lg border border-border/70">
+            <div className="border-b border-border/70 bg-background px-3 py-2">
+                <h3 className="text-sm font-black text-foreground">{title}</h3>
+            </div>
+            <div className="max-h-64 overflow-auto custom-scrollbar">
+                <table className="w-full text-left text-sm">
+                    <tbody>
+                        {rows.slice(0, 100).map((row) => (
+                            <tr key={`${title}-${row.rowNumber}`} className="border-b border-border/50 last:border-b-0">
+                                <td className="w-24 px-3 py-2 font-mono text-xs font-black text-muted-foreground">Row {row.rowNumber}</td>
+                                <td className={`px-3 py-2 text-xs font-semibold ${danger ? 'text-danger' : 'text-foreground/80'}`}>{row.detail || '-'}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    );
+}
