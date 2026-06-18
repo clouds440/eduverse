@@ -150,6 +150,20 @@ export enum AnnouncementPriority {
     URGENT = 'URGENT'
 }
 
+export enum HolidayType {
+    HOLIDAY = 'HOLIDAY',
+    EXAM_BREAK = 'EXAM_BREAK',
+    EVENT = 'EVENT',
+    CLOSURE = 'CLOSURE',
+}
+
+export enum HolidayMatchMode {
+    SINGLE_DAY = 'SINGLE_DAY',
+    DATE_RANGE = 'DATE_RANGE',
+    WEEKDAYS_IN_RANGE = 'WEEKDAYS_IN_RANGE',
+    DAILY_IN_RANGE = 'DAILY_IN_RANGE',
+}
+
 export enum ThemeMode {
     LIGHT = 'LIGHT',
     DARK = 'DARK',

@@ -15,6 +15,7 @@ import { UserModule } from '../users/user.module';
 import { AuthModule } from '../auth/auth.module';
 import { SecurityModule } from '../security/security.module';
 import { RoleAccountsModule } from '../role-accounts/role-accounts.module';
+import { HolidaysModule } from '../holidays/holidays.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RoleAccountsModule } from '../role-accounts/role-accounts.module';
     AuthModule,
     SecurityModule,
     RoleAccountsModule,
+    HolidaysModule,
   ],
   controllers: [OrgController],
   providers: [OrgService, RemindersService],
@@ -43,6 +45,7 @@ import { RoleAccountsModule } from '../role-accounts/role-accounts.module';
     AttendanceModule,
     CoursesModule,
     SectionsModule,
+    HolidaysModule,
   ],
 })
 export class OrgModule {}

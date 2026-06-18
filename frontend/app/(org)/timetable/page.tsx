@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { Section, Student, Teacher, TimetableEntry, Role } from '@/types';
+import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role } from '@/types';
 import { CalendarDays, Clock, Download, Maximize2, MapPin, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -45,6 +45,7 @@ interface TimetableGridProps {
     entriesByDay: Map<number, TimetableEntry[]>;
     slotGroupsByDay: Map<number, TimetableSlotGroup[]>;
     breaksByDay: Map<number, TimetableBreak[]>;
+    overlaysByDay: Map<number, HolidayOverlay[]>;
     timeSlots: number[];
     startHour: number;
     rowCount: number;
@@ -88,6 +89,18 @@ const getClosestDateForWeekday = (targetDay: number) => {
     const closestDate = new Date(today);
     closestDate.setDate(today.getDate() + bestOffset);
     return toLocalDateInputValue(closestDate);
+};
+
+const getCurrentWeekInputRange = () => {
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(today.getDate() - today.getDay());
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return {
+        startDate: toLocalDateInputValue(start),
+        endDate: toLocalDateInputValue(end),
+    };
 };
 
 function timeToMinutes(time: string) {
@@ -139,6 +152,34 @@ function getTimetableCardStyle(entry: TimetableEntry): React.CSSProperties {
         backgroundColor: `${hex}18`,
         borderColor: `${hex}66`,
         color: hex,
+    };
+}
+
+function getHolidayTypeLabel(type: HolidayType) {
+    switch (type) {
+        case HolidayType.EXAM_BREAK:
+            return 'Exam break';
+        case HolidayType.EVENT:
+            return 'Event';
+        case HolidayType.CLOSURE:
+            return 'Closure';
+        default:
+            return 'Holiday';
+    }
+}
+
+function getHolidayOverlayStyle(overlay: HolidayOverlay): React.CSSProperties {
+    const palette: Record<HolidayType, { bg: string; border: string; text: string }> = {
+        [HolidayType.HOLIDAY]: { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.42)', text: 'rgb(5,150,105)' },
+        [HolidayType.EXAM_BREAK]: { bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.42)', text: 'rgb(37,99,235)' },
+        [HolidayType.EVENT]: { bg: 'rgba(168,85,247,0.12)', border: 'rgba(168,85,247,0.42)', text: 'rgb(126,34,206)' },
+        [HolidayType.CLOSURE]: { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.42)', text: 'rgb(220,38,38)' },
+    };
+    const colors = palette[overlay.type] || palette[HolidayType.HOLIDAY];
+    return {
+        backgroundColor: colors.bg,
+        borderColor: colors.border,
+        color: colors.text,
     };
 }
 
@@ -253,6 +294,7 @@ function TimetableGrid({
     entriesByDay,
     slotGroupsByDay,
     breaksByDay,
+    overlaysByDay,
     timeSlots,
     startHour,
     rowCount,
@@ -273,7 +315,11 @@ function TimetableGrid({
                         <div key={day} className="rounded-md border border-border/70 bg-card p-3 text-center shadow-sm">
                             <p className="text-sm font-black text-foreground">{DAY_NAMES[day]}</p>
                             <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                {(entriesByDay.get(day)?.length || 0) > 0 ? `${entriesByDay.get(day)?.length || 0} slots` : 'Off day'}
+                                {(entriesByDay.get(day)?.length || 0) > 0
+                                    ? `${entriesByDay.get(day)?.length || 0} slots`
+                                    : (overlaysByDay.get(day)?.length || 0) > 0
+                                        ? `${overlaysByDay.get(day)?.length || 0} calendar ${(overlaysByDay.get(day)?.length || 0) === 1 ? 'item' : 'items'}`
+                                        : 'Off day'}
                             </p>
                         </div>
                     ))}
@@ -292,6 +338,9 @@ function TimetableGrid({
                     {WEEK_DAYS.map((day) => {
                         const dayEntries = entriesByDay.get(day) || [];
                         const dayBreaks = breaksByDay.get(day) || [];
+                        const dayOverlays = overlaysByDay.get(day) || [];
+                        const fullDayOverlays = dayOverlays.filter((overlay) => overlay.isFullDay);
+                        const partialOverlays = dayOverlays.filter((overlay) => !overlay.isFullDay && overlay.startTime && overlay.endTime);
 
                         return (
                             <div
@@ -322,11 +371,24 @@ function TimetableGrid({
                                 </div>
 
                                 <div className="relative z-10 grid h-full" style={{ gridTemplateRows: gridRows }}>
-                                    {dayEntries.length === 0 && (
+                                    {dayEntries.length === 0 && fullDayOverlays.length === 0 && partialOverlays.length === 0 && (
                                         <div className="absolute inset-0 z-0 flex items-center justify-center px-4 text-center">
                                             <div className="rounded-md border border-dashed border-border/80 bg-muted/35 px-3 py-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
                                                 Off day
                                             </div>
+                                        </div>
+                                    )}
+                                    {fullDayOverlays.length > 0 && (
+                                        <div className="absolute inset-2 z-20 flex flex-col justify-center gap-2 rounded-md border border-dashed p-3 text-center shadow-sm backdrop-blur-sm" style={getHolidayOverlayStyle(fullDayOverlays[0])}>
+                                            <CalendarDays className="mx-auto h-6 w-6 opacity-80" aria-hidden="true" />
+                                            {fullDayOverlays.map((overlay) => (
+                                                <div key={overlay.id} className="min-w-0">
+                                                    <p className="truncate text-sm font-black">{overlay.title}</p>
+                                                    <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide opacity-75">
+                                                        {getHolidayTypeLabel(overlay.type)}
+                                                    </p>
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
                                     {dayBreaks.map((dayBreak) => {
@@ -450,6 +512,25 @@ function TimetableGrid({
                                             </div>
                                         );
                                     })}
+                                    {partialOverlays.map((overlay) => {
+                                        const startOffset = Math.max(0, timeToMinutes(overlay.startTime || '00:00') - startHour * 60);
+                                        const duration = Math.max(30, timeToMinutes(overlay.endTime || '00:30') - timeToMinutes(overlay.startTime || '00:00'));
+                                        const rowStart = Math.floor(startOffset / 30) + 1;
+                                        const rowSpan = Math.max(1, Math.ceil(duration / 30));
+
+                                        return (
+                                            <div
+                                                key={overlay.id}
+                                                className="z-20 m-1 flex min-h-0 flex-col justify-center overflow-hidden rounded-md border border-dashed px-2.5 py-2 text-center shadow-sm backdrop-blur-sm"
+                                                style={{ ...getHolidayOverlayStyle(overlay), gridRow: `${rowStart} / span ${rowSpan}` }}
+                                            >
+                                                <p className="truncate text-[11px] font-black">{overlay.title}</p>
+                                                <p className="mt-0.5 truncate text-[10px] font-bold opacity-75">
+                                                    {overlay.startTime} - {overlay.endTime} - {getHolidayTypeLabel(overlay.type)}
+                                                </p>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );
@@ -484,25 +565,45 @@ export function StudentTimetableView({
     const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-    const timetableKey = token && user ? ['timetable', user.id, user.role, studentId] as const : null;
-    const { data: entries = [], isLoading, error, mutate } = useSWR<TimetableEntry[]>(timetableKey);
+    const weekRange = useMemo(() => getCurrentWeekInputRange(), []);
+    const timetableKey = token && user ? ['timetable', user.id, user.role, studentId, weekRange.startDate, weekRange.endDate] as const : null;
+    const { data: timetableData, isLoading, error, mutate } = useSWR<TimetableResponse>(timetableKey);
     const profileKey = token && user?.role === Role.STUDENT
         ? ['student-profile', user.id] as const
         : token && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER)
             ? ['teacher-profile'] as const
             : null;
     const { data: profile } = useSWR<TimetableProfile>(profileKey);
+    const entries = useMemo(() => timetableData?.schedules || [], [timetableData?.schedules]);
+    const overlays = useMemo(() => timetableData?.overlays || [], [timetableData?.overlays]);
+    const coveredScheduleIds = useMemo(() => new Set(overlays.flatMap((overlay) => overlay.coveredScheduleIds)), [overlays]);
+    const visibleEntries = useMemo(() => entries.filter((entry) => !coveredScheduleIds.has(entry.scheduleId)), [coveredScheduleIds, entries]);
 
     const entriesByDay = useMemo(() => {
         const grouped = new Map<number, TimetableEntry[]>();
         WEEK_DAYS.forEach((day) => grouped.set(day, []));
-        entries.forEach((entry) => {
+        visibleEntries.forEach((entry) => {
             if (!grouped.has(entry.day)) grouped.set(entry.day, []);
             grouped.get(entry.day)?.push(entry);
         });
         grouped.forEach((dayEntries) => dayEntries.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)));
         return grouped;
-    }, [entries]);
+    }, [visibleEntries]);
+
+    const overlaysByDay = useMemo(() => {
+        const grouped = new Map<number, HolidayOverlay[]>();
+        WEEK_DAYS.forEach((day) => grouped.set(day, []));
+        overlays.forEach((overlay) => {
+            if (!grouped.has(overlay.day)) grouped.set(overlay.day, []);
+            grouped.get(overlay.day)?.push(overlay);
+        });
+        grouped.forEach((dayOverlays) => dayOverlays.sort((a, b) => {
+            const aStart = a.startTime ? timeToMinutes(a.startTime) : -1;
+            const bStart = b.startTime ? timeToMinutes(b.startTime) : -1;
+            return aStart - bStart || a.title.localeCompare(b.title);
+        }));
+        return grouped;
+    }, [overlays]);
 
     const slotGroupsByDay = useMemo(() => {
         const grouped = new Map<number, TimetableSlotGroup[]>();
@@ -551,7 +652,14 @@ export function StudentTimetableView({
     }, [slotGroupsByDay]);
 
     const { startHour, endHour, timeSlots } = useMemo(() => {
-        if (entries.length === 0) {
+        const timeRanges = [
+            ...visibleEntries.map((entry) => ({ startTime: entry.startTime, endTime: entry.endTime })),
+            ...overlays
+                .filter((overlay) => !overlay.isFullDay && overlay.startTime && overlay.endTime)
+                .map((overlay) => ({ startTime: overlay.startTime as string, endTime: overlay.endTime as string })),
+        ];
+
+        if (timeRanges.length === 0) {
             return {
                 startHour: DEFAULT_START_HOUR,
                 endHour: DEFAULT_END_HOUR,
@@ -559,8 +667,8 @@ export function StudentTimetableView({
             };
         }
 
-        const startMinutes = Math.min(...entries.map((entry) => timeToMinutes(entry.startTime)));
-        const endMinutes = Math.max(...entries.map((entry) => timeToMinutes(entry.endTime)));
+        const startMinutes = Math.min(...timeRanges.map((range) => timeToMinutes(range.startTime)));
+        const endMinutes = Math.max(...timeRanges.map((range) => timeToMinutes(range.endTime)));
         const firstHour = Math.max(0, Math.floor(startMinutes / 60));
         const lastHour = Math.min(24, Math.ceil(endMinutes / 60));
         return {
@@ -568,7 +676,7 @@ export function StudentTimetableView({
             endHour: lastHour,
             timeSlots: Array.from({ length: lastHour - firstHour + 1 }, (_, index) => firstHour + index),
         };
-    }, [entries]);
+    }, [overlays, visibleEntries]);
 
     const canOpenAttendance = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN;
     const rowCount = Math.max(1, (endHour - startHour) * 2);
@@ -615,7 +723,7 @@ export function StudentTimetableView({
                 title={title}
                 description={description}
                 icon={Clock}
-                meta={<Badge variant="neutral" size="sm">{entries.length} slots</Badge>}
+                meta={<Badge variant="neutral" size="sm">{entries.length} slots{overlays.length > 0 ? ` · ${overlays.length} calendar` : ''}</Badge>}
                 actions={(
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                         {headerActions}
@@ -624,7 +732,7 @@ export function StudentTimetableView({
                             variant="secondary"
                             icon={Maximize2}
                             onClick={() => setIsFullscreenOpen(true)}
-                            disabled={isLoading || Boolean(error) || entries.length === 0}
+                            disabled={isLoading || Boolean(error) || (entries.length === 0 && overlays.length === 0)}
                         >
                             Fullscreen
                         </Button>
@@ -643,7 +751,7 @@ export function StudentTimetableView({
                 breadcrumbs={breadcrumbs}
             />
 
-            {isLoading && entries.length === 0 ? (
+            {isLoading && entries.length === 0 && overlays.length === 0 ? (
                 <TimetableSkeleton />
             ) : error ? (
                 <ErrorState
@@ -654,11 +762,11 @@ export function StudentTimetableView({
                 />
             ) : (
                 <ResourcePanel>
-                    {entries.length === 0 ? (
+                    {entries.length === 0 && overlays.length === 0 ? (
                         <EmptyState
                             icon={CalendarDays}
                             title="No timetable slots found"
-                            description="Section schedules will appear here after they are configured."
+                            description="Section schedules and academic calendar overlays will appear here after they are configured."
                             className="min-h-96"
                         />
                     ) : (
@@ -666,6 +774,7 @@ export function StudentTimetableView({
                             entriesByDay={entriesByDay}
                             slotGroupsByDay={slotGroupsByDay}
                             breaksByDay={breaksByDay}
+                            overlaysByDay={overlaysByDay}
                             timeSlots={timeSlots}
                             startHour={startHour}
                             rowCount={rowCount}
@@ -678,7 +787,7 @@ export function StudentTimetableView({
                 </ResourcePanel>
             )}
 
-            {isFullscreenOpen && entries.length > 0 && (
+            {isFullscreenOpen && (entries.length > 0 || overlays.length > 0) && (
                 <ModalOverlay
                     isOpen={isFullscreenOpen}
                     onBack={() => setIsFullscreenOpen(false)}
@@ -722,6 +831,7 @@ export function StudentTimetableView({
                         entriesByDay={entriesByDay}
                         slotGroupsByDay={slotGroupsByDay}
                         breaksByDay={breaksByDay}
+                        overlaysByDay={overlaysByDay}
                         timeSlots={timeSlots}
                         startHour={startHour}
                         rowCount={rowCount}

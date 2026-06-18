@@ -8,14 +8,15 @@ import type {
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
     UpdateGradeRequest, CreateSubmissionRequest, FinalGradeResponse, MailTarget,
     Chat, ChatMessage, Notification, Announcement, TargetType, AnnouncementPriority, User,
-    ThemeMode, SectionSchedule, TimetableEntry, AttendanceRecord, SectionAttendanceResponse,
+    ThemeMode, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, MessageResponse, AuditLogItem,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, OrgUserCounts,
-    ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions
+    ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions,
+    Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -526,6 +527,18 @@ export const api = {
         getInsights: (token: string, params: InsightsQueryParams = {}) =>
             request<DashboardInsights>(`/org/insights${buildQueryString(params as QueryParams)}`, { token }),
 
+        // --- Holidays / Academic Calendar ---
+        getHolidays: (token: string, params: { page?: number, limit?: number, search?: string, type?: HolidayType, isActive?: boolean, startDate?: string, endDate?: string, departmentId?: string } = {}) =>
+            request<PaginatedResponse<Holiday>>(`/org/holidays${buildQueryString(params)}`, { token }),
+        createHoliday: (data: CreateHolidayRequest, token: string) =>
+            request<Holiday>('/org/holidays', { method: 'POST', body: JSON.stringify(data), token }),
+        updateHoliday: (id: string, data: UpdateHolidayRequest, token: string) =>
+            request<Holiday>(`/org/holidays/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        setHolidayActive: (id: string, isActive: boolean, token: string) =>
+            request<Holiday>(`/org/holidays/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
+        deleteHoliday: (id: string, token: string) =>
+            request<void>(`/org/holidays/${id}`, { method: 'DELETE', token }),
+
         // --- GPA Policies ---
         getGpaPolicies: (token: string, params: { includeArchived?: boolean } = {}) =>
             request<GpaPolicy[]>(`/org/gpa-policies${buildQueryString(params)}`, { token }),
@@ -549,8 +562,8 @@ export const api = {
             request<SectionSchedule>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteSchedule: (sectionId: string, scheduleId: string, token: string) =>
             request<void>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'DELETE', token }),
-        getTimetable: (token: string, params: { studentId?: string } = {}) =>
-            request<TimetableEntry[]>(`/org/timetable${buildQueryString(params)}`, { token }),
+        getTimetable: (token: string, params: { studentId?: string, startDate?: string, endDate?: string } = {}) =>
+            request<TimetableResponse>(`/org/timetable${buildQueryString(params)}`, { token }),
 
         createAttendanceSession: (sectionId: string, date: string, token: string, scheduleId?: string, startTime?: string, endTime?: string) =>
             request<{ id: string }>(`/org/sections/${sectionId}/attendance/sessions`, { method: 'POST', body: JSON.stringify({ date, scheduleId, startTime, endTime }), token }),

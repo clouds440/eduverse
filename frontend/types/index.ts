@@ -1,5 +1,5 @@
-import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
-export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
+import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
+export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
 
 export interface PaginatedResponse<T> {
@@ -1179,6 +1179,58 @@ export interface Announcement {
 
 // ─── Timetable & Attendance System Types ─────────────────────────────────────
 
+export interface HolidayDepartmentLink {
+    holidayId: string;
+    departmentId: string;
+    department?: Department;
+}
+
+export interface Holiday {
+    id: string;
+    organizationId: string;
+    title: string;
+    description?: string | null;
+    type: HolidayType;
+    matchMode: HolidayMatchMode;
+    departmentScopeType: DepartmentScopeType;
+    startDate: string;
+    endDate: string;
+    startTime?: string | null;
+    endTime?: string | null;
+    daysOfWeek: number[];
+    isFullDay: boolean;
+    isActive: boolean;
+    createdById: string;
+    updatedById?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    createdBy?: User;
+    updatedBy?: User | null;
+    departmentLinks?: HolidayDepartmentLink[];
+}
+
+export interface CreateHolidayRequest {
+    title: string;
+    description?: string;
+    type?: HolidayType;
+    matchMode?: HolidayMatchMode;
+    departmentScopeType?: DepartmentScopeType;
+    departmentIds?: string[];
+    startDate: string;
+    endDate?: string;
+    isFullDay?: boolean;
+    startTime?: string;
+    endTime?: string;
+    daysOfWeek?: number[];
+    isActive?: boolean;
+    announce?: boolean;
+    announcementTargetType?: TargetType;
+    announcementTargetId?: string;
+    announcementPriority?: AnnouncementPriority;
+}
+
+export type UpdateHolidayRequest = Partial<CreateHolidayRequest>;
+
 export interface SectionSchedule {
     id: string;
     sectionId: string;
@@ -1199,6 +1251,7 @@ export interface TimetableEntry {
     sectionId: string;
     sectionName: string;
     courseId?: string | null;
+    departmentId?: string | null;
     courseName: string;
     color?: string | null;
     day: number;
@@ -1207,6 +1260,33 @@ export interface TimetableEntry {
     room: string | null;
     teacherName?: string | null;
     additionalTeachersCount?: number;
+}
+
+export interface HolidayOverlay {
+    id: string;
+    holidayId: string;
+    title: string;
+    description: string | null;
+    type: HolidayType;
+    date: string;
+    day: number;
+    isFullDay: boolean;
+    startTime: string | null;
+    endTime: string | null;
+    createdBy: string | null;
+    departmentScopeType: DepartmentScopeType;
+    departmentIds: string[];
+    coveredScheduleIds: string[];
+}
+
+export interface TimetableResponse {
+    schedules: TimetableEntry[];
+    holidays: Holiday[];
+    overlays: HolidayOverlay[];
+    range: {
+        startDate: string;
+        endDate: string;
+    };
 }
 
 export interface AttendanceSession {

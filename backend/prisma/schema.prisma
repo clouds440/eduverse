@@ -38,6 +38,7 @@ model Organization {
   subOrgs         Organization[] @relation("ParentChildOrg")
   chats           Chat[]
   announcements   Announcement[]
+  holidays        Holiday[]
   academicCycles  AcademicCycle[]
   cohorts         Cohort[]
   departments     Department[]
@@ -96,6 +97,8 @@ model User {
   deletedChatMessages   ChatMessage[]      @relation("DeletedChatMessages")
   userNotifications     Notification[]     @relation("UserNotifications")
   createdAnnouncements  Announcement[]     @relation("CreatedAnnouncements")
+  createdHolidays        Holiday[]          @relation("CreatedHolidays")
+  updatedHolidays        Holiday[]          @relation("UpdatedHolidays")
   confirmedFinancialEntries FinancialEntry[] @relation("AdminConfirmations")
   claimedPayments           PaymentClaim[]    @relation("PaymentClaimants")
   reviewedPaymentClaims     PaymentClaim[]    @relation("PaymentClaimReviews")
@@ -271,6 +274,7 @@ model Department {
   studentDepartments  StudentDepartment[]
   managerDepartments  ManagerDepartment[]
   subAdminDepartments SubAdminDepartment[]
+  holidayDepartments  HolidayDepartment[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -920,6 +924,20 @@ enum TargetType {
   SECTION
 }
 
+enum HolidayType {
+  HOLIDAY
+  EXAM_BREAK
+  EVENT
+  CLOSURE
+}
+
+enum HolidayMatchMode {
+  SINGLE_DAY
+  DATE_RANGE
+  WEEKDAYS_IN_RANGE
+  DAILY_IN_RANGE
+}
+
 model Announcement {
   id             String     @id @default(uuid())
   title          String
@@ -940,6 +958,50 @@ model Announcement {
 }
 
 // ─── TIMETABLE & ATTENDANCE SYSTEM ──────────────────────────────────────────
+
+model Holiday {
+  id             String           @id @default(uuid())
+  organizationId String
+  title          String
+  description    String?
+  type           HolidayType      @default(HOLIDAY)
+  matchMode      HolidayMatchMode @default(SINGLE_DAY)
+  departmentScopeType DepartmentScopeType @default(ALL)
+  startDate      DateTime
+  endDate        DateTime
+  startTime      String?
+  endTime        String?
+  daysOfWeek     Int[]            @default([])
+  isFullDay      Boolean          @default(true)
+  isActive       Boolean          @default(true)
+  createdById    String
+  updatedById    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("CreatedHolidays", fields: [createdById], references: [id])
+  updatedBy    User?        @relation("UpdatedHolidays", fields: [updatedById], references: [id])
+  departmentLinks HolidayDepartment[]
+
+  @@index([organizationId])
+  @@index([organizationId, isActive])
+  @@index([organizationId, startDate, endDate])
+  @@index([type])
+  @@index([matchMode])
+}
+
+model HolidayDepartment {
+  holidayId    String
+  departmentId String
+  assignedAt   DateTime @default(now())
+
+  holiday    Holiday    @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([holidayId, departmentId])
+  @@index([departmentId])
+}
 
 model SectionSchedule {
   id              String         @id @default(uuid())

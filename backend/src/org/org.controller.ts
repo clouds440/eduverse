@@ -52,6 +52,7 @@ import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import { InsightsQueryDto } from '../insights/dto/insights-query.dto';
 import { RoleAccountsService, type UpdateRoleAccountInput } from '../role-accounts/role-accounts.service';
+import { HolidaysService } from '../holidays/holidays.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -67,6 +68,7 @@ export class OrgController {
     private readonly assessmentsService: AssessmentsService,
     private readonly attendanceService: AttendanceService,
     private readonly roleAccountsService: RoleAccountsService,
+    private readonly holidaysService: HolidaysService,
   ) { }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
@@ -702,22 +704,32 @@ export class OrgController {
     return this.attendanceService.getSchedules(orgId, id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('timetable')
-  getTimetable(
+  async getTimetable(
     @OrgId() orgId: string,
     @Request() req: AuthenticatedRequest,
     @Query('studentId') studentId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
+    let schedules;
     if (req.user.role === Role.GUARDIAN) {
       if (!studentId) throw new BadRequestException('Query parameter "studentId" is required');
-      return this.studentService.getStudentTimetableByStudentId(orgId, studentId, req.user);
+      schedules = await this.studentService.getStudentTimetableByStudentId(orgId, studentId, req.user);
+      return this.holidaysService.buildTimetableResponse(orgId, schedules, { startDate, endDate });
     }
     if (req.user.role === Role.STUDENT) {
-      return this.studentService.getStudentTimetable(orgId, req.user.id);
+      schedules = await this.studentService.getStudentTimetable(orgId, req.user.id);
+      return this.holidaysService.buildTimetableResponse(orgId, schedules, { startDate, endDate });
+    }
+    if (req.user.role === Role.ORG_ADMIN || req.user.role === Role.SUB_ADMIN) {
+      schedules = await this.attendanceService.getOrgTimetable(orgId, req.user);
+      return this.holidaysService.buildTimetableResponse(orgId, schedules, { startDate, endDate });
     }
     // For Teacher, Manager - show teaching schedule if they have a teacher record
-    return this.teacherService.getTeacherTimetable(orgId, req.user.id);
+    schedules = await this.teacherService.getTeacherTimetable(orgId, req.user.id);
+    return this.holidaysService.buildTimetableResponse(orgId, schedules, { startDate, endDate });
   }
 
   // --- Attendance ---

@@ -33,7 +33,7 @@ export interface TimetableSection {
   color?: string | null;
   room: string | null;
   defaultRoom?: { name: string; building?: { name: string } | null } | null;
-  course: { id?: string; name: string };
+  course: { id?: string; name: string; departmentId?: string | null };
   schedules: {
     id: string;
     day: number;
@@ -51,6 +51,7 @@ export interface TimetableEntry {
   sectionName: string;
   courseId: string | null;
   courseName: string;
+  departmentId: string | null;
   color: string | null;
   day: number;
   startTime: string;
@@ -90,6 +91,7 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
         sectionName: section.name,
         courseId: section.course.id || null,
         courseName: section.course.name,
+        departmentId: section.course.departmentId || null,
         color: section.color || null,
         day: schedule.day,
         startTime: schedule.startTime,

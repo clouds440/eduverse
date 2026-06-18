@@ -26,7 +26,7 @@ interface PageHeaderProps {
 }
 
 export interface PageBreadcrumb {
-    label: string;
+    label: React.ReactNode;
     href?: string;
 }
 
@@ -104,17 +104,17 @@ function hasVerticalScrollBehavior(element: HTMLElement) {
 }
 
 function getPageScrollElement(header: HTMLElement): HTMLElement | null {
-    const dashboardScrollContainer = header.closest<HTMLElement>('[data-dashboard-scroll-container="true"]');
-    if (dashboardScrollContainer && hasVerticalScrollBehavior(dashboardScrollContainer)) {
-        return dashboardScrollContainer;
-    }
-
     let ancestor: HTMLElement | null = header.parentElement;
     while (ancestor && ancestor !== document.body) {
         if (hasVerticalScrollBehavior(ancestor)) {
             return ancestor;
         }
         ancestor = ancestor.parentElement;
+    }
+
+    const dashboardScrollContainer = header.closest<HTMLElement>('[data-dashboard-scroll-container="true"]');
+    if (dashboardScrollContainer && hasVerticalScrollBehavior(dashboardScrollContainer)) {
+        return dashboardScrollContainer;
     }
 
     return null;
@@ -128,15 +128,6 @@ function getPageScrollState(header: HTMLElement) {
     if (root) {
         maxScrollTop = Math.max(maxScrollTop, root.scrollTop);
         maxScrollRange = Math.max(maxScrollRange, getScrollableRange(root));
-
-        root.querySelectorAll<HTMLElement>('*').forEach((element) => {
-            if (!hasVerticalScrollBehavior(element)) return;
-            const scrollRange = getScrollableRange(element);
-            if (scrollRange <= 1) return;
-
-            maxScrollTop = Math.max(maxScrollTop, element.scrollTop);
-            maxScrollRange = Math.max(maxScrollRange, scrollRange);
-        });
     }
 
     return { scrollTop: maxScrollTop, scrollRange: maxScrollRange };
@@ -188,7 +179,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
 
         const measureCompactEligibility = () => {
             const { scrollRange } = getPageScrollState(header);
-            if (!isScrolledRef.current) {
+            if (!isScrolledRef.current && !compactAllowedRef.current) {
                 compactAllowedRef.current = scrollRange >= PAGE_HEADER_MIN_SCROLL_RANGE;
             }
         };
@@ -249,7 +240,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
         <header
             ref={headerRef}
             className={cn(
-                'shrink-0 rounded-lg border border-border bg-card/85 shadow-sm backdrop-blur-xl print:hidden',
+                'sticky top-0 z-30 shrink-0 rounded-lg border border-border bg-card/85 shadow-sm backdrop-blur-xl print:hidden',
                 isCompact ? 'p-2' : 'p-2.5 md:p-3',
                 className,
             )}

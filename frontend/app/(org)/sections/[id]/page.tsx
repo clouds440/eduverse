@@ -8,7 +8,6 @@ import {
     Calendar,
     FileText,
     GraduationCap,
-    Layers,
     MapPin,
     School,
     Trophy,
@@ -22,9 +21,9 @@ import SectionSchedules from '@/components/sections/SectionSchedules';
 import CourseMaterials from '@/components/sections/CourseMaterials';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { Badge } from '@/components/ui/Badge';
-import { Loading } from '@/components/ui/Loading';
 import { NotFound } from '@/components/NotFound';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { formatCourseSectionLabel, formatRoomLabel, getSectionSurfaceStyle, getSectionTextStyle, getSectionTintStyle } from '@/lib/utils';
 
 interface SummaryTileProps {
@@ -78,6 +77,54 @@ function SectionPanel({
     );
 }
 
+function SectionDetailSkeleton() {
+    return (
+        <>
+            <section className="grid min-w-0 shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={index} className="h-24 rounded-lg" />
+                ))}
+            </section>
+
+            <ResourcePanel className="flex-none shrink-0 overflow-hidden">
+                <div className="grid min-w-0 gap-4 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,340px)] sm:p-5">
+                    <div className="min-w-0 space-y-3">
+                        <Skeleton className="h-7 w-48" />
+                        <Skeleton className="h-4 w-full max-w-2xl" />
+                        <Skeleton className="h-4 w-2/3" />
+                    </div>
+                    <div className="min-w-0 space-y-3 rounded-lg border border-border/70 bg-background/60 p-3">
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-12 rounded-md" />
+                        <Skeleton className="h-12 rounded-md" />
+                    </div>
+                </div>
+            </ResourcePanel>
+
+            <div className="flex min-w-0 flex-col gap-4">
+                {Array.from({ length: 3 }).map((_, index) => (
+                    <ResourcePanel key={index} className="flex-none overflow-hidden">
+                        <header className="border-b border-border/60 bg-background/45 px-3 py-4 sm:px-5">
+                            <div className="flex items-start gap-3">
+                                <Skeleton className="h-10 w-10 shrink-0 rounded-md" />
+                                <div className="min-w-0 flex-1 space-y-2">
+                                    <Skeleton className="h-5 w-40" />
+                                    <Skeleton className="h-4 w-full max-w-2xl" />
+                                </div>
+                            </div>
+                        </header>
+                        <div className="grid min-w-0 gap-3 p-3 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
+                            <Skeleton className="h-40 rounded-lg" />
+                            <Skeleton className="h-40 rounded-lg" />
+                            <Skeleton className="h-40 rounded-lg" />
+                        </div>
+                    </ResourcePanel>
+                ))}
+            </div>
+        </>
+    );
+}
+
 export default function SectionDetailPage() {
     const { token, user } = useAuth();
     const params = useParams();
@@ -87,7 +134,22 @@ export default function SectionDetailPage() {
     const { data: section, isLoading } = useSWR<Section>(sectionKey);
 
     if (isLoading) {
-        return <Loading className="h-full" text="Loading section..." size="lg" icon={BookOpen} />;
+        return (
+            <PageShell className="overflow-x-hidden overflow-y-auto custom-scrollbar">
+                <PageHeader
+                    title="Section"
+                    description="Loading section workspace, evaluations, schedule slots, materials, and class context."
+                    icon={BookOpen}
+                    breadcrumbs={[
+                        { label: 'Organization' },
+                        { label: 'Academics' },
+                        { label: 'Sections', href: '/sections' },
+                        { label: 'Section' },
+                    ]}
+                />
+                <SectionDetailSkeleton />
+            </PageShell>
+        );
     }
 
     if (!section) return <NotFound page="Section" />;

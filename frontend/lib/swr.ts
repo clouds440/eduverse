@@ -40,6 +40,7 @@ export type CacheKeyPrefix =
     | 'academicCycles'
     | 'cohorts'
     | 'departments'
+    | 'holidays'
     | 'buildings'
     | 'rooms'
     | 'transcript'

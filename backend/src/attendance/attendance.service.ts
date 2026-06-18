@@ -14,6 +14,7 @@ import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { AttendanceRecordDto } from './dto/mark-attendance.dto';
 import { validateRoomBelongsToOrg } from '../common/department-scope';
+import { extractTimetableEntries } from '../common/utils';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -374,6 +375,17 @@ export class AttendanceService {
 
   async getTeacherTimetable(orgId: string, userId: string) {
     return this.teacherService.getTeacherTimetable(orgId, userId);
+  }
+
+  async getOrgTimetable(orgId: string, user: JwtPayload) {
+    const sections = await this.sectionsService.getSections(orgId, {
+      page: 1,
+      limit: 1000,
+      sortBy: 'courseName',
+      sortOrder: 'asc',
+    }, user);
+
+    return extractTimetableEntries(sections.data);
   }
 
   async createAttendanceSession(

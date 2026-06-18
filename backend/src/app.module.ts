@@ -33,6 +33,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { BuildingsModule } from './buildings/buildings.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { ImportsModule } from './imports/imports.module';
+import { HolidaysModule } from './holidays/holidays.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { ImportsModule } from './imports/imports.module';
     BuildingsModule,
     RoomsModule,
     ImportsModule,
+    HolidaysModule,
   ],
   providers: [
     {

@@ -1142,7 +1142,7 @@ export class StudentService {
       include: {
         section: {
           include: {
-            course: { select: { id: true, name: true } },
+            course: { select: { id: true, name: true, departmentId: true } },
             defaultRoom: { select: { name: true, building: { select: { name: true } } } },
             schedules: {
               select: {
