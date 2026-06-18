@@ -26,14 +26,15 @@ interface TestAccount {
     password: string;
     label: string;
     roleHint: string;
-    group: 'Organization Users' | 'System Users';
+    group: string;
     icon: LucideIcon;
     tone: 'primary' | 'info' | 'success' | 'warning' | 'neutral';
 }
 
 const ORG_PASSWORD = '123456aA';
+const PROD_DEMO_PASSWORD = 'Demo@12345';
 
-const testAccounts: TestAccount[] = [
+const localTestAccounts: TestAccount[] = [
     {
         email: 'admin@numl.edu.pk',
         password: ORG_PASSWORD,
@@ -108,6 +109,144 @@ const testAccounts: TestAccount[] = [
     },
 ];
 
+const prodTestAccounts: TestAccount[] = [
+    {
+        email: 'demo.org.admin@example.test',
+        password: PROD_DEMO_PASSWORD,
+        label: 'Ayesha Rahman',
+        roleHint: 'Org Admin',
+        group: 'Admins',
+        icon: ShieldCheck,
+        tone: 'primary',
+    },
+    {
+        email: 'demo.subadmin.academics@example.test',
+        password: PROD_DEMO_PASSWORD,
+        label: 'Hassan Qureshi',
+        roleHint: 'Sub Admin - Academics',
+        group: 'Admins',
+        icon: UserCog,
+        tone: 'info',
+    },
+    {
+        email: 'demo.subadmin.studentlife@example.test',
+        password: PROD_DEMO_PASSWORD,
+        label: 'Mariam Sheikh',
+        roleHint: 'Sub Admin - Student Life',
+        group: 'Admins',
+        icon: UserCog,
+        tone: 'info',
+    },
+    {
+        email: 'demo.finance.manager.01@example.test',
+        password: PROD_DEMO_PASSWORD,
+        label: 'Omar Siddiqui',
+        roleHint: 'Finance Manager',
+        group: 'Finance',
+        icon: WalletCards,
+        tone: 'warning',
+    },
+    {
+        email: 'demo.finance.manager.02@example.test',
+        password: PROD_DEMO_PASSWORD,
+        label: 'Nadia Iqbal',
+        roleHint: 'Finance Manager',
+        group: 'Finance',
+        icon: WalletCards,
+        tone: 'warning',
+    },
+    ...[
+        ['demo.manager.academics@example.test', 'Dr. Sara Malik', 'Academic Manager'],
+        ['demo.manager.programs@example.test', 'Bilal Ahmed', 'Programs Manager'],
+    ].map(([email, label, roleHint]) => ({
+        email,
+        password: PROD_DEMO_PASSWORD,
+        label,
+        roleHint,
+        group: 'Managers',
+        icon: BriefcaseBusiness,
+        tone: 'info' as const,
+    })),
+    ...[
+        ['demo.teacher.asad.khan@example.test', 'Asad Khan', 'Algorithms'],
+        ['demo.teacher.fatima.noor@example.test', 'Fatima Noor', 'Web Engineering'],
+        ['demo.teacher.zubair.ali@example.test', 'Zubair Ali', 'Biology'],
+        ['demo.teacher.sana.javed@example.test', 'Sana Javed', 'Physics'],
+        ['demo.teacher.hamza.farooq@example.test', 'Hamza Farooq', 'Accounting'],
+        ['demo.teacher.laiba.saeed@example.test', 'Laiba Saeed', 'Academic Writing'],
+        ['demo.teacher.daniyal.mir@example.test', 'Daniyal Mir', 'Project Studio'],
+        ['demo.teacher.mehwish.raza@example.test', 'Mehwish Raza', 'Student Research'],
+    ].map(([email, label, subject]) => ({
+        email,
+        password: PROD_DEMO_PASSWORD,
+        label,
+        roleHint: `Teacher - ${subject}`,
+        group: 'Teachers',
+        icon: UserCog,
+        tone: 'success' as const,
+    })),
+    ...[
+        ['demo.guardian.01@example.test', 'Khalid Hussain'],
+        ['demo.guardian.02@example.test', 'Samina Tariq'],
+        ['demo.guardian.03@example.test', 'Rashid Mehmood'],
+        ['demo.guardian.04@example.test', 'Amina Yusuf'],
+        ['demo.guardian.05@example.test', 'Farhan Akram'],
+        ['demo.guardian.06@example.test', 'Sadia Imran'],
+        ['demo.guardian.07@example.test', 'Jawad Raza'],
+        ['demo.guardian.08@example.test', 'Noreen Shah'],
+        ['demo.guardian.09@example.test', 'Tahir Abbas'],
+        ['demo.guardian.10@example.test', 'Uzma Farid'],
+        ['demo.guardian.11@example.test', 'Imran Baig'],
+        ['demo.guardian.12@example.test', 'Rabia Nadeem'],
+    ].map(([email, label]) => ({
+        email,
+        password: PROD_DEMO_PASSWORD,
+        label,
+        roleHint: 'Guardian',
+        group: 'Guardians',
+        icon: Users,
+        tone: 'neutral' as const,
+    })),
+    ...[
+        'Ali Raza',
+        'Zoya Khan',
+        'Usman Tariq',
+        'Hina Saleem',
+        'Dua Fatima',
+        'Rayyan Ali',
+        'Musa Ahmed',
+        'Areeba Noor',
+        'Ahmed Bilal',
+        'Maryam Iqbal',
+        'Saad Qureshi',
+        'Eman Rauf',
+        'Taha Malik',
+        'Noor Fatima',
+        'Ibrahim Shah',
+        'Maham Javed',
+        'Haris Nadeem',
+        'Ayesha Mir',
+        'Yusuf Rehman',
+        'Anaya Sheikh',
+        'Danish Aslam',
+        'Saira Amin',
+        'Arham Zafar',
+        'Kinza Rafiq',
+    ].map((label, index) => {
+        const serial = String(index + 1).padStart(3, '0');
+        const grade = index < 8 ? 'Grade 8' : index < 16 ? 'Grade 9' : 'Grade 10';
+        return {
+            email: `demo.student.${serial}@example.test`,
+            password: PROD_DEMO_PASSWORD,
+            label,
+            roleHint: `Student - ${grade}`,
+            group: 'Students',
+            icon: GraduationCap,
+            tone: 'success' as const,
+        };
+    }),
+];
+
 const toneClasses: Record<TestAccount['tone'], { icon: string; strip: string; badge: 'primary' | 'info' | 'success' | 'warning' | 'neutral' }> = {
     primary: { icon: 'border-primary/20 bg-primary/10 text-primary', strip: 'bg-primary', badge: 'primary' },
     info: { icon: 'border-info/20 bg-info/10 text-info', strip: 'bg-info', badge: 'info' },
@@ -116,14 +255,28 @@ const toneClasses: Record<TestAccount['tone'], { icon: string; strip: string; ba
     neutral: { icon: 'border-border bg-muted/50 text-muted-foreground', strip: 'bg-muted-foreground', badge: 'neutral' },
 };
 
-const groups: TestAccount['group'][] = ['Organization Users', 'System Users'];
+const accountSets = {
+    local: {
+        label: 'Local',
+        description: 'Local development accounts',
+        accounts: localTestAccounts,
+    },
+    prod: {
+        label: 'Prod Demo',
+        description: 'Seeded demo organization accounts',
+        accounts: prodTestAccounts,
+    },
+};
 
 export default function TestLoginPage() {
     const router = useRouter();
     const { login } = useAuth();
     const { dispatch } = useGlobal();
+    const [accountSet, setAccountSet] = useState<keyof typeof accountSets>('local');
     const [activeEmail, setActiveEmail] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const selectedSet = accountSets[accountSet];
+    const groups = Array.from(new Set(selectedSet.accounts.map((account) => account.group)));
 
     const handleLogin = async (account: TestAccount) => {
         if (activeEmail) return;
@@ -175,12 +328,36 @@ export default function TestLoginPage() {
                             <div className="flex flex-wrap items-center gap-2">
                                 <h1 className="text-2xl font-black tracking-tight text-foreground">Test Login</h1>
                                 <Badge variant="warning" size="sm">Manual path</Badge>
+                                <Badge variant="neutral" size="sm">{selectedSet.description}</Badge>
                             </div>
                             <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-muted-foreground">
                                 One-click test accounts for QA. This page is intentionally hidden from navigation.
                             </p>
                         </div>
-                        <Badge variant="neutral" size="sm">{testAccounts.length} accounts</Badge>
+                        <div className="flex flex-col items-start gap-2 sm:items-end">
+                            <div className="inline-flex rounded-lg border border-border bg-background p-1">
+                                {(Object.keys(accountSets) as Array<keyof typeof accountSets>).map((key) => (
+                                    <button
+                                        key={key}
+                                        type="button"
+                                        onClick={() => {
+                                            setAccountSet(key);
+                                            setError(null);
+                                        }}
+                                        className={cn(
+                                            'rounded-md px-3 py-1.5 text-xs font-black transition-colors',
+                                            accountSet === key
+                                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                                        )}
+                                        aria-pressed={accountSet === key}
+                                    >
+                                        {accountSets[key].label}
+                                    </button>
+                                ))}
+                            </div>
+                            <Badge variant="neutral" size="sm">{selectedSet.accounts.length} accounts</Badge>
+                        </div>
                     </div>
                     {error && (
                         <div className="mt-4 rounded-md border border-danger/25 bg-danger/10 px-3 py-2 text-sm font-bold text-danger">
@@ -194,12 +371,12 @@ export default function TestLoginPage() {
                         <div className="flex items-center justify-between">
                             <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground">{group}</h2>
                             <Badge variant="neutral" size="sm">
-                                {testAccounts.filter((account) => account.group === group).length}
+                                {selectedSet.accounts.filter((account) => account.group === group).length}
                             </Badge>
                         </div>
 
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                            {testAccounts.filter((account) => account.group === group).map((account) => {
+                            {selectedSet.accounts.filter((account) => account.group === group).map((account) => {
                                 const Icon = account.icon;
                                 const tone = toneClasses[account.tone];
                                 const isActive = activeEmail === account.email;

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DocArticle } from '../_components/DocArticle';
+import { DocsShell } from '../_components/DocsShell';
 import { docsPages, getDocPage } from '../_data/docs';
 
 type DocsSlugPageProps = {
@@ -35,5 +36,9 @@ export default async function DocsSlugPage({ params }: DocsSlugPageProps) {
     notFound();
   }
 
-  return <DocArticle page={page} />;
+  return (
+    <DocsShell activeSlug={slug}>
+      <DocArticle page={page} />
+    </DocsShell>
+  );
 }

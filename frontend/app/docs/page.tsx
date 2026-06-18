@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { DocsIndex } from './_components/DocsIndex';
+import { DocsShell } from './_components/DocsShell';
 
 export const metadata: Metadata = {
   title: 'Documentation',
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function DocsPage() {
-  return <DocsIndex />;
+  return (
+    <DocsShell>
+      <DocsIndex />
+    </DocsShell>
+  );
 }

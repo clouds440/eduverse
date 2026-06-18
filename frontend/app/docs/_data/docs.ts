@@ -250,7 +250,7 @@ export const docsPages: DocPage[] = [
     description: 'Manage student profiles, enrollment, cohorts, academic history, and portal visibility.',
     category: 'People',
     tags: ['students', 'enrollment', 'cohort', 'portal'],
-    related: ['courses-sections', 'academic-cycles', 'cohorts-promotions', 'gradebook', 'fees', 'transcripts'],
+    related: ['courses-sections', 'academic-cycles', 'cohorts-promotions', 'gradebook', 'fees', 'transcripts', 'csv-imports'],
     sections: [
       {
         id: 'student-records',
@@ -317,7 +317,7 @@ export const docsPages: DocPage[] = [
     description: 'Assign teachers to sections, schedules, assessments, and grading workflows.',
     category: 'People',
     tags: ['teachers', 'sections', 'grading', 'notifications'],
-    related: ['courses-sections', 'assessments-grading', 'timetable'],
+    related: ['courses-sections', 'assessments-grading', 'timetable', 'csv-imports'],
     sections: [
       {
         id: 'teacher-assignments',
@@ -362,7 +362,7 @@ export const docsPages: DocPage[] = [
     description: 'Understand course credit hours, section creation, safe colors, enrollments, teachers, and materials.',
     category: 'Academics',
     tags: ['courses', 'sections', 'credit hours', 'materials'],
-    related: ['teachers', 'materials', 'gpa-policies', 'gradebook'],
+    related: ['teachers', 'materials', 'gpa-policies', 'gradebook', 'csv-imports'],
     sections: [
       {
         id: 'core-academic-terms',
@@ -744,7 +744,7 @@ export const docsPages: DocPage[] = [
     description: 'Manage terms, cohorts, active cycles, copy-forward behavior, and GPA policy selection.',
     category: 'Academic Settings',
     tags: ['academic cycle', 'cohort', 'promotion', 'copy-forward'],
-    related: ['gpa-policies', 'students', 'cohorts-promotions', 'transcripts'],
+    related: ['gpa-policies', 'students', 'cohorts-promotions', 'transcripts', 'academic-calendar'],
     sections: [
       {
         id: 'cycle-purpose',
@@ -877,6 +877,98 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'academic-calendar',
+    title: 'Academic Calendar',
+    description: 'Create holidays, events, closures, and exam breaks that appear over timetable and attendance planning.',
+    category: 'Academics',
+    tags: ['academic calendar', 'holidays', 'events', 'closures', 'timetable'],
+    related: ['academic-cycles', 'timetable', 'attendance', 'announcements'],
+    sections: [
+      {
+        id: 'calendar-purpose',
+        title: 'Calendar purpose',
+        tags: ['holidays', 'events', 'planning'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The academic calendar records school-wide or department-specific dates that affect normal teaching activity. Use it for holidays, exam breaks, events, closures, and other timetable overlays.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Create calendar items before staff build or review timetable plans for that period.',
+              'Use clear titles because they appear in calendar and timetable context.',
+              'Deactivate old items instead of deleting them when they explain historical timetable decisions.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'calendar-item-setup',
+        title: 'Calendar item setup',
+        tags: ['create item', 'date range', 'time'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Open the academic calendar area and choose New Item.',
+              'Choose the item type: holiday, exam break, event, or closure.',
+              'Select the match mode that fits the date pattern.',
+              'Enter the start date and end date. For single-day items, the end date follows the start date.',
+              'Choose full day or enter start and end times for partial-day events.',
+              'Save the item, then review timetable and attendance screens that fall inside the date range.',
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Match mode', 'Use it when'],
+            rows: [
+              ['Single day', 'The item happens on one date only.'],
+              ['Date range', 'The item covers a continuous start-to-end range.'],
+              ['Selected weekdays in range', 'The item repeats only on chosen weekdays during the range.'],
+              ['Every day in range', 'Every date in the range should be treated as covered.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'calendar-scope',
+        title: 'Department scope',
+        tags: ['department', 'scope'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Calendar items can apply to all departments or only selected departments. Department scope helps a school record events such as a science lab closure without affecting unrelated classes.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Use all departments for school-wide holidays, full campus closures, and major events.',
+              'Use selected departments for department trips, lab closures, exam windows, or program-specific events.',
+              'Check department assignment on courses, students, and rooms when a calendar item seems missing from a filtered view.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'calendar-announcements',
+        title: 'Announcements',
+        tags: ['announcement', 'communication'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'When a calendar item needs communication, create an announcement from the calendar form. This keeps the schedule record and the user-facing notice aligned.',
+          },
+          {
+            type: 'note',
+            title: 'Review before announcing',
+            text: 'Confirm the date range, department scope, and priority before sending an announcement. Calendar edits do not always mean every recipient has read the updated notice.',
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'timetable',
     title: 'Timetable and Schedules',
     description: 'Create teacher-owned schedules and understand student and teacher timetable views.',
@@ -974,7 +1066,7 @@ export const docsPages: DocPage[] = [
     description: 'Record attendance against scheduled academic activity and review student attendance summaries.',
     category: 'Academics',
     tags: ['attendance', 'schedule', 'present', 'absent'],
-    related: ['timetable', 'students', 'teachers'],
+    related: ['timetable', 'students', 'teachers', 'academic-calendar', 'csv-imports'],
     sections: [
       {
         id: 'attendance-workflow',
@@ -2887,12 +2979,132 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'csv-imports',
+    title: 'CSV Imports',
+    description: 'Import people, academic setup, rooms, and monthly attendance with templates, validation, and error reports.',
+    category: 'Workflows',
+    tags: ['csv', 'imports', 'templates', 'bulk upload'],
+    related: ['students', 'teachers', 'courses-sections', 'departments-buildings-rooms', 'attendance'],
+    sections: [
+      {
+        id: 'import-flow',
+        title: 'Import flow',
+        tags: ['template', 'validate', 'confirm'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Open the module that supports CSV import and choose Import CSV.',
+              'Download the template from the import modal. Keep the header row exactly as provided.',
+              'Fill one record per row. Leave optional fields blank when they do not apply.',
+              'Validate the CSV before importing. Validation checks headers, required fields, duplicates, formats, and linked records.',
+              'Review valid and invalid row counts. Download the error CSV when rows need correction.',
+              'Import valid rows, then refresh or review the module list.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Strict headers',
+            text: 'CSV headers must match the template exactly. Renaming, reordering into unknown columns, or adding unsupported columns can make validation fail.',
+          },
+        ],
+      },
+      {
+        id: 'supported-modules',
+        title: 'Supported modules',
+        tags: ['students', 'teachers', 'guardians', 'courses', 'sections', 'departments', 'buildings', 'rooms'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Module', 'Who can import', 'Required columns', 'Relationship or optional columns'],
+            rows: [
+              ['Students', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, major, gender', 'phone, fatherName, age, address, admissionDate, graduationDate, emergencyContact, bloodGroup, status, primaryDepartmentId, departmentIds'],
+              ['Teachers', 'Org Admin or Sub Admin', 'name, email, password, phone, education, designation, subject', 'department, joiningDate, emergencyContact, bloodGroup, address, status, departmentIds'],
+              ['Guardians', 'Org Admin or Sub Admin', 'name, email, password', 'phone, status, address'],
+              ['Courses', 'Org Admin or Sub Admin', 'name', 'description, creditHours, departmentId'],
+              ['Sections', 'Org Admin or Sub Admin', 'name, courseId, academicCycleId', 'room, defaultRoomId, cohortId, color'],
+              ['Departments', 'Org Admin only', 'name', 'code, description, color, isActive'],
+              ['Buildings', 'Org Admin or Sub Admin', 'name', 'code, address, description, isActive, departmentIds'],
+              ['Rooms', 'Org Admin or Sub Admin', 'buildingId, name', 'floor, type, capacity, description, isActive'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'relationship-fields',
+        title: 'Relationship fields',
+        tags: ['ids', 'linked records'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Columns ending in Id or Ids connect the imported row to records that already exist in the school workspace. Use the exact record IDs shown or exported from the relevant module.',
+          },
+          {
+            type: 'list',
+            items: [
+              'departmentIds accepts multiple department IDs separated by commas.',
+              'primaryDepartmentId, departmentId, buildingId, courseId, academicCycleId, defaultRoomId, and cohortId must belong to the same organization.',
+              'Create departments, buildings, courses, academic cycles, cohorts, and rooms before importing records that reference them.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'monthly-attendance-import',
+        title: 'Monthly attendance import',
+        tags: ['attendance', 'monthly', 'P A L E'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Monthly attendance import is available from a section attendance page. The template contains name, rollNumber, and one column for each day in the selected month.',
+          },
+          {
+            type: 'table',
+            headers: ['Column/value', 'Meaning'],
+            rows: [
+              ['name and rollNumber', 'Must match a student enrolled in the selected section.'],
+              ['P', 'Present'],
+              ['A', 'Absent'],
+              ['L', 'Late'],
+              ['E', 'Excused'],
+              ['Blank cell', 'Skipped; no attendance mark is created for that student on that date.'],
+            ],
+          },
+          {
+            type: 'list',
+            items: [
+              'Choose the year and month before downloading the attendance template.',
+              'Choose whether marks should target the first scheduled session, all scheduled sessions, or ad-hoc daily sessions.',
+              'Org Admins, Managers, and Teachers can import attendance when their role has access to the section.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'cleanup-after-errors',
+        title: 'Fixing errors',
+        tags: ['errors', 'duplicates'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Use the error CSV to find the original row number and field message.',
+              'Fix duplicate emails, registration numbers, roll numbers, department codes, building codes, or room names before validating again.',
+              'Check date formats when admissionDate, graduationDate, or joiningDate fails validation.',
+              'Use valid status values from the downloaded template examples.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'departments-buildings-rooms',
     title: 'Departments, Buildings, and Rooms',
     description: 'Set up department grouping, campus buildings, schedulable rooms, and department-scoped users.',
     category: 'Setup',
     tags: ['departments', 'buildings', 'rooms', 'setup', 'schedule rooms', 'scope'],
-    related: ['roles-permissions', 'courses-sections', 'timetable', 'school-setup-workflow'],
+    related: ['roles-permissions', 'courses-sections', 'timetable', 'school-setup-workflow', 'csv-imports'],
     sections: [
       {
         id: 'what-each-record-means',
@@ -3005,7 +3217,7 @@ export const docsPages: DocPage[] = [
 export const docsNavGroups: DocNavGroup[] = [
   { title: 'Basics', pages: ['quick-start', 'getting-started', 'roles-permissions', 'glossary', 'dashboard-insights'] },
   { title: 'Role Guides', pages: ['admin-guide', 'sub-admin-guide', 'manager-guide', 'finance-manager-guide', 'teacher-guide', 'student-guide', 'guardian-guide'] },
-  { title: 'Workflows', pages: ['school-setup-workflow', 'end-of-term-workflow'] },
+  { title: 'Workflows', pages: ['school-setup-workflow', 'end-of-term-workflow', 'csv-imports'] },
   { title: 'Setup', pages: ['departments-buildings-rooms'] },
   { title: 'Administration', pages: ['platform-admin'] },
   { title: 'People', pages: ['students', 'teachers'] },
@@ -3013,6 +3225,7 @@ export const docsNavGroups: DocNavGroup[] = [
     title: 'Academics',
     pages: [
       'academic-cycles',
+      'academic-calendar',
       'cohorts-promotions',
       'courses-sections',
       'materials',
