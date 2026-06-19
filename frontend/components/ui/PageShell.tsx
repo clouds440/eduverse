@@ -120,10 +120,22 @@ function getPageScrollElement(header: HTMLElement): HTMLElement | null {
     return null;
 }
 
-function getPageScrollState(header: HTMLElement) {
+function isPageScrollTarget(header: HTMLElement, element: HTMLElement | null) {
+    if (!element || header.contains(element)) return false;
+    const dashboardScrollContainer = header.closest<HTMLElement>('[data-dashboard-scroll-container="true"]');
+    if (dashboardScrollContainer && !dashboardScrollContainer.contains(element)) return false;
+    return hasVerticalScrollBehavior(element) && getScrollableRange(element) > 0;
+}
+
+function getPageScrollState(header: HTMLElement, preferredTarget?: HTMLElement | null) {
     const root = getPageScrollElement(header);
     let maxScrollTop = window.scrollY;
     let maxScrollRange = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+
+    if (isPageScrollTarget(header, preferredTarget || null)) {
+        maxScrollTop = Math.max(maxScrollTop, preferredTarget?.scrollTop || 0);
+        maxScrollRange = Math.max(maxScrollRange, getScrollableRange(preferredTarget as HTMLElement));
+    }
 
     if (root) {
         maxScrollTop = Math.max(maxScrollTop, root.scrollTop);
@@ -171,6 +183,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
         let frameId: number | null = null;
         let resizeObserver: ResizeObserver | null = null;
         const scrollElement = getPageScrollElement(header);
+        let activeScrollTarget: HTMLElement | null = null;
 
         const setStableScrolled = (next: boolean) => {
             isScrolledRef.current = next;
@@ -178,7 +191,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
         };
 
         const measureCompactEligibility = () => {
-            const { scrollRange } = getPageScrollState(header);
+            const { scrollRange } = getPageScrollState(header, activeScrollTarget);
             if (!isScrolledRef.current && !compactAllowedRef.current) {
                 compactAllowedRef.current = scrollRange >= PAGE_HEADER_MIN_SCROLL_RANGE;
             }
@@ -186,7 +199,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
 
         const updateScrolledState = () => {
             frameId = null;
-            const { scrollTop } = getPageScrollState(header);
+            const { scrollTop } = getPageScrollState(header, activeScrollTarget);
             setIsScrolled((current) => {
                 if (!compactAllowedRef.current) {
                     isScrolledRef.current = false;
@@ -201,7 +214,12 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
             });
         };
 
-        const scheduleUpdate = () => {
+        const scheduleUpdate = (event?: Event) => {
+            const target = event?.target;
+            if (target instanceof HTMLElement && isPageScrollTarget(header, target)) {
+                activeScrollTarget = target;
+            }
+
             if (frameId !== null) return;
             frameId = window.requestAnimationFrame(() => {
                 measureCompactEligibility();
@@ -210,6 +228,7 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
         };
 
         const resetAndMeasure = () => {
+            activeScrollTarget = null;
             compactAllowedRef.current = false;
             setStableScrolled(false);
             scheduleUpdate();

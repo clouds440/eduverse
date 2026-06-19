@@ -26,7 +26,7 @@ const {
   GpaRounding,
 } = require('@prisma/client');
 
-const DEFAULT_ORG_ID = '2161f045-349d-484c-8ecf-e97c90c67875';
+const DEFAULT_ORG_ID = '3a2886b5-3b95-4cb1-b55e-6b95ec190dd6';
 const SEED_TAG = 'demo-prod-seed-v1';
 
 loadLocalEnv();

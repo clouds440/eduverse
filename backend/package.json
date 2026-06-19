@@ -13,7 +13,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "seed:demo-org": "node scripts/seed-demo-org.js",
-    "seed:demo-org:apply": "node scripts/seed-demo-org.js --apply --orgId=2161f045-349d-484c-8ecf-e97c90c67875",
+    "seed:demo-org:apply": "node scripts/seed-demo-org.js --apply --orgId=3a2886b5-3b95-4cb1-b55e-6b95ec190dd6",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
