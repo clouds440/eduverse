@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Post,
   Body,
@@ -163,8 +164,15 @@ export class AuthController {
   @Post('reset-password')
   async resetPassword(
     @Body() dto: ResetPasswordDto,
-    @Request() req: { ip?: string; headers: { 'x-forwarded-for'?: string; 'x-real-ip'?: string; 'user-agent'?: string } },
+    @Request() req: { ip?: string; headers: { authorization?: string; cookie?: string; 'x-forwarded-for'?: string; 'x-real-ip'?: string; 'user-agent'?: string } },
   ) {
+    const currentToken = this.getAuthToken(req);
+    if (currentToken && await this.authService.validateSessionToken(currentToken)) {
+      throw new BadRequestException(
+        'You are already signed in. Log out and open the reset link again, or change your current password from Settings > Security.',
+      );
+    }
+
     return this.authService.resetPassword(dto, this.getRequestMeta(req));
   }
 

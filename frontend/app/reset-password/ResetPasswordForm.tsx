@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/Label';
 import PasswordStrength from '@/components/ui/PasswordStrength';
 import { useGlobal } from '@/context/GlobalContext';
 import { PLATFORM_NAME } from '@/lib/constants';
+import { useAuth } from '@/context/AuthContext';
 
 type ResetPasswordFormProps = {
   token: string;
@@ -19,6 +20,7 @@ type ResetPasswordFormProps = {
 
 export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const { state, dispatch } = useGlobal();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -26,6 +28,7 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const [error, setError] = useState('');
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const resetSucceeded = redirectCountdown !== null;
+  const isSignedIn = !!user;
 
   useEffect(() => {
     if (redirectCountdown === null) return;
@@ -43,7 +46,7 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (resetSucceeded) return;
+    if (resetSucceeded || isSignedIn) return;
     setError('');
     setMessage('');
 
@@ -81,10 +84,43 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-2">
               <Image src="/assets/eduverse-icon-192.png" alt="Eduverse Logo" className="object-cover" width={64} height={64} />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-3">Set New Password</h1>
-            <p className="text-muted-foreground font-medium text-sm sm:text-base">Choose a new password for your organization admin account.</p>
+            <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-3">
+              {isSignedIn ? 'You are already signed in' : 'Set New Password'}
+            </h1>
+            <p className="text-muted-foreground font-medium text-sm sm:text-base">
+              {isSignedIn
+                ? 'For account safety, reset links cannot be used while a session is active.'
+                : 'Choose a new password for your EduVerse account.'}
+            </p>
           </div>
 
+          {isSignedIn ? (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm font-semibold text-warning">
+                <p>
+                  This reset link may belong to your account or another user. Log out and open the link again to continue, or change your current password from Security settings.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-12 font-bold"
+                  onClick={logout}
+                >
+                  Log Out
+                </Button>
+                <Button
+                  type="button"
+                  className="h-12 font-bold"
+                  onClick={() => router.push('/settings?tab=security')}
+                >
+                  Security Settings
+                </Button>
+              </div>
+            </div>
+          ) : (
           <form className="space-y-6" onSubmit={handleSubmit} noValidate>
             <div className="space-y-2">
               <Label htmlFor="new-password" className="text-xs font-bold tracking-wider text-muted-foreground uppercase ml-1">New Password</Label>
@@ -138,6 +174,7 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
               Back to sign in
             </Link>
           </form>
+          )}
         </div>
 
         <div className="text-center mt-8">
