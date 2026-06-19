@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChangeEvent, FormEvent, ReactNode } from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
 import {
     AlertCircle,
     Building2,
-    Chrome,
     CheckCircle,
     ExternalLink,
     Link as LinkIcon,
@@ -41,7 +41,24 @@ import { ColorSelector } from '@/components/ui/ColorSelector';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
+
+const SETTINGS_TABS = [
+    { key: 'profile', label: 'Profile', icon: Building2 },
+    { key: 'appearance', label: 'Appearance', icon: Palette },
+    { key: 'branding', label: 'Branding', icon: School },
+    { key: 'security', label: 'Security', icon: ShieldCheck },
+] as const;
+
+type SettingsTabKey = typeof SETTINGS_TABS[number]['key'];
+
+const HASH_TAB_MAP: Record<string, SettingsTabKey> = {
+    'contact-email': 'profile',
+    'linked-accounts': 'security',
+    sessions: 'security',
+};
 
 function SettingsSection({
     icon: Icon,
@@ -77,10 +94,15 @@ function FieldError({ children }: { children?: string }) {
     return <p className="mt-1.5 text-xs font-semibold text-danger">{children}</p>;
 }
 
+function GoogleIcon({ className }: { className?: string }) {
+    return <Image src="/assets/svgs/google.svg" alt="" width={20} height={20} className={cn('h-5 w-5', className)} />;
+}
+
 export default function SettingsPage() {
     const { token, user } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { getStringParam, updateQueryParams } = useUrlQueryState();
     const { dispatch } = useGlobal();
     const { setPrimaryColor, setThemeMode, themeMode } = useTheme();
     const [loading, setLoading] = useState(false);
@@ -91,6 +113,7 @@ export default function SettingsPage() {
     const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
     const [redirecting, setRedirecting] = useState(user?.role === Role.ORG_ADMIN ? false : true);
     const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; accentColor?: string; general?: string }>({});
+    const pendingHashScrollRef = useRef<string | null>(null);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -103,6 +126,12 @@ export default function SettingsPage() {
         },
     });
     const googleAccount = linkedAccounts.find((account) => account.provider === 'google');
+    const tabParam = getStringParam('tab', 'profile') as SettingsTabKey;
+    const activeTab = SETTINGS_TABS.some((tab) => tab.key === tabParam) ? tabParam : 'profile';
+
+    const handleTabChange = (tab: SettingsTabKey) => {
+        updateQueryParams({ tab: tab === 'profile' ? undefined : tab });
+    };
 
     const fetchLinkedAccounts = useCallback(async () => {
         if (!token) return;
@@ -120,14 +149,23 @@ export default function SettingsPage() {
     }, [dispatch, token]);
 
     useEffect(() => {
-        const hash = window.location.hash;
-        if ((hash === '#sessions' || hash === '#contact-email' || hash === '#linked-accounts') && !redirecting && !loading) {
-            const element = document.getElementById(hash.slice(1));
+        if (typeof window === 'undefined' || redirecting || loading) return;
+        const hash = window.location.hash.replace('#', '') || pendingHashScrollRef.current || '';
+        const hashTab = HASH_TAB_MAP[hash];
+        if (hashTab && activeTab !== hashTab) {
+            pendingHashScrollRef.current = hash;
+            updateQueryParams({ tab: hashTab === 'profile' ? undefined : hashTab });
+            return;
+        }
+
+        if (hashTab) {
+            const element = document.getElementById(hash);
             if (element) {
                 element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                pendingHashScrollRef.current = null;
             }
         }
-    }, [redirecting, loading]);
+    }, [activeTab, redirecting, loading, updateQueryParams]);
 
     useEffect(() => {
         const linkStatus = searchParams.get('googleLink');
@@ -135,9 +173,10 @@ export default function SettingsPage() {
 
         if (linkStatus === 'success') {
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Google account linked successfully.', type: 'success' } });
+            updateQueryParams({ tab: 'security', googleLink: undefined });
             void fetchLinkedAccounts();
         }
-    }, [dispatch, fetchLinkedAccounts, searchParams]);
+    }, [dispatch, fetchLinkedAccounts, searchParams, updateQueryParams]);
 
     useEffect(() => {
         if (!token || !user) return;
@@ -349,13 +388,14 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 pb-8">
+        <div className="flex w-full flex-1 flex-col gap-6 pb-8">
             <PageHeader
                 title="Organization Settings"
                 description={<>Identity, contact, appearance, and account security. <DocsLink href="/docs/settings#organization-settings">Read settings docs</DocsLink></>}
                 icon={Settings}
+                actionsDefaultOpen
                 actions={(
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                         {orgData?.status && (
                             <Badge
                                 variant={orgData.status === 'APPROVED' ? 'success' : orgData.status === 'REJECTED' ? 'error' : 'warning'}
@@ -365,11 +405,15 @@ export default function SettingsPage() {
                                 {orgData.status.replace('_', ' ')}
                             </Badge>
                         )}
-                        {orgData?.contactEmailVerifiedAt ? (
-                            <Badge variant="success" size="md" icon={ShieldCheck}>Contact verified</Badge>
-                        ) : (
-                            <Badge variant="warning" size="md" icon={TriangleAlert}>Contact unverified</Badge>
-                        )}
+                        <Button
+                            type="submit"
+                            form="organization-settings-form"
+                            loadingId="settings-submit"
+                            className="h-10 px-4 text-xs sm:h-11 sm:px-5 sm:text-sm"
+                            icon={Save}
+                        >
+                            Save Settings
+                        </Button>
                     </div>
                 )}
             />
@@ -404,14 +448,41 @@ export default function SettingsPage() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <form id="organization-settings-form" onSubmit={handleSubmit} className="space-y-6" noValidate>
+                <nav
+                    aria-label="Settings navigation"
+                    className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-card/95 p-1 shadow-sm scrollbar-none"
+                >
+                    {SETTINGS_TABS.map(({ key, label, icon: Icon }) => {
+                        const isActive = activeTab === key;
+                        return (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => handleTabChange(key)}
+                                className={cn(
+                                    'flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-32',
+                                    isActive
+                                        ? 'bg-background text-foreground shadow-xs'
+                                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                                )}
+                                aria-current={isActive ? 'page' : undefined}
+                            >
+                                <Icon className="h-4 w-4" />
+                                {label}
+                            </button>
+                        );
+                    })}
+                </nav>
+
+                <div className="grid gap-6">
                     <div className="space-y-6">
-                        <SettingsSection
-                            icon={Building2}
-                            title="Organization Profile"
-                            description={<>These details identify the organization across dashboards and records. <DocsLink href="/docs/settings#organization-profile">Profile details</DocsLink></>}
-                        >
+                        {activeTab === 'profile' && (
+                            <SettingsSection
+                                icon={Building2}
+                                title="Organization Profile"
+                                description={<>These details identify the organization across dashboards and records. <DocsLink href="/docs/settings#organization-profile">Profile details</DocsLink></>}
+                            >
                             <div className="grid gap-5 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label htmlFor="settings-name" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Organization Name</Label>
@@ -481,13 +552,15 @@ export default function SettingsPage() {
                                     <FieldError>{formErrors.phone}</FieldError>
                                 </div>
                             </div>
-                        </SettingsSection>
+                            </SettingsSection>
+                        )}
 
-                        <SettingsSection
-                            icon={Palette}
-                            title="Appearance"
-                            description={<>Choose the primary accent and preferred theme for this workspace. <DocsLink href="/docs/settings#appearance-theme">Appearance details</DocsLink></>}
-                        >
+                        {activeTab === 'appearance' && (
+                            <SettingsSection
+                                icon={Palette}
+                                title="Appearance"
+                                description={<>Choose the primary accent and preferred theme for this workspace. <DocsLink href="/docs/settings#appearance-theme">Appearance details</DocsLink></>}
+                            >
                             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.65fr)]">
                                 <div className="space-y-3">
                                     <Label htmlFor="settings-primary-color" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Primary Accent Color</Label>
@@ -526,15 +599,20 @@ export default function SettingsPage() {
                                     </div>
                                 </div>
                             </div>
-                        </SettingsSection>
+                            </SettingsSection>
+                        )}
                     </div>
 
-                    <aside className="space-y-6 xl:sticky xl:top-4">
-                        <SettingsSection
-                            icon={School}
-                            title="Logo"
-                            description={<>Upload a square organization mark. <DocsLink href="/docs/settings#branding-logo">Logo details</DocsLink></>}
-                        >
+                    <aside className={cn(
+                        'space-y-6',
+                        activeTab !== 'branding' && activeTab !== 'security' ? 'hidden' : '',
+                    )}>
+                        {activeTab === 'branding' && (
+                            <SettingsSection
+                                icon={School}
+                                title="Logo"
+                                description={<>Upload a square organization mark. <DocsLink href="/docs/settings#branding-logo">Logo details</DocsLink></>}
+                            >
                             <div className="flex flex-col items-center gap-3">
                                 <PhotoUploadPicker
                                     currentImageUrl={orgData?.logoUrl}
@@ -551,9 +629,11 @@ export default function SettingsPage() {
                                     </p>
                                 )}
                             </div>
-                        </SettingsSection>
+                            </SettingsSection>
+                        )}
 
-                        <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm sm:p-5">
+                        {activeTab === 'security' && (
+                            <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm sm:p-5">
                             <div className="flex items-start gap-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
                                     <ShieldCheck className="h-5 w-5" />
@@ -586,10 +666,11 @@ export default function SettingsPage() {
                                     </span>
                                 </div>
                             </Link>
+                            </section>
+                        )}
 
-                        </section>
-
-                        <section id="linked-accounts" className="scroll-mt-24 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm sm:p-5">
+                        {activeTab === 'security' && (
+                            <section id="linked-accounts" className="scroll-mt-24 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm sm:p-5">
                             <div className="flex items-start gap-3">
                                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
                                     <LinkIcon className="h-5 w-5" />
@@ -605,7 +686,7 @@ export default function SettingsPage() {
                             <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-3">
                                 <div className="flex items-start gap-3">
                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card text-foreground">
-                                        <Chrome className="h-5 w-5" />
+                                        <Image src="/assets/svgs/google.svg" alt="" width={24} height={24} className="h-6 w-6" />
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
@@ -648,7 +729,7 @@ export default function SettingsPage() {
                                         <Button
                                             type="button"
                                             variant="secondary"
-                                            icon={Chrome}
+                                            icon={GoogleIcon}
                                             onClick={handleStartGoogleLink}
                                             disabled={linkedAccountsLoading}
                                             className="w-full text-xs"
@@ -660,7 +741,8 @@ export default function SettingsPage() {
                                     )}
                                 </div>
                             </div>
-                        </section>
+                            </section>
+                        )}
                     </aside>
                 </div>
 
@@ -670,28 +752,13 @@ export default function SettingsPage() {
                         <span>{formErrors.general}</span>
                     </div>
                 )}
-
-                <div className="sticky bottom-3 z-20 rounded-2xl border border-border/70 bg-card/95 p-3 shadow-2xl backdrop-blur-xl">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 px-3">
-                            <p className="text-sm font-black text-foreground">Save organization settings</p>
-                            <p className="text-xs font-semibold text-muted-foreground">Logo, profile, and appearance changes are applied together.</p>
-                        </div>
-                        <Button
-                            type="submit"
-                            loadingId="settings-submit"
-                            className="h-12 w-full px-6 text-sm sm:w-auto"
-                            icon={Save}
-                        >
-                            Save Settings
-                        </Button>
-                    </div>
-                </div>
             </form>
 
-            <div id="sessions" className="scroll-mt-24">
-                <SessionManagement userId={user?.id} />
-            </div>
+            {activeTab === 'security' && (
+                <div id="sessions" className="scroll-mt-24">
+                    <SessionManagement userId={user?.id} />
+                </div>
+            )}
         </div>
     );
 }

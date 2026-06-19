@@ -32,6 +32,22 @@ export type DocNavGroup = {
   pages: string[];
 };
 
+export type DocsSearchEntry = {
+  href: string;
+  pageTitle: string;
+  sectionTitle: string;
+  parentTitle?: string;
+  category: string;
+  tags: string[];
+  pageTags: string[];
+  sectionTags: string[];
+  titleText: string;
+  tagText: string;
+  categoryText: string;
+  bodyText: string;
+  fallbackSnippet: string;
+};
+
 // Phase 6 style note: public docs should stay plain-language and user-facing.
 // Keep internal field names, service names, DTOs, and database details in the TDD.
 export const docsPages: DocPage[] = [
@@ -3363,18 +3379,21 @@ export function flattenDocSections(page: DocPage) {
   return entries;
 }
 
-export function buildDocsSearchEntries() {
+function getBlockSearchText(block: DocBlock): string[] {
+  if (block.type === 'paragraph') return [block.text];
+  if (block.type === 'note') return [block.title, block.text];
+  if (block.type === 'tip') return [block.title, block.text];
+  if (block.type === 'table') return [...block.headers, ...block.rows.flat()];
+  if (block.type === 'flow') return [block.title, ...block.steps].filter(Boolean) as string[];
+  return block.items;
+}
+
+export function buildDocsSearchEntries(): DocsSearchEntry[] {
   return docsPages.flatMap((page) =>
     flattenDocSections(page).map(({ section, parentTitle }) => {
-      const blockText = section.blocks.flatMap((block) => {
-        if (block.type === 'paragraph') return [block.text];
-        if (block.type === 'note') return [block.title, block.text];
-        if (block.type === 'tip') return [block.title, block.text];
-        if (block.type === 'table') return [...block.headers, ...block.rows.flat()];
-        if (block.type === 'flow') return [block.title, ...block.steps].filter(Boolean);
-        return block.items;
-      });
-      const snippet = section.summary ?? blockText.find((text) => text && text.length > 32) ?? page.description;
+      const blockText = section.blocks.flatMap(getBlockSearchText);
+      const sectionTags = section.tags ?? [];
+      const fallbackSnippet = section.summary ?? blockText.find((text) => text && text.length > 32) ?? page.description;
 
       return {
         href: `/docs/${page.slug}#${section.id}`,
@@ -3382,20 +3401,20 @@ export function buildDocsSearchEntries() {
         sectionTitle: section.title,
         parentTitle,
         category: page.category,
-        tags: [...page.tags, ...(section.tags ?? [])],
-        snippet,
-        text: [
-          page.title,
-          page.description,
-          page.category,
-          ...page.tags,
+        tags: [...page.tags, ...sectionTags],
+        pageTags: page.tags,
+        sectionTags,
+        titleText: [section.title, parentTitle].filter(Boolean).join(' '),
+        tagText: sectionTags.join(' '),
+        categoryText: page.category,
+        bodyText: [
           section.title,
           section.summary,
-          ...(section.tags ?? []),
           ...blockText,
         ]
           .filter(Boolean)
           .join(' '),
+        fallbackSnippet,
       };
     }),
   );

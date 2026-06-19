@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { Mail, Lock, ArrowRight, Chrome } from 'lucide-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useGlobal } from '@/context/GlobalContext';
@@ -239,7 +239,7 @@ export default function LoginPage() {
             <Button
               type="button"
               variant="secondary"
-              icon={Chrome}
+              icon={() => <Image src='./assets/svgs/google.svg' width={20} height={20} alt="Google Icon" className="w-6 h-6" />} 
               onClick={handleGoogleLogin}
               loadingId="google-session"
               loadingText="Continuing..."
