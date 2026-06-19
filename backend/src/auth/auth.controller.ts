@@ -168,6 +168,21 @@ export class AuthController {
     return this.authService.resetPassword(dto, this.getRequestMeta(req));
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.WRITE)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post('users/:userId/password-reset-link')
+  async generateManagedUserPasswordResetLink(
+    @Param('userId') userId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.authService.generateManagedUserPasswordResetLink(
+      req.user,
+      userId,
+      this.getRequestMeta(req),
+    );
+  }
+
   // Protected Route
   @UseGuards(JwtAuthGuard)
   @Get('profile')

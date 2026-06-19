@@ -26,6 +26,7 @@ import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
+import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 
 interface StudentParams {
     page: number;
@@ -66,6 +67,7 @@ export default function StudentsPage() {
     const canManageStudents = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const canViewStudentDetails = canManageStudents || user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
     const routeBase = pathname.startsWith('/users/students') ? '/users/students' : '/students';
+    const { generatePasswordResetLink, generatingResetUserId } = usePasswordResetLinkAction(token);
 
     // URL State
     const page = getNumberParam('page', 1);
@@ -297,6 +299,12 @@ export default function StudentsPage() {
                                 }
                             ] : []
                         ) : [
+                            ...(canManageStudents ? [{
+                                variant: 'passwordReset' as const,
+                                title: 'Copy Reset Link',
+                                loading: generatingResetUserId === row.user.id,
+                                onClick: () => generatePasswordResetLink(row.user.id),
+                            }] : []),
                             {
                                 variant: 'mail' as const,
                                 title: 'Send Mail',

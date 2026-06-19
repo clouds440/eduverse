@@ -5,6 +5,7 @@ import { EmailService } from '../security/email.service';
 import { FilesService } from '../files/files.service';
 import { UserService } from '../users/user.service';
 import { OrgService } from './org.service';
+import { ConfigService } from '@nestjs/config';
 
 type MockPrismaService = {
   organization: {
@@ -21,6 +22,7 @@ describe('OrgService updateSettings', () => {
   let prisma: MockPrismaService;
   let authService: { issueContactEmailVerification: jest.Mock };
   let emailService: { send: jest.Mock };
+  let configService: { getOrThrow: jest.Mock };
 
   beforeEach(() => {
     prisma = {
@@ -41,12 +43,20 @@ describe('OrgService updateSettings', () => {
       send: jest.fn().mockResolvedValue(undefined),
     };
 
+    configService = {
+      getOrThrow: jest.fn((key: string) => {
+        if (key === 'FRONTEND_URL') return 'https://app.test';
+        throw new Error(`Missing config ${key}`);
+      }),
+    };
+
     service = new OrgService(
       {} as FilesService,
       prisma as unknown as PrismaService,
       {} as UserService,
       authService as unknown as AuthService,
       emailService as unknown as EmailService,
+      configService as unknown as ConfigService,
     );
   });
 
@@ -108,6 +118,7 @@ describe('OrgService updateSettings', () => {
     expect(emailService.send).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'old@school.test',
+        html: expect.stringContaining('href="https://app.test/contact"'),
       }),
     );
     expect(prisma.user.findFirst).toHaveBeenCalledWith({

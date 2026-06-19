@@ -404,6 +404,14 @@ export interface MessageResponse {
     message: string;
 }
 
+export interface PasswordResetLinkResponse {
+    resetUrl: string;
+    expiresAt: string;
+    emailSent: boolean;
+    message?: string;
+    warning?: string;
+}
+
 export interface AuditLogItem {
     id: string;
     action: string;

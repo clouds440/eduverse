@@ -19,7 +19,7 @@ import type {
     Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest,
-    LinkedAccount
+    LinkedAccount, PasswordResetLinkResponse
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -286,6 +286,8 @@ export const api = {
             request<MessageResponse>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
         resetPassword: (token: string, password: string) =>
             request<MessageResponse>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+        generatePasswordResetLink: (userId: string, token: string) =>
+            request<PasswordResetLinkResponse>(`/auth/users/${userId}/password-reset-link`, { method: 'POST', token }),
         resendContactEmailVerification: (token: string) =>
             request<MessageResponse>('/auth/contact-email/resend-verification', { method: 'POST', token }),
         verifyContactEmail: (code: string, token: string) =>

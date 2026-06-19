@@ -15,6 +15,7 @@ type MockPrismaService = {
     update: jest.Mock;
   };
   user: {
+    findFirst: jest.Mock;
     findMany: jest.Mock;
   };
   passwordResetToken: {
@@ -66,6 +67,7 @@ describe('AuthService forgotPassword', () => {
         update: jest.fn().mockResolvedValue({ id: 'org-1' }),
       },
       user: {
+        findFirst: jest.fn(),
         findMany: jest.fn(),
       },
       passwordResetToken: {
@@ -263,6 +265,105 @@ describe('AuthService forgotPassword', () => {
     expect(sentEmail.text).toContain(
       'If this mailbox is used for multiple EduVerse organizations',
     );
+  });
+
+  it('generates a reset link for a managed user and emails it', async () => {
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'teacher-user-1',
+      email: 'teacher@school.test',
+      name: 'Teacher User',
+      role: Role.TEACHER,
+      organizationId: 'org-1',
+      organization: {
+        id: 'org-1',
+        name: 'Test School',
+        logoUrl: '/uploads/org-1/logo.png',
+      },
+    });
+
+    const response = await service.generateManagedUserPasswordResetLink(
+      { id: 'admin-1', role: Role.ORG_ADMIN, organizationId: 'org-1' },
+      'teacher-user-1',
+      { ip: '127.0.0.7', userAgent: 'jest' },
+    );
+
+    expect(response.emailSent).toBe(true);
+    expect(response.resetUrl).toContain('https://app.test/reset-password?token=');
+    expect(prisma.passwordResetToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'teacher-user-1', usedAt: null },
+      data: { usedAt: expect.any(Date) },
+    });
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'teacher-user-1',
+        }),
+      }),
+    );
+    expect(emailService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'teacher@school.test',
+        subject: 'Your EduVerse password reset link',
+        html: expect.stringContaining('https://app.test/uploads/org-1/logo.png'),
+      }),
+    );
+  });
+
+  it('returns the reset link with a warning when managed user email delivery fails', async () => {
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'student-user-1',
+      email: 'missing-mailbox@school.test',
+      name: 'Student User',
+      role: Role.STUDENT,
+      organizationId: 'org-1',
+      organization: {
+        id: 'org-1',
+        name: 'Test School',
+        logoUrl: null,
+      },
+    });
+    emailService.send.mockRejectedValueOnce(new Error('Mailbox unavailable'));
+
+    const response = await service.generateManagedUserPasswordResetLink(
+      { id: 'admin-1', role: Role.ORG_ADMIN, organizationId: 'org-1' },
+      'student-user-1',
+      { ip: '127.0.0.8', userAgent: 'jest' },
+    );
+
+    expect(response.emailSent).toBe(false);
+    expect(response.resetUrl).toContain('https://app.test/reset-password?token=');
+    expect(response.warning).toContain('Share the copied link with the user directly');
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: 'student-user-1',
+        }),
+      }),
+    );
+  });
+
+  it('does not allow a sub-admin to generate a sub-admin reset link', async () => {
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'sub-admin-2',
+      email: 'sub-admin@school.test',
+      name: 'Sub Admin',
+      role: Role.SUB_ADMIN,
+      organizationId: 'org-1',
+      organization: {
+        id: 'org-1',
+        name: 'Test School',
+        logoUrl: null,
+      },
+    });
+
+    await expect(
+      service.generateManagedUserPasswordResetLink(
+        { id: 'sub-admin-1', role: Role.SUB_ADMIN, organizationId: 'org-1' },
+        'sub-admin-2',
+        { ip: '127.0.0.9', userAgent: 'jest' },
+      ),
+    ).rejects.toThrow('Only the main organization admin can reset sub-admin passwords.');
+    expect(prisma.passwordResetToken.create).not.toHaveBeenCalled();
   });
 });
 

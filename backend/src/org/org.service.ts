@@ -13,6 +13,7 @@ import { FilesService } from '../files/files.service';
 import { UserService } from '../users/user.service';
 import { AuthService } from '../auth/auth.service';
 import { EmailService } from '../security/email.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class OrgService {
@@ -24,6 +25,7 @@ export class OrgService {
     private readonly userService: UserService,
     private readonly authService: AuthService,
     private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   private async getOrganizationById(orgId: string) {
@@ -128,6 +130,9 @@ export class OrgService {
     newContactEmail: string,
   ) {
     try {
+      const contactUrl = `${this.configService
+        .getOrThrow<string>('FRONTEND_URL')
+        .replace(/\/+$/, '')}/contact`;
       await this.emailService.send({
         to: oldContactEmail,
         subject: 'Your EduVerse contact email was changed',
@@ -139,7 +144,7 @@ export class OrgService {
         html: `
           <p>The verified contact email for <strong>${this.escapeHtml(organizationName)}</strong> was changed to <strong>${this.escapeHtml(newContactEmail)}</strong>.</p>
           <p>Password reset links will not be sent to the new contact email until it is verified.</p>
-          <p>If you did not make this change, please contact EduVerse support immediately.</p>
+          <p>If you did not make this change, please <a href="${this.escapeHtml(contactUrl)}" style="color:#4f46e5;font-weight:700;">contact</a> EduVerse support immediately.</p>
         `,
       });
     } catch (error) {

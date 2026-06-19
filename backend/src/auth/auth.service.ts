@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
@@ -1166,9 +1168,7 @@ export class AuthService {
     if (
       !resetToken ||
       resetToken.usedAt ||
-      resetToken.expiresAt <= new Date() ||
-      resetToken.user.role !== Role.ORG_ADMIN ||
-      !resetToken.user.organization?.contactEmailVerifiedAt
+      resetToken.expiresAt <= new Date()
     ) {
       await this.writeAuditLog('password_reset_failed', {
         ...meta,
@@ -1209,12 +1209,135 @@ export class AuthService {
     await this.notificationsService.createNotification({
       userId: resetToken.userId,
       title: 'Password reset completed',
-      body: 'Your organization admin password was reset. All active sessions were signed out.',
+      body: 'Your EduVerse password was reset. All active sessions were signed out.',
       type: 'SECURITY',
       actionUrl: '/settings#sessions',
     });
 
     return { message: 'Password reset successful. Please sign in with your new password.' };
+  }
+
+  async generateManagedUserPasswordResetLink(
+    actor: { id: string; role?: string; organizationId?: string | null },
+    targetUserId: string,
+    meta: RequestMetadata,
+  ) {
+    if (!actor.organizationId) {
+      throw new ForbiddenException('Organization context is required.');
+    }
+
+    if (actor.role !== Role.ORG_ADMIN && actor.role !== Role.SUB_ADMIN) {
+      throw new ForbiddenException('You are not allowed to generate password reset links.');
+    }
+
+    const targetUser = await this.prisma.user.findFirst({
+      where: {
+        id: targetUserId,
+        organizationId: actor.organizationId,
+      },
+      include: { organization: true },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('User not found.');
+    }
+
+    const targetRole = targetUser.role as Role;
+    const resettableRoles = new Set<Role>([
+      Role.TEACHER,
+      Role.ORG_MANAGER,
+      Role.STUDENT,
+      Role.FINANCE_MANAGER,
+      Role.SUB_ADMIN,
+    ]);
+
+    if (!resettableRoles.has(targetRole)) {
+      throw new ForbiddenException('Password reset links can only be generated for organization users.');
+    }
+
+    if (targetRole === Role.SUB_ADMIN && actor.role !== Role.ORG_ADMIN) {
+      throw new ForbiddenException('Only the main organization admin can reset sub-admin passwords.');
+    }
+
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId: targetUser.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = this.hashSecret(rawToken);
+    const expiresAt = new Date(Date.now() + 30 * 60_000);
+    const appBaseUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/+$/, '');
+    const resetUrl = `${appBaseUrl}/reset-password?token=${rawToken}`;
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: targetUser.id,
+        tokenHash,
+        expiresAt,
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+      },
+    });
+
+    let emailSent = false;
+    let emailWarning: string | undefined;
+    const email = this.buildManagedPasswordResetEmail({
+      appBaseUrl,
+      resetUrl,
+      expiresAt,
+      userName: targetUser.name || targetUser.email,
+      organizationName: targetUser.organization?.name || 'your organization',
+      organizationLogoUrl: this.getSafeAssetUrl(
+        targetUser.organization?.logoUrl,
+        appBaseUrl,
+      ),
+    });
+
+    try {
+      const delivery = await this.emailService.send({
+        to: targetUser.email,
+        subject: 'Your EduVerse password reset link',
+        text: email.text,
+        html: email.html,
+      });
+      emailSent = !(delivery && typeof delivery === 'object' && 'skipped' in delivery);
+      if (!emailSent) {
+        emailWarning =
+          'The reset link was copied, but EduVerse could not send email right now. Share the copied link with the user directly.';
+      }
+    } catch (error) {
+      emailWarning =
+        'The reset link was copied, but EduVerse could not deliver the email. Share the copied link with the user directly.';
+      this.logger.warn(
+        `Failed to email managed reset link to ${targetUser.email}: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      );
+    }
+
+    await this.writeAuditLog('managed_password_reset_link_generated', {
+      ...meta,
+      actorUserId: actor.id,
+      targetUserId: targetUser.id,
+      organizationId: actor.organizationId,
+      details: {
+        targetRole,
+        emailSent,
+      },
+    });
+
+    return {
+      resetUrl,
+      expiresAt,
+      emailSent,
+      message: emailSent
+        ? 'Password reset link copied. EduVerse also emailed it to the user.'
+        : emailWarning,
+      warning: emailWarning,
+    };
   }
 
   async issueContactEmailVerification(
@@ -1359,8 +1482,8 @@ export class AuthService {
         const escapedAdminEmail = this.escapeHtml(option.adminEmail);
         const escapedResetUrl = this.escapeHtml(option.resetUrl);
         const logoHtml = option.organizationLogoUrl
-          ? `<img src="${this.escapeHtml(option.organizationLogoUrl)}" width="42" height="42" alt="" style="height:42px;width:42px;border-radius:12px;object-fit:cover;border:1px solid #e5e7eb;background:#ffffff;" />`
-          : `<div style="height:42px;width:42px;border-radius:12px;background:#eef2ff;color:#4f46e5;display:inline-flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;">${this.escapeHtml(option.organizationName.charAt(0).toUpperCase() || 'E')}</div>`;
+          ? `<img src="${this.escapeHtml(option.organizationLogoUrl)}" width="42" height="42" alt="" style="height:42px;width:42px;border-radius:999px;object-fit:cover;border:1px solid #e5e7eb;background:#ffffff;" />`
+          : `<div style="height:42px;width:42px;border-radius:999px;background:#eef2ff;color:#4f46e5;display:inline-flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;">${this.escapeHtml(option.organizationName.charAt(0).toUpperCase() || 'E')}</div>`;
 
         return `
           <div style="border:1px solid #e5e7eb;border-radius:16px;background:#ffffff;padding:18px;margin-top:${index === 0 ? '0' : '14px'};">
@@ -1395,6 +1518,41 @@ export class AuthService {
           ${optionCards}
           <div style="margin-top:18px;border-radius:14px;background:#f8fafc;border:1px solid #e5e7eb;padding:14px;">
             <p style="margin:0;color:#374151;font-size:13px;line-height:1.6;"><strong>Security note:</strong> each reset link expires in 30 minutes. If this mailbox handles multiple organizations, only use the card for the account you intended to recover.</p>
+          </div>
+        `,
+      }),
+    };
+  }
+
+  private buildManagedPasswordResetEmail(input: {
+    appBaseUrl: string;
+    resetUrl: string;
+    expiresAt: Date;
+    userName: string;
+    organizationName: string;
+    organizationLogoUrl?: string | null;
+  }) {
+    const intro = `An administrator from ${input.organizationName} generated a password reset link for ${input.userName}.`;
+
+    return {
+      text: [
+        intro,
+        `Reset link: ${input.resetUrl}`,
+        'This link expires in 30 minutes.',
+        'If you did not request help with your EduVerse password, contact your organization administrator.',
+      ].join('\n\n'),
+      html: this.buildSecurityEmailHtml({
+        appBaseUrl: input.appBaseUrl,
+        eyebrow: 'Password reset',
+        title: 'Reset your EduVerse password',
+        preview: intro,
+        organizationName: input.organizationName,
+        organizationLogoUrl: input.organizationLogoUrl,
+        bodyHtml: `
+          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(intro)}</p>
+          <a href="${this.escapeHtml(input.resetUrl)}" style="display:block;text-align:center;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:800;">Reset password</a>
+          <div style="margin-top:18px;border-radius:14px;background:#f8fafc;border:1px solid #e5e7eb;padding:14px;">
+            <p style="margin:0;color:#374151;font-size:13px;line-height:1.6;"><strong>Security note:</strong> this link expires in 30 minutes and can only be used once.</p>
           </div>
         `,
       }),
@@ -1468,7 +1626,7 @@ export class AuthService {
   }) {
     const platformLogoUrl = `${input.appBaseUrl}/assets/eduverse-icon-192.png`;
     const orgLogoHtml = input.organizationLogoUrl
-      ? `<img src="${this.escapeHtml(input.organizationLogoUrl)}" width="34" height="34" alt="" style="height:34px;width:34px;border-radius:10px;object-fit:cover;border:1px solid #e5e7eb;background:#ffffff;" />`
+      ? `<img src="${this.escapeHtml(input.organizationLogoUrl)}" width="34" height="34" alt="" style="height:34px;width:34px;border-radius:999px;object-fit:cover;border:1px solid #e5e7eb;background:#ffffff;" />`
       : '';
     const orgNameHtml = input.organizationName
       ? `<span style="color:#6b7280;font-size:13px;font-weight:700;">${this.escapeHtml(input.organizationName)}</span>`
@@ -1511,15 +1669,18 @@ export class AuthService {
 
   private renderVerificationCode(code: string) {
     return `
-      <div style="display:inline-flex;gap:8px;justify-content:center;">
-        ${code
-          .split('')
-          .map(
-            (digit) =>
-              `<span style="display:inline-flex;height:48px;width:40px;align-items:center;justify-content:center;border-radius:12px;background:#111827;color:#ffffff;font-size:24px;font-weight:900;letter-spacing:0;">${this.escapeHtml(digit)}</span>`,
-          )
-          .join('')}
-      </div>
+      <table role="presentation" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;border-collapse:separate;border-spacing:8px 0;user-select:text;-webkit-user-select:text;">
+        <tr>
+          ${code
+            .split('')
+            .map(
+              (digit) =>
+                `<td style="height:48px;width:40px;border-radius:12px;background:#111827;color:#ffffff;font-family:Consolas,Menlo,monospace;font-size:24px;font-weight:900;line-height:48px;text-align:center;vertical-align:middle;user-select:text;-webkit-user-select:text;">${this.escapeHtml(digit)}</td>`,
+            )
+            .join('')}
+        </tr>
+      </table>
+      <p style="margin:10px 0 0;color:#111827;font-family:Consolas,Menlo,monospace;font-size:14px;font-weight:800;letter-spacing:.16em;user-select:text;-webkit-user-select:text;">${this.escapeHtml(code)}</p>
     `;
   }
 

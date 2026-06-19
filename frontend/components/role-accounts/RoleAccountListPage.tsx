@@ -21,6 +21,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { BrandIcon } from '@/components/ui/Brand';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 
 interface RoleAccountParams {
     page: number;
@@ -72,6 +73,7 @@ export default function RoleAccountListPage({
     const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingAccount, setDeletingAccount] = useState<User | null>(null);
+    const { generatePasswordResetLink, generatingResetUserId } = usePasswordResetLinkAction(token);
 
     const page = getNumberParam('page', 1);
     const searchTerm = getStringParam('search');
@@ -82,6 +84,7 @@ export default function RoleAccountListPage({
     const [pageSize, setPageSize] = usePersistentPageSize(pageSizeKey, 10);
 
     const hasAccess = !!user?.role && allowedRoles.includes(user.role);
+    const canGenerateResetForRole = labelSingular !== 'Sub Admin' || user?.role === Role.ORG_ADMIN;
 
     useEffect(() => {
         if (user && !hasAccess) {
@@ -194,11 +197,18 @@ export default function RoleAccountListPage({
                             title: 'Restore',
                             onClick: () => handleRestore(row.id),
                         },
-                    ] : []}
+                    ] : [
+                        ...(canGenerateResetForRole ? [{
+                            variant: 'passwordReset' as const,
+                            title: 'Copy Reset Link',
+                            loading: generatingResetUserId === row.id,
+                            onClick: () => generatePasswordResetLink(row.id),
+                        }] : []),
+                    ]}
                 />
             ),
         },
-    ], [handleRestore, isDeletedView, labelSingular, routeBase, router]);
+    ], [canGenerateResetForRole, generatePasswordResetLink, generatingResetUserId, handleRestore, isDeletedView, labelSingular, routeBase, router]);
 
     const activeFilters: ActiveFilter[] = [
         ...(isDeletedView ? [{

@@ -1,9 +1,9 @@
 import React from 'react';
-import { Pencil, Trash2, Eye, UserPen, Check, X, ShieldAlert, CheckCircle2, MessageSquareText, Send, Loader2, Lock, Users } from 'lucide-react';
+import { Pencil, Trash2, Eye, UserPen, Check, X, ShieldAlert, CheckCircle2, MessageSquareText, Send, Loader2, Lock, Users, KeyRound } from 'lucide-react';
 import { useAccess } from '@/hooks/useAccess';
 import { cn } from '@/lib/utils';
 
-export type AdminActionVariant = 'approve' | 'reject' | 'suspend' | 'unsuspend' | 'resolve' | 'reapprove' | 'editMessage' | 'mail' | 'restore' | 'pay' | 'confirm' | 'link';
+export type AdminActionVariant = 'approve' | 'reject' | 'suspend' | 'unsuspend' | 'resolve' | 'reapprove' | 'editMessage' | 'mail' | 'restore' | 'pay' | 'confirm' | 'link' | 'passwordReset';
 
 export interface AdminAction {
     variant: AdminActionVariant;
@@ -39,7 +39,8 @@ const adminActionConfig: Record<AdminActionVariant, { icon: React.ElementType, c
     restore: { icon: Check, color: 'text-success hover:bg-success/10', defaultTitle: 'Restore' },
     pay: { icon: Send, color: 'text-primary hover:bg-primary/10', defaultTitle: 'Mark as Paid' },
     confirm: { icon: CheckCircle2, color: 'text-success hover:bg-success/10', defaultTitle: 'Confirm Payment' },
-    link: { icon: Users, color: 'text-info border border-info/20 hover:bg-info/10', defaultTitle: 'Link Students' }
+    link: { icon: Users, color: 'text-info border border-info/20 hover:bg-info/10', defaultTitle: 'Link Students' },
+    passwordReset: { icon: KeyRound, color: 'text-warning border border-warning/25 hover:bg-warning/10', defaultTitle: 'Generate Reset Link' }
 };
 
 export const TableActions: React.FC<TableActionsProps> = ({

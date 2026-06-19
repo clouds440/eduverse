@@ -27,6 +27,7 @@ import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
+import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 
 interface TeacherParams {
     page: number;
@@ -68,6 +69,7 @@ export default function TeachersPage() {
     const routeBase = pathname.startsWith('/users/teachers') ? '/users/teachers' : '/teachers';
     const [pageSize, setPageSize] = usePersistentPageSize('edu-teachers-limit', 10);
     const canManageTeachers = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const { generatePasswordResetLink, generatingResetUserId } = usePasswordResetLinkAction(token);
 
     const teacherParams = useMemo<TeacherParams>(() => ({
         page,
@@ -274,6 +276,12 @@ export default function TeachersPage() {
                                 onClick: () => handleRestore(row.id)
                             }
                         ] : [
+                            ...(canManageTeachers ? [{
+                                variant: 'passwordReset' as const,
+                                title: 'Copy Reset Link',
+                                loading: generatingResetUserId === row.user.id,
+                                onClick: () => generatePasswordResetLink(row.user.id),
+                            }] : []),
                             {
                                 variant: 'mail' as const,
                                 title: 'Send Mail',
@@ -288,7 +296,7 @@ export default function TeachersPage() {
                 />
             )
         }
-    ], [isDeletedView, router, handleRestore, isManagersView]);
+    ], [canManageTeachers, generatePasswordResetLink, generatingResetUserId, isDeletedView, router, routeBase, handleRestore, isManagersView]);
 
     const activeFilters: ActiveFilter[] = [
         ...(isDeletedView ? [{
