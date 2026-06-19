@@ -1041,7 +1041,7 @@ export class AuthService {
       return { message: this.genericForgotMessage };
     }
 
-    const user = await this.prisma.user.findFirst({
+    const users = await this.prisma.user.findMany({
       where: {
         role: Role.ORG_ADMIN,
         OR: [
@@ -1055,71 +1055,102 @@ export class AuthService {
       },
       include: { organization: true },
     });
+    const requestedLoginMatches = users.filter(
+      (user) => user.email.toLowerCase() === normalizedEmail,
+    );
+    const candidateUsers =
+      requestedLoginMatches.length > 0 ? requestedLoginMatches : users;
 
     await this.writeAuditLog('password_reset_requested', {
       ...meta,
-      targetUserId: user?.id,
-      organizationId: user?.organizationId ?? undefined,
-      details: { emailHash },
+      targetUserId: candidateUsers.length === 1 ? candidateUsers[0].id : undefined,
+      organizationId:
+        candidateUsers.length === 1
+          ? candidateUsers[0].organizationId ?? undefined
+          : undefined,
+      details: { emailHash, matchCount: candidateUsers.length },
     });
 
-    const eligible =
-      user?.role === Role.ORG_ADMIN &&
-      user.organization?.contactEmailVerifiedAt &&
-      user.organization.contactEmail;
+    const eligibleUsers = candidateUsers.filter(
+      (user) =>
+        user.role === Role.ORG_ADMIN &&
+        user.organization?.contactEmailVerifiedAt &&
+        user.organization.contactEmail,
+    );
 
-    if (!eligible || !user?.organization) {
-      if (user) {
-        await this.writeAuditLog('password_reset_failed', {
-          ...meta,
-          targetUserId: user.id,
-          organizationId: user.organizationId ?? undefined,
-          details: {
-            reason:
-              user.role === Role.ORG_ADMIN
-                ? 'contact_email_unverified'
-                : 'automated_reset_not_available_for_role',
-          },
-        });
-      }
+    if (eligibleUsers.length === 0) {
+      await Promise.all(
+        candidateUsers.map((user) =>
+          this.writeAuditLog('password_reset_failed', {
+            ...meta,
+            targetUserId: user.id,
+            organizationId: user.organizationId ?? undefined,
+            details: {
+              reason:
+                user.role === Role.ORG_ADMIN
+                  ? 'contact_email_unverified'
+                  : 'automated_reset_not_available_for_role',
+            },
+          }),
+        ),
+      );
       return { message: this.genericForgotMessage };
     }
 
-    await this.prisma.passwordResetToken.updateMany({
-      where: { userId: user.id, usedAt: null },
-      data: { usedAt: new Date() },
-    });
-
-    const rawToken = randomBytes(32).toString('hex');
-    const tokenHash = this.hashSecret(rawToken);
     const expiresAt = new Date(Date.now() + 30 * 60_000);
-
-    await this.prisma.passwordResetToken.create({
-      data: {
-        userId: user.id,
-        tokenHash,
-        expiresAt,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-      },
-    });
-
     const appUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
-    const resetUrl = `${appUrl.replace(/\/+$/, '')}/reset-password?token=${rawToken}`;
+    const appBaseUrl = appUrl.replace(/\/+$/, '');
+    const resetOptions = await Promise.all(
+      eligibleUsers.map(async (user) => {
+        await this.prisma.passwordResetToken.updateMany({
+          where: { userId: user.id, usedAt: null },
+          data: { usedAt: new Date() },
+        });
+
+        const rawToken = randomBytes(32).toString('hex');
+        const tokenHash = this.hashSecret(rawToken);
+
+        await this.prisma.passwordResetToken.create({
+          data: {
+            userId: user.id,
+            tokenHash,
+            expiresAt,
+            ip: meta.ip,
+            userAgent: meta.userAgent,
+          },
+        });
+
+        return {
+          adminEmail: user.email,
+          organizationName: user.organization!.name,
+          organizationLogoUrl: this.getSafeAssetUrl(
+            user.organization!.logoUrl,
+            appBaseUrl,
+          ),
+          resetUrl: `${appBaseUrl}/reset-password?token=${rawToken}`,
+        };
+      }),
+    );
+
+    const recipient =
+      requestedLoginMatches.length > 0
+        ? eligibleUsers[0].organization!.contactEmail
+        : normalizedEmail;
+    const email = this.buildPasswordResetEmail({
+      recipient,
+      appBaseUrl,
+      options: resetOptions,
+      expiresAt,
+    });
 
     await this.emailService.send({
-      to: user.organization.contactEmail,
-      subject: 'Reset your EduVerse password',
-      text: [
-        `A password reset was requested for ${user.organization.name}.`,
-        `Open this link within 30 minutes to set a new password: ${resetUrl}`,
-        'If you did not request this, you can ignore this email.',
-      ].join('\n\n'),
-      html: `
-        <p>A password reset was requested for <strong>${this.escapeHtml(user.organization.name)}</strong>.</p>
-        <p><a href="${this.escapeHtml(resetUrl)}">Reset your password</a></p>
-        <p>This link expires in 30 minutes. If you did not request this, you can ignore this email.</p>
-      `,
+      to: recipient,
+      subject:
+        resetOptions.length > 1
+          ? 'Choose an EduVerse account to recover'
+          : 'Reset your EduVerse password',
+      text: email.text,
+      html: email.html,
     });
 
     return { message: this.genericForgotMessage };
@@ -1198,6 +1229,7 @@ export class AuthService {
         contactEmail: true,
         contactEmailVerifiedAt: true,
         lastVerificationSentAt: true,
+        logoUrl: true,
       },
     });
 
@@ -1230,10 +1262,15 @@ export class AuthService {
       },
     });
 
+    const appBaseUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/+$/, '');
     const email = this.buildContactEmailVerificationEmail({
+      appBaseUrl,
       code,
       organizationName: org.name,
       contactEmail: org.contactEmail,
+      organizationLogoUrl: this.getSafeAssetUrl(org.logoUrl, appBaseUrl),
       reason: this.getAuditReason(audit),
     });
 
@@ -1287,55 +1324,215 @@ export class AuthService {
     return typeof input.details?.reason === 'string' ? input.details.reason : null;
   }
 
+  private buildPasswordResetEmail(input: {
+    recipient: string;
+    appBaseUrl: string;
+    options: Array<{
+      adminEmail: string;
+      organizationName: string;
+      organizationLogoUrl?: string | null;
+      resetUrl: string;
+    }>;
+    expiresAt: Date;
+  }) {
+    const isMultiple = input.options.length > 1;
+    const title = isMultiple
+      ? 'Choose an account to recover'
+      : 'Reset your EduVerse password';
+    const intro = isMultiple
+      ? `We found ${input.options.length} organization admin accounts that use this recovery email. Choose the one you want to reset.`
+      : `A password reset was requested for ${input.options[0].organizationName}.`;
+
+    const optionText = input.options
+      .map((option, index) =>
+        [
+          `${index + 1}. ${option.organizationName}`,
+          `Admin login: ${option.adminEmail}`,
+          `Reset link: ${option.resetUrl}`,
+        ].join('\n'),
+      )
+      .join('\n\n');
+
+    const optionCards = input.options
+      .map((option, index) => {
+        const escapedOrgName = this.escapeHtml(option.organizationName);
+        const escapedAdminEmail = this.escapeHtml(option.adminEmail);
+        const escapedResetUrl = this.escapeHtml(option.resetUrl);
+        const logoHtml = option.organizationLogoUrl
+          ? `<img src="${this.escapeHtml(option.organizationLogoUrl)}" width="42" height="42" alt="" style="height:42px;width:42px;border-radius:12px;object-fit:cover;border:1px solid #e5e7eb;background:#ffffff;" />`
+          : `<div style="height:42px;width:42px;border-radius:12px;background:#eef2ff;color:#4f46e5;display:inline-flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;">${this.escapeHtml(option.organizationName.charAt(0).toUpperCase() || 'E')}</div>`;
+
+        return `
+          <div style="border:1px solid #e5e7eb;border-radius:16px;background:#ffffff;padding:18px;margin-top:${index === 0 ? '0' : '14px'};">
+            <div style="display:flex;gap:12px;align-items:center;">
+              ${logoHtml}
+              <div style="min-width:0;">
+                <p style="margin:0;color:#111827;font-size:16px;font-weight:800;line-height:1.35;">${escapedOrgName}</p>
+                <p style="margin:4px 0 0;color:#6b7280;font-size:13px;font-weight:600;line-height:1.4;">Admin login: ${escapedAdminEmail}</p>
+              </div>
+            </div>
+            <a href="${escapedResetUrl}" style="display:block;margin-top:16px;text-align:center;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:800;">Reset this account</a>
+          </div>
+        `;
+      })
+      .join('');
+
+    return {
+      text: [
+        title,
+        intro,
+        optionText,
+        'Each link expires in 30 minutes.',
+        'If you did not request this, ignore this email. Your password will not change.',
+      ].join('\n\n'),
+      html: this.buildSecurityEmailHtml({
+        appBaseUrl: input.appBaseUrl,
+        eyebrow: 'Password recovery',
+        title,
+        preview: intro,
+        bodyHtml: `
+          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(intro)}</p>
+          ${optionCards}
+          <div style="margin-top:18px;border-radius:14px;background:#f8fafc;border:1px solid #e5e7eb;padding:14px;">
+            <p style="margin:0;color:#374151;font-size:13px;line-height:1.6;"><strong>Security note:</strong> each reset link expires in 30 minutes. If this mailbox handles multiple organizations, only use the card for the account you intended to recover.</p>
+          </div>
+        `,
+      }),
+    };
+  }
+
   private buildContactEmailVerificationEmail(input: {
+    appBaseUrl: string;
     code: string;
     organizationName: string;
     contactEmail: string;
+    organizationLogoUrl?: string | null;
     reason: string | null;
   }) {
-    const escapedOrgName = this.escapeHtml(input.organizationName);
-    const escapedContactEmail = this.escapeHtml(input.contactEmail);
-    const escapedCode = this.escapeHtml(input.code);
-
-    if (input.reason === 'first_registration') {
-      return {
-        subject: `Welcome to EduVerse, ${input.organizationName}`,
-        text: [
-          `Welcome to EduVerse, ${input.organizationName}!`,
-          'EduVerse helps your organization manage students, teachers, courses, schedules, attendance, communication, and academic records from one secure workspace.',
-          'Before approval can continue, please verify this contact email. It will be used for password recovery, important organization notifications, and security communication.',
-          `Your verification code is ${input.code}.`,
-          'This code expires in 10 minutes.',
-        ].join('\n\n'),
-        html: `
-          <p>Welcome to <strong>EduVerse</strong>, <strong>${escapedOrgName}</strong>!</p>
-          <p>EduVerse helps your organization manage students, teachers, courses, schedules, attendance, communication, and academic records from one secure workspace.</p>
-          <p>Before approval can continue, please verify this contact email. It will be used for password recovery, important organization notifications, and security communication.</p>
-          <p style="font-size:24px;font-weight:700;letter-spacing:4px">${escapedCode}</p>
-          <p>This code expires in 10 minutes.</p>
-        `,
-      };
-    }
-
+    const isFirstRegistration = input.reason === 'first_registration';
     const intro = input.reason === 'contact_email_changed'
       ? `A new contact email was set for ${input.organizationName}.`
-      : `Please verify the contact email for ${input.organizationName}.`;
+      : isFirstRegistration
+        ? `Welcome to EduVerse, ${input.organizationName}.`
+        : `Please verify the contact email for ${input.organizationName}.`;
+    const guidance = isFirstRegistration
+      ? 'Before approval can continue, verify this contact email. It will be used for password recovery, important organization notifications, and security communication.'
+      : 'This code verifies the contact email for this organization workspace only.';
 
     return {
-      subject: `Verify ${input.organizationName}'s EduVerse contact email`,
+      subject: isFirstRegistration
+        ? `Welcome to EduVerse, ${input.organizationName}`
+        : `Verify ${input.organizationName}'s EduVerse contact email`,
       text: [
         intro,
+        guidance,
         `Contact email: ${input.contactEmail}`,
         `Verification code: ${input.code}`,
         'This code expires in 10 minutes.',
+        'If this mailbox is used for multiple EduVerse organizations, use this code only in the workspace named above.',
       ].join('\n\n'),
-      html: `
-        <p>${this.escapeHtml(intro)}</p>
-        <p>Contact email: <strong>${escapedContactEmail}</strong></p>
-        <p style="font-size:24px;font-weight:700;letter-spacing:4px">${escapedCode}</p>
-        <p>This code expires in 10 minutes.</p>
-      `,
+      html: this.buildSecurityEmailHtml({
+        appBaseUrl: input.appBaseUrl,
+        eyebrow: isFirstRegistration ? 'Welcome to EduVerse' : 'Contact email verification',
+        title: isFirstRegistration ? 'Verify your organization contact' : 'Confirm this contact email',
+        preview: `${intro} ${guidance}`,
+        organizationName: input.organizationName,
+        organizationLogoUrl: input.organizationLogoUrl,
+        bodyHtml: `
+          <p style="margin:0 0 10px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(intro)}</p>
+          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(guidance)}</p>
+          <div style="border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;padding:14px;margin-bottom:18px;">
+            <p style="margin:0;color:#6b7280;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Contact email</p>
+            <p style="margin:5px 0 0;color:#111827;font-size:14px;font-weight:800;">${this.escapeHtml(input.contactEmail)}</p>
+          </div>
+          <div style="text-align:center;margin:22px 0;">
+            <p style="margin:0 0 10px;color:#6b7280;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Verification code</p>
+            ${this.renderVerificationCode(input.code)}
+          </div>
+          <div style="border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;padding:14px;">
+            <p style="margin:0;color:#9a3412;font-size:13px;line-height:1.6;"><strong>Shared mailbox?</strong> This code verifies only ${this.escapeHtml(input.organizationName)}. It does not verify any other EduVerse organization that may use the same contact email.</p>
+          </div>
+        `,
+      }),
     };
+  }
+
+  private buildSecurityEmailHtml(input: {
+    appBaseUrl: string;
+    eyebrow: string;
+    title: string;
+    preview: string;
+    bodyHtml: string;
+    organizationName?: string;
+    organizationLogoUrl?: string | null;
+  }) {
+    const platformLogoUrl = `${input.appBaseUrl}/assets/eduverse-icon-192.png`;
+    const orgLogoHtml = input.organizationLogoUrl
+      ? `<img src="${this.escapeHtml(input.organizationLogoUrl)}" width="34" height="34" alt="" style="height:34px;width:34px;border-radius:10px;object-fit:cover;border:1px solid #e5e7eb;background:#ffffff;" />`
+      : '';
+    const orgNameHtml = input.organizationName
+      ? `<span style="color:#6b7280;font-size:13px;font-weight:700;">${this.escapeHtml(input.organizationName)}</span>`
+      : '';
+
+    return `
+      <!doctype html>
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+          <title>${this.escapeHtml(input.title)}</title>
+        </head>
+        <body style="margin:0;background:#eef2f7;padding:28px 14px;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;color:#111827;">
+          <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${this.escapeHtml(input.preview)}</div>
+          <div style="max-width:640px;margin:0 auto;">
+            <div style="text-align:center;margin-bottom:18px;">
+              <img src="${this.escapeHtml(platformLogoUrl)}" width="56" height="56" alt="EduVerse" style="height:56px;width:56px;border-radius:16px;box-shadow:0 10px 28px rgba(79,70,229,.25);" />
+            </div>
+            <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:24px;overflow:hidden;box-shadow:0 24px 70px rgba(15,23,42,.12);">
+              <div style="padding:28px 28px 20px;background:linear-gradient(135deg,#eef2ff 0%,#ffffff 58%,#ecfeff 100%);border-bottom:1px solid #e5e7eb;">
+                <p style="margin:0 0 10px;color:#4f46e5;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;">${this.escapeHtml(input.eyebrow)}</p>
+                <h1 style="margin:0;color:#111827;font-size:25px;line-height:1.2;font-weight:900;">${this.escapeHtml(input.title)}</h1>
+                ${
+                  input.organizationName
+                    ? `<div style="margin-top:16px;display:flex;align-items:center;gap:10px;">${orgLogoHtml}${orgNameHtml}</div>`
+                    : ''
+                }
+              </div>
+              <div style="padding:26px 28px 28px;">
+                ${input.bodyHtml}
+              </div>
+            </div>
+            <p style="margin:18px 0 0;text-align:center;color:#6b7280;font-size:12px;line-height:1.6;">EduVerse security email. You can safely ignore this message if you did not request it.</p>
+          </div>
+        </body>
+      </html>
+    `;
+  }
+
+  private renderVerificationCode(code: string) {
+    return `
+      <div style="display:inline-flex;gap:8px;justify-content:center;">
+        ${code
+          .split('')
+          .map(
+            (digit) =>
+              `<span style="display:inline-flex;height:48px;width:40px;align-items:center;justify-content:center;border-radius:12px;background:#111827;color:#ffffff;font-size:24px;font-weight:900;letter-spacing:0;">${this.escapeHtml(digit)}</span>`,
+          )
+          .join('')}
+      </div>
+    `;
+  }
+
+  private getSafeAssetUrl(value: string | null | undefined, appBaseUrl: string) {
+    if (!value) return null;
+    try {
+      const url = value.startsWith('/')
+        ? new URL(value, appBaseUrl)
+        : new URL(value);
+      return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+    } catch {
+      return null;
+    }
   }
 
   private escapeHtml(value: string) {

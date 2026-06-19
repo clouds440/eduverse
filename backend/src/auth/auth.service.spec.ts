@@ -15,7 +15,7 @@ type MockPrismaService = {
     update: jest.Mock;
   };
   user: {
-    findFirst: jest.Mock;
+    findMany: jest.Mock;
   };
   passwordResetToken: {
     updateMany: jest.Mock;
@@ -41,6 +41,21 @@ describe('AuthService forgotPassword', () => {
       name: 'Test School',
       contactEmail: 'recovery@school.test',
       contactEmailVerifiedAt: new Date('2026-01-01T00:00:00.000Z'),
+      logoUrl: null,
+    },
+  };
+
+  const secondVerifiedOrgAdmin = {
+    id: 'admin-2',
+    email: 'owner@academy.test',
+    role: Role.ORG_ADMIN,
+    organizationId: 'org-2',
+    organization: {
+      id: 'org-2',
+      name: 'North Academy',
+      contactEmail: 'recovery@school.test',
+      contactEmailVerifiedAt: new Date('2026-01-02T00:00:00.000Z'),
+      logoUrl: '/uploads/org-2/logo.png',
     },
   };
 
@@ -51,7 +66,7 @@ describe('AuthService forgotPassword', () => {
         update: jest.fn().mockResolvedValue({ id: 'org-1' }),
       },
       user: {
-        findFirst: jest.fn(),
+        findMany: jest.fn(),
       },
       passwordResetToken: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -84,7 +99,7 @@ describe('AuthService forgotPassword', () => {
   });
 
   it('sends reset instructions to verified contactEmail when submitted email is the login email', async () => {
-    prisma.user.findFirst.mockResolvedValue(verifiedOrgAdmin);
+    prisma.user.findMany.mockResolvedValue([verifiedOrgAdmin]);
 
     const response = await service.forgotPassword(
       { email: ' ADMIN@SCHOOL.TEST ' },
@@ -92,7 +107,7 @@ describe('AuthService forgotPassword', () => {
     );
 
     expect(response).toEqual({ message: genericForgotMessage });
-    expect(prisma.user.findFirst).toHaveBeenCalledWith(
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           role: Role.ORG_ADMIN,
@@ -102,6 +117,8 @@ describe('AuthService forgotPassword', () => {
     expect(emailService.send).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'recovery@school.test',
+        subject: 'Reset your EduVerse password',
+        html: expect.stringContaining('Test School'),
       }),
     );
     expect(prisma.passwordResetToken.create).toHaveBeenCalledWith(
@@ -114,7 +131,7 @@ describe('AuthService forgotPassword', () => {
   });
 
   it('sends reset instructions to contactEmail when submitted email is the verified contactEmail', async () => {
-    prisma.user.findFirst.mockResolvedValue(verifiedOrgAdmin);
+    prisma.user.findMany.mockResolvedValue([verifiedOrgAdmin]);
 
     const response = await service.forgotPassword(
       { email: 'recovery@school.test' },
@@ -125,18 +142,56 @@ describe('AuthService forgotPassword', () => {
     expect(emailService.send).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'recovery@school.test',
+        html: expect.stringContaining('Reset this account'),
+      }),
+    );
+  });
+
+  it('sends one recovery email with all eligible accounts when a contactEmail is shared', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      verifiedOrgAdmin,
+      secondVerifiedOrgAdmin,
+    ]);
+
+    const response = await service.forgotPassword(
+      { email: 'recovery@school.test' },
+      { ip: '127.0.0.6', userAgent: 'jest' },
+    );
+
+    expect(response).toEqual({ message: genericForgotMessage });
+    expect(emailService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'recovery@school.test',
+        subject: 'Choose an EduVerse account to recover',
+        html: expect.stringContaining('Test School'),
+        text: expect.stringContaining('North Academy'),
+      }),
+    );
+    const sentEmail = emailService.send.mock.calls[0][0];
+    expect(sentEmail.html).toContain('North Academy');
+    expect(sentEmail.html).toContain('owner@academy.test');
+    expect(sentEmail.html).toContain('https://app.test/uploads/org-2/logo.png');
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledTimes(2);
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: 'admin-1' }),
+      }),
+    );
+    expect(prisma.passwordResetToken.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: 'admin-2' }),
       }),
     );
   });
 
   it('does not send reset instructions when contactEmail is unverified', async () => {
-    prisma.user.findFirst.mockResolvedValue({
+    prisma.user.findMany.mockResolvedValue([{
       ...verifiedOrgAdmin,
       organization: {
         ...verifiedOrgAdmin.organization,
         contactEmailVerifiedAt: null,
       },
-    });
+    }]);
 
     const response = await service.forgotPassword(
       { email: 'admin@school.test' },
@@ -149,10 +204,10 @@ describe('AuthService forgotPassword', () => {
   });
 
   it('does not send reset instructions for non-admin users', async () => {
-    prisma.user.findFirst.mockResolvedValue({
+    prisma.user.findMany.mockResolvedValue([{
       ...verifiedOrgAdmin,
       role: Role.STUDENT,
-    });
+    }]);
 
     const response = await service.forgotPassword(
       { email: 'student@school.test' },
@@ -165,7 +220,7 @@ describe('AuthService forgotPassword', () => {
   });
 
   it('returns the generic response when no account matches', async () => {
-    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.user.findMany.mockResolvedValue([]);
 
     const response = await service.forgotPassword(
       { email: 'missing@school.test' },
@@ -184,6 +239,7 @@ describe('AuthService forgotPassword', () => {
       contactEmail: 'recovery@school.test',
       contactEmailVerifiedAt: null,
       lastVerificationSentAt: null,
+      logoUrl: '/uploads/org-1/logo.png',
     });
 
     await service.issueContactEmailVerification('org-1', {
@@ -196,9 +252,16 @@ describe('AuthService forgotPassword', () => {
       expect.objectContaining({
         to: 'recovery@school.test',
         subject: 'Welcome to EduVerse, Test School',
-        text: expect.stringContaining('Welcome to EduVerse, Test School!'),
+        text: expect.stringContaining('Welcome to EduVerse, Test School.'),
         html: expect.stringContaining('Before approval can continue'),
       }),
+    );
+    const sentEmail = emailService.send.mock.calls[0][0];
+    expect(sentEmail.html).toContain('Verification code');
+    expect(sentEmail.html).toContain('Shared mailbox?');
+    expect(sentEmail.html).toContain('https://app.test/uploads/org-1/logo.png');
+    expect(sentEmail.text).toContain(
+      'If this mailbox is used for multiple EduVerse organizations',
     );
   });
 });

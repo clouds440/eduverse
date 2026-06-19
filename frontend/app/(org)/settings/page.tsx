@@ -65,27 +65,58 @@ function SettingsSection({
     title,
     description,
     children,
+    action,
+    className,
+    contentClassName,
+    id,
 }: {
     icon: LucideIcon;
     title: string;
     description?: ReactNode;
     children: ReactNode;
+    action?: ReactNode;
+    className?: string;
+    contentClassName?: string;
+    id?: string;
 }) {
     return (
-        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
-            <div className="flex items-start gap-3 border-b border-border/60 bg-background/45 px-4 py-4 sm:px-5">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
-                    <Icon className="h-5 w-5" />
+        <section id={id} className={cn('overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm', className)}>
+            <div className="flex flex-col gap-3 border-b border-border/60 bg-background/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-primary">
+                        <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                        <h2 className="text-sm font-black text-foreground sm:text-base">{title}</h2>
+                        {description && <p className="mt-1 max-w-3xl text-xs font-semibold leading-relaxed text-muted-foreground">{description}</p>}
+                    </div>
                 </div>
-                <div className="min-w-0">
-                    <h2 className="text-base font-black text-foreground">{title}</h2>
-                    {description && <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">{description}</p>}
-                </div>
+                {action && <div className="flex shrink-0 justify-start sm:justify-end">{action}</div>}
             </div>
-            <div className="p-4 sm:p-5">
+            <div className={cn('p-4 sm:p-5', contentClassName)}>
                 {children}
             </div>
         </section>
+    );
+}
+
+function SettingsActionLink({
+    href,
+    icon: Icon,
+    children,
+}: {
+    href: string;
+    icon?: LucideIcon;
+    children: ReactNode;
+}) {
+    return (
+        <Link
+            href={href}
+            className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+            <span className="min-w-0 text-center">{children}</span>
+            {Icon && <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />}
+        </Link>
     );
 }
 
@@ -475,113 +506,114 @@ export default function SettingsPage() {
                     })}
                 </nav>
 
-                <div className="grid gap-6">
-                    <div className="space-y-6">
-                        {activeTab === 'profile' && (
+                <div className="min-w-0">
+                    {activeTab === 'profile' && (
+                        <div className="grid gap-4">
                             <SettingsSection
                                 icon={Building2}
                                 title="Organization Profile"
                                 description={<>These details identify the organization across dashboards and records. <DocsLink href="/docs/settings#organization-profile">Profile details</DocsLink></>}
                             >
-                            <div className="grid gap-5 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="settings-name" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Organization Name</Label>
-                                    <Input
-                                        id="settings-name"
-                                        type="text"
-                                        name="name"
-                                        value={formData.name}
-                                        onChange={handleChange}
-                                        required
-                                        icon={School}
-                                        placeholder="School Name"
-                                        error={!!formErrors.name}
-                                        className="h-12 border-border/60 bg-background/70 font-medium"
-                                    />
-                                    <FieldError>{formErrors.name}</FieldError>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="settings-location" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Location</Label>
-                                    <Input
-                                        id="settings-location"
-                                        type="text"
-                                        name="location"
-                                        value={formData.location}
-                                        onChange={handleChange}
-                                        required
-                                        icon={MapPin}
-                                        placeholder="City, State"
-                                        error={!!formErrors.location}
-                                        className="h-12 border-border/60 bg-background/70 font-medium"
-                                    />
-                                    <FieldError>{formErrors.location}</FieldError>
-                                </div>
-
-                                <div id="contact-email" className="space-y-2 scroll-mt-24">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <Label htmlFor="settings-contact-email" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Contact Email</Label>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="settings-name" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Organization Name</Label>
+                                        <Input
+                                            id="settings-name"
+                                            type="text"
+                                            name="name"
+                                            value={formData.name}
+                                            onChange={handleChange}
+                                            required
+                                            icon={School}
+                                            placeholder="School Name"
+                                            error={!!formErrors.name}
+                                            className="h-11 border-border/60 bg-background/70 font-medium"
+                                        />
+                                        <FieldError>{formErrors.name}</FieldError>
                                     </div>
-                                    <Input
-                                        id="settings-contact-email"
-                                        type="email"
-                                        name="contactEmail"
-                                        value={formData.contactEmail}
-                                        onChange={handleChange}
-                                        icon={Mail}
-                                        placeholder="contact@example.com"
-                                        error={!!formErrors.contactEmail}
-                                        className="h-12 border-border/60 bg-background/70 font-medium"
-                                    />
-                                    <FieldError>{formErrors.contactEmail}</FieldError>
-                                </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="settings-phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Phone Number</Label>
-                                    <Input
-                                        id="settings-phone"
-                                        type="text"
-                                        name="phone"
-                                        value={formData.phone}
-                                        onChange={handleChange}
-                                        icon={Phone}
-                                        placeholder="+1 (555) 000-0000"
-                                        error={!!formErrors.phone}
-                                        className="h-12 border-border/60 bg-background/70 font-medium"
-                                    />
-                                    <FieldError>{formErrors.phone}</FieldError>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="settings-location" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Location</Label>
+                                        <Input
+                                            id="settings-location"
+                                            type="text"
+                                            name="location"
+                                            value={formData.location}
+                                            onChange={handleChange}
+                                            required
+                                            icon={MapPin}
+                                            placeholder="City, State"
+                                            error={!!formErrors.location}
+                                            className="h-11 border-border/60 bg-background/70 font-medium"
+                                        />
+                                        <FieldError>{formErrors.location}</FieldError>
+                                    </div>
+
+                                    <div id="contact-email" className="space-y-2 scroll-mt-24">
+                                        <Label htmlFor="settings-contact-email" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Contact Email</Label>
+                                        <Input
+                                            id="settings-contact-email"
+                                            type="email"
+                                            name="contactEmail"
+                                            value={formData.contactEmail}
+                                            onChange={handleChange}
+                                            icon={Mail}
+                                            placeholder="contact@example.com"
+                                            error={!!formErrors.contactEmail}
+                                            className="h-11 border-border/60 bg-background/70 font-medium"
+                                        />
+                                        <FieldError>{formErrors.contactEmail}</FieldError>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="settings-phone" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Phone Number</Label>
+                                        <Input
+                                            id="settings-phone"
+                                            type="text"
+                                            name="phone"
+                                            value={formData.phone}
+                                            onChange={handleChange}
+                                            icon={Phone}
+                                            placeholder="+1 (555) 000-0000"
+                                            error={!!formErrors.phone}
+                                            className="h-11 border-border/60 bg-background/70 font-medium"
+                                        />
+                                        <FieldError>{formErrors.phone}</FieldError>
+                                    </div>
                                 </div>
-                            </div>
                             </SettingsSection>
-                        )}
+                        </div>
+                    )}
 
-                        {activeTab === 'appearance' && (
+                    {activeTab === 'appearance' && (
+                        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
                             <SettingsSection
                                 icon={Palette}
-                                title="Appearance"
-                                description={<>Choose the primary accent and preferred theme for this workspace. <DocsLink href="/docs/settings#appearance-theme">Appearance details</DocsLink></>}
+                                title="Accent Color"
+                                description={<>Choose the primary accent for this workspace. <DocsLink href="/docs/settings#appearance-theme">Appearance details</DocsLink></>}
                             >
-                            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.65fr)]">
-                                <div className="space-y-3">
-                                    <Label htmlFor="settings-primary-color" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Primary Accent Color</Label>
-                                    <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/70 p-3">
-                                        <ColorSelector
-                                            value={formData.accentColor.primary}
-                                            onChange={handlePrimaryColorChange}
-                                            ariaLabelPrefix="accent color"
-                                        />
-                                        <div className="min-w-0 flex-1 border-t border-border/50 pt-2 flex items-center justify-between">
-                                            <p className="font-mono text-sm font-black uppercase text-foreground">{formData.accentColor.primary}</p>
-                                            <div className="flex items-center gap-2 -translate-x-2">
-                                                <p className="text-sm font-medium text-muted-foreground">Selected: </p>
-                                                <div className="flex items-center bg-primary p-3 rounded-md" />
-                                            </div>                                        
+                                <div className="rounded-lg border border-border/70 bg-background/60 p-3">
+                                    <ColorSelector
+                                        value={formData.accentColor.primary}
+                                        onChange={handlePrimaryColorChange}
+                                        ariaLabelPrefix="accent color"
+                                    />
+                                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+                                        <p className="font-mono text-sm font-black uppercase text-foreground">{formData.accentColor.primary}</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Selected</span>
+                                            <span className="h-6 w-6 rounded-md border border-border/60 bg-primary shadow-xs" />
                                         </div>
                                     </div>
                                 </div>
+                            </SettingsSection>
 
-                                <div className="space-y-3">
-                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Theme Mode</Label>
+                            <SettingsSection
+                                icon={Settings}
+                                title="Theme Mode"
+                                description="Set the preferred display mode for your account."
+                            >
+                                <div className="space-y-4">
                                     <ThemeDropdown
                                         currentMode={themeMode}
                                         onModeChange={(mode) => {
@@ -589,7 +621,7 @@ export default function SettingsPage() {
                                             setThemeMode(mode);
                                         }}
                                     />
-                                    <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                                    <div className="rounded-lg border border-border/70 bg-background/60 p-3">
                                         <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Preview</p>
                                         <div className="mt-3 flex items-center gap-2">
                                             <span className="h-3 w-3 rounded-full" style={{ backgroundColor: formData.accentColor.primary }} />
@@ -598,119 +630,117 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
                             </SettingsSection>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
-                    <aside className={cn(
-                        'space-y-6',
-                        activeTab !== 'branding' && activeTab !== 'security' ? 'hidden' : '',
-                    )}>
-                        {activeTab === 'branding' && (
+                    {activeTab === 'branding' && (
+                        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)]">
                             <SettingsSection
                                 icon={School}
-                                title="Logo"
+                                title="Organization Logo"
                                 description={<>Upload a square organization mark. <DocsLink href="/docs/settings#branding-logo">Logo details</DocsLink></>}
+                                contentClassName="sm:p-6"
                             >
-                            <div className="flex flex-col items-center gap-3">
-                                <PhotoUploadPicker
-                                    currentImageUrl={orgData?.logoUrl}
-                                    updatedAt={orgData?.avatarUpdatedAt}
-                                    onFileReady={handleLogoReady}
-                                    type="org"
-                                    sizeClassName="h-32 w-32"
-                                    hint="Saved when you click Save Settings"
-                                />
-                                {pendingLogoFile && (
-                                    <p className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-black text-primary">
-                                        <CheckCircle className="h-3.5 w-3.5" />
-                                        New logo ready
-                                    </p>
-                                )}
-                            </div>
-                            </SettingsSection>
-                        )}
-
-                        {activeTab === 'security' && (
-                            <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm sm:p-5">
-                            <div className="flex items-start gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
-                                    <ShieldCheck className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <h2 className="text-base font-black text-foreground">Contact Verification</h2>
-                                    <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">
-                                        Password recovery uses the verified contact email.
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-3">
-                                {orgData?.contactEmailVerifiedAt ? (
-                                    <div className="flex items-center justify-center gap-2 text-success">
-                                        <CheckCircle className="h-4 w-4" />
-                                        <span className="text-sm font-black">Verified</span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-center gap-2 text-warning">
-                                        <TriangleAlert className="h-4 w-4" />
-                                        <span className="text-sm font-black">Verification pending</span>
-                                    </div>
-                                )}
-                            </div>
-                            <Link href="/change-password" >
-                                <div className="flex items-center justify-center mt-4 rounded-lg border border-border/70 bg-background/70 hover:bg-background p-3 text-sm font-medium cursor-pointer">
-                                    <span className="flex items-center gap-2">
-                                        Change Password
-                                        <ExternalLink className="h-4 w-4" />
-                                    </span>
-                                </div>
-                            </Link>
-                            </section>
-                        )}
-
-                        {activeTab === 'security' && (
-                            <section id="linked-accounts" className="scroll-mt-24 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-sm sm:p-5">
-                            <div className="flex items-start gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-background text-primary">
-                                    <LinkIcon className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <h2 className="text-base font-black text-foreground">Linked Accounts</h2>
-                                    <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">
-                                        Use linked providers as alternate sign-in methods.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mt-4 rounded-xl border border-border/70 bg-background/70 p-3">
-                                <div className="flex items-start gap-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card text-foreground">
-                                        <Image src="/assets/svgs/google.svg" alt="" width={24} height={24} className="h-6 w-6" />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <p className="text-sm font-black text-foreground">Google</p>
-                                            {googleAccount ? (
-                                                <Badge variant="success" size="sm" dot>Linked</Badge>
-                                            ) : (
-                                                <Badge variant="secondary" size="sm">Not linked</Badge>
-                                            )}
-                                        </div>
-                                        {googleAccount ? (
-                                            <div className="mt-1 space-y-0.5 text-xs font-semibold text-muted-foreground">
-                                                {googleAccount.email && <p className="truncate">Linked as {googleAccount.email}</p>}
-                                                <p>Linked on {new Date(googleAccount.createdAt).toLocaleDateString()}</p>
-                                            </div>
-                                        ) : (
-                                            <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                                                Link Google after signing in with your EduVerse password.
-                                            </p>
+                                <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                                    <PhotoUploadPicker
+                                        currentImageUrl={orgData?.logoUrl}
+                                        updatedAt={orgData?.avatarUpdatedAt}
+                                        onFileReady={handleLogoReady}
+                                        type="org"
+                                        sizeClassName="h-32 w-32"
+                                        hint="Saved when you click Save Settings"
+                                    />
+                                    <div className="min-w-0 space-y-3">
+                                        <p className="text-sm font-semibold leading-6 text-muted-foreground">
+                                            Use a clear square mark that still reads well in small navigation and table views.
+                                        </p>
+                                        {pendingLogoFile && (
+                                            <Badge variant="primary" size="md" icon={CheckCircle}>New logo ready</Badge>
                                         )}
                                     </div>
                                 </div>
+                            </SettingsSection>
 
-                                <div className="mt-4">
+                            <SettingsSection icon={CheckCircle} title="Logo Status" description="Saved logo state for this workspace.">
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
+                                        <span className="font-semibold text-muted-foreground">Current logo</span>
+                                        <Badge variant={orgData?.logoUrl ? 'success' : 'secondary'} size="sm">
+                                            {orgData?.logoUrl ? 'Available' : 'Not set'}
+                                        </Badge>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
+                                        <span className="font-semibold text-muted-foreground">Pending change</span>
+                                        <Badge variant={pendingLogoFile ? 'primary' : 'secondary'} size="sm">
+                                            {pendingLogoFile ? 'Ready to save' : 'None'}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </SettingsSection>
+                        </div>
+                    )}
+
+                    {activeTab === 'security' && (
+                        <div className="grid gap-4 xl:grid-cols-2">
+                            <SettingsSection
+                                icon={ShieldCheck}
+                                title="Contact Verification"
+                                description="Password recovery uses the verified contact email."
+                                action={(
+                                    orgData?.contactEmailVerifiedAt ? (
+                                        <Badge variant="success" size="md" icon={CheckCircle}>Verified</Badge>
+                                    ) : (
+                                        <Badge variant="warning" size="md" icon={TriangleAlert}>Pending</Badge>
+                                    )
+                                )}
+                            >
+                                <div className="flex flex-col gap-4 rounded-lg border border-border/70 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-black text-foreground">{formData.contactEmail || 'No contact email'}</p>
+                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                            Update this from the Profile tab when the organization contact changes.
+                                        </p>
+                                    </div>
+                                    <SettingsActionLink href="/change-password" icon={ExternalLink}>
+                                        Change Password
+                                    </SettingsActionLink>
+                                </div>
+                            </SettingsSection>
+
+                            <SettingsSection
+                                id="linked-accounts"
+                                icon={LinkIcon}
+                                title="Linked Accounts"
+                                description="Use linked providers as alternate sign-in methods."
+                            >
+                                <div className="flex flex-col gap-4 rounded-lg border border-border/70 bg-background/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex min-w-0 items-start gap-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-card text-foreground">
+                                            <Image src="/assets/svgs/google.svg" alt="" width={24} height={24} className="h-6 w-6" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <p className="text-sm font-black text-foreground">Google</p>
+                                                {googleAccount ? (
+                                                    <Badge variant="success" size="sm" dot>Linked</Badge>
+                                                ) : (
+                                                    <Badge variant="secondary" size="sm">Not linked</Badge>
+                                                )}
+                                            </div>
+                                            {googleAccount ? (
+                                                <div className="mt-1 space-y-0.5 text-xs font-semibold text-muted-foreground">
+                                                    {googleAccount.email && <p className="truncate">Linked as {googleAccount.email}</p>}
+                                                    <p>Linked on {new Date(googleAccount.createdAt).toLocaleDateString()}</p>
+                                                </div>
+                                            ) : (
+                                                <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                                    Link Google after signing in with your EduVerse password.
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
                                     {googleAccount ? (
                                         <Button
                                             type="button"
@@ -719,7 +749,7 @@ export default function SettingsPage() {
                                             onClick={handleUnlinkGoogle}
                                             loadingId="unlink-google"
                                             disabled={linkedAccountsLoading}
-                                            className="w-full text-xs"
+                                            className="w-full shrink-0 text-xs sm:w-auto"
                                             px="px-4"
                                             py="py-2.5"
                                         >
@@ -732,18 +762,17 @@ export default function SettingsPage() {
                                             icon={GoogleIcon}
                                             onClick={handleStartGoogleLink}
                                             disabled={linkedAccountsLoading}
-                                            className="w-full text-xs"
+                                            className="w-full shrink-0 text-xs sm:w-auto"
                                             px="px-4"
                                             py="py-2.5"
                                         >
-                                            Link Google Account
+                                            Link Google
                                         </Button>
                                     )}
                                 </div>
-                            </div>
-                            </section>
-                        )}
-                    </aside>
+                            </SettingsSection>
+                        </div>
+                    )}
                 </div>
 
                 {formErrors.general && (
