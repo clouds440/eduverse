@@ -13,6 +13,7 @@ import { AnnouncementDropdown } from './announcements/AnnouncementDropdown';
 import { ThemeDropdown } from './ui/ThemeDropdown';
 import { useTheme } from '@/context/ThemeContext';
 import { DASHBOARD_MODULES } from '@/lib/constants';
+import { GlobalSearch } from './global-search/GlobalSearch';
 
 const PUBLIC_NAV_LINKS = [
     { name: 'Documentation', href: '/docs' },
@@ -48,6 +49,7 @@ export default function Navbar() {
     const [isNavHidden, setIsNavHidden] = useState(false);
     const [isNavInteractionHeld, setIsNavInteractionHeld] = useState(false);
     const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+    const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
     const [isAnnouncementMenuOpen, setIsAnnouncementMenuOpen] = useState(false);
     const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
     const chatUnread = state.stats.chat?.unread || 0;
@@ -55,7 +57,7 @@ export default function Navbar() {
 
     const isDashboard = user && new RegExp(`^/(${DASHBOARD_MODULES.join('|')})(/|$)`).test(pathname);
     const totalUnread = chatUnread + mailUnread;
-    const hasOpenNavDropdown = isThemeMenuOpen || isAnnouncementMenuOpen || isNotificationMenuOpen;
+    const hasOpenNavDropdown = isThemeMenuOpen || isGlobalSearchOpen || isAnnouncementMenuOpen || isNotificationMenuOpen;
     const keepNavVisible = isMobileOpen || hasOpenNavDropdown || isNavInteractionHeld;
 
     const isScrollableElement = (element?: HTMLElement | null) => {
@@ -309,6 +311,10 @@ export default function Navbar() {
                 )}
 
                 <div className="flex min-w-auto flex-1 items-center justify-end gap-1 sm:gap-2">
+                    {isDashboard && (
+                        <GlobalSearch onOpenChange={setIsGlobalSearchOpen} />
+                    )}
+
                     <ThemeDropdown
                         currentMode={themeMode}
                         onModeChange={(mode) => setThemeMode(mode)}

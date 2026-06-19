@@ -27,6 +27,7 @@ export const DASHBOARD_MODULES = [
     'attendance',
     'profile',
     'academic-cycles',
+    'academic-calender',
     'cohorts',
     'promotions',
     'transcripts',
