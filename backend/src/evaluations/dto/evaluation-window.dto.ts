@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateEvaluationWindowDto {
   @IsString()
@@ -68,4 +68,56 @@ export class UpdateEvaluationWindowDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+}
+
+export class BulkCreateEvaluationWindowsDto {
+  @IsString()
+  @IsNotEmpty()
+  academicCycleId: string;
+
+  @IsDateString()
+  startDate: string;
+
+  @IsDateString()
+  endDate: string;
+
+  @IsIn(['SECTION', 'COURSE'])
+  targetType: 'SECTION' | 'COURSE';
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(80)
+  titlePrefix?: string;
+
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  @IsOptional()
+  cohortIds?: string[];
+
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  @IsOptional()
+  departmentIds?: string[];
+
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  @IsOptional()
+  courseIds?: string[];
+
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  @IsOptional()
+  sectionIds?: string[];
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  skipExisting?: boolean;
 }

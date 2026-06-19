@@ -9,7 +9,7 @@ import { Role } from '../common/enums';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from './dto/update-evaluation.dto';
 import { EvaluationVisibilityDto } from './dto/evaluation-visibility.dto';
-import { CreateEvaluationWindowDto, UpdateEvaluationWindowDto } from './dto/evaluation-window.dto';
+import { BulkCreateEvaluationWindowsDto, CreateEvaluationWindowDto, UpdateEvaluationWindowDto } from './dto/evaluation-window.dto';
 import { EvaluationsService } from './evaluations.service';
 
 @Access(AccessLevel.READ)
@@ -46,6 +46,17 @@ export class EvaluationsController {
       academicCycleId,
       isActive: isActive === undefined ? undefined : isActive === 'true',
     });
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Post('windows/bulk')
+  createWindowsBulk(
+    @OrgId() orgId: string,
+    @Body() dto: BulkCreateEvaluationWindowsDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.evaluationsService.createWindowsBulk(orgId, dto, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)

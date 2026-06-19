@@ -22,6 +22,7 @@ export const DASHBOARD_MODULES = [
     'courses',
     'grades',
     'grade-finalization',
+    'evaluations',
     'guardian',
     'schedules',
     'attendance',
