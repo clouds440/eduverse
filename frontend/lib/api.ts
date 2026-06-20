@@ -18,7 +18,7 @@ import type {
     ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions,
     Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
-    CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest,
+    CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
     LinkedAccount, PasswordResetLinkResponse
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
@@ -589,6 +589,8 @@ export const api = {
             request<EvaluationWindow[]>(`/org/evaluations/windows${buildQueryString(params)}`, { token }),
         createEvaluationWindow: (data: CreateEvaluationWindowRequest, token: string) =>
             request<EvaluationWindow>('/org/evaluations/windows', { method: 'POST', body: JSON.stringify(data), token }),
+        createEvaluationWindowsBulk: (data: BulkCreateEvaluationWindowsRequest, token: string) =>
+            request<BulkCreateEvaluationWindowsResponse>('/org/evaluations/windows/bulk', { method: 'POST', body: JSON.stringify(data), token }),
         updateEvaluationWindow: (id: string, data: UpdateEvaluationWindowRequest, token: string) =>
             request<EvaluationWindow>(`/org/evaluations/windows/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
 

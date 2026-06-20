@@ -1434,6 +1434,27 @@ export interface CreateEvaluationWindowRequest {
 
 export type UpdateEvaluationWindowRequest = Partial<CreateEvaluationWindowRequest>;
 
+export interface BulkCreateEvaluationWindowsRequest {
+    academicCycleId: string;
+    startDate: string;
+    endDate: string;
+    targetType: 'SECTION' | 'COURSE';
+    titlePrefix?: string;
+    cohortIds?: string[];
+    departmentIds?: string[];
+    courseIds?: string[];
+    sectionIds?: string[];
+    isActive?: boolean;
+    skipExisting?: boolean;
+}
+
+export interface BulkCreateEvaluationWindowsResponse {
+    created: number;
+    skipped: number;
+    totalTargets: number;
+    windows: EvaluationWindow[];
+}
+
 export interface SectionSchedule {
     id: string;
     sectionId: string;

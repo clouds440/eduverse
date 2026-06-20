@@ -19,7 +19,7 @@ import { EvaluationAggregationService } from './evaluation-aggregation.service';
 import { EvaluationEligibilityService } from './evaluation-eligibility.service';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from './dto/update-evaluation.dto';
-import { CreateEvaluationWindowDto, UpdateEvaluationWindowDto } from './dto/evaluation-window.dto';
+import { BulkCreateEvaluationWindowsDto, CreateEvaluationWindowDto, UpdateEvaluationWindowDto } from './dto/evaluation-window.dto';
 import { EvaluationVisibilityDto } from './dto/evaluation-visibility.dto';
 
 interface CurrentUser extends DepartmentScopedUser {
@@ -60,6 +60,14 @@ export class EvaluationsService {
     window: { select: { id: true, title: true, startDate: true, endDate: true, isActive: true } },
     hiddenBy: { select: { id: true, name: true, email: true } },
   } satisfies Prisma.EvaluationInclude;
+
+  private includeWindow = {
+    academicCycle: { select: { id: true, name: true } },
+    course: { select: { id: true, name: true, departmentId: true } },
+    section: { select: { id: true, name: true, courseId: true } },
+    createdBy: { select: { id: true, name: true, email: true } },
+    updatedBy: { select: { id: true, name: true, email: true } },
+  } satisfies Prisma.EvaluationWindowInclude;
 
   private parseDate(value: string, field: string) {
     const date = new Date(value);
@@ -376,6 +384,46 @@ export class EvaluationsService {
     return { academicCycleId, courseId, sectionId, startDate, endDate };
   }
 
+  private uniqueStrings(values?: string[]) {
+    return Array.from(new Set((values ?? []).map((value) => value?.trim()).filter(Boolean)));
+  }
+
+  private buildWindowTitle(prefix: string | undefined, parts: string[]) {
+    const normalizedPrefix = prefix?.trim() || 'Evaluation Window';
+    const title = [normalizedPrefix, ...parts.map((part) => part.trim()).filter(Boolean)].join(' - ');
+    return title.length > 160 ? `${title.slice(0, 157).trimEnd()}...` : title;
+  }
+
+  private async resolveBulkSections(orgId: string, actor: CurrentUser, dto: BulkCreateEvaluationWindowsDto) {
+    const sectionScope = await this.sectionScopeFilter(orgId, actor);
+    const cohortIds = this.uniqueStrings(dto.cohortIds);
+    const departmentIds = this.uniqueStrings(dto.departmentIds);
+    const courseIds = this.uniqueStrings(dto.courseIds);
+    const sectionIds = this.uniqueStrings(dto.sectionIds);
+    const andFilters: Prisma.SectionWhereInput[] = Object.keys(sectionScope).length ? [sectionScope] : [];
+
+    if (departmentIds.length) {
+      andFilters.push({ course: { departmentId: { in: departmentIds } } });
+    }
+
+    return this.prisma.section.findMany({
+      where: {
+        academicCycleId: dto.academicCycleId,
+        course: { organizationId: orgId },
+        ...(cohortIds.length ? { cohortId: { in: cohortIds } } : {}),
+        ...(courseIds.length ? { courseId: { in: courseIds } } : {}),
+        ...(sectionIds.length ? { id: { in: sectionIds } } : {}),
+        ...(andFilters.length ? { AND: andFilters } : {}),
+      },
+      include: {
+        course: { select: { id: true, name: true, departmentId: true } },
+        academicCycle: { select: { id: true, name: true } },
+        cohort: { select: { id: true, name: true } },
+      },
+      orderBy: [{ course: { name: 'asc' } }, { name: 'asc' }],
+    });
+  }
+
   async listWindows(orgId: string, actor: CurrentUser, query: { academicCycleId?: string; isActive?: boolean } = {}) {
     const sectionScope = await this.sectionScopeFilter(orgId, actor);
     return this.prisma.evaluationWindow.findMany({
@@ -388,13 +436,7 @@ export class EvaluationsService {
           { section: sectionScope },
         ],
       },
-      include: {
-        academicCycle: { select: { id: true, name: true } },
-        course: { select: { id: true, name: true, departmentId: true } },
-        section: { select: { id: true, name: true, courseId: true } },
-        createdBy: { select: { id: true, name: true, email: true } },
-        updatedBy: { select: { id: true, name: true, email: true } },
-      },
+      include: this.includeWindow,
       orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
     });
   }
@@ -410,7 +452,92 @@ export class EvaluationsService {
         isActive: dto.isActive ?? true,
         createdById: actor.id,
       },
+      include: this.includeWindow,
     });
+  }
+
+  async createWindowsBulk(orgId: string, dto: BulkCreateEvaluationWindowsDto, actor: CurrentUser) {
+    const academicCycle = await this.prisma.academicCycle.findFirst({
+      where: { id: dto.academicCycleId, organizationId: orgId },
+      select: { id: true },
+    });
+    if (!academicCycle) throw new BadRequestException('Academic cycle must belong to this organization');
+
+    const startDate = this.parseDate(dto.startDate, 'startDate');
+    const endDate = this.parseDate(dto.endDate, 'endDate');
+    if (endDate < startDate) throw new BadRequestException('endDate must be after startDate');
+
+    const sections = await this.resolveBulkSections(orgId, actor, dto);
+    if (sections.length === 0) {
+      throw new BadRequestException('No sections match the selected evaluation window scope');
+    }
+
+    const rawRecords = dto.targetType === 'COURSE'
+      ? Array.from(new Map(sections.map((section) => [
+        section.courseId,
+        {
+          courseId: section.courseId,
+          sectionId: null as string | null,
+          title: this.buildWindowTitle(dto.titlePrefix, [section.course.name]),
+        },
+      ])).values())
+      : sections.map((section) => ({
+        courseId: section.courseId,
+        sectionId: section.id,
+        title: this.buildWindowTitle(dto.titlePrefix, [section.course.name, section.name]),
+      }));
+
+    if (rawRecords.length > 500) {
+      throw new BadRequestException('Bulk evaluation window creation is limited to 500 windows at a time');
+    }
+
+    let records = rawRecords;
+    let skipped = 0;
+
+    if (dto.skipExisting ?? true) {
+      const existing = await this.prisma.evaluationWindow.findMany({
+        where: {
+          organizationId: orgId,
+          academicCycleId: dto.academicCycleId,
+          startDate,
+          endDate,
+          ...(dto.targetType === 'COURSE'
+            ? { sectionId: null, courseId: { in: rawRecords.map((record) => record.courseId) } }
+            : { sectionId: { in: rawRecords.map((record) => record.sectionId).filter(Boolean) as string[] } }),
+        },
+        select: { courseId: true, sectionId: true },
+      });
+      const existingTargets = new Set(existing.map((window) => `${window.courseId || ''}:${window.sectionId || ''}`));
+      records = rawRecords.filter((record) => !existingTargets.has(`${record.courseId}:${record.sectionId || ''}`));
+      skipped = rawRecords.length - records.length;
+    }
+
+    const windows = records.length
+      ? await this.prisma.$transaction(records.map((record) => (
+        this.prisma.evaluationWindow.create({
+          data: {
+            organizationId: orgId,
+            academicCycleId: dto.academicCycleId,
+            courseId: record.courseId,
+            sectionId: record.sectionId,
+            title: record.title,
+            description: null,
+            startDate,
+            endDate,
+            isActive: dto.isActive ?? true,
+            createdById: actor.id,
+          },
+          include: this.includeWindow,
+        })
+      )))
+      : [];
+
+    return {
+      created: windows.length,
+      skipped,
+      totalTargets: rawRecords.length,
+      windows,
+    };
   }
 
   async updateWindow(orgId: string, id: string, dto: UpdateEvaluationWindowDto, actor: CurrentUser) {
@@ -427,6 +554,7 @@ export class EvaluationsService {
         isActive: dto.isActive,
         updatedById: actor.id,
       },
+      include: this.includeWindow,
     });
   }
 }
