@@ -9,6 +9,7 @@ import {
     AlertCircle,
     Building2,
     CheckCircle,
+    Coins,
     ExternalLink,
     Link as LinkIcon,
     Mail,
@@ -32,6 +33,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import { useTheme } from '@/context/ThemeContext';
 import SessionManagement from '@/components/SessionManagement';
 import { Loading } from '@/components/ui/Loading';
@@ -42,12 +44,14 @@ import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { SUPPORTED_CURRENCY_OPTIONS } from '@/lib/currencies';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 const SETTINGS_TABS = [
     { key: 'profile', label: 'Profile', icon: Building2 },
     { key: 'appearance', label: 'Appearance', icon: Palette },
+    { key: 'finance', label: 'Finance', icon: Coins },
     { key: 'branding', label: 'Branding', icon: School },
     { key: 'security', label: 'Security', icon: ShieldCheck },
 ] as const;
@@ -143,7 +147,7 @@ export default function SettingsPage() {
     const [linkedAccountsLoading, setLinkedAccountsLoading] = useState(false);
     const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
     const [redirecting, setRedirecting] = useState(user?.role === Role.ORG_ADMIN ? false : true);
-    const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; accentColor?: string; general?: string }>({});
+    const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; currency?: string; accentColor?: string; general?: string }>({});
     const pendingHashScrollRef = useRef<string | null>(null);
 
     const [formData, setFormData] = useState({
@@ -151,6 +155,7 @@ export default function SettingsPage() {
         location: '',
         contactEmail: '',
         phone: '',
+        currency: 'USD',
         accentColor: {
             primary: '#4f46e5',
             mode: ThemeMode.SYSTEM,
@@ -242,6 +247,7 @@ export default function SettingsPage() {
                     location: data.location || '',
                     contactEmail: data.contactEmail || '',
                     phone: data.phone || '',
+                    currency: data.currency || 'USD',
                     accentColor: {
                         primary: getSafePrimaryColor(data.accentColor?.primary || '#4f46e5'),
                         mode: (data.accentColor?.mode as ThemeMode) || ThemeMode.SYSTEM,
@@ -358,6 +364,7 @@ export default function SettingsPage() {
                     else if (msg.includes('location')) nextErrors.location = item;
                     else if (msg.includes('email')) nextErrors.contactEmail = item;
                     else if (msg.includes('phone')) nextErrors.phone = item;
+                    else if (msg.includes('currency')) nextErrors.currency = item;
                     else nextErrors.general = item;
                 });
             } else {
@@ -366,6 +373,7 @@ export default function SettingsPage() {
                 else if (msg.includes('location')) nextErrors.location = message;
                 else if (msg.includes('email')) nextErrors.contactEmail = message;
                 else if (msg.includes('phone')) nextErrors.phone = message;
+                else if (msg.includes('currency')) nextErrors.currency = message;
                 else nextErrors.general = message;
             }
             setFormErrors(nextErrors);
@@ -634,6 +642,49 @@ export default function SettingsPage() {
                         </div>
                     )}
 
+                    {activeTab === 'finance' && (
+                        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)]">
+                            <SettingsSection
+                                icon={Coins}
+                                title="Organization Currency"
+                                description="Set the default currency used across finance structures, salary records, fee book amounts, and finance dashboards."
+                            >
+                                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.45fr)] md:items-start">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="settings-currency" className="text-xs font-black uppercase tracking-widest text-muted-foreground">Default Currency</Label>
+                                        <CustomSelect
+                                            value={formData.currency}
+                                            onChange={(value) => {
+                                                setFormErrors((current) => ({ ...current, currency: undefined }));
+                                                setFormData((current) => ({ ...current, currency: value }));
+                                            }}
+                                            options={SUPPORTED_CURRENCY_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                                            placeholder="Choose currency"
+                                            searchable
+                                            error={!!formErrors.currency}
+                                        />
+                                        <FieldError>{formErrors.currency}</FieldError>
+                                    </div>
+                                    <div className="rounded-lg border border-border/70 bg-background/60 p-3">
+                                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Current setting</p>
+                                        <p className="mt-2 text-2xl font-black text-foreground">{formData.currency}</p>
+                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">Existing financial structures are updated to this currency when settings are saved.</p>
+                                    </div>
+                                </div>
+                            </SettingsSection>
+
+                            <SettingsSection icon={CheckCircle} title="Finance Coverage" description="Where this currency appears after saving.">
+                                <div className="space-y-3 text-sm">
+                                    {['Finance structures', 'Student fee book', 'Teacher salary overview', 'Finance dashboard insights'].map((item) => (
+                                        <div key={item} className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
+                                            <span className="font-semibold text-muted-foreground">{item}</span>
+                                            <Badge variant="success" size="sm" dot>{formData.currency}</Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            </SettingsSection>
+                        </div>
+                    )}
                     {activeTab === 'branding' && (
                         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.45fr)]">
                             <SettingsSection

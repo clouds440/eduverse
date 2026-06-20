@@ -53,9 +53,8 @@ function SectionGradeCard({ section }: { section: Section }) {
     const sectionBadgeStyle = getSectionTintStyle(section);
 
     return (
-        <Link
-            href={`/sections/${section.id}`}
-            className="group block overflow-hidden rounded-lg border shadow-sm transition-transform hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        <article
+            className="group overflow-hidden rounded-lg border shadow-sm transition-transform hover:-translate-y-px"
             style={getSectionSurfaceStyle(section, '10', '55')}
         >
             <div className="flex min-w-0 items-start justify-between gap-3 border-b p-4" style={{ borderColor: `${sectionColor}38`, backgroundColor: `${sectionColor}08` }}>
@@ -72,18 +71,23 @@ function SectionGradeCard({ section }: { section: Section }) {
                         </div>
                     </div>
                 </div>
-                <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-transform group-hover:translate-x-0.5" style={sectionBadgeStyle}>
+                <Link
+                    href={`/grades/${section.id}`}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-transform group-hover:translate-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    style={sectionBadgeStyle}
+                    aria-label={`Open grades for ${section.name}`}
+                >
                     <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                </div>
+                </Link>
             </div>
 
             <div className="grid gap-2 p-3 sm:grid-cols-2 sm:p-4">
                 <div className="rounded-md border p-3" style={sectionPanelStyle}>
                     <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide" style={{ color: sectionColor }}>
                         <Layers className="h-4 w-4" aria-hidden="true" />
-                        Grade Workspace
+                        Section Grades
                     </div>
-                    <p className="mt-2 text-sm font-semibold" style={{ color: sectionColor }}>Open assessments and grade records</p>
+                    <p className="mt-2 text-sm font-semibold" style={{ color: sectionColor }}>All students and assessment marks</p>
                 </div>
                 <div className="rounded-md border p-3" style={sectionPanelStyle}>
                     <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide" style={{ color: sectionColor }}>
@@ -95,10 +99,27 @@ function SectionGradeCard({ section }: { section: Section }) {
                     </p>
                 </div>
             </div>
-        </Link>
+
+            <div className="flex flex-col gap-2 border-t p-3 sm:flex-row sm:p-4" style={{ borderColor: `${sectionColor}2E` }}>
+                <Link
+                    href={`/grades/${section.id}`}
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-black shadow-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    style={sectionBadgeStyle}
+                >
+                    <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                    Open Grades List
+                </Link>
+                <Link
+                    href={`/sections/${section.id}`}
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-black text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                >
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                    Open Control Panel
+                </Link>
+            </div>
+        </article>
     );
 }
-
 type UnfinalizedStatusFilter = 'ALL' | GradeStatus.DRAFT | GradeStatus.PUBLISHED;
 
 const UNFINALIZED_STATUS_OPTIONS: { value: UnfinalizedStatusFilter; label: string }[] = [
@@ -420,7 +441,7 @@ export default function GradesPage() {
         <PageShell>
             <PageHeader
                 title="Grades"
-                description={<>Choose a section to open assessments and grade records. <DocsLink href="/docs/gradebook#grades-page">Read grade docs</DocsLink></>}
+                description={<>Choose a section to review every student grade or open its control panel. <DocsLink href="/docs/gradebook#grades-page">Read grade docs</DocsLink></>}
                 icon={GraduationCap}
                 breadcrumbs={[
                     { label: 'Organization' },

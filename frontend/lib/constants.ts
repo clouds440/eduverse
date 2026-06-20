@@ -32,6 +32,7 @@ export const DASHBOARD_MODULES = [
     'promotions',
     'transcripts',
     'finance',
+    'teacher-finance',
     'fees',
     'guardians',
     'departments',

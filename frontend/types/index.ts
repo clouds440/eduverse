@@ -345,6 +345,7 @@ export interface Organization {
     name: string;
     location: string;
     type: OrganizationType;
+    currency: string;
     email: string;
     contactEmail: string;
     contactEmailVerifiedAt?: string | null;
@@ -431,6 +432,7 @@ export interface UpdateOrgSettingsRequest {
     location?: string;
     contactEmail?: string;
     phone?: string;
+    currency?: string;
     accentColor?: { primary?: string; secondary?: string; mode?: ThemeMode };
 }
 
@@ -594,7 +596,7 @@ export interface InsightsQueryParams {
     studentId?: string;
 }
 
-// ─── Mail System Types ────────────────────────────────────────────────────────
+// â”€â”€â”€ Mail System Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface MailUser {
     id: string;
@@ -977,6 +979,84 @@ export interface FinalGradeResponse {
     assessments: FinalGradeDetail[];
 }
 
+export interface SectionGradebookAssessment {
+    id: string;
+    title: string;
+    type: AssessmentType;
+    totalMarks: number;
+    weightage: number;
+    dueDate?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface SectionGradebookCell {
+    assessmentId: string;
+    gradeId?: string | null;
+    marksObtained?: number | null;
+    totalMarks: number;
+    weightage: number;
+    percentage?: number | null;
+    weightedScore?: number | null;
+    status?: GradeStatus | null;
+    feedback?: string | null;
+    updatedAt?: string | null;
+}
+
+export interface SectionGradebookStudentRow {
+    student: Student;
+    enrollment: {
+        id: string;
+        source?: string;
+        isExcludedFromCohort?: boolean;
+    };
+    grades: SectionGradebookCell[];
+    summary: {
+        marksObtained: number;
+        totalMarks: number;
+        totalWeight: number;
+        weightedPercentage: number;
+        gradedAssessments: number;
+        missingAssessments: number;
+        draftCount: number;
+        publishedCount: number;
+        finalizedCount: number;
+        letterGrade: string;
+        gradePoints: number;
+        qualityPoints: number;
+    };
+}
+
+export interface SectionGradebookResponse {
+    section: {
+        id: string;
+        name: string;
+        color?: string | null;
+        course?: Pick<Course, 'id' | 'name' | 'creditHours'>;
+        academicCycle?: Pick<AcademicCycle, 'id' | 'name' | 'startDate' | 'endDate'> | null;
+        cohort?: Pick<Cohort, 'id' | 'name'> | null;
+        teachers?: {
+            id: string;
+            userId: string;
+            name: string | null;
+            email?: string;
+        }[];
+    };
+    assessments: SectionGradebookAssessment[];
+    students: SectionGradebookStudentRow[];
+    summary: {
+        studentCount: number;
+        assessmentCount: number;
+        enteredGradeCount: number;
+        missingGradeCount: number;
+        finalizedGradeCount: number;
+        publishedGradeCount: number;
+        draftGradeCount: number;
+        averageWeightedPercentage: number;
+        policyName: string;
+        gpaScale: number;
+    };
+}
 export interface GpaGradeRule {
     min: number;
     max: number;
@@ -1114,7 +1194,7 @@ export interface ApiError {
     };
 }
 
-// ─── Communication System Types ──────────────────────────────────────────────
+// â”€â”€â”€ Communication System Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ChatParticipant {
     id: string;
@@ -1193,7 +1273,7 @@ export interface Announcement {
     organization?: Organization;
 }
 
-// ─── Timetable & Attendance System Types ─────────────────────────────────────
+// â”€â”€â”€ Timetable & Attendance System Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface HolidayDepartmentLink {
     holidayId: string;
@@ -1485,7 +1565,7 @@ export interface RangeAttendanceResponse {
     }[];
 }
 
-// ─── Course Materials Types ───────────────────────────────────────────────────
+// â”€â”€â”€ Course Materials Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface CourseMaterial {
     id: string;
@@ -1523,7 +1603,7 @@ export interface UpdateCourseMaterialRequest {
     isVideoLink?: boolean;
 }
 
-// ─── Academic Lifecycle System Types ───────────────────────────────────────
+// â”€â”€â”€ Academic Lifecycle System Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface AcademicCycle {
     id: string;
@@ -1609,7 +1689,7 @@ export interface CreateAcademicCycleDto {
     gpaPolicyId?: string;
 }
 
-// ─── Financial System Types ──────────────────────────────────────────────────
+// â”€â”€â”€ Financial System Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum FinanceCategory {
     TUITION = 'TUITION',
@@ -1817,6 +1897,27 @@ export interface Transaction {
     attachments?: FinanceAttachment[];
 }
 
+export interface TeacherFinanceOverview {
+    teacher: Teacher;
+    summary: {
+        currency: string;
+        assignedSalaryAmount: number;
+        activeStructureCount: number;
+        expectedAmount: number;
+        receivedAmount: number;
+        balanceAmount: number;
+        overdueAmount: number;
+        overdueCount: number;
+        pendingAmount: number;
+        pendingCount: number;
+        paidCount: number;
+        entryCount: number;
+    };
+    structures: FinancialStructure[];
+    recentEntries: FinancialEntry[];
+    overdueEntries: FinancialEntry[];
+    recentTransactions: Transaction[];
+}
 export interface FinanceStats {
     totalExpectedIncome: number;
     totalCollectedIncome: number;

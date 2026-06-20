@@ -45,6 +45,7 @@ export class OrgService {
       name: org.name,
       location: org.location,
       type: org.type,
+      currency: org.currency,
       contactEmail: org.contactEmail,
       contactEmailVerifiedAt: org.contactEmailVerifiedAt,
       contactEmailVerificationExpiresAt: org.contactEmailVerificationExpiresAt,
@@ -67,6 +68,7 @@ export class OrgService {
     const oldVerifiedContactEmail = contactEmailChanged && currentOrg.contactEmailVerifiedAt
       ? currentOrg.contactEmail
       : null;
+    const currencyChanged = Boolean(data.currency && data.currency !== currentOrg.currency);
 
     const updatedOrg = await this.prisma.organization.update({
       where: { id: orgId },
@@ -87,6 +89,7 @@ export class OrgService {
         name: true,
         location: true,
         type: true,
+        currency: true,
         contactEmail: true,
         contactEmailVerifiedAt: true,
         contactEmailVerificationExpiresAt: true,
@@ -100,6 +103,13 @@ export class OrgService {
         createdAt: true,
       },
     });
+
+    if (currencyChanged && data.currency) {
+      await this.prisma.financialStructure.updateMany({
+        where: { organizationId: orgId },
+        data: { currency: data.currency },
+      });
+    }
 
     if (contactEmailChanged) {
       if (oldVerifiedContactEmail) {

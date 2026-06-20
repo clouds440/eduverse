@@ -240,10 +240,11 @@ async function main() {
   }
 
   console.log(`\nSeeding ${org.name} (${org.id})...`);
+  const seededOrg = await prisma.organization.update({ where: { id: org.id }, data: { currency: 'PKR' } });
   const passwordHash = await bcrypt.hash(password, Number.isFinite(rounds) ? rounds : 10);
 
   const ctx = {
-    org,
+    org: seededOrg,
     departments: new Map(),
     buildings: new Map(),
     rooms: new Map(),

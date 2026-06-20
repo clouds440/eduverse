@@ -14,6 +14,7 @@ import { UpdateAssessmentDto } from './dto/update-assessment.dto';
 import { UpdateGradeDto } from './dto/update-grade.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { getDepartmentScope, sectionDepartmentScopeWhere } from '../common/department-scope';
+import { GpaService } from '../gpa/gpa.service';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -47,6 +48,7 @@ export class AssessmentsService {
     private readonly notifications: NotificationsService,
     private readonly studentService: StudentService,
     private readonly sectionsService: SectionsService,
+    private readonly gpaService: GpaService,
   ) {}
 
   // --- Assessments ---
@@ -324,6 +326,205 @@ export class AssessmentsService {
     });
   }
 
+  async getSectionGradebook(orgId: string, sectionId: string, user: JwtPayload) {
+    if (user.role === Role.TEACHER) {
+      const isAssigned = await this.sectionsService.isTeacherAssignedToSection(sectionId, user.id);
+      if (!isAssigned) {
+        throw new ForbiddenException('You are not authorized to view grades for this section.');
+      }
+    }
+
+    const departmentScope = await getDepartmentScope(this.prisma, orgId, user);
+    const scopeWhere = sectionDepartmentScopeWhere(departmentScope);
+    const section = await this.prisma.section.findFirst({
+      where: {
+        id: sectionId,
+        course: { organizationId: orgId },
+        ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
+      },
+      include: {
+        course: { select: { id: true, name: true, creditHours: true } },
+        academicCycle: { select: { id: true, name: true, startDate: true, endDate: true, gpaPolicySnapshot: true } },
+        cohort: { select: { id: true, name: true } },
+        teachers: { select: { id: true, user: { select: { id: true, name: true, email: true } } } },
+        enrollments: {
+          include: {
+            student: {
+              include: {
+                user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } },
+              },
+            },
+          },
+        },
+        assessments: {
+          include: {
+            grades: {
+              include: {
+                student: {
+                  include: {
+                    user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+    });
+
+    if (!section) throw new NotFoundException('Section not found');
+
+    const sortedEnrollments = [...section.enrollments].sort((a, b) => {
+      const aName = a.student.user.name || a.student.user.email || '';
+      const bName = b.student.user.name || b.student.user.email || '';
+      return aName.localeCompare(bName);
+    });
+    const assessments = section.assessments.map((assessment) => ({
+      id: assessment.id,
+      title: assessment.title,
+      type: assessment.type,
+      totalMarks: assessment.totalMarks,
+      weightage: assessment.weightage,
+      dueDate: assessment.dueDate,
+      createdAt: assessment.createdAt,
+      updatedAt: assessment.updatedAt,
+    }));
+    const gpaPolicy = await this.gpaService.getPolicyForCycle(orgId, section.academicCycle);
+    const creditHours = Number(section.course.creditHours || 0);
+    const assessmentGradeByStudent = new Map<string, Map<string, (typeof section.assessments)[number]['grades'][number]>>();
+
+    section.assessments.forEach((assessment) => {
+      assessment.grades.forEach((grade) => {
+        if (!assessmentGradeByStudent.has(grade.studentId)) {
+          assessmentGradeByStudent.set(grade.studentId, new Map());
+        }
+        assessmentGradeByStudent.get(grade.studentId)!.set(assessment.id, grade);
+      });
+    });
+
+    const students = sortedEnrollments.map((enrollment) => {
+      const gradeByAssessment = assessmentGradeByStudent.get(enrollment.studentId) || new Map();
+      let marksObtained = 0;
+      let totalMarks = 0;
+      let totalWeight = 0;
+      let weightedPercentage = 0;
+      let gradedAssessments = 0;
+      let draftCount = 0;
+      let publishedCount = 0;
+      let finalizedCount = 0;
+
+      const grades = assessments.map((assessment) => {
+        const grade = gradeByAssessment.get(assessment.id) || null;
+        const status = grade?.status || null;
+        const marks = Number(grade?.marksObtained ?? 0);
+        const assessmentTotalMarks = Number(assessment.totalMarks || 0);
+        const weightage = Number(assessment.weightage || 0);
+        const percentage = grade && assessmentTotalMarks > 0
+          ? Number(((marks / assessmentTotalMarks) * 100).toFixed(2))
+          : null;
+        const weightedScore = grade && assessmentTotalMarks > 0
+          ? Number(((marks / assessmentTotalMarks) * weightage).toFixed(2))
+          : null;
+
+        if (grade) {
+          gradedAssessments++;
+          marksObtained += marks;
+          totalMarks += assessmentTotalMarks;
+          totalWeight += weightage;
+          weightedPercentage += weightedScore || 0;
+          if (status === GradeStatus.DRAFT) draftCount++;
+          if (status === GradeStatus.PUBLISHED) publishedCount++;
+          if (status === GradeStatus.FINALIZED) finalizedCount++;
+        }
+
+        return {
+          assessmentId: assessment.id,
+          gradeId: grade?.id || null,
+          marksObtained: grade?.marksObtained ?? null,
+          totalMarks: assessment.totalMarks,
+          weightage: assessment.weightage,
+          percentage,
+          weightedScore,
+          status,
+          feedback: grade?.feedback || null,
+          updatedAt: grade?.updatedAt || null,
+        };
+      });
+
+      const roundedWeightedPercentage = Number(weightedPercentage.toFixed(2));
+      const resolvedGrade = gradedAssessments > 0
+        ? this.gpaService.resolveGrade(roundedWeightedPercentage, gpaPolicy.gradeRules)
+        : { letterGrade: 'N/A', gradePoints: 0 };
+
+      return {
+        student: enrollment.student,
+        enrollment: {
+          id: enrollment.id,
+          source: enrollment.source,
+          isExcludedFromCohort: enrollment.isExcludedFromCohort,
+        },
+        grades,
+        summary: {
+          marksObtained: Number(marksObtained.toFixed(2)),
+          totalMarks: Number(totalMarks.toFixed(2)),
+          totalWeight: Number(totalWeight.toFixed(2)),
+          weightedPercentage: roundedWeightedPercentage,
+          gradedAssessments,
+          missingAssessments: Math.max(assessments.length - gradedAssessments, 0),
+          draftCount,
+          publishedCount,
+          finalizedCount,
+          letterGrade: resolvedGrade.letterGrade,
+          gradePoints: resolvedGrade.gradePoints,
+          qualityPoints: Number((resolvedGrade.gradePoints * creditHours).toFixed(2)),
+        },
+      };
+    });
+
+    const enteredGradeCount = students.reduce((sum, student) => sum + student.summary.gradedAssessments, 0);
+    const possibleGradeCount = students.length * assessments.length;
+
+    return {
+      section: {
+        id: section.id,
+        name: section.name,
+        color: section.color,
+        course: section.course,
+        academicCycle: section.academicCycle
+          ? {
+              id: section.academicCycle.id,
+              name: section.academicCycle.name,
+              startDate: section.academicCycle.startDate,
+              endDate: section.academicCycle.endDate,
+            }
+          : null,
+        cohort: section.cohort,
+        teachers: section.teachers.map((teacher) => ({
+          id: teacher.id,
+          userId: teacher.user.id,
+          name: teacher.user.name || teacher.user.email,
+          email: teacher.user.email,
+        })),
+      },
+      assessments,
+      students,
+      summary: {
+        studentCount: students.length,
+        assessmentCount: assessments.length,
+        enteredGradeCount,
+        missingGradeCount: Math.max(possibleGradeCount - enteredGradeCount, 0),
+        finalizedGradeCount: students.reduce((sum, student) => sum + student.summary.finalizedCount, 0),
+        publishedGradeCount: students.reduce((sum, student) => sum + student.summary.publishedCount, 0),
+        draftGradeCount: students.reduce((sum, student) => sum + student.summary.draftCount, 0),
+        averageWeightedPercentage: students.length > 0
+          ? Number((students.reduce((sum, student) => sum + student.summary.weightedPercentage, 0) / students.length).toFixed(2))
+          : 0,
+        policyName: gpaPolicy.name,
+        gpaScale: gpaPolicy.scale,
+      },
+    };
+  }
   async updateGrade(
     orgId: string,
     assessmentId: string,

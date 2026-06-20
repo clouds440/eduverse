@@ -98,6 +98,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'STUDENTS', label: 'My Students', href: '/students', icon: GraduationCap });
         links.push({ id: 'ATTENDANCE', label: 'Attendance', href: '/attendance', icon: CheckCircle });
         links.push({ id: 'FEEDBACK', label: 'Feedback', href: `/teachers/${user.id}/feedback`, icon: ClipboardList });
+        links.push({ id: 'TEACHER_FINANCE', label: 'My Finance', href: '/teacher-finance', icon: Wallet });
     }
 
     if (user?.role === Role.ORG_MANAGER) {
@@ -117,6 +118,9 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
 
     if (user?.role === Role.FINANCE_MANAGER) {
         links.push({ id: 'FINANCE', label: 'Finance', href: '/finance', icon: Wallet });
+        if (user.id) {
+            links.push({ id: 'PROFILE', label: 'Profile Settings', href: `/finance-managers/${user.id}/profile`, icon: Settings });
+        }
     }
 
     if (user?.role === Role.STUDENT) {

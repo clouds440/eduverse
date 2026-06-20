@@ -47,6 +47,7 @@ type FetcherKey =
     | readonly ['validate-student', string]
     | readonly ['validate-teacher', string]
     | readonly ['student-grades', string]
+    | readonly ['section-gradebook', string]
     | readonly ['student-attendance', string]
     | readonly ['section-attendance-range', string, string | undefined]
     | readonly ['teacher-profile', string]
@@ -145,6 +146,8 @@ function createFetcher(token: string | null) {
                 // Grades
                 case 'sections-for-grades':
                     return await api.org.getSections(token, args[0] as object) as T;
+                case 'section-gradebook':
+                    return await api.org.getSectionGradebook(args[0] as string, token) as T;
 
                 // Detail pages
                 case 'assessment-detail': {

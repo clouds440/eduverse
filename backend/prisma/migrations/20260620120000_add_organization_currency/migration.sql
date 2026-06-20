@@ -1,0 +1,1 @@
+ALTER TABLE "Organization" ADD COLUMN "currency" TEXT NOT NULL DEFAULT 'USD';

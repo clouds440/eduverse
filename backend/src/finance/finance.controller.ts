@@ -119,6 +119,11 @@ export class FinanceController {
     });
   }
 
+  @Get('teacher-overview')
+  @Roles(Role.TEACHER)
+  getTeacherOverview(@Request() req: AuthenticatedRequest) {
+    return this.financeService.getTeacherOverview(req.user);
+  }
   @Get('stats')
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   getStats(

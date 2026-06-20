@@ -56,6 +56,7 @@ export class FinanceService {
     const targetType = dto.targetType || (dto.teacherId ? FinanceTargetType.TEACHER : FinanceTargetType.STUDENT);
 
     return this.prisma.$transaction(async (tx) => {
+      const organization = await tx.organization.findUnique({ where: { id: orgId }, select: { currency: true } });
       const structure = await tx.financialStructure.create({
         data: {
           organizationId: orgId,
@@ -66,7 +67,7 @@ export class FinanceService {
           teacherId: dto.teacherId,
           category: dto.category,
           amount: dto.amount,
-          currency: dto.currency || 'USD',
+          currency: dto.currency || organization?.currency || 'USD',
           billingCycle: dto.billingCycle,
           dueDay: dto.dueDay,
           startDate: new Date(dto.startDate),
@@ -153,8 +154,9 @@ export class FinanceService {
   async getEntries(orgId: string | undefined, user: AuthenticatedRequest['user'], filters: FinanceFilters = {}) {
     const finalOrgId = this.getReadableOrgId(orgId, user, 'entries');
     const scopedFilters = await this.applyRoleScope(user, filters);
+    const organization = await this.prisma.organization.findUnique({ where: { id: finalOrgId }, select: { currency: true } });
 
-    return this.prisma.financialEntry.findMany({
+    const entries = await this.prisma.financialEntry.findMany({
       where: {
         organizationId: finalOrgId,
         AND: [
@@ -176,6 +178,11 @@ export class FinanceService {
       orderBy: { dueDate: 'desc' },
       include: this.entryInclude(),
     });
+    return entries.map((entry) => ({
+      ...entry,
+      currency: entry.structure?.currency || organization?.currency || 'USD',
+    }));
+
   }
 
   async getTransactions(orgId: string | undefined, user: AuthenticatedRequest['user'], filters: FinanceFilters = {}) {
@@ -263,6 +270,66 @@ export class FinanceService {
     };
   }
 
+  async getTeacherOverview(user: AuthenticatedRequest['user']) {
+    if (user.role !== Role.TEACHER) {
+      throw new ForbiddenException('Teacher finance overview is only available to teachers');
+    }
+    if (!user.organizationId) throw new BadRequestException('Organization is required');
+
+    const teacher = await this.prisma.teacher.findUnique({
+      where: { userId: user.id },
+      include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } } },
+    });
+    if (!teacher) throw new NotFoundException('Teacher profile not found');
+
+    const [structures, entries, transactions] = await Promise.all([
+      this.getStructures(user.organizationId, user, { targetType: FinanceTargetType.TEACHER }),
+      this.getEntries(user.organizationId, user, { targetType: FinanceTargetType.TEACHER }),
+      this.getTransactions(user.organizationId, user, { targetType: FinanceTargetType.TEACHER, type: TransactionType.EXPENSE }),
+    ]);
+
+    const now = new Date();
+    const activeStructures = structures.filter((structure) => structure.isActive);
+    const activeEntries = entries.filter((entry) => entry.status !== EntryStatus.CANCELLED);
+    const paidEntries = activeEntries.filter((entry) => entry.status === EntryStatus.PAID);
+    const overdueEntries = activeEntries.filter((entry) => {
+      const balance = entry.amount - entry.paidAmount;
+      return balance > 0 && (entry.status === EntryStatus.OVERDUE || entry.dueDate < now);
+    });
+    const pendingEntries = activeEntries.filter((entry) => {
+      const balance = entry.amount - entry.paidAmount;
+      return balance > 0 && !overdueEntries.some((overdue) => overdue.id === entry.id);
+    });
+
+    const expectedAmount = activeEntries.reduce((sum, entry) => sum + entry.amount, 0);
+    const receivedAmount = activeEntries.reduce((sum, entry) => sum + entry.paidAmount, 0);
+    const overdueAmount = overdueEntries.reduce((sum, entry) => sum + Math.max(entry.amount - entry.paidAmount, 0), 0);
+    const pendingAmount = pendingEntries.reduce((sum, entry) => sum + Math.max(entry.amount - entry.paidAmount, 0), 0);
+    const assignedSalaryAmount = activeStructures.reduce((sum, structure) => sum + structure.amount, 0);
+    const currency = activeStructures[0]?.currency || activeEntries[0]?.structure?.currency || transactions[0]?.currency || 'USD';
+
+    return {
+      teacher,
+      summary: {
+        currency,
+        assignedSalaryAmount,
+        activeStructureCount: activeStructures.length,
+        expectedAmount,
+        receivedAmount,
+        balanceAmount: Math.max(expectedAmount - receivedAmount, 0),
+        overdueAmount,
+        overdueCount: overdueEntries.length,
+        pendingAmount,
+        pendingCount: pendingEntries.length,
+        paidCount: paidEntries.length,
+        entryCount: activeEntries.length,
+      },
+      structures: activeStructures,
+      recentEntries: entries.slice(0, 8),
+      overdueEntries: overdueEntries.slice(0, 8),
+      recentTransactions: transactions.slice(0, 8),
+    };
+  }
   async createManualEntry(dto: CreateManualEntryDto, user: AuthenticatedRequest['user']) {
     const orgId = dto.organizationId || user.organizationId;
     if (!orgId) throw new BadRequestException('Organization is required');
@@ -272,7 +339,8 @@ export class FinanceService {
     if (!dto.studentId && !dto.teacherId) {
       throw new BadRequestException('Must provide either studentId or teacherId');
     }
-    return this.prisma.financialEntry.create({
+    const organization = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { currency: true } });
+    const entry = await this.prisma.financialEntry.create({
       data: {
         organizationId: orgId,
         title: dto.title,
@@ -288,6 +356,8 @@ export class FinanceService {
       },
       include: this.entryInclude(),
     });
+
+    return { ...entry, currency: entry.structure?.currency || organization?.currency || 'USD' };
   }
 
   async markEntryPaid(id: string, user: AuthenticatedRequest['user'], dto: MarkPaidDto) {
@@ -402,13 +472,14 @@ export class FinanceService {
         });
       }
 
+      const organization = await tx.organization.findUnique({ where: { id: lockedEntry.organizationId }, select: { currency: true } });
       const transaction = await tx.transaction.create({
         data: {
           organizationId: lockedEntry.organizationId,
           type,
           category,
           amount: amountPaid,
-          currency: lockedEntry.structure?.currency || 'USD',
+          currency: lockedEntry.structure?.currency || organization?.currency || 'USD',
           description: `Confirmed payment for ${lockedEntry.title}`,
           relatedEntryId: lockedEntry.id,
           paymentMethod: claim?.paymentMethod || lockedEntry.paymentMethod,

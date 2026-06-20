@@ -97,7 +97,8 @@ export class FinanceInsightsBuilder {
     const selectedRange = this.resolveRange(query);
     const { from, to } = selectedRange;
     const interval = query.interval || selectedRange.interval;
-    const currency = query.currency || 'USD';
+    const organization = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { currency: true } });
+    const currency = query.currency || organization?.currency || 'USD';
     const { previousFrom, previousTo } = previousEqualRange(from, to);
 
     const [transactions, previousTransactions, entries, recentEntries, departmentFinanceInsights] = await Promise.all([

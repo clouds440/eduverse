@@ -5,8 +5,11 @@ import {
   IsObject,
   ValidateNested,
   IsNotEmpty,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+export const SUPPORTED_ORG_CURRENCIES = ['PKR', 'USD', 'GBP', 'INR', 'EUR', 'SAR', 'AED'] as const;
 
 class AccentColorDto {
   @IsString()
@@ -34,6 +37,11 @@ export class UpdateSettingsDto {
   @IsString()
   @IsNotEmpty({ message: 'Phone number is required' })
   phone: string;
+
+  @IsString()
+  @IsIn(SUPPORTED_ORG_CURRENCIES, { message: 'Choose a supported currency' })
+  @IsOptional()
+  currency?: string;
 
   @IsObject()
   @IsOptional()

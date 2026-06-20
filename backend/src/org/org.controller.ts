@@ -536,6 +536,15 @@ export class OrgController {
     return this.assessmentsService.getStudentReleasedGrades(orgId, req.user.id);
   }
 
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Get('sections/:id/gradebook')
+  getSectionGradebook(
+    @OrgId() orgId: string,
+    @Param('id') sectionId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.assessmentsService.getSectionGradebook(orgId, sectionId, req.user);
+  }
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
   @Get('assessments/:id/grades')
   getGrades(

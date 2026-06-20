@@ -12,9 +12,9 @@ import type {
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
-    FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, MessageResponse, AuditLogItem,
+    FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, TeacherFinanceOverview, MessageResponse, AuditLogItem,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
-    GradeFinalizationFilters, GradeFinalizationRow, OrgUserCounts,
+    GradeFinalizationFilters, GradeFinalizationRow, SectionGradebookResponse, OrgUserCounts,
     ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions,
     Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
@@ -391,6 +391,10 @@ export const api = {
             request<PaginatedResponse<User>>(`/org/finance-managers${buildQueryString(params)}`, { token }),
         getFinanceManager: (id: string, token: string) =>
             request<User>(`/org/finance-managers/${id}`, { token }),
+        getFinanceManagerProfile: (token: string) =>
+            request<User>('/org/finance-managers/me/profile', { token }),
+        updateFinanceManagerProfile: (data: Partial<Pick<User, 'name' | 'phone'>> & { password?: string }, token: string) =>
+            request<User>('/org/finance-managers/me/profile', { method: 'PATCH', body: JSON.stringify(data), token }),
         createFinanceManager: (data: CreateFinanceManagerRequest, token: string) =>
             request<User>('/org/finance-managers', { method: 'POST', body: JSON.stringify(data), token }),
         updateFinanceManager: (id: string, data: UpdateFinanceManagerRequest, token: string) =>
@@ -517,6 +521,8 @@ export const api = {
         // --- Grades ---
         getGrades: (assessmentId: string, token: string) =>
             request<Grade[]>(`/org/assessments/${assessmentId}/grades`, { token }),
+        getSectionGradebook: (sectionId: string, token: string) =>
+            request<SectionGradebookResponse>(`/org/sections/${sectionId}/gradebook`, { token }),
         updateGrade: (assessmentId: string, studentId: string, data: UpdateGradeRequest, token: string) =>
             request<Grade>(`/org/assessments/${assessmentId}/grades/${studentId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         getOwnFinalGrades: (token: string) =>
@@ -864,6 +870,8 @@ export const api = {
             request<Transaction[]>(`/finance/transactions${buildQueryString(params)}`, { token }),
         getStats: (token: string) =>
             request<FinanceStats>('/finance/stats', { token }),
+        getTeacherOverview: (token: string) =>
+            request<TeacherFinanceOverview>('/finance/teacher-overview', { token }),
         getInsights: (token: string, params: InsightsQueryParams & { currency?: string } = {}) =>
             request<FinanceInsights>(`/finance/insights${buildQueryString(params as QueryParams)}`, { token }),
     }

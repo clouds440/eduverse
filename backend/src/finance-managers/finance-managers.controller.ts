@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { Access } from '../common/access-control/access.decorator';
@@ -19,6 +20,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { CreateFinanceManagerDto } from './dto/create-finance-manager.dto';
 import { UpdateFinanceManagerDto } from './dto/update-finance-manager.dto';
 import { FinanceManagersService } from './finance-managers.service';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -26,6 +28,32 @@ import { FinanceManagersService } from './finance-managers.service';
 export class FinanceManagersController {
   constructor(private readonly financeManagersService: FinanceManagersService) {}
 
+  @Roles(Role.FINANCE_MANAGER)
+  @Get('me/profile')
+  getOwnProfile(@OrgId() orgId: string, @Request() req: AuthenticatedRequest) {
+    return this.financeManagersService.getOwnProfile(orgId, req.user.id);
+  }
+
+  @Roles(Role.FINANCE_MANAGER)
+  @Access(AccessLevel.WRITE)
+  @Patch('me/profile')
+  updateOwnProfile(
+    @OrgId() orgId: string,
+    @Request() req: AuthenticatedRequest,
+    @Body() updateFinanceManagerDto: UpdateFinanceManagerDto,
+  ) {
+    const filteredData: UpdateFinanceManagerDto = {
+      ...(updateFinanceManagerDto.name !== undefined ? { name: updateFinanceManagerDto.name } : {}),
+      ...(updateFinanceManagerDto.phone !== undefined ? { phone: updateFinanceManagerDto.phone } : {}),
+      ...(updateFinanceManagerDto.password !== undefined ? { password: updateFinanceManagerDto.password } : {}),
+    };
+
+    return this.financeManagersService.updateOwnProfile(
+      orgId,
+      req.user.id,
+      filteredData,
+    );
+  }
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Get()
   getFinanceManagers(

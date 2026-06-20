@@ -11,6 +11,24 @@ const FINANCE_MANAGER_LABEL = 'Finance Manager';
 export class FinanceManagersService {
   constructor(private readonly roleAccounts: RoleAccountsService) {}
 
+  getOwnProfile(orgId: string, userId: string) {
+    return this.roleAccounts.getAccount(
+      orgId,
+      Role.FINANCE_MANAGER,
+      userId,
+      FINANCE_MANAGER_LABEL,
+    );
+  }
+
+  updateOwnProfile(orgId: string, userId: string, data: UpdateFinanceManagerDto) {
+    return this.roleAccounts.updateAccount(
+      orgId,
+      Role.FINANCE_MANAGER,
+      userId,
+      data,
+      FINANCE_MANAGER_LABEL,
+    );
+  }
   getFinanceManagers(orgId: string, options: PaginationOptions) {
     return this.roleAccounts.getAccounts(orgId, Role.FINANCE_MANAGER, options);
   }
