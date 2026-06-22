@@ -7,7 +7,7 @@ import { DepartmentScopeType, Role, TeacherStatus, UserStatus } from '../common/
 import { CreateTeacherDto } from '../org/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '../org/dto/update-teacher.dto';
 import { PaginationOptions, getPaginationOptions, formatPaginatedResponse, extractUpdateFields } from '../common/utils';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/prisma/prisma-client';
 import { extractTimetableEntries } from '../common/utils';
 import {
   assertDepartmentIdsBelongToOrg,

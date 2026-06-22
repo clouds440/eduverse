@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PromoteStudentsDto } from './dto/promote-students.dto';
-import { EnrollmentSource } from '@prisma/client';
+import { EnrollmentSource } from '@/prisma/prisma-client';
 
 @Injectable()
 export class PromotionsService {

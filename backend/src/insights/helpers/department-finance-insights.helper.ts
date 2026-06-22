@@ -1,4 +1,4 @@
-import { EntryStatus, FinanceTargetType } from '@prisma/client';
+import { EntryStatus, FinanceTargetType } from '@/prisma/prisma-client';
 import { InsightTone } from '../../common/enums';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { DashboardInsightGroup } from '../shared/insights.types';

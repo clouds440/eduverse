@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/prisma/prisma-client';
 import { BadRequestException } from '@nestjs/common';
 import { Role, DepartmentScopeType } from './enums';
 import { PrismaService } from '../prisma/prisma.service';

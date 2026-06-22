@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Role, OrgStatus } from '@prisma/client';
+import { Role, OrgStatus } from '@/prisma/prisma-client';
 import { BYPASS_ACTIVE_ORG_KEY } from '../decorators/bypass-active-org.decorator';
 
 @Injectable()

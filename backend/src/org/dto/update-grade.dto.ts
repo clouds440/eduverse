@@ -1,5 +1,5 @@
 import { IsNumber, IsOptional, IsString, IsEnum, Min } from 'class-validator';
-import { GradeStatus } from '@prisma/client';
+import { GradeStatus } from '@/prisma/prisma-client';
 
 export class UpdateGradeDto {
   @IsNumber()

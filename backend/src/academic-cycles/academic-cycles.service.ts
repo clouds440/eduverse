@@ -12,8 +12,9 @@ import {
   formatPaginatedResponse,
   PaginationOptions,
 } from '../common/utils';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/prisma/prisma-client';
 import { GpaService } from '../gpa/gpa.service';
+import { normalizeEntityCode } from '../common/entity-code';
 
 @Injectable()
 export class AcademicCyclesService {
@@ -43,13 +44,34 @@ export class AcademicCyclesService {
     return finalizedCount > 0;
   }
 
+  private async assertCodeUnique(orgId: string, codeValue: string, excludeId?: string) {
+    const code = normalizeEntityCode(codeValue);
+    if (!code) throw new BadRequestException('Academic cycle code is required');
+
+    const duplicate = await this.prisma.academicCycle.findFirst({
+      where: {
+        organizationId: orgId,
+        id: excludeId ? { not: excludeId } : undefined,
+        code: { equals: code, mode: Prisma.QueryMode.insensitive },
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new ConflictException('Academic cycle code already exists in this organization');
+    }
+  }
+
   async createCycle(orgId: string, dto: CreateAcademicCycleDto) {
     const startDate = new Date(dto.startDate);
     const endDate = new Date(dto.endDate);
+    const code = normalizeEntityCode(dto.code);
 
     if (endDate <= startDate) {
       throw new BadRequestException('End date must be after start date');
     }
+
+    await this.assertCodeUnique(orgId, dto.code);
 
     // If setting as active, deactivate all others first
     if (dto.isActive) {
@@ -63,7 +85,8 @@ export class AcademicCyclesService {
 
     return this.prisma.academicCycle.create({
       data: {
-        name: dto.name,
+        name: dto.name.trim(),
+        code: code!,
         startDate,
         endDate,
         isActive: dto.isActive ?? false,
@@ -84,7 +107,12 @@ export class AcademicCyclesService {
     const where: Prisma.AcademicCycleWhereInput = {
       organizationId: orgId,
       ...(options.search
-        ? { name: { contains: options.search, mode: 'insensitive' } }
+        ? {
+          OR: [
+            { name: { contains: options.search, mode: 'insensitive' } },
+            { code: { contains: options.search, mode: 'insensitive' } },
+          ],
+        }
         : {}),
     };
 
@@ -159,7 +187,11 @@ export class AcademicCyclesService {
     if (!cycle) throw new NotFoundException('Academic cycle not found');
 
     const updateData: Prisma.AcademicCycleUpdateInput = {};
-    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.name !== undefined) updateData.name = dto.name.trim();
+    if (dto.code !== undefined) {
+      await this.assertCodeUnique(orgId, dto.code, id);
+      updateData.code = normalizeEntityCode(dto.code)!;
+    }
     if (dto.startDate !== undefined) updateData.startDate = new Date(dto.startDate);
     if (dto.endDate !== undefined) updateData.endDate = new Date(dto.endDate);
     const nextGpaPolicyId = dto.gpaPolicyId?.trim() || undefined;

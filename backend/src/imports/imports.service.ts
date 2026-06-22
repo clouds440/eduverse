@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
-import { Prisma, RoomType } from '@prisma/client';
+import { Prisma, RoomType } from '@/prisma/prisma-client';
 import {
   AttendanceStatus,
   DepartmentScopeType,
@@ -604,25 +604,29 @@ export class ImportsService {
       },
       sections: {
         entity: 'sections',
-        headers: ['name', 'code', 'courseCode', 'academicCycleId', 'room', 'defaultRoomCode', 'cohortId', 'color'],
-        required: ['name', 'code', 'courseCode', 'academicCycleId'],
+        headers: ['name', 'code', 'courseCode', 'academicCycleCode', 'room', 'defaultRoomCode', 'cohortCode', 'color'],
+        required: ['name', 'code', 'courseCode', 'academicCycleCode'],
         dto: CreateSectionDto,
-        examples: [{ name: 'Section A', code: 'GRADE-9-A', courseCode: 'PHY-101', academicCycleId: 'cycle-id', room: 'Room 101', defaultRoomCode: 'ROOM-101', cohortId: '', color: '#3B82F6' }],
+        examples: [{ name: 'Section A', code: 'GRADE-9-A', courseCode: 'PHY-101', academicCycleCode: '2026-SPRING', room: 'Room 101', defaultRoomCode: 'ROOM-101', cohortCode: 'GRADE-9', color: '#3B82F6' }],
         normalize: (row) => ({
           name: optionalString(row.name),
           code: this.normalizeCode(row.code),
           courseCode: this.normalizeCode(row.courseCode),
-          academicCycleId: optionalString(row.academicCycleId),
+          academicCycleCode: this.normalizeCode(row.academicCycleCode),
           room: optionalString(row.room),
           defaultRoomCode: this.normalizeCode(row.defaultRoomCode),
-          cohortId: optionalString(row.cohortId),
+          cohortCode: this.normalizeCode(row.cohortCode),
           color: optionalString(row.color),
         }),
         resolveRelations: async (orgId, data) => {
           data.courseId = await this.resolveCourseId(orgId, data.courseCode as string | undefined, 'courseCode');
+          data.academicCycleId = await this.resolveAcademicCycleId(orgId, data.academicCycleCode as string | undefined, 'academicCycleCode');
           data.defaultRoomId = await this.resolveRoomId(orgId, data.defaultRoomCode as string | undefined, 'defaultRoomCode');
+          data.cohortId = await this.resolveCohortId(orgId, data.cohortCode as string | undefined, 'cohortCode');
           delete data.courseCode;
+          delete data.academicCycleCode;
           delete data.defaultRoomCode;
+          delete data.cohortCode;
         },
         create: (orgId, data, actor) => this.sections.createSection(orgId, data as unknown as CreateSectionDto, actor),
         validateRelations: async (orgId, data) => this.assertSectionRelations(orgId, data),
@@ -993,6 +997,40 @@ export class ImportsService {
     });
     if (!course) throw new BadRequestException({ field, message: `Course code "${value}" was not found` });
     return course.id;
+  }
+
+  private async resolveAcademicCycleId(orgId: string, codeOrId?: string, field = 'academicCycleCode') {
+    const value = this.normalizeCode(codeOrId);
+    if (!value) return undefined;
+    const cycle = await this.prisma.academicCycle.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { code: { equals: value, mode: Prisma.QueryMode.insensitive } },
+          { id: codeOrId?.trim() },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!cycle) throw new BadRequestException({ field, message: `Academic cycle code "${value}" was not found` });
+    return cycle.id;
+  }
+
+  private async resolveCohortId(orgId: string, codeOrId?: string, field = 'cohortCode') {
+    const value = this.normalizeCode(codeOrId);
+    if (!value) return undefined;
+    const cohort = await this.prisma.cohort.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { code: { equals: value, mode: Prisma.QueryMode.insensitive } },
+          { id: codeOrId?.trim() },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!cohort) throw new BadRequestException({ field, message: `Cohort code "${value}" was not found` });
+    return cohort.id;
   }
 
   private async resolveSectionId(orgId: string, codeOrId?: string, field = 'sectionCode') {

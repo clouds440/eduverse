@@ -285,7 +285,7 @@ export default function OrganizationsPage() {
                             <button
                                 type="button"
                                 onClick={() => handleSendMail(row)}
-                                className="py-2 px-3 bg-card/5 border border-primary/20 hover:bg-primary/10 text-muted-foreground hover:text-primary rounded-lg transition-all cursor-pointer"
+                                className="py-0 px-2 bg-card/5 border border-primary/20 hover:bg-primary/10 text-muted-foreground hover:text-primary rounded-lg transition-all cursor-pointer"
                                 title="Send Mail"
                                 aria-label={`Send mail to ${row.name}`}
                             >

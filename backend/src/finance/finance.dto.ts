@@ -1,5 +1,5 @@
 import { IsString, IsEnum, IsNumber, IsOptional, IsDateString, IsBoolean, IsObject, Min, IsArray } from 'class-validator';
-import { FinanceCategory, BillingCycle, FinanceTargetType, FinanceAssignmentSource } from '@prisma/client';
+import { FinanceCategory, BillingCycle, FinanceTargetType, FinanceAssignmentSource } from '@/prisma/prisma-client';
 
 export class CreateFinancialStructureDto {
   @IsString()

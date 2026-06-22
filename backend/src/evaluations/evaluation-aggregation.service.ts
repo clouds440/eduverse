@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EvaluationType, Prisma } from '@prisma/client';
+import { EvaluationType, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface EvaluationSummaryOptions {

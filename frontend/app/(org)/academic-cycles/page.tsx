@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { Calendar, Plus } from 'lucide-react';
+import { Calendar, Hash, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -56,7 +56,7 @@ export default function AcademicCyclesPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editingCycle, setEditingCycle] = useState<AcademicCycle | null>(null);
-    const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '', gpaPolicyId: '' });
+    const [formData, setFormData] = useState({ name: '', code: '', startDate: '', endDate: '', gpaPolicyId: '' });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCycle, setDeletingCycle] = useState<AcademicCycle | null>(null);
     const [activateDialogOpen, setActivateDialogOpen] = useState(false);
@@ -84,6 +84,7 @@ export default function AcademicCyclesPage() {
         setEditingCycle(cycle);
         setFormData({
             name: cycle.name,
+            code: cycle.code,
             startDate: cycle.startDate ? new Date(cycle.startDate).toISOString().split('T')[0] : '',
             endDate: cycle.endDate ? new Date(cycle.endDate).toISOString().split('T')[0] : '',
             gpaPolicyId: cycle.gpaPolicyId || '',
@@ -99,6 +100,7 @@ export default function AcademicCyclesPage() {
         try {
             const payload = {
                 name: formData.name,
+                code: formData.code,
                 startDate: formData.startDate,
                 endDate: formData.endDate,
                 ...(!editingCycle?.hasFinalizedGrades && formData.gpaPolicyId && formData.gpaPolicyId !== editingCycle?.gpaPolicyId
@@ -180,6 +182,7 @@ export default function AcademicCyclesPage() {
                             <p className="truncate text-sm font-black text-foreground">{row.name}</p>
                             {row.isActive && <Badge variant="primary" size="sm">Active</Badge>}
                         </div>
+                        <p className="mt-1 text-xs font-black uppercase tracking-wider text-muted-foreground">{row.code}</p>
                     </div>
                 </div>
             ),
@@ -269,7 +272,7 @@ export default function AcademicCyclesPage() {
                             <SearchBar
                                 value={searchTerm}
                                 onChange={(value) => updateQueryParams({ search: value, page: 1 })}
-                                placeholder="Search academic cycles..."
+                                placeholder="Search cycles or codes..."
                                 mobileMode="expandable"
                             />
                         )}
@@ -329,6 +332,19 @@ export default function AcademicCyclesPage() {
                             onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                             placeholder="e.g. Fall 2026"
                             icon={Calendar}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="code">Cycle Code *</Label>
+                        <Input
+                            id="code"
+                            type="text"
+                            required
+                            value={formData.code}
+                            onChange={(event) => setFormData({ ...formData, code: event.target.value })}
+                            placeholder="e.g. 2026-SPRING"
+                            icon={Hash}
+                            className="uppercase"
                         />
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

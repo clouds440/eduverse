@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EntryStatus, FinanceTargetType, TransactionType } from '@prisma/client';
+import { EntryStatus, FinanceTargetType, TransactionType } from '@/prisma/prisma-client';
 import { InsightTone, Role } from '../../common/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import {

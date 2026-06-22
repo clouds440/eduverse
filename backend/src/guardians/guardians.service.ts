@@ -5,7 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums';
 import { UserService } from '../users/user.service';

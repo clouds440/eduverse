@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, RoomType } from '@prisma/client';
+import { Prisma, RoomType } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
 import { FilesService } from '../files/files.service';

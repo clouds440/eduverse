@@ -13,12 +13,31 @@ import {
   formatPaginatedResponse,
   PaginationOptions,
 } from '../common/utils';
-import { Prisma, EnrollmentSource } from '@prisma/client';
+import { Prisma, EnrollmentSource } from '@/prisma/prisma-client';
 import { Role } from '../common/enums';
+import { normalizeEntityCode } from '../common/entity-code';
 
 @Injectable()
 export class CohortsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async assertCodeUnique(orgId: string, codeValue: string, excludeId?: string) {
+    const code = normalizeEntityCode(codeValue);
+    if (!code) throw new BadRequestException('Cohort code is required');
+
+    const duplicate = await this.prisma.cohort.findFirst({
+      where: {
+        organizationId: orgId,
+        id: excludeId ? { not: excludeId } : undefined,
+        code: { equals: code, mode: Prisma.QueryMode.insensitive },
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new ConflictException('Cohort code already exists in this organization');
+    }
+  }
 
   private async assertCanOverrideEnrollment(
     orgId: string,
@@ -50,6 +69,9 @@ export class CohortsService {
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
   async createCohort(orgId: string, dto: CreateCohortDto) {
+    const code = normalizeEntityCode(dto.code);
+    await this.assertCodeUnique(orgId, dto.code);
+
     // Validate cycle belongs to org
     const cycle = await this.prisma.academicCycle.findFirst({
       where: { id: dto.academicCycleId, organizationId: orgId },
@@ -59,7 +81,8 @@ export class CohortsService {
     return this.prisma.$transaction(async (tx) => {
       const cohort = await tx.cohort.create({
         data: {
-          name: dto.name,
+          name: dto.name.trim(),
+          code: code!,
           organizationId: orgId,
           academicCycleId: dto.academicCycleId,
           sections: {
@@ -111,7 +134,7 @@ export class CohortsService {
       return tx.cohort.findUnique({
         where: { id: cohort.id },
         include: {
-          academicCycle: { select: { id: true, name: true } },
+          academicCycle: { select: { id: true, name: true, code: true } },
           _count: { select: { students: true, sections: true } },
         },
       });
@@ -129,7 +152,12 @@ export class CohortsService {
       organizationId: orgId,
       ...(options.academicCycleId ? { academicCycleId: options.academicCycleId } : {}),
       ...(options.search
-        ? { name: { contains: options.search, mode: 'insensitive' } }
+        ? {
+          OR: [
+            { name: { contains: options.search, mode: 'insensitive' } },
+            { code: { contains: options.search, mode: 'insensitive' } },
+          ],
+        }
         : {}),
     };
 
@@ -140,7 +168,7 @@ export class CohortsService {
         take,
         orderBy: { [sortBy]: sortOrder },
         include: {
-          academicCycle: { select: { id: true, name: true, isActive: true } },
+          academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
           _count: { select: { students: true, sections: true } },
         },
       }),
@@ -154,7 +182,7 @@ export class CohortsService {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id, organizationId: orgId },
       include: {
-        academicCycle: { select: { id: true, name: true, isActive: true } },
+        academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
         students: {
           include: {
             user: {
@@ -186,6 +214,10 @@ export class CohortsService {
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
 
+    if (dto.code !== undefined) {
+      await this.assertCodeUnique(orgId, dto.code, id);
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const previousStudentIds = new Set(cohort.students.map(student => student.id));
       const previousSectionIds = new Set(cohort.sections.map(section => section.id));
@@ -200,7 +232,8 @@ export class CohortsService {
       await tx.cohort.update({
         where: { id },
         data: {
-          name: dto.name,
+          name: dto.name !== undefined ? dto.name.trim() : undefined,
+          code: dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
           sections: dto.sectionIds ? {
             set: dto.sectionIds.map(sectionId => ({ id: sectionId })),
           } : undefined,

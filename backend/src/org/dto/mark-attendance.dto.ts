@@ -1,5 +1,5 @@
 import { IsString, IsNotEmpty, IsEnum } from 'class-validator';
-import { AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus } from '@/prisma/prisma-client';
 
 export class AttendanceRecordDto {
   @IsString()

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/prisma/prisma-client';
 import * as webpush from 'web-push';
 
 export interface CreateNotificationDto {

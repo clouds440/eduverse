@@ -1635,6 +1635,7 @@ export interface UpdateCourseMaterialRequest {
 export interface AcademicCycle {
     id: string;
     name: string;
+    code: string;
     startDate: string;
     endDate: string;
     isActive: boolean;
@@ -1652,6 +1653,7 @@ export interface AcademicCycle {
 export interface Cohort {
     id: string;
     name: string;
+    code: string;
     organizationId: string;
     academicCycleId: string;
     academicCycle?: AcademicCycle;
@@ -1710,6 +1712,7 @@ export interface Transcript {
 
 export interface CreateAcademicCycleDto {
     name: string;
+    code: string;
     startDate: string;
     endDate: string;
     isActive?: boolean;
@@ -1972,6 +1975,7 @@ export type FinanceInsights = DashboardInsights & {
 
 export interface UpdateAcademicCycleDto {
     name?: string;
+    code?: string;
     startDate?: string;
     endDate?: string;
     isActive?: boolean;
@@ -1980,6 +1984,7 @@ export interface UpdateAcademicCycleDto {
 
 export interface CreateCohortDto {
     name: string;
+    code: string;
     academicCycleId: string;
     studentIds?: string[];
     sectionIds?: string[];
@@ -1987,6 +1992,7 @@ export interface CreateCohortDto {
 
 export interface UpdateCohortDto {
     name?: string;
+    code?: string;
     studentIds?: string[];
     sectionIds?: string[];
 }

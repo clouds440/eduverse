@@ -212,7 +212,7 @@ export default function CreateSectionPage() {
                                                 onChange={(value) => setFormData({ ...formData, academicCycleId: value, cohortId: '' })}
                                                 icon={Calendar}
                                                 options={[
-                                                    ...(cyclesData?.data?.map((c: AcademicCycle) => ({ value: c.id, label: c.name })) || [])
+                                                    ...(cyclesData?.data?.map((c: AcademicCycle) => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name })) || [])
                                                 ]}
                                                 placeholder="Select cycle..."
                                                 required
@@ -284,7 +284,7 @@ export default function CreateSectionPage() {
                                                 { label: 'None (Individual Enrollment)', value: '' },
                                                 ...(cohortsData?.data?.filter((c: Cohort) => !formData.academicCycleId || c.academicCycleId === formData.academicCycleId).map((c: Cohort) => ({
                                                     value: c.id,
-                                                    label: c.name
+                                                    label: c.code ? `${c.code} - ${c.name}` : c.name
                                                 })) || [])
                                             ]}
                                             icon={Network}

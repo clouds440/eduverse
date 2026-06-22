@@ -120,7 +120,7 @@ describe('ImportsService student validation', () => {
       },
     });
     const csv = [
-      'name,email,password,registrationNumber,rollNumber,major,gender,phone,fatherName,age,address,admissionDate,graduationDate,emergencyContact,bloodGroup,status,primaryDepartmentId,departmentIds',
+      'name,email,password,registrationNumber,rollNumber,major,gender,phone,fatherName,age,address,admissionDate,graduationDate,emergencyContact,bloodGroup,status,primaryDepartmentCode,departmentCodes',
       'Ali Raza,ali@student.test,Student123,REG-1,R-1,Science,Male,,,,,,,,ACTIVE,,',
       'No Email,,Student123,REG-2,R-2,Science,Male,,,,,,,,ACTIVE,,',
       'Bad Date,bad@student.test,Student123,REG-3,R-3,Science,Male,,,,,not-a-date,,,ACTIVE,,',
@@ -143,7 +143,7 @@ describe('ImportsService student validation', () => {
     const headers = [
       'name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender',
       'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate',
-      'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentId', 'departmentIds',
+      'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes',
     ];
     const rowWithBadAge = [
       'Bad Age', 'bad-age@student.test', 'Student123', 'REG-10', 'R-10', 'Science', 'Male',

@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '@/prisma/prisma-client';
 
 export const NOTIFICATIONS_SERVICE = Symbol('NOTIFICATIONS_SERVICE');
 

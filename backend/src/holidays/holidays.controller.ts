@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Request } from '@nestjs/common';
-import { HolidayType } from '@prisma/client';
+import { HolidayType } from '@/prisma/prisma-client';
 import { Roles } from '../auth/roles.decorator';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { Access } from '../common/access-control/access.decorator';

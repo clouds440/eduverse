@@ -3086,12 +3086,114 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'identification-codes',
+    title: 'Identification Codes',
+    description: 'Use stable, human-readable codes for CSV imports and linked setup records.',
+    category: 'Setup',
+    tags: ['codes', 'csv', 'imports', 'setup', 'departments', 'rooms', 'sections'],
+    related: ['csv-imports', 'departments-buildings-rooms', 'academic-cycles', 'cohorts-promotions', 'courses-sections'],
+    sections: [
+      {
+        id: 'what-codes-are',
+        title: 'What codes are',
+        tags: ['human-readable', 'identifiers'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Identification codes are short, readable labels that users can type into CSV files instead of database IDs. EduVerse stores internal IDs in the background, but CSV templates use codes so schools can prepare imports without copying UUIDs.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Codes are required for departments, buildings, rooms, academic cycles, cohorts, courses, and sections.',
+              'Codes are unique inside one school workspace. Another organization can reuse the same code.',
+              'Codes are normalized before saving and lookup, so sci, Sci, and SCI are treated as SCI.',
+              'Students, teachers, guardians, and other users do not need codes because they are referenced by email, roll number, registration number, or employee number where applicable.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'code-format',
+        title: 'Code format',
+        tags: ['format', 'examples'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Use uppercase letters, numbers, hyphens, or underscores. Keep codes short enough to read in tables and stable enough to reuse in future imports.',
+          },
+          {
+            type: 'table',
+            headers: ['Record', 'Good examples', 'Why it works'],
+            rows: [
+              ['Department', 'SCI, CS, FINANCE', 'Short department abbreviations are easy to reuse in student, teacher, course, and building imports.'],
+              ['Building', 'MAIN, SCI-BLOCK, NORTH', 'Building codes identify where rooms belong.'],
+              ['Room', 'ROOM-101, LAB-2, AUDITORIUM', 'Room codes identify schedulable spaces without exposing room IDs.'],
+              ['Academic cycle', '2026-SPRING, AY-2026, TERM-1-2026', 'Cycle codes identify the academic period used by section imports.'],
+              ['Cohort', 'GRADE-9, CS-2026, BATCH-A', 'Cohort codes identify student groups used by section imports and cohort management.'],
+              ['Course', 'MATH-101, PHY-101, ENG-9', 'Course codes identify the parent course for section imports.'],
+              ['Section', 'GRADE-9-A, PHY-101-MORN, CS-2026-A', 'Section codes identify the actual class section.'],
+            ],
+          },
+          {
+            type: 'tip',
+            title: 'Naming advice',
+            text: 'Avoid changing codes after CSV templates have been shared. If a code changes, future imports must use the new code.',
+          },
+        ],
+      },
+      {
+        id: 'where-codes-are-used',
+        title: 'Where codes are used',
+        tags: ['csv columns', 'relationships'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['CSV column', 'Resolves to', 'Used in'],
+            rows: [
+              ['primaryDepartmentCode', 'Department', 'Student imports'],
+              ['departmentCodes', 'Departments', 'Student, teacher, and building imports'],
+              ['departmentCode', 'Department', 'Course imports'],
+              ['buildingCode', 'Building', 'Room imports'],
+              ['courseCode', 'Course', 'Section imports'],
+              ['academicCycleCode', 'Academic cycle', 'Section imports'],
+              ['cohortCode', 'Cohort', 'Section imports'],
+              ['defaultRoomCode', 'Room', 'Section imports'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Internal IDs stay internal',
+            text: 'The backend resolves each code to the matching internal ID during import. Users should not need UUIDs in CSV files.',
+          },
+        ],
+      },
+      {
+        id: 'creating-codes',
+        title: 'Creating codes',
+        tags: ['setup', 'create'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Create departments first, then use department codes when creating courses, buildings, students, or teachers.',
+              'Create buildings before rooms, then use buildingCode in the room CSV template.',
+              'Create academic cycles and cohorts manually before importing sections.',
+              'Create courses before sections, then use courseCode in the section CSV template.',
+              'Review list pages after creation. Codes are shown beside record names so users can copy the correct values into CSV files.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'csv-imports',
     title: 'CSV Imports',
     description: 'Import people, academic setup, rooms, and monthly attendance with templates, validation, and error reports.',
     category: 'Workflows',
     tags: ['csv', 'imports', 'templates', 'bulk upload'],
-    related: ['students', 'teachers', 'courses-sections', 'departments-buildings-rooms', 'attendance'],
+    related: ['identification-codes', 'students', 'teachers', 'courses-sections', 'departments-buildings-rooms', 'attendance'],
     sections: [
       {
         id: 'import-flow',
@@ -3125,14 +3227,14 @@ export const docsPages: DocPage[] = [
             type: 'table',
             headers: ['Module', 'Who can import', 'Required columns', 'Relationship or optional columns'],
             rows: [
-              ['Import students CSV', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, major, gender', 'phone, fatherName, age, address, admissionDate, graduationDate, emergencyContact, bloodGroup, status, primaryDepartmentId, departmentIds'],
-              ['Import teachers CSV', 'Org Admin or Sub Admin', 'name, email, password, phone, education, designation, subject', 'department, joiningDate, emergencyContact, bloodGroup, address, status, departmentIds'],
+              ['Import students CSV', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, major, gender', 'phone, fatherName, age, address, admissionDate, graduationDate, emergencyContact, bloodGroup, status, primaryDepartmentCode, departmentCodes'],
+              ['Import teachers CSV', 'Org Admin or Sub Admin', 'name, email, password, phone, education, designation, subject', 'department, joiningDate, emergencyContact, bloodGroup, address, status, departmentCodes'],
               ['Import guardians CSV', 'Org Admin or Sub Admin', 'name, email, password', 'phone, status, address'],
-              ['Import courses CSV', 'Org Admin or Sub Admin', 'name', 'description, creditHours, departmentId'],
-              ['Import sections CSV', 'Org Admin or Sub Admin', 'name, courseId, academicCycleId', 'room, defaultRoomId, cohortId, color'],
-              ['Import departments CSV', 'Org Admin only', 'name', 'code, description, color, isActive'],
-              ['Import buildings CSV', 'Org Admin or Sub Admin', 'name', 'code, address, description, isActive, departmentIds'],
-              ['Import rooms CSV', 'Org Admin or Sub Admin', 'buildingId, name', 'floor, type, capacity, description, isActive'],
+              ['Import courses CSV', 'Org Admin or Sub Admin', 'name, code', 'description, creditHours, departmentCode'],
+              ['Import sections CSV', 'Org Admin or Sub Admin', 'name, code, courseCode, academicCycleCode', 'room, defaultRoomCode, cohortCode, color'],
+              ['Import departments CSV', 'Org Admin only', 'name, code', 'description, color, isActive'],
+              ['Import buildings CSV', 'Org Admin or Sub Admin', 'name, code', 'address, description, isActive, departmentCodes'],
+              ['Import rooms CSV', 'Org Admin or Sub Admin', 'buildingCode, name, code', 'floor, type, capacity, description, isActive'],
             ],
           },
         ],
@@ -3144,14 +3246,15 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Columns ending in Id or Ids connect the imported row to records that already exist in the school workspace. Use the exact record IDs shown or exported from the relevant module.',
+            text: 'Code columns connect the imported row to records that already exist in the school workspace. Use the human-readable codes shown on list and detail pages instead of database IDs.',
           },
           {
             type: 'list',
             items: [
-              'departmentIds accepts multiple department IDs separated by commas.',
-              'primaryDepartmentId, departmentId, buildingId, courseId, academicCycleId, defaultRoomId, and cohortId must belong to the same organization.',
+              'departmentCodes accepts multiple department codes separated by commas.',
+              'primaryDepartmentCode, departmentCode, buildingCode, courseCode, academicCycleCode, defaultRoomCode, and cohortCode must belong to the same organization.',
               'Create departments, buildings, courses, academic cycles, cohorts, and rooms before importing records that reference them.',
+              'Read the Identification Codes page for examples such as SCI, MAIN, ROOM-101, 2026-SPRING, GRADE-9, MATH-101, and GRADE-9-A.',
             ],
           },
         ],
@@ -3325,7 +3428,7 @@ export const docsNavGroups: DocNavGroup[] = [
   { title: 'Basics', pages: ['quick-start', 'getting-started', 'roles-permissions', 'glossary', 'dashboard-insights'] },
   { title: 'Role Guides', pages: ['admin-guide', 'sub-admin-guide', 'manager-guide', 'finance-manager-guide', 'teacher-guide', 'student-guide', 'guardian-guide'] },
   { title: 'Workflows', pages: ['school-setup-workflow', 'end-of-term-workflow', 'csv-imports'] },
-  { title: 'Setup', pages: ['departments-buildings-rooms'] },
+  { title: 'Setup', pages: ['identification-codes', 'departments-buildings-rooms'] },
   { title: 'Administration', pages: ['platform-admin'] },
   { title: 'People', pages: ['students', 'teachers'] },
   {

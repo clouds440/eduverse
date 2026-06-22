@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { GpaCalculationMethod, GpaPolicy, GpaRounding, Prisma } from '@prisma/client';
+import { GpaCalculationMethod, GpaPolicy, GpaRounding, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_GPA_RULES } from './gpa.constants';
 

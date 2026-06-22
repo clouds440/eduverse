@@ -18,7 +18,7 @@ import { Roles } from '../auth/roles.decorator';
 import { CreatePlatformAdminDto } from './dto/create-platform-admin.dto';
 import { UpdatePlatformAdminDto } from './dto/update-platform-admin.dto';
 import { User } from '../common/decorators/user.decorator';
-import type { User as UserEntity } from '@prisma/client';
+import type { User as UserEntity } from '@/prisma/prisma-client';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('admin')

@@ -9,7 +9,7 @@ import {
   Max,
   IsBoolean,
 } from 'class-validator';
-import { AssessmentType } from '@prisma/client';
+import { AssessmentType } from '@/prisma/prisma-client';
 
 export class CreateAssessmentDto {
   @IsString()

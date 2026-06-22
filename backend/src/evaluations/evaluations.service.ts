@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EvaluationType, Prisma } from '@prisma/client';
+import { EvaluationType, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums';
 import {

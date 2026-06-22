@@ -294,7 +294,7 @@ export default function EditSectionPage() {
                             <CustomSelect
                                 value={formData.academicCycleId}
                                 onChange={(value) => setFormData((previous) => ({ ...previous, academicCycleId: value, cohortId: '' }))}
-                                options={cycles.map((cycle) => ({ value: cycle.id, label: cycle.name, icon: Calendar }))}
+                                options={cycles.map((cycle) => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name, icon: Calendar }))}
                                 placeholder="Select academic cycle"
                                 required
                                 error={!!formErrors.academicCycleId}
@@ -308,7 +308,7 @@ export default function EditSectionPage() {
                                 onChange={(value) => setFormData((previous) => ({ ...previous, cohortId: value }))}
                                 options={[
                                     { value: '', label: 'No Cohort', icon: Network },
-                                    ...filteredCohorts.map((cohort) => ({ value: cohort.id, label: cohort.name, icon: Network })),
+                                    ...filteredCohorts.map((cohort) => ({ value: cohort.id, label: cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name, icon: Network })),
                                 ]}
                                 placeholder="Select cohort"
                             />

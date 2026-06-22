@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { EvaluationType, GradeStatus, Prisma } from '@prisma/client';
+import { EvaluationType, GradeStatus, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface CurrentUser {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { Plus, Users } from 'lucide-react';
+import { Hash, Plus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -64,7 +64,7 @@ export default function CohortsPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
-    const [formData, setFormData] = useState({ name: '', academicCycleId: '', studentIds: [] as string[], sectionIds: [] as string[] });
+    const [formData, setFormData] = useState({ name: '', code: '', academicCycleId: '', studentIds: [] as string[], sectionIds: [] as string[] });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCohort, setDeletingCohort] = useState<Cohort | null>(null);
 
@@ -86,6 +86,7 @@ export default function CohortsPage() {
         setEditingCohort(cohort);
         setFormData({
             name: cohort.name,
+            code: cohort.code,
             academicCycleId: cohort.academicCycleId,
             studentIds: cohort.students?.map((student) => student.id) || [],
             sectionIds: cohort.sections?.map((section) => section.id) || [],
@@ -144,7 +145,10 @@ export default function CohortsPage() {
         ...(academicCycleId ? [{
             key: 'academicCycleId',
             label: 'Cycle',
-            value: cyclesData?.data?.find((cycle) => cycle.id === academicCycleId)?.name || 'Selected cycle',
+            value: (() => {
+                const cycle = cyclesData?.data?.find((item) => item.id === academicCycleId);
+                return cycle ? (cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name) : 'Selected cycle';
+            })(),
             onRemove: () => updateQueryParams({ academicCycleId: undefined, page: 1 }),
         }] : []),
     ];
@@ -161,13 +165,14 @@ export default function CohortsPage() {
                     </div>
                     <div className="min-w-0">
                         <p className="truncate text-sm font-black text-foreground">{row.name}</p>
+                        <p className="mt-1 text-xs font-black uppercase tracking-wider text-muted-foreground">{row.code}</p>
                     </div>
                 </div>
             ),
         },
         {
             header: 'Academic Cycle',
-            accessor: (row) => row.academicCycle?.name || 'N/A',
+            accessor: (row) => row.academicCycle ? (row.academicCycle.code ? `${row.academicCycle.code} - ${row.academicCycle.name}` : row.academicCycle.name) : 'N/A',
         },
         {
             header: 'Students',
@@ -227,7 +232,7 @@ export default function CohortsPage() {
                         <SearchBar
                             value={searchTerm}
                             onChange={(value) => updateQueryParams({ search: value, page: 1 })}
-                            placeholder="Search cohorts..."
+                            placeholder="Search cohorts or codes..."
                             mobileMode="expandable"
                         />
                     )}
@@ -249,7 +254,7 @@ export default function CohortsPage() {
                                 <CustomSelect
                                     options={[
                                         { label: 'All Academic Cycles', value: '' },
-                                        ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.name })) || []),
+                                        ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name })) || []),
                                     ]}
                                     value={academicCycleId}
                                     onChange={(value) => updateQueryParams({ academicCycleId: value, page: 1 })}
@@ -308,11 +313,24 @@ export default function CohortsPage() {
                             icon={Users}
                         />
                     </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="code">Cohort Code *</Label>
+                        <Input
+                            id="code"
+                            type="text"
+                            required
+                            value={formData.code}
+                            onChange={(event) => setFormData({ ...formData, code: event.target.value })}
+                            placeholder="e.g. GRADE-9"
+                            icon={Hash}
+                            className="uppercase"
+                        />
+                    </div>
                     {!isEditing && (
                         <div className="space-y-2">
                             <Label>Academic Cycle *</Label>
                             <CustomSelect
-                                options={cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.name })) || []}
+                                options={cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name })) || []}
                                 value={formData.academicCycleId}
                                 onChange={(value) => setFormData({ ...formData, academicCycleId: value })}
                                 placeholder="Select Academic Cycle"

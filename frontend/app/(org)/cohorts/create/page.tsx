@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Users, Calendar, GraduationCap, AlertCircle, BookOpen } from 'lucide-react';
+import { Users, Calendar, GraduationCap, AlertCircle, BookOpen, Hash } from 'lucide-react';
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
@@ -25,6 +25,7 @@ export default function CreateCohortPage() {
 
     const [formData, setFormData] = useState({
         name: '',
+        code: '',
         academicCycleId: '',
         studentIds: [] as string[],
         sectionIds: [] as string[]
@@ -47,7 +48,7 @@ export default function CreateCohortPage() {
         }
     }, [user, router]);
 
-    const [formErrors, setFormErrors] = useState<{ name?: string; academicCycleId?: string; general?: string }>({});
+    const [formErrors, setFormErrors] = useState<{ name?: string; code?: string; academicCycleId?: string; general?: string }>({});
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -64,6 +65,10 @@ export default function CreateCohortPage() {
         }
         if (!formData.name) {
             setFormErrors(prev => ({ ...prev, name: 'Cohort Name is required' }));
+            hasError = true;
+        }
+        if (!formData.code) {
+            setFormErrors(prev => ({ ...prev, code: 'Cohort Code is required' }));
             hasError = true;
         }
 
@@ -89,12 +94,14 @@ export default function CreateCohortPage() {
                 message.forEach((m: string) => {
                     const msg = m.toLowerCase();
                     if (msg.includes('name')) newErrors.name = m;
+                    else if (msg.includes('code')) newErrors.code = m;
                     else if (msg.includes('cycle')) newErrors.academicCycleId = m;
                     else newErrors.general = m;
                 });
             } else {
                 const msgStr = message;
                 if (msgStr.toLowerCase().includes('name')) newErrors.name = msgStr;
+                else if (msgStr.toLowerCase().includes('code')) newErrors.code = msgStr;
                 else if (msgStr.toLowerCase().includes('cycle')) newErrors.academicCycleId = msgStr;
                 else newErrors.general = msgStr;
             }
@@ -152,7 +159,7 @@ export default function CreateCohortPage() {
                             </li>
                             <li className="flex items-start gap-2 text-xs font-medium text-muted-foreground">
                                 <span className="w-1 h-1 rounded-full bg-primary mt-1.5 shrink-0" />
-                                <span>Unique cohort name within cycle</span>
+                                <span>Unique cohort code for CSV imports</span>
                             </li>
                             <li className="flex items-start gap-2 text-xs font-medium text-muted-foreground">
                                 <span className="w-1 h-1 rounded-full bg-primary mt-1.5 shrink-0" />
@@ -179,7 +186,7 @@ export default function CreateCohortPage() {
                                                 value={formData.academicCycleId}
                                                 onChange={(value) => setFormData({ ...formData, academicCycleId: value, studentIds: [], sectionIds: [] })}
                                                 icon={Calendar}
-                                                options={cyclesData?.data?.map((c: AcademicCycle) => ({ value: c.id, label: c.name })) || []}
+                                                options={cyclesData?.data?.map((c: AcademicCycle) => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name })) || []}
                                                 placeholder="Select academic cycle..."
                                                 required
                                                 error={!!formErrors.academicCycleId}
@@ -207,6 +214,21 @@ export default function CreateCohortPage() {
                                                 className="h-12 md:h-14 font-medium"
                                             />
                                             {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-bold ml-1">Cohort Code <span className="text-primary">*</span></Label>
+                                            <Input
+                                                type="text"
+                                                name="code"
+                                                value={formData.code}
+                                                onChange={handleChange}
+                                                required
+                                                icon={Hash}
+                                                placeholder="e.g. GRADE-9"
+                                                error={!!formErrors.code}
+                                                className="h-12 md:h-14 font-medium uppercase"
+                                            />
+                                            {formErrors.code && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.code}</p>}
                                         </div>
                                     </div>
                                 </div>

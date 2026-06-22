@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums';
 import { GpaService } from '../gpa/gpa.service';
-import { GpaRounding, Prisma } from '@prisma/client';
+import { GpaRounding, Prisma } from '@/prisma/prisma-client';
 import { StudentService } from '../students/student.service';
 
 @Injectable()

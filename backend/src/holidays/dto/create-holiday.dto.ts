@@ -1,5 +1,5 @@
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
-import { DepartmentScopeType, HolidayMatchMode, HolidayType, TargetType } from '@prisma/client';
+import { DepartmentScopeType, HolidayMatchMode, HolidayType, TargetType } from '@/prisma/prisma-client';
 import { AnnouncementPriority } from '../../announcements/dto/create-announcement.dto';
 
 export class CreateHolidayDto {

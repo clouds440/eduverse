@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
@@ -92,7 +92,7 @@ export default function EvaluationsManagementPage() {
     };
 
     return (
-        <PageShell>
+        <PageShell className="gap-0.5">
             <PageHeader
                 title="Evaluations"
                 description="Review teacher and course feedback, moderate written comments, and manage evaluation windows."
@@ -177,7 +177,7 @@ export default function EvaluationsManagementPage() {
                                                             : evaluation.course?.name || 'Course'}
                                                     </p>
                                                     <p className="mt-1 text-xs font-medium text-muted-foreground">
-                                                        {[evaluation.course?.name, evaluation.section?.name, evaluation.academicCycle?.name].filter(Boolean).join(' · ')}
+                                                        {[evaluation.course?.name, evaluation.section?.name, evaluation.academicCycle?.name].filter(Boolean).join(' Â· ')}
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-3">
@@ -226,7 +226,7 @@ export default function EvaluationsManagementPage() {
                                                 </div>
                                                 <p className="text-sm font-black text-foreground">{window.title}</p>
                                                 <p className="mt-1 text-xs font-medium text-muted-foreground">
-                                                    {[window.academicCycle?.name, window.course?.name, window.section?.name].filter(Boolean).join(' · ') || 'Cycle-wide'}
+                                                    {[window.academicCycle?.name, window.course?.name, window.section?.name].filter(Boolean).join(' Â· ') || 'Cycle-wide'}
                                                 </p>
                                             </div>
                                             <p className="text-sm font-bold text-muted-foreground">
@@ -243,3 +243,4 @@ export default function EvaluationsManagementPage() {
         </PageShell>
     );
 }
+

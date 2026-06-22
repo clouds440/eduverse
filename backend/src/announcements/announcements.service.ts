@@ -4,7 +4,7 @@ import { EventsGateway } from '../events/events.gateway';
 import { StudentService } from '../students/student.service';
 import { TeacherService } from '../teacher/teacher.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
-import { Prisma, Role, TargetType } from '@prisma/client';
+import { Prisma, Role, TargetType } from '@/prisma/prisma-client';
 import { formatRoleLabel } from '../common/role-labels';
 
 interface CurrentUser {

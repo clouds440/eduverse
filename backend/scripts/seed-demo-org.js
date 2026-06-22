@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 
+require('ts-node/register');
+require('tsconfig-paths/register');
+
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 const path = require('path');
 const {
   PrismaClient,
+  createPrismaClientOptions,
   Role,
   UserStatus,
   TeacherStatus,
@@ -24,14 +28,16 @@ const {
   TransactionType,
   GpaCalculationMethod,
   GpaRounding,
-} = require('@prisma/client');
+} = require('@/prisma/prisma-client');
 
 const DEFAULT_ORG_ID = '3a2886b5-3b95-4cb1-b55e-6b95ec190dd6';
 const SEED_TAG = 'demo-prod-seed-v1';
 
 loadLocalEnv();
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  ...createPrismaClientOptions(),
+});
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((arg) => {
@@ -338,6 +344,7 @@ async function seedBuildingsAndRooms(ctx) {
     }
 
     for (const roomSeed of seed.rooms) {
+      const roomCode = roomSeed.code || `DEMO-${roomSeed.key.toUpperCase()}`;
       const room = await prisma.room.upsert({
         where: {
           organizationId_buildingId_name: {
@@ -347,6 +354,7 @@ async function seedBuildingsAndRooms(ctx) {
           },
         },
         update: {
+          code: roomCode,
           floor: roomSeed.floor,
           type: roomSeed.type,
           capacity: roomSeed.capacity,
@@ -357,6 +365,7 @@ async function seedBuildingsAndRooms(ctx) {
           organizationId: orgId,
           buildingId: building.id,
           name: roomSeed.name,
+          code: roomCode,
           floor: roomSeed.floor,
           type: roomSeed.type,
           capacity: roomSeed.capacity,
@@ -425,18 +434,21 @@ async function seedGpaAndAcademicCycle(ctx) {
 async function seedCourses(ctx) {
   for (const seed of courses) {
     const department = ctx.departments.get(seed.department);
+    const courseCode = seed.code || `DEMO-${seed.key.toUpperCase()}`;
     const course = await findFirstOrCreate(
       prisma.course,
       { organizationId: orgId, name: seed.name },
       {
         organizationId: orgId,
         name: seed.name,
+        code: courseCode,
         description: seed.description,
         creditHours: seed.creditHours,
         departmentId: department.id,
         updatedBy: SEED_TAG,
       },
       {
+        code: courseCode,
         description: seed.description,
         creditHours: seed.creditHours,
         departmentId: department.id,
@@ -516,16 +528,20 @@ async function seedCohortsAndSections(ctx) {
     const course = ctx.courses.get(seed.course);
     const cohort = ctx.cohorts.get(seed.cohort);
     const room = ctx.rooms.get(seed.room);
+    const sectionCode = seed.code || `DEMO-${seed.key.toUpperCase()}`;
     const section = await findFirstOrCreate(
       prisma.section,
       {
+        organizationId: orgId,
         name: seed.name,
         courseId: course.id,
         academicCycleId: ctx.academicCycle.id,
         cohortId: cohort.id,
       },
       {
+        organizationId: orgId,
         name: seed.name,
+        code: sectionCode,
         color: seed.color,
         room: room.name,
         defaultRoomId: room.id,
@@ -535,6 +551,7 @@ async function seedCohortsAndSections(ctx) {
         teachers: { connect: seed.teachers.map((key) => ({ id: ctx.teachers.get(key).id })) },
       },
       {
+        code: sectionCode,
         color: seed.color,
         room: room.name,
         defaultRoomId: room.id,

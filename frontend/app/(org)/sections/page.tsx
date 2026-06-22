@@ -187,9 +187,13 @@ export default function SectionsPage() {
             sortKey: 'academicCycleId',
             accessor: (row: Section) => (
                 <div className="flex flex-col">
-                    <span className="text-sm font-bold text-foreground truncate max-w-40">{row.academicCycle?.name || 'No Cycle'}</span>
+                    <span className="text-sm font-bold text-foreground truncate max-w-40">
+                        {row.academicCycle ? (row.academicCycle.code ? `${row.academicCycle.code} - ${row.academicCycle.name}` : row.academicCycle.name) : 'No Cycle'}
+                    </span>
                     {row.cohort && (
-                        <span className="text-[10px] text-primary font-black uppercase tracking-widest">{row.cohort.name}</span>
+                        <span className="text-[10px] text-primary font-black uppercase tracking-widest">
+                            {row.cohort.code ? `${row.cohort.code} - ${row.cohort.name}` : row.cohort.name}
+                        </span>
                     )}
                 </div>
             )
@@ -238,13 +242,19 @@ export default function SectionsPage() {
         ...(academicCycleId ? [{
             key: 'academicCycleId',
             label: 'Cycle',
-            value: cyclesData?.data?.find((cycle) => cycle.id === academicCycleId)?.name || 'Selected cycle',
+            value: (() => {
+                const cycle = cyclesData?.data?.find((item) => item.id === academicCycleId);
+                return cycle ? (cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name) : 'Selected cycle';
+            })(),
             onRemove: () => updateQueryParams({ academicCycleId: undefined, page: 1 }),
         }] : []),
         ...(cohortId ? [{
             key: 'cohortId',
             label: 'Cohort',
-            value: cohortsData?.data?.find((cohort) => cohort.id === cohortId)?.name || 'Selected cohort',
+            value: (() => {
+                const cohort = cohortsData?.data?.find((item) => item.id === cohortId);
+                return cohort ? (cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name) : 'Selected cohort';
+            })(),
             onRemove: () => updateQueryParams({ cohortId: undefined, page: 1 }),
         }] : []),
         ...(teacherId ? [{
@@ -352,7 +362,7 @@ export default function SectionsPage() {
                                 <CustomSelect
                                     options={[
                                         { label: 'All Academic Cycles', value: '' },
-                                        ...(cyclesData?.data?.map(cycle => ({ value: cycle.id, label: cycle.name })) || [])
+                                        ...(cyclesData?.data?.map(cycle => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name })) || [])
                                     ]}
                                     value={academicCycleId}
                                     onChange={(val) => updateQueryParams({ academicCycleId: val, page: 1 })}
@@ -376,7 +386,7 @@ export default function SectionsPage() {
                                 <CustomSelect
                                     options={[
                                         { label: 'All Cohorts', value: '' },
-                                        ...(cohortsData?.data?.map(cohort => ({ value: cohort.id, label: cohort.name, icon: School })) || [])
+                                        ...(cohortsData?.data?.map(cohort => ({ value: cohort.id, label: cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name, icon: School })) || [])
                                     ]}
                                     value={cohortId}
                                     onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}

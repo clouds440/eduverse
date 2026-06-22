@@ -1,4 +1,4 @@
-import { HolidayMatchMode, HolidayType, DepartmentScopeType } from '@prisma/client';
+import { HolidayMatchMode, HolidayType, DepartmentScopeType } from '@/prisma/prisma-client';
 
 export interface HolidayLike {
   id: string;

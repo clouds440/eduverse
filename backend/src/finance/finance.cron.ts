@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BillingCycle, EntrySource, EntryStatus, FinanceTargetType } from '@prisma/client';
+import { BillingCycle, EntrySource, EntryStatus, FinanceTargetType } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 

@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Role, UserStatus } from '../common/enums';
 import * as bcrypt from 'bcrypt';
 import { BCRYPT_ROUNDS } from '../common/utils';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/prisma/prisma-client';
 
 interface CreateUserInput {
   email: string;

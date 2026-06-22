@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Calendar, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Calendar, Clock, AlertCircle, CheckCircle2, Hash } from 'lucide-react';
 import { Toggle } from '@/components/ui/Toggle';
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
@@ -25,6 +25,7 @@ export default function CreateAcademicCyclePage() {
 
     const [formData, setFormData] = useState({
         name: '',
+        code: '',
         startDate: '',
         endDate: '',
         isActive: false,
@@ -39,7 +40,7 @@ export default function CreateAcademicCyclePage() {
         }
     }, [user, router]);
 
-    const [formErrors, setFormErrors] = useState<{ name?: string; startDate?: string; endDate?: string; general?: string }>({});
+    const [formErrors, setFormErrors] = useState<{ name?: string; code?: string; startDate?: string; endDate?: string; general?: string }>({});
     const { data: gpaPolicies = [] } = useSWR<GpaPolicy[]>(
         token ? ['gpaPolicies', 'cycle-create', token] : null,
         () => api.org.getGpaPolicies(token!),
@@ -62,6 +63,10 @@ export default function CreateAcademicCyclePage() {
         let hasError = false;
         if (!formData.name) {
             setFormErrors(prev => ({ ...prev, name: 'Cycle Name is required' }));
+            hasError = true;
+        }
+        if (!formData.code) {
+            setFormErrors(prev => ({ ...prev, code: 'Cycle Code is required' }));
             hasError = true;
         }
         if (!formData.startDate) {
@@ -99,6 +104,7 @@ export default function CreateAcademicCyclePage() {
                 message.forEach((m: string) => {
                     const msg = m.toLowerCase();
                     if (msg.includes('name')) newErrors.name = m;
+                    else if (msg.includes('code')) newErrors.code = m;
                     else if (msg.includes('start')) newErrors.startDate = m;
                     else if (msg.includes('end')) newErrors.endDate = m;
                     else newErrors.general = m;
@@ -106,6 +112,7 @@ export default function CreateAcademicCyclePage() {
             } else {
                 const msgStr = message;
                 if (msgStr.toLowerCase().includes('name')) newErrors.name = msgStr;
+                else if (msgStr.toLowerCase().includes('code')) newErrors.code = msgStr;
                 else if (msgStr.toLowerCase().includes('start')) newErrors.startDate = msgStr;
                 else if (msgStr.toLowerCase().includes('end')) newErrors.endDate = msgStr;
                 else newErrors.general = msgStr;
@@ -154,7 +161,7 @@ export default function CreateAcademicCyclePage() {
                         <ul className="space-y-3">
                             <li className="flex items-start gap-2 text-xs font-medium text-muted-foreground">
                                 <span className="w-1 h-1 rounded-full bg-primary mt-1.5 shrink-0" />
-                                <span>Unique cycle name for organization</span>
+                                <span>Unique cycle code for CSV imports</span>
                             </li>
                             <li className="flex items-start gap-2 text-xs font-medium text-muted-foreground">
                                 <span className="w-1 h-1 rounded-full bg-primary mt-1.5 shrink-0" />
@@ -193,6 +200,21 @@ export default function CreateAcademicCyclePage() {
                                                 className="h-12 md:h-14 font-medium"
                                             />
                                             {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-bold ml-1">Cycle Code <span className="text-primary">*</span></Label>
+                                            <Input
+                                                type="text"
+                                                name="code"
+                                                value={formData.code}
+                                                onChange={handleChange}
+                                                required
+                                                icon={Hash}
+                                                placeholder="e.g. 2026-SPRING"
+                                                error={!!formErrors.code}
+                                                className="h-12 md:h-14 font-medium uppercase"
+                                            />
+                                            {formErrors.code && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.code}</p>}
                                         </div>
                                     </div>
                                 </div>

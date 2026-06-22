@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  importFileExtension = ""
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Organization {
@@ -1229,6 +1231,7 @@ enum EnrollmentSource {
 model AcademicCycle {
     id             String   @id @default(uuid())
     name           String
+    code           String
     startDate      DateTime
     endDate        DateTime
     isActive       Boolean  @default(false)
@@ -1257,11 +1260,13 @@ model AcademicCycle {
     @@index([organizationId])
     @@index([isActive])
     @@index([gpaPolicyId])
+    @@unique([organizationId, code])
   }
 
 model Cohort {
   id              String   @id @default(uuid())
   name            String
+  code            String
   organizationId  String
   academicCycleId String
   createdAt       DateTime @default(now())
@@ -1275,6 +1280,7 @@ model Cohort {
 
   @@index([organizationId])
   @@index([academicCycleId])
+  @@unique([organizationId, code])
 }
 
 model EnrollmentHistory {

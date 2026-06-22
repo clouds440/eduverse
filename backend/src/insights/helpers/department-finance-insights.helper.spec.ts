@@ -1,4 +1,4 @@
-import { EntryStatus, FinanceTargetType } from '@prisma/client';
+import { EntryStatus, FinanceTargetType } from '@/prisma/prisma-client';
 import { buildDepartmentFinanceRows, resolveEntryDepartmentAllocations } from './department-finance-insights.helper';
 
 const cs = { id: 'dept-cs', name: 'Computer Science', code: 'CS' };

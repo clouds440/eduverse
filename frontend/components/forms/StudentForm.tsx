@@ -161,7 +161,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
         { label: 'No Cohort', value: '' },
         ...(cohortsData?.data?.map(cohort => ({
             value: cohort.id,
-            label: `${cohort.name} (${cohort.academicCycle?.name || 'No Cycle'})`,
+            label: `${cohort.code ? `${cohort.code} - ` : ''}${cohort.name} (${cohort.academicCycle?.code ? `${cohort.academicCycle.code} - ` : ''}${cohort.academicCycle?.name || 'No Cycle'})`,
         })) || []),
     ], [cohortsData?.data]);
 

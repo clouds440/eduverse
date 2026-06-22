@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { DepartmentScopeType, HolidayMatchMode, HolidayType, Prisma, TargetType } from '@prisma/client';
+import { DepartmentScopeType, HolidayMatchMode, HolidayType, Prisma, TargetType } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnnouncementsService } from '../announcements/announcements.service';
 import { AnnouncementPriority } from '../announcements/dto/create-announcement.dto';

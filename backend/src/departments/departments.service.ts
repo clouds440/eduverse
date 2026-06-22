@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
 import { CreateDepartmentDto } from './dto/create-department.dto';

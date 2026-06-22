@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState, type Dispatch } from 'react';
 import useSWR from 'swr';
@@ -56,7 +56,7 @@ export default function PromotionsPage() {
     const cohorts = cohortsData?.data || [];
 
     return (
-        <PageShell>
+        <PageShell className="gap-0.5">
             <PageHeader
                 title="Academic Transitions"
                 description={<>Copy setup or promote cohorts after review. <DocsLink href="/docs/cohorts-promotions#promotions">Read transition docs</DocsLink></>}
@@ -452,3 +452,4 @@ function SummaryPanel({ title, items }: { title: string; items: [string, string]
         </aside>
     );
 }
+

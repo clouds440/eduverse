@@ -1,5 +1,5 @@
 import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
-import { TargetType } from '@prisma/client';
+import { TargetType } from '@/prisma/prisma-client';
 
 export enum AnnouncementPriority {
   LOW = 'LOW',

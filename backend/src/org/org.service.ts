@@ -4,7 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/prisma/prisma-client';
 import { Role, OrgStatus, TeacherStatus, StudentStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 

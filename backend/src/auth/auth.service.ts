@@ -22,7 +22,7 @@ import {
   Organization,
   Teacher,
   ThemeMode,
-} from '@prisma/client';
+} from '@/prisma/prisma-client';
 import { Role, OrgStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { BCRYPT_ROUNDS } from '../common/utils';

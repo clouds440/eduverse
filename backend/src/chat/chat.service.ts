@@ -18,7 +18,7 @@ import {
   ChatParticipantRole,
   ChatMessageType,
   Prisma,
-} from '@prisma/client';
+} from '@/prisma/prisma-client';
 
 interface CurrentUser {
   id: string;

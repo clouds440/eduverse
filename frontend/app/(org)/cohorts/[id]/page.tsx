@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -11,7 +11,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Users, BookOpen } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/Brand';
 import { Badge } from '@/components/ui/Badge';
-import { PageHeader, PageTabs } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, PageTabs } from '@/components/ui/PageShell';
 
 const COHORT_TABS = [
     { value: 'students', label: 'Students', icon: Users },
@@ -41,12 +41,17 @@ export default function CohortDetailPage() {
     }
 
     return (
-        <div className="flex flex-col h-full w-full overflow-y-auto space-y-4">
-            <PageHeader
+        <PageShell className="gap-0 overflow-y-auto">
+            <PageHeader className="mb-0.5"
                 title={cohort.name}
-                description={cohort.academicCycle?.name || 'Academic cycle unavailable'}
+                description={cohort.academicCycle ? (cohort.academicCycle.code ? `${cohort.academicCycle.code} - ${cohort.academicCycle.name}` : cohort.academicCycle.name) : 'Academic cycle unavailable'}
                 icon={Users}
-                meta={<Badge variant="neutral" size="sm">Cohort</Badge>}
+                meta={(
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="neutral" size="sm">Cohort</Badge>
+                        <Badge variant="primary" size="sm">{cohort.code}</Badge>
+                    </div>
+                )}
             />
 
             <PageTabs
@@ -67,7 +72,7 @@ export default function CohortDetailPage() {
                     <CohortSectionsTab sections={cohort.sections || []} />
                 )}
             </div>
-        </div>
+        </PageShell>
     );
 }
 
@@ -119,7 +124,7 @@ function CohortSectionsTab({ sections }: { sections: Section[] }) {
                             <p className="font-bold text-foreground truncate">{s.name}</p>
                             <p className="text-xs text-muted-foreground font-medium truncate">{s.course?.name}</p>
                             <p className="text-[10px] mt-1 font-bold text-primary uppercase tracking-wider">
-                                SECTION CODE: {s.id.split('-')[0]}
+                                SECTION CODE: {s.code}
                             </p>
                         </div>
                     </div>
@@ -134,3 +139,5 @@ function CohortSectionsTab({ sections }: { sections: Section[] }) {
         </div>
     );
 }
+
+

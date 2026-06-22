@@ -16,7 +16,7 @@ import { CreateGroupChatDto } from './dto/create-group.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { AddParticipantsDto } from './dto/add-participants.dto';
-import { ChatParticipantRole } from '@prisma/client';
+import { ChatParticipantRole } from '@/prisma/prisma-client';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';

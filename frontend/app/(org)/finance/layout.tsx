@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
@@ -36,7 +36,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         <FinanceHeaderActionsProvider setActions={setHeaderActions}>
             <PageActionsHostProvider setActions={setTabActions}>
                 <div className="flex h-full min-h-0 flex-col">
-                    <div className="shrink-0 space-y-2">
+                    <div className="shrink-0 space-y-0.5">
                         <PageHeader
                             title="Financial Ledger"
                             description="Manage agreements, billing, and transactions."
@@ -53,7 +53,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
                         />
                     </div>
 
-                    <div className="relative min-h-0 flex-1 overflow-y-auto pt-2 custom-scrollbar">
+                    <div className="relative min-h-0 flex-1 overflow-y-auto custom-scrollbar">
                         {children}
                     </div>
                 </div>
@@ -61,3 +61,5 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         </FinanceHeaderActionsProvider>
     );
 }
+
+

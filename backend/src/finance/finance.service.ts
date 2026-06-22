@@ -11,7 +11,7 @@ import {
   PaymentClaimStatus,
   Prisma,
   TransactionType,
-} from '@prisma/client';
+} from '@/prisma/prisma-client';
 import { Role } from '../common/enums';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 

@@ -3,7 +3,7 @@ import {
   NotFoundException,
   Injectable,
 } from '@nestjs/common';
-import { Prisma, User as UserEntity, Organization } from '@prisma/client';
+import { Prisma, User as UserEntity, Organization } from '@/prisma/prisma-client';
 import { OrgStatus, Role, MailCategory } from '../common/enums';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -31,13 +31,13 @@ export class AdminService {
     private readonly orgService: OrgService,
   ) {}
 
-  private orgWithAdminInclude = Prisma.validator<Prisma.OrganizationInclude>()({
+  private orgWithAdminInclude = {
     users: {
       where: { role: Role.ORG_ADMIN },
       select: { id: true },
       take: 1,
     },
-  });
+  } satisfies Prisma.OrganizationInclude;
 
   async getOrganizations(
     options: PaginationOptions & {

@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { EnrollmentSource, GradeStatus, Prisma } from '@prisma/client';
+import { EnrollmentSource, GradeStatus, Prisma } from '@/prisma/prisma-client';
 import { Role, StudentStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';

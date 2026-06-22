@@ -11,7 +11,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { GpaCalculationMethod, GpaRounding } from '@prisma/client';
+import { GpaCalculationMethod, GpaRounding } from '@/prisma/prisma-client';
 
 export class GpaGradeRuleDto {
   @IsNumber()

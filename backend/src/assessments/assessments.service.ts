@@ -142,7 +142,7 @@ export class AssessmentsService {
       }
     }
 
-    const whereClause: import('@prisma/client').Prisma.AssessmentWhereInput = {
+    const whereClause: import('@/prisma/prisma-client').Prisma.AssessmentWhereInput = {
       organizationId: orgId,
       ...(filters.academicCycleId ? { academicCycleId: filters.academicCycleId } : {}),
     };
@@ -755,7 +755,7 @@ export class AssessmentsService {
       throw new ForbiddenException('You cannot access grade finalization');
     }
 
-    const andFilters: import('@prisma/client').Prisma.AssessmentWhereInput[] = [];
+    const andFilters: import('@/prisma/prisma-client').Prisma.AssessmentWhereInput[] = [];
     const departmentScope = await getDepartmentScope(this.prisma, orgId, user);
     const scopeWhere = sectionDepartmentScopeWhere(departmentScope);
 
@@ -775,7 +775,7 @@ export class AssessmentsService {
       });
     }
 
-    const whereClause: import('@prisma/client').Prisma.AssessmentWhereInput = {
+    const whereClause: import('@/prisma/prisma-client').Prisma.AssessmentWhereInput = {
       organizationId: orgId,
       ...(filters.academicCycleId ? { academicCycleId: filters.academicCycleId } : {}),
       ...(filters.courseId ? { courseId: filters.courseId } : {}),

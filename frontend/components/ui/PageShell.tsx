@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -114,8 +114,11 @@ export function RouteBreadcrumbs({ breadcrumbs, className }: RouteBreadcrumbsPro
 const PAGE_HEADER_COMPACT_ENTER_SCROLL = 72;
 const PAGE_HEADER_COMPACT_EXIT_SCROLL = 24;
 const PAGE_HEADER_MIN_SCROLL_RANGE = 96;
-const PAGE_TABS_HIDE_SCROLL_DELTA = 10;
-const PAGE_TABS_SHOW_SCROLL_TOP = 24;
+const PAGE_TABS_HIDE_SCROLL_DELTA = 40;
+const PAGE_TABS_SHOW_SCROLL_DELTA = 80;
+const PAGE_TABS_HIDE_SCROLL_TOP = 96;
+const PAGE_TABS_SHOW_SCROLL_TOP = 28;
+const PAGE_TABS_MIN_SCROLL_RANGE = 180;
 
 function getScrollableRange(element: HTMLElement) {
     return Math.max(0, element.scrollHeight - element.clientHeight);
@@ -171,9 +174,11 @@ function getPageScrollState(header: HTMLElement, preferredTarget?: HTMLElement |
 function usePageScrollVisibility(elementRef: React.RefObject<HTMLElement | null>, enabled = false) {
     const [isVisible, setIsVisible] = useState(true);
     const lastScrollTopRef = useRef(0);
+    const isVisibleRef = useRef(true);
 
     useEffect(() => {
         if (!enabled) {
+            isVisibleRef.current = true;
             setIsVisible(true);
             return;
         }
@@ -185,20 +190,26 @@ function usePageScrollVisibility(elementRef: React.RefObject<HTMLElement | null>
         const scrollElement = getPageScrollElement(element);
         let activeScrollTarget: HTMLElement | null = null;
 
-        const readScrollTop = () => getPageScrollState(element, activeScrollTarget).scrollTop;
+        const readScrollState = () => getPageScrollState(element, activeScrollTarget);
+        const readScrollTop = () => readScrollState().scrollTop;
+
+        const setVisible = (nextVisible: boolean) => {
+            isVisibleRef.current = nextVisible;
+            setIsVisible(nextVisible);
+        };
 
         const updateVisibility = () => {
             frameId = null;
-            const scrollTop = readScrollTop();
+            const { scrollTop, scrollRange } = readScrollState();
             const previousScrollTop = lastScrollTopRef.current;
             const delta = scrollTop - previousScrollTop;
 
-            if (scrollTop <= PAGE_TABS_SHOW_SCROLL_TOP) {
-                setIsVisible(true);
-            } else if (delta > PAGE_TABS_HIDE_SCROLL_DELTA) {
-                setIsVisible(false);
-            } else if (delta < -PAGE_TABS_HIDE_SCROLL_DELTA) {
-                setIsVisible(true);
+            if (scrollRange < PAGE_TABS_MIN_SCROLL_RANGE || scrollTop <= PAGE_TABS_SHOW_SCROLL_TOP) {
+                if (!isVisibleRef.current) setVisible(true);
+            } else if (isVisibleRef.current && scrollTop > PAGE_TABS_HIDE_SCROLL_TOP && delta > PAGE_TABS_HIDE_SCROLL_DELTA) {
+                setVisible(false);
+            } else if (!isVisibleRef.current && delta < -PAGE_TABS_SHOW_SCROLL_DELTA) {
+                setVisible(true);
             }
 
             lastScrollTopRef.current = scrollTop;
@@ -218,7 +229,7 @@ function usePageScrollVisibility(elementRef: React.RefObject<HTMLElement | null>
         const reset = () => {
             activeScrollTarget = null;
             lastScrollTopRef.current = readScrollTop();
-            setIsVisible(true);
+            setVisible(true);
         };
 
         reset();
@@ -265,7 +276,7 @@ export function PageTabs<T extends string = string>({
             )}
         >
             <div className={cn(
-                'flex gap-1 overflow-x-auto border border-border/70 p-1 scrollbar-none',
+                'flex gap-0.5 overflow-x-auto border border-border/70 p-0.5 scrollbar-none',
                 tone === 'page'
                     ? 'rounded-lg bg-card/95 shadow-sm'
                     : 'rounded-t-lg bg-muted/45',
@@ -581,3 +592,5 @@ export function ResourceToolbar({ search, filters, actions, activeFilters = [], 
         </div>
     );
 }
+
+

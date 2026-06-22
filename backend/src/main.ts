@@ -1,12 +1,13 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import { PrismaClient } from '@prisma/client';
 import { Role } from './common/enums';
 import * as bcrypt from 'bcrypt';
 import { join } from 'path';
 import { validateEnv } from './common/env-validation';
+import { createPrismaClient } from './prisma/prisma-client';
 
 async function bootstrap() {
   // Validate required environment variables before starting
@@ -47,7 +48,7 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
   // Initialize Super Admin
-  const prisma = new PrismaClient();
+  const prisma = createPrismaClient();
   const adminEmail = process.env.SUPER_ADMIN_USERNAME;
   const adminPassword = process.env.SUPER_ADMIN_PASSWORD;
   const bcryptRounds = parseInt(process.env.BCRYPT_ROUNDS!, 10);
@@ -72,6 +73,7 @@ async function bootstrap() {
       logger.log('Initial Super Admin created successfully');
     }
   }
+  await prisma.$disconnect();
 
   const port = process.env.PORT!;
   await app.listen(port);

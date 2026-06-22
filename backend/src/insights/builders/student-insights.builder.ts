@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EntryStatus } from '@prisma/client';
+import { EntryStatus } from '@/prisma/prisma-client';
 import { AttendanceStatus, InsightTone, Role } from '../../common/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { InsightsQueryDto } from '../dto/insights-query.dto';

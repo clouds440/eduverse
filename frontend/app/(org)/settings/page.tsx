@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChangeEvent, FormEvent, ReactNode } from 'react';
@@ -41,7 +41,7 @@ import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
 import { getSafePrimaryColor } from '@/lib/themeColor';
 import { ColorSelector } from '@/components/ui/ColorSelector';
 import { Badge } from '@/components/ui/Badge';
-import { PageHeader, PageTabs } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, PageTabs } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { SUPPORTED_CURRENCY_OPTIONS } from '@/lib/currencies';
@@ -427,12 +427,13 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="flex w-full flex-1 flex-col gap-6 pb-8">
+        <PageShell className="gap-0 overflow-x-hidden overflow-y-auto pb-8 custom-scrollbar">
             <PageHeader
                 title="Organization Settings"
                 description={<>Identity, contact, appearance, and account security. <DocsLink href="/docs/settings#organization-settings">Read settings docs</DocsLink></>}
                 icon={Settings}
                 actionsDefaultOpen
+                className="mb-0.5"
                 actions={(
                     <div className="flex flex-wrap items-center justify-end gap-2">
                         {orgData?.status && (
@@ -458,7 +459,7 @@ export default function SettingsPage() {
             />
 
             {orgData?.status === 'REJECTED' && (
-                <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-danger sm:p-5">
+                <div className="mb-0.5 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-danger sm:p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex min-w-0 items-start gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger/10">
@@ -486,17 +487,17 @@ export default function SettingsPage() {
                     </div>
                 </div>
             )}
+            <PageTabs
+                ariaLabel="Settings navigation"
+                items={SETTINGS_TABS.map(({ key, label, icon }) => ({ value: key, label, icon }))}
+                activeValue={activeTab}
+                onValueChange={handleTabChange}
+                hideOnScroll
+            />
 
-            <form id="organization-settings-form" onSubmit={handleSubmit} className="space-y-6" noValidate>
-                <PageTabs
-                    ariaLabel="Settings navigation"
-                    items={SETTINGS_TABS.map(({ key, label, icon }) => ({ value: key, label, icon }))}
-                    activeValue={activeTab}
-                    onValueChange={handleTabChange}
-                    hideOnScroll
-                />
-
+            <form id="organization-settings-form" onSubmit={handleSubmit} className="min-w-0" noValidate>
                 <div className="min-w-0">
+
                     {activeTab === 'profile' && (
                         <div className="grid gap-4">
                             <SettingsSection
@@ -821,6 +822,9 @@ export default function SettingsPage() {
                     <SessionManagement userId={user?.id} />
                 </div>
             )}
-        </div>
+        </PageShell>
     );
 }
+
+
+

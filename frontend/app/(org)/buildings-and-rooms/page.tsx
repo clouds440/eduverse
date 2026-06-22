@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, type ReactNode } from 'react';
 import { Building2, DoorOpen } from 'lucide-react';
@@ -28,8 +28,8 @@ export default function BuildingsAndRoomsPage() {
 
     return (
         <PageActionsHostProvider setActions={setHeaderActions}>
-            <PageShell>
-                <div className="shrink-0 space-y-3">
+            <PageShell className="gap-0">
+                <div className="shrink-0 space-y-0.5">
                     <PageHeader
                         title="Buildings & Rooms"
                         description="Manage campus buildings and their schedulable rooms."
@@ -47,7 +47,7 @@ export default function BuildingsAndRoomsPage() {
                     />
                 </div>
 
-                <div className="relative min-h-0 flex-1 overflow-y-auto pt-3 custom-scrollbar">
+                <div className="relative min-h-0 flex-1 overflow-y-auto custom-scrollbar">
                     {activeTab === 'buildings' && <BuildingsTab />}
                     {activeTab === 'rooms' && <RoomsTab />}
                 </div>
@@ -55,3 +55,6 @@ export default function BuildingsAndRoomsPage() {
         </PageActionsHostProvider>
     );
 }
+
+
+

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -198,7 +198,7 @@ export default function SectionDetailPage() {
 
     if (isLoading) {
         return (
-            <PageShell className="overflow-x-hidden overflow-y-auto custom-scrollbar">
+            <PageShell className="gap-0 overflow-x-hidden overflow-y-auto custom-scrollbar">
                 <PageHeader
                     title="Section"
                     description="Loading section workspace, evaluations, schedule slots, materials, and class context."
@@ -232,7 +232,7 @@ export default function SectionDetailPage() {
     };
 
     return (
-        <PageShell className="overflow-x-hidden overflow-y-auto custom-scrollbar">
+        <PageShell className="gap-0 overflow-x-hidden overflow-y-auto custom-scrollbar">
             <PageHeader
                 title={<CourseSectionLabel section={section} />}
                 description="A clearer control panel for class operations, grades, attendance, schedules, and materials."
@@ -368,3 +368,4 @@ export default function SectionDetailPage() {
         </PageShell>
     );
 }
+

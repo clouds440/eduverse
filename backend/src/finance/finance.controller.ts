@@ -10,7 +10,7 @@ import { Role } from '../common/enums';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
-import { BillingCycle, EntryStatus, FinanceAssignmentSource, FinanceCategory, FinanceTargetType, TransactionType } from '@prisma/client';
+import { BillingCycle, EntryStatus, FinanceAssignmentSource, FinanceCategory, FinanceTargetType, TransactionType } from '@/prisma/prisma-client';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, RolesGuard)

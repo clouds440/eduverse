@@ -1,4 +1,4 @@
-import { EvaluationType } from '@prisma/client';
+import { EvaluationType } from '@/prisma/prisma-client';
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 export class CreateEvaluationDto {
