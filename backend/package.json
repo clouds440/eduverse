@@ -11,7 +11,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main.js",
     "seed:demo-org": "node scripts/seed-demo-org.js",
     "seed:demo-org:apply": "node scripts/seed-demo-org.js --apply --orgId=3a2886b5-3b95-4cb1-b55e-6b95ec190dd6",
     "prisma:generate": "prisma generate",
