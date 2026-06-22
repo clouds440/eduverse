@@ -29,6 +29,71 @@ interface DashboardLayoutProps {
     showPadding?: boolean;
 }
 
+interface SidebarNavLinkProps {
+    link: SidebarLink;
+    href: string;
+    isActive: boolean;
+    isSidebarCompact: boolean;
+    showSidebarText: boolean;
+    onClick: () => void;
+}
+
+const SIDEBAR_TEXT_DELAY_MS = 280;
+
+const SidebarNavLink = React.memo(function SidebarNavLink({
+    link,
+    href,
+    isActive,
+    isSidebarCompact,
+    showSidebarText,
+    onClick,
+}: SidebarNavLinkProps) {
+    const Icon = link.icon;
+
+    return (
+        <Link
+            href={href}
+            onClick={onClick}
+            className={`
+                flex items-center rounded-lg transition-colors group relative hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35
+                ${isActive
+                    ? 'bg-primary/20 text-primary shadow-sm ring-1 ring-primary/20'
+                    : 'text-sidebar-text/70 hover:text-foreground/70 hover:text-sidebar-text'
+                }
+                ${isSidebarCompact ? 'lg:justify-center p-3' : 'px-4 py-3'}
+            `}
+            title={isSidebarCompact ? link.label : undefined}
+        >
+            {isActive && (
+                <div className="absolute left-0 top-2.5 bottom-2.5 w-1 bg-primary rounded-full z-10 shadow-[0_0_8px_rgba(var(--primary-rgb),0.6)]" />
+            )}
+            <Icon className={`w-5 h-5 shrink-0 text-primary/80 transition-transform ${isActive ? 'scale-110 text-primary' : 'group-hover:scale-110'}`} />
+            {showSidebarText && (
+                <span className="font-bold text-sm tracking-wide ml-2">
+                    {link.label}
+                </span>
+            )}
+            {link.badge !== undefined && (
+                <span className={`
+                    flex items-center justify-center shrink-0
+                    ${isSidebarCompact
+                        ? 'absolute -top-0.5 -right-1.5'
+                        : 'ml-auto'
+                    }
+                    animate-in zoom-in duration-300
+                `}>
+                    <Badge
+                        variant={link.badge === 0 ? 'neutral' : link.label === 'Messages' ? 'error' : 'primary'}
+                        size="sm"
+                    >
+                        {link.badge}
+                    </Badge>
+                </span>
+            )}
+        </Link>
+    );
+});
+
 const ReadOnlyBanner = () => (
     <div className="bg-warning/10 border-b border-warning/20 px-4 py-2 flex items-center justify-center gap-2 animate-in slide-in-from-top duration-500">
         <Eye className="w-4 h-4 text-warning" />
@@ -62,6 +127,40 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
     const mailCount = state.stats.mail || { unread: 0, total: 0 };
     const changePasswordHref = user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN ? '/admin/change-password' : '/change-password';
     const closeMobileSidebar = React.useCallback(() => setIsMobileOpen(false), [setIsMobileOpen]);
+    const effectiveExpanded = !mounted || (isDesktop ? isExpanded : true);
+    const [showSidebarText, setShowSidebarText] = useState(effectiveExpanded);
+    const [isSidebarCompact, setIsSidebarCompact] = useState(!effectiveExpanded);
+
+    React.useEffect(() => {
+        if (!mounted || !isDesktop) {
+            setShowSidebarText(true);
+            return;
+        }
+
+        if (!effectiveExpanded) {
+            setShowSidebarText(false);
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setShowSidebarText(true);
+        }, SIDEBAR_TEXT_DELAY_MS);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [effectiveExpanded, isDesktop, mounted]);
+
+    React.useEffect(() => {
+        if (!mounted || !isDesktop || effectiveExpanded) {
+            setIsSidebarCompact(false);
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setIsSidebarCompact(true);
+        }, SIDEBAR_TEXT_DELAY_MS);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [effectiveExpanded, isDesktop, mounted]);
 
     const activeLink = React.useMemo(() => {
         const allLinks = [...links, ...bottomLinks];
@@ -127,8 +226,6 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
         return nextQuery ? `${path}?${nextQuery}` : path;
     }, [searchParams, user?.role]);
 
-    const effectiveExpanded = !mounted || (isDesktop ? isExpanded : true);
-
     return (
         <div className="flex w-full bg-theme-bg h-full overflow-hidden relative select-none">
             {/* Global View Modal */}
@@ -159,15 +256,15 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                     ${isMobileOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'}
                     ${effectiveExpanded ? 'lg:w-64' : 'lg:w-18'}
                     h-full shrink-0 overflow-hidden
-                    transition-all duration-300 ease-in-out
+                    transition-[width,transform] duration-300 ease-in-out
                 `}
             >
                 {/* Sidebar Header - Branded */}
-                <div className={`h-16 mt-14 lg:mt-0 flex items-center px-4 border-b border-border shrink-0 ${!effectiveExpanded ? 'justify-center' : 'justify-between'} gap-2 overflow-hidden relative group`}>
+                <div className={`h-16 mt-14 lg:mt-0 flex items-center px-4 border-b border-border shrink-0 ${isSidebarCompact ? 'justify-center' : 'justify-between'} gap-2 overflow-hidden relative group`}>
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="ml-auto opacity-40 hover:opacity-100 transition-opacity">
                             <BackButton
-                                {...(effectiveExpanded ? { label: activeLink?.label } : { label: "" })}
+                                {...(showSidebarText ? { label: activeLink?.label } : { label: "" })}
                                 className="bg-transparent! border-none! rounded-md! shadow-none! text-foreground! py-1.5! px-3.5! outline-none! focus:outline-none!"
                             />
                         </div>
@@ -179,45 +276,15 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                     {links.map((link) => {
                         const isActive = activeLink?.id === link.id;
                         return (
-                            <Link
+                            <SidebarNavLink
                                 key={link.id}
+                                link={link}
                                 href={getLinkHref(link.href)}
+                                isActive={isActive}
+                                isSidebarCompact={isSidebarCompact}
+                                showSidebarText={showSidebarText}
                                 onClick={closeMobileSidebar}
-                                className={`
-                                    flex items-center rounded-lg transition-colors group relative hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35
-                                    ${isActive
-                                        ? 'bg-primary/20 text-primary shadow-sm ring-1 ring-primary/20'
-                                        : 'text-sidebar-text/70 hover:text-foreground/70 hover:text-sidebar-text'
-                                    }
-                                    ${!effectiveExpanded ? 'lg:justify-center p-3' : 'px-4 py-3 space-x-3'}
-                                `}
-                                title={!effectiveExpanded ? link.label : undefined}
-                            >
-                                {isActive && (
-                                    <div className="absolute left-0 top-2.5 bottom-2.5 w-1 bg-primary rounded-full z-10 shadow-[0_0_8px_rgba(var(--primary-rgb),0.6)]" />
-                                )}
-                                <link.icon className={`w-5 h-5 shrink-0 text-primary/80 transition-transform ${isActive ? 'scale-110 text-primary' : 'group-hover:scale-110'}`} />
-                                <span className={`font-bold text-sm tracking-wide ml-2 ${!effectiveExpanded ? 'lg:hidden' : 'block'}`}>
-                                    {link.label}
-                                </span>
-                                {link.badge !== undefined && (
-                                    <span className={`
-                                        flex items-center justify-center shrink-0
-                                        ${!effectiveExpanded
-                                            ? 'absolute -top-0.5 -right-1.5'
-                                            : 'ml-auto'
-                                        } 
-                                        animate-in zoom-in duration-300
-                                    `}>
-                                        <Badge
-                                            variant={link.badge === 0 ? 'neutral' : link.label === 'Messages' ? 'error' : 'primary'}
-                                            size="sm"
-                                        >
-                                            {link.badge}
-                                        </Badge>
-                                    </span>
-                                )}
-                            </Link>
+                            />
                         );
                     })}
                 </div>
@@ -249,17 +316,17 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                     <Link
                                         href="/mail"
                                         onClick={closeMobileSidebar}
-                                        className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/mail') ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
+                                        className={`flex items-center hover:bg-primary/10 ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/mail') ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
                                         title="Mail"
                                     >
                                         {pathname.includes('/mail') && (
                                             <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
                                         )}
                                         <Mail className="w-4 h-4 shrink-0 text-primary/80" />
-                                        {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Mail</span>}
+                                        {showSidebarText && <span className="ml-2 font-bold text-[10px] tracking-wider">Mail</span>}
                                         {/* Mail Count */}
                                         {mailCount.unread > 0 && (
-                                            <span className={`ml-auto ${!effectiveExpanded ? 'absolute top-0 -right-0.5' : ''}`}>
+                                            <span className={`ml-auto ${isSidebarCompact ? 'absolute top-0 -right-0.5' : ''}`}>
                                                 <Badge variant='error' size="sm">
                                                     {mailCount.unread > 99 ? '99+' : mailCount.unread}
                                                 </Badge>
@@ -271,14 +338,14 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                         <Link
                                             href="/contact"
                                             onClick={closeMobileSidebar}
-                                            className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname === '/contact' ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
+                                            className={`flex items-center hover:bg-primary/10 ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname === '/contact' ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
                                             title="Contact Us"
                                         >
                                             {pathname === '/contact' && (
                                                 <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
                                             )}
                                             <MessageCircleQuestionMark className="w-4 h-4 shrink-0 text-primary/80" />
-                                            {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Contact Us</span>}
+                                            {showSidebarText && <span className="ml-2 font-bold text-[10px] tracking-wider">Contact Us</span>}
                                         </Link>}
                                 </>
                             )}
@@ -286,14 +353,14 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             <Link
                                 href={changePasswordHref}
                                 onClick={closeMobileSidebar}
-                                className={`flex items-center hover:bg-primary/10 ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/change-password') ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
+                                className={`flex items-center hover:bg-primary/10 ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/change-password') ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
                                 title="Change Password"
                             >
                                 {pathname.includes('/change-password') && (
                                     <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
                                 )}
                                 <Key className="w-4 h-4 shrink-0 text-primary/80" />
-                                {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Change Password</span>}
+                                {showSidebarText && <span className="ml-2 font-bold text-[10px] tracking-wider">Change Password</span>}
                             </Link>
 
                             {/* log out button separater */}
@@ -302,23 +369,23 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             <button
                                 type="button"
                                 onClick={handleLogout}
-                                className={`flex items-center cursor-pointer ${!effectiveExpanded ? 'justify-center' : 'justify-start px-3'} w-full rounded-md text-danger bg-danger/10 hover:bg-danger/30 transition-all py-3`}
+                                className={`flex items-center cursor-pointer ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} w-full rounded-md text-danger bg-danger/10 hover:bg-danger/30 transition-all py-3`}
                                 title="Log out"
                             >
                                 <LogOut className="w-4 h-4 shrink-0 text-danger" />
-                                {effectiveExpanded && <span className="ml-2 font-bold text-[10px] tracking-wider">Log out</span>}
+                                {showSidebarText && <span className="ml-2 font-bold text-[10px] tracking-wider">Log out</span>}
                             </button>
                         </div>
                     </div>
 
                     {user && (
-                        <div className={`flex items-center mt-2 cursor-pointer ${!effectiveExpanded ? 'lg:justify-center' : 'space-x-3 px-1'} mb-4`}
+                        <div className={`flex items-center mt-2 cursor-pointer ${isSidebarCompact ? 'lg:justify-center' : 'space-x-3 px-1'} mb-4`}
                             onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
                         >
                             <div className={`w-9 h-9 flex items-center justify-center shrink-0 shadow-inner relative`}>
                                 <BrandIcon variant="user" user={user} size="sm" className="w-9 h-9" imageLoading="eager" />
                             </div>
-                            <div className={`overflow-hidden transition-all ml-2 ${!effectiveExpanded ? 'lg:hidden lg:w-0' : 'w-auto'}`}>
+                            <div className={`overflow-hidden transition-all ml-2 ${!showSidebarText ? 'lg:hidden lg:w-0' : 'w-auto'}`}>
                                 <div className="text-xs font-black text-sidebar-text truncate max-w-30">{user.name || user.email}</div>
                                 <div className="text-[9px] font-bold text-sidebar-text/60 tracking-tighter leading-none mt-0.5">{user.designation || getRoleLabel(user.role, '')}</div>
                             </div>
