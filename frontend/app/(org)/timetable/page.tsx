@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role } from '@/types';
-import { CalendarDays, Clock, Download, Maximize2, MapPin, UserRound, X } from 'lucide-react';
+import { CalendarDays, Clock, Download, MapPinned, Maximize2, MapPin, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -53,6 +53,7 @@ interface TimetableGridProps {
     gridHeight: number;
     canOpenAttendance: boolean;
     onOpenEntry: (entry: TimetableEntry) => void;
+    onOpenRoom: (roomId: string) => void;
     className?: string;
 }
 
@@ -302,6 +303,7 @@ function TimetableGrid({
     gridHeight,
     canOpenAttendance,
     onOpenEntry,
+    onOpenRoom,
     className,
 }: TimetableGridProps) {
     return (
@@ -427,14 +429,16 @@ function TimetableGrid({
                                                 {isCompactSlot ? (
                                                     <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1 custom-scrollbar">
                                                         {slot.entries.map((entry) => (
-                                                            <button
+                                                            <div
                                                                 key={entry.scheduleId}
-                                                                type="button"
-                                                                onClick={() => onOpenEntry(entry)}
-                                                                className={`flex h-full w-full items-start cursor-pointer gap-2 rounded-md border px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                className="flex h-full w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left"
                                                                 style={getTimetableCardStyle(entry)}
                                                             >
-                                                                <div className="min-w-0 flex-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => onOpenEntry(entry)}
+                                                                    className={`min-w-0 flex-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'cursor-pointer hover:brightness-105' : 'cursor-default'}`}
+                                                                >
                                                                     <CourseSectionLabel
                                                                         section={{
                                                                             name: entry.sectionName,
@@ -453,11 +457,24 @@ function TimetableGrid({
                                                                         <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
                                                                         <span className="truncate">{getTeacherLabel(entry)}</span>
                                                                     </p>
+                                                                </button>
+                                                                <div className="flex shrink-0 flex-col items-end gap-1">
+                                                                    <Badge variant="neutral" size="xs" className="bg-white/70 h-fit text-foreground dark:bg-black/25">
+                                                                        {durationLabel}
+                                                                    </Badge>
+                                                                    {entry.roomId && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => onOpenRoom(entry.roomId!)}
+                                                                            className="inline-flex items-center gap-1 rounded-sm bg-white/70 px-1.5 py-0.5 text-[10px] font-black text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:bg-black/25"
+                                                                            title="View room in Campus Map"
+                                                                        >
+                                                                            <MapPinned className="h-3 w-3" aria-hidden="true" />
+                                                                            Room
+                                                                        </button>
+                                                                    )}
                                                                 </div>
-                                                                <Badge variant="neutral" size="xs" className="shrink-0 bg-white/70 h-fit text-foreground dark:bg-black/25">
-                                                                    {durationLabel}
-                                                                </Badge>
-                                                            </button>
+                                                            </div>
                                                         ))}
                                                     </div>
                                                 ) : (
@@ -477,14 +494,16 @@ function TimetableGrid({
                                                         </div>
                                                         <div className="h-full flex-1 space-y-1 overflow-y-auto border-l-4 border-primary/45 p-1.5 custom-scrollbar">
                                                             {slot.entries.map((entry) => (
-                                                                <button
+                                                                <div
                                                                     key={entry.scheduleId}
-                                                                    type="button"
-                                                                    onClick={() => onOpenEntry(entry)}
-                                                                    className={`w-full h-full items-start rounded-md cursor-pointer border p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'hover:brightness-105' : 'cursor-default'}`}
+                                                                    className="flex h-full w-full flex-col items-start rounded-md border p-2 text-left"
                                                                     style={getTimetableCardStyle(entry)}
                                                                 >
-                                                                    <div className="grid grid-row-2 min-h-full">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => onOpenEntry(entry)}
+                                                                        className={`grid min-h-0 w-full flex-1 grid-row-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'cursor-pointer hover:brightness-105' : 'cursor-default'}`}
+                                                                    >
                                                                         <CourseSectionLabel
                                                                             section={{
                                                                                 name: entry.sectionName,
@@ -503,8 +522,19 @@ function TimetableGrid({
                                                                             <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
                                                                             <span className="truncate">{getTeacherLabel(entry)}</span>
                                                                         </div>
-                                                                    </div>
-                                                                </button>
+                                                                    </button>
+                                                                    {entry.roomId && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => onOpenRoom(entry.roomId!)}
+                                                                            className="mt-2 inline-flex items-center gap-1 rounded-sm bg-white/70 px-2 py-1 text-[10px] font-black text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:bg-black/25"
+                                                                            title="View room in Campus Map"
+                                                                        >
+                                                                            <MapPinned className="h-3 w-3" aria-hidden="true" />
+                                                                            View room
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             ))}
                                                         </div>
                                                     </>
@@ -695,6 +725,10 @@ export function StudentTimetableView({
         router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
     };
 
+    const openCampusRoom = (roomId: string) => {
+        router.push(`/campus-navigation?roomId=${encodeURIComponent(roomId)}`);
+    };
+
     const handleDownloadTimetablePdf = async () => {
         if (entries.length === 0 || isGeneratingPdf) return;
         setIsGeneratingPdf(true);
@@ -782,6 +816,7 @@ export function StudentTimetableView({
                             gridHeight={gridHeight}
                             canOpenAttendance={canOpenAttendance}
                             onOpenEntry={openAttendanceForEntry}
+                            onOpenRoom={openCampusRoom}
                         />
                     )}
                 </ResourcePanel>
@@ -839,6 +874,7 @@ export function StudentTimetableView({
                         gridHeight={gridHeight}
                         canOpenAttendance={canOpenAttendance}
                         onOpenEntry={openAttendanceForEntry}
+                        onOpenRoom={openCampusRoom}
                         className="bg-background"
                     />
                 </ModalOverlay>

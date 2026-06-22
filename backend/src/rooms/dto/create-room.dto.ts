@@ -1,5 +1,5 @@
 import { RoomType } from '@/prisma/prisma-client';
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Matches, MaxLength } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 
 export class CreateRoomDto {
@@ -19,9 +19,9 @@ export class CreateRoomDto {
   code: string;
 
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(40)
-  floor?: string;
+  floor: string;
 
   @IsEnum(RoomType)
   @IsOptional()
@@ -36,6 +36,36 @@ export class CreateRoomDto {
   @IsOptional()
   @MaxLength(500)
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(250)
+  landmark?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  directionsNote?: string;
+
+  @IsInt()
+  @IsOptional()
+  sortOrder?: number;
+
+  @IsNumber()
+  @IsOptional()
+  mapX?: number;
+
+  @IsNumber()
+  @IsOptional()
+  mapY?: number;
+
+  @IsNumber()
+  @IsOptional()
+  mapWidth?: number;
+
+  @IsNumber()
+  @IsOptional()
+  mapHeight?: number;
 
   @IsString()
   @IsOptional()

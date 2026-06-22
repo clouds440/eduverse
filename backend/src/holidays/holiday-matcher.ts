@@ -24,6 +24,7 @@ export interface TimetableSlotLike {
   startTime: string;
   endTime: string;
   departmentId?: string | null;
+  roomId?: string | null;
 }
 
 export interface HolidayOverlay {

@@ -14,6 +14,7 @@ import {
     Layers,
     LayoutDashboard,
     LibraryBig,
+    MapPinned,
     MessageSquare,
     Network,
     ScrollText,
@@ -63,6 +64,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         icon: MessageSquare,
         badge: unreadChats && unreadChats > 0 ? `${unreadChats}` : undefined,
     });
+    links.push({ id: 'CAMPUS_NAVIGATION', label: 'Campus Map', href: '/campus-navigation', icon: MapPinned });
 
     if (user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN) {
         links.push({ id: 'DEPARTMENTS', label: 'Departments', href: '/departments', icon: BookOpen });

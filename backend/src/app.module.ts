@@ -35,6 +35,7 @@ import { RoomsModule } from './rooms/rooms.module';
 import { ImportsModule } from './imports/imports.module';
 import { HolidaysModule } from './holidays/holidays.module';
 import { EvaluationsModule } from './evaluations/evaluations.module';
+import { CampusNavigationModule } from './campus-navigation/campus-navigation.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { EvaluationsModule } from './evaluations/evaluations.module';
     DepartmentsModule,
     BuildingsModule,
     RoomsModule,
+    CampusNavigationModule,
     ImportsModule,
     HolidaysModule,
     EvaluationsModule,

@@ -32,6 +32,7 @@ export interface TimetableSection {
   name: string;
   color?: string | null;
   room: string | null;
+  defaultRoomId?: string | null;
   defaultRoom?: { name: string; building?: { name: string } | null } | null;
   course: { id?: string; name: string; departmentId?: string | null };
   schedules: {
@@ -40,6 +41,7 @@ export interface TimetableSection {
     startTime: string;
     endTime: string;
     room: string | null;
+    roomId?: string | null;
     roomRef?: { name: string; building?: { name: string } | null } | null;
   }[];
   teachers?: { id: string; user?: { name: string | null; email?: string | null } | null }[];
@@ -57,6 +59,7 @@ export interface TimetableEntry {
   startTime: string;
   endTime: string;
   room: string | null;
+  roomId: string | null;
   teacherName: string | null;
   additionalTeachersCount: number;
 }
@@ -97,6 +100,7 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
         startTime: schedule.startTime,
         endTime: schedule.endTime,
         room: scheduleRoom || defaultRoom || schedule.room || section.room,
+        roomId: schedule.roomId || section.defaultRoomId || null,
         teacherName: section.teachers?.[0]?.user?.name || section.teachers?.[0]?.user?.email || null,
         additionalTeachersCount: Math.max(0, (section.teachers?.length || 0) - 1),
       });

@@ -202,6 +202,13 @@ export interface Building {
     code: string;
     address?: string | null;
     description?: string | null;
+    landmark?: string | null;
+    directionsNote?: string | null;
+    sortOrder?: number;
+    mapX?: number | null;
+    mapY?: number | null;
+    mapWidth?: number | null;
+    mapHeight?: number | null;
     imageUrl?: string | null;
     imageUpdatedAt?: string | null;
     isActive: boolean;
@@ -220,10 +227,17 @@ export interface Room {
     buildingId: string;
     name: string;
     code: string;
-    floor?: string | null;
+    floor: string;
     type?: RoomType | null;
     capacity?: number | null;
     description?: string | null;
+    landmark?: string | null;
+    directionsNote?: string | null;
+    sortOrder?: number;
+    mapX?: number | null;
+    mapY?: number | null;
+    mapWidth?: number | null;
+    mapHeight?: number | null;
     imageUrl?: string | null;
     imageUpdatedAt?: string | null;
     isActive: boolean;
@@ -247,6 +261,13 @@ export interface CreateBuildingRequest {
     code: string;
     address?: string | null;
     description?: string | null;
+    landmark?: string | null;
+    directionsNote?: string | null;
+    sortOrder?: number;
+    mapX?: number | null;
+    mapY?: number | null;
+    mapWidth?: number | null;
+    mapHeight?: number | null;
     imageUrl?: string | null;
     isActive?: boolean;
     departmentIds?: string[];
@@ -258,15 +279,76 @@ export interface CreateRoomRequest {
     buildingId: string;
     name: string;
     code: string;
-    floor?: string | null;
+    floor: string;
     type?: RoomType | null;
     capacity?: number | null;
     description?: string | null;
+    landmark?: string | null;
+    directionsNote?: string | null;
+    sortOrder?: number;
+    mapX?: number | null;
+    mapY?: number | null;
+    mapWidth?: number | null;
+    mapHeight?: number | null;
     imageUrl?: string | null;
     isActive?: boolean;
 }
 
 export type UpdateRoomRequest = Partial<CreateRoomRequest>;
+
+export interface CampusNavigationSectionSummary {
+    id: string;
+    name: string;
+    code: string;
+    course?: Pick<Course, 'id' | 'name' | 'code'> | null;
+}
+
+export interface CampusNavigationScheduleSummary {
+    id: string;
+    day: number;
+    startTime: string;
+    endTime: string;
+    section: CampusNavigationSectionSummary;
+}
+
+export interface CampusNavigationRoom extends Omit<Room, 'building'> {
+    sections: CampusNavigationSectionSummary[];
+    schedules: CampusNavigationScheduleSummary[];
+}
+
+export interface CampusNavigationFloor {
+    floor: string;
+    rooms: CampusNavigationRoom[];
+}
+
+export interface CampusNavigationBuilding extends Omit<Building, 'rooms'> {
+    rooms: CampusNavigationRoom[];
+    floors: CampusNavigationFloor[];
+    matchesQuery?: boolean;
+}
+
+export interface CampusNavigationResponse {
+    filters: {
+        q: string;
+        roomId: string;
+        buildingCode: string;
+        departmentCode: string;
+        floor: string;
+        roomType: RoomType | '';
+    };
+    counts: {
+        buildings: number;
+        floors: number;
+        rooms: number;
+        departments: number;
+    };
+    lookups: {
+        departments: Department[];
+        floors: string[];
+        roomTypes: RoomType[];
+    };
+    buildings: CampusNavigationBuilding[];
+}
 
 export interface Section {
     id: string;
@@ -1488,6 +1570,7 @@ export interface TimetableEntry {
     startTime: string;
     endTime: string;
     room: string | null;
+    roomId?: string | null;
     teacherName?: string | null;
     additionalTeachersCount?: number;
 }

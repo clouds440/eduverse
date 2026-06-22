@@ -645,6 +645,7 @@ export class TeacherService {
             startTime: true,
             endTime: true,
             room: true,
+            roomId: true,
             roomRef: { select: { name: true, building: { select: { name: true } } } },
           },
         },

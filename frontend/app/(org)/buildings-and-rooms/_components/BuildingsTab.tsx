@@ -31,7 +31,17 @@ import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
-const emptyForm = { name: '', code: '', address: '', description: '', isActive: true, departmentIds: [] as string[] };
+const emptyForm = {
+    name: '',
+    code: '',
+    address: '',
+    description: '',
+    landmark: '',
+    directionsNote: '',
+    sortOrder: '',
+    isActive: true,
+    departmentIds: [] as string[],
+};
 
 export default function BuildingsTab() {
     const { token, user } = useAuth();
@@ -91,6 +101,9 @@ export default function BuildingsTab() {
             code: building.code || '',
             address: building.address || '',
             description: building.description || '',
+            landmark: building.landmark || '',
+            directionsNote: building.directionsNote || '',
+            sortOrder: building.sortOrder ? String(building.sortOrder) : '',
             isActive: building.isActive,
             departmentIds: building.departments?.map((department) => department.id) || [],
         });
@@ -108,6 +121,9 @@ export default function BuildingsTab() {
                 code: formData.code,
                 address: formData.address || null,
                 description: formData.description || null,
+                landmark: formData.landmark || null,
+                directionsNote: formData.directionsNote || null,
+                sortOrder: formData.sortOrder ? Number(formData.sortOrder) : undefined,
                 isActive: formData.isActive,
                 departmentIds: formData.departmentIds,
             };
@@ -115,13 +131,13 @@ export default function BuildingsTab() {
             if (editingBuilding) {
                 savedBuilding = await api.org.updateBuilding(editingBuilding.id, payload, token);
                 if (pendingImage) {
-                    savedBuilding = await api.org.uploadBuildingImage(savedBuilding.id, pendingImage, token);
+                    await api.org.uploadBuildingImage(savedBuilding.id, pendingImage, token);
                 }
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Building updated', type: 'success' } });
             } else {
                 savedBuilding = await api.org.createBuilding(payload, token);
                 if (pendingImage) {
-                    savedBuilding = await api.org.uploadBuildingImage(savedBuilding.id, pendingImage, token);
+                    await api.org.uploadBuildingImage(savedBuilding.id, pendingImage, token);
                 }
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Building created', type: 'success' } });
             }
@@ -316,6 +332,16 @@ export default function BuildingsTab() {
                         <Label htmlFor="building-address">Address</Label>
                         <Input id="building-address" value={formData.address} onChange={(event) => setFormData({ ...formData, address: event.target.value })} placeholder="North campus" />
                     </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="building-landmark">Landmark</Label>
+                            <Input id="building-landmark" value={formData.landmark} onChange={(event) => setFormData({ ...formData, landmark: event.target.value })} placeholder="Near front gate" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="building-sort-order">Sort Order</Label>
+                            <Input id="building-sort-order" type="number" value={formData.sortOrder} onChange={(event) => setFormData({ ...formData, sortOrder: event.target.value })} placeholder="1" />
+                        </div>
+                    </div>
                     <div className="space-y-2">
                         <Label>Departments</Label>
                         <CustomMultiSelect
@@ -324,6 +350,10 @@ export default function BuildingsTab() {
                             onChange={(departmentIds) => setFormData({ ...formData, departmentIds })}
                             placeholder="Select departments..."
                         />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="building-directions">Directions Note</Label>
+                        <Textarea id="building-directions" value={formData.directionsNote} onChange={(event) => setFormData({ ...formData, directionsNote: event.target.value })} placeholder="Enter from Gate 1 and turn left after reception." />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="building-description">Description</Label>

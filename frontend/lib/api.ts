@@ -12,6 +12,7 @@ import type {
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
+    CampusNavigationResponse,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, TeacherFinanceOverview, MessageResponse, AuditLogItem,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, SectionGradebookResponse, OrgUserCounts,
@@ -498,6 +499,8 @@ export const api = {
         },
         setRoomActive: (id: string, isActive: boolean, token: string) =>
             request<Room>(`/org/rooms/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
+        getCampusNavigation: (token: string, params: { q?: string, roomId?: string, buildingCode?: string, departmentCode?: string, floor?: string, roomType?: RoomType | '' } = {}) =>
+            request<CampusNavigationResponse>(`/org/campus-navigation${buildQueryString(params)}`, { token }),
 
         // FIX 3 applied: was duplicating raw fetch + 401 handling
         uploadAvatar: (userId: string, file: File, token: string): Promise<{ avatarUrl: string; avatarUpdatedAt: string }> => {

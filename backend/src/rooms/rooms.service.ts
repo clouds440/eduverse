@@ -19,6 +19,12 @@ export class RoomsService {
     return trimmed || null;
   }
 
+  private normalizeRequiredText(value: string | undefined | null, field: string) {
+    const trimmed = value?.trim();
+    if (!trimmed) throw new BadRequestException(`${field} is required`);
+    return trimmed;
+  }
+
   private includeRelations = {
     building: {
       include: {
@@ -93,10 +99,17 @@ export class RoomsService {
         buildingId: dto.buildingId,
         name: dto.name.trim(),
         code,
-        floor: this.normalizeText(dto.floor),
+        floor: this.normalizeRequiredText(dto.floor, 'Room floor'),
         type: dto.type,
         capacity: dto.capacity,
         description: this.normalizeText(dto.description),
+        landmark: this.normalizeText(dto.landmark),
+        directionsNote: this.normalizeText(dto.directionsNote),
+        sortOrder: dto.sortOrder ?? 0,
+        mapX: dto.mapX,
+        mapY: dto.mapY,
+        mapWidth: dto.mapWidth,
+        mapHeight: dto.mapHeight,
         imageUrl: this.normalizeText(dto.imageUrl),
         imageUpdatedAt: dto.imageUrl ? new Date() : undefined,
         isActive: dto.isActive ?? true,
@@ -134,8 +147,11 @@ export class RoomsService {
         ? {
           OR: [
             { name: { contains: options.search, mode: 'insensitive' } },
+            { code: { contains: options.search, mode: 'insensitive' } },
             { floor: { contains: options.search, mode: 'insensitive' } },
             { description: { contains: options.search, mode: 'insensitive' } },
+            { landmark: { contains: options.search, mode: 'insensitive' } },
+            { directionsNote: { contains: options.search, mode: 'insensitive' } },
             { building: { name: { contains: options.search, mode: 'insensitive' } } },
             { building: { code: { contains: options.search, mode: 'insensitive' } } },
           ],
@@ -196,10 +212,17 @@ export class RoomsService {
         buildingId: dto.buildingId,
         name: dto.name !== undefined ? dto.name.trim() : undefined,
         code: dto.code !== undefined ? nextCode : undefined,
-        floor: dto.floor !== undefined ? this.normalizeText(dto.floor) : undefined,
+        floor: dto.floor !== undefined ? this.normalizeRequiredText(dto.floor, 'Room floor') : undefined,
         type: dto.type,
         capacity: dto.capacity,
         description: dto.description !== undefined ? this.normalizeText(dto.description) : undefined,
+        landmark: dto.landmark !== undefined ? this.normalizeText(dto.landmark) : undefined,
+        directionsNote: dto.directionsNote !== undefined ? this.normalizeText(dto.directionsNote) : undefined,
+        sortOrder: dto.sortOrder,
+        mapX: dto.mapX,
+        mapY: dto.mapY,
+        mapWidth: dto.mapWidth,
+        mapHeight: dto.mapHeight,
         imageUrl: dto.imageUrl !== undefined ? this.normalizeText(dto.imageUrl) : undefined,
         imageUpdatedAt: dto.imageUrl !== undefined ? new Date() : undefined,
         isActive: dto.isActive,

@@ -34,6 +34,11 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
     const invalidRows = result?.errors || validation?.invalidRows || [];
     const canConfirm = Boolean(validation?.validRows.length && !result);
     const cachePrefixes = useMemo(() => Array.isArray(cachePrefix) ? cachePrefix : [cachePrefix], [cachePrefix]);
+    const importHint = entity === 'rooms'
+        ? 'Rooms use buildingCode, room code, required floor, optional landmark and directions fields. Do not paste database IDs.'
+        : entity === 'buildings'
+            ? 'Buildings use building code and optional departmentCodes, landmark, directions, sort order, and reserved map fields.'
+            : null;
 
     const handleDownloadTemplate = async () => {
         if (!token) return;
@@ -124,6 +129,9 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
             )}
         >
             <div className="space-y-4">
+                {importHint && (
+                    <StatusBanner title="Template note" variant="info" description={importHint} />
+                )}
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                     <Input
                         type="file"

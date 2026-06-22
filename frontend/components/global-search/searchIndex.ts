@@ -49,6 +49,8 @@ const SHORTHANDS: Record<string, string[]> = {
     cal: ['calendar', 'holidays'],
     eval: ['evaluation', 'evaluations', 'feedback'],
     msg: ['message', 'messages', 'chat'],
+    map: ['campus', 'navigation', 'institute map'],
+    nav: ['navigation', 'campus map', 'routes'],
 };
 
 const GROUP_BY_ID: Record<string, RouteSearchGroup> = {
@@ -83,6 +85,11 @@ const ROUTE_METADATA: Record<string, Pick<RouteSearchItem, 'description' | 'alia
         description: 'Campus buildings, rooms, labs, and halls',
         aliases: ['rooms', 'buildings'],
         keywords: ['bldg', 'room', 'rm', 'classroom', 'lab'],
+    },
+    CAMPUS_NAVIGATION: {
+        description: 'Find buildings, rooms, floors, departments, landmarks, and directions',
+        aliases: ['campus map', 'institute map', 'directory map'],
+        keywords: ['map', 'navigation', 'building image', 'room image', 'directions', 'landmark', 'floor', 'room code'],
     },
     CHAT: {
         description: 'Messages and conversations',

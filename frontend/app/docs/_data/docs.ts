@@ -3086,6 +3086,148 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'campus-navigation',
+    title: 'Campus Navigation',
+    description: 'Use building and room details to create a searchable, image-supported campus directory.',
+    category: 'Setup',
+    tags: ['campus map', 'navigation', 'buildings', 'rooms', 'landmarks', 'directions'],
+    related: ['departments-buildings-rooms', 'identification-codes', 'csv-imports', 'timetable'],
+    sections: [
+      {
+        id: 'what-campus-navigation-is',
+        title: 'What Campus Navigation Is',
+        tags: ['campus map', 'directory', 'institute map'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Campus Navigation is a searchable institute map built from the existing Buildings and Rooms setup. It is not a drag-and-drop visual map. It groups buildings, floors, rooms, departments, images, landmarks, and directions so users can find a location quickly.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Buildings appear as main sections with their building image, code, departments, landmark, and directions.',
+              'Floors are shown inside each building so users can narrow the location before choosing a room.',
+              'Rooms appear with their room image, code, type, capacity, departments through the building, landmark, and directions note.',
+              'Search can match room names, room codes, building names, building codes, floors, departments, landmarks, and directions notes.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Why it is directory-based',
+            text: 'Most schools need reliable directions more than a complex editable graphic. A clear hierarchy with real photos is easier to maintain and more useful on phones.',
+          },
+        ],
+      },
+      {
+        id: 'why-details-matter',
+        title: 'Why Building and Room Details Matter',
+        tags: ['images', 'landmarks', 'directions', 'floor', 'room code'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Detail', 'Why it is useful', 'Where users see it'],
+            rows: [
+              ['Building image', 'Helps users recognize the building before they arrive.', 'Campus Navigation building section and building setup.'],
+              ['Room image', 'Helps users recognize the correct door, lab, hall, office, or room interior. A hallway photo facing the room door is usually best.', 'Campus Navigation room cards, room detail dialog, and room setup.'],
+              ['Building code', 'Gives a short stable identifier for search and CSV imports.', 'Building lists, room imports, Campus Navigation, and setup references.'],
+              ['Room code', 'Lets users find a room without using database IDs.', 'Room lists, section schedules, CSV imports, Campus Navigation, and site search.'],
+              ['Floor', 'Places the room inside the building hierarchy.', 'Campus Navigation floor groups, room setup, imports, and filters.'],
+              ['Landmark', 'Gives a memorable nearby clue such as “near reception” or “beside library stairs.”', 'Campus Navigation and searchable location text.'],
+              ['Directions note', 'Gives short human directions that a floor number alone cannot explain.', 'Campus Navigation building and room details.'],
+              ['Room type', 'Helps users filter for labs, offices, halls, washrooms, meeting rooms, and other space types.', 'Room filters, Campus Navigation filters, imports, and setup forms.'],
+              ['Sort order', 'Controls the order of buildings and rooms when natural alphabetical order is not enough.', 'Campus Navigation and setup views.'],
+            ],
+          },
+          {
+            type: 'tip',
+            title: 'Use real photos',
+            text: 'A simple building exterior photo and a room doorway photo often help more than a drawn map. For rooms, stand in the hall and capture the door clearly. If possible, include a visible room sign, arrow, or marker pointing to the correct door.',
+          },
+        ],
+      },
+      {
+        id: 'setup-flow',
+        title: 'Setup Flow',
+        tags: ['setup', 'photos', 'rooms'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Create departments first if buildings should be linked to academic or administrative areas.',
+              'Create buildings with a clear name, code, optional image, landmark, and directions note.',
+              'Create rooms under each building with a required floor, code, type, optional image, capacity, landmark, and directions note.',
+              'For each room picture, prefer a hallway view that clearly shows the room door. Include the room sign or a marker pointing to the door when possible.',
+              'Use room codes when importing sections or selecting default rooms.',
+              'Open Campus Map from the sidebar and search by building, department, floor, room type, code, or landmark to confirm the directory is useful.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Floor is required',
+            text: 'Every room needs a floor because Campus Navigation groups rooms by building and floor. If the school does not use floor numbers, use a consistent label such as Ground, Main, Basement, or Outdoor.',
+          },
+        ],
+      },
+      {
+        id: 'room-detail-links',
+        title: 'Room Detail Links',
+        tags: ['timetable', 'room link', 'dialog'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Each room in Campus Navigation can open a room detail dialog with a larger room picture, room details, building details, departments, and scheduled section context. The selected room is kept in the URL so staff can send someone directly to the room view.',
+          },
+          {
+            type: 'list',
+            items: [
+              'A room detail link uses the Campus Map page with a roomId in the URL.',
+              'Timetable room actions open the same URL-backed room detail view.',
+              'The room detail dialog shows the room picture large, but it does not repeat the building picture so the focus stays on finding the specific door or space.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'csv-and-codes',
+        title: 'CSV and Codes',
+        tags: ['csv', 'buildingCode', 'room code'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Campus Navigation depends on human-readable codes. Room CSV imports use buildingCode to connect each room to a building, and users should never need database IDs for navigation setup.',
+          },
+          {
+            type: 'table',
+            headers: ['Import', 'Important columns', 'Notes'],
+            rows: [
+              ['Buildings CSV', 'name, code, address, description, landmark, directionsNote, sortOrder, departmentCodes', 'Use building codes that staff can recognize and reuse.'],
+              ['Rooms CSV', 'buildingCode, name, code, floor, type, capacity, landmark, directionsNote, sortOrder', 'buildingCode must match an existing building in the same school workspace.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'future-visual-map',
+        title: 'Future Visual Map',
+        tags: ['future', 'visual map', 'coordinates'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'EduVerse keeps optional layout fields for future visual campus rendering, but Campus Navigation works fully without coordinates. Schools can get value today from structured hierarchy, photos, landmarks, and directions.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Do not wait for a visual editor before adding building and room details.',
+              'Use images and directions for practical day-to-day navigation.',
+              'Reserved map fields can support a future visual map without changing the building and room records again.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'identification-codes',
     title: 'Identification Codes',
     description: 'Use stable, human-readable codes for CSV imports and linked setup records.',
@@ -3193,7 +3335,7 @@ export const docsPages: DocPage[] = [
     description: 'Import people, academic setup, rooms, and monthly attendance with templates, validation, and error reports.',
     category: 'Workflows',
     tags: ['csv', 'imports', 'templates', 'bulk upload'],
-    related: ['identification-codes', 'students', 'teachers', 'courses-sections', 'departments-buildings-rooms', 'attendance'],
+    related: ['identification-codes', 'students', 'teachers', 'courses-sections', 'departments-buildings-rooms', 'campus-navigation', 'attendance'],
     sections: [
       {
         id: 'import-flow',
@@ -3233,8 +3375,8 @@ export const docsPages: DocPage[] = [
               ['Import courses CSV', 'Org Admin or Sub Admin', 'name, code', 'description, creditHours, departmentCode'],
               ['Import sections CSV', 'Org Admin or Sub Admin', 'name, code, courseCode, academicCycleCode', 'room, defaultRoomCode, cohortCode, color'],
               ['Import departments CSV', 'Org Admin only', 'name, code', 'description, color, isActive'],
-              ['Import buildings CSV', 'Org Admin or Sub Admin', 'name, code', 'address, description, isActive, departmentCodes'],
-              ['Import rooms CSV', 'Org Admin or Sub Admin', 'buildingCode, name, code', 'floor, type, capacity, description, isActive'],
+              ['Import buildings CSV', 'Org Admin or Sub Admin', 'name, code', 'address, description, landmark, directionsNote, sortOrder, map fields, isActive, departmentCodes'],
+              ['Import rooms CSV', 'Org Admin or Sub Admin', 'buildingCode, name, code, floor', 'type, capacity, description, landmark, directionsNote, sortOrder, map fields, isActive'],
             ],
           },
         ],
@@ -3251,9 +3393,10 @@ export const docsPages: DocPage[] = [
           {
             type: 'list',
             items: [
-              'departmentCodes accepts multiple department codes separated by commas.',
+              'departmentCodes accepts multiple department codes separated by semicolons.',
               'primaryDepartmentCode, departmentCode, buildingCode, courseCode, academicCycleCode, defaultRoomCode, and cohortCode must belong to the same organization.',
               'Create departments, buildings, courses, academic cycles, cohorts, and rooms before importing records that reference them.',
+              'Use buildingCode for room imports. Do not paste database IDs into navigation or CSV fields.',
               'Read the Identification Codes page for examples such as SCI, MAIN, ROOM-101, 2026-SPRING, GRADE-9, MATH-101, and GRADE-9-A.',
             ],
           },
@@ -3314,7 +3457,7 @@ export const docsPages: DocPage[] = [
     description: 'Set up department grouping, campus buildings, schedulable rooms, and department-scoped users.',
     category: 'Setup',
     tags: ['departments', 'buildings', 'rooms', 'setup', 'schedule rooms', 'scope'],
-    related: ['roles-permissions', 'courses-sections', 'timetable', 'school-setup-workflow', 'csv-imports'],
+    related: ['campus-navigation', 'roles-permissions', 'courses-sections', 'timetable', 'school-setup-workflow', 'csv-imports'],
     sections: [
       {
         id: 'what-each-record-means',
@@ -3360,20 +3503,27 @@ export const docsPages: DocPage[] = [
       {
         id: 'buildings-and-room-setup',
         title: 'Buildings and Rooms',
-        tags: ['buildings', 'rooms', 'capacity'],
+        tags: ['buildings', 'rooms', 'capacity', 'campus navigation', 'images'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'Buildings contain rooms. A room name only needs to be unique inside its building, so Main Block 101 and Science Block 101 can both exist.',
+            text: 'Buildings contain rooms. A room name only needs to be unique inside its building, so Main Block 101 and Science Block 101 can both exist. The same records also power Campus Navigation, so clear images, floors, landmarks, and directions make the campus directory more useful.',
           },
           {
             type: 'list',
             items: [
               'Create buildings before creating rooms.',
               'Optionally link buildings to departments to make filtering and suggestions easier.',
-              'Set room type and capacity when known. Capacity creates a scheduling warning, not a hard block.',
+              'Upload a recognizable building image and room image when possible. These appear in the Campus Map directory.',
+              'Set room floor, type, and capacity when known. Floor is required because rooms are grouped by building and floor.',
+              'Use landmarks and directions notes for practical wayfinding, such as “near reception” or “use the east stairs.”',
               'Deactivate rooms that should no longer appear in new schedule selectors.',
             ],
+          },
+          {
+            type: 'note',
+            title: 'Why details are worth the time',
+            text: 'Building and room details are reused in schedules, timetable context, CSV imports, room search, and Campus Navigation. Good setup lets users find a room by code, photo, floor, department, landmark, or directions note instead of asking for a database ID or guessing from a room name.',
           },
         ],
       },
@@ -3428,7 +3578,7 @@ export const docsNavGroups: DocNavGroup[] = [
   { title: 'Basics', pages: ['quick-start', 'getting-started', 'roles-permissions', 'glossary', 'dashboard-insights'] },
   { title: 'Role Guides', pages: ['admin-guide', 'sub-admin-guide', 'manager-guide', 'finance-manager-guide', 'teacher-guide', 'student-guide', 'guardian-guide'] },
   { title: 'Workflows', pages: ['school-setup-workflow', 'end-of-term-workflow', 'csv-imports'] },
-  { title: 'Setup', pages: ['identification-codes', 'departments-buildings-rooms'] },
+  { title: 'Setup', pages: ['identification-codes', 'departments-buildings-rooms', 'campus-navigation'] },
   { title: 'Administration', pages: ['platform-admin'] },
   { title: 'People', pages: ['students', 'teachers'] },
   {

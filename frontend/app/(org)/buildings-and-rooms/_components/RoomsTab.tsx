@@ -30,15 +30,19 @@ import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
-const roomTypeOptions = [
+const roomTypeChoices = Object.values(RoomType).map((value) => ({
+    value,
+    label: formatRoomType(value),
+}));
+
+const roomTypeFilterOptions = [
     { value: '', label: 'Any Type' },
-    { value: RoomType.CLASSROOM, label: 'Classroom' },
-    { value: RoomType.LAB, label: 'Lab' },
-    { value: RoomType.AUDITORIUM, label: 'Auditorium' },
-    { value: RoomType.OFFICE, label: 'Office' },
-    { value: RoomType.LIBRARY, label: 'Library' },
-    { value: RoomType.HALL, label: 'Hall' },
-    { value: RoomType.OTHER, label: 'Other' },
+    ...roomTypeChoices,
+];
+
+const roomTypeFormOptions = [
+    { value: '', label: 'General' },
+    ...roomTypeChoices,
 ];
 
 const emptyForm = {
@@ -49,6 +53,9 @@ const emptyForm = {
     type: '' as RoomType | '',
     capacity: '',
     description: '',
+    landmark: '',
+    directionsNote: '',
+    sortOrder: '',
     isActive: true,
 };
 
@@ -131,6 +138,9 @@ export default function RoomsTab() {
             type: room.type || '',
             capacity: room.capacity ? String(room.capacity) : '',
             description: room.description || '',
+            landmark: room.landmark || '',
+            directionsNote: room.directionsNote || '',
+            sortOrder: room.sortOrder ? String(room.sortOrder) : '',
             isActive: room.isActive,
         });
         setPendingImage(null);
@@ -146,23 +156,26 @@ export default function RoomsTab() {
                 buildingId: formData.buildingId,
                 name: formData.name,
                 code: formData.code,
-                floor: formData.floor || null,
+                floor: formData.floor,
                 type: formData.type || null,
                 capacity: formData.capacity ? Number(formData.capacity) : null,
                 description: formData.description || null,
+                landmark: formData.landmark || null,
+                directionsNote: formData.directionsNote || null,
+                sortOrder: formData.sortOrder ? Number(formData.sortOrder) : undefined,
                 isActive: formData.isActive,
             };
             let savedRoom: Room;
             if (editingRoom) {
                 savedRoom = await api.org.updateRoom(editingRoom.id, payload, token);
                 if (pendingImage) {
-                    savedRoom = await api.org.uploadRoomImage(savedRoom.id, pendingImage, token);
+                    await api.org.uploadRoomImage(savedRoom.id, pendingImage, token);
                 }
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Room updated', type: 'success' } });
             } else {
                 savedRoom = await api.org.createRoom(payload, token);
                 if (pendingImage) {
-                    savedRoom = await api.org.uploadRoomImage(savedRoom.id, pendingImage, token);
+                    await api.org.uploadRoomImage(savedRoom.id, pendingImage, token);
                 }
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Room created', type: 'success' } });
             }
@@ -242,7 +255,7 @@ export default function RoomsTab() {
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Room Type</Label>
                         <CustomSelect
-                            options={roomTypeOptions}
+                            options={roomTypeFilterOptions}
                             value={type}
                             onChange={(value) => updateQueryParams({ type: value, page: 1 })}
                             placeholder="Any Type"
@@ -359,7 +372,7 @@ export default function RoomsTab() {
                         onFileReady={setPendingImage}
                         type="org"
                         sizeClassName="w-28 h-28"
-                        hint="Optional room picture. Crop a square image for tables and setup views."
+                        hint="Best from the hall: show the room door clearly, and include a visible room sign or marker pointing to the door when possible."
                     />
                     <div className="space-y-2">
                         <Label>Building *</Label>
@@ -384,22 +397,37 @@ export default function RoomsTab() {
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="room-floor">Floor</Label>
-                            <Input id="room-floor" value={formData.floor} onChange={(event) => setFormData({ ...formData, floor: event.target.value })} placeholder="Ground" />
+                            <Label htmlFor="room-floor">Floor *</Label>
+                            <Input id="room-floor" required value={formData.floor} onChange={(event) => setFormData({ ...formData, floor: event.target.value })} placeholder="Ground" />
                         </div>
                         <div className="space-y-2">
                             <Label>Type</Label>
                             <CustomSelect
-                                options={roomTypeOptions}
+                                options={roomTypeFormOptions}
                                 value={formData.type}
                                 onChange={(nextType) => setFormData({ ...formData, type: nextType as RoomType | '' })}
                                 placeholder="General"
+                                searchable
                             />
                         </div>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="room-capacity">Capacity</Label>
                         <Input id="room-capacity" type="number" min={1} value={formData.capacity} onChange={(event) => setFormData({ ...formData, capacity: event.target.value })} placeholder="40" />
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="room-landmark">Landmark</Label>
+                            <Input id="room-landmark" value={formData.landmark} onChange={(event) => setFormData({ ...formData, landmark: event.target.value })} placeholder="Near reception" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="room-sort-order">Sort Order</Label>
+                            <Input id="room-sort-order" type="number" value={formData.sortOrder} onChange={(event) => setFormData({ ...formData, sortOrder: event.target.value })} placeholder="1" />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="room-directions">Directions Note</Label>
+                        <Textarea id="room-directions" value={formData.directionsNote} onChange={(event) => setFormData({ ...formData, directionsNote: event.target.value })} placeholder="Use the east stairs and turn right." />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="room-description">Description</Label>

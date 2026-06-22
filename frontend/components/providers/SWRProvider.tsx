@@ -32,6 +32,7 @@ type FetcherKey =
     | readonly ['holidays', object]
     | readonly ['buildings', object]
     | readonly ['rooms', object]
+    | readonly ['campus-navigation', object]
     | readonly ['studentsSearch', object]
     // Single string ID resources
     | readonly ['attendance-section', string]
@@ -106,6 +107,8 @@ function createFetcher(token: string | null) {
                     return await api.org.getBuildings(token, args[0] as object) as T;
                 case 'rooms':
                     return await api.org.getRooms(token, args[0] as object) as T;
+                case 'campus-navigation':
+                    return await api.org.getCampusNavigation(token, args[0] as object) as T;
                 case 'studentsSearch':
                     return await api.org.getStudents(token, args[0] as object) as T;
 

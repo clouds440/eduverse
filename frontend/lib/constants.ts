@@ -37,5 +37,6 @@ export const DASHBOARD_MODULES = [
     'fees',
     'guardians',
     'departments',
-    'buildings-and-rooms'
+    'buildings-and-rooms',
+    'campus-navigation',
 ];

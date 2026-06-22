@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 
 export class CreateBuildingDto {
@@ -22,6 +22,36 @@ export class CreateBuildingDto {
   @IsOptional()
   @MaxLength(500)
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(250)
+  landmark?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  directionsNote?: string;
+
+  @IsInt()
+  @IsOptional()
+  sortOrder?: number;
+
+  @IsNumber()
+  @IsOptional()
+  mapX?: number;
+
+  @IsNumber()
+  @IsOptional()
+  mapY?: number;
+
+  @IsNumber()
+  @IsOptional()
+  mapWidth?: number;
+
+  @IsNumber()
+  @IsOptional()
+  mapHeight?: number;
 
   @IsString()
   @IsOptional()
