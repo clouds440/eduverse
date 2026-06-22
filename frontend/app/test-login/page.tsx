@@ -31,7 +31,7 @@ interface TestAccount {
     tone: 'primary' | 'info' | 'success' | 'warning' | 'neutral';
 }
 
-const ORG_PASSWORD = '123456aA';
+const ORG_PASSWORD = 'Demo@12345';
 const PROD_DEMO_PASSWORD = 'Demo@12345';
 
 const localTestAccounts: TestAccount[] = [

@@ -109,7 +109,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
             .filter(l => !l.href.endsWith('/dashboard') && !l.href.endsWith('/admin') && !l.href.includes('?'))
             .sort((a, b) => (b.href?.length || 0) - (a.href?.length || 0))
             .find(l => pathname === l.href || pathname.startsWith(`${l.href}/`));
-    }, [pathname, searchParams, links, bottomLinks]);
+    }, [pathname, searchParams, links, bottomLinks, user?.role]);
 
     const handleLogout = () => {
         logout();

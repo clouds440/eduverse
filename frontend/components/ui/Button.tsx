@@ -23,6 +23,11 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
     requireWrite?: boolean;
 }
 
+interface BaseButtonProps extends ButtonProps {
+    globalLoading?: boolean;
+    canWrite?: boolean;
+}
+
 const variantClasses: Record<ButtonVariant, string> = {
     primary: "border-transparent bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover focus-visible:ring-primary/35",
     secondary: "border-border bg-surface-raised text-foreground shadow-xs hover:border-primary/35 hover:bg-muted/70 focus-visible:ring-primary/25",
@@ -42,7 +47,7 @@ const sizeClasses: Record<ButtonSize, string> = {
     icon: "h-10 w-10 p-0 text-sm",
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+const BaseButton = React.forwardRef<HTMLButtonElement, BaseButtonProps>(
     ({
         className,
         isLoading: localIsLoading,
@@ -57,14 +62,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         px,
         py,
         requireWrite,
+        globalLoading = false,
+        canWrite = true,
         title,
         'aria-label': ariaLabel,
         ...props
     }, ref) => {
-        const { state } = useGlobal();
-        const { canWrite } = useAccess();
-
-        const isThisButtonProcessing = loadingId ? state.ui.processing[loadingId] : false;
+        const isThisButtonProcessing = loadingId ? globalLoading : false;
         const accessDisabled = requireWrite && !canWrite;
         const effectiveDisabled = disabled || isThisButtonProcessing || localIsLoading || accessDisabled;
         const effectiveLoading = localIsLoading || isThisButtonProcessing;
@@ -114,6 +118,31 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         )
     }
 )
+BaseButton.displayName = "BaseButton"
+
+const StatefulButton = React.forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
+    const { state } = useGlobal();
+    const { canWrite } = useAccess();
+    const globalLoading = props.loadingId ? Boolean(state.ui.processing[props.loadingId]) : false;
+
+    return (
+        <BaseButton
+            {...props}
+            ref={ref}
+            globalLoading={globalLoading}
+            canWrite={canWrite}
+        />
+    );
+});
+StatefulButton.displayName = "StatefulButton"
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
+    if (props.loadingId || props.requireWrite) {
+        return <StatefulButton {...props} ref={ref} />;
+    }
+
+    return <BaseButton {...props} ref={ref} />;
+});
 Button.displayName = "Button"
 
 export { Button }

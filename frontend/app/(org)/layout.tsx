@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
 import { Clock, GraduationCap, Mail, RefreshCw, Settings, ShieldAlert, ShieldOff, CheckCircle } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { Organization, Role, OrgStatus } from '@/types';
 import Link from 'next/link';
-import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useAuth, JwtPayload } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { useSocket } from '@/hooks/useSocket';
@@ -16,6 +16,14 @@ import { VerificationCodeInput } from '@/components/ui/VerificationCodeInput';
 import { Badge } from '@/components/ui/Badge';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { buildOrgSidebarLinks, getOrgOverviewHref } from '@/lib/orgSidebar';
+
+const MarkdownRenderer = dynamic(
+    () => import('@/components/ui/MarkdownRenderer').then((module) => module.MarkdownRenderer),
+    {
+        ssr: false,
+        loading: () => <p className="text-sm font-semibold text-muted-foreground">Loading message...</p>,
+    },
+);
 
 // Status Message Components
 const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: JwtPayload | null }) => {
