@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
 import Image from 'next/image';
@@ -44,6 +44,7 @@ const roomTypeOptions = [
 const emptyForm = {
     buildingId: '',
     name: '',
+    code: '',
     floor: '',
     type: '' as RoomType | '',
     capacity: '',
@@ -125,6 +126,7 @@ export default function RoomsTab() {
         setFormData({
             buildingId: room.buildingId,
             name: room.name,
+            code: room.code || '',
             floor: room.floor || '',
             type: room.type || '',
             capacity: room.capacity ? String(room.capacity) : '',
@@ -143,6 +145,7 @@ export default function RoomsTab() {
             const payload = {
                 buildingId: formData.buildingId,
                 name: formData.name,
+                code: formData.code,
                 floor: formData.floor || null,
                 type: formData.type || null,
                 capacity: formData.capacity ? Number(formData.capacity) : null,
@@ -369,9 +372,15 @@ export default function RoomsTab() {
                             searchable
                         />
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="room-name">Room Name *</Label>
-                        <Input id="room-name" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Lab 2" />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="room-name">Room Name *</Label>
+                            <Input id="room-name" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Lab 2" />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="room-code">Code *</Label>
+                            <Input id="room-code" required value={formData.code} onChange={(event) => setFormData({ ...formData, code: event.target.value })} placeholder="ROOM-101" />
+                        </div>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
@@ -418,3 +427,6 @@ export default function RoomsTab() {
         </>
     );
 }
+
+
+

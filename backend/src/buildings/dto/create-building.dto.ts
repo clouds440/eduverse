@@ -1,4 +1,5 @@
-import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 
 export class CreateBuildingDto {
   @IsString()
@@ -7,9 +8,10 @@ export class CreateBuildingDto {
   name: string;
 
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(32)
-  code?: string;
+  @Matches(ENTITY_CODE_PATTERN, { message: 'Code may contain uppercase letters, numbers, underscores, and hyphens' })
+  code: string;
 
   @IsString()
   @IsOptional()

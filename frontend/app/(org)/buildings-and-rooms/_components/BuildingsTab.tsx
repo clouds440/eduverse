@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
 import Image from 'next/image';
@@ -105,7 +105,7 @@ export default function BuildingsTab() {
         try {
             const payload = {
                 name: formData.name,
-                code: formData.code || null,
+                code: formData.code,
                 address: formData.address || null,
                 description: formData.description || null,
                 isActive: formData.isActive,
@@ -309,8 +309,8 @@ export default function BuildingsTab() {
                         <Input id="building-name" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Science Block" />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="building-code">Code</Label>
-                        <Input id="building-code" value={formData.code} onChange={(event) => setFormData({ ...formData, code: event.target.value })} placeholder="SCI" />
+                        <Label htmlFor="building-code">Code *</Label>
+                        <Input id="building-code" required value={formData.code} onChange={(event) => setFormData({ ...formData, code: event.target.value })} placeholder="SCI" />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="building-address">Address</Label>
@@ -351,3 +351,5 @@ export default function BuildingsTab() {
         </>
     );
 }
+
+

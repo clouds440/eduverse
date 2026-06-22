@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -29,6 +29,7 @@ import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 interface SectionEditFormData {
     name: string;
+    code: string;
     room: string;
     defaultRoomId: string;
     courseId: string;
@@ -39,6 +40,7 @@ interface SectionEditFormData {
 
 interface SectionEditErrors {
     name?: string;
+    code?: string;
     courseId?: string;
     academicCycleId?: string;
     color?: string;
@@ -68,6 +70,7 @@ export default function EditSectionPage() {
 
     const [formData, setFormData] = useState<SectionEditFormData>({
         name: '',
+        code: '',
         room: '',
         defaultRoomId: '',
         courseId: '',
@@ -111,6 +114,7 @@ export default function EditSectionPage() {
 
         setFormData({
             name: section.name || '',
+            code: section.code || '',
             room: section.room || '',
             defaultRoomId: section.defaultRoomId || '',
             courseId: section.courseId || '',
@@ -129,6 +133,7 @@ export default function EditSectionPage() {
     const validateForm = () => {
         const nextErrors: SectionEditErrors = {};
         if (!formData.name.trim()) nextErrors.name = 'Section name is required';
+        if (!formData.code.trim()) nextErrors.code = 'Section code is required';
         if (!formData.courseId) nextErrors.courseId = 'Course is required';
         if (!formData.academicCycleId) nextErrors.academicCycleId = 'Academic cycle is required';
         if (!isSectionPaletteColor(formData.color)) nextErrors.color = 'Choose one of the preset section colors';
@@ -146,6 +151,7 @@ export default function EditSectionPage() {
         try {
             const payload: UpdateSectionRequest = {
                 name: formData.name.trim(),
+                code: formData.code,
                 defaultRoomId: formData.defaultRoomId || null,
                 courseId: formData.courseId,
                 academicCycleId: formData.academicCycleId,
@@ -231,6 +237,16 @@ export default function EditSectionPage() {
                                 error={!!formErrors.name}
                             />
                         </FormField>
+                        <FormField label="Section Code" required error={formErrors.code}>
+                            <Input
+                                value={formData.code}
+                                onChange={(event) => setFormData((previous) => ({ ...previous, code: event.target.value }))}
+                                placeholder="e.g. GRADE-9-A"
+                                icon={Layers}
+                                className={FORM_INPUT_CLASS}
+                                error={!!formErrors.code}
+                            />
+                        </FormField>
                         <FormField label="Default Room">
                             <CustomSelect
                                 value={formData.defaultRoomId}
@@ -267,7 +283,7 @@ export default function EditSectionPage() {
                             <CustomSelect
                                 value={formData.courseId}
                                 onChange={(value) => setFormData((previous) => ({ ...previous, courseId: value }))}
-                                options={courses.map((course) => ({ value: course.id, label: course.name, icon: BookOpen }))}
+                                options={courses.map((course) => ({ value: course.id, label: course.code ? `${course.code} - ${course.name}` : course.name, icon: BookOpen }))}
                                 placeholder="Select course"
                                 searchable
                                 required
@@ -343,3 +359,8 @@ export default function EditSectionPage() {
         </FormPageShell>
     );
 }
+
+
+
+
+

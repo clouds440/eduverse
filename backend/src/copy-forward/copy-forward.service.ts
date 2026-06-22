@@ -18,6 +18,18 @@ export class CopyForwardService {
     };
   }
 
+  private copyCodeBase(sourceCode: string, targetCycleId: string) {
+    const suffix = targetCycleId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'COPY';
+    const base = `${sourceCode}-${suffix}`.toUpperCase().replace(/[^A-Z0-9_-]/g, '-');
+    return base.slice(0, 32);
+  }
+
+  private codeWithSuffix(base: string, index: number) {
+    if (index === 0) return base;
+    const suffix = `-${index + 1}`;
+    return `${base.slice(0, 32 - suffix.length)}${suffix}`;
+  }
+
   private async validateCycles(orgId: string, dto: CopyForwardDto) {
     const fromCycle = await this.prisma.academicCycle.findFirst({
       where: { id: dto.fromCycleId, organizationId: orgId },
@@ -137,9 +149,26 @@ export class CopyForwardService {
     await this.prisma.$transaction(async (tx) => {
       for (const sourceSection of sourceSections) {
         // Create new section with same data but new cycle
+        const codeBase = this.copyCodeBase(sourceSection.code, dto.toCycleId);
+        let code = codeBase;
+        for (let index = 0; index < 100; index += 1) {
+          const candidate = this.codeWithSuffix(codeBase, index);
+          const exists = await tx.section.findFirst({
+            where: { organizationId: orgId, code: { equals: candidate, mode: 'insensitive' } },
+            select: { id: true },
+          });
+          if (!exists) {
+            code = candidate;
+            break;
+          }
+          if (index === 99) throw new BadRequestException('Could not generate a unique section code for copy-forward');
+        }
+
         const newSection = await tx.section.create({
           data: {
+            organizationId: orgId,
             name: sourceSection.name,
+            code,
             color: sourceSection.color,
             room: sourceSection.room,
             courseId: sourceSection.courseId,
@@ -244,3 +273,4 @@ export class CopyForwardService {
     };
   }
 }
+

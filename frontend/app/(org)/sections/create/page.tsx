@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -25,6 +25,7 @@ export default function CreateSectionPage() {
 
     const [formData, setFormData] = useState({
         name: '',
+        code: '',
         room: '',
         defaultRoomId: '',
         courseId: '',
@@ -56,7 +57,7 @@ export default function CreateSectionPage() {
         }
     }, [canCreateSection, user, router]);
 
-    const [formErrors, setFormErrors] = useState<{ name?: string; academicCycleId?: string; courseId?: string; teacherId?: string; room?: string; color?: string; general?: string }>({});
+    const [formErrors, setFormErrors] = useState<{ name?: string; code?: string; academicCycleId?: string; courseId?: string; teacherId?: string; room?: string; color?: string; general?: string }>({});
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -73,6 +74,10 @@ export default function CreateSectionPage() {
         }
         if (!formData.name) {
             setFormErrors(prev => ({ ...prev, name: 'Section Name is required' }));
+            hasError = true;
+        }
+        if (!formData.code) {
+            setFormErrors(prev => ({ ...prev, code: 'Section code is required' }));
             hasError = true;
         }
         if (!isSectionPaletteColor(formData.color)) {
@@ -105,7 +110,8 @@ export default function CreateSectionPage() {
             if (Array.isArray(message)) {
                 message.forEach((m: string) => {
                     const msg = m.toLowerCase();
-                    if (msg.includes('name')) newErrors.name = m;
+                    if (msg.includes('code')) newErrors.code = m;
+                    else if (msg.includes('name')) newErrors.name = m;
                     else if (msg.includes('course')) newErrors.courseId = m;
                     else if (msg.includes('teacher')) newErrors.teacherId = m;
                     else if (msg.includes('color')) newErrors.color = m;
@@ -114,7 +120,8 @@ export default function CreateSectionPage() {
                 });
             } else {
                 const msgStr = message;
-                if (msgStr.toLowerCase().includes('name')) newErrors.name = msgStr;
+                if (msgStr.toLowerCase().includes('code')) newErrors.code = msgStr;
+                else if (msgStr.toLowerCase().includes('name')) newErrors.name = msgStr;
                 else if (msgStr.toLowerCase().includes('course')) newErrors.courseId = msgStr;
                 else if (msgStr.toLowerCase().includes('teacher')) newErrors.teacherId = msgStr;
                 else if (msgStr.toLowerCase().includes('color')) newErrors.color = msgStr;
@@ -192,7 +199,7 @@ export default function CreateSectionPage() {
                                                 value={formData.courseId}
                                                 onChange={(value) => setFormData({ ...formData, courseId: value })}
                                                 icon={LibraryBig}
-                                                options={courses.map((c: Course) => ({ value: c.id, label: c.name }))}
+                                                options={courses.map((c: Course) => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name }))}
                                                 placeholder="Select course..."
                                                 required
                                                 searchable
@@ -233,6 +240,21 @@ export default function CreateSectionPage() {
                                                 className="h-12 md:h-14 font-medium"
                                             />
                                             {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-bold ml-1">Section Code <span className="text-primary">*</span></Label>
+                                            <Input
+                                                type="text"
+                                                name="code"
+                                                value={formData.code}
+                                                onChange={handleChange}
+                                                required
+                                                icon={Hash}
+                                                placeholder="e.g. GRADE-9-A"
+                                                error={!!formErrors.code}
+                                                className="h-12 md:h-14 font-medium"
+                                            />
+                                            {formErrors.code && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.code}</p>}
                                         </div>
                                         <div className="space-y-2">
                                             <Label className="text-sm font-bold ml-1">Default Room</Label>
@@ -310,3 +332,6 @@ export default function CreateSectionPage() {
         </div>
     );
 }
+
+
+

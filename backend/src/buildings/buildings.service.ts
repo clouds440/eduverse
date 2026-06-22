@@ -6,6 +6,7 @@ import { FilesService } from '../files/files.service';
 import { AssignBuildingDepartmentsDto } from './dto/assign-building-departments.dto';
 import { CreateBuildingDto } from './dto/create-building.dto';
 import { UpdateBuildingDto } from './dto/update-building.dto';
+import { normalizeEntityCode } from '../common/entity-code';
 
 @Injectable()
 export class BuildingsService {
@@ -44,7 +45,7 @@ export class BuildingsService {
 
   private async assertUnique(orgId: string, dto: Pick<CreateBuildingDto, 'name' | 'code'>, excludeId?: string) {
     const name = dto.name?.trim();
-    const code = this.normalizeText(dto.code);
+    const code = normalizeEntityCode(dto.code);
     const duplicate = await this.prisma.building.findFirst({
       where: {
         organizationId: orgId,
@@ -85,7 +86,7 @@ export class BuildingsService {
       data: {
         organizationId: orgId,
         name: dto.name.trim(),
-        code: this.normalizeText(dto.code),
+        code: normalizeEntityCode(dto.code)!,
         address: this.normalizeText(dto.address),
         description: this.normalizeText(dto.description),
         imageUrl: this.normalizeText(dto.imageUrl),
@@ -177,7 +178,7 @@ export class BuildingsService {
         orgId,
         {
           name: dto.name ?? existing.name,
-          code: dto.code ?? existing.code ?? undefined,
+          code: dto.code ?? existing.code,
         },
         id,
       );
@@ -193,7 +194,7 @@ export class BuildingsService {
         where: { id },
         data: {
           name: dto.name !== undefined ? dto.name.trim() : undefined,
-          code: dto.code !== undefined ? this.normalizeText(dto.code) : undefined,
+          code: dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
           address: dto.address !== undefined ? this.normalizeText(dto.address) : undefined,
           description: dto.description !== undefined ? this.normalizeText(dto.description) : undefined,
           imageUrl: dto.imageUrl !== undefined ? this.normalizeText(dto.imageUrl) : undefined,
@@ -281,3 +282,4 @@ export class BuildingsService {
     return this.getBuilding(orgId, buildingId);
   }
 }
+

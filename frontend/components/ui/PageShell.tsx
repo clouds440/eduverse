@@ -13,6 +13,27 @@ interface PageShellProps extends React.HTMLAttributes<HTMLElement> {
     style?: React.CSSProperties;
 }
 
+export interface PageTabItem<T extends string = string> {
+    value: T;
+    label: React.ReactNode;
+    icon?: LucideIcon;
+    count?: React.ReactNode;
+    href?: string;
+    hidden?: boolean;
+}
+
+interface PageTabsProps<T extends string = string> {
+    items: readonly PageTabItem<T>[];
+    activeValue: T;
+    ariaLabel: string;
+    onValueChange?: (value: T) => void;
+    hideOnScroll?: boolean;
+    size?: 'sm' | 'md';
+    tone?: 'page' | 'panel';
+    className?: string;
+    itemClassName?: string;
+}
+
 interface PageHeaderProps {
     title: React.ReactNode;
     description?: React.ReactNode;
@@ -93,6 +114,8 @@ export function RouteBreadcrumbs({ breadcrumbs, className }: RouteBreadcrumbsPro
 const PAGE_HEADER_COMPACT_ENTER_SCROLL = 72;
 const PAGE_HEADER_COMPACT_EXIT_SCROLL = 24;
 const PAGE_HEADER_MIN_SCROLL_RANGE = 96;
+const PAGE_TABS_HIDE_SCROLL_DELTA = 10;
+const PAGE_TABS_SHOW_SCROLL_TOP = 24;
 
 function getScrollableRange(element: HTMLElement) {
     return Math.max(0, element.scrollHeight - element.clientHeight);
@@ -145,6 +168,165 @@ function getPageScrollState(header: HTMLElement, preferredTarget?: HTMLElement |
     return { scrollTop: maxScrollTop, scrollRange: maxScrollRange };
 }
 
+function usePageScrollVisibility(elementRef: React.RefObject<HTMLElement | null>, enabled = false) {
+    const [isVisible, setIsVisible] = useState(true);
+    const lastScrollTopRef = useRef(0);
+
+    useEffect(() => {
+        if (!enabled) {
+            setIsVisible(true);
+            return;
+        }
+
+        const element = elementRef.current;
+        if (!element) return;
+
+        let frameId: number | null = null;
+        const scrollElement = getPageScrollElement(element);
+        let activeScrollTarget: HTMLElement | null = null;
+
+        const readScrollTop = () => getPageScrollState(element, activeScrollTarget).scrollTop;
+
+        const updateVisibility = () => {
+            frameId = null;
+            const scrollTop = readScrollTop();
+            const previousScrollTop = lastScrollTopRef.current;
+            const delta = scrollTop - previousScrollTop;
+
+            if (scrollTop <= PAGE_TABS_SHOW_SCROLL_TOP) {
+                setIsVisible(true);
+            } else if (delta > PAGE_TABS_HIDE_SCROLL_DELTA) {
+                setIsVisible(false);
+            } else if (delta < -PAGE_TABS_HIDE_SCROLL_DELTA) {
+                setIsVisible(true);
+            }
+
+            lastScrollTopRef.current = scrollTop;
+        };
+
+        const scheduleUpdate = (event?: Event) => {
+            const target = event?.target;
+            if (target instanceof HTMLElement && isPageScrollTarget(element, target) && activeScrollTarget !== target) {
+                activeScrollTarget = target;
+                lastScrollTopRef.current = readScrollTop();
+            }
+
+            if (frameId !== null) return;
+            frameId = window.requestAnimationFrame(updateVisibility);
+        };
+
+        const reset = () => {
+            activeScrollTarget = null;
+            lastScrollTopRef.current = readScrollTop();
+            setIsVisible(true);
+        };
+
+        reset();
+        scrollElement?.addEventListener('scroll', scheduleUpdate, { passive: true });
+        document.addEventListener('scroll', scheduleUpdate, { capture: true, passive: true });
+        window.addEventListener('resize', reset, { passive: true });
+
+        return () => {
+            if (frameId !== null) window.cancelAnimationFrame(frameId);
+            scrollElement?.removeEventListener('scroll', scheduleUpdate);
+            document.removeEventListener('scroll', scheduleUpdate, true);
+            window.removeEventListener('resize', reset);
+        };
+    }, [elementRef, enabled]);
+
+    return isVisible;
+}
+
+export function PageTabs<T extends string = string>({
+    items,
+    activeValue,
+    ariaLabel,
+    onValueChange,
+    hideOnScroll = false,
+    size = 'md',
+    tone = 'page',
+    className,
+    itemClassName,
+}: PageTabsProps<T>) {
+    const tabsRef = useRef<HTMLElement>(null);
+    const isVisible = usePageScrollVisibility(tabsRef, hideOnScroll);
+    const visibleItems = items.filter((item) => !item.hidden);
+
+    if (visibleItems.length === 0) return null;
+
+    return (
+        <nav
+            ref={tabsRef}
+            aria-label={ariaLabel}
+            className={cn(
+                'shrink-0 overflow-hidden transition-[max-height,opacity,margin] duration-200 ease-out print:hidden',
+                hideOnScroll ? (isVisible ? 'max-h-16 opacity-100' : 'max-h-0 opacity-0 pointer-events-none') : 'max-h-none opacity-100',
+                className,
+            )}
+        >
+            <div className={cn(
+                'flex gap-1 overflow-x-auto border border-border/70 p-1 scrollbar-none',
+                tone === 'page'
+                    ? 'rounded-lg bg-card/95 shadow-sm'
+                    : 'rounded-t-lg bg-muted/45',
+            )}>
+                {visibleItems.map(({ value, label, icon: Icon, count, href }) => {
+                    const isActive = activeValue === value;
+                    const content = (
+                        <>
+                            {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
+                            <span>{label}</span>
+                            {count !== undefined && (
+                                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] leading-none">
+                                    {count}
+                                </span>
+                            )}
+                        </>
+                    );
+                    const tabClassName = cn(
+                        'flex shrink-0 items-center justify-center gap-2 rounded-md font-black transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                        size === 'sm'
+                            ? 'min-h-9 px-2.5 py-1.5 text-xs sm:min-w-28 sm:px-3'
+                            : 'min-h-10 px-3 py-2 text-sm sm:min-w-32',
+                        isActive
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                        tone === 'panel' && (isActive
+                            ? 'bg-card text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'),
+                        itemClassName,
+                    );
+
+                    if (href) {
+                        return (
+                            <Link
+                                key={value}
+                                href={href}
+                                className={tabClassName}
+                                aria-current={isActive ? 'page' : undefined}
+                            >
+                                {content}
+                            </Link>
+                        );
+                    }
+
+                    return (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => onValueChange?.(value)}
+                            className={tabClassName}
+                            aria-current={isActive ? 'page' : undefined}
+                            aria-pressed={isActive}
+                        >
+                            {content}
+                        </button>
+                    );
+                })}
+            </div>
+        </nav>
+    );
+}
 export function PageHeader({ title, description, icon: Icon, meta, actions, actionsDefaultOpen, showDateTime = true, breadcrumbs, className }: PageHeaderProps) {
     const pathname = usePathname();
     const headerRef = useRef<HTMLElement>(null);

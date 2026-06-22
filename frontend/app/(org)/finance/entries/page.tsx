@@ -9,7 +9,7 @@ import { BillingCycle, FinanceCategory, FinancialEntry, FinanceTab, FinanceTarge
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageTabs, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { useGlobal } from '@/context/GlobalContext';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { TableActions } from '@/components/ui/TableActions';
@@ -333,25 +333,15 @@ export default function EntriesPage() {
                 renderFilters={renderFilters}
                 activeFilters={activeFilters}
                 leading={(
-                    <div className="flex w-full gap-1 overflow-x-auto rounded-lg border border-border/70 bg-muted/45 p-1 scrollbar-none lg:w-auto">
-                        {Object.values(FinanceTab).map((tab) => (
-                            <button
-                                key={tab}
-                                type="button"
-                                onClick={() => updateQueryParams({ tab: tab === FinanceTab.ALL ? undefined : tab, page: 1 })}
-                                className={`flex min-h-9 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${activeTab === tab
-                                    ? 'bg-background text-foreground shadow-xs'
-                                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                                    }`}
-                                aria-pressed={activeTab === tab}
-                            >
-                                <span>{tabLabels[tab]}</span>
-                                <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] leading-none">
-                                    {tabCounts[tab]}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
+                    <PageTabs
+                        ariaLabel="Finance entry status"
+                        items={Object.values(FinanceTab).map((tab) => ({ value: tab, label: tabLabels[tab], count: tabCounts[tab] }))}
+                        activeValue={activeTab}
+                        onValueChange={(tab) => updateQueryParams({ tab: tab === FinanceTab.ALL ? undefined : tab, page: 1 })}
+                        size="sm"
+                        tone="panel"
+                        className="w-full lg:w-auto"
+                    />
                 )}
             />
 

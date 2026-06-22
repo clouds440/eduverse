@@ -1,4 +1,4 @@
-import { clsx, type ClassValue } from 'clsx';
+﻿import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { normalizeSafeUrl } from './safeUrl';
 
@@ -88,29 +88,38 @@ export function getSectionTintStyle(color: SectionColorInput) {
 }
 
 export function formatCourseSectionLabel({
+    courseCode,
     courseName,
+    sectionCode,
     sectionName,
 }: {
+    courseCode?: string | null;
     courseName?: string | null;
+    sectionCode?: string | null;
     sectionName?: string | null;
 }) {
-    if (courseName && sectionName) return `${courseName} • ${sectionName}`;
-    if (sectionName) return sectionName;
-    if (courseName) return courseName;
-    return 'Unnamed section';
+    const sectionLabel = sectionName || 'Unnamed section';
+    const courseLabel = courseName || courseCode || null;
+    const baseLabel = courseLabel ? `${courseLabel} - ${sectionLabel}` : sectionLabel;
+    return sectionCode ? `${sectionCode} - ${baseLabel}` : baseLabel;
 }
 
 export function getCourseSectionLabelParts({
+    courseCode,
     courseName,
+    sectionCode,
     sectionName,
 }: {
+    courseCode?: string | null;
     courseName?: string | null;
+    sectionCode?: string | null;
     sectionName?: string | null;
 }) {
     return {
-        courseName: courseName || null,
+        courseName: courseName || courseCode || null,
         sectionName: sectionName || null,
-        inlineLabel: formatCourseSectionLabel({ courseName, sectionName }),
+        sectionCode: sectionCode || null,
+        inlineLabel: formatCourseSectionLabel({ courseCode, courseName, sectionCode, sectionName }),
     };
 }
 
@@ -126,12 +135,14 @@ export function formatBuildingLabel(building?: { name?: string | null; code?: st
 
 export function formatRoomLabel(room?: {
     name?: string | null;
+    code?: string | null;
     building?: { name?: string | null; code?: string | null } | null;
 } | null) {
     if (!room) return 'Room TBD';
     const roomName = room.name || 'Unnamed room';
-    if (!room.building) return roomName;
-    return `${room.building.code || room.building.name || 'Unnamed building'} - ${roomName}`;
+    const roomLabel = room.code ? `${room.code} - ${roomName}` : roomName;
+    if (!room.building) return roomLabel;
+    return `${room.building.code || room.building.name || 'Unnamed building'} / ${roomLabel}`;
 }
 
 /**
@@ -300,4 +311,6 @@ export function formatBytes(bytes: number, decimals = 1): string {
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
+
+
 

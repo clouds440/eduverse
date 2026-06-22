@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +21,7 @@ import {
   assertDepartmentIdsBelongToOrg,
   assertDepartmentInScope,
 } from '../common/department-scope';
+import { normalizeEntityCode } from '../common/entity-code';
 
 @Injectable()
 export class CoursesService {
@@ -58,9 +60,8 @@ export class CoursesService {
         ? {
             OR: [
               { name: { contains: options.search, mode: 'insensitive' } },
-              {
-                description: { contains: options.search, mode: 'insensitive' },
-              },
+              { code: { contains: options.search, mode: 'insensitive' } },
+              { description: { contains: options.search, mode: 'insensitive' } },
             ],
           }
         : {}),
@@ -85,7 +86,31 @@ export class CoursesService {
     );
   }
 
+  private async assertUnique(orgId: string, data: Pick<CreateCourseDto, 'name' | 'code'>, excludeId?: string) {
+    const name = data.name?.trim();
+    const code = normalizeEntityCode(data.code);
+    const duplicate = await this.prisma.course.findFirst({
+      where: {
+        organizationId: orgId,
+        id: excludeId ? { not: excludeId } : undefined,
+        OR: [
+          ...(name ? [{ name: { equals: name, mode: Prisma.QueryMode.insensitive } }] : []),
+          ...(code ? [{ code: { equals: code, mode: Prisma.QueryMode.insensitive } }] : []),
+        ],
+      },
+      select: { id: true, name: true, code: true },
+    });
+
+    if (!duplicate) return;
+    if (name && duplicate.name.toLowerCase() === name.toLowerCase()) {
+      throw new ConflictException('Course name already exists in this organization');
+    }
+    throw new ConflictException('Course code already exists in this organization');
+  }
+
   async createCourse(orgId: string, data: CreateCourseDto, requester?: DepartmentScopedUser) {
+    await this.assertUnique(orgId, data);
+    const code = normalizeEntityCode(data.code)!;
     if (data.departmentId) {
       await assertDepartmentIdsBelongToOrg(this.prisma, orgId, [data.departmentId]);
     }
@@ -95,6 +120,8 @@ export class CoursesService {
     return this.prisma.course.create({
       data: {
         ...data,
+        name: data.name.trim(),
+        code,
         departmentId: data.departmentId || null,
         organizationId: orgId,
       },
@@ -113,11 +140,17 @@ export class CoursesService {
       await assertDepartmentIdsBelongToOrg(this.prisma, orgId, [data.departmentId]);
     }
     assertDepartmentInScope(departmentScope, data.departmentId, 'You cannot move a course outside your department scope');
+    if (data.name !== undefined || data.code !== undefined) {
+      await this.assertUnique(orgId, { name: data.name ?? course.name, code: data.code ?? course.code }, id);
+    }
+    const code = data.code !== undefined ? normalizeEntityCode(data.code)! : undefined;
 
     return this.prisma.course.update({
       where: { id },
       data: {
         ...data,
+        name: data.name !== undefined ? data.name.trim() : undefined,
+        code,
         departmentId: data.departmentId === '' ? null : data.departmentId,
       },
       include: { department: true },

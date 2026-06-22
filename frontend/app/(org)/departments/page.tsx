@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
 import useSWR, { mutate } from 'swr';
@@ -88,7 +88,7 @@ export default function DepartmentsPage() {
         try {
             const payload = {
                 name: formData.name,
-                code: formData.code || null,
+                code: formData.code,
                 description: formData.description || null,
                 color: formData.color || null,
             };
@@ -245,8 +245,8 @@ export default function DepartmentsPage() {
                         <Input id="department-name" required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} placeholder="Computer Science" />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="department-code">Code</Label>
-                        <Input id="department-code" value={formData.code} onChange={(event) => setFormData({ ...formData, code: event.target.value })} placeholder="CS" />
+                        <Label htmlFor="department-code">Code *</Label>
+                        <Input id="department-code" required value={formData.code} onChange={(event) => setFormData({ ...formData, code: event.target.value })} placeholder="CS" />
                     </div>
                     <div className="space-y-3">
                         <Label className="text-sm font-bold">Department Color</Label>
@@ -282,3 +282,5 @@ export default function DepartmentsPage() {
         </PageShell>
     );
 }
+
+

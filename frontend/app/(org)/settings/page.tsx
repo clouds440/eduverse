@@ -41,7 +41,7 @@ import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
 import { getSafePrimaryColor } from '@/lib/themeColor';
 import { ColorSelector } from '@/components/ui/ColorSelector';
 import { Badge } from '@/components/ui/Badge';
-import { PageHeader } from '@/components/ui/PageShell';
+import { PageHeader, PageTabs } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { SUPPORTED_CURRENCY_OPTIONS } from '@/lib/currencies';
@@ -488,31 +488,13 @@ export default function SettingsPage() {
             )}
 
             <form id="organization-settings-form" onSubmit={handleSubmit} className="space-y-6" noValidate>
-                <nav
-                    aria-label="Settings navigation"
-                    className="flex gap-1 overflow-x-auto rounded-lg border border-border/70 bg-card/95 p-1 shadow-sm scrollbar-none"
-                >
-                    {SETTINGS_TABS.map(({ key, label, icon: Icon }) => {
-                        const isActive = activeTab === key;
-                        return (
-                            <button
-                                key={key}
-                                type="button"
-                                onClick={() => handleTabChange(key)}
-                                className={cn(
-                                    'flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-bold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-32',
-                                    isActive
-                                        ? 'bg-background text-foreground shadow-xs'
-                                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                                )}
-                                aria-current={isActive ? 'page' : undefined}
-                            >
-                                <Icon className="h-4 w-4" />
-                                {label}
-                            </button>
-                        );
-                    })}
-                </nav>
+                <PageTabs
+                    ariaLabel="Settings navigation"
+                    items={SETTINGS_TABS.map(({ key, label, icon }) => ({ value: key, label, icon }))}
+                    activeValue={activeTab}
+                    onValueChange={handleTabChange}
+                    hideOnScroll
+                />
 
                 <div className="min-w-0">
                     {activeTab === 'profile' && (

@@ -43,6 +43,7 @@ import {
   optionalString,
   splitIds,
 } from './import-normalizers';
+import { normalizeEntityCode } from '../common/entity-code';
 import {
   AttendanceCellMark,
   AttendanceImportTargetMode,
@@ -72,6 +73,7 @@ type EntityConfig<T extends Record<string, unknown>> = {
   examples: Record<string, unknown>[];
   dto: new () => object;
   normalize: (row: Record<string, string>, actor: AuthUser) => T;
+  resolveRelations?: (orgId: string, data: T, actor: AuthUser) => Promise<void>;
   create: (orgId: string, data: T, actor: AuthUser) => Promise<unknown>;
   validateRelations?: (orgId: string, data: T, actor: AuthUser) => Promise<void>;
   duplicateKeys?: Array<{
@@ -367,6 +369,14 @@ export class ImportsService {
       }
 
       if (data) {
+        if (config.resolveRelations) {
+          try {
+            await config.resolveRelations(orgId, data, actor);
+          } catch (error) {
+            errors.push(this.exceptionToRowError(error, row.rowNumber));
+          }
+        }
+
         const dtoErrors = this.validateDto(config.dto, data);
         errors.push(...dtoErrors.map((error) => ({ rowNumber: row.rowNumber, ...error })));
 
@@ -420,7 +430,7 @@ export class ImportsService {
     const configs: Record<ImportEntity, EntityConfig<Record<string, unknown>>> = {
       students: {
         entity: 'students',
-        headers: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender', 'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate', 'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentId', 'departmentIds'],
+        headers: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender', 'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate', 'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes'],
         required: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender'],
         dto: CreateStudentDto,
         examples: [{
@@ -440,8 +450,8 @@ export class ImportsService {
           emergencyContact: '+923003334444',
           bloodGroup: 'O+',
           status: 'ACTIVE',
-          primaryDepartmentId: '',
-          departmentIds: '',
+          primaryDepartmentCode: '',
+          departmentCodes: '',
         }],
         normalize: (row) => ({
           name: optionalString(row.name),
@@ -460,8 +470,8 @@ export class ImportsService {
           emergencyContact: optionalString(row.emergencyContact),
           bloodGroup: optionalString(row.bloodGroup),
           status: optionalEnum(row.status, Object.values(StudentStatus)) || StudentStatus.ACTIVE,
-          primaryDepartmentId: optionalString(row.primaryDepartmentId),
-          departmentIds: splitIds(row.departmentIds),
+          primaryDepartmentCode: this.normalizeCode(row.primaryDepartmentCode),
+          departmentCodes: splitIds(row.departmentCodes),
         }),
         create: (orgId, data, actor) => this.students.createStudent(orgId, data as unknown as CreateStudentDto, {
           id: actor.id,
@@ -469,6 +479,12 @@ export class ImportsService {
           name: actor.name,
           email: actor.email || '',
         }),
+        resolveRelations: async (orgId, data) => {
+          data.primaryDepartmentId = await this.resolveDepartmentId(orgId, data.primaryDepartmentCode as string | undefined, 'primaryDepartmentCode');
+          data.departmentIds = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes');
+          delete data.primaryDepartmentCode;
+          delete data.departmentCodes;
+        },
         validateRelations: async (orgId, data) => {
           await this.assertDepartmentsExist(orgId, [
             data.primaryDepartmentId as string | undefined,
@@ -483,7 +499,7 @@ export class ImportsService {
       },
       teachers: {
         entity: 'teachers',
-        headers: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject', 'department', 'joiningDate', 'emergencyContact', 'bloodGroup', 'address', 'status', 'departmentIds'],
+        headers: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject', 'department', 'joiningDate', 'emergencyContact', 'bloodGroup', 'address', 'status', 'departmentCodes'],
         required: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject'],
         dto: CreateTeacherDto,
         examples: [{
@@ -500,7 +516,7 @@ export class ImportsService {
           bloodGroup: 'B+',
           address: 'Lahore',
           status: 'ACTIVE',
-          departmentIds: '',
+          departmentCodes: '',
         }],
         normalize: (row) => ({
           name: optionalString(row.name),
@@ -516,7 +532,7 @@ export class ImportsService {
           bloodGroup: optionalString(row.bloodGroup),
           address: optionalString(row.address),
           status: optionalEnum(row.status, Object.values(TeacherStatus)) || TeacherStatus.ACTIVE,
-          departmentIds: splitIds(row.departmentIds),
+          departmentCodes: splitIds(row.departmentCodes),
           isManager: false,
           departmentScopeType: DepartmentScopeType.ALL,
           scopeDepartmentIds: [],
@@ -526,6 +542,10 @@ export class ImportsService {
           id: actor.id,
           role: actor.role || '',
         }),
+        resolveRelations: async (orgId, data) => {
+          data.departmentIds = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes');
+          delete data.departmentCodes;
+        },
         validateRelations: async (orgId, data) => this.assertDepartmentsExist(orgId, data.departmentIds as string[] | undefined),
         duplicateKeys: [
           { label: 'Email', value: (data) => data.email as string, existing: (orgId, value) => this.userExists(value) },
@@ -559,48 +579,68 @@ export class ImportsService {
       },
       courses: {
         entity: 'courses',
-        headers: ['name', 'description', 'creditHours', 'departmentId'],
-        required: ['name'],
+        headers: ['name', 'code', 'description', 'creditHours', 'departmentCode'],
+        required: ['name', 'code'],
         dto: CreateCourseDto,
-        examples: [{ name: 'Physics', description: 'Core physics course', creditHours: 3, departmentId: '' }],
+        examples: [{ name: 'Physics', code: 'PHY-101', description: 'Core physics course', creditHours: 3, departmentCode: 'SCI' }],
         normalize: (row, actor) => ({
           name: optionalString(row.name),
+          code: this.normalizeCode(row.code),
           description: optionalString(row.description),
           creditHours: optionalNumber(row.creditHours),
-          departmentId: optionalString(row.departmentId),
+          departmentCode: this.normalizeCode(row.departmentCode),
           updatedBy: actor.name || actor.email || 'CSV Import',
         }),
+        resolveRelations: async (orgId, data) => {
+          data.departmentId = await this.resolveDepartmentId(orgId, data.departmentCode as string | undefined, 'departmentCode');
+          delete data.departmentCode;
+        },
         create: (orgId, data, actor) => this.courses.createCourse(orgId, data as unknown as CreateCourseDto, actor),
         validateRelations: async (orgId, data) => this.assertDepartmentsExist(orgId, [data.departmentId as string | undefined]),
+        duplicateKeys: [
+          { label: 'Course name', value: (data) => data.name as string, existing: (orgId, value) => this.courseNameExists(orgId, value) },
+          { label: 'Course code', value: (data) => data.code as string | undefined, existing: (orgId, value) => this.courseCodeExists(orgId, value) },
+        ],
       },
       sections: {
         entity: 'sections',
-        headers: ['name', 'courseId', 'academicCycleId', 'room', 'defaultRoomId', 'cohortId', 'color'],
-        required: ['name', 'courseId', 'academicCycleId'],
+        headers: ['name', 'code', 'courseCode', 'academicCycleId', 'room', 'defaultRoomCode', 'cohortId', 'color'],
+        required: ['name', 'code', 'courseCode', 'academicCycleId'],
         dto: CreateSectionDto,
-        examples: [{ name: 'Section A', courseId: 'course-id', academicCycleId: 'cycle-id', room: 'Room 101', defaultRoomId: '', cohortId: '', color: '#3B82F6' }],
+        examples: [{ name: 'Section A', code: 'GRADE-9-A', courseCode: 'PHY-101', academicCycleId: 'cycle-id', room: 'Room 101', defaultRoomCode: 'ROOM-101', cohortId: '', color: '#3B82F6' }],
         normalize: (row) => ({
           name: optionalString(row.name),
-          courseId: optionalString(row.courseId),
+          code: this.normalizeCode(row.code),
+          courseCode: this.normalizeCode(row.courseCode),
           academicCycleId: optionalString(row.academicCycleId),
           room: optionalString(row.room),
-          defaultRoomId: optionalString(row.defaultRoomId),
+          defaultRoomCode: this.normalizeCode(row.defaultRoomCode),
           cohortId: optionalString(row.cohortId),
           color: optionalString(row.color),
         }),
+        resolveRelations: async (orgId, data) => {
+          data.courseId = await this.resolveCourseId(orgId, data.courseCode as string | undefined, 'courseCode');
+          data.defaultRoomId = await this.resolveRoomId(orgId, data.defaultRoomCode as string | undefined, 'defaultRoomCode');
+          delete data.courseCode;
+          delete data.defaultRoomCode;
+        },
         create: (orgId, data, actor) => this.sections.createSection(orgId, data as unknown as CreateSectionDto, actor),
         validateRelations: async (orgId, data) => this.assertSectionRelations(orgId, data),
+        duplicateKeys: [
+          { label: 'Section name', value: (data) => data.name as string, existing: (orgId, value) => this.sectionNameExists(orgId, value) },
+          { label: 'Section code', value: (data) => data.code as string | undefined, existing: (orgId, value) => this.sectionCodeExists(orgId, value) },
+        ],
       },
       departments: {
         entity: 'departments',
         headers: ['name', 'code', 'description', 'color', 'isActive'],
-        required: ['name'],
+        required: ['name', 'code'],
         dto: CreateDepartmentDto,
         forbiddenForSubAdmin: true,
         examples: [{ name: 'Computer Science', code: 'CS', description: 'Computing department', color: '#3B82F6', isActive: true }],
         normalize: (row) => ({
           name: optionalString(row.name),
-          code: optionalString(row.code),
+          code: this.normalizeCode(row.code),
           description: optionalString(row.description),
           color: optionalString(row.color),
           isActive: optionalBoolean(row.isActive),
@@ -613,19 +653,23 @@ export class ImportsService {
       },
       buildings: {
         entity: 'buildings',
-        headers: ['name', 'code', 'address', 'description', 'isActive', 'departmentIds'],
-        required: ['name'],
+        headers: ['name', 'code', 'address', 'description', 'isActive', 'departmentCodes'],
+        required: ['name', 'code'],
         dto: CreateBuildingDto,
-        examples: [{ name: 'Main Campus', code: 'MAIN', address: 'Block A', description: 'Primary academic building', isActive: true, departmentIds: '' }],
+        examples: [{ name: 'Main Campus', code: 'MAIN', address: 'Block A', description: 'Primary academic building', isActive: true, departmentCodes: '' }],
         normalize: (row) => ({
           name: optionalString(row.name),
-          code: optionalString(row.code),
+          code: this.normalizeCode(row.code),
           address: optionalString(row.address),
           description: optionalString(row.description),
           isActive: optionalBoolean(row.isActive),
-          departmentIds: splitIds(row.departmentIds),
+          departmentCodes: splitIds(row.departmentCodes),
         }),
         create: (orgId, data) => this.buildings.createBuilding(orgId, data as unknown as CreateBuildingDto),
+        resolveRelations: async (orgId, data) => {
+          data.departmentIds = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes');
+          delete data.departmentCodes;
+        },
         validateRelations: async (orgId, data) => this.assertDepartmentsExist(orgId, data.departmentIds as string[] | undefined),
         duplicateKeys: [
           { label: 'Building name', value: (data) => data.name as string, existing: (orgId, value) => this.buildingNameExists(orgId, value) },
@@ -634,19 +678,24 @@ export class ImportsService {
       },
       rooms: {
         entity: 'rooms',
-        headers: ['buildingId', 'name', 'floor', 'type', 'capacity', 'description', 'isActive'],
-        required: ['buildingId', 'name'],
+        headers: ['buildingCode', 'name', 'code', 'floor', 'type', 'capacity', 'description', 'isActive'],
+        required: ['buildingCode', 'name', 'code'],
         dto: CreateRoomDto,
-        examples: [{ buildingId: 'building-id', name: 'Room 101', floor: '1', type: 'CLASSROOM', capacity: 35, description: 'Standard classroom', isActive: true }],
+        examples: [{ buildingCode: 'MAIN', name: 'Room 101', code: 'ROOM-101', floor: '1', type: 'CLASSROOM', capacity: 35, description: 'Standard classroom', isActive: true }],
         normalize: (row) => ({
-          buildingId: optionalString(row.buildingId),
+          buildingCode: this.normalizeCode(row.buildingCode),
           name: optionalString(row.name),
+          code: this.normalizeCode(row.code),
           floor: optionalString(row.floor),
           type: optionalEnum(row.type, Object.values(RoomType)),
           capacity: optionalInteger(row.capacity),
           description: optionalString(row.description),
           isActive: optionalBoolean(row.isActive),
         }),
+        resolveRelations: async (orgId, data) => {
+          data.buildingId = await this.resolveBuildingId(orgId, data.buildingCode as string | undefined, 'buildingCode');
+          delete data.buildingCode;
+        },
         create: (orgId, data) => this.rooms.createRoom(orgId, data as unknown as CreateRoomDto),
         validateRelations: async (orgId, data) => this.assertBuildingExists(orgId, data.buildingId as string | undefined),
         duplicateKeys: [
@@ -658,6 +707,7 @@ export class ImportsService {
               return this.roomExists(orgId, buildingId, nameParts.join(':'));
             },
           },
+          { label: 'Room code', value: (data) => data.code as string | undefined, existing: (orgId, value) => this.roomCodeExists(orgId, value) },
         ],
       },
     };
@@ -864,6 +914,112 @@ export class ImportsService {
     return `${name.trim().toLowerCase()}::${rollNumber.trim().toLowerCase()}`;
   }
 
+  private normalizeCode(value?: string | null) {
+    return normalizeEntityCode(value) || undefined;
+  }
+
+  private async resolveDepartmentId(orgId: string, codeOrId?: string, field = 'departmentCode') {
+    const value = this.normalizeCode(codeOrId);
+    if (!value) return undefined;
+    const department = await this.prisma.department.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { code: { equals: value, mode: Prisma.QueryMode.insensitive } },
+          { id: codeOrId?.trim() },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!department) throw new BadRequestException({ field, message: `Department code "${value}" was not found` });
+    return department.id;
+  }
+
+  private async resolveDepartmentIds(orgId: string, codes?: string[], field = 'departmentCodes') {
+    const values = Array.from(new Set((codes || []).map((code) => this.normalizeCode(code)).filter(Boolean))) as string[];
+    const ids: string[] = [];
+    for (const value of values) {
+      ids.push((await this.resolveDepartmentId(orgId, value, field))!);
+    }
+    return ids;
+  }
+
+  private async resolveBuildingId(orgId: string, codeOrId?: string, field = 'buildingCode') {
+    const value = this.normalizeCode(codeOrId);
+    if (!value) return undefined;
+    const building = await this.prisma.building.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { code: { equals: value, mode: Prisma.QueryMode.insensitive } },
+          { id: codeOrId?.trim() },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!building) throw new BadRequestException({ field, message: `Building code "${value}" was not found` });
+    return building.id;
+  }
+
+  private async resolveRoomId(orgId: string, codeOrId?: string, field = 'roomCode') {
+    const value = this.normalizeCode(codeOrId);
+    if (!value) return undefined;
+    const room = await this.prisma.room.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { code: { equals: value, mode: Prisma.QueryMode.insensitive } },
+          { id: codeOrId?.trim() },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!room) throw new BadRequestException({ field, message: `Room code "${value}" was not found` });
+    return room.id;
+  }
+
+  private async resolveCourseId(orgId: string, codeOrId?: string, field = 'courseCode') {
+    const value = this.normalizeCode(codeOrId);
+    if (!value) return undefined;
+    const course = await this.prisma.course.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { code: { equals: value, mode: Prisma.QueryMode.insensitive } },
+          { id: codeOrId?.trim() },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!course) throw new BadRequestException({ field, message: `Course code "${value}" was not found` });
+    return course.id;
+  }
+
+  private async resolveSectionId(orgId: string, codeOrId?: string, field = 'sectionCode') {
+    const value = this.normalizeCode(codeOrId);
+    if (!value) return undefined;
+    const section = await this.prisma.section.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { code: { equals: value, mode: Prisma.QueryMode.insensitive } },
+          { id: codeOrId?.trim() },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!section) throw new BadRequestException({ field, message: `Section code "${value}" was not found` });
+    return section.id;
+  }
+
+  private async resolveSectionIds(orgId: string, codes?: string[], field = 'sectionCodes') {
+    const values = Array.from(new Set((codes || []).map((code) => this.normalizeCode(code)).filter(Boolean))) as string[];
+    const ids: string[] = [];
+    for (const value of values) {
+      ids.push((await this.resolveSectionId(orgId, value, field))!);
+    }
+    return ids;
+  }
   private async userExists(email: string) {
     return Boolean(await this.prisma.user.findUnique({ where: { email }, select: { id: true } }));
   }
@@ -904,6 +1060,40 @@ export class ImportsService {
     }));
   }
 
+  private async courseNameExists(orgId: string, name: string) {
+    return Boolean(await this.prisma.course.findFirst({
+      where: { organizationId: orgId, name: { equals: name, mode: Prisma.QueryMode.insensitive } },
+      select: { id: true },
+    }));
+  }
+
+  private async courseCodeExists(orgId: string, code: string) {
+    return Boolean(await this.prisma.course.findFirst({
+      where: { organizationId: orgId, code: { equals: code, mode: Prisma.QueryMode.insensitive } },
+      select: { id: true },
+    }));
+  }
+
+  private async sectionNameExists(orgId: string, name: string) {
+    return Boolean(await this.prisma.section.findFirst({
+      where: { organizationId: orgId, name: { equals: name, mode: Prisma.QueryMode.insensitive } },
+      select: { id: true },
+    }));
+  }
+
+  private async sectionCodeExists(orgId: string, code: string) {
+    return Boolean(await this.prisma.section.findFirst({
+      where: { organizationId: orgId, code: { equals: code, mode: Prisma.QueryMode.insensitive } },
+      select: { id: true },
+    }));
+  }
+
+  private async roomCodeExists(orgId: string, code: string) {
+    return Boolean(await this.prisma.room.findFirst({
+      where: { organizationId: orgId, code: { equals: code, mode: Prisma.QueryMode.insensitive } },
+      select: { id: true },
+    }));
+  }
   private async roomExists(orgId: string, buildingId: string, name: string) {
     return Boolean(await this.prisma.room.findFirst({
       where: { organizationId: orgId, buildingId, name: { equals: name, mode: Prisma.QueryMode.insensitive } },
@@ -947,3 +1137,11 @@ export class ImportsService {
     }
   }
 }
+
+
+
+
+
+
+
+

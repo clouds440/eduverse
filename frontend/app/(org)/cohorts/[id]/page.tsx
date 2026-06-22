@@ -11,7 +11,14 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Users, BookOpen } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/Brand';
 import { Badge } from '@/components/ui/Badge';
-import { PageHeader } from '@/components/ui/PageShell';
+import { PageHeader, PageTabs } from '@/components/ui/PageShell';
+
+const COHORT_TABS = [
+    { value: 'students', label: 'Students', icon: Users },
+    { value: 'sections', label: 'Sections', icon: BookOpen },
+] as const;
+
+type CohortTab = typeof COHORT_TABS[number]['value'];
 
 export default function CohortDetailPage() {
     const { token } = useAuth();
@@ -23,7 +30,7 @@ export default function CohortDetailPage() {
         return api.cohorts.getCohort(id, token);
     });
 
-    const [activeTab, setActiveTab] = useState<'students' | 'sections'>('students');
+    const [activeTab, setActiveTab] = useState<CohortTab>('students');
 
     if (!token || isLoading || !cohort) {
         return <Loading className="h-full" text="Loading Cohort Details..." />;
@@ -42,28 +49,16 @@ export default function CohortDetailPage() {
                 meta={<Badge variant="neutral" size="sm">Cohort</Badge>}
             />
 
-            <div className="shrink-0 rounded-lg border border-border bg-card/80 px-4 pt-4 shadow-xl backdrop-blur-2xl">
-                <div className="flex gap-2 overflow-x-auto border-b border-border">
-                    <button
-                        className={`pb-3 px-6 flex items-center gap-2 font-semibold transition-all relative ${activeTab === 'students' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                        onClick={() => setActiveTab('students')}
-                    >
-                        <Users className="w-4 h-4" />
-                        <span>Students</span>
-                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-5 justify-center">{cohort._count?.students || 0}</Badge>
-                        {activeTab === 'students' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(var(--primary-rgb),0.5)]" />}
-                    </button>
-                    <button
-                        className={`pb-3 px-6 flex items-center gap-2 font-semibold transition-all relative ${activeTab === 'sections' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                        onClick={() => setActiveTab('sections')}
-                    >
-                        <BookOpen className="w-4 h-4" />
-                        <span>Sections</span>
-                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 min-w-5 justify-center">{cohort._count?.sections || 0}</Badge>
-                        {activeTab === 'sections' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full shadow-[0_-2px_8px_rgba(var(--primary-rgb),0.5)]" />}
-                    </button>
-                </div>
-            </div>
+            <PageTabs
+                ariaLabel="Cohort navigation"
+                items={COHORT_TABS.map((tab) => ({
+                    ...tab,
+                    count: tab.value === 'students' ? cohort._count?.students || 0 : cohort._count?.sections || 0,
+                }))}
+                activeValue={activeTab}
+                onValueChange={setActiveTab}
+                hideOnScroll
+            />
 
             <div className="flex-1 bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-6 overflow-y-auto min-h-0">
                 {activeTab === 'students' ? (

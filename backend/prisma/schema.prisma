@@ -28,6 +28,7 @@ model Organization {
   logoUrl         String?
   accentColor     Json?
   courses         Course[]
+  sections        Section[]
   students        Student[]
   teachers        Teacher[]
   guardians       GuardianProfile[]
@@ -263,6 +264,7 @@ model GuardianStudent {
 model Course {
   id             String       @id @default(uuid())
   name           String
+  code           String
   description    String?
   creditHours    Float        @default(3)
   organizationId String
@@ -276,6 +278,7 @@ model Course {
   assessments    Assessment[]
   evaluationWindows EvaluationWindow[]
   evaluations       Evaluation[]
+  @@unique([organizationId, code])
 
   @@index([organizationId])
   @@index([departmentId])
@@ -286,7 +289,7 @@ model Department {
   organizationId String
 
   name        String
-  code        String?
+  code        String
   description String?
   color       String?
   isActive    Boolean @default(true)
@@ -315,7 +318,7 @@ model Building {
   organizationId String
 
   name        String
-  code        String?
+  code        String
   address     String?
   description String?
   imageUrl    String?
@@ -341,6 +344,7 @@ model Room {
   buildingId     String
 
   name        String
+  code        String
   floor       String?
   type        RoomType?
   capacity    Int?
@@ -358,6 +362,7 @@ model Room {
   schedules       SectionSchedule[] @relation("ScheduleRoom")
 
   @@unique([organizationId, buildingId, name])
+  @@unique([organizationId, code])
   @@index([organizationId])
   @@index([buildingId])
   @@index([isActive])
@@ -473,7 +478,9 @@ model GpaPolicy {
 
 model Section {
   id               String       @id @default(uuid())
+  organizationId   String
   name             String
+  code             String
   color            String       @default("#3B82F6")
   room             String?
   defaultRoomId    String?
@@ -483,6 +490,7 @@ model Section {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   enrollments      Enrollment[]
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   course           Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
   defaultRoom      Room?        @relation("SectionDefaultRoom", fields: [defaultRoomId], references: [id], onDelete: SetNull)
   academicCycle    AcademicCycle @relation(fields: [academicCycleId], references: [id])
@@ -495,6 +503,8 @@ model Section {
   evaluations        Evaluation[]
   courseMaterials    CourseMaterial[]
   enrollmentHistories EnrollmentHistory[]
+  @@unique([organizationId, code])
+  @@index([organizationId])
 
   @@index([courseId])
   @@index([defaultRoomId])

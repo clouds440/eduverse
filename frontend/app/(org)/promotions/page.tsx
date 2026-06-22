@@ -13,15 +13,22 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
-import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, PageTabs, ResourcePanel } from '@/components/ui/PageShell';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { Toggle } from '@/components/ui/Toggle';
 import { ArrowRight, CheckCircle2, Copy, GitBranch, Users } from 'lucide-react';
 
+const PROMOTION_TABS = [
+    { value: 'copy-forward', label: 'Copy Forward', icon: Copy },
+    { value: 'promote', label: 'Cohort Promotion', icon: Users },
+] as const;
+
+type PromotionTab = typeof PROMOTION_TABS[number]['value'];
+
 export default function PromotionsPage() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
-    const [activeTab, setActiveTab] = useState<'copy-forward' | 'promote'>('copy-forward');
+    const [activeTab, setActiveTab] = useState<PromotionTab>('copy-forward');
 
     const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
     const { data: cyclesData, isLoading, error, mutate } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
@@ -64,26 +71,14 @@ export default function PromotionsPage() {
 
             <ResourcePanel>
                 <div className="shrink-0 border-b border-border/60 rounded-t-lg bg-card/80">
-                    <div className="flex gap-1 overflow-x-auto rounded-t-lg border border-border/70 bg-muted/45 p-1 scrollbar-none">
-                        <button
-                            type="button"
-                            className={`flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-black transition-colors ${activeTab === 'copy-forward' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}`}
-                            onClick={() => setActiveTab('copy-forward')}
-                            aria-pressed={activeTab === 'copy-forward'}
-                        >
-                            <Copy className="h-4 w-4" />
-                            Copy Forward
-                        </button>
-                        <button
-                            type="button"
-                            className={`flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-black transition-colors ${activeTab === 'promote' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'}`}
-                            onClick={() => setActiveTab('promote')}
-                            aria-pressed={activeTab === 'promote'}
-                        >
-                            <Users className="h-4 w-4" />
-                            Cohort Promotion
-                        </button>
-                    </div>
+                    <PageTabs
+                        ariaLabel="Academic transition navigation"
+                        items={PROMOTION_TABS}
+                        activeValue={activeTab}
+                        onValueChange={setActiveTab}
+                        tone="panel"
+                        hideOnScroll
+                    />
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar">

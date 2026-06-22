@@ -10,7 +10,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { EvaluationType } from '@/types';
 import type { Evaluation, EvaluationWindow, PaginatedResponse } from '@/types';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
-import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, PageTabs, ResourcePanel } from '@/components/ui/PageShell';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -18,7 +18,6 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StarRatingInput } from '@/components/evaluations/StarRatingInput';
-import { cn } from '@/lib/utils';
 
 type Tab = 'evaluations' | 'windows';
 type EvaluationFilters = Parameters<typeof api.org.getEvaluations>[1];
@@ -107,31 +106,14 @@ export default function EvaluationsManagementPage() {
             />
             <ResourcePanel>
                 <div className="shrink-0 border-b border-border/60 rounded-t-lg bg-card/80">
-                    <nav
-                        aria-label="Evaluations navigation"
-                        className="flex gap-1 overflow-x-auto rounded-t-lg border border-border/70 bg-muted/45 p-1 scrollbar-none"
-                    >
-                        {TABS.map(({ key, label, icon: Icon }) => {
-                            const isActive = activeTab === key;
-                            return (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    className={cn(
-                                        'flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-black transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-32',
-                                        isActive
-                                            ? 'bg-card text-foreground shadow-xs'
-                                            : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
-                                    )}
-                                    onClick={() => handleTabChange(key)}
-                                    aria-current={isActive ? 'page' : undefined}
-                                >
-                                    <Icon className="h-4 w-4" />
-                                    {label}
-                                </button>
-                            );
-                        })}
-                    </nav>
+                    <PageTabs
+                        ariaLabel="Evaluations navigation"
+                        items={TABS.map(({ key, label, icon }) => ({ value: key, label, icon }))}
+                        activeValue={activeTab}
+                        onValueChange={handleTabChange}
+                        tone="panel"
+                        hideOnScroll
+                    />
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar sm:p-4">
                     {activeTab === 'evaluations' ? (

@@ -1,17 +1,22 @@
-'use client';
+﻿'use client';
 
 import type { ComponentPropsWithoutRef, CSSProperties, ElementType } from 'react';
 import type { Course, Section } from '@/types';
 import { cn, getCourseSectionLabelParts, getSectionColor, getSectionTextStyle } from '@/lib/utils';
 
-type SectionLike = Pick<Section, 'name' | 'color'> & {
-    course?: Pick<Course, 'name'> | null;
+type SectionLike = {
+    name?: string | null;
+    code?: string | null;
+    color?: string | null;
+    course?: { name?: string | null; code?: string | null } | null;
 };
 
 interface CourseSectionLabelProps<T extends ElementType = 'span'> {
     section?: SectionLike | null;
     courseName?: string | null;
+    courseCode?: string | null;
     sectionName?: string | null;
+    sectionCode?: string | null;
     color?: string | null;
     as?: T;
     className?: string;
@@ -21,7 +26,9 @@ interface CourseSectionLabelProps<T extends ElementType = 'span'> {
 export function CourseSectionLabel<T extends ElementType = 'span'>({
     section,
     courseName,
+    courseCode,
     sectionName,
+    sectionCode,
     color,
     as,
     className,
@@ -33,7 +40,9 @@ export function CourseSectionLabel<T extends ElementType = 'span'>({
     const resolvedColor = color ?? section?.color;
     const parts = getCourseSectionLabelParts({
         courseName: courseName ?? section?.course?.name,
+        courseCode: courseCode ?? section?.course?.code,
         sectionName: sectionName ?? section?.name,
+        sectionCode: sectionCode ?? section?.code,
     });
 
     if (variant === 'stacked') {
@@ -75,3 +84,8 @@ export function CourseSectionLabel<T extends ElementType = 'span'>({
         </Component>
     );
 }
+
+
+
+
+

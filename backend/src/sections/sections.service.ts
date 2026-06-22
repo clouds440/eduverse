@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,6 +22,7 @@ import {
   validateRoomBelongsToOrg,
   type DepartmentScopedUser,
 } from '../common/department-scope';
+import { normalizeEntityCode } from '../common/entity-code';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -74,6 +76,7 @@ export class SectionsService {
         ? {
             OR: [
               { name: { contains: options.search, mode: 'insensitive' } },
+              { code: { contains: options.search, mode: 'insensitive' } },
               { room: { contains: options.search, mode: 'insensitive' } },
               {
                 course: {
@@ -182,8 +185,31 @@ export class SectionsService {
     return section;
   }
 
+  private async assertUnique(orgId: string, data: Pick<CreateSectionDto, 'name' | 'code'>, excludeId?: string) {
+    const name = data.name?.trim();
+    const code = normalizeEntityCode(data.code);
+    const duplicate = await this.prisma.section.findFirst({
+      where: {
+        organizationId: orgId,
+        id: excludeId ? { not: excludeId } : undefined,
+        OR: [
+          ...(name ? [{ name: { equals: name, mode: Prisma.QueryMode.insensitive } }] : []),
+          ...(code ? [{ code: { equals: code, mode: Prisma.QueryMode.insensitive } }] : []),
+        ],
+      },
+      select: { id: true, name: true, code: true },
+    });
+
+    if (!duplicate) return;
+    if (name && duplicate.name.toLowerCase() === name.toLowerCase()) {
+      throw new ConflictException('Section name already exists in this organization');
+    }
+    throw new ConflictException('Section code already exists in this organization');
+  }
   async createSection(orgId: string, data: CreateSectionDto, requester?: DepartmentScopedUser) {
     // Verify course belongs to the organization
+    await this.assertUnique(orgId, data);
+    const code = normalizeEntityCode(data.code)!;
     const course = await this.coursesService.validateCourseBelongsToOrg(data.courseId, orgId);
     const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
     assertDepartmentInScope(departmentScope, course.departmentId, 'You cannot create a section outside your department scope');
@@ -195,7 +221,9 @@ export class SectionsService {
 
     return this.prisma.section.create({
       data: {
-        name: data.name,
+        organizationId: orgId,
+        name: data.name.trim(),
+        code,
         color,
         room: data.room,
         defaultRoomId: data.defaultRoomId || null,
@@ -237,12 +265,26 @@ export class SectionsService {
       await validateRoomBelongsToOrg(this.prisma, orgId, data.defaultRoomId);
     }
 
+    if (data.name !== undefined || data.code !== undefined) {
+      await this.assertUnique(
+        orgId,
+        {
+          name: data.name ?? existing.name,
+          code: data.code ?? existing.code,
+        },
+        id,
+      );
+    }
+
     const color = data.color ? normalizeSectionColor(data.color) : undefined;
+    const code = data.code !== undefined ? normalizeEntityCode(data.code)! : undefined;
 
     return this.prisma.section.update({
       where: { id },
       data: {
         ...data,
+        name: data.name !== undefined ? data.name.trim() : undefined,
+        code,
         color,
         defaultRoomId: data.defaultRoomId === '' ? null : data.defaultRoomId,
         academicCycleId: data.academicCycleId === '' ? undefined : data.academicCycleId,
@@ -324,3 +366,5 @@ export class SectionsService {
     }
   }
 }
+
+

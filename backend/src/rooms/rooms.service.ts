@@ -5,6 +5,7 @@ import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from
 import { FilesService } from '../files/files.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { normalizeEntityCode } from '../common/entity-code';
 
 @Injectable()
 export class RoomsService {
@@ -53,20 +54,25 @@ export class RoomsService {
     return building;
   }
 
-  private async assertUnique(orgId: string, buildingId: string, name: string, excludeId?: string) {
+  private async assertUnique(orgId: string, buildingId: string, name: string, code: string, excludeId?: string) {
     const duplicate = await this.prisma.room.findFirst({
       where: {
         organizationId: orgId,
         buildingId,
         id: excludeId ? { not: excludeId } : undefined,
-        name: { equals: name.trim(), mode: Prisma.QueryMode.insensitive },
+        OR: [
+          { buildingId, name: { equals: name.trim(), mode: Prisma.QueryMode.insensitive } },
+          { code: { equals: code, mode: Prisma.QueryMode.insensitive } },
+        ],
       },
-      select: { id: true },
+      select: { id: true, buildingId: true, name: true, code: true },
     });
 
-    if (duplicate) {
+    if (!duplicate) return;
+    if (duplicate.buildingId === buildingId && duplicate.name.toLowerCase() === name.trim().toLowerCase()) {
       throw new ConflictException('Room name already exists inside this building');
     }
+    throw new ConflictException('Room code already exists in this organization');
   }
 
   private validateCapacity(capacity?: number) {
@@ -78,13 +84,15 @@ export class RoomsService {
   async createRoom(orgId: string, dto: CreateRoomDto) {
     this.validateCapacity(dto.capacity);
     await this.getBuildingForOrg(orgId, dto.buildingId);
-    await this.assertUnique(orgId, dto.buildingId, dto.name);
+    const code = normalizeEntityCode(dto.code)!;
+    await this.assertUnique(orgId, dto.buildingId, dto.name, code);
 
     const room = await this.prisma.room.create({
       data: {
         organizationId: orgId,
         buildingId: dto.buildingId,
         name: dto.name.trim(),
+        code,
         floor: this.normalizeText(dto.floor),
         type: dto.type,
         capacity: dto.capacity,
@@ -173,11 +181,12 @@ export class RoomsService {
 
     const nextBuildingId = dto.buildingId ?? existing.buildingId;
     const nextName = dto.name ?? existing.name;
+    const nextCode = dto.code !== undefined ? normalizeEntityCode(dto.code)! : existing.code;
     if (dto.buildingId !== undefined) {
       await this.getBuildingForOrg(orgId, dto.buildingId);
     }
-    if (dto.name !== undefined || dto.buildingId !== undefined) {
-      await this.assertUnique(orgId, nextBuildingId, nextName, id);
+    if (dto.name !== undefined || dto.buildingId !== undefined || dto.code !== undefined) {
+      await this.assertUnique(orgId, nextBuildingId, nextName, nextCode, id);
     }
     this.validateCapacity(dto.capacity);
 
@@ -186,6 +195,7 @@ export class RoomsService {
       data: {
         buildingId: dto.buildingId,
         name: dto.name !== undefined ? dto.name.trim() : undefined,
+        code: dto.code !== undefined ? nextCode : undefined,
         floor: dto.floor !== undefined ? this.normalizeText(dto.floor) : undefined,
         type: dto.type,
         capacity: dto.capacity,
@@ -222,3 +232,4 @@ export class RoomsService {
     return this.shapeRoom(updated);
   }
 }
+

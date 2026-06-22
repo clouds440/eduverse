@@ -57,7 +57,8 @@ export function optionalDate(value?: string | null, field?: string, message = 'M
 export function optionalEnum<T extends string>(value: string | undefined, allowed: readonly T[], field?: string) {
   const text = optionalString(value);
   if (!text) return undefined;
-  const match = allowed.find((item) => item.toLowerCase() === text.toLowerCase());
+  const normalized = text.toUpperCase().replace(/[\s-]+/g, '_');
+  const match = allowed.find((item) => item.toUpperCase() === normalized);
   if (!match) fieldError(`Must be one of: ${allowed.join(', ')}`, field);
   return match;
 }

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -71,7 +71,7 @@ export default function CoursesPage() {
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-    const [editFormData, setEditFormData] = useState({ name: '', description: '', creditHours: '3', departmentId: '' });
+    const [editFormData, setEditFormData] = useState({ name: '', code: '', description: '', creditHours: '3', departmentId: '' });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
     const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
@@ -94,6 +94,7 @@ export default function CoursesPage() {
         setEditingCourse(course);
         setEditFormData({
             name: course.name,
+            code: course.code || '',
             description: course.description || '',
             creditHours: String(course.creditHours ?? 3),
             departmentId: course.departmentId || '',
@@ -109,6 +110,7 @@ export default function CoursesPage() {
         try {
             await api.org.updateCourse(editingCourse.id, {
                 name: editFormData.name,
+                code: editFormData.code,
                 description: editFormData.description,
                 creditHours: Number(editFormData.creditHours),
                 departmentId: editFormData.departmentId || null,
@@ -199,7 +201,7 @@ export default function CoursesPage() {
                     </div>
                     <div className="min-w-0">
                         <p className="truncate text-sm font-black text-foreground">{row.name}</p>
-                        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">Course record</p>
+                        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{row.code} - Course record</p>
                     </div>
                 </div>
             ),
@@ -282,7 +284,7 @@ export default function CoursesPage() {
                         <SearchBar
                             value={searchTerm}
                             onChange={(value) => updateQueryParams({ search: value, page: 1 })}
-                            placeholder="Search by name or description..."
+                            placeholder="Search by name, code, or description..."
                             mobileMode="expandable"
                         />
                     )}
@@ -364,6 +366,17 @@ export default function CoursesPage() {
                         />
                     </div>
                     <div className="space-y-2">
+                        <Label htmlFor="courseCode">Course Code *</Label>
+                        <Input
+                            id="courseCode"
+                            type="text"
+                            required
+                            value={editFormData.code}
+                            onChange={(event) => setEditFormData({ ...editFormData, code: event.target.value })}
+                            placeholder="e.g. MATH-101"
+                        />
+                    </div>
+                    <div className="space-y-2">
                         <Label htmlFor="courseCreditHours">Credit Hours *</Label>
                         <Input
                             id="courseCreditHours"
@@ -430,3 +443,6 @@ export default function CoursesPage() {
         </PageShell>
     );
 }
+
+
+

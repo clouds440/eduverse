@@ -28,9 +28,10 @@ import CourseMaterials from '@/components/sections/CourseMaterials';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { Badge } from '@/components/ui/Badge';
 import { NotFound } from '@/components/NotFound';
-import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, PageTabs, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn, formatCourseSectionLabel, formatRoomLabel, getSectionColor, getSectionSurfaceStyle, getSectionTextStyle, getSectionTintStyle } from '@/lib/utils';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 interface SummaryTileProps {
     icon: LucideIcon;
@@ -39,6 +40,15 @@ interface SummaryTileProps {
     helper?: string;
     tone?: 'primary' | 'neutral' | 'success' | 'warning';
 }
+
+const SECTION_DETAIL_TABS = [
+    { value: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { value: 'evaluations', label: 'Evaluations', icon: Trophy },
+    { value: 'schedule', label: 'Schedule', icon: Calendar },
+    { value: 'materials', label: 'Materials', icon: FileText },
+] as const;
+
+type SectionDetailTab = typeof SECTION_DETAIL_TABS[number]['value'];
 
 function SummaryTile({ icon: Icon, label, value, helper, tone = 'neutral' }: SummaryTileProps) {
     const toneClass = {
@@ -64,12 +74,10 @@ function SummaryTile({ icon: Icon, label, value, helper, tone = 'neutral' }: Sum
     );
 }
 
-function ActionTile({ href, icon: Icon, title, description }: { href: string; icon: LucideIcon; title: string; description: string }) {
-    return (
-        <Link
-            href={href}
-            className="group flex min-w-0 items-start gap-3 rounded-lg border border-border/70 bg-card p-3 shadow-sm transition-colors hover:border-primary/35 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-        >
+function ActionTile({ href, onClick, icon: Icon, title, description }: { href?: string; onClick?: () => void; icon: LucideIcon; title: string; description: string }) {
+    const className = "group flex min-w-0 items-start gap-3 rounded-lg border border-border/70 bg-card p-3 text-left shadow-sm transition-colors hover:border-primary/35 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25";
+    const content = (
+        <>
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary">
                 <Icon className="h-5 w-5" />
             </div>
@@ -78,8 +86,14 @@ function ActionTile({ href, icon: Icon, title, description }: { href: string; ic
                 <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted-foreground">{description}</p>
             </div>
             <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-        </Link>
+        </>
     );
+
+    if (href) {
+        return <Link href={href} className={className}>{content}</Link>;
+    }
+
+    return <button type="button" onClick={onClick} className={className}>{content}</button>;
 }
 
 function SectionPanel({
@@ -110,9 +124,7 @@ function SectionPanel({
                             </p>
                         </div>
                     </div>
-                    <a href="#section-overview" className="text-xs font-black uppercase tracking-widest text-primary hover:underline">
-                        Back to overview
-                    </a>
+
                 </div>
             </header>
             <div className="min-w-0 overflow-hidden p-3 sm:p-5">{children}</div>
@@ -177,6 +189,9 @@ export default function SectionDetailPage() {
     const { token, user } = useAuth();
     const params = useParams();
     const sectionId = params.id as string;
+    const { getStringParam, updateQueryParams } = useUrlQueryState();
+    const tabParam = getStringParam('tab', 'overview') as SectionDetailTab;
+    const activeTab = SECTION_DETAIL_TABS.some((tab) => tab.value === tabParam) ? tabParam : 'overview';
 
     const sectionKey = token && sectionId ? ['section-detail', sectionId] as const : null;
     const { data: section, isLoading } = useSWR<Section>(sectionKey);
@@ -212,6 +227,9 @@ export default function SectionDetailPage() {
     const cohortName = section.cohort?.name || 'No cohort assigned';
     const roomLabel = section.defaultRoom ? formatRoomLabel(section.defaultRoom) : section.room || 'Room TBD';
     const sectionColor = getSectionColor(section.color);
+    const handleTabChange = (tab: SectionDetailTab) => {
+        updateQueryParams({ tab: tab === 'overview' ? undefined : tab });
+    };
 
     return (
         <PageShell className="overflow-x-hidden overflow-y-auto custom-scrollbar">
@@ -241,69 +259,81 @@ export default function SectionDetailPage() {
                 )}
             />
 
-            <ResourcePanel id="section-overview" className="flex-none overflow-hidden" style={getSectionSurfaceStyle(section, '08', '38')}>
-                <div className="grid min-w-0 gap-4 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] sm:p-5">
-                    <div className="min-w-0">
-                        <div className="flex min-w-0 items-start gap-4">
-                            <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-lg border text-primary sm:flex" style={{ borderColor: `${sectionColor}55`, backgroundColor: `${sectionColor}14`, color: sectionColor }}>
-                                <LayoutDashboard className="h-8 w-8" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Section Control Panel</p>
-                                <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl" style={getSectionTextStyle(section)}>
-                                    {sectionLabel}
-                                </h2>
-                                <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted-foreground">
-                                    {courseName} is placed in {cycleName}{section.cohort ? ` with ${cohortName}` : ''}. Use the shortcuts below for daily classroom work.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+            <PageTabs
+                ariaLabel="Section workspace navigation"
+                items={SECTION_DETAIL_TABS}
+                activeValue={activeTab}
+                onValueChange={handleTabChange}
+                hideOnScroll
+            />
 
-                    <div className="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-background/65 p-3 shadow-sm">
-                        <div className="flex min-w-0 items-center justify-between gap-3">
+            {activeTab === 'overview' && (
+                <>
+                    <ResourcePanel id="section-overview" className="flex-none overflow-hidden" style={getSectionSurfaceStyle(section, '08', '38')}>
+                        <div className="grid min-w-0 gap-4 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] sm:p-5">
                             <div className="min-w-0">
-                                <p className="text-sm font-black text-foreground">Teaching Team</p>
-                                <p className="text-xs font-semibold text-muted-foreground">{teacherCount} assigned</p>
-                            </div>
-                            <Users className="h-5 w-5 shrink-0 text-primary" />
-                        </div>
-                        <div className="mt-3 grid min-w-0 gap-2">
-                            {teacherCount === 0 ? (
-                                <p className="rounded-md border border-dashed border-border/70 bg-card p-3 text-xs font-semibold text-muted-foreground">
-                                    No teachers assigned yet.
-                                </p>
-                            ) : (
-                                section.teachers?.slice(0, 3).map((teacher) => (
-                                    <div key={teacher.id} className="min-w-0 rounded-md border border-border/70 bg-card px-3 py-2">
-                                        <p className="truncate text-sm font-black text-foreground">{teacher.user?.name || 'Unnamed teacher'}</p>
-                                        <p className="truncate text-xs font-semibold text-muted-foreground">{teacher.subject || teacher.designation || 'Faculty'}</p>
+                                <div className="flex min-w-0 items-start gap-4">
+                                    <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-lg border text-primary sm:flex" style={{ borderColor: `${sectionColor}55`, backgroundColor: `${sectionColor}14`, color: sectionColor }}>
+                                        <LayoutDashboard className="h-8 w-8" />
                                     </div>
-                                ))
-                            )}
-                            {teacherCount > 3 && (
-                                <p className="text-xs font-bold text-muted-foreground">+{teacherCount - 3} more assigned</p>
-                            )}
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Section Control Panel</p>
+                                        <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl" style={getSectionTextStyle(section)}>
+                                            {sectionLabel}
+                                        </h2>
+                                        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-muted-foreground">
+                                            {courseName} is placed in {cycleName}{section.cohort ? ` with ${cohortName}` : ''}. Use the shortcuts below for daily classroom work.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="min-w-0 overflow-hidden rounded-lg border border-border/70 bg-background/65 p-3 shadow-sm">
+                                <div className="flex min-w-0 items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-black text-foreground">Teaching Team</p>
+                                        <p className="text-xs font-semibold text-muted-foreground">{teacherCount} assigned</p>
+                                    </div>
+                                    <Users className="h-5 w-5 shrink-0 text-primary" />
+                                </div>
+                                <div className="mt-3 grid min-w-0 gap-2">
+                                    {teacherCount === 0 ? (
+                                        <p className="rounded-md border border-dashed border-border/70 bg-card p-3 text-xs font-semibold text-muted-foreground">
+                                            No teachers assigned yet.
+                                        </p>
+                                    ) : (
+                                        section.teachers?.slice(0, 3).map((teacher) => (
+                                            <div key={teacher.id} className="min-w-0 rounded-md border border-border/70 bg-card px-3 py-2">
+                                                <p className="truncate text-sm font-black text-foreground">{teacher.user?.name || 'Unnamed teacher'}</p>
+                                                <p className="truncate text-xs font-semibold text-muted-foreground">{teacher.subject || teacher.designation || 'Faculty'}</p>
+                                            </div>
+                                        ))
+                                    )}
+                                    {teacherCount > 3 && (
+                                        <p className="text-xs font-bold text-muted-foreground">+{teacherCount - 3} more assigned</p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </ResourcePanel>
+                    </ResourcePanel>
 
-            <section className="grid min-w-0 shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <SummaryTile icon={Users} label="Students" value={studentCount} helper="enrolled learners" tone="primary" />
-                <SummaryTile icon={School} label="Teachers" value={teacherCount} helper="assigned faculty" tone="success" />
-                <SummaryTile icon={GraduationCap} label="Cycle" value={cycleName} helper="academic placement" />
-                <SummaryTile icon={MapPin} label="Room" value={roomLabel} helper="primary venue" tone="warning" />
-            </section>
+                    <section className="grid min-w-0 shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        <SummaryTile icon={Users} label="Students" value={studentCount} helper="enrolled learners" tone="primary" />
+                        <SummaryTile icon={School} label="Teachers" value={teacherCount} helper="assigned faculty" tone="success" />
+                        <SummaryTile icon={GraduationCap} label="Cycle" value={cycleName} helper="academic placement" />
+                        <SummaryTile icon={MapPin} label="Room" value={roomLabel} helper="primary venue" tone="warning" />
+                    </section>
 
-            <section className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-4" aria-label="Section quick actions">
-                <ActionTile href="#evaluations" icon={ClipboardList} title="Evaluations" description="Create, review, and grade assessments for this section." />
-                <ActionTile href={`/attendance/${section.id}`} icon={CalendarCheck} title="Attendance" description="Open the attendance sheet for today and class sessions." />
-                <ActionTile href={`/grades/${section.id}`} icon={Trophy} title="Grades List" description="View all students, assessments, grades, and section totals." />
-                <ActionTile href="#materials" icon={FileText} title="Materials" description="Manage files, links, videos, and class resources." />
-            </section>
+                    <section className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-4" aria-label="Section quick actions">
+                        <ActionTile onClick={() => handleTabChange('evaluations')} icon={ClipboardList} title="Evaluations" description="Create, review, and grade assessments for this section." />
+                        <ActionTile href={`/attendance/${section.id}`} icon={CalendarCheck} title="Attendance" description="Open the attendance sheet for today and class sessions." />
+                        <ActionTile href={`/grades/${section.id}`} icon={Trophy} title="Grades List" description="View all students, assessments, grades, and section totals." />
+                        <ActionTile onClick={() => handleTabChange('materials')} icon={FileText} title="Materials" description="Manage files, links, videos, and class resources." />
+                    </section>
+                </>
+            )}
 
-            <div className="flex min-w-0 flex-col gap-4">
+            {activeTab === 'evaluations' && (
                 <SectionPanel
                     id="evaluations"
                     icon={Trophy}
@@ -312,7 +342,9 @@ export default function SectionDetailPage() {
                 >
                     <AssessmentList section={section} role={user?.role as Role} />
                 </SectionPanel>
+            )}
 
+            {activeTab === 'schedule' && (
                 <SectionPanel
                     id="schedule"
                     icon={Calendar}
@@ -321,7 +353,9 @@ export default function SectionDetailPage() {
                 >
                     <SectionSchedules section={section} role={user?.role as Role} />
                 </SectionPanel>
+            )}
 
+            {activeTab === 'materials' && (
                 <SectionPanel
                     id="materials"
                     icon={FileText}
@@ -330,7 +364,7 @@ export default function SectionDetailPage() {
                 >
                     <CourseMaterials sectionId={sectionId} role={user?.role as Role} isTeacherAssigned={isTeacherAssigned} />
                 </SectionPanel>
-            </div>
+            )}
         </PageShell>
     );
 }

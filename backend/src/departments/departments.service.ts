@@ -7,6 +7,7 @@ import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { normalizeEntityColor } from '../common/colors';
 import { getDepartmentScope, assertDepartmentInScope, type DepartmentScopedUser } from '../common/department-scope';
 import { Role } from '../common/enums';
+import { normalizeEntityCode } from '../common/entity-code';
 
 @Injectable()
 export class DepartmentsService {
@@ -37,7 +38,7 @@ export class DepartmentsService {
 
   private async assertUnique(orgId: string, dto: Pick<CreateDepartmentDto, 'name' | 'code'>, excludeId?: string) {
     const name = dto.name?.trim();
-    const code = this.normalizeText(dto.code);
+    const code = normalizeEntityCode(dto.code);
     const duplicate = await this.prisma.department.findFirst({
       where: {
         organizationId: orgId,
@@ -66,7 +67,7 @@ export class DepartmentsService {
       data: {
         organizationId: orgId,
         name: dto.name.trim(),
-        code: this.normalizeText(dto.code),
+        code: normalizeEntityCode(dto.code)!,
         description: this.normalizeText(dto.description),
         color,
         isActive: dto.isActive ?? true,
@@ -146,7 +147,7 @@ export class DepartmentsService {
         orgId,
         {
           name: dto.name ?? existing.name,
-          code: dto.code ?? existing.code ?? undefined,
+          code: dto.code ?? existing.code,
         },
         id,
       );
@@ -160,7 +161,7 @@ export class DepartmentsService {
       where: { id },
       data: {
         name: dto.name !== undefined ? dto.name.trim() : undefined,
-        code: dto.code !== undefined ? this.normalizeText(dto.code) : undefined,
+        code: dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
         description: dto.description !== undefined ? this.normalizeText(dto.description) : undefined,
         color,
         isActive: dto.isActive,

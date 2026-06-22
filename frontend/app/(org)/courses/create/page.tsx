@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { Clock3, LibraryBig, FileText, Building2 } from 'lucide-react';
+import { Clock3, LibraryBig, FileText, Building2, Hash } from 'lucide-react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { Input } from '@/components/ui/Input';
@@ -27,6 +27,7 @@ export default function CreateCoursePage() {
 
     const [formData, setFormData] = useState({
         name: '',
+        code: '',
         description: '',
         creditHours: '3',
         departmentId: '',
@@ -54,6 +55,7 @@ export default function CreateCoursePage() {
         try {
             await api.org.createCourse({
                 name: formData.name,
+                code: formData.code,
                 description: formData.description,
                 creditHours: Number(formData.creditHours),
                 departmentId: formData.departmentId || null,
@@ -129,6 +131,20 @@ export default function CreateCoursePage() {
                                         </div>
 
                                         <div className="space-y-2">
+                                            <Label className="text-sm font-bold ml-1">Course Code <span className="text-primary">*</span></Label>
+                                            <Input
+                                                type="text"
+                                                name="code"
+                                                value={formData.code}
+                                                onChange={handleChange}
+                                                required
+                                                icon={Hash}
+                                                placeholder="e.g. MATH-101"
+                                                className="h-12 md:h-14 font-medium"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
                                             <Label className="text-sm font-bold ml-1">Credit Hours <span className="text-primary">*</span></Label>
                                             <Input
                                                 type="number"
@@ -199,3 +215,5 @@ export default function CreateCoursePage() {
         </div>
     );
 }
+
+
