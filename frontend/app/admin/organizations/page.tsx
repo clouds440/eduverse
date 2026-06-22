@@ -25,6 +25,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { Badge } from '@/components/ui/Badge';
 
 interface AdminOrgParams {
     page: number;
@@ -88,12 +89,23 @@ export default function OrganizationsPage() {
         updateQueryParams({ page: 1 });
     };
 
-    const handleApprove = async (id: string, name: string) => {
+    const handleApprove = async (org: Organization) => {
         if (!token) return;
+        if (!org.contactEmailVerifiedAt) {
+            dispatch({
+                type: 'TOAST_ADD',
+                payload: {
+                    message: `${org.name} cannot be approved until its contact email is verified`,
+                    type: 'error'
+                }
+            });
+            return;
+        }
+
         try {
-            dispatch({ type: 'UI_START_PROCESSING', payload: `approve-${id}` });
-            await api.admin.approveOrganization(id, token);
-            dispatch({ type: 'TOAST_ADD', payload: { message: `${name} approved successfully`, type: 'success' } });
+            dispatch({ type: 'UI_START_PROCESSING', payload: `approve-${org.id}` });
+            await api.admin.approveOrganization(org.id, token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: `${org.name} approved successfully`, type: 'success' } });
             mutateCache(matchesCacheKeyPrefix('admin-organizations'));
             // Also refresh admin stats
             if (token) {
@@ -105,7 +117,7 @@ export default function OrganizationsPage() {
             const message = error instanceof Error ? error.message : 'Failed to approve organization';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
-            dispatch({ type: 'UI_STOP_PROCESSING', payload: `approve-${id}` });
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: `approve-${org.id}` });
         }
     };
 
@@ -212,6 +224,15 @@ export default function OrganizationsPage() {
                         <Mail className="w-3 h-3 text-primary/80" />
                         {row.email || 'N/A'}
                     </div>
+                    <Badge
+                        variant={row.contactEmailVerifiedAt ? 'success' : 'warning'}
+                        size="xs"
+                        shape="pill"
+                        icon={row.contactEmailVerifiedAt ? ShieldCheck : ShieldAlert}
+                        title={row.contactEmailVerifiedAt ? 'Contact email verified' : 'Contact email must be verified before approval'}
+                    >
+                        {row.contactEmailVerifiedAt ? 'Contact verified' : 'Contact unverified'}
+                    </Badge>
                 </div>
             )
         },
@@ -234,12 +255,16 @@ export default function OrganizationsPage() {
                     const actions: AdminAction[] = [];
 
                     const effectiveStatus = activeStatusTab === 'ALL' ? row.status : activeStatusTab;
+                    const contactVerified = Boolean(row.contactEmailVerifiedAt);
+                    const blockedApprovalTitle = 'Contact email must be verified before approval';
 
                     if (effectiveStatus === OrgStatus.PENDING) {
                         actions.push({
                             variant: 'approve',
-                            onClick: () => handleApprove(row.id, row.name),
-                            loading: state.ui.processing[`approve-${row.id}`]
+                            onClick: () => handleApprove(row),
+                            loading: state.ui.processing[`approve-${row.id}`],
+                            disabled: !contactVerified,
+                            title: contactVerified ? 'Approve' : blockedApprovalTitle
                         });
                         actions.push({
                             variant: 'reject',
@@ -255,16 +280,18 @@ export default function OrganizationsPage() {
                     } else if (effectiveStatus === OrgStatus.REJECTED) {
                         actions.push({
                             variant: 'reapprove',
-                            onClick: () => handleApprove(row.id, row.name),
+                            onClick: () => handleApprove(row),
                             loading: state.ui.processing[`approve-${row.id}`],
-                            title: 'Re-approve'
+                            disabled: !contactVerified,
+                            title: contactVerified ? 'Re-approve' : blockedApprovalTitle
                         });
                     } else if (effectiveStatus === OrgStatus.SUSPENDED) {
                         actions.push({
                             variant: 'unsuspend',
-                            onClick: () => handleApprove(row.id, row.name),
+                            onClick: () => handleApprove(row),
                             loading: state.ui.processing[`approve-${row.id}`],
-                            title: 'Unsuspend'
+                            disabled: !contactVerified,
+                            title: contactVerified ? 'Unsuspend' : blockedApprovalTitle
                         });
                     }
 
@@ -345,6 +372,13 @@ export default function OrganizationsPage() {
             { label: 'Location', value: org.location, icon: MapPin },
             { label: 'Type', value: org.type, icon: Tag },
             { label: 'Contact Email', value: org.email, icon: Mail },
+            {
+                label: 'Contact Verification',
+                value: org.contactEmailVerifiedAt
+                    ? `Verified ${new Date(org.contactEmailVerifiedAt).toLocaleString()}`
+                    : 'Not verified',
+                icon: org.contactEmailVerifiedAt ? ShieldCheck : ShieldAlert
+            },
             { label: 'Phone Number', value: org.phone || 'N/A', icon: Phone },
             { label: 'Created At', value: new Date(org.createdAt).toLocaleString(), icon: Calendar },
         ];

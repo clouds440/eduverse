@@ -5,7 +5,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '@/prisma/prisma-client';
-import { Role, OrgStatus, TeacherStatus, StudentStatus, UserStatus } from '../common/enums';
+import {
+  Role,
+  OrgStatus,
+  TeacherStatus,
+  StudentStatus,
+  UserStatus,
+} from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { UpdateSettingsDto } from './dto/update-settings.dto';
@@ -65,10 +71,13 @@ export class OrgService {
     const contactEmailChanged =
       data.contactEmail &&
       data.contactEmail.toLowerCase() !== currentOrg.contactEmail.toLowerCase();
-    const oldVerifiedContactEmail = contactEmailChanged && currentOrg.contactEmailVerifiedAt
-      ? currentOrg.contactEmail
-      : null;
-    const currencyChanged = Boolean(data.currency && data.currency !== currentOrg.currency);
+    const oldVerifiedContactEmail =
+      contactEmailChanged && currentOrg.contactEmailVerifiedAt
+        ? currentOrg.contactEmail
+        : null;
+    const currencyChanged = Boolean(
+      data.currency && data.currency !== currentOrg.currency,
+    );
 
     const updatedOrg = await this.prisma.organization.update({
       where: { id: orgId },
@@ -316,9 +325,6 @@ export class OrgService {
     };
   }
 
-
-
-
   async reapply(orgId: string) {
     const org = await this.getOrganizationById(orgId);
 
@@ -347,8 +353,17 @@ export class OrgService {
     });
   }
 
-  async approveOrganization(orgId: string, admin: { name: string | null; email: string; role: string; id: string }) {
+  async approveOrganization(
+    orgId: string,
+    admin: { name: string | null; email: string; role: string; id: string },
+  ) {
     const org = await this.getOrganizationById(orgId);
+
+    if (!org.contactEmailVerifiedAt) {
+      throw new BadRequestException(
+        'Organization contact email must be verified before approval',
+      );
+    }
 
     const history = (org.statusHistory as Prisma.JsonArray) || [];
     const newEntry = {

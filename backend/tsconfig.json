@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "baseUrl": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "paths": {
-      "@/*": ["src/*"],
-      "@/generated/prisma/*": ["src/generated/prisma/*"],
-      "@/prisma-client": ["src/prisma/prisma-client"]
+      "@/*": ["./src/*"],
+      "@/generated/prisma/*": ["./src/generated/prisma/*"],
+      "@/prisma-client": ["./src/prisma/prisma-client"]
     },
+    "types": ["node", "jest"],
     "resolvePackageJsonExports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
@@ -16,12 +16,14 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2023",
+    "target": "ES2022",
     "sourceMap": true,
     "outDir": "./dist",
     "incremental": true,
     "skipLibCheck": true,
+    "strict": true,
     "strictNullChecks": true,
+    "strictPropertyInitialization": false,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,

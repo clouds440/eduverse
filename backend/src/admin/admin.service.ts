@@ -3,7 +3,11 @@ import {
   NotFoundException,
   Injectable,
 } from '@nestjs/common';
-import { Prisma, User as UserEntity, Organization } from '@/prisma/prisma-client';
+import {
+  Prisma,
+  User as UserEntity,
+  Organization,
+} from '@/prisma/prisma-client';
 import { OrgStatus, Role, MailCategory } from '../common/enums';
 import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -122,6 +126,8 @@ export class AdminService {
       createdAt: org.createdAt,
       phone: org.phone,
       email: org.contactEmail,
+      contactEmail: org.contactEmail,
+      contactEmailVerifiedAt: org.contactEmailVerifiedAt,
       adminUserId: (org as Organization & { users: { id: string }[] })
         .users?.[0]?.id,
     }));
@@ -147,7 +153,10 @@ export class AdminService {
     const result = await this.orgService.approveOrganization(id, admin);
 
     // Find the admin user to send the welcome/re-approval mail
-    const orgAdmins = await this.userService.getUsersByOrgAndRole(id, Role.ORG_ADMIN);
+    const orgAdmins = await this.userService.getUsersByOrgAndRole(
+      id,
+      Role.ORG_ADMIN,
+    );
     const orgAdmin = orgAdmins[0];
 
     if (orgAdmin) {
@@ -196,19 +205,27 @@ export class AdminService {
       throw new NotFoundException('Organization not found');
     }
 
-    const result = await this.orgService.updateOrganizationStatus(id, status, reason, admin);
+    const result = await this.orgService.updateOrganizationStatus(
+      id,
+      status,
+      reason,
+      admin,
+    );
 
     // Find any admin user of this organization to be the target of the mail
-    const orgAdmins = await this.userService.getUsersByOrgAndRole(id, Role.ORG_ADMIN);
+    const orgAdmins = await this.userService.getUsersByOrgAndRole(
+      id,
+      Role.ORG_ADMIN,
+    );
     const orgAdmin = orgAdmins[0];
 
     // Create a Mail thread (Notice) - No Reply
-    const subject = status === OrgStatus.REJECTED
-      ? 'Application Status Update: REJECTED'
-      : 'Organization Status Update: SUSPENDED';
-    const category = status === OrgStatus.REJECTED
-      ? 'System Notice'
-      : 'Security/Admin Notice';
+    const subject =
+      status === OrgStatus.REJECTED
+        ? 'Application Status Update: REJECTED'
+        : 'Organization Status Update: SUSPENDED';
+    const category =
+      status === OrgStatus.REJECTED ? 'System Notice' : 'Security/Admin Notice';
 
     await this.mailService.createMail(
       {
@@ -312,7 +329,14 @@ export class AdminService {
         take,
         orderBy: { createdAt: 'desc' },
         include: {
-          organization: { select: { id: true, name: true, logoUrl: true, avatarUpdatedAt: true } },
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              logoUrl: true,
+              avatarUpdatedAt: true,
+            },
+          },
         },
       }),
       this.prisma.auditLog.count({ where }),
@@ -388,7 +412,10 @@ export class AdminService {
     const target = context.targetName || 'an account';
     const org = context.organizationName || 'an organization';
     const details = context.details as Record<string, unknown> | null;
-    const reason = typeof details?.reason === 'string' ? details.reason.replace(/_/g, ' ') : null;
+    const reason =
+      typeof details?.reason === 'string'
+        ? details.reason.replace(/_/g, ' ')
+        : null;
 
     switch (action) {
       case 'contact_email_verification_requested':
@@ -470,7 +497,8 @@ export class AdminService {
 
   async updatePlatformAdmin(id: string, data: UpdatePlatformAdminDto) {
     const admin = await this.userService.getUserById(id);
-    if (admin.role !== Role.PLATFORM_ADMIN) throw new NotFoundException('Platform admin not found');
+    if (admin.role !== Role.PLATFORM_ADMIN)
+      throw new NotFoundException('Platform admin not found');
 
     const updateData: Prisma.UserUpdateInput = {};
     if (data.name) updateData.name = data.name;
@@ -483,21 +511,23 @@ export class AdminService {
 
   async deletePlatformAdmin(id: string) {
     const admin = await this.userService.getUserById(id);
-    if (admin.role !== Role.PLATFORM_ADMIN) throw new NotFoundException('Platform admin not found');
+    if (admin.role !== Role.PLATFORM_ADMIN)
+      throw new NotFoundException('Platform admin not found');
 
     return this.userService.deleteUser(id);
   }
 
   async changeAdminPassword(userId: string, oldPass: string, newPass: string) {
     const user = await this.userService.getUserById(userId);
-    if (
-      user.role !== Role.SUPER_ADMIN &&
-      user.role !== Role.PLATFORM_ADMIN
-    ) {
+    if (user.role !== Role.SUPER_ADMIN && user.role !== Role.PLATFORM_ADMIN) {
       throw new UnauthorizedException('Admin not found');
     }
 
-    const updatedUser = await this.userService.changePassword(userId, oldPass, newPass);
+    const updatedUser = await this.userService.changePassword(
+      userId,
+      oldPass,
+      newPass,
+    );
     return this.authService.generateToken(updatedUser);
   }
 }

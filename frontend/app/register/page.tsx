@@ -138,7 +138,7 @@ export default function RegisterPage() {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-size-[64px_64px]" />
 
             {/* Main content */}
-            <div className="relative z-10 max-w-7xl mx-auto">
+            <div className="relative z-10 w-full mx-auto">
                 {/* Header */}
                 <div className="text-center mb-3 sm:mb-6">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-2">
@@ -163,9 +163,9 @@ export default function RegisterPage() {
 
                 {/* Form */}
                 <form className="space-y-6" onSubmit={handleSubmit(onSubmit)} noValidate>
-                    <div className="flex flex-col lg:flex-row gap-6">
+                    <div className="flex flex-col lg:flex-row gap-6 items-center justify-center">
                         {/* Logo & Core Info Section */}
-                        <div className="flex flex-col gap-6">
+                        <div className="flex flex-col w-full sm:w-auto gap-6">
                             <div className="glass-card rounded-3xl p-6 sm:p-8 shadow-xl">
                                 <div className="flex flex-col lg:flex-row items-start gap-4 lg:gap-6">
                                     <div className="flex flex-col items-center shrink-0 w-full lg:w-auto">
@@ -258,7 +258,7 @@ export default function RegisterPage() {
                         </div>
 
                         {/* Security Section */}
-                        <div className="glass-card rounded-3xl p-6 sm:p-8 shadow-xl">
+                        <div className="glass-card rounded-3xl p-6 sm:p-12.5 shadow-xl h-full w-full sm:w-auto">
                             <h3 className="text-xs font-bold tracking-wider text-muted-foreground uppercase border-l-4 border-primary/50 pl-4 mb-6">Security & Access</h3>
 
                             <div className="space-y-5">
@@ -349,16 +349,18 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Submit */}
-                    <div className="space-y-4 items-center justify-center flex flex-col">
-                        <Button
-                            type="submit"
-                            loadingId="register-submit"
-                            icon={ArrowRight}
-                            className="w-auto"
-                            loadingText="Creating account..."
-                        >
-                            Create Organization
-                        </Button>
+                    <div className="space-y-4 max-w-6xl mx-auto flex flex-col">
+                        <div className="justify-center sm:justify-end flex">
+                            <Button
+                                type="submit"
+                                loadingId="register-submit"
+                                icon={ArrowRight}
+                                className="w-auto"
+                                loadingText="Creating account..."
+                            >
+                                Create Organization
+                            </Button>
+                        </div>
                         <p className="text-center text-xs text-muted-foreground font-medium">
                             By registering, you agree to our <Link href="/terms" className="text-muted-foreground hover:text-primary underline">Terms</Link> and <Link href="/privacy" className="text-muted-foreground hover:text-primary underline">Privacy Policy</Link>.
                         </p>
