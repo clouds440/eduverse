@@ -1,52 +1,16 @@
 import type { MetadataRoute } from 'next';
 import { getSiteUrl } from '@/lib/site';
+import { privateSeoPaths } from '@/lib/seo';
 
 export default function robots(): MetadataRoute.Robots {
     const siteUrl = getSiteUrl();
+    const disallow = privateSeoPaths.flatMap((path) => [path, `${path}/`]);
 
     return {
         rules: {
             userAgent: '*',
             allow: '/',
-            disallow: [
-                '/admin',
-                '/admin/',
-                '/academic-cycles',
-                '/academic-cycles/',
-                '/attendance',
-                '/attendance/',
-                '/change-password',
-                '/chat',
-                '/cohorts',
-                '/cohorts/',
-                '/course-materials',
-                '/course-materials/',
-                '/courses',
-                '/courses/',
-                '/finance',
-                '/finance/',
-                '/forgot-password',
-                '/grades',
-                '/login',
-                '/mail',
-                '/offline',
-                '/overview',
-                '/promotions',
-                '/register',
-                '/reset-password',
-                '/schedules',
-                '/sections',
-                '/sections/',
-                '/settings',
-                '/students',
-                '/students/',
-                '/teachers',
-                '/teachers/',
-                '/timetable',
-                '/transcripts',
-                '/api',
-                '/api/',
-            ],
+            disallow,
         },
         sitemap: `${siteUrl}/sitemap.xml`,
     };

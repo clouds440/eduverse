@@ -1,9 +1,32 @@
 import type { NextConfig } from "next";
+import { privateSeoPaths } from "./lib/seo";
+
+const privateSeoHeaders = privateSeoPaths.flatMap((path) => [
+  {
+    source: path,
+    headers: [
+      {
+        key: 'X-Robots-Tag',
+        value: 'noindex, nofollow',
+      },
+    ],
+  },
+  {
+    source: `${path}/:path*`,
+    headers: [
+      {
+        key: 'X-Robots-Tag',
+        value: 'noindex, nofollow',
+      },
+    ],
+  },
+]);
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
   async headers() {
     return [
+      ...privateSeoHeaders,
       {
         source: '/:path*',
         headers: [

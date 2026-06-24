@@ -1,5 +1,6 @@
 // app/page.tsx — EduVerse Homepage
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import {
     ArrowRight,
@@ -25,6 +26,9 @@ import { DashboardMockup } from '@/components/homepage/DashboardMockup';
 import { Brand } from '@/components/ui/Brand';
 import { Reveal } from '@/components/ui/Reveal';
 import { PLATFORM_NAME } from '@/lib/constants';
+import { createPublicMetadata } from '@/lib/seo';
+
+export const metadata: Metadata = createPublicMetadata('/');
 
 const PLATFORM_POINTS = [
     {
