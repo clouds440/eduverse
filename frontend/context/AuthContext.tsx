@@ -169,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'promotions',
                             'grade-finalization',
                             'finance',
+                            'teacher-finance',
                             'finance-managers',
                             'chat',
                             'mail',
@@ -187,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
                     } else if (user.role === Role.FINANCE_MANAGER) {
-                        const isAllowedShared = ['finance', 'finance-managers', 'chat', 'mail', 'change-password', 'contact'].includes(pathSegments[1]);
+                        const isAllowedShared = ['finance', 'teacher-finance', 'finance-managers', 'chat', 'mail', 'change-password', 'contact'].includes(pathSegments[1]);
                         const isSettingsPage = pathSegments.includes('settings');
 
                         if (isSettingsPage || !isAllowedShared) {

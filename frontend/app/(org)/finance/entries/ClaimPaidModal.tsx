@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { FinancialEntry } from '@/types';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
+import { moneySubtract } from '@/lib/money';
 
 interface ClaimPaidModalProps {
     isOpen: boolean;
@@ -18,7 +19,7 @@ interface ClaimPaidModalProps {
 
 export function ClaimPaidModal({ isOpen, onClose, entry, onSubmit }: ClaimPaidModalProps) {
     const [paymentMethod, setPaymentMethod] = useState('BANK_TRANSFER');
-    const remainingAmount = Math.max(0, Number(entry.amount || 0) - Number(entry.paidAmount || 0));
+    const remainingAmount = moneySubtract(entry.amount, entry.paidAmount);
     const [claimedAmount, setClaimedAmount] = useState<number>(remainingAmount);
     const [receiptUrl, setReceiptUrl] = useState('');
     const [referenceNumber, setReferenceNumber] = useState('');

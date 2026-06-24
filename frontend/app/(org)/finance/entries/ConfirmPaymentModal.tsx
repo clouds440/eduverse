@@ -10,6 +10,7 @@ import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { Badge } from '@/components/ui/Badge';
 import { FinanceAttachments } from '@/components/finance/FinanceAttachments';
+import { moneySubtract, toMoneyNumber } from '@/lib/money';
 
 interface ConfirmPaymentModalProps {
     isOpen: boolean;
@@ -19,18 +20,18 @@ interface ConfirmPaymentModalProps {
 }
 
 export function ConfirmPaymentModal({ isOpen, onClose, entry, onConfirm }: ConfirmPaymentModalProps) {
-    const remainingAmount = Math.max(0, Number(entry.amount || 0) - Number(entry.paidAmount || 0));
+    const remainingAmount = moneySubtract(entry.amount, entry.paidAmount);
     const latestClaim = useMemo(
         () => entry.claims?.find((claim) => claim.status === PaymentClaimStatus.PENDING) || entry.claims?.[0] || null,
         [entry.claims],
     );
     const isFullyPaid = entry.status === EntryStatus.PAID || remainingAmount <= 0;
-    const [paidAmount, setPaidAmount] = useState<number>(latestClaim?.claimedAmount || remainingAmount);
+    const [paidAmount, setPaidAmount] = useState<number>(toMoneyNumber(latestClaim?.claimedAmount || remainingAmount));
     const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
     const [isConfirming, setIsConfirming] = useState(false);
 
     useEffect(() => {
-        setPaidAmount(latestClaim?.claimedAmount || remainingAmount);
+        setPaidAmount(toMoneyNumber(latestClaim?.claimedAmount || remainingAmount));
         setAttachmentFiles([]);
     }, [latestClaim?.claimedAmount, remainingAmount]);
 

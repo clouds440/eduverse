@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/Input';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
 import { FinanceFilterGrid, FinanceFilterToolbar } from '../_components/FinanceFilterToolbar';
 import { FinanceAttachments } from '@/components/finance/FinanceAttachments';
+import { compareMoney } from '@/lib/money';
 
 function labelize(value: string) {
     return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -65,9 +66,11 @@ export default function EntriesPage() {
     const [claimingEntry, setClaimingEntry] = useState<FinancialEntry | null>(null);
     const [confirmingEntry, setConfirmingEntry] = useState<FinancialEntry | null>(null);
 
-    const { data: entries, error, mutate, isLoading } = useSWR(
-        token ? ['finance/entries', token, targetType, category, billingCycle, search, dueFrom, dueTo] : null,
-        ([, t]) => api.finance.getEntries(t as string, {
+    const { data: entriesRes, error, mutate, isLoading } = useSWR(
+        token ? ['finance/entries', token, page, pageSize, targetType, category, billingCycle, search, dueFrom, dueTo] : null,
+        ([, t]) => api.finance.getEntriesPage(t as string, {
+            page,
+            limit: pageSize,
             targetType: targetType || undefined,
             category: category || undefined,
             billingCycle: billingCycle || undefined,
@@ -76,6 +79,7 @@ export default function EntriesPage() {
             dueTo: dueTo || undefined,
         })
     );
+    const entries = entriesRes?.data || [];
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.FINANCE_MANAGER;
     const canSelfClaim = user?.role === Role.STUDENT || user?.role === Role.TEACHER || user?.role === Role.GUARDIAN;
@@ -86,7 +90,6 @@ export default function EntriesPage() {
     };
 
     const filteredEntries = useMemo(() => {
-        if (!entries) return [];
         if (activeTab === FinanceTab.ALL) return entries;
         if (activeTab === FinanceTab.PENDING) return entries.filter(entry => entry.status === EntryStatus.PENDING || entry.status === EntryStatus.PARTIAL);
         if (activeTab === FinanceTab.OVERDUE) return entries.filter(entry => entry.status === EntryStatus.OVERDUE);
@@ -268,6 +271,11 @@ export default function EntriesPage() {
             const valA = a[sortBy as keyof FinancialEntry];
             const valB = b[sortBy as keyof FinancialEntry];
             if (valA === undefined || valB === undefined || valA === null || valB === null) return 0;
+            if (sortBy === 'amount' || sortBy === 'paidAmount') {
+                return sortOrder === 'asc'
+                    ? compareMoney(valA as string, valB as string)
+                    : compareMoney(valB as string, valA as string);
+            }
             if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
             if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
             return 0;
@@ -276,9 +284,8 @@ export default function EntriesPage() {
     }, [filteredEntries, sortBy, sortOrder]);
 
     const paginatedEntries = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return sortedAndFilteredEntries.slice(start, start + pageSize);
-    }, [page, pageSize, sortedAndFilteredEntries]);
+        return sortedAndFilteredEntries;
+    }, [sortedAndFilteredEntries]);
 
     const activeFilters: ActiveFilter[] = activeTab !== FinanceTab.ALL
         ? [{
@@ -354,8 +361,8 @@ export default function EntriesPage() {
                     isLoading={isLoading}
                     showSerialNumber
                     currentPage={page}
-                    totalPages={Math.ceil(filteredEntries.length / pageSize) || 1}
-                    totalResults={filteredEntries.length}
+                    totalPages={entriesRes?.totalPages || 1}
+                    totalResults={entriesRes?.totalRecords || 0}
                     pageSize={pageSize}
                     onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
                     onPageSizeChange={handlePageSizeChange}

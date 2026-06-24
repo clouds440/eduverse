@@ -2,7 +2,7 @@
 
 import React, { useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { Wallet, ListTree, Receipt, FileText } from 'lucide-react';
+import { Wallet, ListTree, Receipt, FileText, ScrollText, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Role } from '@/types';
 import { PageHeader, PageTabs } from '@/components/ui/PageShell';
@@ -22,6 +22,8 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         { value: 'structures', label: 'Structures', href: '/finance/structures', icon: ListTree, exact: false, hidden: false },
         { value: 'entries', label: 'Entries', href: '/finance/entries', icon: Receipt, exact: false, hidden: false },
         { value: 'transactions', label: 'Transactions', href: '/finance/transactions', icon: FileText, exact: false, hidden: false },
+        { value: 'payroll', label: 'Payroll', href: '/finance/payroll', icon: Users, exact: false, hidden: isStudentOrTeacher },
+        { value: 'audit', label: 'Audit Logs', href: '/finance/audit-logs', icon: ScrollText, exact: false, hidden: isStudentOrTeacher },
     ] as const;
     const activeTab = tabs.find((tab) => tab.exact ? pathname === tab.href : pathname.startsWith(tab.href))?.value || 'overview';
 

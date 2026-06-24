@@ -1,5 +1,9 @@
-import { IsString, IsEnum, IsNumber, IsOptional, IsDateString, IsBoolean, IsObject, Min, IsArray } from 'class-validator';
+import { IsString, IsEnum, IsNumber, IsOptional, IsDateString, IsBoolean, IsObject, Min, IsArray, IsIn } from 'class-validator';
 import { FinanceCategory, BillingCycle, FinanceTargetType, FinanceAssignmentSource } from '@/prisma/prisma-client';
+
+export enum StructureEntryUpdateScope {
+  OUTSTANDING = 'OUTSTANDING',
+}
 
 export class CreateFinancialStructureDto {
   @IsString()
@@ -25,12 +29,15 @@ export class CreateFinancialStructureDto {
   @IsOptional()
   teacherId?: string;
 
+  @IsString()
+  @IsOptional()
+  employeeUserId?: string;
+
   @IsEnum(FinanceCategory)
   category: FinanceCategory;
 
-  @IsNumber()
-  @Min(0)
-  amount: number;
+  @IsOptional()
+  amount: number | string;
 
   @IsString()
   @IsOptional()
@@ -71,6 +78,11 @@ export class CreateFinancialStructureDto {
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
+  employeeUserIds?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
   sectionIds?: string[];
 
   @IsArray()
@@ -97,10 +109,8 @@ export class UpdateFinancialStructureDto {
   @IsOptional()
   description?: string;
 
-  @IsNumber()
-  @Min(0)
   @IsOptional()
-  amount?: number;
+  amount?: number | string;
 
   @IsBoolean()
   @IsOptional()
@@ -129,6 +139,14 @@ export class UpdateFinancialStructureDto {
   @IsObject()
   @IsOptional()
   metadata?: any;
+
+  @IsBoolean()
+  @IsOptional()
+  applyToExistingEntries?: boolean;
+
+  @IsIn([StructureEntryUpdateScope.OUTSTANDING])
+  @IsOptional()
+  entryUpdateScope?: StructureEntryUpdateScope;
 }
 
 export class CreateManualEntryDto {
@@ -147,9 +165,20 @@ export class CreateManualEntryDto {
   @IsOptional()
   teacherId?: string;
 
-  @IsNumber()
-  @Min(0)
-  amount: number;
+  @IsString()
+  @IsOptional()
+  employeeUserId?: string;
+
+  @IsEnum(FinanceTargetType)
+  @IsOptional()
+  targetType?: FinanceTargetType;
+
+  @IsEnum(FinanceCategory)
+  @IsOptional()
+  category?: FinanceCategory;
+
+  @IsOptional()
+  amount: number | string;
 
   @IsDateString()
   dueDate: string;
@@ -168,10 +197,8 @@ export class CreateManualEntryDto {
 }
 
 export class MarkPaidDto {
-  @IsNumber()
-  @Min(0.01)
   @IsOptional()
-  claimedAmount?: number;
+  claimedAmount?: number | string;
 
   @IsString()
   @IsOptional()
@@ -196,10 +223,8 @@ export class MarkPaidDto {
 }
 
 export class ConfirmEntryDto {
-  @IsNumber()
-  @Min(0)
   @IsOptional()
-  paidAmount?: number;
+  paidAmount?: number | string;
 
   @IsString()
   @IsOptional()

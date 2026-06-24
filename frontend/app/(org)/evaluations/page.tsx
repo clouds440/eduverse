@@ -11,6 +11,7 @@ import { EvaluationType } from '@/types';
 import type { Evaluation, EvaluationWindow, PaginatedResponse } from '@/types';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { PageHeader, PageShell, PageTabs, ResourcePanel } from '@/components/ui/PageShell';
+import type { ActiveFilter } from '@/components/ui/PageShell';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -18,6 +19,9 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StarRatingInput } from '@/components/evaluations/StarRatingInput';
+import { CustomSelect } from '@/components/ui/CustomSelect';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { Label } from '@/components/ui/Label';
 
 type Tab = 'evaluations' | 'windows';
 type EvaluationFilters = Parameters<typeof api.org.getEvaluations>[1];
@@ -26,6 +30,29 @@ const TABS = [
     { key: 'evaluations', label: 'Evaluations', icon: ClipboardList },
     { key: 'windows', label: 'Windows', icon: CalendarDays },
 ] as const;
+
+const typeOptions = [
+    { value: '', label: 'All types' },
+    { value: EvaluationType.TEACHER, label: 'Teacher' },
+    { value: EvaluationType.COURSE, label: 'Course' },
+];
+
+const ratingOptions = [
+    { value: '', label: 'All ratings' },
+    ...[5, 4, 3, 2, 1].map((value) => ({ value: String(value), label: `${value} stars` })),
+];
+
+const feedbackOptions = [
+    { value: '', label: 'Any feedback' },
+    { value: 'true', label: 'Has feedback' },
+    { value: 'false', label: 'No feedback' },
+];
+
+const visibilityOptions = [
+    { value: '', label: 'Any visibility' },
+    { value: 'false', label: 'Visible' },
+    { value: 'true', label: 'Hidden' },
+];
 
 function getErrorMessage(error: unknown) {
     return error instanceof Error ? error.message : 'Unable to save changes';
@@ -73,9 +100,106 @@ export default function EvaluationsManagementPage() {
     const { data: sections } = useSWR(token ? ['sections-for-evaluations', token] as const : null, ([, t]) => api.org.getSections(t as string, { limit: 100 }));
     const { data: teachers } = useSWR(token ? ['teachers-for-evaluations', token] as const : null, ([, t]) => api.org.getTeachers(t as string, { limit: 100 }));
 
+    const cycleOptions = useMemo(() => [
+        { value: '', label: 'All cycles' },
+        ...(cycles?.data || []).map((cycle) => ({ value: cycle.id, label: cycle.name })),
+    ], [cycles?.data]);
+    const courseOptions = useMemo(() => [
+        { value: '', label: 'All courses' },
+        ...(courses?.data || []).map((course) => ({ value: course.id, label: course.name })),
+    ], [courses?.data]);
+    const sectionOptions = useMemo(() => [
+        { value: '', label: 'All sections' },
+        ...(sections?.data || []).map((section) => ({ value: section.id, label: section.name })),
+    ], [sections?.data]);
+    const teacherOptions = useMemo(() => [
+        { value: '', label: 'All teachers' },
+        ...(teachers?.data || []).map((teacher) => ({ value: teacher.id, label: teacher.user?.name || teacher.user?.email || 'Teacher' })),
+    ], [teachers?.data]);
+
     const handleTabChange = (nextTab: Tab) => {
         updateQueryParams({ tab: nextTab === 'evaluations' ? undefined : nextTab });
     };
+
+    const resetEvaluationFilters = () => {
+        setType('');
+        setAcademicCycleId('');
+        setCourseId('');
+        setSectionId('');
+        setTeacherId('');
+        setRating('');
+        setHasFeedback('');
+        setIsHidden('');
+    };
+
+    const activeFilters = useMemo<ActiveFilter[]>(() => [
+        ...(type ? [{ key: 'type', label: 'Type', value: typeOptions.find((option) => option.value === type)?.label || type, onRemove: () => setType('') }] : []),
+        ...(academicCycleId ? [{ key: 'academicCycleId', label: 'Cycle', value: cycleOptions.find((option) => option.value === academicCycleId)?.label || 'Selected cycle', onRemove: () => setAcademicCycleId('') }] : []),
+        ...(courseId ? [{ key: 'courseId', label: 'Course', value: courseOptions.find((option) => option.value === courseId)?.label || 'Selected course', onRemove: () => setCourseId('') }] : []),
+        ...(sectionId ? [{ key: 'sectionId', label: 'Section', value: sectionOptions.find((option) => option.value === sectionId)?.label || 'Selected section', onRemove: () => setSectionId('') }] : []),
+        ...(teacherId ? [{ key: 'teacherId', label: 'Teacher', value: teacherOptions.find((option) => option.value === teacherId)?.label || 'Selected teacher', onRemove: () => setTeacherId('') }] : []),
+        ...(rating ? [{ key: 'rating', label: 'Rating', value: ratingOptions.find((option) => option.value === rating)?.label || `${rating} stars`, onRemove: () => setRating('') }] : []),
+        ...(hasFeedback ? [{ key: 'hasFeedback', label: 'Feedback', value: feedbackOptions.find((option) => option.value === hasFeedback)?.label || hasFeedback, onRemove: () => setHasFeedback('') }] : []),
+        ...(isHidden ? [{ key: 'isHidden', label: 'Visibility', value: visibilityOptions.find((option) => option.value === isHidden)?.label || isHidden, onRemove: () => setIsHidden('') }] : []),
+    ], [academicCycleId, courseId, courseOptions, cycleOptions, hasFeedback, isHidden, rating, sectionId, sectionOptions, teacherId, teacherOptions, type]);
+
+    const evaluationControls = useMemo(() => (
+        <PageControls
+            drawerLabel="Evaluation filters"
+            activeFilters={activeFilters}
+            actions={(
+                <Button variant="secondary" onClick={resetEvaluationFilters}>Reset</Button>
+            )}
+            renderFilters={() => (
+                <FilterDrawerGrid>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Type</Label>
+                        <CustomSelect value={type} onChange={(value) => setType(value as EvaluationType | '')} options={typeOptions} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Academic Cycle</Label>
+                        <CustomSelect value={academicCycleId} onChange={setAcademicCycleId} options={cycleOptions} searchable />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Course</Label>
+                        <CustomSelect value={courseId} onChange={setCourseId} options={courseOptions} searchable />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Section</Label>
+                        <CustomSelect value={sectionId} onChange={setSectionId} options={sectionOptions} searchable />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Teacher</Label>
+                        <CustomSelect value={teacherId} onChange={setTeacherId} options={teacherOptions} searchable />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Rating</Label>
+                        <CustomSelect value={rating} onChange={setRating} options={ratingOptions} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Feedback</Label>
+                        <CustomSelect value={hasFeedback} onChange={setHasFeedback} options={feedbackOptions} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Visibility</Label>
+                        <CustomSelect value={isHidden} onChange={setIsHidden} options={visibilityOptions} />
+                    </div>
+                </FilterDrawerGrid>
+            )}
+        />
+    ), [academicCycleId, activeFilters, courseId, courseOptions, cycleOptions, hasFeedback, isHidden, rating, sectionId, sectionOptions, teacherId, teacherOptions, type]);
+
+    const windowControls = useMemo(() => (
+        <PageControls
+            showDrawer={false}
+            actions={(
+                <Link href="/evaluations/windows/create">
+                    <Button icon={Plus} requireWrite>Open windows</Button>
+                </Link>
+            )}
+            renderFilters={() => null}
+        />
+    ), []);
 
     const toggleVisibility = async (evaluation: Evaluation) => {
         if (!token) return;
@@ -98,11 +222,7 @@ export default function EvaluationsManagementPage() {
                 description="Review teacher and course feedback, moderate written comments, and manage evaluation windows."
                 icon={ClipboardList}
                 breadcrumbs={[{ label: 'Academics' }, { label: 'Evaluations' }]}
-                actions={activeTab === 'windows' ? (
-                    <Link href="/evaluations/windows/create">
-                        <Button icon={Plus} requireWrite>Open windows</Button>
-                    </Link>
-                ) : null}
+                actions={activeTab === 'windows' ? windowControls : evaluationControls}
             />
             <ResourcePanel>
                 <div className="shrink-0 border-b border-border/60 rounded-t-lg bg-card/80">
@@ -118,43 +238,6 @@ export default function EvaluationsManagementPage() {
                 <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar sm:p-4">
                     {activeTab === 'evaluations' ? (
                         <div className="space-y-4">
-                            <div className="grid gap-3 md:grid-cols-4">
-                                <select className="min-h-10 rounded-md border border-border bg-input px-3 text-sm font-medium text-foreground" value={type} onChange={(event) => setType(event.target.value as EvaluationType | '')}>
-                                    <option value="">All types</option>
-                                    <option value={EvaluationType.TEACHER}>Teacher</option>
-                                    <option value={EvaluationType.COURSE}>Course</option>
-                                </select>
-                                <select className="min-h-10 rounded-md border border-border bg-input px-3 text-sm font-medium text-foreground" value={academicCycleId} onChange={(event) => setAcademicCycleId(event.target.value)}>
-                                    <option value="">All cycles</option>
-                                    {(cycles?.data || []).map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}
-                                </select>
-                                <select className="min-h-10 rounded-md border border-border bg-input px-3 text-sm font-medium text-foreground" value={courseId} onChange={(event) => setCourseId(event.target.value)}>
-                                    <option value="">All courses</option>
-                                    {(courses?.data || []).map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
-                                </select>
-                                <select className="min-h-10 rounded-md border border-border bg-input px-3 text-sm font-medium text-foreground" value={sectionId} onChange={(event) => setSectionId(event.target.value)}>
-                                    <option value="">All sections</option>
-                                    {(sections?.data || []).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}
-                                </select>
-                                <select className="min-h-10 rounded-md border border-border bg-input px-3 text-sm font-medium text-foreground" value={teacherId} onChange={(event) => setTeacherId(event.target.value)}>
-                                    <option value="">All teachers</option>
-                                    {(teachers?.data || []).map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.user?.name || teacher.user?.email || 'Teacher'}</option>)}
-                                </select>
-                                <select className="min-h-10 rounded-md border border-border bg-input px-3 text-sm font-medium text-foreground" value={rating} onChange={(event) => setRating(event.target.value)}>
-                                    <option value="">All ratings</option>
-                                    {[5, 4, 3, 2, 1].map((value) => <option key={value} value={value}>{value} stars</option>)}
-                                </select>
-                                <select className="min-h-10 rounded-md border border-border bg-input px-3 text-sm font-medium text-foreground" value={hasFeedback} onChange={(event) => setHasFeedback(event.target.value)}>
-                                    <option value="">Any feedback</option>
-                                    <option value="true">Has feedback</option>
-                                    <option value="false">No feedback</option>
-                                </select>
-                                <select className="min-h-10 rounded-md border border-border bg-input px-3 text-sm font-medium text-foreground" value={isHidden} onChange={(event) => setIsHidden(event.target.value)}>
-                                    <option value="">Any visibility</option>
-                                    <option value="false">Visible</option>
-                                    <option value="true">Hidden</option>
-                                </select>
-                            </div>
                             {evaluationsLoading ? (
                                 <div className="space-y-3">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-lg" />)}</div>
                             ) : evaluationsError ? (

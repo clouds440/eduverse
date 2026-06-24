@@ -10,6 +10,13 @@ import { formatLocalDate, resolveInsightDateRange } from '../shared/insights-dat
 import { formatCurrency, formatPercent, formatSectionLabel } from '../shared/insights-format.util';
 import type { DashboardInsightActivity, DashboardInsightItem, InsightsUser, StandardDashboardInsightsResponse } from '../shared/insights.types';
 
+function moneyNumber(value: unknown): number {
+  if (value && typeof value === 'object' && 'toString' in value) {
+    return Number((value as { toString(): string }).toString());
+  }
+  return Number(value || 0);
+}
+
 @Injectable()
 export class StudentInsightsBuilder {
   constructor(private readonly prisma: PrismaService) {}
@@ -299,7 +306,7 @@ export class StudentInsightsBuilder {
               id: `finance-overdue:${entry.id}`,
               title: entry.title,
               description: 'Past-due fee entry',
-              meta: formatCurrency(Math.max(entry.amount - entry.paidAmount, 0), finance.currency),
+              meta: formatCurrency(Math.max(moneyNumber(entry.amount) - moneyNumber(entry.paidAmount), 0), finance.currency),
               href: role === Role.GUARDIAN ? '/guardian?view=fees' : '/finance/entries',
               badge: 'Fee',
               tone: InsightTone.DANGER,
@@ -501,8 +508,8 @@ export class StudentInsightsBuilder {
   private getFinanceSummary(entries: Array<{
     id: string;
     title: string;
-    amount: number;
-    paidAmount: number;
+    amount: unknown;
+    paidAmount: unknown;
     dueDate: Date;
     status: EntryStatus;
     updatedAt: Date;
@@ -515,7 +522,7 @@ export class StudentInsightsBuilder {
     const overdueItems: typeof entries = [];
 
     entries.forEach((entry) => {
-      const remaining = Math.max(entry.amount - entry.paidAmount, 0);
+      const remaining = Math.max(moneyNumber(entry.amount) - moneyNumber(entry.paidAmount), 0);
       if (remaining <= 0) return;
       outstanding += remaining;
       if (entry.status === EntryStatus.OVERDUE || entry.dueDate < now) {
@@ -530,19 +537,19 @@ export class StudentInsightsBuilder {
   private getFinanceActivities(entries: Array<{
     id: string;
     title: string;
-    amount: number;
-    paidAmount: number;
+    amount: unknown;
+    paidAmount: unknown;
     status: EntryStatus;
     updatedAt: Date;
   }>, currency: string): DashboardInsightActivity[] {
     return entries
-      .filter((entry) => entry.status === EntryStatus.PAID || entry.paidAmount > 0)
+      .filter((entry) => entry.status === EntryStatus.PAID || moneyNumber(entry.paidAmount) > 0)
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
       .slice(0, 3)
       .map((entry) => ({
         id: `finance:${entry.id}`,
         title: entry.status === EntryStatus.PAID ? 'Fee paid' : 'Fee partially paid',
-        description: `${entry.title} - ${formatCurrency(entry.paidAmount || entry.amount, currency)}`,
+        description: `${entry.title} - ${formatCurrency(moneyNumber(entry.paidAmount) || moneyNumber(entry.amount), currency)}`,
         createdAt: entry.updatedAt.toISOString(),
         href: '/finance/entries',
         tone: InsightTone.SUCCESS,

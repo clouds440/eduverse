@@ -12,6 +12,13 @@ import { UserService } from '../users/user.service';
 import { CreateGuardianDto } from './dto/create-guardian.dto';
 import { UpdateGuardianDto } from './dto/update-guardian.dto';
 
+function moneyNumber(value: unknown): number {
+  if (value && typeof value === 'object' && 'toString' in value) {
+    return Number((value as { toString(): string }).toString());
+  }
+  return Number(value || 0);
+}
+
 @Injectable()
 export class GuardiansService {
   constructor(
@@ -279,8 +286,8 @@ export class GuardiansService {
       { total: 0, present: 0, absent: 0, late: 0, excused: 0 },
     );
 
-    const totalDue = recentFinanceEntries.reduce((sum, entry) => sum + entry.amount, 0);
-    const totalPaid = recentFinanceEntries.reduce((sum, entry) => sum + entry.paidAmount, 0);
+    const totalDue = recentFinanceEntries.reduce((sum, entry) => sum + moneyNumber(entry.amount), 0);
+    const totalPaid = recentFinanceEntries.reduce((sum, entry) => sum + moneyNumber(entry.paidAmount), 0);
 
     return {
       guardian,
@@ -438,8 +445,8 @@ export class GuardiansService {
       : null;
 
     const activeFinanceEntries = financeEntries.filter((entry) => entry.status !== 'CANCELLED');
-    const totalDue = activeFinanceEntries.reduce((sum, entry) => sum + entry.amount, 0);
-    const totalPaid = activeFinanceEntries.reduce((sum, entry) => sum + entry.paidAmount, 0);
+    const totalDue = activeFinanceEntries.reduce((sum, entry) => sum + moneyNumber(entry.amount), 0);
+    const totalPaid = activeFinanceEntries.reduce((sum, entry) => sum + moneyNumber(entry.paidAmount), 0);
     const balance = Math.max(totalDue - totalPaid, 0);
     const overdueEntries = activeFinanceEntries.filter((entry) => {
       const dueDate = new Date(entry.dueDate);
@@ -515,7 +522,7 @@ export class GuardiansService {
         totalDue,
         totalPaid,
         balance,
-        overdueAmount: overdueEntries.reduce((sum, entry) => sum + Math.max(entry.amount - entry.paidAmount, 0), 0),
+        overdueAmount: overdueEntries.reduce((sum, entry) => sum + Math.max(moneyNumber(entry.amount) - moneyNumber(entry.paidAmount), 0), 0),
         overdueCount: overdueEntries.length,
         pendingCount: activeFinanceEntries.filter((entry) => ['PENDING', 'PARTIAL', 'UNVERIFIED'].includes(entry.status)).length,
       },

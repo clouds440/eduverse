@@ -260,8 +260,40 @@ export function PageTabs<T extends string = string>({
     itemClassName,
 }: PageTabsProps<T>) {
     const tabsRef = useRef<HTMLElement>(null);
+    const tabsScrollerRef = useRef<HTMLDivElement>(null);
     const isVisible = usePageScrollVisibility(tabsRef, hideOnScroll);
+    const [tabScrollState, setTabScrollState] = useState({ canScroll: false, atStart: true, atEnd: true });
     const visibleItems = items.filter((item) => !item.hidden);
+
+    useEffect(() => {
+        const scroller = tabsScrollerRef.current;
+        if (!scroller) return;
+
+        const updateScrollState = () => {
+            const maxScrollLeft = scroller.scrollWidth - scroller.clientWidth;
+            setTabScrollState({
+                canScroll: maxScrollLeft > 2,
+                atStart: scroller.scrollLeft <= 2,
+                atEnd: scroller.scrollLeft >= maxScrollLeft - 2,
+            });
+        };
+
+        updateScrollState();
+        scroller.addEventListener('scroll', updateScrollState, { passive: true });
+        window.addEventListener('resize', updateScrollState, { passive: true });
+
+        let resizeObserver: ResizeObserver | null = null;
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(updateScrollState);
+            resizeObserver.observe(scroller);
+        }
+
+        return () => {
+            scroller.removeEventListener('scroll', updateScrollState);
+            window.removeEventListener('resize', updateScrollState);
+            resizeObserver?.disconnect();
+        };
+    }, [visibleItems.length]);
 
     if (visibleItems.length === 0) return null;
 
@@ -275,13 +307,17 @@ export function PageTabs<T extends string = string>({
                 className,
             )}
         >
-            <div className={cn(
-                'flex gap-0.5 overflow-x-auto border border-border/70 p-0.5 scrollbar-none',
-                tone === 'page'
-                    ? 'rounded-lg bg-card/95 shadow-sm'
-                    : 'rounded-t-lg bg-muted/45',
-            )}>
-                {visibleItems.map(({ value, label, icon: Icon, count, href }) => {
+            <div className="relative">
+                <div
+                    ref={tabsScrollerRef}
+                    className={cn(
+                        'flex gap-0.5 overflow-x-auto border border-border/70 p-0.5 scrollbar-none',
+                        tone === 'page'
+                            ? 'rounded-lg bg-card/95 shadow-sm'
+                            : 'rounded-lg bg-muted/45',
+                    )}
+                >
+                    {visibleItems.map(({ value, label, icon: Icon, count, href }) => {
                     const isActive = activeValue === value;
                     const content = (
                         <>
@@ -333,7 +369,20 @@ export function PageTabs<T extends string = string>({
                             {content}
                         </button>
                     );
-                })}
+                    })}
+                </div>
+                {tabScrollState.canScroll && !tabScrollState.atStart && (
+                    <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-y-0 left-0 block w-8 rounded-l-lg bg-linear-to-r from-card via-card/85 to-transparent md:hidden"
+                    />
+                )}
+                {tabScrollState.canScroll && !tabScrollState.atEnd && (
+                    <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-y-0 right-0 block w-10 rounded-r-lg bg-linear-to-l from-card via-card/85 to-transparent md:hidden"
+                    />
+                )}
             </div>
         </nav>
     );
@@ -592,5 +641,3 @@ export function ResourceToolbar({ search, filters, actions, activeFilters = [], 
         </div>
     );
 }
-
-

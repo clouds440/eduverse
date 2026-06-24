@@ -35,6 +35,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import type { ActiveFilter } from '@/components/ui/PageShell';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { moneySubtract, toMoneyNumber } from '@/lib/money';
 
 const statusTabs = [
     { id: 'DUE', label: 'Due' },
@@ -64,7 +65,7 @@ function formatCycle(cycle: BillingCycle) {
 }
 
 function getEntryBalance(entry: FinancialEntry) {
-    return Math.max(0, Number(entry.amount || 0) - Number(entry.paidAmount || 0));
+    return moneySubtract(entry.amount, entry.paidAmount);
 }
 
 function isPayable(entry: FinancialEntry) {
@@ -121,7 +122,7 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
         return {
             dueAmount: dueEntries.reduce((sum, entry) => sum + getEntryBalance(entry), 0),
             awaitingCount: awaitingApproval.length,
-            paidAmount: paidEntries.reduce((sum, entry) => sum + Number(entry.paidAmount || 0), 0),
+            paidAmount: paidEntries.reduce((sum, entry) => sum + toMoneyNumber(entry.paidAmount), 0),
             dueEntries,
             awaitingApproval,
             paidEntries,

@@ -85,6 +85,13 @@ export interface FinanceInsightCharts {
 type FinanceTransaction = Awaited<ReturnType<FinanceInsightsBuilder['getTransactions']>>[number];
 type FinanceEntry = Awaited<ReturnType<FinanceInsightsBuilder['getEntriesForHealth']>>[number];
 
+function moneyNumber(value: unknown): number {
+  if (value && typeof value === 'object' && 'toString' in value) {
+    return Number((value as { toString(): string }).toString());
+  }
+  return Number(value || 0);
+}
+
 @Injectable()
 export class FinanceInsightsBuilder {
   constructor(private readonly prisma: PrismaService) {}
@@ -343,7 +350,7 @@ export class FinanceInsightsBuilder {
   private sumTransactions(transactions: FinanceTransaction[], type: TransactionType) {
     return transactions
       .filter((transaction) => transaction.type === type)
-      .reduce((sum, transaction) => sum + transaction.amount, 0);
+      .reduce((sum, transaction) => sum + moneyNumber(transaction.amount), 0);
   }
 
   private changePercent(current: number, previous: number) {
@@ -369,11 +376,11 @@ export class FinanceInsightsBuilder {
   private getSources(transactions: FinanceTransaction[], type: TransactionType): FinanceSourcePoint[] {
     const totals = new Map<string, number>();
     const filtered = transactions.filter((transaction) => transaction.type === type);
-    const totalAmount = filtered.reduce((sum, transaction) => sum + transaction.amount, 0);
+    const totalAmount = filtered.reduce((sum, transaction) => sum + moneyNumber(transaction.amount), 0);
 
     filtered.forEach((transaction) => {
       const source = this.sourceName(transaction);
-      totals.set(source, (totals.get(source) || 0) + transaction.amount);
+      totals.set(source, (totals.get(source) || 0) + moneyNumber(transaction.amount));
     });
 
     return Array.from(totals.entries())
@@ -400,8 +407,9 @@ export class FinanceInsightsBuilder {
       const label = getIntervalLabel(transaction.createdAt, interval);
       const row = rows.get(label);
       if (!row) return;
-      if (transaction.type === TransactionType.INCOME) row.income += transaction.amount;
-      if (transaction.type === TransactionType.EXPENSE) row.expense += transaction.amount;
+      const amount = moneyNumber(transaction.amount);
+      if (transaction.type === TransactionType.INCOME) row.income += amount;
+      if (transaction.type === TransactionType.EXPENSE) row.expense += amount;
       row.netFlow = row.income - row.expense;
     });
 
@@ -434,7 +442,7 @@ export class FinanceInsightsBuilder {
         const row = rows.get(label);
         if (!row) return;
         const source = this.sourceName(transaction);
-        row[source] = Number(row[source] || 0) + transaction.amount;
+        row[source] = Number(row[source] || 0) + moneyNumber(transaction.amount);
       });
 
     return Array.from(rows.values());
@@ -446,8 +454,9 @@ export class FinanceInsightsBuilder {
     transactions.forEach((transaction) => {
       const label = getMonthLabel(transaction.createdAt);
       const row = rows.get(label) || { label, income: 0, expense: 0, netFlow: 0 };
-      if (transaction.type === TransactionType.INCOME) row.income += transaction.amount;
-      if (transaction.type === TransactionType.EXPENSE) row.expense += transaction.amount;
+      const amount = moneyNumber(transaction.amount);
+      if (transaction.type === TransactionType.INCOME) row.income += amount;
+      if (transaction.type === TransactionType.EXPENSE) row.expense += amount;
       row.netFlow = row.income - row.expense;
       rows.set(label, row);
     });
@@ -498,7 +507,7 @@ export class FinanceInsightsBuilder {
     let pendingExpenseAmount = 0;
 
     entries.forEach((entry) => {
-      const outstanding = Math.max(entry.amount - entry.paidAmount, 0);
+      const outstanding = Math.max(moneyNumber(entry.amount) - moneyNumber(entry.paidAmount), 0);
       if (outstanding <= 0) return;
 
       if (this.entryIsExpense(entry)) {

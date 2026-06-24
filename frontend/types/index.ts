@@ -506,6 +506,13 @@ export interface AuditLogItem {
     actor: { id: string; name: string | null; email: string; role: string } | null;
     target: { id: string; name: string | null; email: string; role: string } | null;
     organization: { id: string; name: string; logoUrl: string | null; avatarUpdatedAt: string | null } | null;
+    module?: string | null;
+    resourceType?: string | null;
+    resourceId?: string | null;
+    financeStructureId?: string | null;
+    financeEntryId?: string | null;
+    paymentClaimId?: string | null;
+    transactionId?: string | null;
     ip: string | null;
     userAgent: string | null;
     sessionId: string | null;
@@ -1848,6 +1855,8 @@ export enum TransactionType {
 export enum FinanceTargetType {
     STUDENT = 'STUDENT',
     TEACHER = 'TEACHER',
+    SUB_ADMIN = 'SUB_ADMIN',
+    FINANCE_MANAGER = 'FINANCE_MANAGER',
     OTHER_INCOME = 'OTHER_INCOME',
     OTHER_EXPENSE = 'OTHER_EXPENSE'
 }
@@ -1882,8 +1891,9 @@ export interface FinancialStructure {
     targetType: FinanceTargetType;
     studentId: string | null;
     teacherId: string | null;
+    employeeUserId: string | null;
     category: FinanceCategory;
-    amount: number;
+    amount: string;
     currency: string;
     billingCycle: BillingCycle;
     dueDay: number | null;
@@ -1894,6 +1904,7 @@ export interface FinancialStructure {
     createdAt: string;
     updatedAt: string;
     assignments?: FinancialStructureAssignment[];
+    employeeUser?: Pick<User, 'id' | 'name' | 'email' | 'role' | 'status' | 'avatarUrl' | 'avatarUpdatedAt'> | null;
     _count?: { assignments?: number; entries?: number };
 }
 
@@ -1904,6 +1915,7 @@ export interface FinancialStructureAssignment {
     targetType: FinanceTargetType;
     studentId: string | null;
     teacherId: string | null;
+    employeeUserId: string | null;
     entityName: string | null;
     sourceType: FinanceAssignmentSource;
     sourceId: string | null;
@@ -1913,13 +1925,14 @@ export interface FinancialStructureAssignment {
     updatedAt: string;
     student?: Student | null;
     teacher?: Teacher | null;
+    employeeUser?: Pick<User, 'id' | 'name' | 'email' | 'role' | 'status' | 'avatarUrl' | 'avatarUpdatedAt'> | null;
 }
 
 export interface PaymentClaim {
     id: string;
     organizationId: string;
     entryId: string;
-    claimedAmount: number;
+    claimedAmount: string;
     paymentMethod: string | null;
     referenceNumber: string | null;
     receiptUrl: string | null;
@@ -1929,7 +1942,7 @@ export interface PaymentClaim {
     claimedAt: string;
     reviewedById: string | null;
     reviewedAt: string | null;
-    confirmedAmount: number | null;
+    confirmedAmount: string | null;
     rejectionReason: string | null;
     metadata: Record<string, unknown> | null;
     claimedBy?: Pick<User, 'id' | 'name' | 'email' | 'role'>;
@@ -1961,8 +1974,9 @@ export interface FinancialEntry {
     title: string;
     studentId: string | null;
     teacherId: string | null;
-    amount: number;
-    paidAmount: number;
+    employeeUserId: string | null;
+    amount: string;
+    paidAmount: string;
     currency: string;
     source: EntrySource;
     status: EntryStatus;
@@ -1985,6 +1999,7 @@ export interface FinancialEntry {
     assignment?: FinancialStructureAssignment | null;
     student?: Student | null;
     teacher?: Teacher | null;
+    employeeUser?: Pick<User, 'id' | 'name' | 'email' | 'role' | 'status' | 'avatarUrl' | 'avatarUpdatedAt'> | null;
     claims?: PaymentClaim[];
     transactions?: Transaction[];
     attachments?: FinanceAttachment[];
@@ -1996,7 +2011,7 @@ export interface Transaction {
     relatedEntryId: string | null;
     type: TransactionType;
     category: FinanceCategory;
-    amount: number;
+    amount: string;
     currency: string;
     description: string | null;
     paymentMethod: string | null;
@@ -2011,7 +2026,9 @@ export interface Transaction {
 }
 
 export interface TeacherFinanceOverview {
-    teacher: Teacher;
+    teacher?: Teacher | null;
+    employee?: Pick<User, 'id' | 'name' | 'email' | 'role' | 'avatarUrl' | 'avatarUpdatedAt'> | null;
+    targetType?: FinanceTargetType;
     summary: {
         currency: string;
         assignedSalaryAmount: number;
@@ -2030,6 +2047,14 @@ export interface TeacherFinanceOverview {
     recentEntries: FinancialEntry[];
     overdueEntries: FinancialEntry[];
     recentTransactions: Transaction[];
+}
+
+export interface PayrollRosterRow {
+    targetType: FinanceTargetType;
+    teacherId: string | null;
+    employeeUserId: string | null;
+    user: Pick<User, 'id' | 'name' | 'email' | 'role' | 'status' | 'avatarUrl' | 'avatarUpdatedAt'>;
+    summary: TeacherFinanceOverview['summary'];
 }
 export interface FinanceStats {
     totalExpectedIncome: number;

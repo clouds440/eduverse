@@ -251,7 +251,8 @@ export const docsPages: DocPage[] = [
             rows: [
               ['Financial Structure', 'A reusable plan for a charge or expense, such as monthly tuition.'],
               ['Financial Entry', 'A specific payable amount created from a structure or finance action.'],
-              ['Transaction', 'A confirmed payment or finance record tied to an entry.'],
+              ['Transaction', 'A confirmed money record tied to an entry, such as a confirmed fee payment or salary payment.'],
+              ['Audit Log', 'A history record that explains what changed, who changed it, when it changed, and what finance item it affected.'],
               ['Payment Claim', 'A request saying a payment was made and needs staff verification.'],
               ['Announcement', 'A broad notice sent to a selected audience.'],
             ],
@@ -1378,7 +1379,7 @@ export const docsPages: DocPage[] = [
   {
     slug: 'finance',
     title: 'Finance',
-    description: 'Manage fee structures, entries, payment claims, verification, and transaction history.',
+    description: 'Manage fee structures, staff payroll, entries, payment claims, confirmed transactions, and finance audit history.',
     category: 'Operations',
     tags: ['finance', 'fee', 'structure', 'payment', 'transaction'],
     related: ['students', 'roles-permissions', 'fees'],
@@ -1392,11 +1393,11 @@ export const docsPages: DocPage[] = [
             type: 'table',
             headers: ['Role', 'Finance access'],
             rows: [
-              ['Admin', 'Can manage finance structures, entries, claims, payment confirmation, and transactions.'],
-              ['Sub Admin', 'Can review finance where available, but finance operations are not the Sub Admin daily role.'],
-              ['Finance Manager', 'Can manage finance structures, entries, claims, payment confirmation, and transaction history.'],
+              ['Admin', 'Can manage finance structures, entries, claims, payment confirmation, staff payroll, transactions, and audit logs.'],
+              ['Sub Admin', 'Can review finance where allowed and can also have their own payroll records.'],
+              ['Finance Manager', 'Can manage finance structures, entries, claims, payment confirmation, staff payroll, transactions, and audit logs. Finance Managers can also have their own payroll records.'],
               ['Manager', 'No finance management access. Managers focus on academic oversight.'],
-              ['Teacher', 'Can view relevant self/assigned finance records where exposed by the portal.'],
+              ['Teacher', 'Can view their own salary records where exposed by the portal.'],
               ['Student', 'Can view own fees and submit payment claims.'],
               ['Guardian', 'Can view linked-student fee status from the guardian portal.'],
             ],
@@ -1404,7 +1405,35 @@ export const docsPages: DocPage[] = [
           {
             type: 'flow',
             title: 'Finance manager flow',
-            steps: ['Open Finance', 'Review structures or entries', 'Check payment claims', 'Verify proof', 'Confirm or reject payment', 'Review transaction history'],
+            steps: ['Open Finance', 'Review structures or entries', 'Check payment claims', 'Verify proof', 'Confirm or reject payment', 'Review transactions', 'Use audit logs when you need to see the full change history'],
+          },
+        ],
+      },
+      {
+        id: 'finance-tabs',
+        title: 'Finance tabs',
+        tags: ['overview', 'structures', 'entries', 'transactions', 'audit logs', 'payroll'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The Finance workspace is split into tabs so each kind of finance work has a clear place. Use the tab that matches the question you are trying to answer.',
+          },
+          {
+            type: 'table',
+            headers: ['Tab', 'Use it for', 'Plain meaning'],
+            rows: [
+              ['Overview', 'A quick summary of income, expenses, unpaid balances, and recent finance activity.', 'Use this when you want the big picture.'],
+              ['Structures', 'Creating and editing reusable plans for fees, salaries, staff payments, and other income or expenses.', 'Use this when you want to define what should be charged or paid.'],
+              ['Entries', 'Viewing the actual amounts due for students, teachers, sub admins, finance managers, or other targets.', 'Use this when you want to know who owes money or who needs to be paid.'],
+              ['Transactions', 'Viewing confirmed money records after a payment has been accepted or recorded.', 'Use this when you want the money record.'],
+              ['Payroll', 'Reviewing salary and payment records for teachers, sub admins, and finance managers.', 'Use this when you want staff payment status by role.'],
+              ['Audit Logs', 'Reviewing the full history of finance changes, including who did what and what record was affected.', 'Use this when you want the story behind a change.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Transactions are not audit logs',
+            text: 'A transaction says money was confirmed. An audit log says what happened in the system. For example, confirming a payment creates a transaction, but the audit log also records who confirmed it, when it happened, what entry or claim was affected, and the before/after details where available.',
           },
         ],
       },
@@ -1415,7 +1444,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Finance structures define reusable recurring or one-time templates, such as tuition, admission fees, salaries, vendor expenses, or other school-defined amounts.',
+            text: 'Finance structures define reusable recurring or one-time plans, such as tuition, admission fees, teacher salary, sub admin salary, finance manager salary, vendor expenses, or other school-defined amounts.',
           },
           {
             type: 'tip',
@@ -1425,8 +1454,9 @@ export const docsPages: DocPage[] = [
           {
             type: 'list',
             items: [
-              'A structure is created once, then assigned to students, teachers, sections, cohorts, courses, or another income/expense entity.',
-              'Student structures use student-facing income categories; teacher structures use teacher-facing expense categories.',
+              'A structure is created once, then assigned to students, teachers, sub admins, finance managers, sections, cohorts, courses, or another income/expense entity.',
+              'Student structures are income for the school. Teacher, sub admin, finance manager, and other expense structures are expenses for the school.',
+              'Amounts support cents, so values such as 1250.50 can be saved and shown correctly.',
               'Generated entries track payment state separately from the structure definition.',
               'Timed entries generated by the finance scheduler create in-app notifications and web push notifications when push is enabled.',
               'Payment processing is recorded inside EduVerse, but external payment gateway integration is outside the current scope.',
@@ -1438,13 +1468,19 @@ export const docsPages: DocPage[] = [
             text: 'Check the target type, assignment scope, amount, category, billing cycle, due day, and start date. The structure is the plan; assignments decide who or what receives generated entries.',
           },
           {
+            type: 'note',
+            title: 'Editing a structure',
+            text: 'When editing a structure, you can choose whether current outstanding assigned entries should be updated. Only entries that still need action are eligible. Paid and cancelled entries are left alone.',
+          },
+          {
             type: 'table',
             headers: ['Item', 'What it means', 'Common mistake'],
             rows: [
               ['Structure', 'The reusable billing or expense template.', 'Creating a separate structure for every student when one assigned structure is enough.'],
-              ['Assignment', 'The student, teacher, group, course, or entity attached to the structure.', 'Forgetting that course assignment includes students through all matching sections.'],
+              ['Assignment', 'The student, staff member, group, course, or entity attached to the structure.', 'Forgetting that course assignment includes students through all matching sections.'],
               ['Entry', 'A specific payable item generated for an assignment.', 'Treating an entry as paid before proof has been reviewed.'],
               ['Transaction', 'A confirmed ledger action tied back to an entry and target.', 'Recording unclear references that are hard to audit later.'],
+              ['Audit Log', 'A history record for a finance change.', 'Looking only at transactions when you need to know who changed something.'],
             ],
           },
           {
@@ -1471,9 +1507,41 @@ export const docsPages: DocPage[] = [
             type: 'list',
             items: [
               'Use a positive amount that matches the billing agreement.',
+              'Use decimal points when cents matter, such as 99.50 or 1250.75.',
               'For one-time structures, the amount usually represents the full charge.',
               'For recurring structures, the amount usually represents the value for each billing period.',
-              'Changing an existing structure does not automatically rewrite past entries or transactions.',
+              'Changing an existing structure does not automatically rewrite old entries or transactions.',
+              'If you choose to update current outstanding entries, paid and cancelled entries are still kept as they were.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'staff-payroll',
+        title: 'Staff payroll',
+        tags: ['payroll', 'teachers', 'sub admins', 'finance managers', 'salary'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Payroll is the staff payment side of finance. Teachers, Sub Admins, and Finance Managers can all receive assigned payment structures and generated payment entries.',
+          },
+          {
+            type: 'table',
+            headers: ['Staff group', 'Where to review it', 'What it shows'],
+            rows: [
+              ['Teachers', 'Payroll tab, Teachers view', 'Assigned salary structures, generated salary entries, paid amounts, unpaid balances, and overdue salary entries.'],
+              ['Sub Admins', 'Payroll tab, Sub Admins view', 'Assigned payment structures, generated payment entries, paid amounts, unpaid balances, and profile links.'],
+              ['Finance Managers', 'Payroll tab, Finance Managers view', 'Assigned payment structures, generated payment entries, paid amounts, unpaid balances, and profile links.'],
+            ],
+          },
+          {
+            type: 'list',
+            items: [
+              'Use teacher payment structures for teachers.',
+              'Use sub admin payment structures for Sub Admin staff accounts.',
+              'Use finance manager payment structures for Finance Manager staff accounts.',
+              'Staff members can use My Finance to view their own assigned payroll records when their role has that view.',
+              'Payroll entries are expenses for the school, not student fee income.',
             ],
           },
         ],
@@ -1494,6 +1562,8 @@ export const docsPages: DocPage[] = [
               'Unverified payments still need staff review.',
               'Confirm a payment only after checking the receipt, transaction reference, cash record, or other school-approved proof.',
               'Confirmed payments update the paid amount and transaction history.',
+              'A user cannot confirm their own claim. Another allowed staff member must review it.',
+              'A claim can only be confirmed or rejected while it is still waiting for review.',
               'Once the full amount is paid, confirmation controls are restricted and the entry displays as fully paid.',
             ],
           },
@@ -1510,6 +1580,7 @@ export const docsPages: DocPage[] = [
               ['Awaiting Approval', 'A payment claim has been submitted but not verified.', 'Finance staff.'],
               ['Partially Paid', 'Some payment was confirmed but a balance remains.', 'Student or finance staff.'],
               ['Paid', 'The full amount has been confirmed.', 'No action unless correction is needed.'],
+              ['Cancelled', 'The unpaid entry has been voided and should not be collected or paid.', 'Finance staff, only when cancellation is correct.'],
             ],
           },
         ],
@@ -1549,8 +1620,70 @@ export const docsPages: DocPage[] = [
               'Confirm only the amount that was actually verified.',
               'Use partial confirmation when only part of the balance was paid.',
               'Once an entry is fully paid, it appears as paid instead of due or awaiting approval.',
+              'If a confirmed transaction needs correction later, use a reversal or refund record. Do not treat transaction editing as the normal correction method.',
               'Keep receipt and reference details readable so later audits make sense.',
             ],
+          },
+        ],
+      },
+      {
+        id: 'transactions',
+        title: 'Transactions',
+        tags: ['transactions', 'confirmed payments', 'money records'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Transactions are confirmed money records. They are created after a payment or staff payout is accepted, confirmed, or reversed.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Use Transactions to answer money questions such as what was paid, how much was confirmed, which entry it belongs to, and which payment method or reference was used.',
+              'Transactions should stay clear and stable. Corrections should happen through reversal or refund records instead of quietly changing the original money record.',
+              'Transactions are useful for finance reporting, payment history, and checking confirmed income or expenses.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'What transactions do not show',
+            text: 'Transactions do not show every small system change. They do not replace audit logs. If you need to know who edited a structure, who rejected a claim, who cancelled an entry, or what changed before and after, use Audit Logs.',
+          },
+        ],
+      },
+      {
+        id: 'finance-audit-logs',
+        title: 'Audit logs',
+        tags: ['audit logs', 'history', 'security', 'changes'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Audit logs show the history of finance actions. They are designed for review, accountability, and troubleshooting.',
+          },
+          {
+            type: 'table',
+            headers: ['Audit log shows', 'Why it matters'],
+            rows: [
+              ['Who acted', 'You can see the user or system action responsible for the change.'],
+              ['What happened', 'You can see the action, such as structure update, entry generation, claim review, payment confirmation, cancellation, or reversal.'],
+              ['What record was affected', 'You can open the related structure, entry, claim, or transaction when a link is available.'],
+              ['When it happened', 'You can trace the timing of a finance event.'],
+              ['Request details', 'IP and device details help with security review.'],
+              ['Before and after details', 'Where available, the detail view explains what changed.'],
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Use Transactions when...', 'Use Audit Logs when...'],
+            rows: [
+              ['You need the confirmed money record.', 'You need the full history of what changed.'],
+              ['You are checking payment amount, method, reference, or date.', 'You are checking who created, edited, approved, rejected, cancelled, or reversed something.'],
+              ['You are reviewing collected fees or staff payouts.', 'You are investigating a mistake, dispute, suspicious action, or missing context.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Simple example',
+            text: 'If a student payment is confirmed, Transactions show the confirmed payment. Audit Logs show the confirmation action, the person who did it, the affected entry or claim, time, request details, and related links.',
           },
         ],
       },
@@ -1565,7 +1698,9 @@ export const docsPages: DocPage[] = [
               'Creating too many duplicate structures instead of assigning one structure to the right targets.',
               'Confirming a payment claim before checking receipt or reference details.',
               'Assuming a claimed payment is already paid before staff approval.',
-              'Editing a structure and expecting old entries or transactions to rewrite automatically.',
+              'Editing a structure and expecting paid entries or transactions to rewrite automatically.',
+              'Using Transactions to investigate system changes when Audit Logs are the right place.',
+              'Assigning staff payroll under Other Expense instead of using Teacher, Sub Admin, or Finance Manager targets.',
             ],
           },
         ],
@@ -2597,7 +2732,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'flow',
             title: 'Finance role flow',
-            steps: ['Create or review finance structure', 'Generate or review entries', 'Receive payment claim', 'Verify proof', 'Confirm or reject payment', 'Review transaction history'],
+            steps: ['Create or review finance structure', 'Generate or review entries', 'Receive payment claim', 'Verify proof', 'Confirm or reject payment', 'Review transactions', 'Check audit logs when you need the full change history'],
           },
           {
             type: 'table',
@@ -2605,7 +2740,9 @@ export const docsPages: DocPage[] = [
             rows: [
               ['Structures and entries', 'Create and manage finance records where allowed.'],
               ['Payment claims', 'Review, confirm, or reject submitted claims.'],
-              ['Transactions', 'Review confirmed activity and keep references clear.'],
+              ['Transactions', 'Review confirmed money records and keep references clear.'],
+              ['Audit logs', 'Review who changed finance records, what changed, and which entry, claim, structure, or transaction was affected.'],
+              ['Payroll', 'Review staff payment records for teachers, Sub Admins, and Finance Managers where allowed.'],
               ['Communication', 'Use mail for finance-related contact with students, guardians, Admins, and Sub Admins.'],
             ],
           },

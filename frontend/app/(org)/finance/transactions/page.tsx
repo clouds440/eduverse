@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/Input';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
 import { FinanceFilterGrid, FinanceFilterToolbar } from '../_components/FinanceFilterToolbar';
 import { FinanceAttachments } from '@/components/finance/FinanceAttachments';
+import { compareMoney } from '@/lib/money';
 
 function labelize(value: string) {
     return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -51,9 +52,11 @@ export default function TransactionsPage() {
     const dateTo = getStringParam('dateTo', '');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-finance-transactions-limit', 10);
 
-    const { data: transactions, error, isLoading, mutate } = useSWR<Transaction[]>(
-        token ? ['finance/transactions', token, targetType, category, billingCycle, type, paymentMethod, search, dateFrom, dateTo] : null,
-        ([, t]) => api.finance.getTransactions(t as string, {
+    const { data: transactionsRes, error, isLoading, mutate } = useSWR(
+        token ? ['finance/transactions', token, page, pageSize, targetType, category, billingCycle, type, paymentMethod, search, dateFrom, dateTo] : null,
+        ([, t]) => api.finance.getTransactionsPage(t as string, {
+            page,
+            limit: pageSize,
             targetType: targetType || undefined,
             category: category || undefined,
             billingCycle: billingCycle || undefined,
@@ -64,6 +67,7 @@ export default function TransactionsPage() {
             dateTo: dateTo || undefined,
         })
     );
+    const transactions = transactionsRes?.data || [];
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
@@ -168,12 +172,12 @@ export default function TransactionsPage() {
     ], []);
 
     const sortedData = useMemo(() => {
-        if (!transactions) return [];
         const result = [...transactions];
         result.sort((a, b) => {
             const valA = a[sortBy as keyof Transaction];
             const valB = b[sortBy as keyof Transaction];
             if (valA === undefined || valB === undefined || valA === null || valB === null) return 0;
+            if (sortBy === 'amount') return sortOrder === 'asc' ? compareMoney(valA as string, valB as string) : compareMoney(valB as string, valA as string);
             if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
             if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
             return 0;
@@ -182,9 +186,8 @@ export default function TransactionsPage() {
     }, [sortBy, sortOrder, transactions]);
 
     const paginatedData = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return sortedData.slice(start, start + pageSize);
-    }, [page, pageSize, sortedData]);
+        return sortedData;
+    }, [sortedData]);
 
     const activeFilters: ActiveFilter[] = [
         ...(targetType ? [{ key: 'targetType', label: 'Target', value: labelize(targetType), onRemove: () => updateQueryParams({ targetType: undefined, page: 1 }) }] : []),
@@ -251,8 +254,8 @@ export default function TransactionsPage() {
                         isLoading={isLoading}
                         showSerialNumber
                         currentPage={page}
-                        totalPages={Math.ceil((transactions?.length || 0) / pageSize) || 1}
-                        totalResults={transactions?.length || 0}
+                        totalPages={transactionsRes?.totalPages || 1}
+                        totalResults={transactionsRes?.totalRecords || 0}
                         pageSize={pageSize}
                         onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
                         onPageSizeChange={handlePageSizeChange}

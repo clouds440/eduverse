@@ -13,7 +13,7 @@ import type {
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
     CampusNavigationResponse,
-    FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, TeacherFinanceOverview, MessageResponse, AuditLogItem,
+    FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, TeacherFinanceOverview, MessageResponse, AuditLogItem, PayrollRosterRow,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, SectionGradebookResponse, OrgUserCounts,
     ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions,
@@ -855,14 +855,18 @@ export const api = {
     },
 
     finance: {
-        getStructures: (token: string, params: { studentId?: string, teacherId?: string, targetType?: string, category?: string, billingCycle?: string, assignmentSource?: string, isActive?: string, search?: string } = {}) =>
+        getStructures: (token: string, params: { studentId?: string, teacherId?: string, employeeUserId?: string, targetType?: string, category?: string, billingCycle?: string, assignmentSource?: string, isActive?: string, search?: string } = {}) =>
             request<FinancialStructure[]>(`/finance/structures${buildQueryString(params)}`, { token }),
+        getStructuresPage: (token: string, params: { page?: number, limit?: number, studentId?: string, teacherId?: string, employeeUserId?: string, targetType?: string, category?: string, billingCycle?: string, assignmentSource?: string, isActive?: string, search?: string } = {}) =>
+            request<PaginatedResponse<FinancialStructure>>(`/finance/structures${buildQueryString(params)}`, { token }),
         createStructure: (data: Partial<FinancialStructure>, token: string) =>
             request<FinancialStructure>('/finance/structures', { method: 'POST', body: JSON.stringify(data), token }),
         updateStructure: (id: string, data: Partial<FinancialStructure>, token: string) =>
-            request<FinancialStructure>(`/finance/structures/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        getEntries: (token: string, params: { studentId?: string, teacherId?: string, targetType?: string, category?: string, billingCycle?: string, status?: string, search?: string, dueFrom?: string, dueTo?: string } = {}) =>
+            request<{ structure: FinancialStructure, entryUpdateSummary: { updated: number, skipped: number, skippedEntryIds: string[] } }>(`/finance/structures/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getEntries: (token: string, params: { studentId?: string, teacherId?: string, employeeUserId?: string, targetType?: string, category?: string, billingCycle?: string, status?: string, search?: string, dueFrom?: string, dueTo?: string } = {}) =>
             request<FinancialEntry[]>(`/finance/entries${buildQueryString(params)}`, { token }),
+        getEntriesPage: (token: string, params: { page?: number, limit?: number, studentId?: string, teacherId?: string, employeeUserId?: string, targetType?: string, category?: string, billingCycle?: string, status?: string, search?: string, dueFrom?: string, dueTo?: string } = {}) =>
+            request<PaginatedResponse<FinancialEntry>>(`/finance/entries${buildQueryString(params)}`, { token }),
         createManualEntry: (data: Partial<FinancialEntry>, token: string) =>
             request<FinancialEntry>('/finance/entries/manual', { method: 'POST', body: JSON.stringify(data), token }),
         markEntryPaid: (id: string, data: { claimedAmount?: number, paymentMethod?: string, receiptUrl?: string, referenceNumber?: string, note?: string, attachmentIds?: string[] }, token: string) =>
@@ -871,12 +875,24 @@ export const api = {
             request<{ entry: FinancialEntry, transaction: Transaction }>(`/finance/entries/${id}/confirm`, { method: 'PATCH', body: JSON.stringify(data), token }),
         rejectPaymentClaim: (id: string, data: { rejectionReason?: string }, token: string) =>
             request(`/finance/claims/${id}/reject`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        getTransactions: (token: string, params: { studentId?: string, teacherId?: string, targetType?: string, category?: string, billingCycle?: string, type?: string, paymentMethod?: string, search?: string, dateFrom?: string, dateTo?: string } = {}) =>
+        cancelEntry: (id: string, data: { reason?: string }, token: string) =>
+            request<FinancialEntry>(`/finance/entries/${id}/cancel`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        reverseTransaction: (id: string, data: { reason?: string }, token: string) =>
+            request<{ entry: FinancialEntry, transaction: Transaction }>(`/finance/transactions/${id}/reverse`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getTransactions: (token: string, params: { studentId?: string, teacherId?: string, employeeUserId?: string, targetType?: string, category?: string, billingCycle?: string, type?: string, paymentMethod?: string, search?: string, dateFrom?: string, dateTo?: string } = {}) =>
             request<Transaction[]>(`/finance/transactions${buildQueryString(params)}`, { token }),
+        getTransactionsPage: (token: string, params: { page?: number, limit?: number, studentId?: string, teacherId?: string, employeeUserId?: string, targetType?: string, category?: string, billingCycle?: string, type?: string, paymentMethod?: string, search?: string, dateFrom?: string, dateTo?: string } = {}) =>
+            request<PaginatedResponse<Transaction>>(`/finance/transactions${buildQueryString(params)}`, { token }),
         getStats: (token: string) =>
             request<FinanceStats>('/finance/stats', { token }),
         getTeacherOverview: (token: string) =>
             request<TeacherFinanceOverview>('/finance/teacher-overview', { token }),
+        getMyPayroll: (token: string) =>
+            request<TeacherFinanceOverview>('/finance/my-payroll', { token }),
+        getPayroll: (token: string, params: { targetType?: string } = {}) =>
+            request<PayrollRosterRow[]>(`/finance/payroll${buildQueryString(params)}`, { token }),
+        getAuditLogs: (token: string, params: { page?: number, limit?: number, search?: string, action?: string, resourceType?: string, resourceId?: string } = {}) =>
+            request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> }>(`/finance/audit-logs${buildQueryString(params)}`, { token }),
         getInsights: (token: string, params: InsightsQueryParams & { currency?: string } = {}) =>
             request<FinanceInsights>(`/finance/insights${buildQueryString(params as QueryParams)}`, { token }),
     }

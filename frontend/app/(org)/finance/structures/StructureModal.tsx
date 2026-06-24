@@ -21,6 +21,7 @@ import {
     Section,
     Student,
     Teacher,
+    User,
 } from '@/types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -30,10 +31,13 @@ type StructurePayload = Partial<FinancialStructure> & {
     assignmentSource?: FinanceAssignmentSource;
     studentIds?: string[];
     teacherIds?: string[];
+    employeeUserIds?: string[];
     sectionIds?: string[];
     cohortIds?: string[];
     courseIds?: string[];
     entityName?: string;
+    applyToExistingEntries?: boolean;
+    entryUpdateScope?: 'OUTSTANDING';
 };
 
 interface StructureModalProps {
@@ -82,7 +86,7 @@ function labelize(value: string) {
 function getCategoryOptions(targetType: FinanceTargetType) {
     const categories = targetType === FinanceTargetType.STUDENT
         ? studentCategories
-        : targetType === FinanceTargetType.TEACHER
+        : targetType === FinanceTargetType.TEACHER || targetType === FinanceTargetType.SUB_ADMIN || targetType === FinanceTargetType.FINANCE_MANAGER
             ? teacherCategories
             : targetType === FinanceTargetType.OTHER_EXPENSE
                 ? otherExpenseCategories
@@ -104,6 +108,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
     const [dueDay, setDueDay] = useState<number | ''>('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [applyToExistingEntries, setApplyToExistingEntries] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
@@ -121,6 +126,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
             setDueDay(initialData.dueDay || '');
             setStartDate(initialData.startDate.split('T')[0]);
             setEndDate(initialData.endDate ? initialData.endDate.split('T')[0] : '');
+            setApplyToExistingEntries(false);
         } else {
             setTargetType(FinanceTargetType.STUDENT);
             setAssignmentSource(FinanceAssignmentSource.MANUAL);
@@ -133,6 +139,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
             setDueDay('');
             setStartDate(new Date().toISOString().split('T')[0]);
             setEndDate('');
+            setApplyToExistingEntries(false);
         }
     }, [isOpen, initialData]);
 
@@ -143,6 +150,14 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
     const { data: teachersRes } = useSWR<PaginatedResponse<Teacher>>(
         isOpen && token ? ['finance-teachers', token] : null,
         ([, t]) => api.org.getTeachers(t as string, { limit: 1000 })
+    );
+    const { data: subAdminsRes } = useSWR<PaginatedResponse<User>>(
+        isOpen && token ? ['finance-sub-admins', token] : null,
+        ([, t]) => api.org.getSubAdmins(t as string, { limit: 1000, status: 'ACTIVE' })
+    );
+    const { data: financeManagersRes } = useSWR<PaginatedResponse<User>>(
+        isOpen && token ? ['finance-managers-for-payroll', token] : null,
+        ([, t]) => api.org.getFinanceManagers(t as string, { limit: 1000, status: 'ACTIVE' })
     );
     const { data: sectionsRes } = useSWR<PaginatedResponse<Section>>(
         isOpen && token ? ['finance-sections', token] : null,
@@ -176,6 +191,12 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                 { value: FinanceAssignmentSource.COURSE, label: 'Teachers in courses' },
             ];
         }
+        if (targetType === FinanceTargetType.SUB_ADMIN) {
+            return [{ value: FinanceAssignmentSource.MANUAL, label: 'Specific sub admins' }];
+        }
+        if (targetType === FinanceTargetType.FINANCE_MANAGER) {
+            return [{ value: FinanceAssignmentSource.MANUAL, label: 'Specific finance managers' }];
+        }
         return [{ value: FinanceAssignmentSource.OTHER, label: 'External entity' }];
     }, [targetType]);
 
@@ -192,6 +213,18 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                 label: `${teacher.user.name || teacher.user.email} (${teacher.department || teacher.subject || 'Teacher'})`,
             }));
         }
+        if (targetType === FinanceTargetType.SUB_ADMIN && assignmentSource === FinanceAssignmentSource.MANUAL) {
+            return (subAdminsRes?.data || []).map((user) => ({
+                value: user.id,
+                label: `${user.name || user.email} (${user.email} - ${labelize(user.status || 'ACTIVE')})`,
+            }));
+        }
+        if (targetType === FinanceTargetType.FINANCE_MANAGER && assignmentSource === FinanceAssignmentSource.MANUAL) {
+            return (financeManagersRes?.data || []).map((user) => ({
+                value: user.id,
+                label: `${user.name || user.email} (${user.email} - ${labelize(user.status || 'ACTIVE')})`,
+            }));
+        }
         if (assignmentSource === FinanceAssignmentSource.SECTION) {
             return (sectionsRes?.data || []).map((section) => ({
                 value: section.id,
@@ -205,7 +238,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
             return (coursesRes?.data || []).map((course) => ({ value: course.id, label: course.name }));
         }
         return [];
-    }, [assignmentSource, cohortsRes?.data, coursesRes?.data, sectionsRes?.data, studentsRes?.data, targetType, teachersRes?.data]);
+    }, [assignmentSource, cohortsRes?.data, coursesRes?.data, financeManagersRes?.data, sectionsRes?.data, studentsRes?.data, subAdminsRes?.data, targetType, teachersRes?.data]);
 
     const handleTargetTypeChange = (value: string) => {
         const nextTargetType = value as FinanceTargetType;
@@ -226,12 +259,14 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                 title,
                 targetType,
                 category,
-                amount: Number(amount),
+                amount: Number(amount).toFixed(2) as unknown as FinancialStructure['amount'],
                 billingCycle,
                 dueDay: billingCycle === BillingCycle.ONCE ? null : dueDay ? Number(dueDay) : null,
                 startDate: new Date(startDate).toISOString(),
                 endDate: endDate ? new Date(endDate).toISOString() : null,
                 assignmentSource,
+                applyToExistingEntries: initialData ? applyToExistingEntries : undefined,
+                entryUpdateScope: initialData && applyToExistingEntries ? 'OUTSTANDING' : undefined,
             };
 
             if (!initialData) {
@@ -241,6 +276,8 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                     payload.studentIds = selectedIds;
                 } else if (targetType === FinanceTargetType.TEACHER && assignmentSource === FinanceAssignmentSource.MANUAL) {
                     payload.teacherIds = selectedIds;
+                } else if ((targetType === FinanceTargetType.SUB_ADMIN || targetType === FinanceTargetType.FINANCE_MANAGER) && assignmentSource === FinanceAssignmentSource.MANUAL) {
+                    payload.employeeUserIds = selectedIds;
                 } else if (assignmentSource === FinanceAssignmentSource.SECTION) {
                     payload.sectionIds = selectedIds;
                 } else if (assignmentSource === FinanceAssignmentSource.COHORT) {
@@ -281,6 +318,8 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                             options={[
                                 { value: FinanceTargetType.STUDENT, label: 'Student income' },
                                 { value: FinanceTargetType.TEACHER, label: 'Teacher expense' },
+                                { value: FinanceTargetType.SUB_ADMIN, label: 'Sub Admin expense' },
+                                { value: FinanceTargetType.FINANCE_MANAGER, label: 'Finance Manager expense' },
                                 { value: FinanceTargetType.OTHER_INCOME, label: 'Other income' },
                                 { value: FinanceTargetType.OTHER_EXPENSE, label: 'Other expense' },
                             ]}
@@ -355,6 +394,23 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                         <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
                     </div>
                 </div>
+
+                {initialData && (
+                    <label className="flex items-start gap-3 rounded-lg border border-border/70 bg-muted/25 p-3">
+                        <input
+                            type="checkbox"
+                            checked={applyToExistingEntries}
+                            onChange={(event) => setApplyToExistingEntries(event.target.checked)}
+                            className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span className="space-y-1">
+                            <span className="block text-sm font-semibold text-foreground">Update current outstanding entries</span>
+                            <span className="block text-xs font-medium text-muted-foreground">
+                                Applies this amount and schedule to pending, partial, overdue, and unverified assigned entries only. Paid and cancelled entries stay unchanged.
+                            </span>
+                        </span>
+                    </label>
+                )}
 
                 <div className="flex justify-end gap-3 border-t border-border pt-4">
                     <Button variant="secondary" onClick={onClose} disabled={isSaving}>Cancel</Button>

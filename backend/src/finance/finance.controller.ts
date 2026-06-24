@@ -25,14 +25,14 @@ export class FinanceController {
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
   @Access(AccessLevel.WRITE)
   createStructure(@Body() dto: CreateFinancialStructureDto, @Request() req: AuthenticatedRequest) {
-    return this.financeService.createStructure(dto, req.user);
+    return this.financeService.createStructure(dto, req.user, req);
   }
 
   @Patch('structures/:id')
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
   @Access(AccessLevel.WRITE)
   updateStructure(@Param('id') id: string, @Body() dto: UpdateFinancialStructureDto, @Request() req: AuthenticatedRequest) {
-    return this.financeService.updateStructure(id, dto, req.user);
+    return this.financeService.updateStructure(id, dto, req.user, req);
   }
 
   @Get('structures')
@@ -48,6 +48,8 @@ export class FinanceController {
     @Query('assignmentSource') assignmentSource?: string,
     @Query('isActive') isActive?: string,
     @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.financeService.getStructures(orgId, req.user, {
       studentId,
@@ -58,6 +60,8 @@ export class FinanceController {
       assignmentSource: assignmentSource as FinanceAssignmentSource | undefined,
       isActive,
       search,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
     });
   }
 
@@ -75,6 +79,8 @@ export class FinanceController {
     @Query('search') search?: string,
     @Query('dueFrom') dueFrom?: string,
     @Query('dueTo') dueTo?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.financeService.getEntries(orgId, req.user, {
       studentId,
@@ -86,6 +92,8 @@ export class FinanceController {
       search,
       dueFrom,
       dueTo,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
     });
   }
 
@@ -104,6 +112,8 @@ export class FinanceController {
     @Query('search') search?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.financeService.getTransactions(orgId, req.user, {
       studentId,
@@ -116,6 +126,8 @@ export class FinanceController {
       search,
       dateFrom,
       dateTo,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
     });
   }
 
@@ -123,6 +135,22 @@ export class FinanceController {
   @Roles(Role.TEACHER)
   getTeacherOverview(@Request() req: AuthenticatedRequest) {
     return this.financeService.getTeacherOverview(req.user);
+  }
+
+  @Get('my-payroll')
+  @Roles(Role.TEACHER, Role.SUB_ADMIN, Role.FINANCE_MANAGER)
+  getMyPayroll(@Request() req: AuthenticatedRequest) {
+    return this.financeService.getMyPayroll(req.user);
+  }
+
+  @Get('payroll')
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER)
+  getPayrollRoster(
+    @Query('organizationId') orgId: string | undefined,
+    @Request() req: AuthenticatedRequest,
+    @Query('targetType') targetType?: string,
+  ) {
+    return this.financeService.getPayrollRoster(orgId, req.user, targetType as FinanceTargetType | undefined);
   }
   @Get('stats')
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
@@ -151,21 +179,43 @@ export class FinanceController {
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
   @Access(AccessLevel.WRITE)
   createManualEntry(@Body() dto: CreateManualEntryDto, @Request() req: AuthenticatedRequest) {
-    return this.financeService.createManualEntry(dto, req.user);
+    return this.financeService.createManualEntry(dto, req.user, req);
   }
 
   @Patch('entries/:id/mark-paid')
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Access(AccessLevel.WRITE)
   markEntryPaid(@Param('id') id: string, @Body() dto: MarkPaidDto, @Request() req: AuthenticatedRequest) {
-    return this.financeService.markEntryPaid(id, req.user, dto);
+    return this.financeService.markEntryPaid(id, req.user, dto, req);
   }
 
   @Patch('entries/:id/confirm')
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
   @Access(AccessLevel.WRITE)
   confirmEntry(@Param('id') id: string, @Body() dto: ConfirmEntryDto, @Request() req: AuthenticatedRequest) {
-    return this.financeService.confirmEntry(id, req.user, dto);
+    return this.financeService.confirmEntry(id, req.user, dto, req);
+  }
+
+  @Patch('entries/:id/cancel')
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
+  @Access(AccessLevel.WRITE)
+  cancelEntry(
+    @Param('id') id: string,
+    @Body('reason') reason: string | undefined,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.financeService.cancelEntry(id, req.user, reason, req);
+  }
+
+  @Patch('transactions/:id/reverse')
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
+  @Access(AccessLevel.WRITE)
+  reverseTransaction(
+    @Param('id') id: string,
+    @Body('reason') reason: string | undefined,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.financeService.reverseTransaction(id, req.user, reason, req);
   }
 
   @Patch('claims/:id/reject')
@@ -176,6 +226,28 @@ export class FinanceController {
     @Body('rejectionReason') rejectionReason: string | undefined,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.financeService.rejectPaymentClaim(id, req.user, rejectionReason);
+    return this.financeService.rejectPaymentClaim(id, req.user, rejectionReason, req);
+  }
+
+  @Get('audit-logs')
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER)
+  getFinanceAuditLogs(
+    @Query('organizationId') orgId: string | undefined,
+    @Request() req: AuthenticatedRequest,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('action') action?: string,
+    @Query('resourceType') resourceType?: string,
+    @Query('resourceId') resourceId?: string,
+  ) {
+    return this.financeService.getFinanceAuditLogs(orgId, req.user, {
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
+      search,
+      action,
+      resourceType,
+      resourceId,
+    });
   }
 }

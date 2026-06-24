@@ -15,6 +15,7 @@ import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell'
 import { FinanceStatusBadge } from '@/components/finance/FinanceStatusBadge';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
+import { moneySubtract, toMoneyNumber } from '@/lib/money';
 
 function formatDate(value?: string | null) {
     if (!value) return 'N/A';
@@ -50,7 +51,7 @@ export default function TeacherFinancePage() {
     const { token } = useAuth();
     const { data, error, isLoading, mutate } = useSWR<TeacherFinanceOverview>(
         token ? ['teacher-finance-overview', token] : null,
-        ([, t]) => api.finance.getTeacherOverview(t as string)
+        ([, t]) => api.finance.getMyPayroll(t as string)
     );
 
     const entryColumns = useMemo<Column<FinancialEntry>[]>(() => [
@@ -81,7 +82,7 @@ export default function TeacherFinancePage() {
         },
         {
             header: 'Balance',
-            accessor: (entry) => <FinancialAmount amount={Math.max(entry.amount - entry.paidAmount, 0)} currency={entry.currency} className={entry.status === EntryStatus.PAID ? 'text-muted-foreground' : 'text-warning'} />,
+            accessor: (entry) => <FinancialAmount amount={moneySubtract(entry.amount, entry.paidAmount)} currency={entry.currency} className={entry.status === EntryStatus.PAID ? 'text-muted-foreground' : 'text-warning'} />,
             width: 140,
         },
         {
@@ -160,7 +161,7 @@ export default function TeacherFinancePage() {
                             <StatCard label="Assigned Salary" value={<FinancialAmount amount={data.summary.assignedSalaryAmount} currency={data.summary.currency} />} detail={`${data.summary.activeStructureCount} active assignment${data.summary.activeStructureCount === 1 ? '' : 's'}`} tone="primary" />
                             <StatCard label="Received" value={<FinancialAmount amount={data.summary.receivedAmount} currency={data.summary.currency} />} detail={`${data.summary.paidCount} paid entries`} tone="success" />
                             <StatCard label="Outstanding" value={<FinancialAmount amount={data.summary.balanceAmount} currency={data.summary.currency} />} detail={`${data.summary.pendingCount} pending entries`} tone="warning" />
-                            <StatCard label="Overdue" value={<FinancialAmount amount={data.summary.overdueAmount} currency={data.summary.currency} />} detail={`${data.summary.overdueCount} overdue entries`} tone={data.summary.overdueAmount > 0 ? 'danger' : 'neutral'} />
+                            <StatCard label="Overdue" value={<FinancialAmount amount={data.summary.overdueAmount} currency={data.summary.currency} />} detail={`${data.summary.overdueCount} overdue entries`} tone={toMoneyNumber(data.summary.overdueAmount) > 0 ? 'danger' : 'neutral'} />
                         </div>
 
                         <section className="space-y-3">

@@ -85,6 +85,9 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'GRADE_FINALIZATION', label: 'Grade Finalization', href: '/grade-finalization', icon: Trophy });
         links.push({ id: 'EVALUATIONS', label: 'Evaluations', href: '/evaluations', icon: ClipboardList });
         links.push({ id: 'FINANCE', label: user.role === Role.SUB_ADMIN ? 'Finance Audit' : 'Finance', href: '/finance', icon: Wallet });
+        if (user.role === Role.SUB_ADMIN) {
+            links.push({ id: 'MY_FINANCE', label: 'My Finance', href: '/teacher-finance', icon: Wallet });
+        }
 
         if (user.role === Role.ORG_ADMIN) {
             links.push({ id: 'GPA_POLICIES', label: 'GPA Policies', href: '/settings/gpa-policies', icon: ScrollText });
@@ -120,6 +123,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
 
     if (user?.role === Role.FINANCE_MANAGER) {
         links.push({ id: 'FINANCE', label: 'Finance', href: '/finance', icon: Wallet });
+        links.push({ id: 'MY_FINANCE', label: 'My Finance', href: '/teacher-finance', icon: Wallet });
         if (user.id) {
             links.push({ id: 'PROFILE', label: 'Profile Settings', href: `/finance-managers/${user.id}/profile`, icon: Settings });
         }

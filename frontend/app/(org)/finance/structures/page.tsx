@@ -20,6 +20,7 @@ import { StructureModal } from './StructureModal';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
 import { FinanceFilterGrid, FinanceFilterToolbar } from '../_components/FinanceFilterToolbar';
+import { compareMoney } from '@/lib/money';
 
 function labelize(value: string) {
     return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
@@ -51,9 +52,11 @@ export default function StructuresPage() {
     const search = getStringParam('search', '');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-finance-structures-limit', 10);
 
-    const { data: structures, error, mutate, isLoading } = useSWR(
-        token ? ['finance/structures', token, targetType, category, billingCycle, assignmentSource, isActive, search] : null,
-        ([, t]) => api.finance.getStructures(t as string, {
+    const { data: structuresRes, error, mutate, isLoading } = useSWR(
+        token ? ['finance/structures', token, page, pageSize, targetType, category, billingCycle, assignmentSource, isActive, search] : null,
+        ([, t]) => api.finance.getStructuresPage(t as string, {
+            page,
+            limit: pageSize,
             targetType: targetType || undefined,
             category: category || undefined,
             billingCycle: billingCycle || undefined,
@@ -62,6 +65,7 @@ export default function StructuresPage() {
             search: search || undefined,
         })
     );
+    const structures = structuresRes?.data || [];
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.FINANCE_MANAGER;
 
@@ -79,7 +83,10 @@ export default function StructuresPage() {
         if (!token) return;
         try {
             if (editingStructure) {
-                await api.finance.updateStructure(editingStructure.id, data, token);
+                const result = await api.finance.updateStructure(editingStructure.id, data, token);
+                if (result.entryUpdateSummary?.updated) {
+                    dispatch({ type: 'TOAST_ADD', payload: { message: `${result.entryUpdateSummary.updated} outstanding entries updated`, type: 'success' } });
+                }
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Structure updated successfully', type: 'success' } });
             } else {
                 await api.finance.createStructure(data, token);
@@ -167,6 +174,7 @@ export default function StructuresPage() {
             const valA = a[sortBy as keyof FinancialStructure];
             const valB = b[sortBy as keyof FinancialStructure];
             if (valA === undefined || valB === undefined || valA === null || valB === null) return 0;
+            if (sortBy === 'amount') return sortOrder === 'asc' ? compareMoney(valA as string, valB as string) : compareMoney(valB as string, valA as string);
             if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
             if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
             return 0;
@@ -175,9 +183,8 @@ export default function StructuresPage() {
     }, [structures, sortBy, sortOrder]);
 
     const paginatedData = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return sortedData.slice(start, start + pageSize);
-    }, [page, pageSize, sortedData]);
+        return sortedData;
+    }, [sortedData]);
 
     const activeFilters: ActiveFilter[] = [
         ...(targetType ? [{ key: 'targetType', label: 'Target', value: labelize(targetType), onRemove: () => updateQueryParams({ targetType: undefined, page: 1 }) }] : []),
@@ -277,8 +284,8 @@ export default function StructuresPage() {
                     showSerialNumber
                     onRowClick={isManagement ? openStructureModal : undefined}
                     currentPage={page}
-                    totalPages={Math.ceil((structures?.length || 0) / pageSize) || 1}
-                    totalResults={structures?.length || 0}
+                    totalPages={structuresRes?.totalPages || 1}
+                    totalResults={structuresRes?.totalRecords || 0}
                     pageSize={pageSize}
                     onPageChange={(nextPage) => updateQueryParams({ page: nextPage })}
                     onPageSizeChange={handlePageSizeChange}

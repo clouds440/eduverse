@@ -120,8 +120,8 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
             <SearchBar
                 value={query}
                 onChange={setQuery}
-                placeholder="Search routes..."
-                ariaLabel="Search routes and actions"
+                placeholder="What would you like to do?"
+                ariaLabel="Search pages and actions"
                 delay={80}
                 mobileMode="expandable"
                 expandOn="all"

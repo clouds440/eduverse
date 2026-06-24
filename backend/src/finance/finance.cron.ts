@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { BillingCycle, EntrySource, EntryStatus, FinanceTargetType } from '@/prisma/prisma-client';
+import { BillingCycle, EntrySource, EntryStatus, FinanceTargetType, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -25,6 +25,7 @@ export class FinanceCron {
           include: {
             student: { include: { user: { select: { id: true, name: true, email: true } } } },
             teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
+            employeeUser: { select: { id: true, name: true, email: true } },
           },
         },
       },
@@ -59,6 +60,7 @@ export class FinanceCron {
             title: `${structure.title} - ${this.formatPeriodLabel(period.periodStart, structure.billingCycle)}`,
             studentId: assignment.studentId,
             teacherId: assignment.teacherId,
+            employeeUserId: assignment.employeeUserId,
             periodStart: period.periodStart,
             periodEnd: period.periodEnd,
             dueDate,
@@ -68,6 +70,24 @@ export class FinanceCron {
         });
 
         await this.notifyAssignment(structure.title, entry.id, dueDate, structure.amount, assignment);
+        await this.prisma.auditLog.create({
+          data: {
+            action: 'finance_entry_generated',
+            organizationId: structure.organizationId,
+            module: 'finance',
+            resourceType: 'entry',
+            resourceId: entry.id,
+            financeStructureId: structure.id,
+            financeEntryId: entry.id,
+            details: {
+              structureTitle: structure.title,
+              targetType: assignment.targetType,
+              amount: new Prisma.Decimal(structure.amount).toFixed(2),
+              dueDate: dueDate.toISOString(),
+              source: 'cron',
+            },
+          },
+        });
         this.logger.log(`Generated finance entry ${entry.id} for assignment ${assignment.id}`);
       }
     }
@@ -81,6 +101,15 @@ export class FinanceCron {
     });
 
     if (overdueEntries.count > 0) {
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'finance_entries_marked_overdue',
+          module: 'finance',
+          resourceType: 'entry',
+          resourceId: 'bulk-overdue',
+          details: { count: overdueEntries.count, source: 'cron' },
+        },
+      });
       this.logger.log(`Marked ${overdueEntries.count} entries as OVERDUE.`);
     }
 
@@ -138,20 +167,24 @@ export class FinanceCron {
     structureTitle: string,
     entryId: string,
     dueDate: Date,
-    amount: number,
+    amount: Prisma.Decimal | number,
     assignment: {
       targetType: FinanceTargetType;
       student?: { user?: { id: string; name: string | null; email: string } | null } | null;
       teacher?: { user?: { id: string; name: string | null; email: string } | null } | null;
+      employeeUser?: { id: string; name: string | null; email: string } | null;
       entityName?: string | null;
     },
   ) {
-    const userId = assignment.student?.user?.id || assignment.teacher?.user?.id;
+    const userId = assignment.student?.user?.id || assignment.teacher?.user?.id || assignment.employeeUser?.id;
     if (!userId) return;
 
-    const isExpense = assignment.targetType === FinanceTargetType.TEACHER || assignment.targetType === FinanceTargetType.OTHER_EXPENSE;
+    const isExpense = assignment.targetType === FinanceTargetType.TEACHER
+      || assignment.targetType === FinanceTargetType.SUB_ADMIN
+      || assignment.targetType === FinanceTargetType.FINANCE_MANAGER
+      || assignment.targetType === FinanceTargetType.OTHER_EXPENSE;
     const title = isExpense ? 'Finance expense entry generated' : 'New payment entry generated';
-    const body = `${structureTitle} for ${amount.toLocaleString()} is due ${dueDate.toLocaleDateString()}.`;
+    const body = `${structureTitle} for ${Number(amount).toLocaleString()} is due ${dueDate.toLocaleDateString()}.`;
 
     try {
       await this.notifications.createNotificationOnce({

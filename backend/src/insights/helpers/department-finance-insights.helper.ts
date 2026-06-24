@@ -23,6 +23,13 @@ interface DepartmentAllocation {
 
 type DepartmentLike = { id: string; name: string; code?: string | null };
 
+function moneyNumber(value: unknown): number {
+  if (value && typeof value === 'object' && 'toString' in value) {
+    return Number((value as { toString(): string }).toString());
+  }
+  return Number(value || 0);
+}
+
 function formatDepartmentName(department: DepartmentLike) {
   return department.code ? `${department.code} - ${department.name}` : department.name;
 }
@@ -85,8 +92,8 @@ export function resolveEntryDepartmentAllocations(entry: {
 
 export function buildDepartmentFinanceRows(
   entries: Array<{
-    amount: number;
-    paidAmount: number;
+    amount: unknown;
+    paidAmount: unknown;
     dueDate: Date;
     status: EntryStatus;
     structure?: { targetType?: FinanceTargetType | null } | null;
@@ -114,7 +121,9 @@ export function buildDepartmentFinanceRows(
     const allocations = resolveEntryDepartmentAllocations(entry);
     if (allocations.length === 0) return;
 
-    const outstanding = Math.max(entry.amount - entry.paidAmount, 0);
+    const amount = moneyNumber(entry.amount);
+    const paidAmount = moneyNumber(entry.paidAmount);
+    const outstanding = Math.max(amount - paidAmount, 0);
     const isOverdue = outstanding > 0 && (entry.status === EntryStatus.OVERDUE || entry.dueDate < now);
     const isPending = outstanding > 0 && !isOverdue;
 
@@ -130,8 +139,8 @@ export function buildDepartmentFinanceRows(
         estimated: false,
       };
 
-      existing.expectedAmount += entry.amount * allocation.weight;
-      existing.collectedAmount += entry.paidAmount * allocation.weight;
+      existing.expectedAmount += amount * allocation.weight;
+      existing.collectedAmount += paidAmount * allocation.weight;
       if (isOverdue) existing.overdueAmount += outstanding * allocation.weight;
       if (isPending) existing.pendingAmount += outstanding * allocation.weight;
       existing.estimated = existing.estimated || allocation.estimated;
