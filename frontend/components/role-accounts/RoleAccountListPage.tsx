@@ -184,13 +184,13 @@ export default function RoleAccountListPage({
             width: 180,
             accessor: (row: User) => (
                 <TableActions
+                    onView={isDeletedView ? undefined : () => router.push(`/profiles/${row.id}`)}
                     onEdit={isDeletedView ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
                     onDelete={isDeletedView ? undefined : () => {
                         setDeletingAccount(row);
                         setDeleteDialogOpen(true);
                     }}
                     variant="user"
-                    isViewAndEdit={!isDeletedView}
                     extraActions={isDeletedView ? [
                         {
                             variant: 'restore' as const,
@@ -330,7 +330,7 @@ export default function RoleAccountListPage({
                         keyExtractor={(row) => row.id}
                         isLoading={isLoading}
                         onRowClick={(row) => {
-                            if (!isDeletedView) router.push(`${routeBase}/edit/${row.id}`);
+                            if (!isDeletedView) router.push(`/profiles/${row.id}`);
                         }}
                         currentPage={page}
                         totalPages={fetchedData?.totalPages || 1}

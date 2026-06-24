@@ -47,10 +47,9 @@ export const TableActions: React.FC<TableActionsProps> = ({
     onEdit,
     onView,
     onDelete,
-    editTitle = "View / Edit",
+    editTitle = "Edit",
     deleteTitle = "Delete",
     isDeleting = false,
-    isViewAndEdit = false,
     variant = 'default',
     extraActions = [],
     className = "",
@@ -63,7 +62,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
 
     return (
         <div className={`flex gap-1 items-center ${className}`} role="group" aria-label="Row actions">
-            {onView && !isViewAndEdit && (
+            {onView && (
                 <button
                     type="button"
                     onClick={(e) => {
@@ -91,11 +90,6 @@ export const TableActions: React.FC<TableActionsProps> = ({
                     aria-label={canWrite ? editTitle : `${editTitle} (Read-only)`}
                 >
                     <div className="flex items-center gap-2">
-                        {isViewAndEdit &&
-                            <div className="flex items-center gap-1.5 px-0.5 opacity-70">
-                                <Eye className="w-4 h-4" aria-hidden="true" /> <span className="text-current/30 text-[10px]">/</span>
-                            </div>
-                        }
                         {!canWrite ? <Lock className="w-3.5 h-3.5 text-muted-foreground/60 mr-1" aria-hidden="true" /> : <EditIcon className="w-4 h-4" aria-hidden="true" />}
                     </div>
                     {showLabels && <span className="text-[10px] font-black tracking-wider">{editTitle}</span>}

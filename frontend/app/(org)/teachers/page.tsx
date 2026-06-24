@@ -261,13 +261,13 @@ export default function TeachersPage() {
             width: 200,
             accessor: (row: Teacher) => (
                 <TableActions
+                    onView={isDeletedView ? undefined : () => router.push(`/profiles/${row.user.id}`)}
                     onEdit={isDeletedView ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
                     onDelete={isDeletedView ? undefined : () => {
                         setDeletingTeacher(row);
                         setDeleteDialogOpen(true);
                     }}
                     variant="user"
-                    isViewAndEdit={!isDeletedView}
                     extraActions={[
                         ...(isDeletedView ? [
                             {
@@ -462,11 +462,7 @@ export default function TeachersPage() {
                         isLoading={isFetching}
                         onRowClick={(row) => {
                             if (canManageTeachers) {
-                                if (user?.id === row.userId) {
-                                    router.push(`/teachers/${row.userId}/profile`);
-                                } else {
-                                    router.push(`${routeBase}/edit/${row.id}`);
-                                }
+                                router.push(`/profiles/${row.userId}`);
                             }
                         }}
                         currentPage={page}

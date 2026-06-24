@@ -20,7 +20,7 @@ import type {
     Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
-    LinkedAccount, PasswordResetLinkResponse
+    LinkedAccount, PasswordResetLinkResponse, PublicProfile
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
@@ -346,6 +346,8 @@ export const api = {
             request<Organization>('/org/settings', { token }),
         getUserCounts: (token: string) =>
             request<OrgUserCounts>('/org/users/counts', { token }),
+        getPublicProfile: (userId: string, token: string) =>
+            request<PublicProfile>(`/org/public-profiles/${userId}`, { token }),
         updateSettings: (data: UpdateOrgSettingsRequest, token: string) =>
             request<Organization>('/org/settings', { method: 'PATCH', body: JSON.stringify(data), token }),
         reapply: (token: string) =>

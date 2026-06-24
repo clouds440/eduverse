@@ -4,7 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '@/prisma/prisma-client';
+import { EvaluationType, Prisma } from '@/prisma/prisma-client';
 import {
   Role,
   OrgStatus,
@@ -323,6 +323,299 @@ export class OrgService {
       students,
       guardians,
     };
+  }
+
+  private async getTeacherRatingSummary(orgId: string, teacherId: string) {
+    const aggregate = await this.prisma.evaluation.aggregate({
+      where: {
+        organizationId: orgId,
+        type: EvaluationType.TEACHER,
+        teacherId,
+      },
+      _avg: { rating: true },
+      _count: { id: true },
+    });
+
+    return {
+      averageRating: aggregate._avg.rating
+        ? Number(aggregate._avg.rating.toFixed(2))
+        : null,
+      totalRatings: aggregate._count.id,
+    };
+  }
+
+  private canEditPublicProfile(
+    actor: { id: string; role?: string },
+    target: { userId: string; role: string; entityId?: string },
+  ) {
+    if (actor.id === target.userId) {
+      return ([
+        Role.STUDENT,
+        Role.TEACHER,
+        Role.ORG_MANAGER,
+        Role.SUB_ADMIN,
+        Role.FINANCE_MANAGER,
+      ] as string[]).includes(target.role);
+    }
+
+    if (actor.role === Role.ORG_ADMIN) return true;
+
+    if (actor.role === Role.SUB_ADMIN) {
+      return ([
+        Role.STUDENT,
+        Role.TEACHER,
+        Role.ORG_MANAGER,
+        Role.FINANCE_MANAGER,
+        Role.GUARDIAN,
+      ] as string[]).includes(target.role);
+    }
+
+    return false;
+  }
+
+  private getPublicProfileEditHref(
+    actor: { id: string; role?: string },
+    target: { userId: string; role: string; entityId?: string },
+  ) {
+    if (!this.canEditPublicProfile(actor, target)) return null;
+
+    if (actor.id === target.userId) {
+      if (target.role === Role.STUDENT) return `/students/${target.userId}?tab=profile`;
+      if (target.role === Role.TEACHER || target.role === Role.ORG_MANAGER) return `/teachers/${target.userId}/profile`;
+      if (target.role === Role.SUB_ADMIN) return `/sub-admins/${target.userId}/profile`;
+      if (target.role === Role.FINANCE_MANAGER) return `/finance-managers/${target.userId}/profile`;
+    }
+
+    if (!target.entityId && ([Role.STUDENT, Role.TEACHER, Role.ORG_MANAGER, Role.GUARDIAN] as string[]).includes(target.role)) {
+      return null;
+    }
+
+    switch (target.role) {
+      case Role.STUDENT:
+        return `/students/edit/${target.entityId}`;
+      case Role.TEACHER:
+      case Role.ORG_MANAGER:
+        return `/teachers/edit/${target.entityId}`;
+      case Role.SUB_ADMIN:
+        return `/sub-admins/edit/${target.userId}`;
+      case Role.FINANCE_MANAGER:
+        return `/finance-managers/edit/${target.userId}`;
+      case Role.GUARDIAN:
+        return `/guardians/edit/${target.entityId}`;
+      default:
+        return null;
+    }
+  }
+
+  private sanitizePublicUser(user: {
+    id: string;
+    name: string | null;
+    role: string;
+    status: string;
+    avatarUrl: string | null;
+    avatarUpdatedAt: Date | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      status: user.status,
+      avatarUrl: user.avatarUrl,
+      avatarUpdatedAt: user.avatarUpdatedAt,
+      createdAt: user.createdAt,
+    };
+  }
+
+  async getPublicProfile(
+    orgId: string,
+    userId: string,
+    actor: { id: string; role?: string },
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        organizationId: orgId,
+        status: { not: UserStatus.DELETED },
+      },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        status: true,
+        avatarUrl: true,
+        avatarUpdatedAt: true,
+        createdAt: true,
+        departmentScopeType: true,
+        subAdminDepartments: {
+          include: {
+            department: {
+              select: { id: true, name: true, code: true, color: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) throw new NotFoundException('Profile not found');
+
+    const publicUser = this.sanitizePublicUser(user);
+    const baseTarget = { userId: user.id, role: user.role };
+
+    if (user.role === Role.STUDENT) {
+      const student = await this.prisma.student.findFirst({
+        where: {
+          userId: user.id,
+          organizationId: orgId,
+          status: { not: StudentStatus.DELETED },
+        },
+        select: {
+          id: true,
+          registrationNumber: true,
+          rollNumber: true,
+          major: true,
+          admissionDate: true,
+          graduationDate: true,
+          status: true,
+          primaryDepartment: { select: { id: true, name: true, code: true, color: true } },
+          studentDepartments: {
+            include: {
+              department: { select: { id: true, name: true, code: true, color: true } },
+            },
+          },
+          cohort: { select: { id: true, name: true, code: true } },
+          enrollments: {
+            where: { isExcludedFromCohort: false },
+            select: {
+              section: {
+                select: {
+                  id: true,
+                  name: true,
+                  color: true,
+                  course: { select: { id: true, name: true, code: true } },
+                  academicCycle: { select: { id: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!student) throw new NotFoundException('Student profile not found');
+      const target = { ...baseTarget, entityId: student.id };
+      return {
+        kind: 'student',
+        user: publicUser,
+        canEdit: this.canEditPublicProfile(actor, target),
+        editHref: this.getPublicProfileEditHref(actor, target),
+        profile: student,
+      };
+    }
+
+    if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
+      const teacher = await this.prisma.teacher.findFirst({
+        where: {
+          userId: user.id,
+          organizationId: orgId,
+          status: { not: TeacherStatus.DELETED },
+        },
+        select: {
+          id: true,
+          designation: true,
+          subject: true,
+          education: true,
+          joiningDate: true,
+          status: true,
+          departmentScopeType: true,
+          teacherDepartments: {
+            include: {
+              department: { select: { id: true, name: true, code: true, color: true } },
+            },
+          },
+          managerDepartments: {
+            include: {
+              department: { select: { id: true, name: true, code: true, color: true } },
+            },
+          },
+          sections: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+              course: { select: { id: true, name: true, code: true } },
+            },
+          },
+        },
+      });
+
+      if (!teacher) throw new NotFoundException('Teacher profile not found');
+      const target = { ...baseTarget, entityId: teacher.id };
+      return {
+        kind: user.role === Role.ORG_MANAGER ? 'manager' : 'teacher',
+        user: publicUser,
+        canEdit: this.canEditPublicProfile(actor, target),
+        editHref: this.getPublicProfileEditHref(actor, target),
+        profile: teacher,
+        rating: await this.getTeacherRatingSummary(orgId, teacher.id),
+      };
+    }
+
+    if (user.role === Role.GUARDIAN) {
+      const guardian = await this.prisma.guardianProfile.findFirst({
+        where: { userId: user.id, organizationId: orgId },
+        select: {
+          id: true,
+          createdAt: true,
+          studentLinks: {
+            select: {
+              relationshipLabel: true,
+              student: {
+                select: {
+                  id: true,
+                  registrationNumber: true,
+                  rollNumber: true,
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      avatarUrl: true,
+                      avatarUpdatedAt: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!guardian) throw new NotFoundException('Guardian profile not found');
+      const target = { ...baseTarget, entityId: guardian.id };
+      return {
+        kind: 'guardian',
+        user: publicUser,
+        canEdit: this.canEditPublicProfile(actor, target),
+        editHref: this.getPublicProfileEditHref(actor, target),
+        profile: guardian,
+      };
+    }
+
+    if (user.role === Role.SUB_ADMIN || user.role === Role.FINANCE_MANAGER) {
+      const target = { ...baseTarget, entityId: user.id };
+      return {
+        kind: user.role === Role.SUB_ADMIN ? 'subAdmin' : 'financeManager',
+        user: publicUser,
+        canEdit: this.canEditPublicProfile(actor, target),
+        editHref: this.getPublicProfileEditHref(actor, target),
+        profile: {
+          id: user.id,
+          departmentScopeType: user.departmentScopeType,
+          subAdminDepartments: user.role === Role.SUB_ADMIN ? user.subAdminDepartments : [],
+        },
+      };
+    }
+
+    throw new NotFoundException('Profile not found');
   }
 
   async reapply(orgId: string) {

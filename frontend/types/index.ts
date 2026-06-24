@@ -405,6 +405,89 @@ export interface Student {
     guardianLinks?: GuardianStudent[];
 }
 
+export interface PublicProfileRating {
+    averageRating: number | null;
+    totalRatings: number;
+}
+
+export interface PublicProfileUser {
+    id: string;
+    name?: string | null;
+    role: Role;
+    status?: UserStatus | StudentStatus | TeacherStatus;
+    avatarUrl?: string | null;
+    avatarUpdatedAt?: string | null;
+    createdAt?: string;
+}
+
+export interface PublicProfileDepartment {
+    id: string;
+    name: string;
+    code?: string;
+    color?: string | null;
+}
+
+export interface PublicProfileSection {
+    id: string;
+    name: string;
+    color?: string | null;
+    course?: Pick<Course, 'id' | 'name' | 'code'> | null;
+    academicCycle?: Pick<AcademicCycle, 'id' | 'name'> | null;
+}
+
+export interface PublicStudentProfile {
+    id: string;
+    registrationNumber?: string | null;
+    rollNumber?: string | null;
+    major?: string | null;
+    admissionDate?: string | null;
+    graduationDate?: string | null;
+    status?: StudentStatus;
+    primaryDepartment?: PublicProfileDepartment | null;
+    studentDepartments?: { department: PublicProfileDepartment; departmentId: string }[];
+    cohort?: Pick<Cohort, 'id' | 'name' | 'code'> | null;
+    enrollments?: { section: PublicProfileSection }[];
+}
+
+export interface PublicTeacherProfile {
+    id: string;
+    designation?: string | null;
+    subject?: string | null;
+    education?: string | null;
+    joiningDate?: string | null;
+    status?: TeacherStatus;
+    departmentScopeType?: DepartmentScopeType;
+    teacherDepartments?: { department: PublicProfileDepartment; departmentId: string }[];
+    managerDepartments?: { department: PublicProfileDepartment; departmentId: string }[];
+    sections?: PublicProfileSection[];
+}
+
+export interface PublicGuardianProfile {
+    id: string;
+    createdAt?: string;
+    studentLinks?: {
+        relationshipLabel: string;
+        student: {
+            id: string;
+            registrationNumber?: string | null;
+            rollNumber?: string | null;
+            user?: Pick<User, 'id' | 'name' | 'avatarUrl' | 'avatarUpdatedAt'> | null;
+        };
+    }[];
+}
+
+export interface PublicRoleAccountProfile {
+    id: string;
+    departmentScopeType?: DepartmentScopeType;
+    subAdminDepartments?: { department: PublicProfileDepartment; departmentId: string }[];
+}
+
+export type PublicProfile =
+    | { kind: 'student'; user: PublicProfileUser; canEdit: boolean; editHref?: string | null; profile: PublicStudentProfile }
+    | { kind: 'teacher' | 'manager'; user: PublicProfileUser; canEdit: boolean; editHref?: string | null; profile: PublicTeacherProfile; rating: PublicProfileRating }
+    | { kind: 'guardian'; user: PublicProfileUser; canEdit: boolean; editHref?: string | null; profile: PublicGuardianProfile }
+    | { kind: 'subAdmin' | 'financeManager'; user: PublicProfileUser; canEdit: boolean; editHref?: string | null; profile: PublicRoleAccountProfile };
+
 export interface Attachment {
     id: string;
     orgId: string;

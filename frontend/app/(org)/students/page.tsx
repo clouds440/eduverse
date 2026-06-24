@@ -286,10 +286,9 @@ export default function StudentsPage() {
                 return (
                     <TableActions
                         onEdit={isDeletedView || !canManageStudents ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
-                        onView={isDeletedView || !canViewStudentDetails || canManageStudents ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
+                        onView={isDeletedView || !canViewStudentDetails ? undefined : () => router.push(`/profiles/${row.user.id}`)}
                         onDelete={isDeletedView || !canManageStudents ? undefined : () => handleDeleteClick(row.id)}
                         variant="user"
-                        isViewAndEdit={!isDeletedView && canManageStudents}
                         extraActions={isDeletedView ? (
                             canManageStudents ? [
                                 {
@@ -592,7 +591,7 @@ export default function StudentsPage() {
                         keyExtractor={(row) => row.id}
                         isLoading={isFetching}
                         onRowClick={(row) => {
-                            if (canViewStudentDetails) router.push(`${routeBase}/edit/${row.id}`);
+                            if (canViewStudentDetails) router.push(`/profiles/${row.user.id}`);
                         }}
                         currentPage={page}
                         totalPages={fetchedData?.totalPages || 1}

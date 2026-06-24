@@ -21,28 +21,16 @@ export default function EditStudentPage() {
     // Role guard check
     useEffect(() => {
         if (!authLoading && user) {
-            if (user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN && user.role !== Role.ORG_MANAGER && user.role !== Role.TEACHER) {
-                router.replace('/');
+            if (user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN) {
+                dispatch({ type: 'TOAST_ADD', payload: { message: 'You do not have permission to edit students.', type: 'error' } });
+                router.replace('/students');
             }
         }
-    }, [authLoading, user, router]);
+    }, [authLoading, dispatch, user, router]);
 
     // SWR for student data
     const studentKey = token && studentId ? ['student', studentId] as const : null;
     const { data: studentData, isLoading: dataLoading, error } = useSWR<Student>(studentKey);
-
-    // Assigned academic staff permission check
-    useEffect(() => {
-        if ((user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) && studentData) {
-            const isMyStudent = studentData.enrollments?.some(e =>
-                e.section?.teachers?.some(t => t.userId === user.id)
-            );
-            if (!isMyStudent) {
-                dispatch({ type: 'TOAST_ADD', payload: { message: 'You do not have permission to view this student record.', type: 'error' } });
-                router.replace('/students');
-            }
-        }
-    }, [user, studentData, router, dispatch]);
 
     const studentExists = error ? false : (studentData ? true : null);
 
@@ -63,13 +51,11 @@ export default function EditStudentPage() {
 
     if (!studentData) return null;
 
-    const isWatchMode = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
-
     return (
         <FormPageShell>
             <FormPageHeader
-                title={isWatchMode ? 'View Student' : 'Edit Student'}
-                description={isWatchMode ? 'Review learner records in read-only mode.' : 'Update learner records.'}
+                title="Edit Student"
+                description="Update learner records."
                 icon={UserPlus}
             />
             <StudentForm studentId={studentId} initialData={studentData} />

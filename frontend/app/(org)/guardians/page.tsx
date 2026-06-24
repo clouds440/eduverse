@@ -64,9 +64,9 @@ export default function GuardiansPage() {
             width: 190,
             accessor: (guardian) => (
                 <TableActions
+                    onView={() => router.push(`/profiles/${guardian.user.id}`)}
                     onEdit={() => router.push(`${routeBase}/edit/${guardian.id}`)}
                     variant="user"
-                    isViewAndEdit
                     extraActions={[
                         {
                             variant: 'link',
@@ -121,6 +121,7 @@ export default function GuardiansPage() {
                     columns={columns}
                     keyExtractor={(guardian) => guardian.id}
                     isLoading={isLoading}
+                    onRowClick={(guardian) => router.push(`/profiles/${guardian.user.id}`)}
                     currentPage={1}
                     totalPages={1}
                     totalResults={data.length}

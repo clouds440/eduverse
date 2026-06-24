@@ -40,6 +40,7 @@ type FetcherKey =
     | readonly ['schedules', string]
     | readonly ['student', string]
     | readonly ['teacher', string]
+    | readonly ['public-profile', string]
     | readonly ['sub-admin', string]
     | readonly ['finance-manager', string]
     | readonly ['cohort', string]
@@ -167,6 +168,8 @@ function createFetcher(token: string | null) {
                     return await api.org.getStudent(args[0] as string, token) as T;
                 case 'teacher':
                     return await api.org.getTeacher(args[0] as string, token) as T;
+                case 'public-profile':
+                    return await api.org.getPublicProfile(args[0] as string, token) as T;
                 case 'sub-admin':
                     return await api.org.getSubAdmin(args[0] as string, token) as T;
                 case 'finance-manager':

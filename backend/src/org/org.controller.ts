@@ -402,6 +402,16 @@ export class OrgController {
     return this.orgService.getUserCounts(orgId, req.user.role);
   }
 
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN, Role.FINANCE_MANAGER)
+  @Get('public-profiles/:userId')
+  getPublicProfile(
+    @OrgId() orgId: string,
+    @Param('userId') userId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.orgService.getPublicProfile(orgId, userId, req.user);
+  }
+
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.FINANCE_MANAGER)
   @Access(AccessLevel.WRITE)
   @Patch('users/:id/avatar')
