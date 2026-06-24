@@ -105,7 +105,7 @@ export class SectionsService {
           course: { include: { department: true } },
           defaultRoom: { include: { building: true } },
           teachers: {
-            include: { user: { select: { email: true, name: true } } },
+            include: { user: { select: { id: true, email: true, name: true } } },
           },
           schedules: {
             select: {

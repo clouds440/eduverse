@@ -657,6 +657,7 @@ export default function GuardianPortalPage() {
         return (
             <StudentTimetableView
                 studentId={selectedInsight.studentId}
+                batchName={selectedInsight.cohortName}
                 title="Timetable"
                 description="Weekly class schedule for the selected student."
                 headerActions={studentHeaderAction}

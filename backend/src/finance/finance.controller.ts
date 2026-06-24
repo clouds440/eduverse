@@ -35,6 +35,13 @@ export class FinanceController {
     return this.financeService.updateStructure(id, dto, req.user, req);
   }
 
+  @Post('structures/:id/generate-entries')
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
+  @Access(AccessLevel.WRITE)
+  generateStructureEntries(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.financeService.generateEntriesForStructure(id, req.user, req);
+  }
+
   @Get('structures')
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   getStructures(

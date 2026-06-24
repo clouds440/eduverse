@@ -63,7 +63,7 @@ function SummaryTile({ icon: Icon, label, value, helper, tone = 'neutral' }: Sum
             <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{label}</p>
-                    <p className="mt-1 truncate text-2xl font-black leading-none">{value}</p>
+                    <p className="mt-1 truncate text-lg font-black leading-none">{value}</p>
                 </div>
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-current/15 bg-background/40">
                     <Icon className="h-5 w-5" />
@@ -321,7 +321,7 @@ export default function SectionDetailPage() {
                         <SummaryTile icon={Users} label="Students" value={studentCount} helper="enrolled learners" tone="primary" />
                         <SummaryTile icon={School} label="Teachers" value={teacherCount} helper="assigned faculty" tone="success" />
                         <SummaryTile icon={GraduationCap} label="Cycle" value={cycleName} helper="academic placement" />
-                        <SummaryTile icon={MapPin} label="Room" value={roomLabel} helper="primary venue" tone="warning" />
+                        <SummaryTile icon={MapPin} label="Room" value={roomLabel} helper="primary venue" tone="neutral" />
                     </section>
 
                     <section className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-4" aria-label="Section quick actions">

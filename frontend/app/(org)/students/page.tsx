@@ -300,7 +300,7 @@ export default function StudentsPage() {
                         ) : [
                             ...(canManageStudents ? [{
                                 variant: 'passwordReset' as const,
-                                title: 'Copy Reset Link',
+                                title: 'Copy Password Reset Link',
                                 loading: generatingResetUserId === row.user.id,
                                 onClick: () => generatePasswordResetLink(row.user.id),
                             }] : []),

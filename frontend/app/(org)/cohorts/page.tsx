@@ -3,23 +3,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { Hash, Plus, Users } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
-import { formatCourseSectionLabel } from '@/lib/utils';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, ApiError, Cohort, Role, Section, Student } from '@/types';
+import { AcademicCycle, ApiError, Cohort, Role } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
-import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { ModalForm } from '@/components/ui/ModalForm';
 import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -29,10 +25,9 @@ import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 export default function CohortsPage() {
     const { token, user } = useAuth();
-    const { state, dispatch } = useGlobal();
+    const { dispatch } = useGlobal();
     const router = useRouter();
     const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
-    const isProcessing = state.ui.processing['cohort-edit'];
 
     const page = getNumberParam('page', 1);
     const searchTerm = getStringParam('search');
@@ -58,13 +53,6 @@ export default function CohortsPage() {
     const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
     const { data: cyclesData } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
 
-    const { data: studentsData } = useSWR<{ data: Student[] }>(token ? ['students', { limit: 1000 }] : null);
-    const { data: sectionsData } = useSWR<{ data: Section[] }>(token ? ['sections', { limit: 1000 }] : null);
-
-    const [modalOpen, setModalOpen] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
-    const [formData, setFormData] = useState({ name: '', code: '', academicCycleId: '', studentIds: [] as string[], sectionIds: [] as string[] });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCohort, setDeletingCohort] = useState<Cohort | null>(null);
 
@@ -79,44 +67,6 @@ export default function CohortsPage() {
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);
         updateQueryParams({ page: 1 });
-    };
-
-    const openEditModal = (cohort: Cohort) => {
-        setIsEditing(true);
-        setEditingCohort(cohort);
-        setFormData({
-            name: cohort.name,
-            code: cohort.code,
-            academicCycleId: cohort.academicCycleId,
-            studentIds: cohort.students?.map((student) => student.id) || [],
-            sectionIds: cohort.sections?.map((section) => section.id) || [],
-        });
-        setModalOpen(true);
-    };
-
-    const handleSubmit = async (event: React.FormEvent) => {
-        event.preventDefault();
-        if (!token) return;
-
-        dispatch({ type: 'UI_START_PROCESSING', payload: 'cohort-edit' });
-        try {
-            if (isEditing && editingCohort) {
-                await api.cohorts.updateCohort(editingCohort.id, formData, token);
-                dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort updated successfully', type: 'success' } });
-            } else {
-                await api.cohorts.createCohort(formData, token);
-                dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort created successfully', type: 'success' } });
-            }
-            setModalOpen(false);
-            mutate(matchesCacheKeyPrefix('cohorts'));
-        } catch (err: unknown) {
-            const apiError = err as ApiError;
-            const rawMessage = apiError?.response?.data?.message || apiError?.message || 'Error processing request';
-            const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
-            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
-        } finally {
-            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'cohort-edit' });
-        }
     };
 
     const handleDeleteConfirm = async () => {
@@ -195,7 +145,7 @@ export default function CohortsPage() {
             width: 180,
             accessor: (row) => (
                 <TableActions
-                    onEdit={isAdmin ? () => openEditModal(row) : undefined}
+                    onEdit={isAdmin ? () => router.push(`/cohorts/edit/${row.id}?returnTo=/cohorts`) : undefined}
                     onView={() => router.push(`/cohorts/${row.id}`)}
                     onDelete={isAdmin ? () => {
                         setDeletingCohort(row);
@@ -290,82 +240,6 @@ export default function CohortsPage() {
                     />
                 </div>
             </ResourcePanel>
-
-            <ModalForm
-                isOpen={modalOpen}
-                onClose={() => setModalOpen(false)}
-                title="Update Cohort"
-                onSubmit={handleSubmit}
-                isSubmitting={isProcessing}
-                loadingId="cohort-edit"
-                submitText="Save Changes"
-            >
-                <div className="space-y-4 py-2">
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Cohort Name *</Label>
-                        <Input
-                            id="name"
-                            type="text"
-                            required
-                            value={formData.name}
-                            onChange={(event) => setFormData({ ...formData, name: event.target.value })}
-                            placeholder="e.g. CS Batch 2026"
-                            icon={Users}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="code">Cohort Code *</Label>
-                        <Input
-                            id="code"
-                            type="text"
-                            required
-                            value={formData.code}
-                            onChange={(event) => setFormData({ ...formData, code: event.target.value })}
-                            placeholder="e.g. GRADE-9"
-                            icon={Hash}
-                            className="uppercase"
-                        />
-                    </div>
-                    {!isEditing && (
-                        <div className="space-y-2">
-                            <Label>Academic Cycle *</Label>
-                            <CustomSelect
-                                options={cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name })) || []}
-                                value={formData.academicCycleId}
-                                onChange={(value) => setFormData({ ...formData, academicCycleId: value })}
-                                placeholder="Select Academic Cycle"
-                                required
-                            />
-                        </div>
-                    )}
-
-                    <div className="space-y-2">
-                        <Label>Assigned Students</Label>
-                        <CustomMultiSelect
-                            options={studentsData?.data?.map((student) => ({
-                                value: student.id,
-                                label: `${student.user?.name} (${student.registrationNumber || 'N/A'})`,
-                            })) || []}
-                            values={formData.studentIds}
-                            onChange={(values) => setFormData({ ...formData, studentIds: values })}
-                            placeholder="Add students to cohort..."
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Assigned Sections</Label>
-                        <CustomMultiSelect
-                            options={sectionsData?.data?.filter((section) => !formData.academicCycleId || section.academicCycleId === formData.academicCycleId).map((section) => ({
-                                value: section.id,
-                                label: formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name }),
-                            })) || []}
-                            values={formData.sectionIds}
-                            onChange={(values) => setFormData({ ...formData, sectionIds: values })}
-                            placeholder="Add sections to cohort..."
-                        />
-                    </div>
-                </div>
-            </ModalForm>
 
             <ConfirmDialog
                 isOpen={deleteDialogOpen}

@@ -652,7 +652,7 @@ export class TeacherService {
         teachers: {
           select: {
             id: true,
-            user: { select: { name: true, email: true } },
+            user: { select: { id: true, name: true, email: true } },
           },
         },
       },

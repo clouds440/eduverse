@@ -120,7 +120,7 @@ export default function FinancePayrollPage() {
     return (
         <PageShell className="p-2 sm:p-3">
             <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 bg-card/85 p-3">
+                <div className="shrink-0">
                     <PageTabs
                         ariaLabel="Payroll role tabs"
                         items={tabs}

@@ -975,7 +975,25 @@ export class StudentService {
   }
 
   async getStudentByUserId(userId: string) {
-    return this.prisma.student.findUnique({ where: { userId } });
+    return this.prisma.student.findUnique({
+      where: { userId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            avatarUrl: true,
+            avatarUpdatedAt: true,
+          },
+        },
+        cohort: { select: { id: true, name: true, code: true } },
+        primaryDepartment: true,
+        studentDepartments: { include: { department: true } },
+        ...this.studentGuardianInclude(),
+      },
+    });
   }
 
   async assertGuardianCanAccessStudent(orgId: string, guardianUserId: string, studentId: string) {
@@ -1158,7 +1176,7 @@ export class StudentService {
             teachers: {
               select: {
                 id: true,
-                user: { select: { name: true, email: true } },
+                user: { select: { id: true, name: true, email: true } },
               },
             },
           },

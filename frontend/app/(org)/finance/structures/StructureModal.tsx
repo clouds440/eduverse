@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { DocsLink } from '@/components/ui/DocsLink';
+import { Toggle } from '@/components/ui/Toggle';
 import {
     BillingCycle,
     Cohort,
@@ -51,17 +52,64 @@ const studentCategories = [
     FinanceCategory.TUITION,
     FinanceCategory.TRANSPORT,
     FinanceCategory.LIBRARY,
+    FinanceCategory.LIBRARY_FINE,
     FinanceCategory.EXAM,
     FinanceCategory.ADMISSION,
     FinanceCategory.HOSTEL,
     FinanceCategory.ACTIVITY,
+    FinanceCategory.LATE_FEE,
+    FinanceCategory.FINE,
+    FinanceCategory.BOOKS_SUPPLIES,
+    FinanceCategory.STATIONERY,
+    FinanceCategory.UNIFORM,
+    FinanceCategory.LAB,
+    FinanceCategory.ID_CARD,
+    FinanceCategory.CERTIFICATE,
+    FinanceCategory.TRANSCRIPT,
+    FinanceCategory.GRADUATION,
+    FinanceCategory.REGISTRATION,
+    FinanceCategory.APPLICATION_FEE,
+    FinanceCategory.PROCESSING_FEE,
+    FinanceCategory.DEVELOPMENT_FEE,
+    FinanceCategory.BUILDING_FUND,
+    FinanceCategory.CANTEEN,
+    FinanceCategory.CAFETERIA,
+    FinanceCategory.MEDICAL,
+    FinanceCategory.HEALTH,
+    FinanceCategory.SPORTS,
+    FinanceCategory.ARTS,
+    FinanceCategory.MUSIC,
+    FinanceCategory.TECHNOLOGY,
+    FinanceCategory.PRINTING,
+    FinanceCategory.PARKING,
+    FinanceCategory.SECURITY_DEPOSIT,
+    FinanceCategory.FIELD_TRIP,
+    FinanceCategory.EVENT,
+    FinanceCategory.SCHOLARSHIP,
+    FinanceCategory.DISCOUNT,
+    FinanceCategory.WAIVER,
     FinanceCategory.OTHER,
 ];
 
 const teacherCategories = [
     FinanceCategory.SALARY,
     FinanceCategory.BONUS,
+    FinanceCategory.ALLOWANCE,
+    FinanceCategory.OVERTIME,
+    FinanceCategory.COMMISSION,
+    FinanceCategory.ADVANCE,
+    FinanceCategory.LOAN,
     FinanceCategory.REIMBURSEMENT,
+    FinanceCategory.TRAINING,
+    FinanceCategory.PROFESSIONAL_DEVELOPMENT,
+    FinanceCategory.TRAVEL,
+    FinanceCategory.MEAL,
+    FinanceCategory.ACCOMMODATION,
+    FinanceCategory.MEDICAL,
+    FinanceCategory.HEALTH,
+    FinanceCategory.REFUND,
+    FinanceCategory.TAX,
+    FinanceCategory.INSURANCE,
     FinanceCategory.OTHER,
 ];
 
@@ -69,6 +117,27 @@ const otherIncomeCategories = [
     FinanceCategory.ADMISSION,
     FinanceCategory.ACTIVITY,
     FinanceCategory.LIBRARY,
+    FinanceCategory.LATE_FEE,
+    FinanceCategory.FINE,
+    FinanceCategory.LIBRARY_FINE,
+    FinanceCategory.DONATION,
+    FinanceCategory.GRANT,
+    FinanceCategory.REGISTRATION,
+    FinanceCategory.APPLICATION_FEE,
+    FinanceCategory.PROCESSING_FEE,
+    FinanceCategory.DEVELOPMENT_FEE,
+    FinanceCategory.BUILDING_FUND,
+    FinanceCategory.CANTEEN,
+    FinanceCategory.CAFETERIA,
+    FinanceCategory.SPORTS,
+    FinanceCategory.ARTS,
+    FinanceCategory.MUSIC,
+    FinanceCategory.TECHNOLOGY,
+    FinanceCategory.PRINTING,
+    FinanceCategory.PARKING,
+    FinanceCategory.EVENT,
+    FinanceCategory.REFUND,
+    FinanceCategory.MISC_INCOME,
     FinanceCategory.OTHER,
 ];
 
@@ -76,6 +145,42 @@ const otherExpenseCategories = [
     FinanceCategory.SALARY,
     FinanceCategory.BONUS,
     FinanceCategory.REIMBURSEMENT,
+    FinanceCategory.REFUND,
+    FinanceCategory.VENDOR_PAYMENT,
+    FinanceCategory.ALLOWANCE,
+    FinanceCategory.OVERTIME,
+    FinanceCategory.ADVANCE,
+    FinanceCategory.LOAN,
+    FinanceCategory.TRAINING,
+    FinanceCategory.PROFESSIONAL_DEVELOPMENT,
+    FinanceCategory.TRAVEL,
+    FinanceCategory.MEAL,
+    FinanceCategory.ACCOMMODATION,
+    FinanceCategory.MAINTENANCE,
+    FinanceCategory.UTILITIES,
+    FinanceCategory.RENT,
+    FinanceCategory.EQUIPMENT,
+    FinanceCategory.SOFTWARE,
+    FinanceCategory.INTERNET,
+    FinanceCategory.PHONE,
+    FinanceCategory.OFFICE_SUPPLIES,
+    FinanceCategory.CLEANING,
+    FinanceCategory.SECURITY,
+    FinanceCategory.REPAIRS,
+    FinanceCategory.MARKETING,
+    FinanceCategory.LEGAL,
+    FinanceCategory.CONSULTING,
+    FinanceCategory.TAX,
+    FinanceCategory.INSURANCE,
+    FinanceCategory.BANK_CHARGE,
+    FinanceCategory.BOOKS_SUPPLIES,
+    FinanceCategory.STATIONERY,
+    FinanceCategory.UNIFORM,
+    FinanceCategory.LAB,
+    FinanceCategory.ID_CARD,
+    FinanceCategory.FIELD_TRIP,
+    FinanceCategory.EVENT,
+    FinanceCategory.MISC_EXPENSE,
     FinanceCategory.OTHER,
 ];
 
@@ -396,20 +501,15 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                 </div>
 
                 {initialData && (
-                    <label className="flex items-start gap-3 rounded-lg border border-border/70 bg-muted/25 p-3">
-                        <input
-                            type="checkbox"
+                    <div className="rounded-lg border border-border/70 bg-muted/25 p-3">
+                        <Toggle
                             checked={applyToExistingEntries}
-                            onChange={(event) => setApplyToExistingEntries(event.target.checked)}
-                            className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                            onCheckedChange={setApplyToExistingEntries}
+                            label="Update current outstanding entries"
+                            description="Applies this amount and schedule to pending, partial, overdue, and unverified assigned entries only. Paid and cancelled entries stay unchanged."
+                            size="md"
                         />
-                        <span className="space-y-1">
-                            <span className="block text-sm font-semibold text-foreground">Update current outstanding entries</span>
-                            <span className="block text-xs font-medium text-muted-foreground">
-                                Applies this amount and schedule to pending, partial, overdue, and unverified assigned entries only. Paid and cancelled entries stay unchanged.
-                            </span>
-                        </span>
-                    </label>
+                    </div>
                 )}
 
                 <div className="flex justify-end gap-3 border-t border-border pt-4">

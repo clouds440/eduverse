@@ -20,6 +20,8 @@ import { ClaimPaidModal } from './ClaimPaidModal';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
 import { FinanceFilterGrid, FinanceFilterToolbar } from '../_components/FinanceFilterToolbar';
 import { FinanceAttachments } from '@/components/finance/FinanceAttachments';
@@ -65,6 +67,8 @@ export default function EntriesPage() {
 
     const [claimingEntry, setClaimingEntry] = useState<FinancialEntry | null>(null);
     const [confirmingEntry, setConfirmingEntry] = useState<FinancialEntry | null>(null);
+    const [cancellingEntry, setCancellingEntry] = useState<FinancialEntry | null>(null);
+    const [cancellationReason, setCancellationReason] = useState('');
 
     const { data: entriesRes, error, mutate, isLoading } = useSWR(
         token ? ['finance/entries', token, page, pageSize, targetType, category, billingCycle, search, dueFrom, dueTo] : null,
@@ -144,6 +148,19 @@ export default function EntriesPage() {
             const message = error instanceof Error ? error.message : 'Failed to confirm payment';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
             throw error;
+        }
+    };
+
+    const handleCancelEntry = async () => {
+        if (!token || !cancellingEntry) return;
+        try {
+            await api.finance.cancelEntry(cancellingEntry.id, { reason: cancellationReason.trim() || undefined }, token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Entry cancelled', type: 'success' } });
+            setCancellationReason('');
+            mutate();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to cancel entry';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         }
     };
 
@@ -235,6 +252,12 @@ export default function EntriesPage() {
             header: 'Actions',
             width: 180,
             accessor: (entry) => {
+                const canCancel = isManagement
+                    && entry.status !== EntryStatus.CANCELLED
+                    && entry.status !== EntryStatus.PAID
+                    && compareMoney(entry.paidAmount, 0) <= 0
+                    && !(entry.transactions?.length);
+
                 if (entry.status === EntryStatus.PAID) {
                     return (
                         <span className="inline-flex items-center gap-1 text-xs font-bold text-success">
@@ -257,6 +280,14 @@ export default function EntriesPage() {
                                 variant: 'confirm' as const,
                                 title: 'Confirm Payment',
                                 onClick: () => setConfirmingEntry(entry),
+                            }] : []),
+                            ...(canCancel ? [{
+                                variant: 'reject' as const,
+                                title: 'Cancel Entry',
+                                onClick: () => {
+                                    setCancellationReason('');
+                                    setCancellingEntry(entry);
+                                },
                             }] : []),
                         ]}
                     />
@@ -391,6 +422,28 @@ export default function EntriesPage() {
                     entry={confirmingEntry}
                     onConfirm={handleConfirm}
                 />
+            )}
+
+            {cancellingEntry && (
+                <ConfirmDialog
+                    isOpen={!!cancellingEntry}
+                    onClose={() => {
+                        setCancellingEntry(null);
+                        setCancellationReason('');
+                    }}
+                    onConfirm={handleCancelEntry}
+                    title="Cancel entry"
+                    description="This will cancel the unpaid entry and reject any pending payment claims on it. Paid entries must be corrected through reversals or refunds."
+                    confirmText="Cancel entry"
+                    isDestructive
+                >
+                    <Textarea
+                        value={cancellationReason}
+                        onChange={(event) => setCancellationReason(event.target.value)}
+                        placeholder="Optional reason"
+                        className="min-h-24"
+                    />
+                </ConfirmDialog>
             )}
         </ResourcePanel>
     );

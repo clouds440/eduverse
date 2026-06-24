@@ -278,7 +278,7 @@ export default function TeachersPage() {
                         ] : [
                             ...(canManageTeachers ? [{
                                 variant: 'passwordReset' as const,
-                                title: 'Copy Reset Link',
+                                title: 'Copy Password Reset Link',
                                 loading: generatingResetUserId === row.user.id,
                                 onClick: () => generatePasswordResetLink(row.user.id),
                             }] : []),

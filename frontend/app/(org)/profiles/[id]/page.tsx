@@ -43,6 +43,10 @@ function DetailItem({ label, value }: { label: string; value?: React.ReactNode }
     );
 }
 
+function uniqueById<T extends { id: string }>(items: T[]) {
+    return Array.from(new Map(items.map((item) => [item.id, item])).values());
+}
+
 function DepartmentBadges({ departments }: { departments: PublicProfileDepartment[] }) {
     if (departments.length === 0) {
         return <span className="text-sm font-semibold text-muted-foreground">No departments assigned</span>;
@@ -113,11 +117,15 @@ function StaffRating({ profile }: { profile: Extract<PublicProfile, { kind: 'tea
 }
 
 function StudentLayout({ profile }: { profile: Extract<PublicProfile, { kind: 'student' }> }) {
-    const departments = [
+    const departments = uniqueById([
         ...(profile.profile.primaryDepartment ? [profile.profile.primaryDepartment] : []),
         ...(profile.profile.studentDepartments || []).map((entry) => entry.department),
-    ];
-    const sections = (profile.profile.enrollments || []).map((enrollment) => enrollment.section).filter(Boolean);
+    ]);
+    const sections = uniqueById(
+        (profile.profile.enrollments || [])
+            .map((enrollment) => enrollment.section)
+            .filter((section): section is PublicProfileSection => Boolean(section)),
+    );
 
     return (
         <div className="space-y-4">

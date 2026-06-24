@@ -270,7 +270,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                     <p className="text-sm font-black text-foreground">{schedules.length} schedule slots</p>
-                    <p className="break-words text-xs font-semibold text-muted-foreground">
+                    <p className="wrap-break-word text-xs font-semibold text-muted-foreground">
                         Weekly meeting times for this section. <DocsLink href="/docs/timetable#schedule-teacher">Schedule guide</DocsLink>
                     </p>
                 </div>

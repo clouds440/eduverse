@@ -206,6 +206,113 @@ export class FinanceService {
     });
   }
 
+  async generateEntriesForStructure(id: string, user: AuthenticatedRequest['user'], audit?: AuditContext) {
+    const structure = await this.prisma.financialStructure.findUnique({ where: { id } });
+    if (!structure) throw new NotFoundException('Structure not found');
+    this.assertWritableOrg(structure.organizationId, user, 'generate structure entries');
+    if (!structure.isActive) throw new ConflictException('Only active structures can generate entries.');
+
+    const targetDate = new Date() < structure.startDate ? structure.startDate : new Date();
+    const period = this.getPeriodForTargetDate(structure.billingCycle, structure.startDate, structure.endDate, targetDate);
+    if (!period) throw new BadRequestException('This structure is not active for the selected period.');
+    const dueDate = this.getDueDate(structure.billingCycle, period.periodStart, structure.dueDay);
+
+    return this.prisma.$transaction(async (tx) => {
+      const freshStructure = await tx.financialStructure.findUnique({
+        where: { id },
+        include: {
+          assignments: {
+            where: { isActive: true },
+            include: {
+              student: { include: { user: { select: { id: true, name: true, email: true } } } },
+              teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
+              employeeUser: { select: { id: true, name: true, email: true, role: true } },
+            },
+          },
+        },
+      });
+      if (!freshStructure) throw new NotFoundException('Structure not found');
+      if (freshStructure.assignments.length === 0) throw new BadRequestException('This structure has no active assignments.');
+
+      const createdEntries: unknown[] = [];
+      const skippedAssignmentIds: string[] = [];
+
+      for (const assignment of freshStructure.assignments) {
+        const existingEntry = await tx.financialEntry.findFirst({
+          where: {
+            assignmentId: assignment.id,
+            periodStart: period.periodStart,
+            periodEnd: period.periodEnd,
+          },
+        });
+
+        if (existingEntry) {
+          skippedAssignmentIds.push(assignment.id);
+          continue;
+        }
+
+        const entry = await tx.financialEntry.create({
+          data: {
+            organizationId: freshStructure.organizationId,
+            structureId: freshStructure.id,
+            assignmentId: assignment.id,
+            title: `${freshStructure.title} - ${this.formatPeriodLabel(period.periodStart, freshStructure.billingCycle)}`,
+            studentId: assignment.studentId,
+            teacherId: assignment.teacherId,
+            employeeUserId: assignment.employeeUserId,
+            periodStart: period.periodStart,
+            periodEnd: period.periodEnd,
+            dueDate,
+            amount: freshStructure.amount,
+            source: EntrySource.MANUAL,
+            status: EntryStatus.PENDING,
+          },
+          include: this.entryInclude(),
+        });
+        createdEntries.push(entry);
+
+        await this.writeFinanceAudit(tx, 'finance_entry_generated_now', {
+          audit,
+          organizationId: freshStructure.organizationId,
+          financeStructureId: freshStructure.id,
+          financeEntryId: entry.id,
+          resourceType: 'entry',
+          resourceId: entry.id,
+          details: {
+            structureTitle: freshStructure.title,
+            targetType: assignment.targetType,
+            amount: this.moneyToString(freshStructure.amount),
+            dueDate: dueDate.toISOString(),
+            source: 'manual_generation',
+          },
+        });
+      }
+
+      await this.writeFinanceAudit(tx, 'finance_structure_entries_generated_now', {
+        audit,
+        organizationId: freshStructure.organizationId,
+        financeStructureId: freshStructure.id,
+        resourceType: 'structure',
+        resourceId: freshStructure.id,
+        details: {
+          periodStart: period.periodStart.toISOString(),
+          periodEnd: period.periodEnd.toISOString(),
+          createdCount: createdEntries.length,
+          skippedCount: skippedAssignmentIds.length,
+          skippedAssignmentIds,
+        },
+      });
+
+      return this.serialize({
+        structureId: freshStructure.id,
+        createdCount: createdEntries.length,
+        skippedCount: skippedAssignmentIds.length,
+        skippedAssignmentIds,
+        entries: createdEntries,
+      });
+    });
+  }
+
   async getStructures(orgId: string | undefined, user: AuthenticatedRequest['user'], filters: FinanceFilters = {}) {
     const finalOrgId = this.getReadableOrgId(orgId, user, 'structures');
     const scopedFilters = await this.applyRoleScope(user, filters);
@@ -1170,9 +1277,51 @@ export class FinanceService {
     return Math.min(100, Math.max(1, Math.floor(value)));
   }
 
+  private getPeriodForTargetDate(billingCycle: BillingCycle, startDate: Date, endDate: Date | null, targetDate: Date) {
+    if (endDate && targetDate > endDate) return null;
+    if (targetDate < startDate) return null;
+
+    if (billingCycle === BillingCycle.ONCE) {
+      return {
+        periodStart: startDate,
+        periodEnd: endDate || startDate,
+      };
+    }
+
+    if (billingCycle === BillingCycle.SEMESTER) {
+      const startMonth = targetDate.getMonth() < 6 ? 0 : 6;
+      return {
+        periodStart: new Date(targetDate.getFullYear(), startMonth, 1),
+        periodEnd: new Date(targetDate.getFullYear(), startMonth + 6, 0),
+      };
+    }
+
+    if (billingCycle === BillingCycle.YEARLY || billingCycle === BillingCycle.ACADEMIC_CYCLE) {
+      return {
+        periodStart: new Date(targetDate.getFullYear(), 0, 1),
+        periodEnd: new Date(targetDate.getFullYear(), 11, 31),
+      };
+    }
+
+    return {
+      periodStart: new Date(targetDate.getFullYear(), targetDate.getMonth(), 1),
+      periodEnd: new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0),
+    };
+  }
+
   private getDueDate(billingCycle: BillingCycle, periodStart: Date, dueDay: number | null) {
     if (billingCycle === BillingCycle.ONCE) return periodStart;
     return new Date(periodStart.getFullYear(), periodStart.getMonth(), dueDay || 5);
+  }
+
+  private formatPeriodLabel(periodStart: Date, billingCycle: BillingCycle) {
+    if (billingCycle === BillingCycle.YEARLY || billingCycle === BillingCycle.ACADEMIC_CYCLE) {
+      return `${periodStart.getFullYear()}`;
+    }
+    if (billingCycle === BillingCycle.SEMESTER) {
+      return `${periodStart.getFullYear()} ${periodStart.getMonth() < 6 ? 'Spring' : 'Fall'}`;
+    }
+    return periodStart.toLocaleString('default', { month: 'long', year: 'numeric' });
   }
 
   private async resolvePayrollProfile(user: AuthenticatedRequest['user']) {

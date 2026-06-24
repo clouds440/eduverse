@@ -25,6 +25,14 @@ export interface TimetablePdfInput {
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const WEEKEND_DAYS = new Set([0, 6]);
+
+interface TimetablePdfSlotGroup {
+    day: number;
+    startTime: string;
+    endTime: string;
+    entries: TimetableEntry[];
+}
 
 function timeToMinutes(time: string) {
     const [hours = '0', minutes = '0'] = time.split(':');
@@ -71,6 +79,36 @@ function getEntriesByDay(entries: TimetableEntry[]) {
     WEEK_DAYS.forEach((day) => grouped.set(day, []));
     entries.forEach((entry) => grouped.get(entry.day)?.push(entry));
     grouped.forEach((dayEntries) => dayEntries.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)));
+    return grouped;
+}
+
+function getPrintableDays(entriesByDay: Map<number, TimetableEntry[]>) {
+    const days = WEEK_DAYS.filter((day) => !WEEKEND_DAYS.has(day) || (entriesByDay.get(day)?.length || 0) > 0);
+    return days.length > 0 ? days : [1, 2, 3, 4, 5];
+}
+
+function getSlotGroupsByDay(entriesByDay: Map<number, TimetableEntry[]>) {
+    const grouped = new Map<number, TimetablePdfSlotGroup[]>();
+
+    entriesByDay.forEach((dayEntries, day) => {
+        const slotMap = new Map<string, TimetablePdfSlotGroup>();
+        dayEntries.forEach((entry) => {
+            const key = `${entry.startTime}-${entry.endTime}`;
+            const group = slotMap.get(key);
+            if (group) {
+                group.entries.push(entry);
+            } else {
+                slotMap.set(key, {
+                    day,
+                    startTime: entry.startTime,
+                    endTime: entry.endTime,
+                    entries: [entry],
+                });
+            }
+        });
+        grouped.set(day, Array.from(slotMap.values()).sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)));
+    });
+
     return grouped;
 }
 
@@ -121,6 +159,61 @@ function truncateToWidth(text: string, maxWidth: number, measure: (value: string
         next = next.slice(0, -1);
     }
     return next ? `${next}${suffix}` : suffix;
+}
+
+function drawTimetableEntryCard({
+    pdf,
+    entry,
+    x,
+    y,
+    width,
+    height,
+    color,
+    palette,
+    theme,
+}: {
+    pdf: Awaited<ReturnType<typeof createPdfBuilder>>;
+    entry: TimetableEntry;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color: string;
+    palette: ReturnType<typeof getPdfPalette>;
+    theme: 'light' | 'dark';
+}) {
+    const paddingX = 4;
+    const textWidth = Math.max(8, width - paddingX * 2);
+    const parts = getCourseSectionLabelParts({ courseName: entry.courseName, sectionName: entry.sectionName });
+    const cardFill = mixHex(color, palette.sectionTarget, theme === 'dark' ? 0.72 : 0.84);
+
+    pdf.rect({ x, y, width, height, fill: cardFill, stroke: color, borderWidth: 0.65 });
+
+    if (height < 9) {
+        pdf.rect({ x: x + 2, y: y + 2, width: Math.max(3, width - 4), height: Math.max(2, height - 4), fill: color });
+        return;
+    }
+
+    let cursorY = y + height - 7;
+    const bottomY = y + 3;
+    const drawLine = (text: string, options: { size: number; font?: 'regular' | 'bold'; color: string; minHeight?: number }) => {
+        if (!text || height < (options.minHeight || 0) || cursorY < bottomY + options.size - 1) return false;
+        const font = options.font || 'regular';
+        const measure = (value: string) => pdf.font(font).widthOfTextAtSize(value, options.size);
+        pdf.text(truncateToWidth(text, textWidth, measure), x + paddingX, cursorY, {
+            size: options.size,
+            font,
+            color: options.color,
+        });
+        cursorY -= options.size + 2;
+        return true;
+    };
+
+    drawLine(parts.courseName || parts.inlineLabel, { size: 6.5, font: 'bold', color });
+    drawLine(parts.sectionName || '', { size: 5.5, font: 'bold', color: mixHex(color, palette.text, 0.25), minHeight: 20 });
+    drawLine(`${entry.startTime} - ${entry.endTime} | ${formatDuration(entry.startTime, entry.endTime)}`, { size: 5.5, font: 'bold', color, minHeight: 28 });
+    drawLine(`Room: ${entry.room || 'Room TBD'}`, { size: 5.3, color: palette.muted, minHeight: 38 });
+    drawLine(`Teacher: ${getTeacherLabel(entry)}`, { size: 5.3, color: palette.muted, minHeight: 48 });
 }
 
 function getPdfPalette(theme: 'light' | 'dark' = 'light') {
@@ -229,19 +322,22 @@ export async function createTimetablePdf({
     const gridBottom = pdf.margin;
     const gridHeight = gridTop - gridBottom;
     const timeColumnWidth = 48;
-    const dayColumnWidth = (usableWidth - timeColumnWidth) / 7;
     const headerHeight = 24;
     const bodyTop = gridTop - headerHeight;
     const rowCount = Math.max(1, (endHour - startHour) * 2);
     const rowHeight = (bodyTop - gridBottom) / rowCount;
     const entriesByDay = getEntriesByDay(entries);
+    const printableDays = getPrintableDays(entriesByDay);
+    const dayIndexByValue = new Map(printableDays.map((day, index) => [day, index]));
+    const slotGroupsByDay = getSlotGroupsByDay(entriesByDay);
     const breaksByDay = getBreaksByDay(entries);
+    const dayColumnWidth = (usableWidth - timeColumnWidth) / printableDays.length;
 
     pdf.rect({ x: pdf.margin, y: gridBottom, width: usableWidth, height: gridHeight, fill: palette.surface, stroke: palette.border, borderWidth: 0.6 });
     pdf.rect({ x: pdf.margin, y: bodyTop, width: usableWidth, height: headerHeight, fill: palette.mutedSurface, stroke: palette.border, borderWidth: 0.5 });
     pdf.text('Time', pdf.margin + 12, bodyTop + 9, { size: 7, font: 'bold', color: palette.muted });
 
-    WEEK_DAYS.forEach((day, index) => {
+    printableDays.forEach((day, index) => {
         const x = pdf.margin + timeColumnWidth + index * dayColumnWidth;
         pdf.line(x, gridBottom, x, gridTop, palette.border, 0.5);
         pdf.text(DAY_NAMES[day], x + 6, bodyTop + 9, { size: 8, font: 'bold', color: palette.text, maxWidth: dayColumnWidth - 12 });
@@ -260,8 +356,8 @@ export async function createTimetablePdf({
         }
     }
 
-    WEEK_DAYS.forEach((day) => {
-        const dayX = pdf.margin + timeColumnWidth + day * dayColumnWidth;
+    printableDays.forEach((day, dayIndex) => {
+        const dayX = pdf.margin + timeColumnWidth + dayIndex * dayColumnWidth;
         const x = dayX + 4;
         const width = dayColumnWidth - 8;
 
@@ -276,29 +372,38 @@ export async function createTimetablePdf({
         });
     });
 
-    entries.forEach((entry) => {
-        const color = getSectionColor(entry);
-        const startOffset = Math.max(0, timeToMinutes(entry.startTime) - startHour * 60);
-        const duration = Math.max(30, timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime));
-        const dayX = pdf.margin + timeColumnWidth + entry.day * dayColumnWidth;
+    printableDays.forEach((day) => {
+        const dayIndex = dayIndexByValue.get(day);
+        if (dayIndex === undefined) return;
+        const dayX = pdf.margin + timeColumnWidth + dayIndex * dayColumnWidth;
         const x = dayX + 4;
-        const y = bodyTop - (startOffset / 30) * rowHeight - (duration / 30) * rowHeight + 3;
         const width = dayColumnWidth - 8;
-        const height = Math.max(18, (duration / 30) * rowHeight - 6);
-        const parts = getCourseSectionLabelParts({ courseName: entry.courseName, sectionName: entry.sectionName });
 
-        pdf.rect({ x, y, width, height, fill: mixHex(color, palette.sectionTarget, theme === 'dark' ? 0.72 : 0.84), stroke: color, borderWidth: 0.8 });
-        pdf.text(parts.courseName || parts.inlineLabel, x + 5, y + height - 10, { size: 7, font: 'bold', color, maxWidth: width - 10 });
-        if (height >= 26) pdf.text(parts.sectionName || '', x + 5, y + height - 20, { size: 6, font: 'bold', color: mixHex(color, palette.text, 0.25), maxWidth: width - 10 });
-        if (height >= 38) {
-            pdf.text(`${entry.startTime} - ${entry.endTime} | ${formatDuration(entry.startTime, entry.endTime)}`, x + 5, y + 8, { size: 6, font: 'bold', color, maxWidth: width - 10 });
-        }
-        if (height >= 50) {
-            pdf.text(`Venue: ${entry.room || 'Room TBD'}`, x + 5, y + 19, { size: 6, color: palette.muted, maxWidth: width - 10 });
-        }
-        if (height >= 62) {
-            pdf.text(`Teacher: ${getTeacherLabel(entry)}`, x + 5, y + 29, { size: 6, color: palette.muted, maxWidth: width - 10 });
-        }
+        slotGroupsByDay.get(day)?.forEach((slot) => {
+            const startOffset = Math.max(0, timeToMinutes(slot.startTime) - startHour * 60);
+            const duration = Math.max(30, timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime));
+            const slotY = bodyTop - (startOffset / 30) * rowHeight - (duration / 30) * rowHeight + 3;
+            const slotHeight = Math.max(8, (duration / 30) * rowHeight - 6);
+            const gap = 2;
+            const entryCount = Math.max(1, slot.entries.length);
+            const cardHeight = Math.max(4, (slotHeight - gap * (entryCount - 1)) / entryCount);
+
+            slot.entries.forEach((entry, entryIndex) => {
+                const color = getSectionColor(entry);
+                const cardY = slotY + slotHeight - (entryIndex + 1) * cardHeight - entryIndex * gap;
+                drawTimetableEntryCard({
+                    pdf,
+                    entry,
+                    x,
+                    y: cardY,
+                    width,
+                    height: cardHeight,
+                    color,
+                    palette,
+                    theme,
+                });
+            });
+        });
     });
 
     return pdf.saveAsBlob();

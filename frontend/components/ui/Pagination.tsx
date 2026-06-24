@@ -14,16 +14,14 @@ interface PaginationProps {
 export function Pagination({ currentPage, totalPages, onPageChange, totalResults, pageSize, onPageSizeChange, isLoading }: PaginationProps) {
     const isDisabled = isLoading;
 
+    if (totalPages < 1) return null;
+
     return (
-        <nav className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-border/60 bg-card/70 px-4 py-3 sm:flex-row sm:px-5" aria-label="Pagination">
-            {totalResults !== undefined && pageSize !== undefined && (
+        <nav className="flex shrink-0 flex-col items-center justify-between gap-3 border-t border-border/60 bg-card/70 px-4 py-1 sm:flex-row sm:px-5" aria-label="Pagination">
+            {totalResults !== undefined && totalResults > 0 && pageSize !== undefined && (
                 <div className="flex flex-row items-center gap-3 sm:gap-4 order-2 sm:order-1 shrink-0">
                     <div className="text-xs sm:text-sm font-semibold text-muted-foreground">
-                        {totalResults > 0 ? (
-                            <>Showing <span className="text-primary">{(currentPage - 1) * pageSize + 1}</span> to <span className="text-primary">{Math.min(currentPage * pageSize, totalResults)}</span> of <span className="text-primary">{totalResults}</span> results</>
-                        ) : (
-                            <>No results found</>
-                        )}
+                        <>Showing <span className="text-primary">{(currentPage - 1) * pageSize + 1}</span> to <span className="text-primary">{Math.min(currentPage * pageSize, totalResults)}</span> of <span className="text-primary">{totalResults}</span> results</>
                     </div>
                     
                     {onPageSizeChange && (
@@ -51,11 +49,11 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
                         type="button"
                         onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
                         disabled={currentPage === 1 || isDisabled}
-                        className="group flex items-center gap-1.5 rounded-md border border-border/60 bg-card px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary/25 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-card"
+                        className="group flex items-center gap-1.5 rounded-md border border-border/60 bg-card px-2 py-1 text-sm font-semibold text-foreground transition-colors hover:border-primary/25 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-card"
                         aria-label="Previous page"
                     >
                         <ChevronLeft className="w-4 h-4 text-primary" aria-hidden="true" />
-                        <span className="text-[10px] sm:text-xs font-semibold tracking-wider hidden sm:inline">Previous</span>
+                        <span className="text-[10px] sm:text-xs font-semibold tracking-wider hidden sm:inline">Prev</span>
                     </button>
 
                     <div className="flex items-center gap-1 px-1 sm:px-2">
@@ -71,7 +69,7 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
                                     key={page}
                                     onClick={() => onPageChange(page)}
                                     disabled={isDisabled}
-                                    className={`flex h-8 w-8 items-center justify-center rounded-md text-xs font-semibold transition-colors sm:h-9 sm:w-9 sm:text-sm ${
+                                    className={`flex h-6 w-6 items-center justify-center rounded-md text-xs font-semibold transition-colors sm:h-6.5 sm:w-6.5 sm:text-sm ${
                                         currentPage === page 
                                             ? 'bg-primary text-primary-foreground shadow-xs' 
                                             : 'hover:bg-primary/10 text-foreground/80 border border-border/50 hover:border-primary/20 bg-card/50'
@@ -89,7 +87,7 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalResults
                         type="button"
                         onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
                         disabled={currentPage === totalPages || isDisabled}
-                        className="group flex items-center gap-1.5 rounded-md border border-border/60 bg-card px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary/25 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-card"
+                        className="group flex items-center gap-1.5 rounded-md border border-border/60 bg-card px-2 py-1 text-sm font-semibold text-foreground transition-colors hover:border-primary/25 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-card"
                         aria-label="Next page"
                     >
                         <span className="text-[10px] sm:text-xs font-semibold tracking-wider hidden sm:inline">Next</span>

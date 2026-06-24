@@ -16,6 +16,7 @@ import {
 } from '../common/department-scope';
 import { formatPaginatedResponse, getPaginationOptions } from '../common/utils';
 import { EvaluationAggregationService } from './evaluation-aggregation.service';
+import { hasBadWords } from '@/common/bad-words.util';
 import { EvaluationEligibilityService } from './evaluation-eligibility.service';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from './dto/update-evaluation.dto';
@@ -80,40 +81,10 @@ export class EvaluationsService {
   private normalizeFeedback(value?: string | null) {
     if (value === undefined) return undefined;
     const trimmed = value?.trim();
-    if (trimmed && this.containsBlockedLanguage(trimmed)) {
+    if (trimmed && hasBadWords(trimmed)) {
       throw new BadRequestException('Feedback contains inappropriate language. Please revise it before submitting.');
     }
     return trimmed ? trimmed : null;
-  }
-
-  private containsBlockedLanguage(value: string) {
-    const compact = value
-      .toLowerCase()
-      .replace(/[@]/g, 'a')
-      .replace(/[!1|]/g, 'i')
-      .replace(/[$5]/g, 's')
-      .replace(/[0]/g, 'o')
-      .replace(/[3]/g, 'e')
-      .replace(/[^a-z]+/g, '');
-    const words = value.toLowerCase().match(/[a-z0-9@!|$]+/g) ?? [];
-    const blocked = [
-      'asshole',
-      'bastard',
-      'bitch',
-      'bullshit',
-      'cunt',
-      'dick',
-      'fuck',
-      'motherfucker',
-      'nigger',
-      'nigga',
-      'pussy',
-      'retard',
-      'shit',
-      'slut',
-      'whore',
-    ];
-    return blocked.some((term) => compact.includes(term) || words.some((word) => word === term));
   }
 
   private async sectionScopeFilter(orgId: string, actor: CurrentUser): Promise<Prisma.SectionWhereInput> {

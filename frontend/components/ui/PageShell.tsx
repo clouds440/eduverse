@@ -311,10 +311,10 @@ export function PageTabs<T extends string = string>({
                 <div
                     ref={tabsScrollerRef}
                     className={cn(
-                        'flex gap-0.5 overflow-x-auto border border-border/70 p-0.5 scrollbar-none',
+                        'flex gap-0.5 overflow-x-auto p-0.5 rounded-lg scrollbar-none',
                         tone === 'page'
-                            ? 'rounded-lg bg-card/95 shadow-sm'
-                            : 'rounded-lg bg-muted/45',
+                            ? 'bg-card/95 shadow-sm'
+                            : 'bg-muted/45',
                     )}
                 >
                     {visibleItems.map(({ value, label, icon: Icon, count, href }) => {
@@ -336,7 +336,7 @@ export function PageTabs<T extends string = string>({
                             ? 'min-h-9 px-2.5 py-1.5 text-xs sm:min-w-28 sm:px-3'
                             : 'min-h-10 px-3 py-2 text-sm sm:min-w-32',
                         isActive
-                            ? 'bg-background text-foreground shadow-xs'
+                            ? 'bg-foreground/20 text-foreground shadow-xs'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                         tone === 'panel' && (isActive
                             ? 'bg-card text-foreground shadow-xs'

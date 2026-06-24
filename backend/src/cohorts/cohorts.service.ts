@@ -218,11 +218,42 @@ export class CohortsService {
       await this.assertCodeUnique(orgId, dto.code, id);
     }
 
+    const nextAcademicCycleId = dto.academicCycleId ?? cohort.academicCycleId;
+
+    if (dto.academicCycleId !== undefined) {
+      const cycle = await this.prisma.academicCycle.findFirst({
+        where: { id: dto.academicCycleId, organizationId: orgId },
+        select: { id: true },
+      });
+      if (!cycle) throw new NotFoundException('Academic cycle not found in this organization');
+    }
+
+    const sectionIdsForValidation = dto.sectionIds ?? cohort.sections.map(section => section.id);
+    const uniqueSectionIds = [...new Set(sectionIdsForValidation)];
+    if (uniqueSectionIds.length > 0) {
+      const sections = await this.prisma.section.findMany({
+        where: {
+          id: { in: uniqueSectionIds },
+          course: { organizationId: orgId },
+        },
+        select: { id: true, academicCycleId: true },
+      });
+
+      if (sections.length !== uniqueSectionIds.length) {
+        throw new BadRequestException('Some sections not found in this organization');
+      }
+
+      const sectionFromOtherCycle = sections.find(section => section.academicCycleId !== nextAcademicCycleId);
+      if (sectionFromOtherCycle) {
+        throw new BadRequestException('Assigned sections must belong to the selected academic cycle');
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const previousStudentIds = new Set(cohort.students.map(student => student.id));
       const previousSectionIds = new Set(cohort.sections.map(section => section.id));
-      const nextStudentIds = dto.studentIds ? new Set(dto.studentIds) : previousStudentIds;
-      const nextSectionIds = dto.sectionIds ? new Set(dto.sectionIds) : previousSectionIds;
+      const nextStudentIds = dto.studentIds !== undefined ? new Set(dto.studentIds) : previousStudentIds;
+      const nextSectionIds = dto.sectionIds !== undefined ? new Set(dto.sectionIds) : previousSectionIds;
 
       const removedStudentIds = [...previousStudentIds].filter(studentId => !nextStudentIds.has(studentId));
       const addedStudentIds = [...nextStudentIds].filter(studentId => !previousStudentIds.has(studentId));
@@ -234,11 +265,19 @@ export class CohortsService {
         data: {
           name: dto.name !== undefined ? dto.name.trim() : undefined,
           code: dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
-          sections: dto.sectionIds ? {
+          academicCycleId: dto.academicCycleId !== undefined ? dto.academicCycleId : undefined,
+          sections: dto.sectionIds !== undefined ? {
             set: dto.sectionIds.map(sectionId => ({ id: sectionId })),
           } : undefined,
         },
       });
+
+      if (dto.academicCycleId !== undefined && dto.academicCycleId !== cohort.academicCycleId) {
+        await tx.cohortMembershipHistory.updateMany({
+          where: { cohortId: id, leftAt: null },
+          data: { academicCycleId: nextAcademicCycleId },
+        });
+      }
 
       for (const studentId of removedStudentIds) {
         await this.removeCohortEnrollments(tx, studentId, id);
@@ -283,7 +322,7 @@ export class CohortsService {
             data: {
               studentId: student.id,
               cohortId: id,
-              academicCycleId: cohort.academicCycleId,
+              academicCycleId: nextAcademicCycleId,
             },
           });
         }
@@ -305,14 +344,14 @@ export class CohortsService {
       for (const student of currentStudents) {
         const targetSections = addedStudentIds.includes(student.id) ? sectionsForEnrollment : addedSections;
         for (const section of targetSections) {
-          await this.autoEnrollStudent(tx, student.id, section.id, section.academicCycleId || cohort.academicCycleId);
+          await this.autoEnrollStudent(tx, student.id, section.id, section.academicCycleId || nextAcademicCycleId);
         }
       }
 
       return tx.cohort.findUnique({
         where: { id },
         include: {
-          academicCycle: { select: { id: true, name: true } },
+          academicCycle: { select: { id: true, name: true, code: true } },
           _count: { select: { students: true, sections: true } },
         },
       });

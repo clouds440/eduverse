@@ -200,7 +200,7 @@ export default function RoleAccountListPage({
                     ] : [
                         ...(canGenerateResetForRole ? [{
                             variant: 'passwordReset' as const,
-                            title: 'Copy Reset Link',
+                            title: 'Copy Password Reset Link',
                             loading: generatingResetUserId === row.id,
                             onClick: () => generatePasswordResetLink(row.id),
                         }] : []),

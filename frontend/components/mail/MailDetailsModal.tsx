@@ -50,8 +50,8 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
     const { dispatch } = useGlobal();
     const [mail, setMail] = useState<MailDetail | null>(null);
     const [loading, setLoading] = useState(false);
-    const [mobileComposerOpen, setMobileComposerOpen] = useState(false);
-    const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+    const [composerOpen, setComposerOpen] = useState(false);
+    const [actionsOpen, setActionsOpen] = useState(false);
     const requestRef = useRef(0);
     const threadRef = useRef<MailThreadHandle>(null);
 
@@ -93,13 +93,13 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
         requestRef.current += 1;
         setMail(null);
         setLoading(false);
-        setMobileComposerOpen(false);
-        setMobileActionsOpen(false);
+        setComposerOpen(false);
+        setActionsOpen(false);
     }, [fetchMailDetails, isOpen, mailId]);
 
     useEffect(() => {
-        setMobileComposerOpen(false);
-        setMobileActionsOpen(false);
+        setComposerOpen(false);
+        setActionsOpen(false);
     }, [mailId]);
 
     useEffect(() => {
@@ -170,33 +170,33 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
         }
     }, [dispatch, mail, onUpdate, token]);
 
-    const handleScrollToReply = useCallback(() => {
-        setMobileActionsOpen(false);
-        threadRef.current?.scrollToReply();
+    const handleToggleReplyComposer = useCallback(() => {
+        setActionsOpen(false);
+        threadRef.current?.toggleReplyComposer();
     }, []);
 
-    const handleMobileComposerOpenChange = useCallback((open: boolean) => {
-        setMobileComposerOpen(open);
-        if (open) setMobileActionsOpen(false);
+    const handleComposerOpenChange = useCallback((open: boolean) => {
+        setComposerOpen(open);
+        if (open) setActionsOpen(false);
     }, []);
 
-    const handleMobileStatusUpdate = useCallback((status: MailStatus) => {
-        setMobileActionsOpen(false);
+    const handleDrawerStatusUpdate = useCallback((status: MailStatus) => {
+        setActionsOpen(false);
         void handleStatusUpdate(status);
     }, [handleStatusUpdate]);
 
     useBackStackEntry({
-        enabled: isOpen && mobileActionsOpen,
+        enabled: isOpen && actionsOpen,
         label: 'Mail actions',
         priority: 130,
-        onBack: () => setMobileActionsOpen(false),
+        onBack: () => setActionsOpen(false),
     });
 
     useBackStackEntry({
-        enabled: isOpen && mobileComposerOpen,
+        enabled: isOpen && composerOpen,
         label: 'Mail composer',
         priority: 125,
-        onBack: () => setMobileComposerOpen(false),
+        onBack: () => threadRef.current?.closeReplyComposer(),
     });
 
     const isClosed = mail?.status === MailStatus.CLOSED || mail?.status === MailStatus.RESOLVED;
@@ -209,7 +209,7 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
             isOpen={isOpen}
             onClose={onClose}
             maxWidth="max-w-6xl"
-            className="h-[calc(100vh-1rem)] h-[calc(100dvh-1rem)] max-h-[calc(100vh-1rem)] max-h-[calc(100dvh-1rem)] sm:h-[88vh] sm:max-h-[88vh]"
+            className="h-[calc(100dvh-1rem)] max-h-[calc(100vh-1rem)] sm:h-[88vh] sm:max-h-[88vh]"
             bodyClassName="p-0! overflow-hidden"
             customHeader={
                 <div className="shrink-0 border-b border-border/70 bg-card/90 px-3 py-3 backdrop-blur-xl sm:px-5 sm:py-4">
@@ -256,70 +256,6 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                             <X className="h-5 w-5" />
                         </button>
                     </div>
-
-                    {mail && (
-                        <div className="mt-4 hidden flex-col gap-2 border-t border-border/60 pt-4 sm:flex sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex flex-row gap-2 w-full sm:w-auto">
-                                {!replyLocked && (
-                                    <Button
-                                        type="button"
-                                        onClick={handleScrollToReply}
-                                        icon={MessageSquare}
-                                        variant="primary"
-                                        px="px-4"
-                                        py="py-2"
-                                        className="text-xs w-full sm:w-auto"
-                                    >
-                                        Reply
-                                    </Button>
-                                )}
-
-                                {canManageStatus && mail.status === MailStatus.OPEN && (
-                                    <Button
-                                        type="button"
-                                        onClick={() => handleStatusUpdate(MailStatus.IN_PROGRESS)}
-                                        icon={ArrowUpRight}
-                                        variant="warning"
-                                        loadingId="status-progress"
-                                        px="px-4"
-                                        py="py-2"
-                                        className="text-xs w-full sm:w-auto"
-                                    >
-                                        In Progress
-                                    </Button>
-                                )}
-                            </div>
-
-                            {canManageStatus && (
-                                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-                                    <Button
-                                        type="button"
-                                        onClick={() => handleStatusUpdate(MailStatus.RESOLVED)}
-                                        icon={CheckCircle2}
-                                        variant="success"
-                                        loadingId="status-resolve"
-                                        px="px-4"
-                                        py="py-2"
-                                        className="text-xs"
-                                    >
-                                        Resolve
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        onClick={() => handleStatusUpdate(MailStatus.CLOSED)}
-                                        icon={XCircle}
-                                        variant="danger"
-                                        loadingId="status-close"
-                                        px="px-4"
-                                        py="py-2"
-                                        className="text-xs"
-                                    >
-                                        Close
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
             }
         >
@@ -344,19 +280,19 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                                         ? 'This is a no-reply mail. Replies are disabled.'
                                         : 'This thread is closed. No further replies can be sent.'
                                 }
-                                onMobileComposerOpenChange={handleMobileComposerOpenChange}
+                                onComposerOpenChange={handleComposerOpenChange}
                             />
                         </div>
 
-                        {!mobileComposerOpen && (canManageStatus || !replyLocked) && (
-                            <div className="shrink-0 border-t border-border/70 bg-card/95 p-2 backdrop-blur-xl sm:hidden">
-                                {mobileActionsOpen && canManageStatus && (
+                        {(canManageStatus || !replyLocked) && (
+                            <div className="shrink-0 border-t border-border/70 bg-card/95 p-2 backdrop-blur-xl">
+                                {actionsOpen && canManageStatus && (
                                     <div className="mb-2 rounded-2xl border border-border/70 bg-background/95 p-2 shadow-xl">
-                                        <div className="flex flex-col gap-2">
+                                        <div className={`grid gap-2 ${mail.status === MailStatus.OPEN ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                                             {mail.status === MailStatus.OPEN && (
                                                 <Button
                                                     type="button"
-                                                    onClick={() => handleMobileStatusUpdate(MailStatus.IN_PROGRESS)}
+                                                    onClick={() => handleDrawerStatusUpdate(MailStatus.IN_PROGRESS)}
                                                     icon={ArrowUpRight}
                                                     variant="warning"
                                                     loadingId="status-progress"
@@ -370,7 +306,7 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
 
                                             <Button
                                                 type="button"
-                                                onClick={() => handleMobileStatusUpdate(MailStatus.RESOLVED)}
+                                                onClick={() => handleDrawerStatusUpdate(MailStatus.RESOLVED)}
                                                 icon={CheckCircle2}
                                                 variant="success"
                                                 loadingId="status-resolve"
@@ -383,7 +319,7 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
 
                                             <Button
                                                 type="button"
-                                                onClick={() => handleMobileStatusUpdate(MailStatus.CLOSED)}
+                                                onClick={() => handleDrawerStatusUpdate(MailStatus.CLOSED)}
                                                 icon={XCircle}
                                                 variant="danger"
                                                 loadingId="status-close"
@@ -401,27 +337,30 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                                     {!replyLocked && (
                                         <Button
                                             type="button"
-                                            onClick={handleScrollToReply}
+                                            onClick={handleToggleReplyComposer}
                                             icon={MessageSquare}
                                             variant="primary"
                                             px="px-4"
                                             py="py-2"
                                             className="w-full rounded-xl text-xs shadow-sm"
                                         >
-                                            Reply
+                                            {composerOpen ? 'Hide Reply' : 'Reply'}
                                         </Button>
                                     )}
 
                                     {canManageStatus && (
                                         <Button
                                             type="button"
-                                            onClick={() => setMobileActionsOpen((open) => !open)}
+                                            onClick={() => {
+                                                threadRef.current?.closeReplyComposer();
+                                                setActionsOpen((open) => !open);
+                                            }}
                                             icon={MoreHorizontal}
                                             variant="secondary"
                                             px="px-4"
                                             py="py-2"
                                             className="w-full rounded-xl text-xs shadow-sm"
-                                            aria-expanded={mobileActionsOpen}
+                                            aria-expanded={actionsOpen}
                                         >
                                             Actions
                                         </Button>

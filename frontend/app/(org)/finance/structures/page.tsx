@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { Filter, Plus, ReceiptText, Search } from 'lucide-react';
+import { Filter, PlayCircle, Plus, ReceiptText, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { BillingCycle, FinanceAssignmentSource, FinanceCategory, FinancialStructure, FinanceTargetType, Role } from '@/types';
@@ -40,6 +40,7 @@ export default function StructuresPage() {
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStructure, setEditingStructure] = useState<FinancialStructure | null>(null);
+    const [generatingStructureId, setGeneratingStructureId] = useState<string | null>(null);
 
     const page = getNumberParam('page', 1);
     const sortBy = getStringParam('sortBy', 'title');
@@ -99,6 +100,27 @@ export default function StructuresPage() {
             throw error;
         }
     };
+
+    const handleGenerateEntries = useCallback(async (structure: FinancialStructure) => {
+        if (!token) return;
+        setGeneratingStructureId(structure.id);
+        try {
+            const result = await api.finance.generateStructureEntries(structure.id, token);
+            dispatch({
+                type: 'TOAST_ADD',
+                payload: {
+                    message: `${result.createdCount} ${result.createdCount === 1 ? 'entry' : 'entries'} generated${result.skippedCount ? `, ${result.skippedCount} skipped` : ''}`,
+                    type: 'success',
+                },
+            });
+            mutate();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to generate entries';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            setGeneratingStructureId(null);
+        }
+    }, [dispatch, mutate, token]);
 
     const columns = useMemo<Column<FinancialStructure>[]>(() => [
         {
@@ -165,7 +187,28 @@ export default function StructuresPage() {
                 </Badge>
             ),
         },
-    ], []);
+        {
+            header: 'Actions',
+            width: 180,
+            accessor: (structure) => isManagement ? (
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    icon={PlayCircle}
+                    disabled={!structure.isActive || generatingStructureId === structure.id}
+                    isLoading={generatingStructureId === structure.id}
+                    loadingText="Generating"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        handleGenerateEntries(structure);
+                    }}
+                >
+                    Generate Entries
+                </Button>
+            ) : null,
+        },
+    ], [generatingStructureId, handleGenerateEntries, isManagement]);
 
     const sortedData = useMemo(() => {
         if (!structures) return [];

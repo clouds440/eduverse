@@ -8,6 +8,10 @@ export class UpdateCohortDto {
 
   @IsString()
   @IsOptional()
+  academicCycleId?: string;
+
+  @IsString()
+  @IsOptional()
   @MaxLength(32)
   @Matches(ENTITY_CODE_PATTERN, { message: 'Code may contain letters, numbers, underscores, and hyphens' })
   code?: string;

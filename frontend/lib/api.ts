@@ -24,6 +24,7 @@ import type {
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
+import { emitProfanityWarning, PROFANITY_ERROR_CODE } from './profanityWarning';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? '';
 
@@ -43,11 +44,31 @@ export const setUnauthorizedHandler = (handler: (failedToken?: string) => void) 
 
 export class ApiRequestError extends Error {
     status: number;
+    code?: string;
+    field?: string;
+    response?: {
+        status: number;
+        data: {
+            code?: string;
+            field?: string;
+            message: string;
+        };
+    };
 
-    constructor(message: string, status: number) {
+    constructor(message: string, status: number, details?: { code?: string; field?: string }) {
         super(message);
         this.name = 'ApiRequestError';
         this.status = status;
+        this.code = details?.code;
+        this.field = details?.field;
+        this.response = {
+            status,
+            data: {
+                code: details?.code,
+                field: details?.field,
+                message,
+            },
+        };
     }
 }
 
@@ -104,6 +125,42 @@ function buildQueryString(params: QueryParams): string {
     return query ? `?${query}` : '';
 }
 
+function parseApiErrorData(data: unknown, fallback: string) {
+    const root = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+    const nested = root.message && typeof root.message === 'object' && !Array.isArray(root.message)
+        ? root.message as Record<string, unknown>
+        : {};
+    const rawMessage = root.message ?? nested.message;
+    const message = Array.isArray(rawMessage)
+        ? String(rawMessage[0] || fallback)
+        : typeof rawMessage === 'string'
+            ? rawMessage
+            : typeof nested.message === 'string'
+                ? nested.message
+                : fallback;
+    const code = typeof root.code === 'string'
+        ? root.code
+        : typeof nested.code === 'string'
+            ? nested.code
+            : undefined;
+    const field = typeof root.field === 'string'
+        ? root.field
+        : typeof nested.field === 'string'
+            ? nested.field
+            : undefined;
+
+    return { message, code, field };
+}
+
+function maybeEmitProfanityWarning(error: { code?: string; field?: string; message: string }) {
+    if (error.code !== PROFANITY_ERROR_CODE) return;
+
+    emitProfanityWarning({
+        field: error.field,
+        message: error.message,
+    });
+}
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { token, signal, ...rest } = options;
 
@@ -132,11 +189,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
         if (!response.ok) {
             let message = `Request failed with status ${response.status}`;
+            let code: string | undefined;
+            let field: string | undefined;
             try {
                 const contentType = response.headers.get('content-type');
                 if (contentType?.includes('application/json')) {
                     const data = await response.json();
-                    message = Array.isArray(data.message) ? data.message[0] : data.message || message;
+                    const parsed = parseApiErrorData(data, message);
+                    message = parsed.message;
+                    code = parsed.code;
+                    field = parsed.field;
                 } else {
                     const text = await response.text();
                     if (text && text.length < 200) message = text;
@@ -144,7 +206,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
             } catch (error) {
                 console.error('Error parsing error response:', error);
             }
-            throw new ApiRequestError(message, response.status);
+            maybeEmitProfanityWarning({ code, field, message });
+            throw new ApiRequestError(message, response.status, { code, field });
         }
 
         if (response.status === 204) return null as T;
@@ -221,15 +284,21 @@ async function requestText(endpoint: string, options: RequestOptions = {}): Prom
 
         if (!response.ok) {
             let message = `Request failed with status ${response.status}`;
+            let code: string | undefined;
+            let field: string | undefined;
             const contentType = response.headers.get('content-type');
             if (contentType?.includes('application/json')) {
                 const data = await response.json();
-                message = Array.isArray(data.message) ? data.message[0] : data.message || message;
+                const parsed = parseApiErrorData(data, message);
+                message = parsed.message;
+                code = parsed.code;
+                field = parsed.field;
             } else {
                 const text = await response.text();
                 if (text && text.length < 200) message = text;
             }
-            throw new ApiRequestError(message, response.status);
+            maybeEmitProfanityWarning({ code, field, message });
+            throw new ApiRequestError(message, response.status, { code, field });
         }
 
         return response.text();
@@ -865,6 +934,8 @@ export const api = {
             request<FinancialStructure>('/finance/structures', { method: 'POST', body: JSON.stringify(data), token }),
         updateStructure: (id: string, data: Partial<FinancialStructure>, token: string) =>
             request<{ structure: FinancialStructure, entryUpdateSummary: { updated: number, skipped: number, skippedEntryIds: string[] } }>(`/finance/structures/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        generateStructureEntries: (id: string, token: string) =>
+            request<{ structureId: string, createdCount: number, skippedCount: number, skippedAssignmentIds: string[], entries: FinancialEntry[] }>(`/finance/structures/${id}/generate-entries`, { method: 'POST', token }),
         getEntries: (token: string, params: { studentId?: string, teacherId?: string, employeeUserId?: string, targetType?: string, category?: string, billingCycle?: string, status?: string, search?: string, dueFrom?: string, dueTo?: string } = {}) =>
             request<FinancialEntry[]>(`/finance/entries${buildQueryString(params)}`, { token }),
         getEntriesPage: (token: string, params: { page?: number, limit?: number, studentId?: string, teacherId?: string, employeeUserId?: string, targetType?: string, category?: string, billingCycle?: string, status?: string, search?: string, dueFrom?: string, dueTo?: string } = {}) =>

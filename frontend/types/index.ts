@@ -1364,9 +1364,13 @@ export interface GradeFinalizationRow {
 export interface ApiError {
     message?: string;
     status?: number;
+    code?: string;
+    field?: string;
     response?: {
         status?: number;
         data?: {
+            code?: string;
+            field?: string;
             message?: string | string[];
         };
     };
@@ -1661,6 +1665,7 @@ export interface TimetableEntry {
     endTime: string;
     room: string | null;
     roomId?: string | null;
+    teacherUserId?: string | null;
     teacherName?: string | null;
     additionalTeachersCount?: number;
 }
@@ -1898,6 +1903,7 @@ export enum FinanceCategory {
     TUITION = 'TUITION',
     TRANSPORT = 'TRANSPORT',
     LIBRARY = 'LIBRARY',
+    LIBRARY_FINE = 'LIBRARY_FINE',
     EXAM = 'EXAM',
     SALARY = 'SALARY',
     BONUS = 'BONUS',
@@ -1905,6 +1911,70 @@ export enum FinanceCategory {
     HOSTEL = 'HOSTEL',
     ACTIVITY = 'ACTIVITY',
     REIMBURSEMENT = 'REIMBURSEMENT',
+    REFUND = 'REFUND',
+    LATE_FEE = 'LATE_FEE',
+    FINE = 'FINE',
+    BOOKS_SUPPLIES = 'BOOKS_SUPPLIES',
+    STATIONERY = 'STATIONERY',
+    UNIFORM = 'UNIFORM',
+    LAB = 'LAB',
+    ID_CARD = 'ID_CARD',
+    CERTIFICATE = 'CERTIFICATE',
+    TRANSCRIPT = 'TRANSCRIPT',
+    GRADUATION = 'GRADUATION',
+    REGISTRATION = 'REGISTRATION',
+    APPLICATION_FEE = 'APPLICATION_FEE',
+    PROCESSING_FEE = 'PROCESSING_FEE',
+    DEVELOPMENT_FEE = 'DEVELOPMENT_FEE',
+    BUILDING_FUND = 'BUILDING_FUND',
+    CANTEEN = 'CANTEEN',
+    CAFETERIA = 'CAFETERIA',
+    MEDICAL = 'MEDICAL',
+    HEALTH = 'HEALTH',
+    SPORTS = 'SPORTS',
+    ARTS = 'ARTS',
+    MUSIC = 'MUSIC',
+    TECHNOLOGY = 'TECHNOLOGY',
+    PRINTING = 'PRINTING',
+    PARKING = 'PARKING',
+    SECURITY_DEPOSIT = 'SECURITY_DEPOSIT',
+    FIELD_TRIP = 'FIELD_TRIP',
+    EVENT = 'EVENT',
+    DONATION = 'DONATION',
+    GRANT = 'GRANT',
+    SCHOLARSHIP = 'SCHOLARSHIP',
+    DISCOUNT = 'DISCOUNT',
+    WAIVER = 'WAIVER',
+    VENDOR_PAYMENT = 'VENDOR_PAYMENT',
+    ALLOWANCE = 'ALLOWANCE',
+    OVERTIME = 'OVERTIME',
+    COMMISSION = 'COMMISSION',
+    ADVANCE = 'ADVANCE',
+    LOAN = 'LOAN',
+    TRAINING = 'TRAINING',
+    PROFESSIONAL_DEVELOPMENT = 'PROFESSIONAL_DEVELOPMENT',
+    TRAVEL = 'TRAVEL',
+    MEAL = 'MEAL',
+    ACCOMMODATION = 'ACCOMMODATION',
+    MAINTENANCE = 'MAINTENANCE',
+    UTILITIES = 'UTILITIES',
+    RENT = 'RENT',
+    EQUIPMENT = 'EQUIPMENT',
+    SOFTWARE = 'SOFTWARE',
+    INTERNET = 'INTERNET',
+    PHONE = 'PHONE',
+    OFFICE_SUPPLIES = 'OFFICE_SUPPLIES',
+    CLEANING = 'CLEANING',
+    SECURITY = 'SECURITY',
+    REPAIRS = 'REPAIRS',
+    MARKETING = 'MARKETING',
+    LEGAL = 'LEGAL',
+    CONSULTING = 'CONSULTING',
+    TAX = 'TAX',
+    INSURANCE = 'INSURANCE',
+    BANK_CHARGE = 'BANK_CHARGE',
+    MISC_INCOME = 'MISC_INCOME',
+    MISC_EXPENSE = 'MISC_EXPENSE',
     OTHER = 'OTHER'
 }
 
@@ -2184,6 +2254,7 @@ export interface CreateCohortDto {
 export interface UpdateCohortDto {
     name?: string;
     code?: string;
+    academicCycleId?: string;
     studentIds?: string[];
     sectionIds?: string[];
 }

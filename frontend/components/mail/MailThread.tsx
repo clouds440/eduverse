@@ -4,6 +4,7 @@ import React, {
     forwardRef,
     memo,
     useCallback,
+    useEffect,
     useImperativeHandle,
     useMemo,
     useRef,
@@ -37,11 +38,13 @@ interface MailThreadProps {
     onReply: (content: string, files?: File[]) => Promise<void>;
     isClosed?: boolean;
     closedMessage?: string;
-    onMobileComposerOpenChange?: (open: boolean) => void;
+    onComposerOpenChange?: (open: boolean) => void;
 }
 
 export interface MailThreadHandle {
     scrollToReply: () => void;
+    toggleReplyComposer: () => void;
+    closeReplyComposer: () => void;
 }
 
 type TimelineItem =
@@ -315,7 +318,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-card/80 text-muted-foreground transition-colors hover:border-danger/40 hover:text-danger sm:hidden"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-card/80 text-muted-foreground transition-colors hover:border-danger/40 hover:text-danger"
                             title="Hide reply composer"
                         >
                             <X className="h-4 w-4" />
@@ -383,24 +386,43 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
 ReplyComposer.displayName = 'ReplyComposer';
 
 export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
-    ({ mail, currentUserId, currentUserRole, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.', onMobileComposerOpenChange }, ref) => {
+    ({ mail, currentUserId, currentUserRole, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.', onComposerOpenChange }, ref) => {
         const composerRef = useRef<ReplyComposerHandle>(null);
-        const [mobileComposerOpen, setMobileComposerOpen] = useState(false);
+        const [composerOpen, setComposerOpen] = useState(false);
         const isPlatformAdmin = currentUserRole === Role.PLATFORM_ADMIN || currentUserRole === Role.SUPER_ADMIN;
 
-        const updateMobileComposerOpen = useCallback((open: boolean) => {
-            setMobileComposerOpen(open);
-            onMobileComposerOpenChange?.(open);
-        }, [onMobileComposerOpenChange]);
+        useEffect(() => {
+            setComposerOpen(false);
+            onComposerOpenChange?.(false);
+        }, [mail.id, onComposerOpenChange]);
+
+        const updateComposerOpen = useCallback((open: boolean) => {
+            setComposerOpen(open);
+            onComposerOpenChange?.(open);
+        }, [onComposerOpenChange]);
 
         const scrollToReplyComposer = useCallback(() => {
-            updateMobileComposerOpen(true);
+            updateComposerOpen(true);
             window.setTimeout(() => composerRef.current?.scrollToReply(), 50);
-        }, [updateMobileComposerOpen]);
+        }, [updateComposerOpen]);
+
+        const closeReplyComposer = useCallback(() => {
+            updateComposerOpen(false);
+        }, [updateComposerOpen]);
+
+        const toggleReplyComposer = useCallback(() => {
+            const nextOpen = !composerOpen;
+            updateComposerOpen(nextOpen);
+            if (nextOpen) {
+                window.setTimeout(() => composerRef.current?.scrollToReply(), 50);
+            }
+        }, [composerOpen, updateComposerOpen]);
 
         useImperativeHandle(ref, () => ({
             scrollToReply: scrollToReplyComposer,
-        }), [scrollToReplyComposer]);
+            toggleReplyComposer,
+            closeReplyComposer,
+        }), [closeReplyComposer, scrollToReplyComposer, toggleReplyComposer]);
 
         const timeline = useMemo<TimelineItem[]>(() => {
             return [
@@ -466,15 +488,15 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
                 </div>
 
                 {!isClosed && (
-                    <div className={`${mobileComposerOpen ? 'block' : 'hidden'} shrink-0 sm:block`}>
+                    <div className={`${composerOpen ? 'block' : 'hidden'} shrink-0`}>
                         <ReplyComposer
                             ref={composerRef}
                             isPlatformAdmin={isPlatformAdmin}
                             orgData={orgData}
                             onReply={onReply}
                             className="max-h-[52vh] overflow-y-auto custom-scrollbar sm:max-h-none sm:overflow-visible"
-                            onCancel={() => updateMobileComposerOpen(false)}
-                            onSent={() => updateMobileComposerOpen(false)}
+                            onCancel={closeReplyComposer}
+                            onSent={closeReplyComposer}
                         />
                     </div>
                 )}

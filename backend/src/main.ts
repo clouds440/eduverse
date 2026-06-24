@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { join } from 'path';
 import { validateEnv } from './common/env-validation';
 import { createPrismaClient } from './prisma/prisma-client';
+import { BadWordsPipe } from './common/pipes/bad-words.pipe';
 
 async function bootstrap() {
   // Validate required environment variables before starting
@@ -41,6 +42,7 @@ async function bootstrap() {
     credentials: true,
   });
   app.useGlobalPipes(
+    new BadWordsPipe(),
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }),
   );
 

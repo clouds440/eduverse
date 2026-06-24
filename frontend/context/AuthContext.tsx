@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     if (user.role === Role.STUDENT) {
                         const isStudentPortal = pathSegments[1] === 'students' && pathSegments[2] === user.id;
                         const isSupportInOrg = pathSegments[1] === 'mail';
-                        const isAllowedShared = ['chat', 'timetable', 'attendance', 'change-password', 'course-materials', 'transcripts', 'fees', 'profiles'].includes(pathSegments[1]);
+                        const isAllowedShared = ['chat', 'timetable', 'attendance', 'change-password', 'course-materials', 'transcripts', 'fees', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
                         const isSettingsPage = pathSegments.includes('settings');
 
                         if (isSettingsPage) {
@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
                     } else if (user.role === Role.GUARDIAN) {
-                        const isAllowedShared = ['guardian', 'chat', 'mail', 'change-password', 'profiles'].includes(pathSegments[1]);
+                        const isAllowedShared = ['guardian', 'chat', 'mail', 'change-password', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
                         if (!isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Guardians can only access linked-student information and support tools.', type: 'error' } });
                             router.replace('/guardian');
@@ -176,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'change-password',
                             'contact',
                             'profiles',
+                            'campus-navigation',
                         ].includes(pathSegments[1]);
 
                         if (isSettingsPage) {
@@ -189,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
                     } else if (user.role === Role.FINANCE_MANAGER) {
-                        const isAllowedShared = ['finance', 'teacher-finance', 'finance-managers', 'chat', 'mail', 'change-password', 'contact', 'profiles'].includes(pathSegments[1]);
+                        const isAllowedShared = ['finance', 'teacher-finance', 'finance-managers', 'chat', 'mail', 'change-password', 'contact', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
                         const isSettingsPage = pathSegments.includes('settings');
 
                         if (isSettingsPage || !isAllowedShared) {

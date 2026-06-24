@@ -84,7 +84,6 @@ export function StatusBanner({
     const Icon = icon || DEFAULT_ICONS[variant];
 
     const [visible, setVisible] = React.useState(true);
-    const [detailsOpen, setDetailsOpen] = React.useState(false);
     const [isCompactViewport, setIsCompactViewport] = React.useState(false);
 
     React.useEffect(() => {
@@ -99,7 +98,6 @@ export function StatusBanner({
 
     const isCompact = compact === true || (compact === 'auto' && isCompactViewport);
     const hasDetails = Boolean(description || children);
-    const showDetails = !isCompact || detailsOpen;
 
     return (
         <section className={cn('relative rounded-lg border p-2.5 shadow-sm sm:p-3', tone.shell, className)}>
@@ -123,7 +121,7 @@ export function StatusBanner({
                         </div>
                         <div className="min-w-0">
                             <h2 className={cn('text-sm font-black leading-5', tone.title)}>{title}</h2>
-                            {description && showDetails && (
+                            {description && (
                                 <div className="mt-1 text-sm font-medium leading-5 text-current/80">
                                     {description}
                                 </div>
@@ -131,18 +129,6 @@ export function StatusBanner({
                         </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                        {hasDetails && isCompact && (
-                            <button
-                                type="button"
-                                onClick={() => setDetailsOpen((open) => !open)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-current/20 text-current transition-colors hover:bg-current/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                                aria-expanded={detailsOpen}
-                                aria-label={detailsOpen ? 'Hide banner details' : 'Show banner details'}
-                                title={detailsOpen ? 'Hide details' : 'Show details'}
-                            >
-                                {detailsOpen ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <MoreHorizontal className="h-4 w-4" aria-hidden="true" />}
-                            </button>
-                        )}
                         {action && (
                             <Link
                                 href={action.href}
@@ -154,7 +140,7 @@ export function StatusBanner({
                     </div>
                 </div>
             </div>
-            {children && showDetails && <div className="mt-2 text-current">{children}</div>}
+            {children && <div className="mt-2 text-current">{children}</div>}
         </section>
     );
 }

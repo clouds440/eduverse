@@ -3,8 +3,10 @@
 import React, { createContext, useContext, useReducer, ReactNode, useEffect, useCallback } from 'react';
 import { AdminStats, Role, Organization, Teacher, Student, Section, Course, ThemeMode } from '@/types';
 import { Toast, ToastType } from '@/components/ui/Toast';
+import { ProfanityWarningDialog } from '@/components/ui/ProfanityWarningDialog';
 import { api } from '@/lib/api';
 import { decodeAuthToken } from '@/lib/authSession';
+import { isProfanityMessage, PROFANITY_WARNING_EVENT, type ProfanityWarningDetail } from '@/lib/profanityWarning';
 
 // --- Types ---
 
@@ -185,6 +187,7 @@ function globalReducer(state: GlobalState, action: GlobalAction): GlobalState {
         case 'STATS_SET_CHAT':
             return { ...state, stats: { ...state.stats, chat: action.payload } };
         case 'TOAST_ADD':
+            if (isProfanityMessage(action.payload.message)) return state;
             const id = Math.random().toString(36).substring(2, 9);
             return { ...state, toasts: [...state.toasts, { ...action.payload, id }] };
         case 'TOAST_REMOVE':
@@ -243,6 +246,7 @@ const SESSION_HYDRATION_TIMEOUT_MS = 3000;
 
 export function GlobalProvider({ children }: { children: ReactNode }) {
     const [state, dispatch] = useReducer(globalReducer, initialState);
+    const [profanityWarning, setProfanityWarning] = React.useState<ProfanityWarningDetail | null>(null);
 
     // Initial auth sync
     useEffect(() => {
@@ -302,6 +306,16 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    useEffect(() => {
+        const handleProfanityWarning = (event: Event) => {
+            const customEvent = event as CustomEvent<ProfanityWarningDetail>;
+            setProfanityWarning(customEvent.detail);
+        };
+
+        window.addEventListener(PROFANITY_WARNING_EVENT, handleProfanityWarning);
+        return () => window.removeEventListener(PROFANITY_WARNING_EVENT, handleProfanityWarning);
+    }, []);
+
     const removeToast = useCallback((id: string) => {
         dispatch({ type: 'TOAST_REMOVE', payload: id });
     }, [dispatch]);
@@ -325,6 +339,10 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
                     />
                 ))}
             </div>
+            <ProfanityWarningDialog
+                warning={profanityWarning}
+                onClose={() => setProfanityWarning(null)}
+            />
         </GlobalContext.Provider>
     );
 }

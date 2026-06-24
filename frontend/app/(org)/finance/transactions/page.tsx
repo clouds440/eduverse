@@ -225,21 +225,13 @@ export default function TransactionsPage() {
                 error={error}
                 onRetry={() => mutate()}
                 title="Transactions could not load"
-                description="The append-only ledger is unavailable right now."
+                description="Ledger is unavailable right now."
             />
         );
     }
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <StatusBanner
-                title="Append-only audit trail"
-                description="Confirmed records in this table cannot be edited or deleted."
-                variant="info"
-                icon={LockKeyhole}
-                dismissible={true}
-            />
-
             <ResourcePanel>
                 <FinanceFilterToolbar
                     drawerLabel="Transaction filters"

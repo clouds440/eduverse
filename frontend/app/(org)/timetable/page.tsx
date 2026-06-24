@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role } from '@/types';
-import { CalendarDays, Clock, Download, MapPinned, Maximize2, MapPin, UserRound, X } from 'lucide-react';
+import { CalendarDays, Clock, Download, Maximize2, MapPin, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -24,7 +24,7 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const DEFAULT_START_HOUR = 8;
 const DEFAULT_END_HOUR = 18;
-const TIMETABLE_HALF_HOUR_ROW_HEIGHT = 52;
+const TIMETABLE_HALF_HOUR_ROW_HEIGHT = 76;
 
 interface TimetableSlotGroup {
     day: number;
@@ -54,6 +54,7 @@ interface TimetableGridProps {
     canOpenAttendance: boolean;
     onOpenEntry: (entry: TimetableEntry) => void;
     onOpenRoom: (roomId: string) => void;
+    onOpenTeacher: (userId: string) => void;
     className?: string;
 }
 
@@ -128,6 +129,78 @@ function getTeacherLabel(entry: TimetableEntry) {
     if (!entry.teacherName) return 'Teacher TBD';
     const additionalCount = entry.additionalTeachersCount || 0;
     return additionalCount > 0 ? `${entry.teacherName}, ${additionalCount} more` : entry.teacherName;
+}
+
+function TeacherProfileButton({
+    entry,
+    onOpenTeacher,
+    className,
+}: {
+    entry: TimetableEntry;
+    onOpenTeacher: (userId: string) => void;
+    className?: string;
+}) {
+    const label = getTeacherLabel(entry);
+
+    if (!entry.teacherUserId) {
+        return (
+            <div className={cn('flex min-w-0 items-center gap-1.5 text-[10px] font-bold opacity-80', className)}>
+                <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{label}</span>
+            </div>
+        );
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={() => onOpenTeacher(entry.teacherUserId!)}
+            className={cn(
+                'flex min-w-0 items-center gap-1.5 rounded-sm text-left text-[10px] font-bold opacity-80 transition-colors hover:text-primary hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                className,
+            )}
+            title="View teacher profile"
+        >
+            <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span className="truncate underline-offset-2 hover:underline">{label}</span>
+        </button>
+    );
+}
+
+function RoomLinkButton({
+    entry,
+    onOpenRoom,
+    className,
+}: {
+    entry: TimetableEntry;
+    onOpenRoom: (roomId: string) => void;
+    className?: string;
+}) {
+    const label = entry.room || 'Room TBD';
+
+    if (!entry.roomId) {
+        return (
+            <div className={cn('flex min-w-0 items-center gap-1.5 text-[10px] font-bold opacity-80', className)}>
+                <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{label}</span>
+            </div>
+        );
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={() => onOpenRoom(entry.roomId!)}
+            className={cn(
+                'flex min-w-0 items-center gap-1.5 rounded-sm text-left text-[10px] font-bold opacity-80 transition-colors hover:text-primary hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                className,
+            )}
+            title="View room in Campus Navigation"
+        >
+            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span className="truncate underline-offset-2 hover:underline">{label}</span>
+        </button>
+    );
 }
 
 function isGridRowCoveredByEntry(dayEntries: TimetableEntry[], startHour: number, rowIndex: number) {
@@ -304,6 +377,7 @@ function TimetableGrid({
     canOpenAttendance,
     onOpenEntry,
     onOpenRoom,
+    onOpenTeacher,
     className,
 }: TimetableGridProps) {
     return (
@@ -427,52 +501,41 @@ function TimetableGrid({
                                                 style={{ gridRow: `${rowStart} / span ${rowSpan}` }}
                                             >
                                                 {isCompactSlot ? (
-                                                    <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1 custom-scrollbar">
+                                                    <div
+                                                        className="grid min-h-0 flex-1 gap-1 p-1"
+                                                        style={{ gridTemplateRows: `repeat(${Math.max(1, slot.entries.length)}, minmax(0, 1fr))` }}
+                                                    >
                                                         {slot.entries.map((entry) => (
                                                             <div
                                                                 key={entry.scheduleId}
-                                                                className="flex h-full w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left"
+                                                                className="flex min-h-0 w-full items-start gap-2 overflow-hidden rounded-md border px-2 py-1.5 text-left"
                                                                 style={getTimetableCardStyle(entry)}
                                                             >
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => onOpenEntry(entry)}
-                                                                    className={`min-w-0 flex-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'cursor-pointer hover:brightness-105' : 'cursor-default'}`}
-                                                                >
-                                                                    <CourseSectionLabel
-                                                                        section={{
-                                                                            name: entry.sectionName,
-                                                                            color: entry.color,
-                                                                            course: { name: entry.courseName },
-                                                                        }}
-                                                                        variant="stacked"
-                                                                        as="p"
-                                                                        className="text-xs"
-                                                                    />
-                                                                    <p className="mt-0.5 flex truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}
-                                                                        <MapPin className="h-3 w-3 ml-1 shrink-0" aria-hidden="true" />
-                                                                        <span className="truncate">{entry.room || 'Room TBD'}</span>
-                                                                    </p>
-                                                                    <p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] font-bold opacity-75">
-                                                                        <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
-                                                                        <span className="truncate">{getTeacherLabel(entry)}</span>
-                                                                    </p>
-                                                                </button>
+                                                                <div className="min-w-0 flex-1 overflow-hidden">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => onOpenEntry(entry)}
+                                                                        className={`min-w-0 w-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'cursor-pointer hover:brightness-105' : 'cursor-default'}`}
+                                                                    >
+                                                                        <CourseSectionLabel
+                                                                            section={{
+                                                                                name: entry.sectionName,
+                                                                                color: entry.color,
+                                                                                course: { name: entry.courseName },
+                                                                            }}
+                                                                            variant="stacked"
+                                                                            as="p"
+                                                                            className="text-xs"
+                                                                        />
+                                                                        <p className="mt-0.5 truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}</p>
+                                                                    </button>
+                                                                    <RoomLinkButton entry={entry} onOpenRoom={onOpenRoom} className="mt-0.5 w-full" />
+                                                                    <TeacherProfileButton entry={entry} onOpenTeacher={onOpenTeacher} className="mt-0.5 w-full" />
+                                                                </div>
                                                                 <div className="flex shrink-0 flex-col items-end gap-1">
                                                                     <Badge variant="neutral" size="xs" className="bg-white/70 h-fit text-foreground dark:bg-black/25">
                                                                         {durationLabel}
                                                                     </Badge>
-                                                                    {entry.roomId && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => onOpenRoom(entry.roomId!)}
-                                                                            className="inline-flex items-center gap-1 rounded-sm bg-white/70 px-1.5 py-0.5 text-[10px] font-black text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:bg-black/25"
-                                                                            title="View room in Campus Map"
-                                                                        >
-                                                                            <MapPinned className="h-3 w-3" aria-hidden="true" />
-                                                                            Room
-                                                                        </button>
-                                                                    )}
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -492,11 +555,14 @@ function TimetableGrid({
                                                                 {durationLabel}
                                                             </Badge>
                                                         </div>
-                                                        <div className="h-full flex-1 space-y-1 overflow-y-auto border-l-4 border-primary/45 p-1.5 custom-scrollbar">
+                                                        <div
+                                                            className="grid min-h-0 flex-1 gap-1 border-l-4 border-primary/45 p-1.5"
+                                                            style={{ gridTemplateRows: `repeat(${Math.max(1, slot.entries.length)}, minmax(0, 1fr))` }}
+                                                        >
                                                             {slot.entries.map((entry) => (
                                                                 <div
                                                                     key={entry.scheduleId}
-                                                                    className="flex h-full w-full flex-col items-start rounded-md border p-2 text-left"
+                                                                    className="flex min-h-0 w-full flex-col items-start overflow-hidden rounded-md border p-2 text-left"
                                                                     style={getTimetableCardStyle(entry)}
                                                                 >
                                                                     <button
@@ -514,26 +580,9 @@ function TimetableGrid({
                                                                             as="p"
                                                                             className="text-xs"
                                                                         />
-                                                                        <div className="mt-1.5 flex min-w-0 items-end gap-1.5 border-t border-current/15 pt-1.5 text-[10px] font-bold opacity-80">
-                                                                            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-                                                                            <span className="truncate">{entry.room || 'Room TBD'}</span>
-                                                                        </div>
-                                                                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-bold opacity-80">
-                                                                            <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
-                                                                            <span className="truncate">{getTeacherLabel(entry)}</span>
-                                                                        </div>
                                                                     </button>
-                                                                    {entry.roomId && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => onOpenRoom(entry.roomId!)}
-                                                                            className="mt-2 inline-flex items-center gap-1 rounded-sm bg-white/70 px-2 py-1 text-[10px] font-black text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:bg-black/25"
-                                                                            title="View room in Campus Map"
-                                                                        >
-                                                                            <MapPinned className="h-3 w-3" aria-hidden="true" />
-                                                                            View room
-                                                                        </button>
-                                                                    )}
+                                                                    <RoomLinkButton entry={entry} onOpenRoom={onOpenRoom} className="mt-1.5 w-full border-t border-current/15 pt-1.5" />
+                                                                    <TeacherProfileButton entry={entry} onOpenTeacher={onOpenTeacher} className="mt-1 w-full" />
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -573,6 +622,7 @@ function TimetableGrid({
 
 interface StudentTimetableViewProps {
     studentId?: string;
+    batchName?: string | null;
     headerActions?: React.ReactNode;
     breadcrumbs?: PageBreadcrumb[];
     title?: string;
@@ -581,6 +631,7 @@ interface StudentTimetableViewProps {
 
 export function StudentTimetableView({
     studentId,
+    batchName,
     headerActions,
     breadcrumbs = [
         { label: 'Organization' },
@@ -716,7 +767,7 @@ export function StudentTimetableView({
     const logoUrl = getPublicUrl(user?.orgLogoUrl);
     const userName = user?.name || user?.email || 'Current user';
     const roleLabel = getRoleLabel(user?.role);
-    const cohortName = getProfileCohortName(profile);
+    const cohortName = batchName ?? getProfileCohortName(profile);
     const timetableSections = useMemo(() => getTimetableSections(entries, profile), [entries, profile]);
 
     const openAttendanceForEntry = (entry: TimetableEntry) => {
@@ -727,6 +778,10 @@ export function StudentTimetableView({
 
     const openCampusRoom = (roomId: string) => {
         router.push(`/campus-navigation?roomId=${encodeURIComponent(roomId)}`);
+    };
+
+    const openTeacherProfile = (userId: string) => {
+        router.push(`/profiles/${userId}`);
     };
 
     const handleDownloadTimetablePdf = async () => {
@@ -817,6 +872,7 @@ export function StudentTimetableView({
                             canOpenAttendance={canOpenAttendance}
                             onOpenEntry={openAttendanceForEntry}
                             onOpenRoom={openCampusRoom}
+                            onOpenTeacher={openTeacherProfile}
                         />
                     )}
                 </ResourcePanel>
@@ -875,6 +931,7 @@ export function StudentTimetableView({
                         canOpenAttendance={canOpenAttendance}
                         onOpenEntry={openAttendanceForEntry}
                         onOpenRoom={openCampusRoom}
+                        onOpenTeacher={openTeacherProfile}
                         className="bg-background"
                     />
                 </ModalOverlay>

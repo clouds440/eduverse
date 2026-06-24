@@ -126,7 +126,7 @@ function SectionScheduleCard({ section }: { section: Section }) {
                     </div>
                 </div>
                 <Link
-                    href={`/sections/${section.id}`}
+                    href={`/sections/${section.id}?tab=schedule`}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-transform hover:translate-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     style={sectionBadgeStyle}
                     aria-label={`Open ${formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name })}`}
