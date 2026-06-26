@@ -182,6 +182,11 @@ export enum AttendanceStatus {
     EXCUSED = 'EXCUSED',
 }
 
+export enum ScheduleType {
+    OFFICIAL = 'OFFICIAL',
+    AD_HOC = 'AD_HOC',
+}
+
 export enum RoomType {
     CLASSROOM = 'CLASSROOM',
     LAB = 'LAB',

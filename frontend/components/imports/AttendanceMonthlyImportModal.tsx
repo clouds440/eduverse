@@ -17,9 +17,8 @@ import { StatusBanner } from '@/components/ui/StatusBanner';
 import { downloadCsv, formatImportErrors } from './importUtils';
 
 const TARGET_OPTIONS: { value: AttendanceImportTargetMode; label: string }[] = [
-    { value: 'FIRST_SCHEDULE_OR_ADHOC', label: 'First scheduled session, ad-hoc if none' },
-    { value: 'ALL_SCHEDULES_OR_ADHOC', label: 'All scheduled sessions, ad-hoc if none' },
-    { value: 'ADHOC_ONLY', label: 'Ad-hoc daily sessions only' },
+    { value: 'FIRST_SCHEDULE', label: 'First scheduled session' },
+    { value: 'ALL_SCHEDULES', label: 'All scheduled sessions' },
 ];
 
 export function AttendanceMonthlyImportModal({
@@ -40,7 +39,7 @@ export function AttendanceMonthlyImportModal({
     const [file, setFile] = useState<File | null>(null);
     const [year, setYear] = useState(initialYear);
     const [month, setMonth] = useState(initialMonth);
-    const [targetMode, setTargetMode] = useState<AttendanceImportTargetMode>('FIRST_SCHEDULE_OR_ADHOC');
+    const [targetMode, setTargetMode] = useState<AttendanceImportTargetMode>('FIRST_SCHEDULE');
     const [validation, setValidation] = useState<ImportValidationResult | null>(null);
     const [result, setResult] = useState<ImportConfirmResult | null>(null);
     const [loading, setLoading] = useState(false);

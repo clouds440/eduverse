@@ -37,6 +37,11 @@ function getDayOfWeek(dateStr: string) {
     return parseDateInput(dateStr).getDay();
 }
 
+function scheduleMatchesDate(schedule: SectionSchedule, dateStr: string) {
+    if (schedule.date) return schedule.date.slice(0, 10) === dateStr;
+    return schedule.day === getDayOfWeek(dateStr);
+}
+
 export default function SectionAttendancePage() {
     const { sectionId } = useParams() as { sectionId: string };
     const searchParams = useSearchParams();
@@ -53,7 +58,6 @@ export default function SectionAttendancePage() {
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const [saving, setSaving] = useState(false);
     const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(paramScheduleId);
-    const [adhocTime, setAdhocTime] = useState({ start: '09:00', end: '10:00' });
     const [importOpen, setImportOpen] = useState(false);
 
     const isStudent = user?.role === Role.STUDENT;
@@ -78,11 +82,14 @@ export default function SectionAttendancePage() {
     const { data: section, error: sectionError } = useSWR<Section>(sectionKey);
 
     useEffect(() => {
-        if (section && !paramScheduleId && section.schedules) {
-            const matched = section.schedules.find((schedule: SectionSchedule) => schedule.day === getDayOfWeek(date));
-            if (matched) setSelectedScheduleId(matched.id);
+        if (section?.schedules) {
+            const matches = section.schedules.filter((schedule: SectionSchedule) => scheduleMatchesDate(schedule, date));
+            const selectedStillMatches = selectedScheduleId && matches.some((schedule) => schedule.id === selectedScheduleId);
+            if (!paramScheduleId || !selectedStillMatches) {
+                setSelectedScheduleId(matches[0]?.id || null);
+            }
         }
-    }, [section, paramScheduleId, date]);
+    }, [section, paramScheduleId, date, selectedScheduleId]);
 
     useEffect(() => {
         if (sectionError) {
@@ -91,7 +98,7 @@ export default function SectionAttendancePage() {
         }
     }, [sectionError, router]);
 
-    const dailyKey = token && viewMode === 'daily' ? ['attendance-daily', sectionId, date, selectedScheduleId || undefined] as const : null;
+    const dailyKey = token && viewMode === 'daily' && selectedScheduleId ? ['attendance-daily', sectionId, date, selectedScheduleId] as const : null;
     const { data: dailyData, isLoading: dailyLoading } = useSWR<SectionAttendanceResponse>(dailyKey);
 
     const monthlyStart = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
@@ -102,16 +109,15 @@ export default function SectionAttendancePage() {
     const fetching = viewMode === 'daily' ? dailyLoading : monthlyLoading;
 
     const scheduleOptions = useMemo(() => [
-        ...(section?.schedules?.filter((schedule: SectionSchedule) => schedule.day === getDayOfWeek(date)) || []).map((schedule: SectionSchedule) => ({
+        ...(section?.schedules?.filter((schedule: SectionSchedule) => scheduleMatchesDate(schedule, date)) || []).map((schedule: SectionSchedule) => ({
             value: schedule.id,
             label: `${schedule.startTime} - ${schedule.endTime} (${schedule.room || 'Main Room'})`,
         })),
-        { value: 'adhoc', label: 'Ad-hoc Session' },
     ], [date, section?.schedules]);
 
     const syncScheduleForDate = useCallback((nextDate: string) => {
         if (!section?.schedules) return;
-        const matches = section.schedules.filter((schedule: SectionSchedule) => schedule.day === getDayOfWeek(nextDate));
+        const matches = section.schedules.filter((schedule: SectionSchedule) => scheduleMatchesDate(schedule, nextDate));
         setSelectedScheduleId(matches.length > 0 ? matches[0].id : null);
     }, [section?.schedules]);
 
@@ -127,7 +133,7 @@ export default function SectionAttendancePage() {
     }, [date, handleDateChange]);
 
     const handleSaveRecords = async (records: { studentId: string; status: AttendanceStatus }[]) => {
-        if (!token || !dailyData) return;
+        if (!token || !dailyData || !selectedScheduleId) return;
         setSaving(true);
         try {
             let sessionId = dailyData.sessionId;
@@ -136,9 +142,7 @@ export default function SectionAttendancePage() {
                     sectionId,
                     date,
                     token,
-                    selectedScheduleId || undefined,
-                    !selectedScheduleId ? adhocTime.start : undefined,
-                    !selectedScheduleId ? adhocTime.end : undefined
+                    selectedScheduleId
                 );
                 sessionId = sessionResponse.id;
             }
@@ -292,35 +296,18 @@ export default function SectionAttendancePage() {
                                         Time Slot
                                     </Label>
                                     <CustomSelect
-                                        value={selectedScheduleId || 'adhoc'}
-                                        onChange={(value) => setSelectedScheduleId(value === 'adhoc' ? null : value)}
+                                        value={selectedScheduleId || ''}
+                                        onChange={(value) => setSelectedScheduleId(value || null)}
                                         options={scheduleOptions}
+                                        placeholder={scheduleOptions.length ? 'Select time slot' : 'No scheduled slots'}
+                                        disabled={scheduleOptions.length === 0}
                                         className="min-w-0 max-h-11.5"
                                     />
                                 </div>
 
-                                {!selectedScheduleId && (
-                                    <div className="min-w-0 space-y-2 lg:col-span-2 xl:col-span-1">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Ad-hoc</Label>
-                                        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-                                            <div className="min-w-0">
-                                                <Input
-                                                    type="time"
-                                                    value={adhocTime.start}
-                                                    onChange={(event) => setAdhocTime(prev => ({ ...prev, start: event.target.value }))}
-                                                    className="h-10 w-full min-w-0 border-border/60 bg-background/70 text-sm font-bold"
-                                                />
-                                            </div>
-                                            <span className="hidden text-center text-[10px] font-black text-muted-foreground sm:block">to</span>
-                                            <div className="min-w-0">
-                                                <Input
-                                                    type="time"
-                                                    value={adhocTime.end}
-                                                    onChange={(event) => setAdhocTime(prev => ({ ...prev, end: event.target.value }))}
-                                                    className="h-10 w-full min-w-0 border-border/60 bg-background/70 text-sm font-bold"
-                                                />
-                                            </div>
-                                        </div>
+                                {scheduleOptions.length === 0 && (
+                                    <div className="min-w-0 rounded-xl border border-dashed border-border/70 bg-background/60 p-3 text-xs font-semibold text-muted-foreground lg:col-span-2 xl:col-span-1">
+                                        No scheduled class exists for this date. Add an official or ad-hoc schedule before marking attendance.
                                     </div>
                                 )}
                             </>
@@ -346,6 +333,10 @@ export default function SectionAttendancePage() {
             {(fetching && (viewMode === 'daily' ? !dailyData : !rangeData)) ? (
                 <div className="flex justify-center rounded-2xl border border-border/70 bg-card/80 p-20 shadow-sm">
                     <Loading size="lg" />
+                </div>
+            ) : viewMode === 'daily' && !selectedScheduleId ? (
+                <div className="rounded-2xl border border-dashed border-border/70 bg-card/80 p-10 text-center text-sm font-semibold text-muted-foreground shadow-sm">
+                    Select a date with a scheduled class to mark attendance.
                 </div>
             ) : viewMode === 'daily' ? (
                 dailyData && <AttendanceSheet students={dailyData.students} date={dailyData.date} onSave={handleSaveRecords} isSaving={saving} mode="daily" readOnly={isReadOnly} />

@@ -34,6 +34,8 @@ type FetcherKey =
     | readonly ['rooms', object]
     | readonly ['campus-navigation', object]
     | readonly ['studentsSearch', object]
+    | readonly ['timetable-teachers', object]
+    | readonly ['timetable-students', object]
     // Single string ID resources
     | readonly ['attendance-section', string]
     | readonly ['section-schedules', string]
@@ -58,7 +60,7 @@ type FetcherKey =
     // Multi-param resources
     | readonly ['attendance-daily', string, string, string | undefined]  // [sectionId, date, scheduleId?]
     | readonly ['attendance-monthly', string, string, string]  // [sectionId, start, end]
-    | readonly ['timetable', string, string, string | undefined, string | undefined, string | undefined]  // [userId, role, targetStudentId?, startDate?, endDate?]
+    | readonly ['timetable', object]
     | readonly ['assessment-detail', string, string]  // [sectionId, assessmentId]
     | readonly ['student-sections', string, object]  // [userId, params]
     // No-param resources
@@ -108,6 +110,10 @@ function createFetcher(token: string | null) {
                     return await api.org.getBuildings(token, args[0] as object) as T;
                 case 'rooms':
                     return await api.org.getRooms(token, args[0] as object) as T;
+                case 'timetable-teachers':
+                    return await api.org.getTimetableTeachers(token, args[0] as object) as T;
+                case 'timetable-students':
+                    return await api.org.getTimetableStudents(token, args[0] as object) as T;
                 case 'campus-navigation':
                     return await api.org.getCampusNavigation(token, args[0] as object) as T;
                 case 'studentsSearch':
@@ -135,11 +141,7 @@ function createFetcher(token: string | null) {
 
                 // Timetable & Schedules
                 case 'timetable':
-                    return await api.org.getTimetable(token, {
-                        studentId: args[2] as string | undefined,
-                        startDate: args[3] as string | undefined,
-                        endDate: args[4] as string | undefined,
-                    }) as T;
+                    return await api.org.getTimetable(token, args[0] as object) as T;
                 case 'section-schedules':
                     return await api.org.getSchedules(args[0] as string, token) as T;
                 case 'sections-for-schedules':

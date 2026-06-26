@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import useSWR from 'swr';
 import { CalendarDays, CalendarRange, Clock, MapPin, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { ApiError, PaginatedResponse, Room, SectionSchedule, Section, Role } from '@/types';
+import { ApiError, PaginatedResponse, Room, SectionSchedule, Section, Role, ScheduleType } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -47,6 +47,16 @@ function getDayLabel(day: number) {
     return DAY_OPTIONS.find((option) => option.value === String(day))?.label || 'Unknown';
 }
 
+function getDateLabel(date?: string | null) {
+    if (!date) return '';
+    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function todayInputValue() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 function timeToMinutes(time: string) {
     const [hours = '0', minutes = '0'] = time.split(':');
     return Number(hours) * 60 + Number(minutes);
@@ -74,7 +84,7 @@ function getDurationLabel(startTime: string, endTime: string) {
 }
 
 export default memo(function SectionSchedules({ section, role }: SectionSchedulesProps) {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const { state, dispatch } = useGlobal();
     const dispatchRef = useRef(dispatch);
 
@@ -87,6 +97,8 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
     const [deletingSchedule, setDeletingSchedule] = useState<SectionSchedule | null>(null);
     const [formData, setFormData] = useState({
         day: '1',
+        date: '',
+        type: ScheduleType.OFFICIAL,
         startTime: '09:00',
         endTime: '10:00',
         room: section.room || '',
@@ -95,7 +107,9 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
     const [repeatWeekdays, setRepeatWeekdays] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
-    const canManageSchedules = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
+    const canManageOfficialSchedules = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
+    const canManageAdHocSchedules = role === Role.TEACHER && section.teachers?.some((teacher) => teacher.userId === user?.id);
+    const canManageSchedules = canManageOfficialSchedules || canManageAdHocSchedules;
     const { data: roomsData } = useSWR<PaginatedResponse<Room>>(token ? ['rooms', { limit: 1000, isActive: true }] as const : null);
     const roomOptions = [
         { value: '', label: 'Use Section Default' },
@@ -104,6 +118,10 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             label: formatRoomLabel(room),
         })) || []),
     ];
+
+    const canManageSchedule = useCallback((schedule: SectionSchedule) => (
+        schedule.type === ScheduleType.AD_HOC ? canManageAdHocSchedules : canManageOfficialSchedules
+    ), [canManageAdHocSchedules, canManageOfficialSchedules]);
 
     useEffect(() => {
         dispatchRef.current = dispatch;
@@ -127,12 +145,14 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         fetchSchedules();
     }, [fetchSchedules]);
 
-    const openCreateModal = () => {
+    const openCreateModal = (type: ScheduleType = ScheduleType.OFFICIAL) => {
         setEditingSchedule(null);
         setRepeatWeekdays(false);
         setFormError(null);
         setFormData({
             day: '1',
+            date: type === ScheduleType.AD_HOC ? todayInputValue() : '',
+            type,
             startTime: '09:00',
             endTime: '10:00',
             room: section.room || '',
@@ -147,6 +167,8 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         setFormError(null);
         setFormData({
             day: String(schedule.day),
+            date: schedule.date ? schedule.date.slice(0, 10) : '',
+            type: schedule.type || ScheduleType.OFFICIAL,
             startTime: schedule.startTime,
             endTime: schedule.endTime,
             room: schedule.room || '',
@@ -182,12 +204,18 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             setFormError('End time must be later than start time.');
             return;
         }
+        if (formData.type === ScheduleType.AD_HOC && !formData.date) {
+            setFormError('Ad-hoc schedules require a date.');
+            return;
+        }
 
         try {
             setFormError(null);
             dispatch({ type: 'UI_START_PROCESSING', payload: processingId });
             const payload = {
-                day: parseInt(formData.day, 10),
+                ...(formData.date ? {} : { day: parseInt(formData.day, 10) }),
+                date: formData.date || null,
+                type: formData.type,
                 startTime: formData.startTime,
                 endTime: formData.endTime,
                 room: undefined,
@@ -197,9 +225,9 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             if (target) {
                 await api.org.updateSchedule(section.id, target.id, payload, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Schedule updated successfully', type: 'success' } });
-            } else if (repeatWeekdays) {
+            } else if (repeatWeekdays && !formData.date && formData.type === ScheduleType.OFFICIAL) {
                 for (const day of WEEKDAY_VALUES) {
-                    await api.org.createSchedule(section.id, { ...payload, day: parseInt(day, 10) }, token);
+                    await api.org.createSchedule(section.id, { ...payload, day: parseInt(day, 10), date: null }, token);
                 }
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Weekday schedule added successfully', type: 'success' } });
             } else {
@@ -212,6 +240,8 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             setRepeatWeekdays(false);
             setFormData({
                 day: '1',
+                date: '',
+                type: ScheduleType.OFFICIAL,
                 startTime: '09:00',
                 endTime: '10:00',
                 room: section.room || '',
@@ -275,9 +305,18 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                     </p>
                 </div>
                 {canManageSchedules && (
-                    <Button onClick={openCreateModal} icon={Plus} className="w-full sm:w-auto">
-                        Add Schedule
-                    </Button>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                        {canManageOfficialSchedules && (
+                            <Button onClick={() => openCreateModal(ScheduleType.OFFICIAL)} icon={Plus} className="w-full sm:w-auto">
+                                Add Official
+                            </Button>
+                        )}
+                        {canManageAdHocSchedules && (
+                            <Button onClick={() => openCreateModal(ScheduleType.AD_HOC)} icon={Plus} variant="secondary" className="w-full sm:w-auto">
+                                Add Ad-hoc
+                            </Button>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -298,13 +337,18 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                             <div className="flex min-w-0 items-start justify-between gap-3">
                                 <div className="min-w-0">
                                     <Badge variant="neutral" size="sm" icon={CalendarDays} style={getSectionTintStyle(section)}>
-                                        {getDayLabel(schedule.day)}
+                                        {schedule.date ? getDateLabel(schedule.date) : getDayLabel(schedule.day)}
                                     </Badge>
+                                    {schedule.type === ScheduleType.AD_HOC && (
+                                        <Badge variant="warning" size="sm" className="mt-2">
+                                            Ad-hoc
+                                        </Badge>
+                                    )}
                                     <p className="mt-3 text-lg font-black leading-tight text-foreground">
                                         {schedule.startTime} - {schedule.endTime}
                                     </p>
                                 </div>
-                                {canManageSchedules && (
+                                {canManageSchedule(schedule) && (
                                     <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
                                         <button
                                             type="button"
@@ -358,11 +402,11 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                     setRepeatWeekdays(false);
                     setFormError(null);
                 }}
-                title={editingSchedule ? 'Edit Section Schedule' : 'Add Section Schedule'}
+                title={editingSchedule ? 'Edit Section Schedule' : formData.type === ScheduleType.AD_HOC ? 'Add Ad-hoc Schedule' : 'Add Official Schedule'}
                 onSubmit={handleSubmit}
                 isSubmitting={state.ui.processing[editingSchedule ? `schedule-edit-${editingSchedule.id}` : 'schedule-create']}
                 loadingId={editingSchedule ? `schedule-edit-${editingSchedule.id}` : 'schedule-create'}
-                submitText={editingSchedule ? 'Update Schedule' : repeatWeekdays ? 'Save 5 Weekday Slots' : 'Save Schedule'}
+                submitText={editingSchedule ? 'Update Schedule' : repeatWeekdays ? 'Save 5 Weekday Slots' : formData.type === ScheduleType.AD_HOC ? 'Save Ad-hoc Schedule' : 'Save Schedule'}
                 maxWidth="max-w-2xl"
                 bodyClassName="p-0"
                 showSubmit
@@ -383,10 +427,11 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                     {editingSchedule ? 'Editing updates this schedule slot only.' : 'Create one day or repeat the same slot Monday through Friday.'} <DocsLink href="/docs/timetable#weekday-repeat">Repeat guide</DocsLink>
                                 </p>
                             </div>
-                            {!editingSchedule && (
+                            {!editingSchedule && formData.type === ScheduleType.OFFICIAL && (
                                 <Toggle
                                     checked={repeatWeekdays}
                                     onCheckedChange={setRepeatWeekdays}
+                                    disabled={Boolean(formData.date)}
                                     label="All weekdays"
                                     description="Mon-Fri"
                                     size="md"
@@ -395,7 +440,22 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                             )}
                         </div>
 
-                        {repeatWeekdays ? (
+                        <div className="mt-3 space-y-2">
+                            <Label htmlFor="scheduleDate">{formData.type === ScheduleType.AD_HOC ? 'Class Date' : 'Specific Date'}</Label>
+                            <Input
+                                id="scheduleDate"
+                                type="date"
+                                required={formData.type === ScheduleType.AD_HOC}
+                                value={formData.date}
+                                onChange={(event) => {
+                                    const nextDate = event.target.value;
+                                    setRepeatWeekdays(false);
+                                    setFormData({ ...formData, date: nextDate });
+                                }}
+                            />
+                        </div>
+
+                        {repeatWeekdays && !formData.date ? (
                             <div className="mt-3 flex flex-wrap gap-1.5">
                                 {WEEKDAY_VALUES.map((day) => (
                                     <Badge key={day} variant="primary" size="sm" icon={CalendarRange}>
@@ -403,7 +463,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                     </Badge>
                                 ))}
                             </div>
-                        ) : (
+                        ) : !formData.date && formData.type === ScheduleType.OFFICIAL ? (
                             <div className="mt-3 space-y-2">
                                 <Label>Day of Week</Label>
                                 <CustomSelect
@@ -414,7 +474,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                     required
                                 />
                             </div>
-                        )}
+                        ) : null}
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

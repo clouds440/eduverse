@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ScheduleType } from '@/prisma/prisma-client';
 import { AttendanceStatus, InsightTone, MailStatus, Role, StudentStatus, TeacherStatus } from '../../common/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { InsightsQueryDto } from '../dto/insights-query.dto';
@@ -77,7 +78,7 @@ export class AdminInsightsBuilder {
       this.prisma.attendanceSession.findMany({
         where: {
           section: { course: { organizationId: orgId } },
-          isAdhoc: false,
+          schedule: { type: ScheduleType.OFFICIAL },
           date: { gte: range.from, lte: range.to },
         },
         select: { scheduleId: true, date: true },
@@ -86,7 +87,7 @@ export class AdminInsightsBuilder {
         where: {
           session: {
             section: { course: { organizationId: orgId } },
-            isAdhoc: false,
+            schedule: { type: ScheduleType.OFFICIAL },
             date: { gte: range.from, lte: range.to },
           },
         },
@@ -127,7 +128,10 @@ export class AdminInsightsBuilder {
       }),
       this.prisma.attendanceSession.findMany({
         where: { section: { course: { organizationId: orgId } } },
-        include: { section: { select: { id: true, name: true, color: true, course: { select: { name: true } } } } },
+        include: {
+          section: { select: { id: true, name: true, color: true, course: { select: { name: true } } } },
+          schedule: { select: { type: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: 4,
       }),
@@ -162,7 +166,7 @@ export class AdminInsightsBuilder {
         by: ['date'],
         where: {
           section: { course: { organizationId: orgId } },
-          isAdhoc: false,
+          schedule: { type: ScheduleType.OFFICIAL },
           date: { gte: range.from, lte: range.to },
         },
         _count: true,
@@ -240,11 +244,11 @@ export class AdminInsightsBuilder {
       })),
       ...recentAttendance.map((session) => ({
         id: `attendance:${session.id}`,
-        title: session.isAdhoc ? 'Ad-hoc attendance captured' : 'Attendance session captured',
+        title: session.schedule.type === ScheduleType.AD_HOC ? 'Ad-hoc attendance captured' : 'Attendance session captured',
         description: formatSectionLabel(session.section.name, session.section.course.name),
         createdAt: session.createdAt.toISOString(),
         href: `/attendance/${session.section.id}`,
-        tone: session.isAdhoc ? InsightTone.WARNING : InsightTone.DEFAULT,
+        tone: session.schedule.type === ScheduleType.AD_HOC ? InsightTone.WARNING : InsightTone.DEFAULT,
       })),
     ]);
 

@@ -1187,6 +1187,8 @@ model SectionSchedule {
   academicCycleId String?
 
   day       Int      // 0 = Sunday, 1 = Monday ... 6 = Saturday
+  date      DateTime?
+  type      ScheduleType @default(OFFICIAL)
   startTime String   // "09:00"
   endTime   String   // "10:00"
 
@@ -1202,6 +1204,8 @@ model SectionSchedule {
 
   @@index([sectionId])
   @@index([day])
+  @@index([date])
+  @@index([type])
   @@index([academicCycleId])
   @@index([roomId])
 
@@ -1211,9 +1215,8 @@ model SectionSchedule {
 model AttendanceSession {
   id              String         @id @default(uuid())
   sectionId       String
-  scheduleId      String?
+  scheduleId      String
   academicCycleId String?
-  isAdhoc         Boolean        @default(false)
   date            DateTime
   startTime       String?
   endTime         String?
@@ -1221,7 +1224,7 @@ model AttendanceSession {
   createdAt DateTime @default(now())
 
   section       Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  schedule      SectionSchedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  schedule      SectionSchedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   academicCycle AcademicCycle?   @relation(fields: [academicCycleId], references: [id])
   records       AttendanceRecord[]
 
@@ -1250,6 +1253,11 @@ enum AttendanceStatus {
   ABSENT
   LATE
   EXCUSED
+}
+
+enum ScheduleType {
+  OFFICIAL
+  AD_HOC
 }
 
 // ─── COURSE MATERIALS ────────────────────────────────────────────────────────

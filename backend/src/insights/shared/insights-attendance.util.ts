@@ -2,7 +2,7 @@ import { countWeekdayOccurrences, toDateOnly } from './insights-date.util';
 
 export function getAttendanceCoverage(
   schedules: { id: string; day: number }[],
-  sessions: { scheduleId: string | null; date: Date }[],
+  sessions: { scheduleId: string; date: Date }[],
   start: Date,
   end: Date,
 ) {
@@ -77,7 +77,7 @@ export function getMissingScheduledSessions(
     endTime: string;
     section: { id: string; name: string; color?: string | null; course: { name: string } };
   }[],
-  existingSessions: { scheduleId: string | null; date: Date }[],
+  existingSessions: { scheduleId: string; date: Date }[],
   daysBack: number,
   limit = 5,
 ) {

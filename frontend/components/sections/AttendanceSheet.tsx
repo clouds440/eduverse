@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { SectionAttendanceStudent, AttendanceStatus, RangeAttendanceResponse, Role } from '@/types';
+import { SectionAttendanceStudent, AttendanceStatus, RangeAttendanceResponse, Role, ScheduleType } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Check, X, Clock, FileWarning, Save, CheckSquare, Activity, Search, Rows3, Percent, Circle, RotateCcw } from 'lucide-react';
 import { BrandIcon } from '../ui/Brand';
@@ -84,7 +84,7 @@ function getSessionTime(session: AttendanceSession) {
     const start = session.startTime || session.schedule?.startTime;
     const end = session.endTime || session.schedule?.endTime;
     if (start && end) return `${formatTime(start)}-${formatTime(end)}`;
-    return session.isAdhoc ? 'Ad-hoc' : 'Session';
+    return session.type === ScheduleType.AD_HOC ? 'Ad-hoc' : 'Session';
 }
 
 function EmptyState({ label }: { label: string }) {
@@ -344,13 +344,13 @@ export default function AttendanceSheet({
                 recordsBySessionId.set(record.sessionId, record);
                 if (record.status !== null) {
                     const session = sessionById.get(record.sessionId);
-                    if (session && !session.isAdhoc) {
+                    if (session && session.type !== ScheduleType.AD_HOC) {
                         officialTotal++;
                         if (record.status === AttendanceStatus.PRESENT) present++;
                         else if (record.status === AttendanceStatus.ABSENT) absent++;
                         else if (record.status === AttendanceStatus.LATE) late++;
                         else if (record.status === AttendanceStatus.EXCUSED) excused++;
-                    } else if (session?.isAdhoc) {
+                    } else if (session?.type === ScheduleType.AD_HOC) {
                         adhocTotal++;
                         if (record.status === AttendanceStatus.PRESENT) adhocPresent++;
                         else if (record.status === AttendanceStatus.ABSENT) adhocAbsent++;
@@ -423,7 +423,7 @@ export default function AttendanceSheet({
                                                 <span className="text-foreground">{formatDateLabel(String(session.date))}</span>
                                                 <span>{formatWeekday(String(session.date))}</span>
                                                 <span className="font-mono text-[9px] normal-case tracking-normal text-muted-foreground">{getSessionTime(session)}</span>
-                                                {session.isAdhoc && <span className="rounded bg-warning/10 px-1 text-[8px] text-warning">adhoc</span>}
+                                                {session.type === ScheduleType.AD_HOC && <span className="rounded bg-warning/10 px-1 text-[8px] text-warning">adhoc</span>}
                                             </div>
                                         </th>
                                     ))}

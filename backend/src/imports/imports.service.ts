@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
-import { Prisma, RoomType } from '@/prisma/prisma-client';
+import { Prisma, RoomType, ScheduleType } from '@/prisma/prisma-client';
 import {
   AttendanceStatus,
   DepartmentScopeType,
@@ -834,21 +834,25 @@ export class ImportsService {
     day: number,
   ) {
     const date = this.dateString(options.year, options.month, day);
-    if (options.targetMode === 'ADHOC_ONLY') {
-      return [await this.getOrCreateAdhocSession(options.sectionId, date)];
-    }
 
     const weekday = new Date(options.year, options.month - 1, day).getDay();
     const schedules = await this.prisma.sectionSchedule.findMany({
-      where: { sectionId: options.sectionId, day: weekday },
+      where: {
+        sectionId: options.sectionId,
+        type: ScheduleType.OFFICIAL,
+        OR: [
+          { date: null, day: weekday },
+          { date: new Date(date) },
+        ],
+      },
       orderBy: [{ startTime: 'asc' }],
     });
 
     if (schedules.length === 0) {
-      return [await this.getOrCreateAdhocSession(options.sectionId, date)];
+      return [];
     }
 
-    const selectedSchedules = options.targetMode === 'ALL_SCHEDULES_OR_ADHOC'
+    const selectedSchedules = options.targetMode === 'ALL_SCHEDULES'
       ? schedules
       : [schedules[0]];
 
@@ -871,30 +875,10 @@ export class ImportsService {
           scheduleId: schedule.id,
           academicCycleId: schedule.academicCycleId,
           date: new Date(date),
-          isAdhoc: false,
         },
       }));
     }
     return sessions;
-  }
-
-  private async getOrCreateAdhocSession(sectionId: string, date: string) {
-    const existing = await this.prisma.attendanceSession.findFirst({
-      where: { sectionId, date: new Date(date), isAdhoc: true },
-    });
-    if (existing) return existing;
-    const section = await this.prisma.section.findUnique({
-      where: { id: sectionId },
-      select: { academicCycleId: true },
-    });
-    return this.prisma.attendanceSession.create({
-      data: {
-        sectionId,
-        academicCycleId: section?.academicCycleId,
-        date: new Date(date),
-        isAdhoc: true,
-      },
-    });
   }
 
   private attendanceLetterToStatus(value: string): AttendanceCellMark['status'] | null {
@@ -914,7 +898,7 @@ export class ImportsService {
     if (!Number.isInteger(options.month) || options.month < 1 || options.month > 12) {
       throw new BadRequestException('month must be between 1 and 12');
     }
-    if (!['FIRST_SCHEDULE_OR_ADHOC', 'ALL_SCHEDULES_OR_ADHOC', 'ADHOC_ONLY'].includes(options.targetMode)) {
+    if (!['FIRST_SCHEDULE', 'ALL_SCHEDULES'].includes(options.targetMode)) {
       throw new BadRequestException('Invalid attendance target mode');
     }
   }

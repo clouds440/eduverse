@@ -113,7 +113,7 @@ export class ImportsController {
         sectionId,
         year: Number(year),
         month: Number(month),
-        targetMode: (targetMode || 'FIRST_SCHEDULE_OR_ADHOC') as AttendanceImportTargetMode,
+        targetMode: (targetMode || 'FIRST_SCHEDULE') as AttendanceImportTargetMode,
       },
       req.user,
     );
@@ -136,7 +136,7 @@ export class ImportsController {
         sectionId,
         year: Number(year),
         month: Number(month),
-        targetMode: (targetMode || 'FIRST_SCHEDULE_OR_ADHOC') as AttendanceImportTargetMode,
+        targetMode: (targetMode || 'FIRST_SCHEDULE') as AttendanceImportTargetMode,
       },
       rows as any,
       req.user,

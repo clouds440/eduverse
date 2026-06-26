@@ -1166,6 +1166,8 @@ export class StudentService {
               select: {
                 id: true,
                 day: true,
+                date: true,
+                type: true,
                 startTime: true,
                 endTime: true,
                 room: true,
@@ -1200,10 +1202,19 @@ export class StudentService {
         session: {
           include: {
             section: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
+            schedule: { select: { type: true } },
           },
         },
       },
       orderBy: { session: { date: 'desc' } },
-    });
+    }).then((records) => records.map((record) => ({
+      ...record,
+      session: record.session
+        ? {
+            ...record.session,
+            type: record.session.schedule.type,
+          }
+        : record.session,
+    })));
   }
 }

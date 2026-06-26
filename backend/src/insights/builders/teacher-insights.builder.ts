@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ScheduleType } from '@/prisma/prisma-client';
 import { AttendanceStatus, InsightTone, Role } from '../../common/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { InsightsQueryDto } from '../dto/insights-query.dto';
@@ -70,7 +71,7 @@ export class TeacherInsightsBuilder {
       this.prisma.attendanceSession.findMany({
         where: {
           scheduleId: { in: scheduleIds },
-          isAdhoc: false,
+          schedule: { type: ScheduleType.OFFICIAL },
           date: { gte: range.from, lte: range.to },
         },
         select: { scheduleId: true, date: true },
@@ -106,7 +107,10 @@ export class TeacherInsightsBuilder {
       }),
       this.prisma.attendanceSession.findMany({
         where: { sectionId: { in: sectionIds } },
-        include: { section: { select: { id: true, name: true, color: true, course: { select: { name: true } } } } },
+        include: {
+          section: { select: { id: true, name: true, color: true, course: { select: { name: true } } } },
+          schedule: { select: { type: true } },
+        },
         orderBy: { createdAt: 'desc' },
         take: 4,
       }),
@@ -114,7 +118,7 @@ export class TeacherInsightsBuilder {
         where: {
           session: {
             sectionId: { in: sectionIds },
-            isAdhoc: false,
+            schedule: { type: ScheduleType.OFFICIAL },
             date: { gte: range.from, lte: range.to },
           },
         },
@@ -138,7 +142,7 @@ export class TeacherInsightsBuilder {
         by: ['date'],
         where: {
           sectionId: { in: sectionIds },
-          isAdhoc: false,
+          schedule: { type: ScheduleType.OFFICIAL },
           date: { gte: range.from, lte: range.to },
         },
         _count: true,
@@ -231,7 +235,7 @@ export class TeacherInsightsBuilder {
       })),
       ...recentAttendance.map((session) => ({
         id: `attendance:${session.id}`,
-        title: session.isAdhoc ? 'Ad-hoc attendance saved' : 'Attendance saved',
+        title: session.schedule.type === ScheduleType.AD_HOC ? 'Ad-hoc attendance saved' : 'Attendance saved',
         description: formatSectionLabel(session.section.name, session.section.course.name),
         createdAt: session.createdAt.toISOString(),
         href: `/attendance/${session.section.id}`,

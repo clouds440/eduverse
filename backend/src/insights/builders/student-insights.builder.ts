@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EntryStatus } from '@/prisma/prisma-client';
+import { EntryStatus, ScheduleType } from '@/prisma/prisma-client';
 import { AttendanceStatus, InsightTone, Role } from '../../common/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { InsightsQueryDto } from '../dto/insights-query.dto';
@@ -70,7 +70,7 @@ export class StudentInsightsBuilder {
             studentId,
             session: {
               section: { course: { organizationId: orgId } },
-              isAdhoc: false,
+              schedule: { type: ScheduleType.OFFICIAL },
               date: { gte: range.from, lte: range.to },
             },
           },

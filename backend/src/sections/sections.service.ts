@@ -111,6 +111,8 @@ export class SectionsService {
             select: {
               id: true,
               day: true,
+              date: true,
+              type: true,
               startTime: true,
               endTime: true,
               room: true,

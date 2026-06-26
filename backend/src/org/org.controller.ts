@@ -683,18 +683,19 @@ export class OrgController {
   }
 
   // --- Timetable & Schedules ---
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Post('sections/:id/schedules')
   createSchedule(
     @OrgId() orgId: string,
     @Param('id') id: string,
     @Body() dto: CreateScheduleDto,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.attendanceService.createSchedule(orgId, id, dto);
+    return this.attendanceService.createSchedule(orgId, id, dto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Patch('sections/:id/schedules/:scheduleId')
   updateSchedule(
@@ -702,19 +703,21 @@ export class OrgController {
     @Param('id') id: string,
     @Param('scheduleId') scheduleId: string,
     @Body() dto: UpdateScheduleDto,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.attendanceService.updateSchedule(orgId, scheduleId, dto);
+    return this.attendanceService.updateSchedule(orgId, scheduleId, dto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Delete('sections/:id/schedules/:scheduleId')
   deleteSchedule(
     @OrgId() orgId: string,
     @Param('id') id: string,
     @Param('scheduleId') scheduleId: string,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.attendanceService.deleteSchedule(orgId, scheduleId);
+    return this.attendanceService.deleteSchedule(orgId, scheduleId, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
@@ -723,32 +726,52 @@ export class OrgController {
     return this.attendanceService.getSchedules(orgId, id);
   }
 
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Get('timetable/teachers')
+  getTimetableTeachers(
+    @OrgId() orgId: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.attendanceService.searchTimetableTeachers(orgId, search, limit ? parseInt(limit, 10) : undefined);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Get('timetable/students')
+  getTimetableStudents(
+    @OrgId() orgId: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.attendanceService.searchTimetableStudents(orgId, search, limit ? parseInt(limit, 10) : undefined);
+  }
+
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
   @Get('timetable')
   async getTimetable(
     @OrgId() orgId: string,
     @Request() req: AuthenticatedRequest,
     @Query('studentId') studentId?: string,
+    @Query('teacherId') teacherId?: string,
+    @Query('roomId') roomId?: string,
+    @Query('date') date?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    let schedules;
     if (req.user.role === Role.GUARDIAN) {
       if (!studentId) throw new BadRequestException('Query parameter "studentId" is required');
-      schedules = await this.studentService.getStudentTimetableByStudentId(orgId, studentId, req.user);
-      return this.holidaysService.buildTimetableResponse(orgId, schedules, { startDate, endDate });
+      await this.studentService.assertGuardianCanAccessStudent(orgId, req.user.id, studentId);
     }
-    if (req.user.role === Role.STUDENT) {
-      schedules = await this.studentService.getStudentTimetable(orgId, req.user.id);
-      return this.holidaysService.buildTimetableResponse(orgId, schedules, { startDate, endDate });
-    }
-    if (req.user.role === Role.ORG_ADMIN || req.user.role === Role.SUB_ADMIN) {
-      schedules = await this.attendanceService.getOrgTimetable(orgId, req.user);
-      return this.holidaysService.buildTimetableResponse(orgId, schedules, { startDate, endDate });
-    }
-    // For Teacher, Manager - show teaching schedule if they have a teacher record
-    schedules = await this.teacherService.getTeacherTimetable(orgId, req.user.id);
-    return this.holidaysService.buildTimetableResponse(orgId, schedules, { startDate, endDate });
+
+    const timetable = await this.attendanceService.getTimetable(orgId, req.user, {
+      studentId,
+      teacherId,
+      roomId,
+      date,
+      startDate,
+      endDate,
+    });
+    return this.holidaysService.buildTimetableResponse(orgId, timetable.schedules, timetable.range);
   }
 
   // --- Attendance ---
@@ -761,8 +784,6 @@ export class OrgController {
     @Request() req: AuthenticatedRequest,
     @Body('date') date: string,
     @Body('scheduleId') scheduleId?: string,
-    @Body('startTime') startTime?: string,
-    @Body('endTime') endTime?: string,
   ) {
     return this.attendanceService.createAttendanceSession(
       orgId,
@@ -770,8 +791,6 @@ export class OrgController {
       req.user,
       date,
       scheduleId,
-      startTime,
-      endTime,
     );
   }
 

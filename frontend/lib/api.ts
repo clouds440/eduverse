@@ -683,19 +683,23 @@ export const api = {
             request<GpaPolicyPreviewResponse>('/org/gpa-policies/preview', { method: 'POST', body: JSON.stringify(data), token }),
 
         // --- Timetable & Attendance ---
-        createSchedule: (id: string, data: { day: number, startTime: string, endTime: string, room?: string, roomId?: string | null }, token: string) =>
+        createSchedule: (id: string, data: { day?: number, date?: string | null, type?: string, startTime: string, endTime: string, room?: string, roomId?: string | null }, token: string) =>
             request<SectionSchedule>(`/org/sections/${id}/schedules`, { method: 'POST', body: JSON.stringify(data), token }),
         getSchedules: (id: string, token: string) =>
             request<SectionSchedule[]>(`/org/sections/${id}/schedules`, { token }),
-        updateSchedule: (sectionId: string, scheduleId: string, data: Partial<{ day: number, startTime: string, endTime: string, room?: string, roomId?: string | null }>, token: string) =>
+        updateSchedule: (sectionId: string, scheduleId: string, data: Partial<{ day?: number, date?: string | null, type?: string, startTime: string, endTime: string, room?: string, roomId?: string | null }>, token: string) =>
             request<SectionSchedule>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteSchedule: (sectionId: string, scheduleId: string, token: string) =>
             request<void>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'DELETE', token }),
-        getTimetable: (token: string, params: { studentId?: string, startDate?: string, endDate?: string } = {}) =>
+        getTimetableTeachers: (token: string, params: { search?: string, limit?: number } = {}) =>
+            request<Teacher[]>(`/org/timetable/teachers${buildQueryString(params)}`, { token }),
+        getTimetableStudents: (token: string, params: { search?: string, limit?: number } = {}) =>
+            request<Student[]>(`/org/timetable/students${buildQueryString(params)}`, { token }),
+        getTimetable: (token: string, params: { studentId?: string, teacherId?: string, roomId?: string, date?: string, startDate?: string, endDate?: string } = {}) =>
             request<TimetableResponse>(`/org/timetable${buildQueryString(params)}`, { token }),
 
-        createAttendanceSession: (sectionId: string, date: string, token: string, scheduleId?: string, startTime?: string, endTime?: string) =>
-            request<{ id: string }>(`/org/sections/${sectionId}/attendance/sessions`, { method: 'POST', body: JSON.stringify({ date, scheduleId, startTime, endTime }), token }),
+        createAttendanceSession: (sectionId: string, date: string, token: string, scheduleId: string) =>
+            request<{ id: string }>(`/org/sections/${sectionId}/attendance/sessions`, { method: 'POST', body: JSON.stringify({ date, scheduleId }), token }),
         markAttendance: (sessionId: string, records: { studentId: string, status: string }[], token: string) =>
             request<AttendanceRecord[]>(`/org/attendance/${sessionId}`, { method: 'POST', body: JSON.stringify(records), token }),
         getSectionAttendance: (sectionId: string, date: string, token: string, scheduleId?: string, studentId?: string) =>

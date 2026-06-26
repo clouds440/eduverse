@@ -1,10 +1,20 @@
-import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional } from 'class-validator';
+import { ScheduleType } from '@/prisma/prisma-client';
+import { IsString, IsNotEmpty, IsInt, Min, Max, IsOptional, IsDateString, IsEnum } from 'class-validator';
 
 export class CreateScheduleDto {
   @IsInt()
   @Min(0)
   @Max(6)
-  day!: number;
+  @IsOptional()
+  day?: number;
+
+  @IsDateString()
+  @IsOptional()
+  date?: string;
+
+  @IsEnum(ScheduleType)
+  @IsOptional()
+  type?: ScheduleType;
 
   @IsString()
   @IsNotEmpty()

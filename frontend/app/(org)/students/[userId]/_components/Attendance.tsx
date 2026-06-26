@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import AttendanceSheet from '@/components/sections/AttendanceSheet';
-import { AttendanceRecord, RangeAttendanceResponse, AttendanceStatus } from '@/types';
+import { AttendanceRecord, RangeAttendanceResponse, AttendanceStatus, ScheduleType } from '@/types';
 import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { SkeletonTable } from '@/components/ui/Skeleton';
@@ -53,7 +53,7 @@ export default function Attendance({ studentId }: AttendanceProps) {
 
         records.forEach((record) => {
             const sectionId = record.session?.sectionId || 'unknown';
-            const isOfficial = !record.session?.isAdhoc;
+            const isOfficial = record.session?.type !== ScheduleType.AD_HOC;
 
             if (!groups[sectionId]) {
                 groups[sectionId] = {
@@ -86,7 +86,7 @@ export default function Attendance({ studentId }: AttendanceProps) {
     }, [records]);
 
     const overall = useMemo(() => {
-        const officialRecords = records.filter((record) => !record.session?.isAdhoc);
+        const officialRecords = records.filter((record) => record.session?.type !== ScheduleType.AD_HOC);
         const total = officialRecords.length;
         const attended = officialRecords.filter((record) => record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.LATE).length;
         return {

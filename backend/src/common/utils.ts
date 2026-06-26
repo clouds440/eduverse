@@ -38,6 +38,8 @@ export interface TimetableSection {
   schedules: {
     id: string;
     day: number;
+    date?: Date | null;
+    type?: 'OFFICIAL' | 'AD_HOC';
     startTime: string;
     endTime: string;
     room: string | null;
@@ -56,6 +58,8 @@ export interface TimetableEntry {
   departmentId: string | null;
   color: string | null;
   day: number;
+  date: string | null;
+  type: 'OFFICIAL' | 'AD_HOC';
   startTime: string;
   endTime: string;
   room: string | null;
@@ -99,6 +103,8 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
         departmentId: section.course.departmentId || null,
         color: section.color || null,
         day: schedule.day,
+        date: schedule.date ? schedule.date.toISOString().slice(0, 10) : null,
+        type: schedule.type || 'OFFICIAL',
         startTime: schedule.startTime,
         endTime: schedule.endTime,
         room: scheduleRoom || defaultRoom || schedule.room || section.room,

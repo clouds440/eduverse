@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CopyForwardDto } from './dto/copy-forward.dto';
+import { ScheduleType } from '@/prisma/prisma-client';
 
 @Injectable()
 export class CopyForwardService {
@@ -60,7 +61,7 @@ export class CopyForwardService {
     const [sections, schedules, assessments, materials] = await Promise.all([
       this.prisma.section.count({ where: sectionWhere }),
       options.copySchedules
-        ? this.prisma.sectionSchedule.count({ where: { section: sectionWhere } })
+        ? this.prisma.sectionSchedule.count({ where: { section: sectionWhere, type: ScheduleType.OFFICIAL, date: null } })
         : Promise.resolve(0),
       options.copyAssessments
         ? this.prisma.assessment.count({ where: { section: sectionWhere } })
@@ -96,11 +97,13 @@ export class CopyForwardService {
         ...(options.copySchedules
           ? {
               schedules: {
+                where: { type: ScheduleType.OFFICIAL, date: null },
                 select: {
                   day: true,
                   startTime: true,
                   endTime: true,
                   room: true,
+                  roomId: true,
                 },
               },
             }
@@ -187,6 +190,7 @@ export class CopyForwardService {
             startTime: string;
             endTime: string;
             room: string | null;
+            roomId: string | null;
           }>;
 
           for (const schedule of schedules) {
@@ -198,6 +202,8 @@ export class CopyForwardService {
                 startTime: schedule.startTime,
                 endTime: schedule.endTime,
                 room: schedule.room,
+                roomId: schedule.roomId,
+                type: ScheduleType.OFFICIAL,
               },
             });
             results.schedulesCopied++;

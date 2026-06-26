@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
-import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role } from '@/types';
-import { CalendarDays, Clock, Download, Maximize2, MapPin, UserRound, X } from 'lucide-react';
+import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role, Room, PaginatedResponse, ScheduleType } from '@/types';
+import { Building2, CalendarDays, Clock, Download, Maximize2, MapPin, UserRound, Users, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { CustomSelect } from '@/components/ui/CustomSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { Input } from '@/components/ui/Input';
 import { ModalOverlay } from '@/components/ui/Modal';
 import { PageHeader, PageShell, ResourcePanel, type PageBreadcrumb } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -17,7 +19,7 @@ import { PLATFORM_NAME } from '@/lib/constants';
 import { downloadPdfBlob, sanitizePdfFilename } from '@/lib/pdf/core';
 import { createTimetablePdf, type TimetablePdfSectionSummary } from '@/lib/pdf/timetable';
 import { getRoleLabel } from '@/lib/roles';
-import { cn, formatCourseSectionLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
+import { cn, formatCourseSectionLabel, formatRoomLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -40,6 +42,7 @@ interface TimetableBreak {
 }
 
 type TimetableProfile = Student | Teacher;
+type TimetableViewMode = 'default' | 'teacher' | 'student' | 'room' | 'teacherRoom';
 
 interface TimetableGridProps {
     entriesByDay: Map<number, TimetableEntry[]>;
@@ -91,18 +94,6 @@ const getClosestDateForWeekday = (targetDay: number) => {
     const closestDate = new Date(today);
     closestDate.setDate(today.getDate() + bestOffset);
     return toLocalDateInputValue(closestDate);
-};
-
-const getCurrentWeekInputRange = () => {
-    const today = new Date();
-    const start = new Date(today);
-    start.setDate(today.getDate() - today.getDay());
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return {
-        startDate: toLocalDateInputValue(start),
-        endDate: toLocalDateInputValue(end),
-    };
 };
 
 function timeToMinutes(time: string) {
@@ -527,6 +518,9 @@ function TimetableGrid({
                                                                             as="p"
                                                                             className="text-xs"
                                                                         />
+                                                                        {entry.type === ScheduleType.AD_HOC && (
+                                                                            <Badge variant="warning" size="xs" className="mt-1 w-fit">Ad-hoc</Badge>
+                                                                        )}
                                                                         <p className="mt-0.5 truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}</p>
                                                                     </button>
                                                                     <RoomLinkButton entry={entry} onOpenRoom={onOpenRoom} className="mt-0.5 w-full" />
@@ -580,6 +574,9 @@ function TimetableGrid({
                                                                             as="p"
                                                                             className="text-xs"
                                                                         />
+                                                                        {entry.type === ScheduleType.AD_HOC && (
+                                                                            <Badge variant="warning" size="xs" className="mt-1 w-fit">Ad-hoc</Badge>
+                                                                        )}
                                                                     </button>
                                                                     <RoomLinkButton entry={entry} onOpenRoom={onOpenRoom} className="mt-1.5 w-full border-t border-current/15 pt-1.5" />
                                                                     <TeacherProfileButton entry={entry} onOpenTeacher={onOpenTeacher} className="mt-1 w-full" />
@@ -642,12 +639,74 @@ export function StudentTimetableView({
     description = 'A clear week view with time blocks sized by their real start and end times.',
 }: StudentTimetableViewProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { token, user } = useAuth();
     const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const initialDate = searchParams.get('date') || toLocalDateInputValue(new Date());
+    const initialTeacherId = searchParams.get('teacherId') || '';
+    const initialRoomId = searchParams.get('roomId') || '';
+    const initialStudentId = studentId || searchParams.get('studentId') || '';
+    const initialView: TimetableViewMode = initialTeacherId && initialRoomId
+        ? 'teacherRoom'
+        : initialTeacherId
+            ? 'teacher'
+            : initialRoomId
+                ? 'room'
+                : initialStudentId && !studentId
+                    ? 'student'
+                    : 'default';
+    const [selectedDate, setSelectedDate] = useState(initialDate);
+    const [viewMode, setViewMode] = useState<TimetableViewMode>(initialView);
+    const [selectedTeacherId, setSelectedTeacherId] = useState(initialTeacherId);
+    const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
+    const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId);
 
-    const weekRange = useMemo(() => getCurrentWeekInputRange(), []);
-    const timetableKey = token && user ? ['timetable', user.id, user.role, studentId, weekRange.startDate, weekRange.endDate] as const : null;
+    const { data: teachers = [] } = useSWR<Teacher[]>(token && user ? ['timetable-teachers', { limit: 250 }] as const : null);
+    const { data: students = [] } = useSWR<Student[]>(token && user ? ['timetable-students', { limit: 250 }] as const : null);
+    const { data: roomsData } = useSWR<PaginatedResponse<Room>>(token && user ? ['rooms', { limit: 1000, isActive: true }] as const : null);
+    const teacherOptions = useMemo(() => [
+        { value: '', label: 'Select teacher', icon: UserRound },
+        ...teachers.map((teacher) => ({
+            value: teacher.id,
+            label: teacher.user?.name || teacher.user?.email || teacher.subject || 'Unnamed teacher',
+            icon: UserRound,
+        })),
+    ], [teachers]);
+    const studentOptions = useMemo(() => [
+        { value: '', label: 'Select student', icon: Users },
+        ...students.map((student) => ({
+            value: student.id,
+            label: student.user?.name || student.user?.email || student.rollNumber || 'Unnamed student',
+            icon: Users,
+        })),
+    ], [students]);
+    const roomOptions = useMemo(() => [
+        { value: '', label: 'Select room', icon: Building2 },
+        ...(roomsData?.data || []).map((room) => ({
+            value: room.id,
+            label: formatRoomLabel(room),
+            icon: Building2,
+        })),
+    ], [roomsData?.data]);
+    const selectedTeacherLabel = teacherOptions.find((option) => option.value === selectedTeacherId)?.label || 'Teacher timetable';
+    const selectedStudentLabel = studentOptions.find((option) => option.value === selectedStudentId)?.label || 'Student timetable';
+    const selectedRoomLabel = roomOptions.find((option) => option.value === selectedRoomId)?.label || 'Room timetable';
+    const fixedStudentId = studentId || '';
+    const timetableParams = useMemo(() => ({
+        date: selectedDate,
+        ...(fixedStudentId ? { studentId: fixedStudentId } : {}),
+        ...(viewMode === 'student' && selectedStudentId ? { studentId: selectedStudentId } : {}),
+        ...((viewMode === 'teacher' || viewMode === 'teacherRoom') && selectedTeacherId ? { teacherId: selectedTeacherId } : {}),
+        ...((viewMode === 'room' || viewMode === 'teacherRoom') && selectedRoomId ? { roomId: selectedRoomId } : {}),
+    }), [fixedStudentId, selectedDate, selectedRoomId, selectedStudentId, selectedTeacherId, viewMode]);
+    const hasRequiredTarget = viewMode === 'default'
+        || Boolean(fixedStudentId)
+        || (viewMode === 'teacher' && selectedTeacherId)
+        || (viewMode === 'student' && selectedStudentId)
+        || (viewMode === 'room' && selectedRoomId)
+        || (viewMode === 'teacherRoom' && selectedTeacherId && selectedRoomId);
+    const timetableKey = token && user && hasRequiredTarget ? ['timetable', timetableParams] as const : null;
     const { data: timetableData, isLoading, error, mutate } = useSWR<TimetableResponse>(timetableKey);
     const profileKey = token && user?.role === Role.STUDENT
         ? ['student-profile', user.id] as const
@@ -765,14 +824,31 @@ export function StudentTimetableView({
     const gridHeight = rowCount * TIMETABLE_HALF_HOUR_ROW_HEIGHT;
     const orgName = user?.orgName || PLATFORM_NAME;
     const logoUrl = getPublicUrl(user?.orgLogoUrl);
-    const userName = user?.name || user?.email || 'Current user';
-    const roleLabel = getRoleLabel(user?.role);
+    const defaultContextName = user?.name || user?.email || 'Current user';
+    const contextName = viewMode === 'teacher'
+        ? selectedTeacherLabel
+        : viewMode === 'student'
+            ? selectedStudentLabel
+            : viewMode === 'room'
+                ? selectedRoomLabel
+                : viewMode === 'teacherRoom'
+                    ? `${selectedTeacherLabel} + ${selectedRoomLabel}`
+                    : defaultContextName;
+    const roleLabel = viewMode === 'teacher'
+        ? 'Teacher'
+        : viewMode === 'student'
+            ? 'Student'
+            : viewMode === 'room'
+                ? 'Room'
+                : viewMode === 'teacherRoom'
+                    ? 'Teacher + Room'
+                    : getRoleLabel(user?.role);
     const cohortName = batchName ?? getProfileCohortName(profile);
     const timetableSections = useMemo(() => getTimetableSections(entries, profile), [entries, profile]);
 
     const openAttendanceForEntry = (entry: TimetableEntry) => {
         if (!canOpenAttendance) return;
-        const closestDate = getClosestDateForWeekday(entry.day);
+        const closestDate = entry.date || selectedDate || getClosestDateForWeekday(entry.day);
         router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
     };
 
@@ -791,7 +867,7 @@ export function StudentTimetableView({
             const blob = await createTimetablePdf({
                 orgName,
                 logoUrl,
-                userName,
+                userName: contextName,
                 roleLabel,
                 cohortName,
                 sections: timetableSections,
@@ -800,11 +876,25 @@ export function StudentTimetableView({
                 endHour,
                 theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
             });
-            downloadPdfBlob(blob, `${sanitizePdfFilename(userName, 'timetable')}-timetable.pdf`);
+            downloadPdfBlob(blob, `${sanitizePdfFilename(contextName, 'timetable')}-timetable.pdf`);
         } finally {
             setIsGeneratingPdf(false);
         }
     };
+    const canSwitchViews = !fixedStudentId && (
+        user?.role === Role.ORG_ADMIN ||
+        user?.role === Role.SUB_ADMIN ||
+        user?.role === Role.ORG_MANAGER ||
+        user?.role === Role.TEACHER ||
+        user?.role === Role.STUDENT
+    );
+    const viewOptions = [
+        { value: 'default' as const, label: user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN ? 'Organization timetable' : 'My timetable', icon: Clock },
+        { value: 'teacher' as const, label: 'Teacher timetable', icon: UserRound },
+        { value: 'room' as const, label: 'Room timetable', icon: Building2 },
+        { value: 'teacherRoom' as const, label: 'Teacher + room', icon: MapPin },
+        { value: 'student' as const, label: 'Student timetable', icon: Users },
+    ];
 
     return (
         <PageShell>
@@ -816,6 +906,50 @@ export function StudentTimetableView({
                 actions={(
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                         {headerActions}
+                        <Input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(event) => setSelectedDate(event.target.value)}
+                            className="h-10 min-w-40"
+                        />
+                        {canSwitchViews && (
+                            <CustomSelect<TimetableViewMode>
+                                value={viewMode}
+                                onChange={(value) => setViewMode(value)}
+                                options={viewOptions}
+                                className="min-w-52"
+                            />
+                        )}
+                        {canSwitchViews && (viewMode === 'teacher' || viewMode === 'teacherRoom') && (
+                            <CustomSelect
+                                value={selectedTeacherId}
+                                onChange={setSelectedTeacherId}
+                                options={teacherOptions}
+                                placeholder="Select teacher"
+                                searchable
+                                className="min-w-56"
+                            />
+                        )}
+                        {canSwitchViews && (viewMode === 'room' || viewMode === 'teacherRoom') && (
+                            <CustomSelect
+                                value={selectedRoomId}
+                                onChange={setSelectedRoomId}
+                                options={roomOptions}
+                                placeholder="Select room"
+                                searchable
+                                className="min-w-56"
+                            />
+                        )}
+                        {canSwitchViews && viewMode === 'student' && (
+                            <CustomSelect
+                                value={selectedStudentId}
+                                onChange={setSelectedStudentId}
+                                options={studentOptions}
+                                placeholder="Select student"
+                                searchable
+                                className="min-w-56"
+                            />
+                        )}
                         <Button
                             type="button"
                             variant="secondary"
@@ -899,7 +1033,7 @@ export function StudentTimetableView({
                     </button>
                     <TimetableContextHeader
                         orgName={orgName}
-                        userName={userName}
+                        userName={contextName}
                         roleLabel={roleLabel}
                         cohortName={cohortName}
                         sections={timetableSections}

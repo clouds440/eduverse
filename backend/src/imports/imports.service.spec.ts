@@ -72,7 +72,7 @@ describe('ImportsService monthly attendance validation', () => {
       sectionId: 'section-1',
       year: 2026,
       month: 2,
-      targetMode: 'FIRST_SCHEDULE_OR_ADHOC',
+      targetMode: 'FIRST_SCHEDULE',
     }, actor);
 
     expect(result.summary.valid).toBe(2);
@@ -96,7 +96,7 @@ describe('ImportsService monthly attendance validation', () => {
       sectionId: 'section-1',
       year: 2026,
       month: 2,
-      targetMode: 'FIRST_SCHEDULE_OR_ADHOC',
+      targetMode: 'FIRST_SCHEDULE',
     }, actor);
 
     expect(result.summary.valid).toBe(0);

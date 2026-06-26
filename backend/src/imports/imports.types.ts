@@ -9,9 +9,8 @@ export type ImportEntity =
   | 'rooms';
 
 export type AttendanceImportTargetMode =
-  | 'FIRST_SCHEDULE_OR_ADHOC'
-  | 'ALL_SCHEDULES_OR_ADHOC'
-  | 'ADHOC_ONLY';
+  | 'FIRST_SCHEDULE'
+  | 'ALL_SCHEDULES';
 
 export interface CsvRow {
   rowNumber: number;

@@ -1,6 +1,8 @@
 ﻿import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
 export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
+import type { ScheduleType } from './enums';
+export { ScheduleType } from './enums';
 
 export interface PaginatedResponse<T> {
     data: T[];
@@ -998,9 +1000,8 @@ export type ImportEntity =
     | 'rooms';
 
 export type AttendanceImportTargetMode =
-    | 'FIRST_SCHEDULE_OR_ADHOC'
-    | 'ALL_SCHEDULES_OR_ADHOC'
-    | 'ADHOC_ONLY';
+    | 'FIRST_SCHEDULE'
+    | 'ALL_SCHEDULES';
 
 export interface ImportRowError {
     rowNumber: number;
@@ -1641,6 +1642,8 @@ export interface SectionSchedule {
     id: string;
     sectionId: string;
     day: number;
+    date?: string | null;
+    type?: ScheduleType;
     startTime: string;
     endTime: string;
     room?: string | null;
@@ -1661,6 +1664,8 @@ export interface TimetableEntry {
     courseName: string;
     color?: string | null;
     day: number;
+    date?: string | null;
+    type?: ScheduleType;
     startTime: string;
     endTime: string;
     room: string | null;
@@ -1700,8 +1705,8 @@ export interface TimetableResponse {
 export interface AttendanceSession {
     id: string;
     sectionId: string;
-    scheduleId?: string | null;
-    isAdhoc: boolean;
+    scheduleId: string;
+    type?: ScheduleType;
     date: string;
     startTime?: string | null;
     endTime?: string | null;
@@ -1746,13 +1751,14 @@ export interface RangeAttendanceResponse {
     sessions: {
         id: string;
         date: string;
-        isAdhoc?: boolean;
+        type?: ScheduleType;
         startTime?: string;
         endTime?: string;
         schedule?: {
             startTime: string;
             endTime: string;
             room: string | null;
+            type?: ScheduleType;
         } | null;
     }[];
     students: {
@@ -2285,5 +2291,3 @@ export interface CopyForwardPreview {
     assessments: number;
     materials: number;
 }
-
-

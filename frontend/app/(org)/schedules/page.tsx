@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import { BookOpen, Building2, CalendarDays, ChevronRight, Clock, GraduationCap, Layers, MapPin, Users } from 'lucide-react';
-import { Section, SectionSchedule } from '@/types';
+import { Section, SectionSchedule, ScheduleType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -31,6 +31,13 @@ type ScheduleStatusFilter = typeof SCHEDULE_STATUS_OPTIONS[number]['value'];
 function timeToMinutes(time: string) {
     const [hours = '0', minutes = '0'] = time.split(':');
     return Number(hours) * 60 + Number(minutes);
+}
+
+function getScheduleDayLabel(schedule: SectionSchedule) {
+    if (schedule.date) {
+        return new Date(schedule.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return DAY_NAMES[schedule.day];
 }
 
 function ScheduleSkeleton() {
@@ -103,7 +110,7 @@ function SectionScheduleCard({ section }: { section: Section }) {
     );
     const schedules = useMemo(() => (
         [...(schedulesData || [])].sort((a, b) => (
-            a.day - b.day || timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+            (a.date || '').localeCompare(b.date || '') || a.day - b.day || timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
         ))
     ), [schedulesData]);
 
@@ -163,7 +170,7 @@ function SectionScheduleCard({ section }: { section: Section }) {
                             <div key={schedule.id} className="rounded-md border p-3" style={sectionPanelStyle}>
                                 <div className="flex items-center justify-between gap-2">
                                     <span className="text-xs font-black uppercase tracking-wide" style={{ color: sectionColor }}>
-                                        {DAY_NAMES[schedule.day]}
+                                        {getScheduleDayLabel(schedule)}
                                     </span>
                                     <span className="rounded-full border px-2 py-0.5 text-[10px] font-black" style={sectionBadgeStyle}>
                                         {schedule.startTime}
@@ -174,6 +181,11 @@ function SectionScheduleCard({ section }: { section: Section }) {
                                         <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
                                         <span>{schedule.startTime} - {schedule.endTime}</span>
                                     </div>
+                                    {schedule.type === ScheduleType.AD_HOC && (
+                                        <Badge variant="warning" size="sm">
+                                            Ad-hoc
+                                        </Badge>
+                                    )}
                                     <div className="flex min-w-0 items-center gap-2 text-xs font-semibold opacity-80" style={{ color: sectionColor }}>
                                         <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
                                         <span className="truncate">
@@ -256,7 +268,8 @@ export default function SchedulesPage() {
                 getSectionRoomLabel(section),
                 ...(section.teachers?.map((teacher) => teacher.user?.name || teacher.user?.email || teacher.subject) || []),
                 ...(section.schedules?.flatMap((schedule) => [
-                    DAY_NAMES[schedule.day],
+                    getScheduleDayLabel(schedule),
+                    schedule.type === ScheduleType.AD_HOC ? 'ad-hoc' : 'official',
                     schedule.startTime,
                     schedule.endTime,
                     getScheduleRoomLabel(schedule),
