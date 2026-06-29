@@ -34,11 +34,10 @@ export function SearchBar({
     const [localValue, setLocalValue] = useState(value);
     const debouncedValue = useDebounce(localValue, delay);
     const pathname = usePathname();
-    const [prevValue, setPrevValue] = useState(value);
-    const [prevPathname, setPrevPathname] = useState(pathname);
     const [isExpanded, setIsExpanded] = useState(false);
     const prevDebouncedValueRef = useRef(debouncedValue);
     const inputRef = useRef<HTMLInputElement>(null);
+    const didMountPathRef = useRef(false);
     const isExpandable = mobileMode === 'expandable';
     const isOpen = !isExpandable || isExpanded || Boolean(localValue);
     const isCompact = size === 'compact';
@@ -49,13 +48,18 @@ export function SearchBar({
         ? 'pointer-events-none absolute inset-0 opacity-0'
         : 'pointer-events-none absolute inset-0 opacity-0 sm:pointer-events-auto sm:static sm:opacity-100';
 
-    // Sync from parent prop or route change in render (React Compiler preferred pattern)
-    if (value !== prevValue || pathname !== prevPathname) {
-        setPrevValue(value);
-        setPrevPathname(pathname);
-        const newValue = pathname !== prevPathname ? '' : value;
-        setLocalValue(newValue);
-    }
+    useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    useEffect(() => {
+        if (!didMountPathRef.current) {
+            didMountPathRef.current = true;
+            return;
+        }
+        setLocalValue('');
+        if (isExpandable) setIsExpanded(false);
+    }, [isExpandable, pathname]);
 
     // Trigger parent onChange only when debounced value changes. This is to prevent the parent component from re-rendering unnecessarily.
     useEffect(() => {

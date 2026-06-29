@@ -47,7 +47,7 @@ export default function BuildingsAndRoomsPage() {
                     />
                 </div>
 
-                <div className="relative min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+                <div className="relative min-h-0 flex-1 overflow-hidden">
                     {activeTab === 'buildings' && <BuildingsTab />}
                     {activeTab === 'rooms' && <RoomsTab />}
                 </div>
@@ -55,6 +55,5 @@ export default function BuildingsAndRoomsPage() {
         </PageActionsHostProvider>
     );
 }
-
 
 

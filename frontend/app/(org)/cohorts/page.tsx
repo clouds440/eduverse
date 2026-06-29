@@ -36,6 +36,8 @@ export default function CohortsPage() {
     const sortBy = getStringParam('sortBy', 'name');
     const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
     const academicCycleId = getStringParam('academicCycleId');
+    const cycleScope = getStringParam('cycleScope');
+    const showAllCycles = cycleScope === 'all';
     const [pageSize, setPageSize] = usePersistentPageSize('edu-cohorts-limit', 10);
 
     const cohortParams = {
@@ -44,7 +46,8 @@ export default function CohortsPage() {
         search: searchTerm,
         sortBy,
         sortOrder,
-        academicCycleId: academicCycleId || undefined,
+        academicCycleId: showAllCycles ? undefined : academicCycleId || undefined,
+        includeAllCycles: showAllCycles ? true : undefined,
     };
 
     const cohortsKey = token ? ['cohorts', cohortParams] as const : null;
@@ -109,14 +112,20 @@ export default function CohortsPage() {
             value: searchTerm,
             onRemove: () => updateQueryParams({ search: undefined, page: 1 }),
         }] : []),
-        ...(academicCycleId ? [{
+        ...(!showAllCycles && academicCycleId ? [{
             key: 'academicCycleId',
             label: 'Cycle',
             value: (() => {
                 const cycle = cyclesData?.data?.find((item) => item.id === academicCycleId);
                 return cycle ? (cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name) : 'Selected cycle';
             })(),
-            onRemove: () => updateQueryParams({ academicCycleId: undefined, page: 1 }),
+            onRemove: () => updateQueryParams({ academicCycleId: undefined, cycleScope: undefined, page: 1 }),
+        }] : []),
+        ...(showAllCycles ? [{
+            key: 'cycleScope',
+            label: 'Cycle',
+            value: 'All academic cycles',
+            onRemove: () => updateQueryParams({ cycleScope: undefined, page: 1 }),
         }] : []),
     ];
 
@@ -239,12 +248,19 @@ export default function CohortsPage() {
                                 </Label>
                                 <CustomSelect
                                     options={[
-                                        { label: 'All Academic Cycles', value: '' },
+                                        { label: 'Current Active Cycle', value: '' },
+                                        { label: 'All Academic Cycles', value: 'all' },
                                         ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name })) || []),
                                     ]}
-                                    value={academicCycleId}
-                                    onChange={(value) => updateQueryParams({ academicCycleId: value, page: 1 })}
-                                    placeholder="Filter Cycle"
+                                    value={showAllCycles ? 'all' : academicCycleId}
+                                    onChange={(value) => {
+                                        if (value === 'all') {
+                                            updateQueryParams({ cycleScope: 'all', academicCycleId: undefined, page: 1 });
+                                            return;
+                                        }
+                                        updateQueryParams({ academicCycleId: value || undefined, cycleScope: undefined, page: 1 });
+                                    }}
+                                    placeholder="Current Active Cycle"
                                 />
                             </div>
                         </FilterDrawerGrid>

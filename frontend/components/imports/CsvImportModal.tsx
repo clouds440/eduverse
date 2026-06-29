@@ -37,7 +37,6 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
         .filter((row) => row.warnings?.length)
         .map((row) => ({ rowNumber: row.rowNumber, raw: row.raw, errors: row.warnings || [] }));
     const invalidRows = result?.errors || validation?.invalidRows || [];
-    const issueRows = [...warningRows, ...invalidRows];
     const canConfirm = Boolean(validation?.validRows.length && !result);
     const cachePrefixes = useMemo(() => Array.isArray(cachePrefix) ? cachePrefix : [cachePrefix], [cachePrefix]);
     const importHint = entity === 'rooms'
@@ -91,13 +90,13 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
     };
 
     const handleDownloadErrors = async () => {
-        if (!token || issueRows.length === 0) return;
+        if (!token || invalidRows.length === 0) return;
         setActiveAction('issues');
         try {
-            const csv = await api.imports.getErrorReport(entity, issueRows, token);
-            downloadCsv(`${entity}-import-issues.csv`, csv);
+            const csv = await api.imports.getErrorReport(entity, invalidRows, token);
+            downloadCsv(`${entity}-import-errors.csv`, csv);
         } catch (error) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download issue report', type: 'error' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download error CSV', type: 'error' } });
         } finally {
             setActiveAction(null);
         }
@@ -124,9 +123,9 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
                         Template
                     </Button>
                     <div className="flex gap-2">
-                        {issueRows.length > 0 && (
+                        {invalidRows.length > 0 && (
                             <Button type="button" variant="outline" icon={Download} onClick={handleDownloadErrors} disabled={busy} isLoading={activeAction === 'issues'}>
-                                Issue CSV
+                                Error CSV
                             </Button>
                         )}
                         <Button type="button" variant="secondary" onClick={resetAndClose} disabled={busy}>Close</Button>

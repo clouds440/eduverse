@@ -508,7 +508,7 @@ export class ImportsService {
       },
       teachers: {
         entity: 'teachers',
-        headers: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject', 'department', 'joiningDate', 'emergencyContact', 'bloodGroup', 'address', 'status', 'departmentCodes'],
+        headers: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject', 'department', 'joiningDate', 'emergencyContact', 'bloodGroup', 'address', 'status', 'isManager', 'departmentCodes'],
         required: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject'],
         dto: CreateTeacherDto,
         examples: [{
@@ -525,6 +525,7 @@ export class ImportsService {
           bloodGroup: 'B+',
           address: 'Lahore',
           status: 'ACTIVE',
+          isManager: false,
           departmentCodes: '',
         }],
         normalize: (row) => ({
@@ -541,8 +542,8 @@ export class ImportsService {
           bloodGroup: optionalString(row.bloodGroup),
           address: optionalString(row.address),
           status: optionalEnum(row.status, Object.values(TeacherStatus)) || TeacherStatus.ACTIVE,
+          isManager: optionalBoolean(row.isManager, 'isManager') ?? false,
           departmentCodes: splitIds(row.departmentCodes),
-          isManager: false,
           departmentScopeType: DepartmentScopeType.ALL,
           scopeDepartmentIds: [],
           sectionIds: [],

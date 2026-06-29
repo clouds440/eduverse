@@ -46,6 +46,7 @@ export class CohortsController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('academicCycleId') academicCycleId?: string,
+    @Query('includeAllCycles') includeAllCycles?: string,
   ) {
     return this.cohortsService.getCohorts(orgId, {
       page: page ? parseInt(page, 10) : 1,
@@ -54,6 +55,7 @@ export class CohortsController {
       sortBy,
       sortOrder,
       academicCycleId,
+      includeAllCycles: includeAllCycles === 'true',
     });
   }
 

@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { OrganizationType, Role } from '../common/enums';
+import { OrgStatus, OrganizationType, Role } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../security/email.service';
 import type { NotificationCreator } from '../notifications/notifications.tokens';
@@ -109,6 +109,7 @@ type MockPrismaService = {
   };
   auditLog: {
     create: jest.Mock;
+    findMany: jest.Mock;
   };
 };
 
@@ -161,6 +162,7 @@ describe('AuthService forgotPassword', () => {
       },
       auditLog: {
         create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
 
@@ -350,6 +352,79 @@ describe('AuthService forgotPassword', () => {
     expect(sentEmail.text).toContain(
       'If this mailbox is used for multiple EduVerse organizations',
     );
+  });
+
+  it('emails platform admins when a pending registration contact email is verified', async () => {
+    prisma.organization.findUnique.mockResolvedValue({
+      id: 'org-1',
+      name: 'Test School',
+      status: OrgStatus.PENDING,
+      contactEmail: 'recovery@school.test',
+      contactEmailVerifiedAt: null,
+      contactEmailVerificationCodeHash: (service as unknown as { hashSecret: (value: string) => string }).hashSecret('123456'),
+      contactEmailVerificationExpiresAt: new Date(Date.now() + 60_000),
+      contactEmailVerificationAttempts: 0,
+    });
+    prisma.auditLog.findMany.mockResolvedValue([
+      { details: { reason: 'first_registration' } },
+    ]);
+    prisma.user.findMany.mockResolvedValue([
+      { email: 'super@eduverse.test' },
+      { email: 'platform@eduverse.test' },
+    ]);
+
+    await service.verifyContactEmail(
+      { id: 'admin-1', role: Role.ORG_ADMIN, organizationId: 'org-1' },
+      '123456',
+      { ip: '127.0.0.8', userAgent: 'jest' },
+    );
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] },
+          status: 'ACTIVE',
+        }),
+      }),
+    );
+    expect(emailService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'super@eduverse.test',
+        subject: 'Pending organization verified: Test School',
+        text: expect.stringContaining('https://app.test/admin/organizations'),
+      }),
+    );
+    expect(emailService.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'platform@eduverse.test',
+        html: expect.stringContaining('Review organizations'),
+      }),
+    );
+  });
+
+  it('does not email platform admins for contact email change reverification', async () => {
+    prisma.organization.findUnique.mockResolvedValue({
+      id: 'org-1',
+      name: 'Test School',
+      status: OrgStatus.PENDING,
+      contactEmail: 'new-recovery@school.test',
+      contactEmailVerifiedAt: null,
+      contactEmailVerificationCodeHash: (service as unknown as { hashSecret: (value: string) => string }).hashSecret('123456'),
+      contactEmailVerificationExpiresAt: new Date(Date.now() + 60_000),
+      contactEmailVerificationAttempts: 0,
+    });
+    prisma.auditLog.findMany.mockResolvedValue([
+      { details: { reason: 'contact_email_changed' } },
+    ]);
+
+    await service.verifyContactEmail(
+      { id: 'admin-1', role: Role.ORG_ADMIN, organizationId: 'org-1' },
+      '123456',
+      { ip: '127.0.0.9', userAgent: 'jest' },
+    );
+
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(emailService.send).not.toHaveBeenCalled();
   });
 
   it('generates a reset link for a managed user and emails it', async () => {

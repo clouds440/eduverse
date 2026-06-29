@@ -175,6 +175,27 @@ describe('ImportsService student validation', () => {
   });
 });
 
+describe('ImportsService teacher validation', () => {
+  it('accepts isManager in teacher CSV rows', async () => {
+    const { service } = createService();
+    const csv = [
+      'name,email,password,phone,education,designation,subject,department,joiningDate,emergencyContact,bloodGroup,address,status,isManager,departmentCodes',
+      'Manager Teacher,manager@teacher.test,Teacher123,+923001112233,MSc Computer Science,Program Manager,Computing,Computer Science,2026-04-01,,,,ACTIVE,true,',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'teachers', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data.isManager).toBe(true);
+  });
+});
+
 describe('ImportsService building validation', () => {
   const admin = {
     id: 'admin-1',

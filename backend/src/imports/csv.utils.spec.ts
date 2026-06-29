@@ -16,7 +16,7 @@ describe('CSV import utilities', () => {
       .toThrow(/Missing required header/);
   });
 
-  it('generates error report CSV with row errors', () => {
+  it('generates retry-ready error report CSV with only invalid row values', () => {
     const csv = buildErrorReportCsv([
       {
         rowNumber: 2,
@@ -28,8 +28,6 @@ describe('CSV import utilities', () => {
       },
     ], ['name', 'email']);
 
-    expect(csv).toContain('rowNumber,name,email,errors');
-    expect(csv).toContain('2,,bad,');
-    expect(csv).toContain('name: Required field is missing');
+    expect(csv).toBe('name,email\n,bad\n');
   });
 });

@@ -886,7 +886,7 @@ export const api = {
     },
 
     cohorts: {
-        getCohorts: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', academicCycleId?: string } = {}) =>
+        getCohorts: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', academicCycleId?: string, includeAllCycles?: boolean } = {}) =>
             request<PaginatedResponse<Cohort>>(`/org/cohorts${buildQueryString(params)}`, { token }),
         getCohort: (id: string, token: string) =>
             request<Cohort>(`/org/cohorts/${id}`, { token }),

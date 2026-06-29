@@ -142,7 +142,7 @@ export class CohortsService {
     });
   }
 
-  async getCohorts(orgId: string, options: PaginationOptions & { academicCycleId?: string }) {
+  async getCohorts(orgId: string, options: PaginationOptions & { academicCycleId?: string; includeAllCycles?: boolean }) {
     const { skip, take, sortBy, sortOrder } = getPaginationOptions({
       ...options,
       sortBy: options.sortBy || 'createdAt',
@@ -151,7 +151,11 @@ export class CohortsService {
 
     const where: Prisma.CohortWhereInput = {
       organizationId: orgId,
-      ...(options.academicCycleId ? { academicCycleId: options.academicCycleId } : {}),
+      ...(options.academicCycleId
+        ? { academicCycleId: options.academicCycleId }
+        : options.includeAllCycles
+          ? {}
+          : { academicCycle: { isActive: true } }),
       ...(options.search
         ? {
           OR: [

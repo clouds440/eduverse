@@ -948,6 +948,8 @@ export class AuthService {
       where: { id: user.organizationId },
       select: {
         id: true,
+        name: true,
+        status: true,
         contactEmail: true,
         contactEmailVerifiedAt: true,
         contactEmailVerificationCodeHash: true,
@@ -1000,6 +1002,10 @@ export class AuthService {
       throw new BadRequestException('Invalid verification code.');
     }
 
+    const verificationReason = await this.getLatestContactEmailVerificationReason(org.id);
+    const shouldNotifyPlatformAdmins =
+      org.status === OrgStatus.PENDING && verificationReason === 'first_registration';
+
     await this.prisma.organization.update({
       where: { id: org.id },
       data: {
@@ -1017,6 +1023,19 @@ export class AuthService {
       organizationId: user.organizationId,
       sessionId: user.sessionId,
     });
+
+    if (shouldNotifyPlatformAdmins) {
+      await this.sendPendingOrganizationVerifiedEmail({
+        organizationId: org.id,
+        organizationName: org.name,
+        contactEmail: org.contactEmail,
+      }).catch((error) => {
+        this.logger.error(
+          `Failed to notify platform admins for verified pending org ${org.id}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      });
+    }
 
     return { message: 'Contact email verified successfully.' };
   }
@@ -1448,6 +1467,77 @@ export class AuthService {
     return typeof input.details?.reason === 'string' ? input.details.reason : null;
   }
 
+  private async getLatestContactEmailVerificationReason(orgId: string) {
+    const auditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        organizationId: orgId,
+        action: 'contact_email_verification_requested',
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { details: true },
+    });
+
+    for (const log of auditLogs) {
+      const reason = this.getDetailsReason(log.details);
+      if (reason === 'first_registration' || reason === 'contact_email_changed') {
+        return reason;
+      }
+    }
+
+    return null;
+  }
+
+  private getDetailsReason(details: unknown) {
+    if (!details || typeof details !== 'object' || Array.isArray(details)) return null;
+    const reason = (details as { reason?: unknown }).reason;
+    return typeof reason === 'string' ? reason : null;
+  }
+
+  private async sendPendingOrganizationVerifiedEmail(input: {
+    organizationId: string;
+    organizationName: string;
+    contactEmail: string;
+  }) {
+    const admins = await this.prisma.user.findMany({
+      where: {
+        role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] },
+        status: UserStatus.ACTIVE,
+      },
+      select: { email: true },
+    });
+
+    if (admins.length === 0) return;
+
+    const appBaseUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/+$/, '');
+    const actionUrl = `${appBaseUrl}/admin/organizations`;
+    const email = this.buildPendingOrganizationVerifiedEmail({
+      ...input,
+      appBaseUrl,
+      actionUrl,
+    });
+
+    const results = await Promise.allSettled(
+      admins.map((admin) =>
+        this.emailService.send({
+          to: admin.email,
+          subject: email.subject,
+          text: email.text,
+          html: email.html,
+        }),
+      ),
+    );
+
+    const failedCount = results.filter((result) => result.status === 'rejected').length;
+    if (failedCount > 0) {
+      this.logger.warn(
+        `Failed to send ${failedCount} pending organization verification alert email(s) for org ${input.organizationId}`,
+      );
+    }
+  }
+
   private buildPasswordResetEmail(input: {
     recipient: string;
     appBaseUrl: string;
@@ -1611,6 +1701,43 @@ export class AuthService {
           <div style="border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;padding:14px;">
             <p style="margin:0;color:#9a3412;font-size:13px;line-height:1.6;"><strong>Shared mailbox?</strong> This code verifies only ${this.escapeHtml(input.organizationName)}. It does not verify any other EduVerse organization that may use the same contact email.</p>
           </div>
+        `,
+      }),
+    };
+  }
+
+  private buildPendingOrganizationVerifiedEmail(input: {
+    appBaseUrl: string;
+    actionUrl: string;
+    organizationId: string;
+    organizationName: string;
+    contactEmail: string;
+  }) {
+    const title = 'Organization ready for review';
+    const intro = `${input.organizationName} verified its contact email and is pending platform approval.`;
+
+    return {
+      subject: `Pending organization verified: ${input.organizationName}`,
+      text: [
+        intro,
+        `Organization ID: ${input.organizationId}`,
+        `Contact email: ${input.contactEmail}`,
+        `Review organizations: ${input.actionUrl}`,
+      ].join('\n\n'),
+      html: this.buildSecurityEmailHtml({
+        appBaseUrl: input.appBaseUrl,
+        eyebrow: 'Platform review',
+        title,
+        preview: intro,
+        bodyHtml: `
+          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(intro)}</p>
+          <div style="border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;padding:14px;margin-bottom:18px;">
+            <p style="margin:0;color:#6b7280;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Organization</p>
+            <p style="margin:6px 0 0;color:#111827;font-size:16px;font-weight:900;">${this.escapeHtml(input.organizationName)}</p>
+            <p style="margin:6px 0 0;color:#4b5563;font-size:13px;font-weight:700;">${this.escapeHtml(input.contactEmail)}</p>
+            <p style="margin:6px 0 0;color:#6b7280;font-size:12px;font-family:Consolas,Menlo,monospace;">${this.escapeHtml(input.organizationId)}</p>
+          </div>
+          <a href="${this.escapeHtml(input.actionUrl)}" style="display:block;text-align:center;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:800;">Review organizations</a>
         `,
       }),
     };

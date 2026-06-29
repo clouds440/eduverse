@@ -31,11 +31,11 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
     const router = useRouter();
     const pathname = usePathname();
     const rootRef = useRef<HTMLDivElement>(null);
+    const resultsListRef = useRef<HTMLDivElement>(null);
+    const resultRefs = useRef<Array<HTMLAnchorElement | null>>([]);
     const [query, setQuery] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(0);
-    const [prevPathname, setPrevPathname] = useState(pathname);
-    const [prevQuery, setPrevQuery] = useState(query);
     const isApproved = (user?.accessLevel ?? 2) >= 1;
 
     const items = useMemo(() => buildRouteSearchItems({
@@ -47,17 +47,21 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
     const results = useMemo(() => searchRouteItems(query, items, RESULT_LIMIT), [items, query]);
     const visibleResults = isOpen ? results : [];
 
-    if (pathname !== prevPathname) {
-        setPrevPathname(pathname);
+    useEffect(() => {
         setQuery('');
         setIsOpen(false);
         setActiveIndex(0);
-    }
+    }, [pathname]);
 
-    if (query !== prevQuery) {
-        setPrevQuery(query);
+    useEffect(() => {
         setActiveIndex(0);
-    }
+    }, [query]);
+
+    useEffect(() => {
+        if (!isOpen || !visibleResults.length) return;
+        const activeItem = resultRefs.current[activeIndex];
+        activeItem?.scrollIntoView({ block: 'nearest' });
+    }, [activeIndex, isOpen, visibleResults.length]);
 
     useEffect(() => {
         onOpenChange?.(isOpen);
@@ -85,6 +89,7 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
     const navigateTo = (href: string) => {
         setIsOpen(false);
         setQuery('');
+        setActiveIndex(0);
         router.push(href);
     };
 
@@ -132,16 +137,19 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
 
             {isOpen && (
                 <div className="fixed left-3 right-3 top-18 z-9999 overflow-hidden rounded-lg border border-border/80 bg-card shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+0.5rem)] sm:w-96">
-                    <div className="max-h-[min(28rem,calc(100vh-6rem))] overflow-y-auto p-1.5">
+                    <div ref={resultsListRef} className="max-h-[min(28rem,calc(100vh-6rem))] overflow-y-auto p-1.5">
                         {visibleResults.length > 0 ? (
                             visibleResults.map((item, index) => (
                                 <Link
                                     key={`${item.id}-${item.href}`}
+                                    ref={(element) => {
+                                        resultRefs.current[index] = element;
+                                    }}
                                     href={item.href}
                                     onMouseEnter={() => setActiveIndex(index)}
-                                    onClick={() => {
-                                        setIsOpen(false);
-                                        setQuery('');
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        navigateTo(item.href);
                                     }}
                                     className={cn(
                                         'flex min-w-0 items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',

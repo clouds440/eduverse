@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Pagination } from './Pagination';
-import { Skeleton, SkeletonTable } from './Skeleton';
+import { Skeleton } from './Skeleton';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
 import { EmptyState } from './EmptyState';
 
@@ -99,6 +99,9 @@ export function DataTable<T>({
     const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
     const resizeFrameRef = useRef<number | null>(null);
     const tableRef = useRef<HTMLTableElement>(null);
+    const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
+    const [tableHeaderHeight, setTableHeaderHeight] = useState(56);
+    const tableMinWidth = React.useMemo(() => columnWidths.reduce((a, b) => a + b, 0), [columnWidths]);
 
     const getCellContent = React.useCallback((column: Column<T>, row: T, rowIndex: number) => (
         typeof column.accessor === 'function'
@@ -224,6 +227,26 @@ export function DataTable<T>({
             window.removeEventListener('mouseup', handleMouseUp);
         };
     }, [isSerialColumn, resizingIndex]);
+
+    useEffect(() => {
+        const header = tableHeaderRef.current;
+        if (!header) return;
+
+        const updateHeaderHeight = () => {
+            setTableHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+        };
+
+        updateHeaderHeight();
+
+        if (typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', updateHeaderHeight);
+            return () => window.removeEventListener('resize', updateHeaderHeight);
+        }
+
+        const observer = new ResizeObserver(updateHeaderHeight);
+        observer.observe(header);
+        return () => observer.disconnect();
+    }, [displayColumns.length]);
 
     return (
         <div
@@ -362,9 +385,9 @@ export function DataTable<T>({
                 <table
                     ref={tableRef}
                     className={`w-full text-left text-xs sm:text-sm text-foreground ${tableLayout === 'fixed' ? 'table-fixed' : 'table-auto'}`}
-                    style={{ minWidth: columnWidths.reduce((a, b) => a + b, 0) }}
+                    style={{ minWidth: tableMinWidth }}
                 >
-                    <thead className="bg-primary/10 text-[10px] sm:text-[11px] tracking-wider font-semibold opacity-95 select-none sticky top-0 z-10 backdrop-blur-xl shadow-md">
+                    <thead ref={tableHeaderRef} className="bg-primary/10 text-[10px] sm:text-[11px] tracking-wider font-semibold opacity-95 select-none sticky top-0 z-10 backdrop-blur-xl shadow-md">
                         <tr>
                             {displayColumns.map((col, index) => {
                                 const key = col.sortKey || (typeof col.accessor === 'string' ? col.accessor : '');
@@ -469,8 +492,34 @@ export function DataTable<T>({
                 </table>
                 {/* Loading Overlay */}
                 {isLoading && (
-                    <div className="absolute inset-x-0 bottom-0 top-14 sm:top-16 bg-card/70 backdrop-blur-sm flex z-20 transition-all duration-300" role="status" aria-label="Loading table rows">
-                        <SkeletonTable rows={5} columns={displayColumns.length} className="w-full border-x-0 border-b-0 rounded-none" showHeader={false} />
+                    <div
+                        className="absolute inset-x-0 bottom-0 z-20 bg-card/70 backdrop-blur-sm transition-all duration-300"
+                        style={{ top: tableHeaderHeight, minWidth: tableMinWidth }}
+                        role="status"
+                        aria-label="Loading table rows"
+                    >
+                        <table
+                            className={`w-full text-left text-xs sm:text-sm ${tableLayout === 'fixed' ? 'table-fixed' : 'table-auto'}`}
+                            style={{ minWidth: tableMinWidth }}
+                        >
+                            <tbody className="divide-y divide-border/10">
+                                {Array.from({ length: 5 }).map((_, rowIndex) => (
+                                    <tr key={rowIndex} className="h-16 sm:h-20">
+                                        {displayColumns.map((col, columnIndex) => (
+                                            <td
+                                                key={columnIndex}
+                                                style={{ width: columnWidths[columnIndex] }}
+                                                className={`py-2 sm:py-3 align-middle border-b border-border px-2 ${isSerialColumn(columnIndex) ? 'pl-1 text-center' : 'px-3 sm:px-6'}`}
+                                            >
+                                                <Skeleton
+                                                    className={`h-4 ${isSerialColumn(columnIndex) ? 'mx-auto w-5' : col.header === 'Actions' ? 'w-24' : columnIndex === 1 ? 'w-2/3' : 'w-full max-w-40'}`}
+                                                />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>

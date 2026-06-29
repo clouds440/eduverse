@@ -97,13 +97,7 @@ export function toCsv(rows: Record<string, unknown>[], headers: string[]): strin
 }
 
 export function buildErrorReportCsv(invalidRows: InvalidImportRow[], headers: string[]) {
-  const reportHeaders = ['rowNumber', ...headers, 'errors'];
-  const rows = invalidRows.map((row) => ({
-    rowNumber: row.rowNumber,
-    ...row.raw,
-    errors: row.errors.map(formatRowError).join('; '),
-  }));
-  return toCsv(rows, reportHeaders);
+  return toCsv(invalidRows.map((row) => row.raw), headers);
 }
 
 export function makeTemplateCsv(headers: string[], examples: Record<string, unknown>[]) {
