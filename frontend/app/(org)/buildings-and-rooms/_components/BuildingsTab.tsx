@@ -239,8 +239,14 @@ export default function BuildingsTab() {
             accessor: (row) => (
                 <div className="flex flex-wrap gap-1">
                     {row.departments?.length ? row.departments.map((department) => (
-                        <Badge key={department.id} variant="primary" size="sm" style={department.color ? { borderColor: `${department.color}55`, backgroundColor: `${department.color}18`, color: department.color } : undefined}>
-                            {formatDepartmentLabel(department)}
+                        <Badge
+                            key={department.id}
+                            variant="primary"
+                            size="sm"
+                            title={formatDepartmentLabel(department)}
+                            style={department.color ? { borderColor: `${department.color}55`, backgroundColor: `${department.color}18`, color: department.color } : undefined}
+                        >
+                            {department.code || department.name || 'Dept'}
                         </Badge>
                     )) : <span className="text-sm italic text-muted-foreground/60">Optional</span>}
                 </div>
@@ -381,5 +387,4 @@ export default function BuildingsTab() {
         </>
     );
 }
-
 

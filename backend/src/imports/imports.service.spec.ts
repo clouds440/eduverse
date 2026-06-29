@@ -114,6 +114,13 @@ describe('ImportsService monthly attendance validation', () => {
 });
 
 describe('ImportsService student validation', () => {
+  const studentHeaders = [
+    'name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender',
+    'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate',
+    'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes',
+    'sectionCodes', 'cohortCode',
+  ];
+
   it('validates mixed student rows without importing', async () => {
     const { service } = createService({
       prisma: {
@@ -121,10 +128,10 @@ describe('ImportsService student validation', () => {
       },
     });
     const csv = [
-      'name,email,password,registrationNumber,rollNumber,major,gender,phone,fatherName,age,address,admissionDate,graduationDate,emergencyContact,bloodGroup,status,primaryDepartmentCode,departmentCodes',
-      'Ali Raza,ali@student.test,Student123,REG-1,R-1,Science,Male,,,,,,,,ACTIVE,,',
-      'No Email,,Student123,REG-2,R-2,Science,Male,,,,,,,,ACTIVE,,',
-      'Bad Date,bad@student.test,Student123,REG-3,R-3,Science,Male,,,,,not-a-date,,,ACTIVE,,',
+      studentHeaders.join(','),
+      'Ali Raza,ali@student.test,Student123,REG-1,R-1,Science,Male,,,,,,,,ACTIVE,,,,',
+      'No Email,,Student123,REG-2,R-2,Science,Male,,,,,,,,ACTIVE,,,,',
+      'Bad Date,bad@student.test,Student123,REG-3,R-3,Science,Male,,,,,not-a-date,,,ACTIVE,,,,',
     ].join('\n');
 
     const result = await service.validateEntityCsv('org-1', 'students', csv, {
@@ -141,21 +148,16 @@ describe('ImportsService student validation', () => {
 
   it('prefixes student CSV field names on typed validation errors', async () => {
     const { service } = createService();
-    const headers = [
-      'name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender',
-      'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate',
-      'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes',
-    ];
     const rowWithBadAge = [
       'Bad Age', 'bad-age@student.test', 'Student123', 'REG-10', 'R-10', 'Science', 'Male',
-      '', '', 'twelve', '', '', '', '', '', 'ACTIVE', '', '',
+      '', '', 'twelve', '', '', '', '', '', 'ACTIVE', '', '', '', '',
     ];
     const rowWithBadAdmissionDate = [
       'Bad Date', 'bad-date@student.test', 'Student123', 'REG-11', 'R-11', 'Science', 'Male',
-      '', '', '', '', 'not-a-date', '', '', '', 'ACTIVE', '', '',
+      '', '', '', '', 'not-a-date', '', '', '', 'ACTIVE', '', '', '', '',
     ];
     const csv = [
-      headers.join(','),
+      studentHeaders.join(','),
       rowWithBadAge.join(','),
       rowWithBadAdmissionDate.join(','),
     ].join('\n');
@@ -171,6 +173,143 @@ describe('ImportsService student validation', () => {
     expect(result.invalidRows.map((row) => row.errors.map((error) => `${error.field}: ${error.message}`))).toEqual([
       ['age: Must be a valid integer'],
       ['admissionDate: Must be a valid ISO 8601 date string'],
+    ]);
+  });
+
+  it('resolves student sectionCodes and cohortCode during validation', async () => {
+    const { service } = createService({
+      prisma: {
+        section: {
+          findFirst: jest.fn(async ({ where }) => {
+            const code = where.OR?.[0]?.code?.equals;
+            if (code === 'CS-101-A') return { id: 'section-cs' };
+            if (code === 'IT-201-B') return { id: 'section-it' };
+            return null;
+          }),
+        },
+        cohort: {
+          findFirst: jest.fn(async ({ where }) => {
+            const code = where.OR?.[0]?.code?.equals;
+            if (code === 'BATCH-2026' || where.id === 'cohort-2026') return { id: 'cohort-2026', isActive: true };
+            return null;
+          }),
+        },
+      },
+    });
+    const csv = [
+      studentHeaders.join(','),
+      [
+        'Student One', 'student-one@test.test', 'Student123', 'REG-20', 'R-20', 'Science', 'Female',
+        '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '"CS-101-A,IT-201-B"', 'BATCH-2026',
+      ].join(','),
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'students', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data.sectionIds).toEqual(['section-cs', 'section-it']);
+    expect(result.validRows[0].data.cohortId).toBe('cohort-2026');
+  });
+
+  it('keeps student rows valid when at least one section code resolves', async () => {
+    const { service } = createService({
+      prisma: {
+        section: {
+          findFirst: jest.fn(async ({ where }) => (
+            where.OR?.[0]?.code?.equals === 'CS-101-A' ? { id: 'section-cs' } : null
+          )),
+        },
+      },
+    });
+    const csv = [
+      studentHeaders.join(','),
+      [
+        'Partial Student', 'partial-student@test.test', 'Student123', 'REG-21', 'R-21', 'Science', 'Female',
+        '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '"CS-101-A,NOPE"', '',
+      ].join(','),
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'students', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.partial).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data.sectionIds).toEqual(['section-cs']);
+    expect(result.validRows[0].warnings).toEqual([
+      { rowNumber: 2, field: 'sectionCodes', message: 'Ignored unknown section code "NOPE"' },
+    ]);
+  });
+
+  it('rejects student rows when every supplied section code is unknown', async () => {
+    const { service } = createService({
+      prisma: {
+        section: { findFirst: jest.fn().mockResolvedValue(null) },
+      },
+    });
+    const csv = [
+      studentHeaders.join(','),
+      [
+        'Bad Sections', 'bad-sections@test.test', 'Student123', 'REG-22', 'R-22', 'Science', 'Female',
+        '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '"NOPE,MISSING"', '',
+      ].join(','),
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'students', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+
+    expect(result.summary.valid).toBe(0);
+    expect(result.summary.invalid).toBe(1);
+    expect(result.invalidRows[0].errors).toEqual([
+      { rowNumber: 2, field: 'sectionCodes', message: 'None of these section codes were found: NOPE, MISSING' },
+    ]);
+  });
+
+  it('rejects student cohortCode when the cohort is inactive', async () => {
+    const { service } = createService({
+      prisma: {
+        cohort: {
+          findFirst: jest.fn(async ({ where }) => {
+            const code = where.OR?.[0]?.code?.equals;
+            if (code === 'OLD-BATCH' || where.id === 'cohort-old') return { id: 'cohort-old', isActive: false };
+            return null;
+          }),
+        },
+      },
+    });
+    const csv = [
+      studentHeaders.join(','),
+      [
+        'Inactive Cohort', 'inactive-cohort@test.test', 'Student123', 'REG-23', 'R-23', 'Science', 'Female',
+        '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '', 'OLD-BATCH',
+      ].join(','),
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'students', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+
+    expect(result.summary.valid).toBe(0);
+    expect(result.summary.invalid).toBe(1);
+    expect(result.invalidRows[0].errors).toEqual([
+      { rowNumber: 2, message: 'Cannot enroll students into an inactive cohort' },
     ]);
   });
 });

@@ -47,7 +47,7 @@ export default function BuildingsAndRoomsPage() {
                     />
                 </div>
 
-                <div className="relative min-h-0 flex-1 overflow-hidden">
+                <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
                     {activeTab === 'buildings' && <BuildingsTab />}
                     {activeTab === 'rooms' && <RoomsTab />}
                 </div>
@@ -55,5 +55,4 @@ export default function BuildingsAndRoomsPage() {
         </PageActionsHostProvider>
     );
 }
-
 

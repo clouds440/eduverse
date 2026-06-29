@@ -7,7 +7,7 @@ import { DoorOpen, FileUp, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
-import { formatBuildingLabel, formatDepartmentLabel, formatRoomLabel, getPublicUrl } from '@/lib/utils';
+import { formatBuildingLabel, formatDepartmentLabel, getPublicUrl } from '@/lib/utils';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { ApiError, Building, Department, PaginatedResponse, Role, Room, RoomType } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -276,29 +276,32 @@ export default function RoomsTab() {
                 <div className="flex min-w-0 items-center gap-3">
                     <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/70 bg-primary/10 text-primary">
                         {row.imageUrl ? (
-                            <Image src={getPublicUrl(row.imageUrl, row.imageUpdatedAt)} alt={formatRoomLabel(row)} fill className="object-cover" sizes="44px" />
+                        <Image src={getPublicUrl(row.imageUrl, row.imageUpdatedAt)} alt={row.code ? `${row.code} - ${row.name}` : row.name} fill className="object-cover" sizes="44px" />
                         ) : (
                             <DoorOpen className="h-5 w-5" aria-hidden="true" />
                         )}
                     </div>
                     <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-foreground">{formatRoomLabel(row)}</p>
-                        <p className="truncate text-xs text-muted-foreground">{formatRoomType(row.type)}{row.floor ? ` - ${row.floor}` : ''}</p>
+                        <p className="truncate text-sm font-black text-foreground">{row.code ? `${row.code} - ${row.name}` : row.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{formatRoomType(row.type)}</p>
                     </div>
                 </div>
             ),
         },
         {
-            header: 'Departments',
+            header: 'Building',
             accessor: (row) => (
-                <div className="flex flex-wrap gap-1">
-                    {row.building?.departments?.length ? row.building.departments.map((department) => (
-                        <Badge key={department.id} variant="primary" size="sm" style={department.color ? { borderColor: `${department.color}55`, backgroundColor: `${department.color}18`, color: department.color } : undefined}>
-                            {formatDepartmentLabel(department)}
-                        </Badge>
-                    )) : <span className="text-sm italic text-muted-foreground/60">No departments</span>}
+                <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">{row.building?.name || 'Unassigned building'}</p>
+                    <p className="truncate text-xs font-black uppercase tracking-wider text-muted-foreground">{row.building?.code || row.buildingId}</p>
                 </div>
             ),
+        },
+        {
+            header: 'Floor',
+            sortable: true,
+            sortKey: 'floor',
+            accessor: (row) => row.floor || <span className="text-sm italic text-muted-foreground/60">Not set</span>,
         },
         {
             header: 'Capacity',

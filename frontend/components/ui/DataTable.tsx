@@ -387,7 +387,7 @@ export function DataTable<T>({
                     className={`w-full text-left text-xs sm:text-sm text-foreground ${tableLayout === 'fixed' ? 'table-fixed' : 'table-auto'}`}
                     style={{ minWidth: tableMinWidth }}
                 >
-                    <thead ref={tableHeaderRef} className="bg-primary/10 text-[10px] sm:text-[11px] tracking-wider font-semibold opacity-95 select-none sticky top-0 z-10 backdrop-blur-xl shadow-md">
+                    <thead ref={tableHeaderRef} className="sticky top-0 z-30 bg-primary/15 text-[10px] sm:text-[11px] tracking-wider font-semibold opacity-[0.98] select-none backdrop-blur-xl shadow-md">
                         <tr>
                             {displayColumns.map((col, index) => {
                                 const key = col.sortKey || (typeof col.accessor === 'string' ? col.accessor : '');

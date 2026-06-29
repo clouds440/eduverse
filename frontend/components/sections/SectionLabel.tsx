@@ -52,14 +52,14 @@ export function CourseSectionLabel<T extends ElementType = 'span'>({
                 style={style}
                 {...restProps}
             >
-                {parts.courseName && (
+                {parts.sectionName && (
                     <span className="min-w-0 truncate font-black" style={{ color: getSectionColor(resolvedColor) }}>
-                        {parts.courseName}
+                        {parts.sectionName}
                     </span>
                 )}
-                {parts.sectionName && (
+                {parts.courseName && (
                     <span className="min-w-0 truncate text-[0.85em] font-bold opacity-70" style={{ color: getSectionColor(resolvedColor) }}>
-                        {parts.sectionName}
+                        {parts.courseName}
                     </span>
                 )}
                 {!parts.courseName && !parts.sectionName && (

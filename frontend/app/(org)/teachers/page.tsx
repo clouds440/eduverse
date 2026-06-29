@@ -149,7 +149,7 @@ export default function TeachersPage() {
                         <BrandIcon variant="user" size="sm" user={row.user} className="w-10 h-10 shadow-sm" />
                         {(row.user.role === Role.ORG_ADMIN || row.user.role === Role.ORG_MANAGER) && (
                             <div
-                                className={`absolute -bottom-1 -right-1 p-0.5 rounded-full bg-background shadow-sm border z-20 ${row.user.role === Role.ORG_ADMIN
+                                className={`absolute -bottom-1 -right-1 z-0 p-0.5 rounded-full bg-background shadow-sm border ${row.user.role === Role.ORG_ADMIN
                                     ? 'text-warning border-warning/20'
                                     : 'text-info border-info/30'
                                     }`}

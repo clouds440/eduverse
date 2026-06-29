@@ -437,7 +437,7 @@ export class ImportsService {
     const configs: Record<ImportEntity, EntityConfig<Record<string, unknown>>> = {
       students: {
         entity: 'students',
-        headers: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender', 'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate', 'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes'],
+        headers: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender', 'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate', 'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes', 'sectionCodes', 'cohortCode'],
         required: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'major', 'gender'],
         dto: CreateStudentDto,
         examples: [{
@@ -459,6 +459,8 @@ export class ImportsService {
           status: 'ACTIVE',
           primaryDepartmentCode: '',
           departmentCodes: '',
+          sectionCodes: '',
+          cohortCode: '',
         }],
         normalize: (row) => ({
           name: optionalString(row.name),
@@ -479,6 +481,8 @@ export class ImportsService {
           status: optionalEnum(row.status, Object.values(StudentStatus)) || StudentStatus.ACTIVE,
           primaryDepartmentCode: this.normalizeCode(row.primaryDepartmentCode),
           departmentCodes: splitIds(row.departmentCodes),
+          sectionCodes: splitIds(row.sectionCodes),
+          cohortCode: this.normalizeCode(row.cohortCode),
         }),
         create: (orgId, data, actor) => this.students.createStudent(orgId, data as unknown as CreateStudentDto, {
           id: actor.id,
@@ -489,16 +493,22 @@ export class ImportsService {
         resolveRelations: async (orgId, data, _actor, row) => {
           data.primaryDepartmentId = await this.resolveDepartmentId(orgId, data.primaryDepartmentCode as string | undefined, 'primaryDepartmentCode');
           const resolvedDepartments = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes', row.rowNumber);
+          const resolvedSections = await this.resolveSectionIds(orgId, data.sectionCodes as string[] | undefined, 'sectionCodes', row.rowNumber);
           data.departmentIds = resolvedDepartments.ids;
+          data.sectionIds = resolvedSections.ids;
+          data.cohortId = await this.resolveCohortId(orgId, data.cohortCode as string | undefined, 'cohortCode');
           delete data.primaryDepartmentCode;
           delete data.departmentCodes;
-          return resolvedDepartments.warnings;
+          delete data.sectionCodes;
+          delete data.cohortCode;
+          return [...resolvedDepartments.warnings, ...resolvedSections.warnings];
         },
         validateRelations: async (orgId, data) => {
           await this.assertDepartmentsExist(orgId, [
             data.primaryDepartmentId as string | undefined,
             ...((data.departmentIds as string[] | undefined) || []),
           ]);
+          await this.assertCohortAvailableForEnrollment(orgId, data.cohortId as string | undefined);
         },
         duplicateKeys: [
           { label: 'Email', value: (data) => data.email as string, existing: (orgId, value) => this.userExists(value) },
@@ -1259,6 +1269,16 @@ export class ImportsService {
     if (!academicCycleId) return;
     const exists = await this.prisma.academicCycle.findFirst({ where: { id: academicCycleId, organizationId: orgId }, select: { id: true } });
     if (!exists) throw new BadRequestException('Academic cycle does not belong to this organization');
+  }
+
+  private async assertCohortAvailableForEnrollment(orgId: string, cohortId?: string) {
+    if (!cohortId) return;
+    const cohort = await this.prisma.cohort.findFirst({
+      where: { id: cohortId, organizationId: orgId },
+      select: { id: true, isActive: true },
+    });
+    if (!cohort) throw new BadRequestException('Cohort does not belong to this organization');
+    if (!cohort.isActive) throw new BadRequestException('Cannot enroll students into an inactive cohort');
   }
 
   private async assertSectionRelations(orgId: string, data: Record<string, unknown>) {

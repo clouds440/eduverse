@@ -99,9 +99,8 @@ export function formatCourseSectionLabel({
     sectionName?: string | null;
 }) {
     const sectionLabel = sectionName || 'Unnamed section';
-    const courseLabel = courseName || courseCode || null;
-    const baseLabel = courseLabel ? `${courseLabel} - ${sectionLabel}` : sectionLabel;
-    return sectionCode ? `${sectionCode} - ${baseLabel}` : baseLabel;
+    const courseLabel = courseCode || courseName || null;
+    return courseLabel ? `${sectionLabel} - ${courseLabel}` : sectionLabel;
 }
 
 export function getCourseSectionLabelParts({
@@ -116,7 +115,7 @@ export function getCourseSectionLabelParts({
     sectionName?: string | null;
 }) {
     return {
-        courseName: courseName || courseCode || null,
+        courseName: courseCode || courseName || null,
         sectionName: sectionName || null,
         sectionCode: sectionCode || null,
         inlineLabel: formatCourseSectionLabel({ courseCode, courseName, sectionCode, sectionName }),
