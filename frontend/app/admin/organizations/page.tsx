@@ -22,7 +22,8 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Loading } from '@/components/ui/Loading';
 import { NewMailModal } from '@/components/mail/NewMailModal';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, PageTabs, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { Badge } from '@/components/ui/Badge';
@@ -171,12 +172,12 @@ export default function OrganizationsPage() {
 
     const dynamicCounts = fetchedData?.counts || stats;
 
-    const statusTabs: { id: OrgStatus | 'ALL', label: string, icon: LucideIcon, color: string, bg: string, count?: number }[] = [
-        { id: 'ALL', label: 'All Orgs', icon: Building2, color: 'text-primary', bg: 'bg-primary/40', count: (dynamicCounts?.PENDING || 0) + (dynamicCounts?.APPROVED || 0) + (dynamicCounts?.REJECTED || 0) + (dynamicCounts?.SUSPENDED || 0) },
-        { id: OrgStatus.PENDING, label: 'Pending', icon: ShieldAlert, color: 'text-warning', bg: 'bg-warning/40', count: dynamicCounts?.PENDING },
-        { id: OrgStatus.APPROVED, label: 'Approved', icon: ShieldCheck, color: 'text-success', bg: 'bg-success/40', count: dynamicCounts?.APPROVED },
-        { id: OrgStatus.REJECTED, label: 'Rejected', icon: ShieldOff, color: 'text-danger', bg: 'bg-danger/40', count: dynamicCounts?.REJECTED },
-        { id: OrgStatus.SUSPENDED, label: 'Suspended', icon: ShieldAlert, color: 'text-muted-foreground', bg: 'bg-muted', count: dynamicCounts?.SUSPENDED },
+    const statusTabs: { id: OrgStatus | 'ALL', label: string, icon: LucideIcon, count?: number }[] = [
+        { id: 'ALL', label: 'All Orgs', icon: Building2, count: (dynamicCounts?.PENDING || 0) + (dynamicCounts?.APPROVED || 0) + (dynamicCounts?.REJECTED || 0) + (dynamicCounts?.SUSPENDED || 0) },
+        { id: OrgStatus.PENDING, label: 'Pending', icon: ShieldAlert, count: dynamicCounts?.PENDING },
+        { id: OrgStatus.APPROVED, label: 'Approved', icon: ShieldCheck, count: dynamicCounts?.APPROVED },
+        { id: OrgStatus.REJECTED, label: 'Rejected', icon: ShieldOff, count: dynamicCounts?.REJECTED },
+        { id: OrgStatus.SUSPENDED, label: 'Suspended', icon: ShieldAlert, count: dynamicCounts?.SUSPENDED },
     ];
 
     const columns: Column<Organization>[] = [
@@ -466,87 +467,60 @@ export default function OrganizationsPage() {
                         {fetchedData.totalRecords} total
                     </span>
                 ) : undefined}
-            />
-            <ResourcePanel>
-                {/* Top controls - fully responsive */}
-                <div className="p-4 space-y-1 border-b border-border/40">
-                    {/* Mobile: status dropdown (visible only on small screens) */}
-                    <div className="block md:hidden w-full">
-                        <CustomSelect
-                            value={activeStatusTab}
-                            onChange={(val) => updateQueryParams({ status: val as OrgStatus | 'ALL', page: 1 })}
-                            options={statusTabs.map(tab => ({ value: tab.id, label: `${tab.label} (${tab.count || 0})`, icon: tab.icon }))}
-                            className="w-full"
-                            placeholder="Select Status"
-                        />
-                    </div>
-
-                    {/* Tablet/Desktop: status tabs (horizontally scrollable, no wrap) */}
-                    <div className="hidden md:flex overflow-x-auto gap-1 scrollbar-thin">
-                        {statusTabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => updateQueryParams({ status: tab.id, page: 1 })}
-                                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-1 whitespace-nowrap shadow-sm border border-border/50
-                ${activeStatusTab === tab.id
-                                        ? `${tab.bg} text-foreground shadow-md`
-                                        : 'bg-card/40 text-muted-foreground hover:bg-card/60 hover:text-foreground'
-                                    }`}
-                            >
-                                <tab.icon className={`w-4 h-4 ${activeStatusTab === tab.id ? tab.color : 'opacity-50'}`} />
-                                <span>{tab.label}</span>
-                                {tab.count !== undefined && (
-                                    <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all
-                  ${activeStatusTab === tab.id
-                                            ? `${tab.bg} text-white shadow-sm`
-                                            : 'bg-muted text-muted-foreground'
-                                        }`}>
-                                        {tab.count}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Filters row: column on mobile, row on sm+ */}
-                    <div className="flex flex-col sm:flex-row gap-1 items-stretch sm:items-center">
-                        <div className="w-full sm:w-64">
-                            <CustomSelect
-                                value={orgTypeFilter}
-                                onChange={(val) => updateQueryParams({ type: val, page: 1 })}
-                                options={[
-                                    { value: 'ALL', label: 'All Org Types' },
-                                    { value: 'KINDERGARTEN', label: 'Kindergarten', icon: Pencil },
-                                    { value: 'PRE_SCHOOL', label: 'Pre-School', icon: Pencil },
-                                    { value: 'PRIMARY_SCHOOL', label: 'Primary School', icon: BookOpen },
-                                    { value: 'MIDDLE_SCHOOL', label: 'Middle School', icon: BookOpen },
-                                    { value: 'HIGH_SCHOOL', label: 'High School', icon: School },
-                                    { value: 'COLLEGE', label: 'College', icon: Library },
-                                    { value: 'UNIVERSITY', label: 'University', icon: GraduationCap },
-                                    { value: 'VOCATIONAL_SCHOOL', label: 'Vocational School', icon: Building2 },
-                                    { value: 'INSTITUTE', label: 'Institute', icon: Building2 },
-                                    { value: 'ACADEMY', label: 'Academy', icon: Building2 },
-                                    { value: 'TUTORING_CENTER', label: 'Tutoring Center', icon: BookOpen },
-                                    { value: 'ONLINE_SCHOOL', label: 'Online School', icon: MonitorPlay },
-                                    { value: 'OTHER', label: 'Other', icon: Info },
-                                ]}
-                                className="w-full"
-                                placeholder="Org Type"
-                            />
-                        </div>
-                        <div className="flex-1 min-w-0">
+                actions={(
+                    <PageControls
+                        drawerLabel="Organization filters"
+                        leading={(
                             <SearchBar
                                 value={searchQuery}
                                 onChange={(val) => updateQueryParams({ search: val, page: 1 })}
                                 placeholder="Search organizations..."
-                                className="max-w-full md:max-w-sm"
+                                mobileMode="expandable"
                             />
-                        </div>
-                    </div>
-                </div>
-
-                <ResourceToolbar activeFilters={activeFilters} />
-
+                        )}
+                        renderFilters={() => (
+                            <FilterDrawerGrid>
+                                <CustomSelect
+                                    value={orgTypeFilter}
+                                    onChange={(val) => updateQueryParams({ type: val, page: 1 })}
+                                    options={[
+                                        { value: 'ALL', label: 'All Org Types' },
+                                        { value: 'KINDERGARTEN', label: 'Kindergarten', icon: Pencil },
+                                        { value: 'PRE_SCHOOL', label: 'Pre-School', icon: Pencil },
+                                        { value: 'PRIMARY_SCHOOL', label: 'Primary School', icon: BookOpen },
+                                        { value: 'MIDDLE_SCHOOL', label: 'Middle School', icon: BookOpen },
+                                        { value: 'HIGH_SCHOOL', label: 'High School', icon: School },
+                                        { value: 'COLLEGE', label: 'College', icon: Library },
+                                        { value: 'UNIVERSITY', label: 'University', icon: GraduationCap },
+                                        { value: 'VOCATIONAL_SCHOOL', label: 'Vocational School', icon: Building2 },
+                                        { value: 'INSTITUTE', label: 'Institute', icon: Building2 },
+                                        { value: 'ACADEMY', label: 'Academy', icon: Building2 },
+                                        { value: 'TUTORING_CENTER', label: 'Tutoring Center', icon: BookOpen },
+                                        { value: 'ONLINE_SCHOOL', label: 'Online School', icon: MonitorPlay },
+                                        { value: 'OTHER', label: 'Other', icon: Info },
+                                    ]}
+                                    className="w-full"
+                                    placeholder="Org Type"
+                                />
+                            </FilterDrawerGrid>
+                        )}
+                        activeFilters={activeFilters}
+                    />
+                )}
+            />
+            <PageTabs
+                ariaLabel="Organization status"
+                items={statusTabs.map((tab) => ({
+                    value: tab.id,
+                    label: tab.label,
+                    icon: tab.icon,
+                    count: tab.count,
+                }))}
+                activeValue={activeStatusTab}
+                onValueChange={(value) => updateQueryParams({ status: value === 'ALL' ? undefined : value, page: 1 })}
+                hideOnScroll
+            />
+            <ResourcePanel>
                 {/* Data Table - with horizontal scroll on small screens */}
                 <div className="flex-1 min-h-0 overflow-x-auto">
                     <DataTable

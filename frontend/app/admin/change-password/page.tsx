@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import ChangePasswordForm from '@/components/ChangePasswordForm';
+import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { ShieldCheck } from 'lucide-react';
 
 export default function AdminChangePasswordPage() {
     const router = useRouter();
@@ -17,18 +19,31 @@ export default function AdminChangePasswordPage() {
     };
 
     return (
-        <div className="flex flex-col w-full max-w-4xl mx-auto">
-            <ChangePasswordForm
+        <PageShell>
+            <PageHeader
                 title={user?.isFirstLogin ? 'Security Required' : 'Security Settings'}
                 description={user?.isFirstLogin
-                    ? 'For security reasons, you must change the default super admin password before accessing the dashboard.'
-                    : 'Update your super admin administrative password'}
-                isRequired={Boolean(user?.isFirstLogin)}
-                onSubmit={handleSubmit}
-                onSuccess={() => {
-                    setTimeout(() => router.push('/admin'), 100);
-                }}
+                    ? 'Change the default administrative password before accessing the dashboard.'
+                    : 'Update your administrative password.'}
+                icon={ShieldCheck}
+                breadcrumbs={[
+                    { label: 'Admin' },
+                    { label: 'Password' },
+                ]}
             />
-        </div>
+            <ResourcePanel className="items-center overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+                <ChangePasswordForm
+                    title={user?.isFirstLogin ? 'Security Required' : 'Security Settings'}
+                    description={user?.isFirstLogin
+                        ? 'For security reasons, you must change the default super admin password before accessing the dashboard.'
+                        : 'Update your super admin administrative password'}
+                    isRequired={Boolean(user?.isFirstLogin)}
+                    onSubmit={handleSubmit}
+                    onSuccess={() => {
+                        setTimeout(() => router.push('/admin'), 100);
+                    }}
+                />
+            </ResourcePanel>
+        </PageShell>
     );
 }

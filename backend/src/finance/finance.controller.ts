@@ -247,6 +247,7 @@ export class FinanceController {
     @Query('action') action?: string,
     @Query('resourceType') resourceType?: string,
     @Query('resourceId') resourceId?: string,
+    @Query('userId') userId?: string,
   ) {
     return this.financeService.getFinanceAuditLogs(orgId, req.user, {
       page: page ? parseInt(page, 10) : 1,
@@ -255,6 +256,7 @@ export class FinanceController {
       action,
       resourceType,
       resourceId,
+      userId,
     });
   }
 }

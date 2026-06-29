@@ -261,6 +261,7 @@ export default function StructuresPage() {
                     { value: '', label: 'All categories' },
                     ...Object.values(FinanceCategory).map((value) => ({ value, label: labelize(value) })),
                 ]}
+                searchable
             />
             <CustomSelect
                 value={billingCycle}

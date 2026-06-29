@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { ChatLayout } from '@/components/chat/ChatLayout';
+import { PageShell, ResourcePanel } from '@/components/ui/PageShell';
 
 export const metadata: Metadata = {
     title: 'Platform Chat | EduVerse',
@@ -8,8 +9,10 @@ export const metadata: Metadata = {
 
 export default function AdminChatPage() {
     return (
-        <div className="h-full min-h-0 overflow-hidden">
-            <ChatLayout />
-        </div>
+        <PageShell>
+            <ResourcePanel className="overflow-hidden">
+                <ChatLayout />
+            </ResourcePanel>
+        </PageShell>
     );
 }

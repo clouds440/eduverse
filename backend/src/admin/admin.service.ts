@@ -235,7 +235,6 @@ export class AdminService {
         message: reason,
         noReply: true,
         assigneeIds: orgAdmin ? [orgAdmin.id] : [],
-        targetRole: Role.ORG_ADMIN,
       },
       {
         id: admin.id,

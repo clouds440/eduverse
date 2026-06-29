@@ -968,7 +968,7 @@ export const api = {
             request<TeacherFinanceOverview>('/finance/my-payroll', { token }),
         getPayroll: (token: string, params: { targetType?: string } = {}) =>
             request<PayrollRosterRow[]>(`/finance/payroll${buildQueryString(params)}`, { token }),
-        getAuditLogs: (token: string, params: { page?: number, limit?: number, search?: string, action?: string, resourceType?: string, resourceId?: string } = {}) =>
+        getAuditLogs: (token: string, params: { page?: number, limit?: number, search?: string, action?: string, resourceType?: string, resourceId?: string, userId?: string } = {}) =>
             request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> }>(`/finance/audit-logs${buildQueryString(params)}`, { token }),
         getInsights: (token: string, params: InsightsQueryParams & { currency?: string } = {}) =>
             request<FinanceInsights>(`/finance/insights${buildQueryString(params as QueryParams)}`, { token }),

@@ -11,9 +11,14 @@ import { DataTable, type Column } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
-import { PageShell, PageTabs, ResourcePanel } from '@/components/ui/PageShell';
+import { PageShell, PageTabs, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { FinanceTargetType, PayrollRosterRow, Role } from '@/types';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { usePageActionsHost } from '@/components/ui/PageActionsHost';
+import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
+import { BrandIcon } from '@/components/ui/Brand';
 
 type PayrollTab = FinanceTargetType.TEACHER | FinanceTargetType.SUB_ADMIN | FinanceTargetType.FINANCE_MANAGER;
 
@@ -35,21 +40,15 @@ function profileHref(row: PayrollRosterRow) {
 }
 
 function StaffIdentity({ row }: { row: PayrollRosterRow }) {
-    const initials = (row.user.name || row.user.email || '?')
-        .split(/\s+/)
-        .slice(0, 2)
-        .map((part) => part[0])
-        .join('')
-        .toUpperCase();
-
     return (
         <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/70 bg-primary/10 text-xs font-black text-primary">
-                {row.user.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={row.user.avatarUrl} alt="" className="h-full w-full object-cover" />
-                ) : initials}
-            </div>
+            <BrandIcon
+                variant="user"
+                size="md"
+                user={row.user}
+                initialsFallback
+                imageLoading="lazy"
+            />
             <div className="min-w-0">
                 <Link href={profileHref(row)} className="truncate font-black text-foreground transition-colors hover:text-primary">
                     {row.user.name || row.user.email}
@@ -66,6 +65,9 @@ function StaffIdentity({ row }: { row: PayrollRosterRow }) {
 export default function FinancePayrollPage() {
     const { token, user } = useAuth();
     const [activeTab, setActiveTab] = useState<PayrollTab>(FinanceTargetType.TEACHER);
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = usePersistentPageSize('edu-finance-payroll-limit', 10);
 
     const { data, error, isLoading, mutate } = useSWR<PayrollRosterRow[]>(
         token ? ['finance/payroll', token, activeTab] : null,
@@ -112,26 +114,82 @@ export default function FinancePayrollPage() {
         },
     ], []);
 
+    const rows = useMemo(() => data || [], [data]);
+    const filteredRows = useMemo(() => {
+        const query = search.trim().toLowerCase();
+        if (!query) return rows;
+        return rows.filter((row) => [
+            row.user.name,
+            row.user.email,
+            row.user.role,
+        ].some((value) => String(value || '').toLowerCase().includes(query)));
+    }, [rows, search]);
+    const activeFilters = useMemo<ActiveFilter[]>(() => (
+        search ? [{
+            key: 'search',
+            label: 'Search',
+            value: search,
+            onRemove: () => {
+                setSearch('');
+                setPage(1);
+            },
+        }] : []
+    ), [search]);
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+    const currentPage = Math.min(page, totalPages);
+    const paginatedRows = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredRows.slice(start, start + pageSize);
+    }, [currentPage, filteredRows, pageSize]);
+    const handlePageSizeChange = (nextSize: number) => {
+        setPageSize(nextSize);
+        setPage(1);
+    };
+    const pageControls = useMemo(() => (
+        <PageControls
+            drawerLabel="Payroll filters"
+            activeFilters={activeFilters}
+            showDrawer={false}
+            leading={(
+                <SearchBar
+                    value={search}
+                    onChange={(value) => {
+                        setSearch(value);
+                        setPage(1);
+                    }}
+                    placeholder="Search by user name"
+                    delay={300}
+                    mobileMode="expandable"
+                />
+            )}
+            renderFilters={() => null}
+        />
+    ), [activeFilters, search]);
+    const controlsHosted = usePageActionsHost(pageControls);
+
     if (!token) return <Loading className="h-full" text="Authenticating..." />;
 
-    const rows = data || [];
     const canView = user?.role === Role.ORG_ADMIN || user?.role === Role.FINANCE_MANAGER || user?.role === Role.SUB_ADMIN;
 
     return (
-        <PageShell className="p-2 sm:p-3">
+        <PageShell>
             <ResourcePanel>
-                <div className="shrink-0">
+                <div className="shrink-0 border-b border-border/60 bg-card/95">
                     <PageTabs
                         ariaLabel="Payroll role tabs"
                         items={tabs}
                         activeValue={activeTab}
-                        onValueChange={(value) => setActiveTab(value as PayrollTab)}
+                        onValueChange={(value) => {
+                            setActiveTab(value as PayrollTab);
+                            setPage(1);
+                        }}
                         tone="panel"
                         size="sm"
                     />
                 </div>
+                {!controlsHosted && <div className="shrink-0 border-b border-border/60 bg-card/95">{pageControls}</div>}
 
-                <div className="min-h-0 flex-1 p-3">
+                <div className="min-h-0 flex-1">
                     {!canView ? (
                         <EmptyState icon={WalletCards} title="Payroll is not available" description="Your role does not have payroll roster access." />
                     ) : isLoading ? (
@@ -140,14 +198,16 @@ export default function FinancePayrollPage() {
                         <ErrorState error={error} onRetry={() => mutate()} title="Payroll could not load" />
                     ) : (
                         <DataTable
-                            data={rows}
+                            data={paginatedRows}
                             columns={columns}
                             keyExtractor={(row) => `${row.targetType}:${row.teacherId || row.employeeUserId || row.user.id}`}
-                            currentPage={1}
-                            totalPages={1}
-                            totalResults={rows.length}
-                            pageSize={Math.max(rows.length, 10)}
-                            onPageChange={() => { }}
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalResults={filteredRows.length}
+                            pageSize={pageSize}
+                            onPageChange={setPage}
+                            onPageSizeChange={handlePageSizeChange}
+                            maxHeight="100%"
                             showSerialNumber
                             emptyTitle="No payroll assignments"
                             emptyDescription="Assigned structures for this staff group will appear here."

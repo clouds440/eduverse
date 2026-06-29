@@ -468,7 +468,7 @@ export function StructureModal({ isOpen, onClose, onSave, initialData }: Structu
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                         <Label>Category</Label>
-                        <CustomSelect value={category} onChange={(value) => setCategory(value as FinanceCategory)} options={categoryOptions} required />
+                        <CustomSelect value={category} onChange={(value) => setCategory(value as FinanceCategory)} options={categoryOptions} required searchable />
                     </div>
                     <div className="space-y-2">
                         <Label>Amount</Label>

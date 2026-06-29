@@ -14,6 +14,7 @@ import { Loading } from '@/components/ui/Loading';
 import { BrandIcon } from '@/components/ui/Brand';
 import { PageHeader, type PageBreadcrumb } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
+import { OrgLogoOrIcon } from '@/components/ui/OrgLogoOrIcon';
 import { BookOpen, Download, GraduationCap, Printer, Search } from 'lucide-react';
 import { formatCourseSectionLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
 import { PLATFORM_NAME } from '@/lib/constants';
@@ -396,14 +397,12 @@ export function StudentTranscriptView({
                     <div className="space-y-8">
                         <div className="flex items-center justify-between gap-4 border-b border-border/50 pb-6">
                             <div className="flex min-w-0 items-center gap-4">
-                                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-primary/10 text-xl font-black text-primary">
-                                    {logoUrl ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={logoUrl} alt={`${orgName} logo`} className="h-full w-full rounded-full object-contain" />
-                                    ) : (
-                                        orgName.slice(0, 1).toUpperCase()
-                                    )}
-                                </div>
+                                <OrgLogoOrIcon
+                                    logoUrl={user?.orgLogoUrl}
+                                    updatedAt={user?.avatarUpdatedAt}
+                                    orgName={orgName}
+                                    className="h-16 w-16 rounded-full border border-border/70 bg-primary/10"
+                                />
                                 <div className="min-w-0">
                                     <p className="truncate text-xl font-black text-foreground">{orgName}</p>
                                     <h2 className="mt-1 text-lg font-bold text-foreground">Official Academic Transcript</h2>
@@ -418,18 +417,13 @@ export function StudentTranscriptView({
 
                         <div className="grid grid-cols-1 gap-4 rounded-lg bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-4">
                             <div className="flex min-w-0 items-center gap-3">
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-primary/10 text-sm font-black text-primary">
-                                    {studentPhotoUrl ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                            src={studentPhotoUrl}
-                                            alt={`${transcriptResponse.student.name || 'Student'} photo`}
-                                            className="h-full w-full rounded-full object-cover"
-                                        />
-                                    ) : (
-                                        (transcriptResponse.student.name || 'S').slice(0, 1).toUpperCase()
-                                    )}
-                                </div>
+                                <BrandIcon
+                                    variant="user"
+                                    size="lg"
+                                    user={transcriptResponse.student}
+                                    initialsFallback
+                                    imageLoading="lazy"
+                                />
                                 <div className="min-w-0">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">Student Name</p>
                                     <p className="truncate text-lg font-bold">{transcriptResponse.student.name || 'Unnamed Student'}</p>

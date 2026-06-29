@@ -93,6 +93,7 @@ export class AuthService {
           role: Role.ORG_ADMIN,
           organizationId: org.id,
           name: registerDto.adminName, // Set name to Admin Name for ORG_ADMIN
+          isFirstLogin: false,
         },
       });
 

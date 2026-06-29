@@ -594,6 +594,7 @@ export interface AuditLogItem {
     module?: string | null;
     resourceType?: string | null;
     resourceId?: string | null;
+    resourceTitle?: string | null;
     financeStructureId?: string | null;
     financeEntryId?: string | null;
     paymentClaimId?: string | null;

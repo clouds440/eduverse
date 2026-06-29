@@ -51,6 +51,7 @@ type AuditFilters = {
   action?: string;
   resourceType?: string;
   resourceId?: string;
+  userId?: string;
 };
 
 type AssignmentSeed = {
@@ -877,12 +878,28 @@ export class FinanceService {
     const finalOrgId = this.getReadableOrgId(orgId, user, 'finance audit logs');
     const page = this.normalizePage(filters.page) || 1;
     const limit = this.normalizeLimit(filters.limit);
+    const matchingUserIds = filters.search
+      ? (
+          await this.prisma.user.findMany({
+            where: {
+              organizationId: finalOrgId,
+              OR: [
+                { id: { contains: filters.search, mode: 'insensitive' } },
+                { name: { contains: filters.search, mode: 'insensitive' } },
+                { email: { contains: filters.search, mode: 'insensitive' } },
+              ],
+            },
+            select: { id: true },
+          })
+        ).map((matchedUser) => matchedUser.id)
+      : [];
     const where: Prisma.AuditLogWhereInput = {
       organizationId: finalOrgId,
       module: 'finance',
       ...(filters.action && filters.action !== 'ALL' ? { action: { contains: filters.action, mode: 'insensitive' } } : {}),
       ...(filters.resourceType ? { resourceType: filters.resourceType } : {}),
       ...(filters.resourceId ? { resourceId: filters.resourceId } : {}),
+      ...(filters.userId ? { actorUserId: filters.userId } : {}),
       ...(filters.search ? {
         OR: [
           { action: { contains: filters.search, mode: 'insensitive' } },
@@ -890,6 +907,7 @@ export class FinanceService {
           { resourceId: { contains: filters.search, mode: 'insensitive' } },
           { financeEntryId: { contains: filters.search, mode: 'insensitive' } },
           { transactionId: { contains: filters.search, mode: 'insensitive' } },
+          ...(matchingUserIds.length ? [{ actorUserId: { in: matchingUserIds } }, { targetUserId: { in: matchingUserIds } }] : []),
         ],
       } : {}),
     };
@@ -898,6 +916,42 @@ export class FinanceService {
       this.prisma.auditLog.count({ where }),
       this.prisma.auditLog.groupBy({ where: { organizationId: finalOrgId, module: 'finance' }, by: ['action'], _count: { _all: true }, orderBy: { action: 'asc' } }),
     ]);
+    const structureIds = new Set<string>();
+    const entryIds = new Set<string>();
+    const claimIds = new Set<string>();
+    const transactionIds = new Set<string>();
+    for (const log of logs) {
+      if (log.financeStructureId) structureIds.add(log.financeStructureId);
+      if (log.financeEntryId) entryIds.add(log.financeEntryId);
+      if (log.paymentClaimId) claimIds.add(log.paymentClaimId);
+      if (log.transactionId) transactionIds.add(log.transactionId);
+      if (log.resourceId && log.resourceType === 'structure') structureIds.add(log.resourceId);
+      if (log.resourceId && log.resourceType === 'entry') entryIds.add(log.resourceId);
+      if (log.resourceId && log.resourceType === 'claim') claimIds.add(log.resourceId);
+      if (log.resourceId && log.resourceType === 'transaction') transactionIds.add(log.resourceId);
+    }
+    const [structures, entries, claims, transactions] = await Promise.all([
+      structureIds.size ? this.prisma.financialStructure.findMany({ where: { id: { in: [...structureIds] } }, select: { id: true, title: true } }) : [],
+      entryIds.size ? this.prisma.financialEntry.findMany({ where: { id: { in: [...entryIds] } }, select: { id: true, title: true } }) : [],
+      claimIds.size ? this.prisma.paymentClaim.findMany({
+        where: { id: { in: [...claimIds] } },
+        select: { id: true, referenceNumber: true, paymentMethod: true, entry: { select: { title: true } } },
+      }) : [],
+      transactionIds.size ? this.prisma.transaction.findMany({
+        where: { id: { in: [...transactionIds] } },
+        select: { id: true, description: true, referenceNumber: true, paymentMethod: true, relatedEntry: { select: { title: true } } },
+      }) : [],
+    ]);
+    const structureTitleMap = new Map<string, string>(structures.map((row) => [row.id, row.title] as const));
+    const entryTitleMap = new Map<string, string>(entries.map((row) => [row.id, row.title] as const));
+    const claimTitleMap = new Map<string, string>(claims.map((row) => [
+      row.id,
+      row.entry?.title || row.referenceNumber || row.paymentMethod || 'Payment claim',
+    ] as const));
+    const transactionTitleMap = new Map<string, string>(transactions.map((row) => [
+      row.id,
+      row.description || row.relatedEntry?.title || row.referenceNumber || row.paymentMethod || 'Transaction',
+    ] as const));
     const userIds = Array.from(new Set(logs.flatMap((log) => [log.actorUserId, log.targetUserId]).filter((value): value is string => Boolean(value))));
     const users = userIds.length ? await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true, role: true } }) : [];
     const userMap = new Map(users.map((row) => [row.id, row]));
@@ -906,11 +960,46 @@ export class FinanceService {
       message: this.humanizeFinanceAudit(log.action),
       actor: log.actorUserId ? userMap.get(log.actorUserId) || null : null,
       target: log.targetUserId ? userMap.get(log.targetUserId) || null : null,
+      resourceTitle: this.resolveFinanceAuditResourceTitle(log, {
+        structureTitleMap,
+        entryTitleMap,
+        claimTitleMap,
+        transactionTitleMap,
+      }),
     }));
     return {
       ...formatPaginatedResponse(this.serialize(data), totalRecords, page, limit),
       counts: Object.fromEntries(actions.map((entry) => [entry.action, entry._count._all])),
     };
+  }
+
+  private resolveFinanceAuditResourceTitle(
+    log: {
+      resourceType: string | null;
+      resourceId: string | null;
+      financeStructureId: string | null;
+      financeEntryId: string | null;
+      paymentClaimId: string | null;
+      transactionId: string | null;
+    },
+    maps: {
+      structureTitleMap: Map<string, string>;
+      entryTitleMap: Map<string, string>;
+      claimTitleMap: Map<string, string>;
+      transactionTitleMap: Map<string, string>;
+    },
+  ) {
+    if (log.financeStructureId && maps.structureTitleMap.has(log.financeStructureId)) return maps.structureTitleMap.get(log.financeStructureId);
+    if (log.financeEntryId && maps.entryTitleMap.has(log.financeEntryId)) return maps.entryTitleMap.get(log.financeEntryId);
+    if (log.paymentClaimId && maps.claimTitleMap.has(log.paymentClaimId)) return maps.claimTitleMap.get(log.paymentClaimId);
+    if (log.transactionId && maps.transactionTitleMap.has(log.transactionId)) return maps.transactionTitleMap.get(log.transactionId);
+
+    if (!log.resourceId) return null;
+    if (log.resourceType === 'structure') return maps.structureTitleMap.get(log.resourceId) || null;
+    if (log.resourceType === 'entry') return maps.entryTitleMap.get(log.resourceId) || null;
+    if (log.resourceType === 'claim') return maps.claimTitleMap.get(log.resourceId) || null;
+    if (log.resourceType === 'transaction') return maps.transactionTitleMap.get(log.resourceId) || null;
+    return null;
   }
 
   private async applyStructureUpdateToEntries(tx: Prisma.TransactionClient, structure: any, amount: Prisma.Decimal | undefined, audit?: AuditContext) {

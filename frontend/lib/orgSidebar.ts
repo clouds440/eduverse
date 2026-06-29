@@ -79,6 +79,7 @@ export function buildOrgSidebarLinks({ user, isApproved, unreadChats }: BuildOrg
         links.push({ id: 'USERS', label: 'Users', href: '/users', icon: UserCog2 });
         links.push({ id: 'ATTENDANCE', label: 'Attendance', href: '/attendance', icon: CheckCircle });
         links.push({ id: 'SCHEDULES', label: 'Schedules', href: '/schedules', icon: CalendarDays });
+        links.push({ id: 'TIMETABLE', label: 'Timetable', href: '/timetable', icon: Clock });
         links.push({ id: 'HOLIDAYS', label: 'Academic Calendar', href: '/academic-calender', icon: Calendar });
         links.push({ id: 'TRANSCRIPTS', label: 'Transcripts', href: '/transcripts', icon: FileText });
         links.push({ id: 'PROMOTIONS', label: 'Promotions', href: '/promotions', icon: ArrowRightCircle });

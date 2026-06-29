@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Role } from '../common/enums';
+import { OrganizationType, Role } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../security/email.service';
 import type { NotificationCreator } from '../notifications/notifications.tokens';
@@ -8,6 +8,91 @@ import { AuthService } from './auth.service';
 
 const genericForgotMessage =
   'If an eligible account exists, password reset instructions will be sent.';
+
+describe('AuthService register', () => {
+  let service: AuthService;
+  let prisma: {
+    user: {
+      findUnique: jest.Mock;
+    };
+    $transaction: jest.Mock;
+  };
+
+  beforeEach(() => {
+    prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      $transaction: jest.fn(async (callback) =>
+        callback({
+          organization: {
+            create: jest.fn().mockResolvedValue({
+              id: 'org-1',
+              name: 'Test School',
+            }),
+          },
+          user: {
+            create: jest.fn().mockResolvedValue({
+              id: 'admin-1',
+              email: 'admin@school.test',
+            }),
+          },
+        }),
+      ),
+    };
+
+    service = new AuthService(
+      {} as JwtService,
+      prisma as unknown as PrismaService,
+      { send: jest.fn() } as unknown as EmailService,
+      {} as ConfigService,
+      { createNotification: jest.fn() } as NotificationCreator,
+    );
+    jest
+      .spyOn(service, 'issueContactEmailVerification')
+      .mockResolvedValue(undefined);
+  });
+
+  it('does not force password change for a self-registered organization admin', async () => {
+    const tx = {
+      organization: {
+        create: jest.fn().mockResolvedValue({
+          id: 'org-1',
+          name: 'Test School',
+        }),
+      },
+      user: {
+        create: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          email: 'admin@school.test',
+        }),
+      },
+    };
+    prisma.$transaction.mockImplementationOnce(async (callback) =>
+      callback(tx),
+    );
+
+    await service.register({
+      name: 'Test School',
+      adminName: 'Admin User',
+      location: 'Lahore',
+      type: OrganizationType.HIGH_SCHOOL,
+      email: 'admin@school.test',
+      contactEmail: 'contact@school.test',
+      phone: '123456789',
+      password: 'StrongPass1',
+    });
+
+    expect(tx.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          role: Role.ORG_ADMIN,
+          isFirstLogin: false,
+        }),
+      }),
+    );
+  });
+});
 
 type MockPrismaService = {
   organization: {

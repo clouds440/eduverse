@@ -13,7 +13,8 @@ import { Loading } from '@/components/ui/Loading';
 import { Badge } from '@/components/ui/Badge';
 import { OrgLogoOrIcon } from '@/components/ui/OrgLogoOrIcon';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
@@ -232,31 +233,32 @@ export default function AdminAuditLogsPage() {
                         {data.totalRecords} events
                     </span>
                 ) : undefined}
-            />
-            <ResourcePanel>
-                <div className="p-3 sm:p-4 border-b border-border/40 space-y-4">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="w-full sm:w-80">
-                            <CustomSelect
-                                value={action}
-                                onChange={(value) => updateQueryParams({ action: value, page: 1 })}
-                                options={actionOptions}
-                                placeholder="Filter action"
-                            />
-                        </div>
-                        <div className="flex-1">
+                actions={(
+                    <PageControls
+                        drawerLabel="Audit filters"
+                        leading={(
                             <SearchBar
                                 value={search}
                                 onChange={(value) => updateQueryParams({ search: value, page: 1 })}
-                                placeholder="Search org name, org ID, actor, or target..."
-                                className="max-w-full"
+                                placeholder="Search org, actor, target..."
+                                mobileMode="expandable"
                             />
-                        </div>
-                    </div>
-                </div>
-
-                <ResourceToolbar activeFilters={activeFilters} />
-
+                        )}
+                        renderFilters={() => (
+                            <FilterDrawerGrid>
+                                <CustomSelect
+                                    value={action}
+                                    onChange={(value) => updateQueryParams({ action: value, page: 1 })}
+                                    options={actionOptions}
+                                    placeholder="Filter action"
+                                />
+                            </FilterDrawerGrid>
+                        )}
+                        activeFilters={activeFilters}
+                    />
+                )}
+            />
+            <ResourcePanel>
                 <div className="flex-1 min-h-0 overflow-x-auto">
                     <DataTable
                         columns={columns}

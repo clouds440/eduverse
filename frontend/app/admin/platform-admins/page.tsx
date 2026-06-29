@@ -17,7 +17,8 @@ import PasswordStrength from '@/components/ui/PasswordStrength';
 import { Input } from '@/components/ui/Input';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
-import { PageHeader, PageShell, ResourcePanel, ResourceToolbar, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { getRoleLabel } from '@/lib/roles';
@@ -265,29 +266,34 @@ export default function PlatformAdminsPage() {
                         {paginatedData.totalRecords} total
                     </span>
                 ) : undefined}
+                actions={(
+                    <PageControls
+                        leading={(
+                            <SearchBar
+                                value={searchQuery}
+                                onChange={(val) => updateQueryParams({ search: val, page: 1 })}
+                                placeholder="Search admins by name or email..."
+                                mobileMode="expandable"
+                            />
+                        )}
+                        renderFilters={() => null}
+                        showDrawer={false}
+                        activeFilters={activeFilters}
+                        actions={(
+                            <Button
+                                icon={UserPlus}
+                                variant="primary"
+                                type="button"
+                                title="Add New Admin Profile"
+                                onClick={() => handleOpenAdminModal('CREATE')}
+                            >
+                                Add Admin
+                            </Button>
+                        )}
+                    />
+                )}
             />
             <ResourcePanel>
-                <div className="flex flex-col gap-3 border-b border-border/60 bg-card/80 p-3 sm:p-4 md:flex-row md:items-center md:justify-between">
-                    <div className="min-w-0 flex-1 md:max-w-xl">
-                        <SearchBar
-                            value={searchQuery}
-                            onChange={(val) => updateQueryParams({ search: val, page: 1 })}
-                            placeholder="Search admins by name or email..."
-                        />
-                    </div>
-                    <Button
-                        icon={UserPlus}
-                        variant="primary"
-                        type='button'
-                        title='Add New Admin Profile'
-                        onClick={() => handleOpenAdminModal('CREATE')}
-                    >
-                        Add Admin
-                    </Button>
-                </div>
-
-                <ResourceToolbar activeFilters={activeFilters} />
-
                 <div className="flex-1 min-h-0">
                     <DataTable
                         columns={columns}

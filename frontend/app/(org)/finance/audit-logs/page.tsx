@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { ExternalLink, Filter, ScrollText } from 'lucide-react';
+import { ExternalLink, Filter, ScrollText, UserRound } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -23,23 +23,24 @@ import { AuditLogItem, PaginatedResponse, Role } from '@/types';
 
 const actionOptions = [
     { value: '', label: 'All actions' },
-    { value: 'CREATE_STRUCTURE', label: 'Structure created' },
-    { value: 'UPDATE_STRUCTURE', label: 'Structure updated' },
-    { value: 'GENERATE_ENTRY', label: 'Entry generated' },
-    { value: 'CREATE_MANUAL_ENTRY', label: 'Manual entry' },
-    { value: 'CLAIM_PAYMENT', label: 'Claim submitted' },
-    { value: 'CONFIRM_PAYMENT', label: 'Payment confirmed' },
-    { value: 'REJECT_CLAIM', label: 'Claim rejected' },
-    { value: 'CANCEL_ENTRY', label: 'Entry cancelled' },
-    { value: 'REVERSE_TRANSACTION', label: 'Transaction reversed' },
+    { value: 'finance_structure_created', label: 'Structure created' },
+    { value: 'finance_structure_updated', label: 'Structure updated' },
+    { value: 'finance_entry_generated_now', label: 'Entry generated' },
+    { value: 'finance_structure_entries_generated_now', label: 'Entries generated' },
+    { value: 'finance_entry_manual_created', label: 'Manual entry' },
+    { value: 'finance_payment_claimed', label: 'Claim submitted' },
+    { value: 'finance_payment_confirmed', label: 'Payment confirmed' },
+    { value: 'finance_payment_claim_rejected', label: 'Claim rejected' },
+    { value: 'finance_entry_cancelled', label: 'Entry cancelled' },
+    { value: 'finance_transaction_reversed', label: 'Transaction reversed' },
 ];
 
 const resourceOptions = [
     { value: '', label: 'All resources' },
-    { value: 'FinancialStructure', label: 'Structures' },
-    { value: 'FinancialEntry', label: 'Entries' },
-    { value: 'PaymentClaim', label: 'Claims' },
-    { value: 'Transaction', label: 'Transactions' },
+    { value: 'structure', label: 'Structures' },
+    { value: 'entry', label: 'Entries' },
+    { value: 'claim', label: 'Claims' },
+    { value: 'transaction', label: 'Transactions' },
 ];
 
 function formatDate(value: string) {
@@ -52,12 +53,84 @@ function labelize(value?: string | null) {
     return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function formatDeviceName(userAgent?: string | null) {
+    if (!userAgent) return 'Unknown device';
+
+    const browserChecks: Array<[string, RegExp]> = [
+        ['Microsoft Edge', /Edg(?:e|A|iOS)?\//i],
+        ['Opera', /OPR\/|Opera/i],
+        ['Firefox', /Firefox\/|FxiOS\//i],
+        ['Chrome', /Chrome\/|CriOS\//i],
+        ['Safari', /Safari\//i],
+    ];
+    const osChecks: Array<[string, RegExp]> = [
+        ['Windows', /Windows NT/i],
+        ['macOS', /Mac OS X|Macintosh/i],
+        ['iOS', /iPhone|iPad|iPod|CPU (?:iPhone )?OS/i],
+        ['Android', /Android/i],
+        ['ChromeOS', /CrOS/i],
+        ['Linux', /Linux/i],
+    ];
+
+    const browser = browserChecks.find(([, pattern]) => pattern.test(userAgent))?.[0];
+    const os = osChecks.find(([, pattern]) => pattern.test(userAgent))?.[0];
+
+    if (browser && os) return `${browser} - ${os}`;
+    if (browser) return browser;
+    if (os) return os;
+
+    const simpleDeviceName = userAgent
+        .replace(/\s+/g, ' ')
+        .replace(/\bon\b/gi, '-')
+        .trim();
+
+    return simpleDeviceName.length > 48 ? `${simpleDeviceName.slice(0, 45)}...` : simpleDeviceName || 'Unknown device';
+}
+
+function formatDetailLabel(value: string) {
+    return value
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/[_-]/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getStringField(source: unknown, key: string) {
+    if (!isRecord(source)) return null;
+    const value = source[key];
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function getLogResourceTitle(log: AuditLogItem) {
+    const details = log.details || {};
+    const after = isRecord(details) ? details.after : null;
+    const before = isRecord(details) ? details.before : null;
+
+    return log.resourceTitle
+        || getStringField(details, 'title')
+        || getStringField(details, 'entryTitle')
+        || getStringField(details, 'structureTitle')
+        || getStringField(details, 'transactionDescription')
+        || getStringField(details, 'description')
+        || getStringField(after, 'title')
+        || getStringField(before, 'title')
+        || getStringField(details, 'referenceNumber')
+        || getStringField(details, 'paymentMethod')
+        || getStringField(details, 'category')
+        || getStringField(details, 'targetType')
+        || `${labelize(log.resourceType)} record`;
+}
+
 function linkedObject(log: AuditLogItem) {
-    if (log.financeEntryId) return { label: `Entry ${log.financeEntryId.slice(0, 8)}`, href: `/finance/entries?entryId=${log.financeEntryId}` };
-    if (log.transactionId) return { label: `Transaction ${log.transactionId.slice(0, 8)}`, href: `/finance/transactions?transactionId=${log.transactionId}` };
-    if (log.paymentClaimId) return { label: `Claim ${log.paymentClaimId.slice(0, 8)}`, href: `/finance/entries?claimId=${log.paymentClaimId}` };
-    if (log.financeStructureId) return { label: `Structure ${log.financeStructureId.slice(0, 8)}`, href: `/finance/structures?structureId=${log.financeStructureId}` };
-    if (log.resourceId) return { label: `${labelize(log.resourceType)} ${log.resourceId.slice(0, 8)}`, href: '#' };
+    const resourceTitle = getLogResourceTitle(log);
+    if (log.financeEntryId) return { label: resourceTitle, href: `/finance/entries?entryId=${log.financeEntryId}` };
+    if (log.transactionId) return { label: resourceTitle, href: `/finance/transactions?transactionId=${log.transactionId}` };
+    if (log.paymentClaimId) return { label: resourceTitle, href: `/finance/entries?claimId=${log.paymentClaimId}` };
+    if (log.financeStructureId) return { label: resourceTitle, href: `/finance/structures?structureId=${log.financeStructureId}` };
+    if (log.resourceId) return { label: resourceTitle, href: '#' };
     return null;
 }
 
@@ -67,6 +140,39 @@ function detailValue(value: unknown) {
     return String(value);
 }
 
+function DetailTable({ rows }: { rows: Array<[string, unknown]> }) {
+    const visibleRows = rows.filter(([, value]) => value !== undefined && value !== null && value !== '');
+
+    if (visibleRows.length === 0) {
+        return <p className="rounded-md bg-muted/40 p-3 text-sm font-semibold text-muted-foreground">No details available.</p>;
+    }
+
+    return (
+        <div className="overflow-hidden rounded-lg border border-border/70">
+            <table className="w-full border-collapse text-sm">
+                <tbody className="divide-y divide-border/60">
+                    {visibleRows.map(([label, value]) => (
+                        <tr key={label} className="align-top">
+                            <th className="w-36 bg-muted/35 px-3 py-2 text-left text-xs font-black uppercase text-muted-foreground sm:w-48">
+                                {label}
+                            </th>
+                            <td className="min-w-0 px-3 py-2 font-semibold text-foreground">
+                                {typeof value === 'object' ? (
+                                    <pre className="max-h-72 overflow-auto whitespace-pre-wrap wrap-break-word rounded-md bg-muted/45 p-3 text-xs font-medium leading-relaxed text-foreground custom-scrollbar">
+                                        {detailValue(value)}
+                                    </pre>
+                                ) : (
+                                    <span className="wrap-break-word">{detailValue(value)}</span>
+                                )}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 export default function FinanceAuditLogsPage() {
     const { token, user } = useAuth();
     const [page, setPage] = useState(1);
@@ -74,18 +180,33 @@ export default function FinanceAuditLogsPage() {
     const [search, setSearch] = useState('');
     const [action, setAction] = useState('');
     const [resourceType, setResourceType] = useState('');
+    const [userId, setUserId] = useState('');
     const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
     const { data, error, isLoading, mutate } = useSWR<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> }>(
-        token ? ['finance/audit-logs', token, page, pageSize, search, action, resourceType] : null,
+        token ? ['finance/audit-logs', token, page, pageSize, search, action, resourceType, userId] : null,
         ([, t]) => api.finance.getAuditLogs(t as string, {
             page,
             limit: pageSize,
             search: search || undefined,
             action: action || undefined,
             resourceType: resourceType || undefined,
+            userId: userId || undefined,
         })
     );
+    const { data: userTargets } = useSWR(
+        token ? ['finance-audit-user-filter-options', token] : null,
+        ([, t]) => api.mail.getContactableUsers(t as string),
+    );
+    const userOptions = useMemo(() => [
+        { value: '', label: 'All users' },
+        ...((userTargets || [])
+            .filter((target) => target.type === 'USER')
+            .map((target) => ({
+                value: target.id,
+                label: target.email ? `${target.label} (${target.email})` : target.label,
+            }))),
+    ], [userTargets]);
 
     const columns = useMemo<Column<AuditLogItem>[]>(() => [
         {
@@ -113,8 +234,8 @@ export default function FinanceAuditLogsPage() {
             header: 'Target',
             accessor: (log) => (
                 <div className="min-w-0">
-                    <p className="truncate font-semibold text-foreground">{labelize(log.resourceType)}</p>
-                    <p className="truncate text-xs text-muted-foreground">{log.resourceId || 'N/A'}</p>
+                    <p className="truncate font-semibold text-foreground">{getLogResourceTitle(log)}</p>
+                    <p className="truncate text-xs text-muted-foreground">{labelize(log.resourceType)}</p>
                 </div>
             ),
             width: 230,
@@ -135,14 +256,14 @@ export default function FinanceAuditLogsPage() {
             width: 220,
         },
         {
-            header: 'IP / Device',
+            header: 'Device',
             accessor: (log) => (
                 <div className="min-w-0 text-xs font-semibold">
-                    <p className="truncate">{log.ip || 'N/A'}</p>
-                    <p className="truncate text-muted-foreground">{log.userAgent || 'Unknown device'}</p>
+                    <p className="truncate text-foreground">{formatDeviceName(log.userAgent)}</p>
+                    <p className="truncate text-muted-foreground">Open for request details</p>
                 </div>
             ),
-            width: 240,
+            width: 190,
         },
         {
             header: 'Linked Object',
@@ -177,13 +298,22 @@ export default function FinanceAuditLogsPage() {
                 onRemove: () => { setResourceType(''); setPage(1); },
             });
         }
+        if (userId) {
+            filters.push({
+                key: 'userId',
+                label: 'User',
+                value: userOptions.find((option) => option.value === userId)?.label || 'Selected user',
+                onRemove: () => { setUserId(''); setPage(1); },
+            });
+        }
         return filters;
-    }, [action, resourceType]);
+    }, [action, resourceType, userId, userOptions]);
 
     const resetControls = () => {
         setSearch('');
         setAction('');
         setResourceType('');
+        setUserId('');
         setPage(1);
     };
 
@@ -209,10 +339,11 @@ export default function FinanceAuditLogsPage() {
                 <FilterDrawerGrid>
                     <CustomSelect value={action} onChange={(value) => { setAction(value); setPage(1); }} options={actionOptions} icon={Filter} />
                     <CustomSelect value={resourceType} onChange={(value) => { setResourceType(value); setPage(1); }} options={resourceOptions} icon={ScrollText} />
+                    <CustomSelect value={userId} onChange={(value) => { setUserId(value); setPage(1); }} options={userOptions} icon={UserRound} searchable />
                 </FilterDrawerGrid>
             )}
         />
-    ), [action, activeFilters, resourceType, search]);
+    ), [action, activeFilters, resourceType, search, userId, userOptions]);
     const controlsHosted = usePageActionsHost(pageControls);
 
     if (!token) return <Loading className="h-full" text="Authenticating..." />;
@@ -221,11 +352,11 @@ export default function FinanceAuditLogsPage() {
     const logs = data?.data || [];
 
     return (
-        <PageShell className="p-2 sm:p-3">
+        <PageShell className="">
             <ResourcePanel>
-                {!controlsHosted && <div className="shrink-0 border-b border-border/60 bg-card/95 p-2.5 sm:p-3">{pageControls}</div>}
+                {!controlsHosted && <div className="shrink-0 border-b border-border/60 bg-card/95">{pageControls}</div>}
 
-                <div className="min-h-0 flex-1 p-3">
+                <div className="min-h-0 flex-1">
                     {!canView ? (
                         <EmptyState icon={ScrollText} title="Audit logs are not available" description="Your role does not have finance audit access." />
                     ) : error ? (
@@ -274,8 +405,8 @@ export default function FinanceAuditLogsPage() {
                             </div>
                             <div className="rounded-lg border border-border/70 bg-muted/25 p-3">
                                 <p className="text-xs font-black uppercase text-muted-foreground">Request</p>
-                                <p className="mt-1 truncate font-semibold text-foreground">{selectedLog.ip || 'N/A'}</p>
-                                <p className="truncate text-xs text-muted-foreground">{selectedLog.userAgent || 'Unknown device'}</p>
+                                <p className="mt-1 truncate font-semibold text-foreground">{formatDeviceName(selectedLog.userAgent)}</p>
+                                <p className="truncate text-xs text-muted-foreground">IP: {selectedLog.ip || 'N/A'}</p>
                             </div>
                         </div>
 
@@ -298,11 +429,19 @@ export default function FinanceAuditLogsPage() {
                             ) : null)}
                         </div>
 
-                        <div className="rounded-lg border border-border/70 bg-background p-3">
-                            <p className="mb-2 text-xs font-black uppercase text-muted-foreground">Details</p>
-                            <pre className="max-h-96 overflow-auto rounded-md bg-muted/50 p-3 text-xs leading-relaxed text-foreground custom-scrollbar">
-                                {JSON.stringify(selectedLog.details || {}, null, 2)}
-                            </pre>
+                        <div className="space-y-2">
+                            <p className="text-xs font-black uppercase text-muted-foreground">Request Details</p>
+                            <DetailTable rows={[
+                                ['Device', formatDeviceName(selectedLog.userAgent)],
+                                ['IP address', selectedLog.ip],
+                                ['Raw user agent', selectedLog.userAgent],
+                                ['Session ID', selectedLog.sessionId],
+                            ]} />
+                        </div>
+
+                        <div className="space-y-2">
+                            <p className="text-xs font-black uppercase text-muted-foreground">Event Details</p>
+                            <DetailTable rows={Object.entries(selectedLog.details || {}).map(([key, value]) => [formatDetailLabel(key), value])} />
                         </div>
                     </div>
                 )}

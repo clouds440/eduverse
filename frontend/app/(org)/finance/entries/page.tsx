@@ -340,7 +340,7 @@ export default function EntriesPage() {
         <FinanceFilterGrid mode={mode}>
             <Input icon={Search} value={search} onChange={(event) => updateQueryParams({ search: event.target.value || undefined, page: 1 })} placeholder="Search target or entry" />
             <CustomSelect value={targetType} onChange={(value) => updateQueryParams({ targetType: value || undefined, page: 1 })} options={[{ value: '', label: 'All targets' }, ...Object.values(FinanceTargetType).map((value) => ({ value, label: labelize(value) }))]} />
-            <CustomSelect value={category} onChange={(value) => updateQueryParams({ category: value || undefined, page: 1 })} options={[{ value: '', label: 'All categories' }, ...Object.values(FinanceCategory).map((value) => ({ value, label: labelize(value) }))]} />
+            <CustomSelect value={category} onChange={(value) => updateQueryParams({ category: value || undefined, page: 1 })} options={[{ value: '', label: 'All categories' }, ...Object.values(FinanceCategory).map((value) => ({ value, label: labelize(value) }))]} searchable />
             <CustomSelect value={billingCycle} onChange={(value) => updateQueryParams({ billingCycle: value || undefined, page: 1 })} options={[{ value: '', label: 'All cycles' }, ...Object.values(BillingCycle).map((value) => ({ value, label: labelize(value) }))]} />
             <div className="space-y-1">
                 {mode === 'mobile' && <span className="text-xs font-black uppercase text-muted-foreground">Due from</span>}
