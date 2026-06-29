@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { BookOpen, Calendar, Layers, MapPin, Network, Users } from 'lucide-react';
+import { AlertTriangle, BookOpen, Calendar, Layers, MapPin, Network, Trash2, UserRound, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, Cohort, Course, PaginatedResponse, Role, Room, Section, Student, UpdateSectionRequest } from '@/types';
+import { AcademicCycle, Cohort, Course, PaginatedResponse, Role, Room, Section, Student, Teacher, UpdateSectionRequest } from '@/types';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/FormLayout';
 import { Input } from '@/components/ui/Input';
 import { Loading } from '@/components/ui/Loading';
-import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, formatRoomLabel, getSectionColor, isSectionPaletteColor } from '@/lib/utils';
+import { DEFAULT_SECTION_COLOR, formatRoomLabel, getSectionColor, isSectionPaletteColor } from '@/lib/utils';
 import { ColorSelector } from '@/components/ui/ColorSelector';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
@@ -43,6 +43,7 @@ interface SectionEditErrors {
     code?: string;
     courseId?: string;
     academicCycleId?: string;
+    teacherIds?: string;
     color?: string;
     general?: string;
 }
@@ -79,6 +80,9 @@ export default function EditSectionPage() {
         color: DEFAULT_SECTION_COLOR,
     });
     const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+    const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
+    const [teacherResolutionAction, setTeacherResolutionAction] = useState<'MOVE' | 'DELETE' | ''>('');
+    const [teacherResolutionTeacherId, setTeacherResolutionTeacherId] = useState('');
     const [formErrors, setFormErrors] = useState<SectionEditErrors>({});
     const [hydratedSectionId, setHydratedSectionId] = useState('');
 
@@ -100,6 +104,10 @@ export default function EditSectionPage() {
     const studentsKey = token && canManage ? ['students', { limit: 1000 }] as const : null;
     const { data: studentsData, isLoading: isStudentsLoading } = useSWR<PaginatedResponse<Student>>(studentsKey);
     const students = studentsData?.data || [];
+
+    const teachersKey = token && canManage ? ['teachers', { limit: 1000 }] as const : null;
+    const { data: teachersData, isLoading: isTeachersLoading } = useSWR<PaginatedResponse<Teacher>>(teachersKey);
+    const teachers = useMemo(() => teachersData?.data || [], [teachersData?.data]);
 
     const roomsKey = token && canManage ? ['rooms', { limit: 1000, isActive: true }] as const : null;
     const { data: roomsData } = useSWR<PaginatedResponse<Room>>(roomsKey);
@@ -123,12 +131,44 @@ export default function EditSectionPage() {
             color: getSectionColor(section.color),
         });
         setSelectedStudentIds(section.students?.map((student) => student.id) || []);
+        setSelectedTeacherIds(section.teachers?.map((teacher) => teacher.id) || []);
+        setTeacherResolutionAction('');
+        setTeacherResolutionTeacherId('');
         setHydratedSectionId(section.id);
     }, [hydratedSectionId, section]);
 
     const filteredCohorts = useMemo(() => (
         cohorts.filter((cohort) => !formData.academicCycleId || cohort.academicCycleId === formData.academicCycleId)
     ), [cohorts, formData.academicCycleId]);
+
+    const removedTeacherIds = useMemo(() => (
+        (section?.teachers || [])
+            .map((teacher) => teacher.id)
+            .filter((teacherId) => !selectedTeacherIds.includes(teacherId))
+    ), [section?.teachers, selectedTeacherIds]);
+
+    const affectedSchedules = useMemo(() => (
+        (section?.schedules || []).filter((schedule) => removedTeacherIds.includes(schedule.teacherId))
+    ), [removedTeacherIds, section?.schedules]);
+
+    const teacherOptions = useMemo(() => teachers.map((teacher) => ({
+        value: teacher.id,
+        label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
+    })), [teachers]);
+
+    const selectedTeacherOptions = useMemo(() => (
+        teacherOptions.filter((option) => selectedTeacherIds.includes(option.value))
+    ), [selectedTeacherIds, teacherOptions]);
+
+    useEffect(() => {
+        if (teacherResolutionTeacherId && !selectedTeacherIds.includes(teacherResolutionTeacherId)) {
+            setTeacherResolutionTeacherId('');
+        }
+        if (affectedSchedules.length === 0) {
+            setTeacherResolutionAction('');
+            setTeacherResolutionTeacherId('');
+        }
+    }, [affectedSchedules.length, selectedTeacherIds, teacherResolutionTeacherId]);
 
     const validateForm = () => {
         const nextErrors: SectionEditErrors = {};
@@ -137,6 +177,12 @@ export default function EditSectionPage() {
         if (!formData.courseId) nextErrors.courseId = 'Course is required';
         if (!formData.academicCycleId) nextErrors.academicCycleId = 'Academic cycle is required';
         if (!isSectionPaletteColor(formData.color)) nextErrors.color = 'Choose one of the preset section colors';
+        if (affectedSchedules.length > 0 && !teacherResolutionAction) {
+            nextErrors.teacherIds = 'Choose how to handle schedules owned by removed teachers';
+        }
+        if (affectedSchedules.length > 0 && teacherResolutionAction === 'MOVE' && !teacherResolutionTeacherId) {
+            nextErrors.teacherIds = 'Choose a remaining teacher to receive affected schedules';
+        }
         setFormErrors(nextErrors);
         return Object.keys(nextErrors).length === 0;
     };
@@ -157,6 +203,12 @@ export default function EditSectionPage() {
                 academicCycleId: formData.academicCycleId,
                 cohortId: formData.cohortId,
                 color: formData.color,
+                teacherIds: selectedTeacherIds,
+                ...(affectedSchedules.length > 0 ? {
+                    scheduleTeacherResolution: teacherResolutionAction === 'DELETE'
+                        ? { action: 'DELETE' }
+                        : { action: 'MOVE', teacherId: teacherResolutionTeacherId },
+                } : {}),
             };
 
             await api.org.updateSection(section.id, payload, token);
@@ -314,6 +366,66 @@ export default function EditSectionPage() {
                             />
                         </FormField>
                     </div>
+                </FormSection>
+
+                <FormSection
+                    title="Teachers"
+                    description="Assign the teachers who can own schedules for this section."
+                    icon={UserRound}
+                >
+                    <FormField
+                        label="Assigned Teachers"
+                        helper={isTeachersLoading ? 'Loading teachers...' : 'Schedules choose exactly one teacher from this list.'}
+                        error={formErrors.teacherIds}
+                    >
+                        <CustomMultiSelect
+                            options={teacherOptions}
+                            values={selectedTeacherIds}
+                            onChange={setSelectedTeacherIds}
+                            placeholder="Select teachers..."
+                            error={!!formErrors.teacherIds}
+                        />
+                    </FormField>
+
+                    {affectedSchedules.length > 0 && (
+                        <div className="mt-4 rounded-lg border border-warning/30 bg-warning/10 p-4">
+                            <div className="flex min-w-0 items-start gap-3">
+                                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+                                <div className="min-w-0 flex-1 space-y-3">
+                                    <div>
+                                        <p className="text-sm font-black text-foreground">Removed teachers own existing schedules</p>
+                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                                            Resolve {affectedSchedules.length} affected schedule{affectedSchedules.length === 1 ? '' : 's'} before saving.
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                        <FormField label="Resolution">
+                                            <CustomSelect
+                                                value={teacherResolutionAction}
+                                                onChange={(value) => setTeacherResolutionAction(value as 'MOVE' | 'DELETE' | '')}
+                                                options={[
+                                                    { value: '', label: 'Choose resolution' },
+                                                    { value: 'MOVE', label: 'Move schedules to another teacher', icon: UserRound },
+                                                    { value: 'DELETE', label: 'Delete affected schedules', icon: Trash2 },
+                                                ]}
+                                            />
+                                        </FormField>
+                                        {teacherResolutionAction === 'MOVE' && (
+                                            <FormField label="Move To">
+                                                <CustomSelect
+                                                    value={teacherResolutionTeacherId}
+                                                    onChange={setTeacherResolutionTeacherId}
+                                                    options={selectedTeacherOptions}
+                                                    placeholder="Choose remaining teacher"
+                                                    searchable
+                                                />
+                                            </FormField>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </FormSection>
 
                 <FormSection

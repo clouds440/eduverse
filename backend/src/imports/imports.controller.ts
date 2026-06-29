@@ -76,7 +76,7 @@ export class ImportsController {
     this.sendCsv(res, csv, `${entity}-import-errors.csv`);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Get('attendance/monthly/template')
   async getAttendanceTemplate(
     @OrgId() orgId: string,
@@ -94,7 +94,7 @@ export class ImportsController {
     this.sendCsv(res, csv, `attendance-${year}-${month}.csv`);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Post('attendance/monthly/validate')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
   validateAttendance(
@@ -119,7 +119,7 @@ export class ImportsController {
     );
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Post('attendance/monthly/confirm')
   confirmAttendance(
     @OrgId() orgId: string,

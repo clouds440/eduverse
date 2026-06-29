@@ -683,11 +683,11 @@ export const api = {
             request<GpaPolicyPreviewResponse>('/org/gpa-policies/preview', { method: 'POST', body: JSON.stringify(data), token }),
 
         // --- Timetable & Attendance ---
-        createSchedule: (id: string, data: { day?: number, date?: string | null, type?: string, startTime: string, endTime: string, room?: string, roomId?: string | null }, token: string) =>
+        createSchedule: (id: string, data: { day?: number, date?: string | null, type?: string, startTime: string, endTime: string, room?: string, roomId?: string | null, teacherId?: string }, token: string) =>
             request<SectionSchedule>(`/org/sections/${id}/schedules`, { method: 'POST', body: JSON.stringify(data), token }),
         getSchedules: (id: string, token: string) =>
             request<SectionSchedule[]>(`/org/sections/${id}/schedules`, { token }),
-        updateSchedule: (sectionId: string, scheduleId: string, data: Partial<{ day?: number, date?: string | null, type?: string, startTime: string, endTime: string, room?: string, roomId?: string | null }>, token: string) =>
+        updateSchedule: (sectionId: string, scheduleId: string, data: Partial<{ day?: number, date?: string | null, type?: string, startTime: string, endTime: string, room?: string, roomId?: string | null, teacherId?: string }>, token: string) =>
             request<SectionSchedule>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteSchedule: (sectionId: string, scheduleId: string, token: string) =>
             request<void>(`/org/sections/${sectionId}/schedules/${scheduleId}`, { method: 'DELETE', token }),

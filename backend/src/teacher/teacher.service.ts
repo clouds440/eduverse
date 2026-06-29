@@ -312,9 +312,6 @@ export class TeacherService {
             bloodGroup: data.bloodGroup,
             address: data.address,
             status: data.status as unknown as TeacherStatus,
-            sections: data.sectionIds
-              ? { connect: data.sectionIds.map((id) => ({ id })) }
-              : undefined,
             teacherDepartments: departmentIds.length
               ? {
                   createMany: {
@@ -427,10 +424,6 @@ export class TeacherService {
 
     if (data.status !== undefined) {
       userData.status = data.status as unknown as UserStatus;
-    }
-
-    if (data.sectionIds !== undefined) {
-      teacherData.sections = { set: data.sectionIds.map((id) => ({ id })) };
     }
 
     if (data.joiningDate) {

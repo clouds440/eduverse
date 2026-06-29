@@ -9,19 +9,18 @@ import { usePathname, useRouter } from 'next/navigation';
 import { User, Mail, Lock, BookOpen, Phone, Plus, ShieldCheck, UserX, CalendarClock, MapPin, UserLock, BriefcaseBusiness } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
-import { Department, DepartmentScopeType, Section, Teacher, TeacherStatus, Role, CreateTeacherRequest, UpdateTeacherRequest } from '@/types';
+import { Department, DepartmentScopeType, Teacher, TeacherStatus, Role, CreateTeacherRequest, UpdateTeacherRequest } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { FormActions, FormField, FormGrid, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
-import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
+import { formatDepartmentLabel } from '@/lib/utils';
 import { useForm, SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { teacherCreateSchema, teacherUpdateSchema, teacherProfileSchema, TeacherCreateFormData, TeacherUpdateFormData, TeacherProfileFormData } from '@/lib/schemas';
 import { Toggle } from '@/components/ui/Toggle';
-import { DocsLink } from '@/components/ui/DocsLink';
 import { Badge } from '../ui/Badge';
 
 interface TeacherFormProps {
@@ -65,7 +64,6 @@ function getTeacherDefaults(initialData?: Teacher, initialIsManager = false) {
         emergencyContact: initialData.emergencyContact || '',
         bloodGroup: initialData.bloodGroup || '',
         status: initialData.status as TeacherStatus || TeacherStatus.ACTIVE,
-        sectionIds: initialData.sections?.map(s => s.id) || [],
     } : {
         name: '',
         phone: '',
@@ -84,7 +82,6 @@ function getTeacherDefaults(initialData?: Teacher, initialIsManager = false) {
         emergencyContact: '',
         bloodGroup: '',
         status: TeacherStatus.ACTIVE,
-        sectionIds: [],
     };
 }
 
@@ -134,17 +131,11 @@ export default function TeacherForm({ teacherId, initialData, isProfile, default
 
     const watchedStatus = useWatch({ control, name: 'status' }) as TeacherStatus | undefined;
     const watchedIsManager = useWatch({ control, name: 'isManager' }) as boolean | undefined;
-    const watchedSectionIds = useWatch({ control, name: 'sectionIds' }) as string[] | undefined;
     const watchedDepartmentIds = useWatch({ control, name: 'departmentIds' }) as string[] | undefined;
     const watchedDepartmentScopeType = useWatch({ control, name: 'departmentScopeType' }) as DepartmentScopeType | undefined;
     const watchedScopeDepartmentIds = useWatch({ control, name: 'scopeDepartmentIds' }) as string[] | undefined;
 
-    const { data: sectionsData } = useSWR<{ data: Section[] }>(token ? ['sections', { limit: 1000 }] as const : null);
     const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
-    const sectionOptions = useMemo(() => (sectionsData?.data || []).map(section => ({
-        value: section.id,
-        label: formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name }),
-    })), [sectionsData?.data]);
     const departmentOptions = useMemo(() => (departmentsData?.data || []).map(department => ({
         value: department.id,
         label: formatDepartmentLabel(department),
@@ -191,12 +182,6 @@ export default function TeacherForm({ teacherId, initialData, isProfile, default
         setValue('scopeDepartmentIds', values);
         trigger('scopeDepartmentIds');
     }, [setValue, trigger]);
-
-    const handleSectionsChange = useCallback((values: string[]) => {
-        if (isProfile) return;
-        setValue('sectionIds', values);
-        trigger('sectionIds');
-    }, [isProfile, setValue, trigger]);
 
     const handlePhotoReady = useCallback((file: File) => {
         setPendingPhoto(file);
@@ -463,28 +448,6 @@ export default function TeacherForm({ teacherId, initialData, isProfile, default
                         )}
                     </FormGrid>
                 )}
-            </FormSection>
-
-            <FormSection
-                title="Section Assignments"
-                description={<>Attach this teacher to sections they can manage. <DocsLink href="/docs/teachers#teacher-assignments">Read assignment rules</DocsLink></>}
-                icon={Plus}
-            >
-                <FormField
-                    label="Assign to Sections"
-                    error={errors.sectionIds?.message}
-                    helper={<>Teacher can manage selected sections and can be chosen for their schedules. <DocsLink href="/docs/timetable#schedule-teacher">Schedule rules</DocsLink></>}
-                    className="max-w-2xl"
-                >
-                    <CustomMultiSelect
-                        options={sectionOptions}
-                        values={watchedSectionIds || []}
-                        onChange={handleSectionsChange}
-                        placeholder="Choose one or more sections..."
-                        error={!!errors.sectionIds}
-                        disabled={isProfile}
-                    />
-                </FormField>
             </FormSection>
 
             <FormSection

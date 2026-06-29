@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import useSWR from 'swr';
-import { CalendarDays, CalendarRange, Clock, MapPin, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, CalendarRange, Clock, MapPin, Minus, Pencil, Plus, Trash2, UserRound } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ApiError, PaginatedResponse, Room, SectionSchedule, Section, Role, ScheduleType } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
@@ -103,12 +103,13 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
         endTime: '10:00',
         room: section.room || '',
         roomId: section.defaultRoomId || '',
+        teacherId: section.teachers?.length === 1 ? section.teachers[0].id : '',
     });
     const [repeatWeekdays, setRepeatWeekdays] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
     const canManageOfficialSchedules = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
-    const canManageAdHocSchedules = role === Role.TEACHER && section.teachers?.some((teacher) => teacher.userId === user?.id);
+    const canManageAdHocSchedules = (role === Role.TEACHER || role === Role.ORG_MANAGER) && section.teachers?.some((teacher) => teacher.userId === user?.id);
     const canManageSchedules = canManageOfficialSchedules || canManageAdHocSchedules;
     const { data: roomsData } = useSWR<PaginatedResponse<Room>>(token ? ['rooms', { limit: 1000, isActive: true }] as const : null);
     const roomOptions = [
@@ -118,6 +119,18 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             label: formatRoomLabel(room),
         })) || []),
     ];
+    const teacherOptions = (section.teachers || []).map((teacher) => ({
+        value: teacher.id,
+        label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
+    }));
+    const singleTeacher = section.teachers?.length === 1 ? section.teachers[0] : null;
+    const getScheduleTeacherLabel = (schedule: SectionSchedule) => (
+        schedule.teacher?.user?.name
+        || schedule.teacher?.user?.email
+        || section.teachers?.find((teacher) => teacher.id === schedule.teacherId)?.user?.name
+        || section.teachers?.find((teacher) => teacher.id === schedule.teacherId)?.user?.email
+        || 'Teacher TBD'
+    );
 
     const canManageSchedule = useCallback((schedule: SectionSchedule) => (
         schedule.type === ScheduleType.AD_HOC ? canManageAdHocSchedules : canManageOfficialSchedules
@@ -157,6 +170,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             endTime: '10:00',
             room: section.room || '',
             roomId: section.defaultRoomId || '',
+            teacherId: section.teachers?.length === 1 ? section.teachers[0].id : '',
         });
         setIsModalOpen(true);
     };
@@ -173,6 +187,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             endTime: schedule.endTime,
             room: schedule.room || '',
             roomId: schedule.roomId || section.defaultRoomId || '',
+            teacherId: schedule.teacherId || (section.teachers?.length === 1 ? section.teachers[0].id : ''),
         });
         setIsModalOpen(true);
     };
@@ -208,6 +223,10 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
             setFormError('Ad-hoc schedules require a date.');
             return;
         }
+        if (!formData.teacherId) {
+            setFormError(section.teachers?.length ? 'Choose the teacher assigned to this schedule.' : 'Assign at least one teacher to this section before creating schedules.');
+            return;
+        }
 
         try {
             setFormError(null);
@@ -220,6 +239,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                 endTime: formData.endTime,
                 room: undefined,
                 roomId: formData.roomId || null,
+                teacherId: formData.teacherId,
             };
 
             if (target) {
@@ -246,6 +266,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                 endTime: '10:00',
                 room: section.room || '',
                 roomId: section.defaultRoomId || '',
+                teacherId: section.teachers?.length === 1 ? section.teachers[0].id : '',
             });
             fetchSchedules();
         } catch (err: unknown) {
@@ -387,6 +408,10 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                                 ? formatRoomLabel(section.defaultRoom)
                                                 : schedule.room || section.room || 'Room TBD'}
                                     </span>
+                                </div>
+                                <div className="flex min-w-0 items-center gap-2 rounded-md border border-border/60 bg-background/70 px-3 py-2 text-sm font-semibold text-foreground">
+                                    <UserRound className="h-4 w-4 shrink-0 text-primary" />
+                                    <span className="min-w-0 truncate">{getScheduleTeacherLabel(schedule)}</span>
                                 </div>
                             </div>
                         </article>
@@ -562,6 +587,25 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                                 ))}
                             </div>
                         </div>
+                    </div>
+
+                    <div className="space-y-2 rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                        <Label>Teacher</Label>
+                        {singleTeacher ? (
+                            <div className="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm font-bold text-foreground">
+                                <UserRound className="h-4 w-4 shrink-0 text-primary" />
+                                <span className="min-w-0 truncate">{singleTeacher.user?.name || singleTeacher.user?.email || 'Unnamed teacher'}</span>
+                            </div>
+                        ) : (
+                            <CustomSelect
+                                options={teacherOptions}
+                                value={formData.teacherId}
+                                onChange={(value) => setFormData({ ...formData, teacherId: value })}
+                                placeholder={teacherOptions.length ? 'Select teacher' : 'Assign teachers to this section first'}
+                                searchable
+                                required
+                            />
+                        )}
                     </div>
 
                     <div className="space-y-2 rounded-lg border border-border/70 bg-card p-3 shadow-sm">

@@ -54,9 +54,7 @@ function formatDuration(startTime: string, endTime: string) {
 }
 
 function getTeacherLabel(entry: TimetableEntry) {
-    if (!entry.teacherName) return 'Teacher TBD';
-    const additionalCount = entry.additionalTeachersCount || 0;
-    return additionalCount > 0 ? `${entry.teacherName}, ${additionalCount} more` : entry.teacherName;
+    return entry.teacherName || 'Teacher TBD';
 }
 
 function mixHex(hex: string, target: string, amount: number) {

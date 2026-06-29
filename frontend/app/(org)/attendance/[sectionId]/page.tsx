@@ -61,8 +61,9 @@ export default function SectionAttendancePage() {
     const [importOpen, setImportOpen] = useState(false);
 
     const isStudent = user?.role === Role.STUDENT;
-    const isReadOnly = isStudent;
-    const canImportAttendance = !isStudent && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN);
+    const isAdminOverview = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const isReadOnly = isStudent || isAdminOverview;
+    const canImportAttendance = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
     const selectedDayLabel = useMemo(
         () => parseDateInput(date).toLocaleDateString('en-US', { weekday: 'long' }),
         [date]
@@ -73,10 +74,10 @@ export default function SectionAttendancePage() {
     );
 
     useEffect(() => {
-        if (isStudent && viewMode !== 'monthly') {
+        if (isReadOnly && viewMode !== 'monthly') {
             setViewMode('monthly');
         }
-    }, [isStudent, viewMode]);
+    }, [isReadOnly, viewMode]);
 
     const sectionKey = token ? ['attendance-section', sectionId] as const : null;
     const { data: section, error: sectionError } = useSWR<Section>(sectionKey);
@@ -107,6 +108,13 @@ export default function SectionAttendancePage() {
     const { data: rangeData, isLoading: monthlyLoading } = useSWR<RangeAttendanceResponse>(monthlyKey);
 
     const fetching = viewMode === 'daily' ? dailyLoading : monthlyLoading;
+    const selectedSchedule = useMemo(
+        () => section?.schedules?.find((schedule) => schedule.id === selectedScheduleId) || null,
+        [section?.schedules, selectedScheduleId]
+    );
+    const canMarkSelectedSchedule = !isReadOnly
+        && Boolean(selectedSchedule?.teacher?.user?.id)
+        && selectedSchedule?.teacher?.user?.id === user?.id;
 
     const scheduleOptions = useMemo(() => [
         ...(section?.schedules?.filter((schedule: SectionSchedule) => scheduleMatchesDate(schedule, date)) || []).map((schedule: SectionSchedule) => ({
@@ -133,7 +141,7 @@ export default function SectionAttendancePage() {
     }, [date, handleDateChange]);
 
     const handleSaveRecords = async (records: { studentId: string; status: AttendanceStatus }[]) => {
-        if (!token || !dailyData || !selectedScheduleId) return;
+        if (!token || !dailyData || !selectedScheduleId || !canMarkSelectedSchedule) return;
         setSaving(true);
         try {
             let sessionId = dailyData.sessionId;
@@ -217,7 +225,7 @@ export default function SectionAttendancePage() {
                                 </Button>
                             )}
                             <div className="grid grid-cols-2 gap-1 rounded-xl border border-border/70 bg-background p-1">
-                                {!isStudent && (
+                                {!isReadOnly && (
                                     <button
                                         type="button"
                                         onClick={() => setViewMode('daily')}
@@ -236,7 +244,7 @@ export default function SectionAttendancePage() {
                                     className={cn(
                                         'flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-black transition-colors',
                                         viewMode === 'monthly' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-card',
-                                        isStudent && 'col-span-2'
+                                        isReadOnly && 'col-span-2'
                                     )}
                                 >
                                     <BarChart3 className="h-4 w-4" />
@@ -339,7 +347,7 @@ export default function SectionAttendancePage() {
                     Select a date with a scheduled class to mark attendance.
                 </div>
             ) : viewMode === 'daily' ? (
-                dailyData && <AttendanceSheet students={dailyData.students} date={dailyData.date} onSave={handleSaveRecords} isSaving={saving} mode="daily" readOnly={isReadOnly} />
+                dailyData && <AttendanceSheet students={dailyData.students} date={dailyData.date} onSave={handleSaveRecords} isSaving={saving} mode="daily" readOnly={!canMarkSelectedSchedule} />
             ) : (
                 rangeData && <AttendanceSheet students={[]} mode="monthly" rangeData={rangeData} readOnly={isReadOnly} />
             )}

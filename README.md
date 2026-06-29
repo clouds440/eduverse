@@ -242,8 +242,10 @@ Sections connect courses, academic cycles, students, teachers, schedules, materi
 Rules:
 
 - A section can have multiple assigned teachers.
+- Section create/edit is the source of teacher assignment. Teacher profile forms do not assign sections.
 - Section colors use predefined safe colors so labels remain readable.
 - Teacher selection for schedules is limited to teachers assigned to the selected section.
+- Removing a teacher from a section requires resolving any schedules owned by that teacher by moving those schedules to another assigned teacher or deleting them.
 
 ### Schedules
 
@@ -258,7 +260,8 @@ Behavior:
 - Student timetables remain section-based.
 - Teacher timetables are teacher-based and use `schedule.teacherId`.
 - The timetable displays the teacher from `schedule.teacherId`.
-- Room, time-slot, and teacher conflict detection remain enforced.
+- Room, student, section, and teacher conflict detection reports the exact conflicting person or room, the occupied section, and the occupied time.
+- Timetable views show a full week when no date is selected and a single day only when a specific date is selected.
 
 ### Materials
 
@@ -597,15 +600,22 @@ Legacy top-level routes such as `/teachers`, `/students`, `/sub-admins`, `/finan
 2. Admin selects a teacher assigned to that section.
 3. Admin selects day/time/room details.
 4. Backend validates teacher assignment.
-5. Backend checks room, time-slot, and teacher conflicts.
+5. Backend checks room, section, student, and selected-teacher conflicts.
 6. Schedule is saved with `teacherId`.
 
 ### Timetable Views
 
 - Students see schedules for enrolled sections.
 - Teachers see schedules assigned to them through `schedule.teacherId`.
-- Admins can inspect broader timetable data by section and organization context.
+- Admins do not get a synthetic organization-wide timetable by default; they must select a teacher, room, or student target.
+- A blank date shows the general weekly timetable; selecting a date narrows the grid to that date/day.
 - Time columns scroll with the timetable grid on small screens.
+
+### Attendance Ownership
+
+- Only the teacher who owns a schedule through `schedule.teacherId` can create or mark attendance for that schedule.
+- Organization admins and sub-admins can review attendance but cannot mark or import attendance.
+- Monthly attendance import is limited to teacher and manager users and only affects schedules owned by the importing teacher.
 
 ### Assessment and Grading
 
@@ -1075,8 +1085,9 @@ UI helpers:
 ### Teacher-Based Schedules
 
 - Schedules require `teacherId`.
-- Existing data must be backfilled or migrated to a valid assigned teacher where required.
+- Existing dummy schedule data is dropped and recreated by the migration path; no legacy backfill is required.
 - Teacher timetable logic uses `schedule.teacherId`.
+- Attendance write access also uses `schedule.teacherId`; section assignment alone is not enough to mark a co-teacher's slot.
 
 ### Creator Attribution
 

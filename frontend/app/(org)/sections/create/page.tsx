@@ -7,15 +7,16 @@ import { Calendar, MapPin, Hash, AlertCircle, LibraryBig, Network, Layers } from
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
-import { ApiError, Course, Role, PaginatedResponse, AcademicCycle, Cohort, Room } from '@/types';
+import { ApiError, Course, Role, PaginatedResponse, AcademicCycle, Cohort, Room, Teacher } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageShell';
-import { DEFAULT_SECTION_COLOR, SECTION_COLOR_PALETTE, formatRoomLabel, isSectionPaletteColor } from '@/lib/utils';
+import { DEFAULT_SECTION_COLOR, formatRoomLabel, isSectionPaletteColor } from '@/lib/utils';
 import { ColorSelector } from '@/components/ui/ColorSelector';
 
 export default function CreateSectionPage() {
@@ -31,6 +32,7 @@ export default function CreateSectionPage() {
         courseId: '',
         academicCycleId: '',
         cohortId: '',
+        teacherIds: [] as string[],
         color: DEFAULT_SECTION_COLOR,
     });
 
@@ -49,6 +51,13 @@ export default function CreateSectionPage() {
     const roomsKey = token ? ['rooms', { limit: 1000, isActive: true }] as const : null;
     const { data: roomsData } = useSWR<PaginatedResponse<Room>>(roomsKey);
 
+    const teachersKey = token && canCreateSection ? ['teachers', { limit: 1000 }] as const : null;
+    const { data: teachersData } = useSWR<PaginatedResponse<Teacher>>(teachersKey);
+    const teacherOptions = (teachersData?.data || []).map((teacher) => ({
+        value: teacher.id,
+        label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
+    }));
+
     useEffect(() => {
         if (!user) return;
 
@@ -57,7 +66,7 @@ export default function CreateSectionPage() {
         }
     }, [canCreateSection, user, router]);
 
-    const [formErrors, setFormErrors] = useState<{ name?: string; code?: string; academicCycleId?: string; courseId?: string; teacherId?: string; room?: string; color?: string; general?: string }>({});
+    const [formErrors, setFormErrors] = useState<{ name?: string; code?: string; academicCycleId?: string; courseId?: string; teacherIds?: string; room?: string; color?: string; general?: string }>({});
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -113,7 +122,7 @@ export default function CreateSectionPage() {
                     if (msg.includes('code')) newErrors.code = m;
                     else if (msg.includes('name')) newErrors.name = m;
                     else if (msg.includes('course')) newErrors.courseId = m;
-                    else if (msg.includes('teacher')) newErrors.teacherId = m;
+                    else if (msg.includes('teacher')) newErrors.teacherIds = m;
                     else if (msg.includes('color')) newErrors.color = m;
                     else if (msg.includes('cycle')) newErrors.academicCycleId = m;
                     else newErrors.general = m;
@@ -123,7 +132,7 @@ export default function CreateSectionPage() {
                 if (msgStr.toLowerCase().includes('code')) newErrors.code = msgStr;
                 else if (msgStr.toLowerCase().includes('name')) newErrors.name = msgStr;
                 else if (msgStr.toLowerCase().includes('course')) newErrors.courseId = msgStr;
-                else if (msgStr.toLowerCase().includes('teacher')) newErrors.teacherId = msgStr;
+                else if (msgStr.toLowerCase().includes('teacher')) newErrors.teacherIds = msgStr;
                 else if (msgStr.toLowerCase().includes('color')) newErrors.color = msgStr;
                 else if (msgStr.toLowerCase().includes('cycle')) newErrors.academicCycleId = msgStr;
                 else newErrors.general = msgStr;
@@ -290,6 +299,18 @@ export default function CreateSectionPage() {
                                             icon={Network}
                                             placeholder="Select student cohort..."
                                         />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-bold ml-1">Assigned Teachers</Label>
+                                        <CustomMultiSelect
+                                            options={teacherOptions}
+                                            values={formData.teacherIds}
+                                            onChange={(teacherIds) => setFormData({ ...formData, teacherIds })}
+                                            placeholder="Select teachers for this section..."
+                                            error={!!formErrors.teacherIds}
+                                        />
+                                        {formErrors.teacherIds && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.teacherIds}</p>}
                                     </div>
 
                                     <div className="space-y-3">

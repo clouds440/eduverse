@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role, Room, PaginatedResponse, ScheduleType } from '@/types';
-import { Building2, CalendarDays, Clock, Download, Maximize2, MapPin, UserRound, Users, X } from 'lucide-react';
+import { Building2, CalendarDays, ChevronLeft, ChevronRight, Clock, Download, Maximize2, MapPin, UserRound, Users, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -45,6 +45,7 @@ type TimetableProfile = Student | Teacher;
 type TimetableViewMode = 'default' | 'teacher' | 'student' | 'room' | 'teacherRoom';
 
 interface TimetableGridProps {
+    days: number[];
     entriesByDay: Map<number, TimetableEntry[]>;
     slotGroupsByDay: Map<number, TimetableSlotGroup[]>;
     breaksByDay: Map<number, TimetableBreak[]>;
@@ -54,7 +55,7 @@ interface TimetableGridProps {
     rowCount: number;
     gridRows: string;
     gridHeight: number;
-    canOpenAttendance: boolean;
+    canOpenEntry: (entry: TimetableEntry) => boolean;
     onOpenEntry: (entry: TimetableEntry) => void;
     onOpenRoom: (roomId: string) => void;
     onOpenTeacher: (userId: string) => void;
@@ -77,6 +78,11 @@ const toLocalDateInputValue = (date: Date) => {
     const day = `${date.getDate()}`.padStart(2, '0');
     return `${year}-${month}-${day}`;
 };
+
+function parseDateInput(dateStr: string) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+}
 
 const getClosestDateForWeekday = (targetDay: number) => {
     const today = new Date();
@@ -116,10 +122,14 @@ function formatDuration(startTime: string, endTime: string) {
     return `${minutes}m`;
 }
 
+function formatPdfDateSuffix(dateStr: string) {
+    const date = parseDateInput(dateStr);
+    const month = date.toLocaleDateString('en-US', { month: 'short' }).toLowerCase();
+    return `${month}-${date.getDate()}-${date.getFullYear()}`;
+}
+
 function getTeacherLabel(entry: TimetableEntry) {
-    if (!entry.teacherName) return 'Teacher TBD';
-    const additionalCount = entry.additionalTeachersCount || 0;
-    return additionalCount > 0 ? `${entry.teacherName}, ${additionalCount} more` : entry.teacherName;
+    return entry.teacherName || 'Teacher TBD';
 }
 
 function TeacherProfileButton({
@@ -356,6 +366,7 @@ function TimetableContextHeader({
 }
 
 function TimetableGrid({
+    days,
     entriesByDay,
     slotGroupsByDay,
     breaksByDay,
@@ -365,20 +376,28 @@ function TimetableGrid({
     rowCount,
     gridRows,
     gridHeight,
-    canOpenAttendance,
+    canOpenEntry,
     onOpenEntry,
     onOpenRoom,
     onOpenTeacher,
     className,
 }: TimetableGridProps) {
+    const minGridWidth = 96 + days.length * 176 + days.length * 8;
+    const gridTemplateColumns = days.length === 1
+        ? '96px 176px'
+        : `96px repeat(${days.length}, minmax(176px, 1fr))`;
+
     return (
         <div className={cn('min-h-0 flex-1 overflow-auto p-3 sm:p-4 custom-scrollbar', className)}>
-            <div className="min-w-345">
-                <div className="grid grid-cols-[96px_repeat(7,minmax(176px,1fr))] gap-2">
+            <div style={{ minWidth: minGridWidth }}>
+                <div
+                    className="grid gap-2"
+                    style={{ gridTemplateColumns }}
+                >
                     <div className="rounded-md border border-border/70 bg-card p-3 text-center text-[10px] font-black uppercase tracking-wider text-muted-foreground shadow-sm">
                         Time
                     </div>
-                    {WEEK_DAYS.map((day) => (
+                    {days.map((day) => (
                         <div key={day} className="rounded-md border border-border/70 bg-card p-3 text-center shadow-sm">
                             <p className="text-sm font-black text-foreground">{DAY_NAMES[day]}</p>
                             <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -402,7 +421,7 @@ function TimetableGrid({
                         ))}
                     </div>
 
-                    {WEEK_DAYS.map((day) => {
+                    {days.map((day) => {
                         const dayEntries = entriesByDay.get(day) || [];
                         const dayBreaks = breaksByDay.get(day) || [];
                         const dayOverlays = overlaysByDay.get(day) || [];
@@ -496,17 +515,19 @@ function TimetableGrid({
                                                         className="grid min-h-0 flex-1 gap-1 p-1"
                                                         style={{ gridTemplateRows: `repeat(${Math.max(1, slot.entries.length)}, minmax(0, 1fr))` }}
                                                     >
-                                                        {slot.entries.map((entry) => (
-                                                            <div
-                                                                key={entry.scheduleId}
-                                                                className="flex min-h-0 w-full items-start gap-2 overflow-hidden rounded-md border px-2 py-1.5 text-left"
-                                                                style={getTimetableCardStyle(entry)}
-                                                            >
-                                                                <div className="min-w-0 flex-1 overflow-hidden">
+                                                        {slot.entries.map((entry) => {
+                                                            const entryCanOpenAttendance = canOpenEntry(entry);
+                                                            return (
+                                                                <div
+                                                                    key={entry.scheduleId}
+                                                                    className="flex min-h-0 w-full flex-col gap-0.5 overflow-hidden rounded-md border px-1.5 py-1 text-left"
+                                                                    style={getTimetableCardStyle(entry)}
+                                                                >
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => onOpenEntry(entry)}
-                                                                        className={`min-w-0 w-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'cursor-pointer hover:brightness-105' : 'cursor-default'}`}
+                                                                        disabled={!entryCanOpenAttendance}
+                                                                        className={`min-w-0 w-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${entryCanOpenAttendance ? 'cursor-pointer hover:brightness-105' : 'cursor-default'}`}
                                                                     >
                                                                         <CourseSectionLabel
                                                                             section={{
@@ -514,25 +535,20 @@ function TimetableGrid({
                                                                                 color: entry.color,
                                                                                 course: { name: entry.courseName },
                                                                             }}
-                                                                            variant="stacked"
+                                                                            variant="inline"
                                                                             as="p"
-                                                                            className="text-xs"
+                                                                            className="truncate text-[11px] font-black leading-tight"
                                                                         />
                                                                         {entry.type === ScheduleType.AD_HOC && (
-                                                                            <Badge variant="warning" size="xs" className="mt-1 w-fit">Ad-hoc</Badge>
+                                                                            <Badge variant="warning" size="xs" className="mt-0.5 w-fit">Ad-hoc</Badge>
                                                                         )}
-                                                                        <p className="mt-0.5 truncate text-[10px] font-bold opacity-75">{slot.startTime} - {slot.endTime}</p>
+                                                                        <p className="truncate text-[9px] font-bold leading-tight opacity-75">{slot.startTime} - {slot.endTime} - {durationLabel}</p>
                                                                     </button>
-                                                                    <RoomLinkButton entry={entry} onOpenRoom={onOpenRoom} className="mt-0.5 w-full" />
-                                                                    <TeacherProfileButton entry={entry} onOpenTeacher={onOpenTeacher} className="mt-0.5 w-full" />
+                                                                    <RoomLinkButton entry={entry} onOpenRoom={onOpenRoom} className="w-full text-[9px] leading-tight" />
+                                                                    <TeacherProfileButton entry={entry} onOpenTeacher={onOpenTeacher} className="w-full text-[9px] leading-tight" />
                                                                 </div>
-                                                                <div className="flex shrink-0 flex-col items-end gap-1">
-                                                                    <Badge variant="neutral" size="xs" className="bg-white/70 h-fit text-foreground dark:bg-black/25">
-                                                                        {durationLabel}
-                                                                    </Badge>
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                     </div>
                                                 ) : (
                                                     <>
@@ -559,10 +575,14 @@ function TimetableGrid({
                                                                     className="flex min-h-0 w-full flex-col items-start overflow-hidden rounded-md border p-2 text-left"
                                                                     style={getTimetableCardStyle(entry)}
                                                                 >
+                                                                    {(() => {
+                                                                        const entryCanOpenAttendance = canOpenEntry(entry);
+                                                                        return (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => onOpenEntry(entry)}
-                                                                        className={`grid min-h-0 w-full flex-1 grid-row-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${canOpenAttendance ? 'cursor-pointer hover:brightness-105' : 'cursor-default'}`}
+                                                                        disabled={!entryCanOpenAttendance}
+                                                                        className={`grid min-h-0 w-full flex-1 grid-row-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${entryCanOpenAttendance ? 'cursor-pointer hover:brightness-105' : 'cursor-default'}`}
                                                                     >
                                                                         <CourseSectionLabel
                                                                             section={{
@@ -578,6 +598,8 @@ function TimetableGrid({
                                                                             <Badge variant="warning" size="xs" className="mt-1 w-fit">Ad-hoc</Badge>
                                                                         )}
                                                                     </button>
+                                                                        );
+                                                                    })()}
                                                                     <RoomLinkButton entry={entry} onOpenRoom={onOpenRoom} className="mt-1.5 w-full border-t border-current/15 pt-1.5" />
                                                                     <TeacherProfileButton entry={entry} onOpenTeacher={onOpenTeacher} className="mt-1 w-full" />
                                                                 </div>
@@ -643,10 +665,11 @@ export function StudentTimetableView({
     const { token, user } = useAuth();
     const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-    const initialDate = searchParams.get('date') || toLocalDateInputValue(new Date());
+    const initialDate = searchParams.get('date') || '';
     const initialTeacherId = searchParams.get('teacherId') || '';
     const initialRoomId = searchParams.get('roomId') || '';
     const initialStudentId = studentId || searchParams.get('studentId') || '';
+    const userHasOwnTimetable = user?.role === Role.STUDENT || user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
     const initialView: TimetableViewMode = initialTeacherId && initialRoomId
         ? 'teacherRoom'
         : initialTeacherId
@@ -655,7 +678,9 @@ export function StudentTimetableView({
                 ? 'room'
                 : initialStudentId && !studentId
                     ? 'student'
-                    : 'default';
+                    : !user || userHasOwnTimetable || studentId
+                        ? 'default'
+                        : 'teacher';
     const [selectedDate, setSelectedDate] = useState(initialDate);
     const [viewMode, setViewMode] = useState<TimetableViewMode>(initialView);
     const [selectedTeacherId, setSelectedTeacherId] = useState(initialTeacherId);
@@ -693,14 +718,21 @@ export function StudentTimetableView({
     const selectedStudentLabel = studentOptions.find((option) => option.value === selectedStudentId)?.label || 'Student timetable';
     const selectedRoomLabel = roomOptions.find((option) => option.value === selectedRoomId)?.label || 'Room timetable';
     const fixedStudentId = studentId || '';
+    const selectedDay = useMemo(() => selectedDate ? parseDateInput(selectedDate).getDay() : null, [selectedDate]);
+    const visibleDays = useMemo(() => selectedDay === null ? WEEK_DAYS : [selectedDay], [selectedDay]);
+    useEffect(() => {
+        if (!user || userHasOwnTimetable || fixedStudentId || viewMode !== 'default') return;
+        setViewMode('teacher');
+    }, [fixedStudentId, user, userHasOwnTimetable, viewMode]);
+
     const timetableParams = useMemo(() => ({
-        date: selectedDate,
+        ...(selectedDate ? { date: selectedDate } : {}),
         ...(fixedStudentId ? { studentId: fixedStudentId } : {}),
         ...(viewMode === 'student' && selectedStudentId ? { studentId: selectedStudentId } : {}),
         ...((viewMode === 'teacher' || viewMode === 'teacherRoom') && selectedTeacherId ? { teacherId: selectedTeacherId } : {}),
         ...((viewMode === 'room' || viewMode === 'teacherRoom') && selectedRoomId ? { roomId: selectedRoomId } : {}),
     }), [fixedStudentId, selectedDate, selectedRoomId, selectedStudentId, selectedTeacherId, viewMode]);
-    const hasRequiredTarget = viewMode === 'default'
+    const hasRequiredTarget = (viewMode === 'default' && (userHasOwnTimetable || Boolean(fixedStudentId)))
         || Boolean(fixedStudentId)
         || (viewMode === 'teacher' && selectedTeacherId)
         || (viewMode === 'student' && selectedStudentId)
@@ -818,7 +850,11 @@ export function StudentTimetableView({
         };
     }, [overlays, visibleEntries]);
 
-    const canOpenAttendance = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER || user?.role === Role.ORG_ADMIN;
+    const canOpenAttendanceForEntry = useCallback((entry: TimetableEntry) => (
+        (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER)
+        && Boolean(entry.teacherUserId)
+        && entry.teacherUserId === user?.id
+    ), [user?.id, user?.role]);
     const rowCount = Math.max(1, (endHour - startHour) * 2);
     const gridRows = `repeat(${rowCount}, ${TIMETABLE_HALF_HOUR_ROW_HEIGHT}px)`;
     const gridHeight = rowCount * TIMETABLE_HALF_HOUR_ROW_HEIGHT;
@@ -847,7 +883,7 @@ export function StudentTimetableView({
     const timetableSections = useMemo(() => getTimetableSections(entries, profile), [entries, profile]);
 
     const openAttendanceForEntry = (entry: TimetableEntry) => {
-        if (!canOpenAttendance) return;
+        if (!canOpenAttendanceForEntry(entry)) return;
         const closestDate = entry.date || selectedDate || getClosestDateForWeekday(entry.day);
         router.push(`/attendance/${entry.sectionId}?scheduleId=${entry.scheduleId}&date=${closestDate}`);
     };
@@ -858,6 +894,12 @@ export function StudentTimetableView({
 
     const openTeacherProfile = (userId: string) => {
         router.push(`/profiles/${userId}`);
+    };
+
+    const handleDateStep = (direction: 'prev' | 'next') => {
+        const nextDate = selectedDate ? parseDateInput(selectedDate) : new Date();
+        nextDate.setDate(nextDate.getDate() + (direction === 'next' ? 1 : -1));
+        setSelectedDate(toLocalDateInputValue(nextDate));
     };
 
     const handleDownloadTimetablePdf = async () => {
@@ -876,7 +918,8 @@ export function StudentTimetableView({
                 endHour,
                 theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
             });
-            downloadPdfBlob(blob, `${sanitizePdfFilename(contextName, 'timetable')}-timetable.pdf`);
+            const scopeSuffix = selectedDate ? formatPdfDateSuffix(selectedDate) : 'weekly';
+            downloadPdfBlob(blob, `${sanitizePdfFilename(contextName, 'timetable')}-timetable-${scopeSuffix}.pdf`);
         } finally {
             setIsGeneratingPdf(false);
         }
@@ -889,7 +932,7 @@ export function StudentTimetableView({
         user?.role === Role.STUDENT
     );
     const viewOptions = [
-        { value: 'default' as const, label: user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN ? 'Organization timetable' : 'My timetable', icon: Clock },
+        ...(userHasOwnTimetable || fixedStudentId ? [{ value: 'default' as const, label: 'My timetable', icon: Clock }] : []),
         { value: 'teacher' as const, label: 'Teacher timetable', icon: UserRound },
         { value: 'room' as const, label: 'Room timetable', icon: Building2 },
         { value: 'teacherRoom' as const, label: 'Teacher + room', icon: MapPin },
@@ -906,12 +949,46 @@ export function StudentTimetableView({
                 actions={(
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                         {headerActions}
-                        <Input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(event) => setSelectedDate(event.target.value)}
-                            className="h-10 min-w-40"
-                        />
+                        <div className="flex min-w-0 items-center gap-1.5 rounded-xl border border-border/70 bg-background/80 p-1">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                icon={ChevronLeft}
+                                px='px-2'
+                                py='py-1'
+                                onClick={() => handleDateStep('prev')}
+                                className="rounded-lg shadow-none"
+                                title="Previous day"
+                            />
+                            <Input
+                                type="date"
+                                value={selectedDate}
+                                onChange={(event) => setSelectedDate(event.target.value)}
+                                className="h-10 min-w-40 flex-1 rounded-lg border-border/60 bg-card/80 px-3 text-sm font-bold shadow-none"
+                            />
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                px='px-2'
+                                py='py-1'
+                                icon={ChevronRight}
+                                onClick={() => handleDateStep('next')}
+                                className="rounded-lg shadow-none"
+                                title="Next day"
+                            />
+                            {selectedDate && (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    icon={X}
+                                    px="px-2"
+                                    py="py-1"
+                                    onClick={() => setSelectedDate('')}
+                                    className="rounded-lg shadow-none"
+                                    title="Show full week"
+                                />
+                            )}
+                        </div>
                         {canSwitchViews && (
                             <CustomSelect<TimetableViewMode>
                                 value={viewMode}
@@ -988,12 +1065,15 @@ export function StudentTimetableView({
                     {entries.length === 0 && overlays.length === 0 ? (
                         <EmptyState
                             icon={CalendarDays}
-                            title="No timetable slots found"
-                            description="Section schedules and academic calendar overlays will appear here after they are configured."
+                            title={hasRequiredTarget ? 'No timetable slots found' : 'Select a timetable target'}
+                            description={hasRequiredTarget
+                                ? 'Section schedules and academic calendar overlays will appear here after they are configured.'
+                                : 'Choose a teacher, room, or student to view the timetable for the selected date.'}
                             className="min-h-96"
                         />
                     ) : (
                         <TimetableGrid
+                            days={visibleDays}
                             entriesByDay={entriesByDay}
                             slotGroupsByDay={slotGroupsByDay}
                             breaksByDay={breaksByDay}
@@ -1003,7 +1083,7 @@ export function StudentTimetableView({
                             rowCount={rowCount}
                             gridRows={gridRows}
                             gridHeight={gridHeight}
-                            canOpenAttendance={canOpenAttendance}
+                            canOpenEntry={canOpenAttendanceForEntry}
                             onOpenEntry={openAttendanceForEntry}
                             onOpenRoom={openCampusRoom}
                             onOpenTeacher={openTeacherProfile}
@@ -1053,6 +1133,7 @@ export function StudentTimetableView({
                         )}
                     />
                     <TimetableGrid
+                        days={visibleDays}
                         entriesByDay={entriesByDay}
                         slotGroupsByDay={slotGroupsByDay}
                         breaksByDay={breaksByDay}
@@ -1062,7 +1143,7 @@ export function StudentTimetableView({
                         rowCount={rowCount}
                         gridRows={gridRows}
                         gridHeight={gridHeight}
-                        canOpenAttendance={canOpenAttendance}
+                        canOpenEntry={canOpenAttendanceForEntry}
                         onOpenEntry={openAttendanceForEntry}
                         onOpenRoom={openCampusRoom}
                         onOpenTeacher={openTeacherProfile}

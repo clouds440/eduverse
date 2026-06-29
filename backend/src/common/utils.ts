@@ -45,8 +45,9 @@ export interface TimetableSection {
     room: string | null;
     roomId?: string | null;
     roomRef?: { name: string; building?: { name: string } | null } | null;
+    teacherId?: string | null;
+    teacher?: { user?: { id?: string; name: string | null; email?: string | null } | null } | null;
   }[];
-  teachers?: { id: string; user?: { id?: string; name: string | null; email?: string | null } | null }[];
 }
 
 export interface TimetableEntry {
@@ -64,9 +65,9 @@ export interface TimetableEntry {
   endTime: string;
   room: string | null;
   roomId: string | null;
+  teacherId: string | null;
   teacherUserId: string | null;
   teacherName: string | null;
-  additionalTeachersCount: number;
 }
 
 export interface GroupedTimetableEntry {
@@ -87,7 +88,6 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
 
   for (const section of sections) {
     for (const schedule of section.schedules) {
-      const primaryTeacher = section.teachers?.[0];
       const scheduleRoom = schedule.roomRef
         ? [schedule.roomRef.building?.name, schedule.roomRef.name].filter(Boolean).join(' - ')
         : null;
@@ -109,9 +109,9 @@ export const extractTimetableEntries = (sections: TimetableSection[]): Timetable
         endTime: schedule.endTime,
         room: scheduleRoom || defaultRoom || schedule.room || section.room,
         roomId: schedule.roomId || section.defaultRoomId || null,
-        teacherUserId: primaryTeacher?.user?.id || null,
-        teacherName: primaryTeacher?.user?.name || primaryTeacher?.user?.email || null,
-        additionalTeachersCount: Math.max(0, (section.teachers?.length || 0) - 1),
+        teacherId: schedule.teacherId || null,
+        teacherUserId: schedule.teacher?.user?.id || null,
+        teacherName: schedule.teacher?.user?.name || schedule.teacher?.user?.email || null,
       });
     }
   }

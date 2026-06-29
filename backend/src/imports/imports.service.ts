@@ -746,7 +746,7 @@ export class ImportsService {
   }
 
   private assertAttendancePermission(actor: AuthUser) {
-    if (![Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER].includes(actor.role as Role)) {
+    if (![Role.ORG_MANAGER, Role.TEACHER].includes(actor.role as Role)) {
       throw new ForbiddenException('You do not have permission to import attendance');
     }
   }
@@ -816,7 +816,7 @@ export class ImportsService {
   ) {
     let imported = 0;
     for (const mark of row.marks) {
-      const sessions = await this.getOrCreateAttendanceSessionsForDay(orgId, options, mark.day);
+      const sessions = await this.getOrCreateAttendanceSessionsForDay(orgId, options, mark.day, actor);
       for (const session of sessions) {
         await this.attendance.markAttendance(orgId, session.id, actor, [{
           studentId: row.studentId,
@@ -832,6 +832,7 @@ export class ImportsService {
     orgId: string,
     options: AttendanceMonthlyValidateOptions,
     day: number,
+    actor: AuthUser,
   ) {
     const date = this.dateString(options.year, options.month, day);
 
@@ -839,6 +840,8 @@ export class ImportsService {
     const schedules = await this.prisma.sectionSchedule.findMany({
       where: {
         sectionId: options.sectionId,
+        section: { course: { organizationId: orgId } },
+        teacher: { userId: actor.id },
         type: ScheduleType.OFFICIAL,
         OR: [
           { date: null, day: weekday },

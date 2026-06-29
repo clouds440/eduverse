@@ -892,7 +892,6 @@ export interface CreateTeacherRequest {
     address?: string | null;
     isManager?: boolean;
     status?: TeacherStatus;
-    sectionIds?: string[];
     departmentIds?: string[];
     departmentScopeType?: DepartmentScopeType;
     scopeDepartmentIds?: string[];
@@ -975,6 +974,11 @@ export interface CreateSectionRequest {
     courseId: string;
     academicCycleId: string;
     cohortId?: string | null;
+    teacherIds?: string[];
+    scheduleTeacherResolution?: {
+        action: 'MOVE' | 'DELETE';
+        teacherId?: string;
+    };
 }
 
 export type UpdateSectionRequest = Partial<CreateSectionRequest>;
@@ -1650,6 +1654,8 @@ export interface SectionSchedule {
     room?: string | null;
     roomId?: string | null;
     roomRef?: Room | null;
+    teacherId: string;
+    teacher?: Teacher;
     capacityWarning?: string | null;
     createdAt?: string;
     updatedAt?: string;
@@ -1671,9 +1677,9 @@ export interface TimetableEntry {
     endTime: string;
     room: string | null;
     roomId?: string | null;
+    teacherId?: string | null;
     teacherUserId?: string | null;
     teacherName?: string | null;
-    additionalTeachersCount?: number;
 }
 
 export interface HolidayOverlay {

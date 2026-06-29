@@ -499,7 +499,7 @@ export class OrgController {
     });
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Patch('assessments/:id')
   updateAssessment(
@@ -517,7 +517,7 @@ export class OrgController {
     return this.assessmentsService.getAssessment(orgId, id);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Delete('assessments/:id')
   deleteAssessment(
@@ -683,7 +683,7 @@ export class OrgController {
   }
 
   // --- Timetable & Schedules ---
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Post('sections/:id/schedules')
   createSchedule(
@@ -695,7 +695,7 @@ export class OrgController {
     return this.attendanceService.createSchedule(orgId, id, dto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Patch('sections/:id/schedules/:scheduleId')
   updateSchedule(
@@ -708,7 +708,7 @@ export class OrgController {
     return this.attendanceService.updateSchedule(orgId, scheduleId, dto, req.user);
   }
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Delete('sections/:id/schedules/:scheduleId')
   deleteSchedule(
@@ -775,7 +775,7 @@ export class OrgController {
   }
 
   // --- Attendance ---
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Post('sections/:id/attendance/sessions')
   createAttendanceSession(
@@ -794,7 +794,7 @@ export class OrgController {
     );
   }
 
-  @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Access(AccessLevel.WRITE)
   @Post('attendance/:sessionId')
   markAttendance(

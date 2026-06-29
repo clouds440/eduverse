@@ -59,7 +59,6 @@ const teacherBaseSchema = z.object({
     bloodGroup: z.string().optional().or(z.literal('')),
     status: z.nativeEnum(TeacherStatus),
     isManager: z.boolean(),
-    sectionIds: z.array(z.string()).default([]),
 });
 
 // Create → password REQUIRED + metadata REQUIRED

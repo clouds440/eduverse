@@ -236,6 +236,7 @@ model Teacher {
   organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   sections         Section[]     @relation("SectionToTeacher")
+  schedules        SectionSchedule[]
   teacherDepartments TeacherDepartment[]
   managerDepartments ManagerDepartment[]
   financialStructures FinancialStructure[]
@@ -1194,12 +1195,14 @@ model SectionSchedule {
 
   room      String?  // optional override
   roomId    String?
+  teacherId String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   section       Section        @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   roomRef       Room?          @relation("ScheduleRoom", fields: [roomId], references: [id], onDelete: SetNull)
+  teacher       Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   academicCycle AcademicCycle? @relation(fields: [academicCycleId], references: [id])
 
   @@index([sectionId])
@@ -1208,6 +1211,7 @@ model SectionSchedule {
   @@index([type])
   @@index([academicCycleId])
   @@index([roomId])
+  @@index([teacherId])
 
   attendanceSessions AttendanceSession[]
 }

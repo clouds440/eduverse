@@ -144,7 +144,7 @@ export const docsPages: DocPage[] = [
               ['Guardians', 'Create, edit, link to student', 'Create, edit, link to student', 'No', 'Finance communication only', 'No', 'No', 'Own account only'],
               ['Courses and Sections', 'Manage', 'Manage', 'View assigned', 'No', 'View assigned', 'View enrolled', 'View linked-student context'],
               ['Academic Cycles and Cohorts', 'Manage', 'Manage', 'Read academic context', 'No', 'Read academic context', 'Read own context', 'Read linked-student context'],
-              ['Timetable and Attendance', 'Manage schedules, view all, mark where allowed', 'Manage schedules, view all, mark where allowed', 'Assigned academic scope', 'No', 'Assigned academic scope', 'View self', 'View linked'],
+              ['Timetable and Attendance', 'Manage schedules, view all, review attendance', 'Manage schedules, view all, review attendance', 'Assigned schedule ownership for marking', 'No', 'Assigned schedule ownership for marking', 'View self', 'View linked'],
               ['Assessments and Grades', 'Review and finalize', 'Review and finalize', 'Assigned academic scope and finalization review', 'No', 'Assigned creation, grading, publish/finalize flow', 'View own visible grades', 'View linked visible grades'],
               ['Finance', 'Manage', 'Read/audit where allowed', 'No', 'Manage', 'Self/assigned finance view where allowed', 'View and claim own payments', 'View linked-student fees'],
               ['Settings and GPA Policies', 'Manage', 'Manage GPA/academic settings where allowed', 'No', 'No', 'No', 'No', 'No'],
@@ -351,6 +351,7 @@ export const docsPages: DocPage[] = [
               'A section can have more than one teacher.',
               'Each schedule has one selected teacher.',
               'Teachers only see the timetable slots assigned to them.',
+              'Attendance marking is allowed only for schedules owned by that teacher.',
             ],
           },
           {
@@ -1000,14 +1001,17 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Every schedule belongs to exactly one teacher. Admins must select a teacher assigned to the selected section when creating or editing a schedule.',
+            text: 'Every schedule belongs to exactly one teacher. Sections can still have multiple assigned teachers, but each schedule slot must choose one teacher from that section teacher pool.',
           },
           {
             type: 'list',
             items: [
+              'Section create and edit pages manage the teacher pool for a section.',
+              'If a section has one teacher, schedule forms default to that teacher. If a section has multiple teachers, the schedule must explicitly choose one.',
               'Student timetables remain section-based and show schedules for enrolled sections.',
               'Teachers only see schedule slots assigned to them.',
               'The teacher name shown on a timetable slot is the teacher selected for that slot.',
+              'Removing a teacher from a section requires moving or deleting any schedules owned by that teacher.',
             ],
           },
         ],
@@ -1046,15 +1050,36 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'EduVerse checks for room, time, and teacher clashes before saving a schedule. If the selected teacher or room is already busy, the schedule should be corrected first.',
+            text: 'EduVerse checks for section, room, student, and selected-teacher clashes before saving a schedule. Conflict messages identify the conflicting teacher, student, or room and show where that resource is already occupied.',
           },
           {
             type: 'list',
             items: [
               'A teacher should not be assigned to two class slots at the same time.',
               'A structured room should not be assigned to two class slots at the same time. Rooms with the same name in different buildings are treated separately.',
+              'A student should not be enrolled in two overlapping class slots.',
               'End time must be later than start time.',
-              'If a conflict appears, adjust the teacher, room, day, or time before trying again.',
+              'If a conflict appears, use the named conflicting schedule to decide whether to change the new slot or update the existing one.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'date-and-admin-view',
+        title: 'Date and admin view',
+        tags: ['date', 'admin', 'daily timetable'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The timetable shows the general weekly view when no date is selected. Selecting a specific date narrows the timetable to that date/day. Admin users do not see a synthetic organization-wide timetable on first visit because it would not represent a usable whole-school schedule.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Leave the date blank for the full weekly timetable.',
+              'Use the previous and next buttons beside the date picker to move one day at a time after choosing a date.',
+              'Admins should select a teacher, room, or student before reviewing a timetable.',
+              'Compact slots still show clickable room and teacher links.',
             ],
           },
         ],
@@ -1092,13 +1117,15 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Attendance is recorded for class activity and becomes part of the student record. Teachers usually mark attendance for their assigned classes, while admins can review wider attendance coverage.',
+            text: 'Attendance is recorded for class activity and becomes part of the student record. Only the teacher who owns the selected schedule slot can mark attendance for that slot; admins can review wider attendance coverage but cannot mark it.',
           },
           {
             type: 'list',
             items: [
               'Use the attendance sheet to mark students as present, absent, late, or another available status.',
               'Review the selected date and class before saving attendance.',
+              'If a section has multiple teachers, choose the schedule slot owned by the teacher who is marking attendance.',
+              'Organization admins and sub-admins see attendance in overview mode only.',
               'Attendance summaries help identify students with repeated absence or weak attendance patterns.',
             ],
           },
@@ -2777,7 +2804,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Teachers work from the classes and schedules assigned to them. If a class, timetable slot, or assessment is missing, the first thing to check is whether the teacher is assigned to that section or schedule.',
+            text: 'Teachers work from the classes and schedules assigned to them. If a class, timetable slot, attendance sheet, or assessment is missing, the first thing to check is whether the teacher is assigned to that section and whether the schedule slot is owned by that teacher.',
           },
           {
             type: 'flow',
@@ -3564,8 +3591,9 @@ export const docsPages: DocPage[] = [
             type: 'list',
             items: [
               'Choose the year and month before downloading the attendance template.',
-              'Choose whether marks should target the first scheduled session, all scheduled sessions, or ad-hoc daily sessions.',
-              'Org Admins, Managers, and Teachers can import attendance when their role has access to the section.',
+              'Choose whether marks should target the first official scheduled session or all official scheduled sessions owned by the importing teacher.',
+              'Managers and teachers can import attendance only for schedule slots they own through schedule teacher assignment.',
+              'Org Admins and Sub Admins can review attendance but cannot import attendance marks.',
             ],
           },
         ],

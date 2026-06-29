@@ -86,11 +86,6 @@ export class CreateTeacherDto {
   @IsOptional()
   address?: string;
 
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  sectionIds?: string[];
-
   @IsEnum(TeacherStatus)
   @IsOptional()
   status?: TeacherStatus;

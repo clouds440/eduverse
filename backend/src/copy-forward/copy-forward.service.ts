@@ -104,6 +104,7 @@ export class CopyForwardService {
                   endTime: true,
                   room: true,
                   roomId: true,
+                  teacherId: true,
                 },
               },
             }
@@ -191,6 +192,7 @@ export class CopyForwardService {
             endTime: string;
             room: string | null;
             roomId: string | null;
+            teacherId: string;
           }>;
 
           for (const schedule of schedules) {
@@ -203,6 +205,7 @@ export class CopyForwardService {
                 endTime: schedule.endTime,
                 room: schedule.room,
                 roomId: schedule.roomId,
+                teacherId: schedule.teacherId,
                 type: ScheduleType.OFFICIAL,
               },
             });

@@ -34,6 +34,7 @@ interface NormalizedScheduleInput {
   endTime: string;
   room?: string;
   roomId?: string | null;
+  teacherId?: string;
 }
 
 interface TimetableQuery {
@@ -46,6 +47,33 @@ interface TimetableQuery {
 }
 
 const TIME_RE = /^\d{2}:\d{2}$/;
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+interface ConflictScheduleForMessage {
+  sectionId: string;
+  day: number;
+  date: Date | null;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  roomId: string | null;
+  roomRef?: { name: string; building?: { name: string } | null } | null;
+  section: {
+    name: string;
+    room: string | null;
+    defaultRoomId: string | null;
+    course: { name: string };
+    defaultRoom?: { name: string; building?: { name: string } | null } | null;
+    enrollments: Array<{
+      studentId: string;
+      student?: {
+        registrationNumber?: string | null;
+        rollNumber?: string | null;
+        user?: { name: string | null; email: string | null } | null;
+      } | null;
+    }>;
+  };
+}
 
 @Injectable()
 export class AttendanceService {
@@ -72,6 +100,12 @@ export class AttendanceService {
   private todayDateOnly() {
     const now = new Date();
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  }
+
+  private startOfWeek(date: Date) {
+    const start = new Date(date);
+    start.setUTCDate(date.getUTCDate() - this.getDayFromDate(date));
+    return start;
   }
 
   private getDayFromDate(date: Date) {
@@ -125,7 +159,48 @@ export class AttendanceService {
       endTime,
       room: dto.room === undefined ? existing?.room : dto.room,
       roomId: dto.roomId === undefined ? existing?.roomId : dto.roomId,
+      teacherId: dto.teacherId === undefined ? existing?.teacherId : dto.teacherId,
     };
+  }
+
+  private async resolveScheduleTeacher(
+    orgId: string,
+    sectionId: string,
+    requestedTeacherId: string | undefined,
+    user: JwtPayload,
+    type: ScheduleType,
+  ) {
+    const section = await this.prisma.section.findUnique({
+      where: { id: sectionId },
+      include: {
+        course: true,
+        teachers: { select: { id: true, userId: true } },
+      },
+    });
+
+    if (!section || section.course.organizationId !== orgId) {
+      throw new NotFoundException('Section not found');
+    }
+
+    if (section.teachers.length === 0) {
+      throw new BadRequestException('Assign at least one teacher to this section before creating schedules.');
+    }
+
+    const teacherId = requestedTeacherId || (section.teachers.length === 1 ? section.teachers[0].id : undefined);
+    if (!teacherId) {
+      throw new BadRequestException('teacherId is required when a section has multiple teachers.');
+    }
+
+    const teacher = section.teachers.find((candidate) => candidate.id === teacherId);
+    if (!teacher) {
+      throw new BadRequestException('Schedule teacher must be assigned to this section.');
+    }
+
+    if (type === ScheduleType.AD_HOC && (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) && teacher.userId !== user.id) {
+      throw new ForbiddenException('You can only create ad-hoc schedules for your own teaching slots.');
+    }
+
+    return teacherId;
   }
 
   private async assertCanManageSchedule(
@@ -148,7 +223,7 @@ export class AttendanceService {
     });
     if (!section) throw new NotFoundException('Section not found');
 
-    const isAssignedTeacher = user.role === Role.TEACHER
+    const isAssignedTeacher = (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER)
       && section.teachers.some((teacher) => teacher.userId === user.id);
     if (!isAssignedTeacher) {
       throw new ForbiddenException('Only assigned teachers can manage ad-hoc schedules for this section');
@@ -241,6 +316,8 @@ export class AttendanceService {
         academicCycleId: true,
         startTime: true,
         endTime: true,
+        teacherId: true,
+        teacher: { select: { userId: true, organizationId: true } },
       },
     });
 
@@ -261,6 +338,20 @@ export class AttendanceService {
     }
 
     return schedule;
+  }
+
+  private assertCanWriteAttendanceForSchedule(
+    orgId: string,
+    user: JwtPayload,
+    schedule: { teacher?: { userId: string; organizationId: string } | null },
+  ) {
+    if (user.role !== Role.TEACHER && user.role !== Role.ORG_MANAGER) {
+      throw new ForbiddenException('Only the assigned teacher can mark attendance for this schedule.');
+    }
+
+    if (!schedule.teacher || schedule.teacher.organizationId !== orgId || schedule.teacher.userId !== user.id) {
+      throw new ForbiddenException('Only the teacher assigned to this schedule can mark attendance.');
+    }
   }
 
   private async assertStudentsBelongToSection(
@@ -301,7 +392,12 @@ export class AttendanceService {
         cohort: true,
         assessments: true,
         defaultRoom: { include: { building: true } },
-        schedules: { include: { roomRef: { include: { building: true } } } },
+        schedules: {
+          include: {
+            roomRef: { include: { building: true } },
+            teacher: { include: { user: { select: { id: true, email: true, name: true } } } },
+          },
+        },
       },
     });
 
@@ -329,6 +425,7 @@ export class AttendanceService {
   async createSchedule(orgId: string, sectionId: string, dto: CreateScheduleDto, user: JwtPayload) {
     const normalized = this.normalizeScheduleInput(dto);
     await this.assertCanManageSchedule(orgId, sectionId, user, normalized.type);
+    normalized.teacherId = await this.resolveScheduleTeacher(orgId, sectionId, normalized.teacherId, user, normalized.type);
 
     if (normalized.roomId) {
       await validateRoomBelongsToOrg(this.prisma, orgId, normalized.roomId);
@@ -352,8 +449,9 @@ export class AttendanceService {
         endTime: normalized.endTime,
         room: normalized.room,
         roomId: normalized.roomId || null,
+        teacherId: normalized.teacherId,
       },
-      include: { roomRef: { include: { building: true } } },
+      include: { roomRef: { include: { building: true } }, teacher: { include: { user: { select: { id: true, name: true, email: true } } } } },
     });
 
     if (schedule.type === ScheduleType.AD_HOC) {
@@ -387,9 +485,11 @@ export class AttendanceService {
       endTime: existing.endTime,
       room: existing.room ?? undefined,
       roomId: existing.roomId,
+      teacherId: existing.teacherId,
     });
 
     await this.assertCanManageSchedule(orgId, existing.sectionId, user, normalized.type);
+    normalized.teacherId = await this.resolveScheduleTeacher(orgId, existing.sectionId, normalized.teacherId, user, normalized.type);
 
     if (normalized.roomId) {
       await validateRoomBelongsToOrg(this.prisma, orgId, normalized.roomId);
@@ -407,8 +507,9 @@ export class AttendanceService {
         endTime: normalized.endTime,
         room: normalized.room,
         roomId: normalized.roomId === '' ? null : normalized.roomId,
+        teacherId: normalized.teacherId,
       },
-      include: { roomRef: { include: { building: true } } },
+      include: { roomRef: { include: { building: true } }, teacher: { include: { user: { select: { id: true, name: true, email: true } } } } },
     });
 
     const capacityWarning = await this.getCapacityWarning(
@@ -440,15 +541,13 @@ export class AttendanceService {
       where: { id: sectionId },
       include: { 
         course: true,
-        teachers: { select: { id: true } },
         enrollments: { select: { studentId: true } },
-        defaultRoom: true,
+        defaultRoom: { select: { name: true, building: { select: { name: true } } } },
       },
     });
 
     if (!section || section.course.organizationId !== orgId) throw new NotFoundException('Section not found');
 
-    const teacherIds = section.teachers.map(t => t.id);
     const studentIds = section.enrollments.map(e => e.studentId);
     const targetRoom = dto.room || section.room;
     const targetRoomId = dto.roomId || section.defaultRoomId;
@@ -476,46 +575,67 @@ export class AttendanceService {
         id: excludeId ? { not: excludeId } : undefined,
       },
       include: {
+        roomRef: { include: { building: true } },
         section: {
           include: {
-            teachers: { select: { id: true, user: { select: { name: true } } } },
-            enrollments: { select: { studentId: true } },
-            defaultRoom: true,
+            course: { select: { name: true } },
+            enrollments: {
+              select: {
+                studentId: true,
+                student: {
+                  select: {
+                    registrationNumber: true,
+                    rollNumber: true,
+                    user: { select: { name: true, email: true } },
+                  },
+                },
+              },
+            },
+            defaultRoom: { select: { name: true, building: { select: { name: true } } } },
           }
         },
-        roomRef: true,
+        teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
       }
     });
+
+    const conflictMessages: string[] = [];
 
     for (const conflict of conflicts) {
       // 1. Same Section Conflict
       if (conflict.sectionId === sectionId) {
-          throw new ConflictException('Section already has a class at this time');
+          conflictMessages.push(`This section already has a schedule at ${this.formatConflictSlot(conflict)}.`);
+          continue;
       }
 
       // 2. Room Conflict
       const conflictRoomId = conflict.roomId || conflict.section.defaultRoomId;
       if (targetRoomId && conflictRoomId === targetRoomId) {
-          const roomName = conflict.roomRef?.name || 'Selected room';
-          throw new ConflictException(`${roomName} is already occupied at this time`);
+          const roomName = this.formatRoom(conflict) || 'Selected room';
+          conflictMessages.push(`Room "${roomName}" is already occupied by ${this.formatConflictSlot(conflict)}.`);
       }
 
       const conflictRoom = conflict.room || conflict.section.room;
       if (!targetRoomId && targetRoom && conflictRoom === targetRoom) {
-          throw new ConflictException(`Room "${targetRoom}" is already occupied at this time`);
+          conflictMessages.push(`Room "${targetRoom}" is already occupied by ${this.formatConflictSlot(conflict)}.`);
       }
 
       // 3. Teacher Conflict
-      const conflictTeacher = conflict.section.teachers.find(t => teacherIds.includes(t.id));
-      if (conflictTeacher) {
-          throw new ConflictException(`Teacher "${conflictTeacher.user.name}" is already assigned to another section at this time`);
+      if (dto.teacherId && conflict.teacherId === dto.teacherId) {
+          conflictMessages.push(`Teacher "${this.formatUserLabel(conflict.teacher.user)}" is already assigned to ${this.formatConflictSlot(conflict)}.`);
       }
 
       // 4. Student Conflict
-      const hasStudentConflict = conflict.section.enrollments.some(e => studentIds.includes(e.studentId));
-      if (hasStudentConflict) {
-          throw new ConflictException('One or more students have conflicting schedules in another section');
+      const conflictingStudents = conflict.section.enrollments.filter(e => studentIds.includes(e.studentId));
+      if (conflictingStudents.length > 0) {
+          const studentList = conflictingStudents.map((enrollment) => this.formatStudentConflictLabel(enrollment)).join(', ');
+          const subject = conflictingStudents.length === 1 ? 'Student' : 'Students';
+          const verb = conflictingStudents.length === 1 ? 'is' : 'are';
+          conflictMessages.push(`${subject} ${studentList} ${verb} already scheduled in ${this.formatConflictSlot(conflict)}.`);
       }
+    }
+
+    if (conflictMessages.length > 0) {
+      throw new ConflictException(`Schedule conflict: ${Array.from(new Set(conflictMessages)).join(' ')}`);
     }
   }
 
@@ -529,7 +649,7 @@ export class AttendanceService {
     }
     return this.prisma.sectionSchedule.findMany({
       where: { sectionId },
-      include: { roomRef: { include: { building: true } } },
+      include: { roomRef: { include: { building: true } }, teacher: { include: { user: { select: { id: true, name: true, email: true } } } } },
       orderBy: [{ date: 'asc' }, { day: 'asc' }, { startTime: 'asc' }],
     });
   }
@@ -600,8 +720,10 @@ export class AttendanceService {
       return { start, end };
     }
 
-    const today = this.todayDateOnly();
-    return { start: today, end: today };
+    const start = this.startOfWeek(this.todayDateOnly());
+    const end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 6);
+    return { start, end };
   }
 
   private getDaysInRange(start: Date, end: Date) {
@@ -642,9 +764,35 @@ export class AttendanceService {
     return scheduleRoom || defaultRoom || schedule.room || schedule.section.room || null;
   }
 
+  private formatScheduleOccurrence(schedule: ConflictScheduleForMessage) {
+    return schedule.date ? this.dateKey(schedule.date) : DAY_NAMES[schedule.day] || `Day ${schedule.day}`;
+  }
+
+  private formatConflictSection(schedule: ConflictScheduleForMessage) {
+    return [schedule.section.course?.name, schedule.section.name].filter(Boolean).join(' - ');
+  }
+
+  private formatConflictSlot(schedule: ConflictScheduleForMessage) {
+    const room = this.formatRoom(schedule);
+    return [
+      `${this.formatConflictSection(schedule)} on ${this.formatScheduleOccurrence(schedule)}`,
+      `${schedule.startTime} - ${schedule.endTime}`,
+      room ? `in ${room}` : null,
+    ].filter(Boolean).join(', ');
+  }
+
+  private formatUserLabel(user?: { name: string | null; email: string | null } | null) {
+    return user?.name || user?.email || 'Unnamed user';
+  }
+
+  private formatStudentConflictLabel(enrollment: ConflictScheduleForMessage['section']['enrollments'][number]) {
+    const name = this.formatUserLabel(enrollment.student?.user);
+    const identifier = enrollment.student?.rollNumber || enrollment.student?.registrationNumber;
+    return identifier ? `${name} (${identifier})` : name;
+  }
+
   private mapSchedulesToTimetableEntries(schedules: Array<any>) {
     return schedules.map((schedule) => {
-      const primaryTeacher = schedule.section.teachers?.[0];
       return {
         scheduleId: schedule.id,
         sectionId: schedule.sectionId,
@@ -660,9 +808,9 @@ export class AttendanceService {
         endTime: schedule.endTime,
         room: this.formatRoom(schedule),
         roomId: schedule.roomId || schedule.section.defaultRoomId || null,
-        teacherUserId: primaryTeacher?.user?.id || null,
-        teacherName: primaryTeacher?.user?.name || primaryTeacher?.user?.email || null,
-        additionalTeachersCount: Math.max(0, (schedule.section.teachers?.length || 0) - 1),
+        teacherId: schedule.teacherId,
+        teacherUserId: schedule.teacher?.user?.id || null,
+        teacherName: schedule.teacher?.user?.name || schedule.teacher?.user?.email || null,
       };
     }).sort((a, b) => {
       if (a.day !== b.day) return a.day - b.day;
@@ -672,6 +820,15 @@ export class AttendanceService {
 
   async getTimetable(orgId: string, user: JwtPayload, query: TimetableQuery = {}) {
     const { start, end } = this.getTimetableRange(query);
+    const hasExplicitTarget = Boolean(query.studentId || query.teacherId || query.roomId);
+
+    if (!hasExplicitTarget && (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN)) {
+      return {
+        schedules: [],
+        range: { startDate: this.dateKey(start), endDate: this.dateKey(end) },
+      };
+    }
+
     const filters: Prisma.SectionScheduleWhereInput[] = [
       { section: { course: { organizationId: orgId } } },
       this.getScheduleRangeWhere(start, end),
@@ -680,11 +837,11 @@ export class AttendanceService {
     if (query.studentId) {
       filters.push({ section: { enrollments: { some: { studentId: query.studentId } } } });
     } else if (query.teacherId) {
-      filters.push({ section: { teachers: { some: { id: query.teacherId } } } });
+      filters.push({ teacherId: query.teacherId });
     } else if (user.role === Role.STUDENT) {
       filters.push({ section: { enrollments: { some: { student: { userId: user.id } } } } });
     } else if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
-      filters.push({ section: { teachers: { some: { userId: user.id } } } });
+      filters.push({ teacher: { userId: user.id } });
     }
 
     if (query.roomId) {
@@ -700,16 +857,11 @@ export class AttendanceService {
       where: { AND: filters },
       include: {
         roomRef: { include: { building: true } },
+        teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
         section: {
           include: {
             course: { select: { id: true, name: true, departmentId: true } },
             defaultRoom: { select: { name: true, building: { select: { name: true } } } },
-            teachers: {
-              select: {
-                id: true,
-                user: { select: { id: true, name: true, email: true } },
-              },
-            },
           },
         },
       },
@@ -790,6 +942,7 @@ export class AttendanceService {
     await this.assertAttendanceSectionAccess(orgId, sectionId, user);
     const sessionDate = this.parseDateOnly(date);
     const schedule = await this.validateAttendanceSchedule(sectionId, scheduleId, sessionDate);
+    this.assertCanWriteAttendanceForSchedule(orgId, user, schedule);
 
     // Derive academicCycleId from section
     const sectionData = await this.prisma.section.findUnique({
@@ -827,13 +980,17 @@ export class AttendanceService {
   ) {
     const session = await this.prisma.attendanceSession.findUnique({
       where: { id: sessionId },
-      include: { section: { include: { course: true } } },
+      include: {
+        section: { include: { course: true } },
+        schedule: { include: { teacher: { select: { userId: true, organizationId: true } } } },
+      },
     });
     if (!session || session.section.course.organizationId !== orgId) {
       throw new NotFoundException('Session not found');
     }
 
     await this.assertAttendanceSectionAccess(orgId, session.sectionId, user);
+    this.assertCanWriteAttendanceForSchedule(orgId, user, session.schedule);
     await this.assertStudentsBelongToSection(
       session.sectionId,
       [...new Set(records.map((record) => record.studentId))],

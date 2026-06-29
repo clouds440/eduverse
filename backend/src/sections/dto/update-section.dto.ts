@@ -1,6 +1,16 @@
-import { IsString, IsOptional, Matches, MaxLength } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 import { HEX_COLOR_PATTERN } from '../section-colors';
+
+export class SectionScheduleTeacherResolutionDto {
+  @IsIn(['MOVE', 'DELETE'])
+  action!: 'MOVE' | 'DELETE';
+
+  @IsString()
+  @IsOptional()
+  teacherId?: string;
+}
 
 export class UpdateSectionDto {
   @IsString()
@@ -37,4 +47,14 @@ export class UpdateSectionDto {
   @IsOptional()
   @Matches(HEX_COLOR_PATTERN, { message: 'Color must be a valid hex color like #3B82F6' })
   color?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  teacherIds?: string[];
+
+  @ValidateNested()
+  @Type(() => SectionScheduleTeacherResolutionDto)
+  @IsOptional()
+  scheduleTeacherResolution?: SectionScheduleTeacherResolutionDto;
 }
