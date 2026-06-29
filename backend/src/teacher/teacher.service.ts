@@ -46,6 +46,26 @@ export class TeacherService {
     return teacher;
   }
 
+  private async assertSectionIdsBelongToOrg(
+    prisma: Prisma.TransactionClient | PrismaService,
+    orgId: string,
+    sectionIds?: string[],
+  ) {
+    const uniqueIds = [...new Set((sectionIds || []).filter(Boolean))];
+    if (uniqueIds.length === 0) return [];
+
+    const sections = await prisma.section.findMany({
+      where: { id: { in: uniqueIds }, organizationId: orgId },
+      select: { id: true },
+    });
+
+    if (sections.length !== uniqueIds.length) {
+      throw new BadRequestException('One or more selected sections do not belong to this organization');
+    }
+
+    return uniqueIds;
+  }
+
   async getTeachers(
     orgId: string,
     options: PaginationOptions,
@@ -283,6 +303,7 @@ export class TeacherService {
       const result = await this.prisma.$transaction(async (prisma) => {
         const departmentIds = await assertDepartmentIdsBelongToOrg(prisma, orgId, data.departmentIds);
         const scopeDepartmentIds = await assertDepartmentIdsBelongToOrg(prisma, orgId, data.scopeDepartmentIds);
+        const sectionIds = await this.assertSectionIdsBelongToOrg(prisma, orgId, data.sectionIds);
 
         const user = await this.userService.createUser({
           email: data.email,
@@ -326,11 +347,13 @@ export class TeacherService {
                   },
                 }
               : undefined,
+            sections: sectionIds.length ? { connect: sectionIds.map((id) => ({ id })) } : undefined,
           },
           include: {
             user: {
               select: { email: true, name: true, phone: true },
             },
+            sections: { include: { course: true } },
             teacherDepartments: { include: { department: true } },
             managerDepartments: { include: { department: true } },
           },
@@ -440,6 +463,9 @@ export class TeacherService {
       const scopeDepartmentIds = data.scopeDepartmentIds !== undefined
         ? await assertDepartmentIdsBelongToOrg(tx, orgId, data.scopeDepartmentIds)
         : undefined;
+      const sectionIds = data.sectionIds !== undefined
+        ? await this.assertSectionIdsBelongToOrg(tx, orgId, data.sectionIds)
+        : undefined;
 
       if (Object.keys(userData).length > 0) {
         await this.userService.updateUser(teacher.userId, userData, tx);
@@ -476,6 +502,13 @@ export class TeacherService {
             })),
           });
         }
+      }
+
+      if (sectionIds !== undefined) {
+        await tx.teacher.update({
+          where: { id },
+          data: { sections: { set: sectionIds.map((sectionId) => ({ id: sectionId })) } },
+        });
       }
 
       return tx.teacher.findUnique({

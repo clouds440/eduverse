@@ -69,6 +69,11 @@ export class CreateTeacherDto {
   @IsOptional()
   scopeDepartmentIds?: string[];
 
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  sectionIds?: string[];
+
   @IsDateString()
   @IsOptional()
   @ValidateIf((o) => o.joiningDate !== '' && o.joiningDate !== null)

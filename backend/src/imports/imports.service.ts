@@ -508,7 +508,7 @@ export class ImportsService {
       },
       teachers: {
         entity: 'teachers',
-        headers: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject', 'department', 'joiningDate', 'emergencyContact', 'bloodGroup', 'address', 'status', 'isManager', 'departmentCodes'],
+        headers: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject', 'department', 'joiningDate', 'emergencyContact', 'bloodGroup', 'address', 'status', 'isManager', 'departmentCodes', 'sectionCodes'],
         required: ['name', 'email', 'password', 'phone', 'education', 'designation', 'subject'],
         dto: CreateTeacherDto,
         examples: [{
@@ -527,6 +527,7 @@ export class ImportsService {
           status: 'ACTIVE',
           isManager: false,
           departmentCodes: '',
+          sectionCodes: '',
         }],
         normalize: (row) => ({
           name: optionalString(row.name),
@@ -544,9 +545,9 @@ export class ImportsService {
           status: optionalEnum(row.status, Object.values(TeacherStatus)) || TeacherStatus.ACTIVE,
           isManager: optionalBoolean(row.isManager, 'isManager') ?? false,
           departmentCodes: splitIds(row.departmentCodes),
+          sectionCodes: splitIds(row.sectionCodes),
           departmentScopeType: DepartmentScopeType.ALL,
           scopeDepartmentIds: [],
-          sectionIds: [],
         }),
         create: (orgId, data, actor) => this.teachers.createTeacher(orgId, data as unknown as CreateTeacherDto, {
           id: actor.id,
@@ -554,9 +555,12 @@ export class ImportsService {
         }),
         resolveRelations: async (orgId, data, _actor, row) => {
           const resolvedDepartments = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes', row.rowNumber);
+          const resolvedSections = await this.resolveSectionIds(orgId, data.sectionCodes as string[] | undefined, 'sectionCodes', row.rowNumber);
           data.departmentIds = resolvedDepartments.ids;
+          data.sectionIds = resolvedSections.ids;
           delete data.departmentCodes;
-          return resolvedDepartments.warnings;
+          delete data.sectionCodes;
+          return [...resolvedDepartments.warnings, ...resolvedSections.warnings];
         },
         validateRelations: async (orgId, data) => this.assertDepartmentsExist(orgId, data.departmentIds as string[] | undefined),
         duplicateKeys: [
@@ -1111,13 +1115,37 @@ export class ImportsService {
     return section.id;
   }
 
-  private async resolveSectionIds(orgId: string, codes?: string[], field = 'sectionCodes') {
+  private async resolveSectionIds(orgId: string, codes?: string[], field = 'sectionCodes', rowNumber = 0) {
     const values = Array.from(new Set((codes || []).map((code) => this.normalizeCode(code)).filter(Boolean))) as string[];
     const ids: string[] = [];
+    const missing: string[] = [];
     for (const value of values) {
-      ids.push((await this.resolveSectionId(orgId, value, field))!);
+      try {
+        ids.push((await this.resolveSectionId(orgId, value, field))!);
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          missing.push(value);
+          continue;
+        }
+        throw error;
+      }
     }
-    return ids;
+    if (missing.length && ids.length === 0) {
+      throw new BadRequestException({
+        field,
+        message: missing.length === 1
+          ? `Section code "${missing[0]}" was not found`
+          : `None of these section codes were found: ${missing.join(', ')}`,
+      });
+    }
+    return {
+      ids,
+      warnings: missing.map((value) => ({
+        rowNumber,
+        field,
+        message: `Ignored unknown section code "${value}"`,
+      })),
+    };
   }
   private async userExists(email: string) {
     return Boolean(await this.prisma.user.findUnique({ where: { email }, select: { id: true } }));

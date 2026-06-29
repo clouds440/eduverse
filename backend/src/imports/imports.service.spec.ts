@@ -176,11 +176,17 @@ describe('ImportsService student validation', () => {
 });
 
 describe('ImportsService teacher validation', () => {
+  const teacherHeaders = [
+    'name', 'email', 'password', 'phone', 'education', 'designation', 'subject', 'department',
+    'joiningDate', 'emergencyContact', 'bloodGroup', 'address', 'status', 'isManager',
+    'departmentCodes', 'sectionCodes',
+  ];
+
   it('accepts isManager in teacher CSV rows', async () => {
     const { service } = createService();
     const csv = [
-      'name,email,password,phone,education,designation,subject,department,joiningDate,emergencyContact,bloodGroup,address,status,isManager,departmentCodes',
-      'Manager Teacher,manager@teacher.test,Teacher123,+923001112233,MSc Computer Science,Program Manager,Computing,Computer Science,2026-04-01,,,,ACTIVE,true,',
+      teacherHeaders.join(','),
+      'Manager Teacher,manager@teacher.test,Teacher123,+923001112233,MSc Computer Science,Program Manager,Computing,Computer Science,2026-04-01,,,,ACTIVE,true,,',
     ].join('\n');
 
     const result = await service.validateEntityCsv('org-1', 'teachers', csv, {
@@ -193,6 +199,92 @@ describe('ImportsService teacher validation', () => {
     expect(result.summary.valid).toBe(1);
     expect(result.summary.invalid).toBe(0);
     expect(result.validRows[0].data.isManager).toBe(true);
+  });
+
+  it('resolves quoted comma-separated section codes for teacher assignments', async () => {
+    const { service } = createService({
+      prisma: {
+        section: {
+          findFirst: jest.fn(async ({ where }) => {
+            const code = where.OR?.[0]?.code?.equals;
+            if (code === 'CS-101-A') return { id: 'section-cs' };
+            if (code === 'IT-201-B') return { id: 'section-it' };
+            return null;
+          }),
+        },
+      },
+    });
+    const csv = [
+      teacherHeaders.join(','),
+      'Section Teacher,sections@teacher.test,Teacher123,+923001112233,MSc Computer Science,Lecturer,Computing,Computer Science,2026-04-01,,,,ACTIVE,false,,"CS-101-A,IT-201-B"',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'teachers', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data.sectionIds).toEqual(['section-cs', 'section-it']);
+  });
+
+  it('keeps teacher rows valid when at least one section code resolves', async () => {
+    const { service } = createService({
+      prisma: {
+        section: {
+          findFirst: jest.fn(async ({ where }) => (
+            where.OR?.[0]?.code?.equals === 'CS-101-A' ? { id: 'section-cs' } : null
+          )),
+        },
+      },
+    });
+    const csv = [
+      teacherHeaders.join(','),
+      'Partial Teacher,partial@teacher.test,Teacher123,+923001112233,MSc Computer Science,Lecturer,Computing,Computer Science,2026-04-01,,,,ACTIVE,false,,"CS-101-A,NOPE"',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'teachers', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.partial).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data.sectionIds).toEqual(['section-cs']);
+    expect(result.validRows[0].warnings).toEqual([
+      { rowNumber: 2, field: 'sectionCodes', message: 'Ignored unknown section code "NOPE"' },
+    ]);
+  });
+
+  it('rejects teacher rows when every supplied section code is unknown', async () => {
+    const { service } = createService({
+      prisma: {
+        section: { findFirst: jest.fn().mockResolvedValue(null) },
+      },
+    });
+    const csv = [
+      teacherHeaders.join(','),
+      'Bad Section Teacher,bad-sections@teacher.test,Teacher123,+923001112233,MSc Computer Science,Lecturer,Computing,Computer Science,2026-04-01,,,,ACTIVE,false,,"NOPE,MISSING"',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'teachers', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    });
+
+    expect(result.summary.valid).toBe(0);
+    expect(result.summary.invalid).toBe(1);
+    expect(result.invalidRows[0].errors).toEqual([
+      { rowNumber: 2, field: 'sectionCodes', message: 'None of these section codes were found: NOPE, MISSING' },
+    ]);
   });
 });
 
