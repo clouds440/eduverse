@@ -6,11 +6,17 @@ describe('bad words util', () => {
   });
 
   it('blocks direct inappropriate words', () => {
-    expect(checkBadWords('This is shit').okay).toBe(false);
+    expect(checkBadWords('This is shit')).toEqual({
+      okay: false,
+      matches: ['shit'],
+    });
   });
 
   it('blocks separated inappropriate words', () => {
-    expect(checkBadWords('f u c k').okay).toBe(false);
+    expect(checkBadWords('f u c k')).toEqual({
+      okay: false,
+      matches: ['f u c k', 'fuck'],
+    });
   });
 
   it('does not block clean words that merely share a prefix', () => {

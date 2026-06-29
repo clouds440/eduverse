@@ -24,6 +24,7 @@ const TECHNICAL_FIELD_SUFFIXES = [
 
 type Violation = {
   path: string;
+  matches: string[];
 };
 
 function normalizeFieldName(value: string) {
@@ -44,6 +45,17 @@ function shouldSkipField(value: string) {
   return isSensitiveField(value) || isTechnicalField(value);
 }
 
+function isStructuredString(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  if (/^[+-]?\d+(?:\.\d+)?$/.test(trimmed)) return true;
+  if (/^(?:true|false|null|undefined|yes|no|y|n)$/i.test(trimmed)) return true;
+  if (/^\d{4}-\d{2}-\d{2}(?:[tT ][\d:.+-]+Z?)?$/.test(trimmed)) return true;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)) return true;
+  if (/^https?:\/\//i.test(trimmed)) return true;
+  return false;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !Buffer.isBuffer(value);
 }
@@ -58,10 +70,12 @@ export class BadWordsPipe implements PipeTransform {
     const violation = this.findViolation(value, metadata.data || metadata.type, new WeakSet<object>());
 
     if (violation) {
+      const blockedWords = violation.matches.map((match) => `"${match}"`).join(', ');
       throw new BadRequestException({
         code: 'PROFANITY_DETECTED',
         field: violation.path,
-        message: `Profanity is not allowed in "${violation.path}". Please revise it before submitting.`,
+        matches: violation.matches,
+        message: `Profanity is not allowed in "${violation.path}"${blockedWords ? ` (${blockedWords})` : ''}. Please revise it before submitting.`,
       });
     }
 
@@ -70,7 +84,9 @@ export class BadWordsPipe implements PipeTransform {
 
   private findViolation(value: unknown, path: string, seen: WeakSet<object>): Violation | null {
     if (typeof value === 'string') {
-      return checkBadWords(value).okay ? null : { path };
+      if (isStructuredString(value)) return null;
+      const result = checkBadWords(value);
+      return result.okay ? null : { path, matches: result.matches };
     }
 
     if (Array.isArray(value)) {

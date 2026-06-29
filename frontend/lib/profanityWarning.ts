@@ -4,6 +4,7 @@ export const PROFANITY_ERROR_CODE = 'PROFANITY_DETECTED';
 export interface ProfanityWarningDetail {
     field?: string;
     fieldLabel?: string;
+    matches?: string[];
     message: string;
 }
 

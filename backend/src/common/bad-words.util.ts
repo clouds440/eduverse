@@ -20,6 +20,11 @@ export type BadWordsCheckResult = {
   matches: string[];
 };
 
+type Candidate = {
+  text: string;
+  normalized?: boolean;
+};
+
 function normalizeToken(value: string) {
   return value
     .toLowerCase()
@@ -31,20 +36,33 @@ export function checkBadWords(value: string): BadWordsCheckResult {
   const normalizedTokens = (value.match(/[a-zA-Z0-9@!|$]+/g) ?? [])
     .map(normalizeToken)
     .filter(Boolean);
-  const candidates = [value, normalizedTokens.join(' ')];
+  const candidates: Candidate[] = [
+    { text: value },
+    { text: normalizedTokens.join(' '), normalized: true },
+  ];
 
   if (normalizedTokens.length > 1 && normalizedTokens.some((token) => token.length <= 2)) {
-    candidates.push(normalizedTokens.join(''));
+    candidates.push({ text: normalizedTokens.join(''), normalized: true });
   }
 
-  const okay = !candidates.some((candidate) => profanityFilter.isProfane(candidate));
+  const matches = Array.from(new Set(candidates.flatMap(findProfanityMatches)));
 
   return {
-    okay,
-    matches: okay ? [] : ['profanity'],
+    okay: matches.length === 0,
+    matches,
   };
 }
 
 export function hasBadWords(value: string) {
   return !checkBadWords(value).okay;
+}
+
+function findProfanityMatches(candidate: Candidate) {
+  if (!candidate.text) return [];
+  return profanityFilter.list
+    .filter((word: string) => {
+      const wordExp = new RegExp(`\\b${word.replace(/(\W)/g, '\\$1')}\\b`, 'gi');
+      return !profanityFilter.exclude.includes(word.toLowerCase()) && wordExp.test(candidate.text);
+    })
+    .map((word: string) => candidate.normalized ? word.toLowerCase() : word);
 }
