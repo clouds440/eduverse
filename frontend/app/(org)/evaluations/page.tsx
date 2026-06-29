@@ -225,7 +225,7 @@ export default function EvaluationsManagementPage() {
                 actions={activeTab === 'windows' ? windowControls : evaluationControls}
             />
             <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 rounded-t-lg bg-card/80">
+                <div className="shrink-0">
                     <PageTabs
                         ariaLabel="Evaluations navigation"
                         items={TABS.map(({ key, label, icon }) => ({ value: key, label, icon }))}

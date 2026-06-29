@@ -226,7 +226,7 @@ export function StudentTranscriptView({
     if (!token) return <Loading className="h-full" text="Authenticating..." />;
 
     return (
-        <div className="flex h-full w-full flex-col space-y-4">
+        <div className="flex h-full w-full flex-col space-y-0.5">
             <PageHeader
                 title={title}
                 description={description}
@@ -379,7 +379,7 @@ export function StudentTranscriptView({
 
             <div
                 id="transcript-print-root"
-                className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-card p-4 shadow-sm print:overflow-visible print:border-none print:p-0 print:shadow-none sm:p-6"
+                className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border bg-card p-2 shadow-sm print:overflow-visible print:border-none print:p-0 print:shadow-none sm:p-6"
             >
                 {isLoading && <Loading text="Generating Transcript..." />}
                 {error && <ErrorState error={error} onRetry={() => mutate()} />}

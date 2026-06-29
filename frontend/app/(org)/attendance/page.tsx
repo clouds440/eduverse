@@ -55,14 +55,14 @@ export default function AttendanceLandingPage() {
 
     if (!user) {
         return (
-            <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/80 p-8 text-center shadow-sm">
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-border/70 bg-card/80 p-2 text-center shadow-sm">
                 <p className="text-sm font-semibold text-muted-foreground">Attendance portal is restricted to authorized academic personnel.</p>
             </div>
         );
     }
 
     return (
-        <div className="mx-auto flex w-full flex-1 flex-col gap-6 pb-8">
+        <div className="mx-auto flex w-full flex-1 flex-col gap-1 pb-5">
             <PageHeader
                 title="Attendance Portal"
                 description={<>Open a section workbook to mark attendance or review trends. <DocsLink href="/docs/attendance#attendance-workflow">Read attendance guide</DocsLink></>}

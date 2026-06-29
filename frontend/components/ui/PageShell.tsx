@@ -74,7 +74,7 @@ interface RouteBreadcrumbsProps {
 
 export function PageShell({ children, className, style }: PageShellProps) {
     return (
-        <div className={cn('flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden sm:gap-3', className)} style={style}>
+        <div className={cn('flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden sm:gap-0.5', className)} style={style}>
             {children}
         </div>
     );

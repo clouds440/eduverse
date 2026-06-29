@@ -278,7 +278,7 @@ export default function BuildingsTab() {
         <>
             <ResourcePanel>
                 {!controlsHosted && (
-                    <div className="shrink-0 border-b border-border/60 bg-card/95 p-2.5 sm:p-3">
+                    <div className="shrink-0 border-b border-border/60 bg-card/95">
                         {pageControls}
                     </div>
                 )}
