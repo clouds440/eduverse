@@ -67,7 +67,7 @@ export function splitIds(value?: string | null) {
   const text = optionalString(value);
   if (!text) return undefined;
   const ids = text
-    .split(';')
+    .split(/[;,]/)
     .map((id) => id.trim())
     .filter(Boolean);
   return Array.from(new Set(ids));

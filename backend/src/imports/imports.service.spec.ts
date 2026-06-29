@@ -173,3 +173,66 @@ describe('ImportsService student validation', () => {
     ]);
   });
 });
+
+describe('ImportsService building validation', () => {
+  const admin = {
+    id: 'admin-1',
+    role: 'ORG_ADMIN',
+    name: 'Admin',
+    email: 'admin@example.test',
+  };
+
+  const buildingHeaders = [
+    'name', 'code', 'address', 'description', 'landmark', 'directionsNote',
+    'sortOrder', 'mapX', 'mapY', 'mapWidth', 'mapHeight', 'isActive', 'departmentCodes',
+  ];
+
+  it('imports rows with at least one valid department from a quoted comma-separated list', async () => {
+    const departmentFindFirst = jest.fn(async ({ where }) => {
+      const code = where.OR?.[0]?.code?.equals;
+      if (code === 'CS') return { id: 'dept-cs' };
+      if (code === 'IT') return { id: 'dept-it' };
+      return null;
+    });
+    const { service } = createService({
+      prisma: {
+        department: { count: jest.fn().mockResolvedValue(2), findFirst: departmentFindFirst },
+      },
+    });
+    const csv = [
+      buildingHeaders.join(','),
+      'Main Campus,MAIN,Block A,"Primary, academic building",Gate 1,Turn left,1,,,,,true,"CS,NOPE,IT"',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'buildings', csv, admin);
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.partial).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data.departmentIds).toEqual(['dept-cs', 'dept-it']);
+    expect(result.validRows[0].data.description).toBe('Primary, academic building');
+    expect(result.validRows[0].warnings).toEqual([
+      { rowNumber: 2, field: 'departmentCodes', message: 'Ignored unknown department code "NOPE"' },
+    ]);
+  });
+
+  it('rejects a multi-department row only when every provided department code is unknown', async () => {
+    const { service } = createService({
+      prisma: {
+        department: { count: jest.fn().mockResolvedValue(0), findFirst: jest.fn().mockResolvedValue(null) },
+      },
+    });
+    const csv = [
+      buildingHeaders.join(','),
+      'Main Campus,MAIN,Block A,Primary academic building,Gate 1,Turn left,1,,,,,true,"NOPE,MISSING"',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'buildings', csv, admin);
+
+    expect(result.summary.valid).toBe(0);
+    expect(result.summary.invalid).toBe(1);
+    expect(result.invalidRows[0].errors).toEqual([
+      { rowNumber: 2, field: 'departmentCodes', message: 'None of these department codes were found: NOPE, MISSING' },
+    ]);
+  });
+});

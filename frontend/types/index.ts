@@ -1018,6 +1018,7 @@ export interface ImportPreviewRow<T = Record<string, unknown>> {
     rowNumber: number;
     data: T;
     raw: Record<string, string>;
+    warnings?: ImportRowError[];
 }
 
 export interface InvalidImportRow {
@@ -1035,6 +1036,7 @@ export interface ImportValidationResult<T = Record<string, unknown>> {
     summary: {
         valid: number;
         invalid: number;
+        partial?: number;
         duplicate: number;
         skipped: number;
     };

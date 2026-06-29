@@ -31,7 +31,11 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
     const [result, setResult] = useState<ImportConfirmResult | null>(null);
     const [loading, setLoading] = useState(false);
 
+    const warningRows: InvalidImportRow[] = (validation?.validRows || [])
+        .filter((row) => row.warnings?.length)
+        .map((row) => ({ rowNumber: row.rowNumber, raw: row.raw, errors: row.warnings || [] }));
     const invalidRows = result?.errors || validation?.invalidRows || [];
+    const issueRows = [...warningRows, ...invalidRows];
     const canConfirm = Boolean(validation?.validRows.length && !result);
     const cachePrefixes = useMemo(() => Array.isArray(cachePrefix) ? cachePrefix : [cachePrefix], [cachePrefix]);
     const importHint = entity === 'rooms'
@@ -83,13 +87,13 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
     };
 
     const handleDownloadErrors = async () => {
-        if (!token || invalidRows.length === 0) return;
+        if (!token || issueRows.length === 0) return;
         setLoading(true);
         try {
-            const csv = await api.imports.getErrorReport(entity, invalidRows, token);
-            downloadCsv(`${entity}-import-errors.csv`, csv);
+            const csv = await api.imports.getErrorReport(entity, issueRows, token);
+            downloadCsv(`${entity}-import-issues.csv`, csv);
         } catch (error) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download error report', type: 'error' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download issue report', type: 'error' } });
         } finally {
             setLoading(false);
         }
@@ -115,9 +119,9 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
                         Template
                     </Button>
                     <div className="flex gap-2">
-                        {invalidRows.length > 0 && (
+                        {issueRows.length > 0 && (
                             <Button type="button" variant="outline" icon={Download} onClick={handleDownloadErrors} isLoading={loading}>
-                                Error CSV
+                                Issue CSV
                             </Button>
                         )}
                         <Button type="button" variant="secondary" onClick={resetAndClose}>Close</Button>
@@ -148,8 +152,9 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
                 </div>
 
                 {validation && (
-                    <div className="grid gap-2 sm:grid-cols-4">
-                        <Metric label="Valid" value={validation.summary.valid} variant="success" />
+                    <div className="grid gap-2 sm:grid-cols-5">
+                        <Metric label="Valid" value={validation.summary.valid - (validation.summary.partial || 0)} variant="success" />
+                        <Metric label="Partial" value={validation.summary.partial || 0} variant="warning" />
                         <Metric label="Invalid" value={validation.summary.invalid} variant="danger" />
                         <Metric label="Duplicates" value={validation.summary.duplicate} variant="warning" />
                         <Metric label="Rows" value={validation.totalRows} variant="neutral" />
@@ -167,7 +172,17 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
                 {validation && validation.validRows.length > 0 && !result && (
                     <PreviewTable
                         title="Valid rows"
-                        rows={validation.validRows.map((row) => ({ rowNumber: row.rowNumber, detail: Object.values(row.raw).filter(Boolean).slice(0, 4).join(' | ') }))}
+                        rows={validation.validRows
+                            .filter((row) => !row.warnings?.length)
+                            .map((row) => ({ rowNumber: row.rowNumber, detail: Object.values(row.raw).filter(Boolean).slice(0, 4).join(' | ') }))}
+                    />
+                )}
+
+                {warningRows.length > 0 && (
+                    <PreviewTable
+                        title="Partially valid rows"
+                        rows={warningRows.map((row) => ({ rowNumber: row.rowNumber, detail: formatImportErrors(row.errors) }))}
+                        warning
                     />
                 )}
 
@@ -195,7 +210,8 @@ function Metric({ label, value, variant }: { label: string; value: number; varia
     );
 }
 
-function PreviewTable({ title, rows, danger }: { title: string; rows: { rowNumber: number; detail: string }[]; danger?: boolean }) {
+function PreviewTable({ title, rows, danger, warning }: { title: string; rows: { rowNumber: number; detail: string }[]; danger?: boolean; warning?: boolean }) {
+    if (rows.length === 0) return null;
     return (
         <section className="overflow-hidden rounded-lg border border-border/70">
             <div className="border-b border-border/70 bg-background px-3 py-2">
@@ -207,7 +223,7 @@ function PreviewTable({ title, rows, danger }: { title: string; rows: { rowNumbe
                         {rows.slice(0, 100).map((row) => (
                             <tr key={`${title}-${row.rowNumber}`} className="border-b border-border/50 last:border-b-0">
                                 <td className="w-24 px-3 py-2 font-mono text-xs font-black text-muted-foreground">Row {row.rowNumber}</td>
-                                <td className={`px-3 py-2 text-xs font-semibold ${danger ? 'text-danger' : 'text-foreground/80'}`}>{row.detail || '-'}</td>
+                                <td className={`px-3 py-2 text-xs font-semibold ${danger ? 'text-danger' : warning ? 'text-warning' : 'text-foreground/80'}`}>{row.detail || '-'}</td>
                             </tr>
                         ))}
                     </tbody>

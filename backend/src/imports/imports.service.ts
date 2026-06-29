@@ -73,7 +73,7 @@ type EntityConfig<T extends Record<string, unknown>> = {
   examples: Record<string, unknown>[];
   dto: new () => object;
   normalize: (row: Record<string, string>, actor: AuthUser) => T;
-  resolveRelations?: (orgId: string, data: T, actor: AuthUser) => Promise<void>;
+  resolveRelations?: (orgId: string, data: T, actor: AuthUser, row: CsvRow) => Promise<ImportRowError[] | void>;
   create: (orgId: string, data: T, actor: AuthUser) => Promise<unknown>;
   validateRelations?: (orgId: string, data: T, actor: AuthUser) => Promise<void>;
   duplicateKeys?: Array<{
@@ -287,6 +287,7 @@ export class ImportsService {
       summary: {
         valid: validRows.length,
         invalid: invalidRows.length,
+        partial: 0,
         duplicate: duplicateCount,
         skipped: skippedBlankCells,
       },
@@ -353,6 +354,7 @@ export class ImportsService {
 
     for (const row of rows) {
       const errors: ImportRowError[] = [];
+      const warnings: ImportRowError[] = [];
       for (const field of config.required) {
         if (!row.values[field]?.trim()) {
           errors.push({ rowNumber: row.rowNumber, field, message: 'Required field is missing' });
@@ -371,7 +373,8 @@ export class ImportsService {
       if (data) {
         if (config.resolveRelations) {
           try {
-            await config.resolveRelations(orgId, data, actor);
+            const relationWarnings = await config.resolveRelations(orgId, data, actor, row);
+            warnings.push(...(relationWarnings || []));
           } catch (error) {
             errors.push(this.exceptionToRowError(error, row.rowNumber));
           }
@@ -407,7 +410,7 @@ export class ImportsService {
       if (errors.length || !data) {
         invalidRows.push({ rowNumber: row.rowNumber, raw: row.values, errors });
       } else {
-        validRows.push({ rowNumber: row.rowNumber, data, raw: row.values });
+        validRows.push({ rowNumber: row.rowNumber, data, raw: row.values, ...(warnings.length ? { warnings } : {}) });
       }
     }
 
@@ -420,6 +423,7 @@ export class ImportsService {
       summary: {
         valid: validRows.length,
         invalid: invalidRows.length,
+        partial: validRows.filter((row) => row.warnings?.length).length,
         duplicate: duplicateCount,
         skipped: invalidRows.length,
       },
@@ -479,11 +483,13 @@ export class ImportsService {
           name: actor.name,
           email: actor.email || '',
         }),
-        resolveRelations: async (orgId, data) => {
+        resolveRelations: async (orgId, data, _actor, row) => {
           data.primaryDepartmentId = await this.resolveDepartmentId(orgId, data.primaryDepartmentCode as string | undefined, 'primaryDepartmentCode');
-          data.departmentIds = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes');
+          const resolvedDepartments = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes', row.rowNumber);
+          data.departmentIds = resolvedDepartments.ids;
           delete data.primaryDepartmentCode;
           delete data.departmentCodes;
+          return resolvedDepartments.warnings;
         },
         validateRelations: async (orgId, data) => {
           await this.assertDepartmentsExist(orgId, [
@@ -542,9 +548,11 @@ export class ImportsService {
           id: actor.id,
           role: actor.role || '',
         }),
-        resolveRelations: async (orgId, data) => {
-          data.departmentIds = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes');
+        resolveRelations: async (orgId, data, _actor, row) => {
+          const resolvedDepartments = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes', row.rowNumber);
+          data.departmentIds = resolvedDepartments.ids;
           delete data.departmentCodes;
+          return resolvedDepartments.warnings;
         },
         validateRelations: async (orgId, data) => this.assertDepartmentsExist(orgId, data.departmentIds as string[] | undefined),
         duplicateKeys: [
@@ -677,9 +685,11 @@ export class ImportsService {
           departmentCodes: splitIds(row.departmentCodes),
         }),
         create: (orgId, data) => this.buildings.createBuilding(orgId, data as unknown as CreateBuildingDto),
-        resolveRelations: async (orgId, data) => {
-          data.departmentIds = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes');
+        resolveRelations: async (orgId, data, _actor, row) => {
+          const resolvedDepartments = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes', row.rowNumber);
+          data.departmentIds = resolvedDepartments.ids;
           delete data.departmentCodes;
+          return resolvedDepartments.warnings;
         },
         validateRelations: async (orgId, data) => this.assertDepartmentsExist(orgId, data.departmentIds as string[] | undefined),
         duplicateKeys: [
@@ -940,13 +950,37 @@ export class ImportsService {
     return department.id;
   }
 
-  private async resolveDepartmentIds(orgId: string, codes?: string[], field = 'departmentCodes') {
+  private async resolveDepartmentIds(orgId: string, codes?: string[], field = 'departmentCodes', rowNumber = 0) {
     const values = Array.from(new Set((codes || []).map((code) => this.normalizeCode(code)).filter(Boolean))) as string[];
     const ids: string[] = [];
+    const missing: string[] = [];
     for (const value of values) {
-      ids.push((await this.resolveDepartmentId(orgId, value, field))!);
+      try {
+        ids.push((await this.resolveDepartmentId(orgId, value, field))!);
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          missing.push(value);
+          continue;
+        }
+        throw error;
+      }
     }
-    return ids;
+    if (missing.length && ids.length === 0) {
+      throw new BadRequestException({
+        field,
+        message: missing.length === 1
+          ? `Department code "${missing[0]}" was not found`
+          : `None of these department codes were found: ${missing.join(', ')}`,
+      });
+    }
+    return {
+      ids,
+      warnings: missing.map((value) => ({
+        rowNumber,
+        field,
+        message: `Ignored unknown department code "${value}"`,
+      })),
+    };
   }
 
   private async resolveBuildingId(orgId: string, codeOrId?: string, field = 'buildingCode') {
