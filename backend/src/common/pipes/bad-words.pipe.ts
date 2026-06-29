@@ -14,6 +14,14 @@ const SENSITIVE_FIELD_NAMES = new Set([
   'verificationcode',
 ]);
 
+const TECHNICAL_FIELD_SUFFIXES = [
+  'id',
+  'ids',
+  'url',
+  'uri',
+  'uuid',
+];
+
 type Violation = {
   path: string;
 };
@@ -24,6 +32,16 @@ function normalizeFieldName(value: string) {
 
 function isSensitiveField(value: string) {
   return SENSITIVE_FIELD_NAMES.has(normalizeFieldName(value));
+}
+
+function isTechnicalField(value: string) {
+  const normalized = normalizeFieldName(value);
+  if (TECHNICAL_FIELD_SUFFIXES.includes(normalized)) return true;
+  return /(?:^|[A-Z_-])ids?$/i.test(value) || /(?:^|[A-Z_-])uuids?$/i.test(value);
+}
+
+function shouldSkipField(value: string) {
+  return isSensitiveField(value) || isTechnicalField(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,7 +93,7 @@ export class BadWordsPipe implements PipeTransform {
     seen.add(value);
 
     for (const [key, nestedValue] of Object.entries(value)) {
-      if (isSensitiveField(key)) {
+      if (shouldSkipField(key)) {
         continue;
       }
 

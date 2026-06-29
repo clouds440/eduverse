@@ -42,39 +42,41 @@ export function AttendanceMonthlyImportModal({
     const [targetMode, setTargetMode] = useState<AttendanceImportTargetMode>('FIRST_SCHEDULE');
     const [validation, setValidation] = useState<ImportValidationResult | null>(null);
     const [result, setResult] = useState<ImportConfirmResult | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [activeAction, setActiveAction] = useState<'template' | 'validate' | 'confirm' | 'errors' | null>(null);
+    const busy = activeAction !== null;
+    const isConfirming = activeAction === 'confirm';
     const invalidRows = result?.errors || validation?.invalidRows || [];
     const options = useMemo(() => ({ sectionId, year, month, targetMode }), [month, sectionId, targetMode, year]);
 
     const handleTemplate = async () => {
         if (!token) return;
-        setLoading(true);
+        setActiveAction('template');
         try {
             const csv = await api.imports.getAttendanceMonthlyTemplate({ sectionId, year, month }, token);
             downloadCsv(`attendance-${year}-${String(month).padStart(2, '0')}.csv`, csv);
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download template', type: 'error' } });
         } finally {
-            setLoading(false);
+            setActiveAction(null);
         }
     };
 
     const handleValidate = async () => {
         if (!token || !file) return;
-        setLoading(true);
+        setActiveAction('validate');
         setResult(null);
         try {
             setValidation(await api.imports.validateAttendanceMonthly(options, file, token));
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to validate attendance CSV', type: 'error' } });
         } finally {
-            setLoading(false);
+            setActiveAction(null);
         }
     };
 
     const handleConfirm = async () => {
         if (!token || !validation) return;
-        setLoading(true);
+        setActiveAction('confirm');
         try {
             const response = await api.imports.confirmAttendanceMonthly(options, validation.validRows, token);
             setResult(response);
@@ -83,24 +85,25 @@ export function AttendanceMonthlyImportModal({
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to import attendance', type: 'error' } });
         } finally {
-            setLoading(false);
+            setActiveAction(null);
         }
     };
 
     const handleErrors = async () => {
         if (!token || invalidRows.length === 0) return;
-        setLoading(true);
+        setActiveAction('errors');
         try {
             const csv = await api.imports.getAttendanceMonthlyErrorReport(year, month, invalidRows, token);
             downloadCsv(`attendance-errors-${year}-${String(month).padStart(2, '0')}.csv`, csv);
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download errors', type: 'error' } });
         } finally {
-            setLoading(false);
+            setActiveAction(null);
         }
     };
 
     const resetAndClose = () => {
+        if (isConfirming) return;
         setFile(null);
         setValidation(null);
         setResult(null);
@@ -116,11 +119,11 @@ export function AttendanceMonthlyImportModal({
             maxWidth="max-w-5xl"
             footer={(
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-                    <Button type="button" variant="secondary" icon={Download} onClick={handleTemplate} isLoading={loading}>Template</Button>
+                    <Button type="button" variant="secondary" icon={Download} onClick={handleTemplate} disabled={busy} isLoading={activeAction === 'template'}>Template</Button>
                     <div className="flex gap-2">
-                        {invalidRows.length > 0 && <Button type="button" variant="outline" icon={Download} onClick={handleErrors}>Error CSV</Button>}
-                        <Button type="button" variant="secondary" onClick={resetAndClose}>Close</Button>
-                        <Button type="button" icon={UploadCloud} onClick={handleConfirm} disabled={!validation?.validRows.length || !!result} isLoading={loading}>Import Marks</Button>
+                        {invalidRows.length > 0 && <Button type="button" variant="outline" icon={Download} onClick={handleErrors} disabled={busy} isLoading={activeAction === 'errors'}>Error CSV</Button>}
+                        <Button type="button" variant="secondary" onClick={resetAndClose} disabled={busy}>Close</Button>
+                        <Button type="button" icon={UploadCloud} onClick={handleConfirm} disabled={!validation?.validRows.length || !!result || busy} isLoading={activeAction === 'confirm'}>Import Marks</Button>
                     </div>
                 </div>
             )}
@@ -129,11 +132,11 @@ export function AttendanceMonthlyImportModal({
                 <div className="grid gap-3 sm:grid-cols-[150px_150px_1fr]">
                     <div className="space-y-2">
                         <Label>Year</Label>
-                        <Input type="number" value={year} onChange={(event) => { setYear(Number(event.target.value)); setValidation(null); setResult(null); }} icon={CalendarDays} />
+                        <Input type="number" value={year} disabled={busy} onChange={(event) => { setYear(Number(event.target.value)); setValidation(null); setResult(null); }} icon={CalendarDays} />
                     </div>
                     <div className="space-y-2">
                         <Label>Month</Label>
-                        <Input type="number" min={1} max={12} value={month} onChange={(event) => { setMonth(Number(event.target.value)); setValidation(null); setResult(null); }} icon={CalendarDays} />
+                        <Input type="number" min={1} max={12} value={month} disabled={busy} onChange={(event) => { setMonth(Number(event.target.value)); setValidation(null); setResult(null); }} icon={CalendarDays} />
                     </div>
                     <div className="space-y-2">
                         <Label>Target</Label>
@@ -141,12 +144,13 @@ export function AttendanceMonthlyImportModal({
                             value={targetMode}
                             onChange={(value) => { setTargetMode(value as AttendanceImportTargetMode); setValidation(null); setResult(null); }}
                             options={TARGET_OPTIONS}
+                            disabled={busy}
                         />
                     </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                    <Input type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files?.[0] || null); setValidation(null); setResult(null); }} />
-                    <Button type="button" icon={FileUp} onClick={handleValidate} disabled={!file} isLoading={loading}>Validate</Button>
+                    <Input type="file" accept=".csv,text/csv" disabled={busy} onChange={(event) => { setFile(event.target.files?.[0] || null); setValidation(null); setResult(null); }} />
+                    <Button type="button" icon={FileUp} onClick={handleValidate} disabled={!file || busy} isLoading={activeAction === 'validate'}>Validate</Button>
                 </div>
                 {validation && (
                     <div className="grid gap-2 sm:grid-cols-4">

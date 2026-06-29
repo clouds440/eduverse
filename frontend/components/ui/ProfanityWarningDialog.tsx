@@ -69,7 +69,7 @@ export function ProfanityWarningDialog({ warning, onClose }: ProfanityWarningDia
                         </p>
                         {warning.field && (
                             <p className="mt-3 rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm font-medium text-foreground">
-                                Field: {warning.field}
+                                Field: {warning.fieldLabel || warning.field}
                             </p>
                         )}
                     </div>

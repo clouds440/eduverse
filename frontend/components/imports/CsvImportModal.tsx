@@ -29,8 +29,10 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
     const [file, setFile] = useState<File | null>(null);
     const [validation, setValidation] = useState<ImportValidationResult | null>(null);
     const [result, setResult] = useState<ImportConfirmResult | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [activeAction, setActiveAction] = useState<'template' | 'validate' | 'confirm' | 'issues' | null>(null);
 
+    const busy = activeAction !== null;
+    const isConfirming = activeAction === 'confirm';
     const warningRows: InvalidImportRow[] = (validation?.validRows || [])
         .filter((row) => row.warnings?.length)
         .map((row) => ({ rowNumber: row.rowNumber, raw: row.raw, errors: row.warnings || [] }));
@@ -46,20 +48,20 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
 
     const handleDownloadTemplate = async () => {
         if (!token) return;
-        setLoading(true);
+        setActiveAction('template');
         try {
             const csv = await api.imports.getTemplate(entity, token);
             downloadCsv(`${entity}-template.csv`, csv);
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download template', type: 'error' } });
         } finally {
-            setLoading(false);
+            setActiveAction(null);
         }
     };
 
     const handleValidate = async () => {
         if (!token || !file) return;
-        setLoading(true);
+        setActiveAction('validate');
         setResult(null);
         try {
             const response = await api.imports.validate(entity, file, token);
@@ -67,13 +69,13 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to validate CSV', type: 'error' } });
         } finally {
-            setLoading(false);
+            setActiveAction(null);
         }
     };
 
     const handleConfirm = async () => {
         if (!token || !validation) return;
-        setLoading(true);
+        setActiveAction('confirm');
         try {
             const response = await api.imports.confirm(entity, validation.validRows, token);
             setResult(response);
@@ -82,24 +84,25 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to import rows', type: 'error' } });
         } finally {
-            setLoading(false);
+            setActiveAction(null);
         }
     };
 
     const handleDownloadErrors = async () => {
         if (!token || issueRows.length === 0) return;
-        setLoading(true);
+        setActiveAction('issues');
         try {
             const csv = await api.imports.getErrorReport(entity, issueRows, token);
             downloadCsv(`${entity}-import-issues.csv`, csv);
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download issue report', type: 'error' } });
         } finally {
-            setLoading(false);
+            setActiveAction(null);
         }
     };
 
     const resetAndClose = () => {
+        if (isConfirming) return;
         setFile(null);
         setValidation(null);
         setResult(null);
@@ -115,17 +118,17 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
             maxWidth="max-w-5xl"
             footer={(
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-                    <Button type="button" variant="secondary" icon={Download} onClick={handleDownloadTemplate} isLoading={loading}>
+                    <Button type="button" variant="secondary" icon={Download} onClick={handleDownloadTemplate} disabled={busy} isLoading={activeAction === 'template'}>
                         Template
                     </Button>
                     <div className="flex gap-2">
                         {issueRows.length > 0 && (
-                            <Button type="button" variant="outline" icon={Download} onClick={handleDownloadErrors} isLoading={loading}>
+                            <Button type="button" variant="outline" icon={Download} onClick={handleDownloadErrors} disabled={busy} isLoading={activeAction === 'issues'}>
                                 Issue CSV
                             </Button>
                         )}
-                        <Button type="button" variant="secondary" onClick={resetAndClose}>Close</Button>
-                        <Button type="button" icon={UploadCloud} onClick={handleConfirm} disabled={!canConfirm} isLoading={loading}>
+                        <Button type="button" variant="secondary" onClick={resetAndClose} disabled={busy}>Close</Button>
+                        <Button type="button" icon={UploadCloud} onClick={handleConfirm} disabled={!canConfirm || busy} isLoading={activeAction === 'confirm'}>
                             Import Valid Rows
                         </Button>
                     </div>
@@ -140,13 +143,14 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
                     <Input
                         type="file"
                         accept=".csv,text/csv"
+                        disabled={busy}
                         onChange={(event) => {
                             setFile(event.target.files?.[0] || null);
                             setValidation(null);
                             setResult(null);
                         }}
                     />
-                    <Button type="button" icon={FileUp} onClick={handleValidate} disabled={!file} isLoading={loading}>
+                    <Button type="button" icon={FileUp} onClick={handleValidate} disabled={!file || busy} isLoading={activeAction === 'validate'}>
                         Validate
                     </Button>
                 </div>
