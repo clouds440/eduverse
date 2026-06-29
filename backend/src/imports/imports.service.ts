@@ -25,6 +25,7 @@ import { DepartmentsService } from '../departments/departments.service';
 import { BuildingsService } from '../buildings/buildings.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { AttendanceService } from '../attendance/attendance.service';
+import { CohortsService } from '../cohorts/cohorts.service';
 import { CreateStudentDto } from '../org/dto/create-student.dto';
 import { CreateTeacherDto } from '../org/dto/create-teacher.dto';
 import { CreateGuardianDto } from '../guardians/dto/create-guardian.dto';
@@ -33,6 +34,7 @@ import { CreateSectionDto } from '../sections/dto/create-section.dto';
 import { CreateDepartmentDto } from '../departments/dto/create-department.dto';
 import { CreateBuildingDto } from '../buildings/dto/create-building.dto';
 import { CreateRoomDto } from '../rooms/dto/create-room.dto';
+import { CreateCohortDto } from '../cohorts/dto/create-cohort.dto';
 import { buildErrorReportCsv, makeTemplateCsv, parseCsv, validateStrictHeaders } from './csv.utils';
 import {
   optionalBoolean,
@@ -96,6 +98,7 @@ export class ImportsService {
     private readonly departments: DepartmentsService,
     private readonly buildings: BuildingsService,
     private readonly rooms: RoomsService,
+    private readonly cohorts: CohortsService,
     private readonly attendance: AttendanceService,
   ) {}
 
@@ -643,6 +646,28 @@ export class ImportsService {
           { label: 'Section code', value: (data) => data.code as string | undefined, existing: (orgId, value) => this.sectionCodeExists(orgId, value) },
         ],
       },
+      cohorts: {
+        entity: 'cohorts',
+        headers: ['name', 'code', 'academicCycleCode'],
+        required: ['name', 'code', 'academicCycleCode'],
+        dto: CreateCohortDto,
+        examples: [{ name: 'Grade 9 - Batch A', code: 'GRADE-9-A', academicCycleCode: '2026-SPRING' }],
+        normalize: (row) => ({
+          name: optionalString(row.name),
+          code: this.normalizeCode(row.code),
+          academicCycleCode: this.normalizeCode(row.academicCycleCode),
+        }),
+        resolveRelations: async (orgId, data) => {
+          data.academicCycleId = await this.resolveAcademicCycleId(orgId, data.academicCycleCode as string | undefined, 'academicCycleCode');
+          delete data.academicCycleCode;
+        },
+        create: (orgId, data) => this.cohorts.createCohort(orgId, data as unknown as CreateCohortDto),
+        validateRelations: async (orgId, data) => this.assertAcademicCycleExists(orgId, data.academicCycleId as string | undefined),
+        duplicateKeys: [
+          { label: 'Cohort name', value: (data) => data.name as string, existing: (orgId, value) => this.cohortNameExists(orgId, value) },
+          { label: 'Cohort code', value: (data) => data.code as string | undefined, existing: (orgId, value) => this.cohortCodeExists(orgId, value) },
+        ],
+      },
       departments: {
         entity: 'departments',
         headers: ['name', 'code', 'description', 'color', 'isActive'],
@@ -1161,6 +1186,20 @@ export class ImportsService {
     }));
   }
 
+  private async cohortNameExists(orgId: string, name: string) {
+    return Boolean(await this.prisma.cohort.findFirst({
+      where: { organizationId: orgId, name: { equals: name, mode: Prisma.QueryMode.insensitive } },
+      select: { id: true },
+    }));
+  }
+
+  private async cohortCodeExists(orgId: string, code: string) {
+    return Boolean(await this.prisma.cohort.findFirst({
+      where: { organizationId: orgId, code: { equals: code, mode: Prisma.QueryMode.insensitive } },
+      select: { id: true },
+    }));
+  }
+
   private async roomCodeExists(orgId: string, code: string) {
     return Boolean(await this.prisma.room.findFirst({
       where: { organizationId: orgId, code: { equals: code, mode: Prisma.QueryMode.insensitive } },
@@ -1185,6 +1224,12 @@ export class ImportsService {
     if (!buildingId) return;
     const exists = await this.prisma.building.findFirst({ where: { id: buildingId, organizationId: orgId }, select: { id: true } });
     if (!exists) throw new BadRequestException('Building does not belong to this organization');
+  }
+
+  private async assertAcademicCycleExists(orgId: string, academicCycleId?: string) {
+    if (!academicCycleId) return;
+    const exists = await this.prisma.academicCycle.findFirst({ where: { id: academicCycleId, organizationId: orgId }, select: { id: true } });
+    if (!exists) throw new BadRequestException('Academic cycle does not belong to this organization');
   }
 
   private async assertSectionRelations(orgId: string, data: Record<string, unknown>) {

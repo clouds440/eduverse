@@ -425,10 +425,13 @@ export class SectionsService {
     if (!cohortId) return;
     const cohort = await this.prisma.cohort.findFirst({
       where: { id: cohortId, organizationId: orgId, academicCycleId },
-      select: { id: true },
+      select: { id: true, isActive: true },
     });
     if (!cohort) {
       throw new NotFoundException('Cohort not found for this academic cycle');
+    }
+    if (!cohort.isActive) {
+      throw new ConflictException('Cannot assign sections to an inactive cohort');
     }
   }
 }

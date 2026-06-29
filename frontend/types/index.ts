@@ -1000,6 +1000,7 @@ export type ImportEntity =
     | 'guardians'
     | 'courses'
     | 'sections'
+    | 'cohorts'
     | 'departments'
     | 'buildings'
     | 'rooms';
@@ -1849,6 +1850,7 @@ export interface Cohort {
     code: string;
     organizationId: string;
     academicCycleId: string;
+    isActive?: boolean;
     academicCycle?: AcademicCycle;
     students?: Student[];
     sections?: Section[];
@@ -2262,6 +2264,7 @@ export interface CreateCohortDto {
     name: string;
     code: string;
     academicCycleId: string;
+    isActive?: boolean;
     studentIds?: string[];
     sectionIds?: string[];
 }
@@ -2270,6 +2273,7 @@ export interface UpdateCohortDto {
     name?: string;
     code?: string;
     academicCycleId?: string;
+    isActive?: boolean;
     studentIds?: string[];
     sectionIds?: string[];
 }

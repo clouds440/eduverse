@@ -44,7 +44,9 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
         ? 'Rooms use buildingCode, room code, required floor, optional landmark and directions fields. Do not paste database IDs.'
         : entity === 'buildings'
             ? 'Buildings use building code and optional departmentCodes, landmark, directions, sort order, and reserved map fields.'
-            : null;
+            : entity === 'cohorts'
+                ? 'Cohort CSV imports create empty cohorts only. Add students and sections manually after import; academicCycleCode is resolved from the academic cycle code.'
+                : null;
 
     const handleDownloadTemplate = async () => {
         if (!token) return;

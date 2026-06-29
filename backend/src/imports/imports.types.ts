@@ -4,6 +4,7 @@ export type ImportEntity =
   | 'guardians'
   | 'courses'
   | 'sections'
+  | 'cohorts'
   | 'departments'
   | 'buildings'
   | 'rooms';

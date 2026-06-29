@@ -85,6 +85,7 @@ export class CohortsService {
           code: code!,
           organizationId: orgId,
           academicCycleId: dto.academicCycleId,
+          isActive: dto.isActive ?? true,
           sections: {
             connect: dto.sectionIds?.map(id => ({ id })) || [],
           },
@@ -266,6 +267,7 @@ export class CohortsService {
           name: dto.name !== undefined ? dto.name.trim() : undefined,
           code: dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
           academicCycleId: dto.academicCycleId !== undefined ? dto.academicCycleId : undefined,
+          isActive: dto.isActive,
           sections: dto.sectionIds !== undefined ? {
             set: dto.sectionIds.map(sectionId => ({ id: sectionId })),
           } : undefined,
@@ -361,24 +363,16 @@ export class CohortsService {
   async deleteCohort(orgId: string, id: string) {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id, organizationId: orgId },
-      include: { _count: { select: { students: true } } },
+      select: { id: true, isActive: true },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
 
-    if (cohort._count.students > 0) {
-      throw new ConflictException(
-        'Cannot delete cohort with assigned students. Remove students first.',
-      );
+    if (!cohort.isActive) {
+      return { message: 'Cohort is already inactive' };
     }
 
-    // Remove cohort association from sections
-    await this.prisma.section.updateMany({
-      where: { cohortId: id },
-      data: { cohortId: null },
-    });
-
-    await this.prisma.cohort.delete({ where: { id } });
-    return { message: 'Cohort deleted' };
+    await this.prisma.cohort.update({ where: { id }, data: { isActive: false } });
+    return { message: 'Cohort archived' };
   }
 
   // ─── STUDENT ↔ COHORT MANAGEMENT ──────────────────────────────────────────
@@ -392,6 +386,7 @@ export class CohortsService {
       },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
+    if (!cohort.isActive) throw new ConflictException('Cannot add students to an inactive cohort');
 
     const student = await this.prisma.student.findFirst({
       where: { id: studentId, organizationId: orgId },
@@ -445,6 +440,7 @@ export class CohortsService {
       },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
+    if (!cohort.isActive) throw new ConflictException('Cannot add students to an inactive cohort');
 
     const students = await this.prisma.student.findMany({
       where: { id: { in: studentIds }, organizationId: orgId },
@@ -498,6 +494,7 @@ export class CohortsService {
       where: { id: cohortId, organizationId: orgId },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
+    if (!cohort.isActive) throw new ConflictException('Cannot assign sections to an inactive cohort');
 
     const student = await this.prisma.student.findFirst({
       where: { id: studentId, organizationId: orgId, cohortId },

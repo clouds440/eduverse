@@ -53,6 +53,7 @@ export default function CohortDetailPage() {
                     <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="neutral" size="sm">Cohort</Badge>
                         <Badge variant="primary" size="sm">{cohort.code}</Badge>
+                        {cohort.isActive === false && <Badge variant="warning" size="sm">Inactive</Badge>}
                     </div>
                 )}
                 actions={isAdmin ? (

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsArray, IsOptional, Matches, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, IsBoolean, IsOptional, Matches, MaxLength } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 
 export class CreateCohortDto {
@@ -15,6 +15,10 @@ export class CreateCohortDto {
   @IsString()
   @IsNotEmpty()
   academicCycleId: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 
   @IsArray()
   @IsString({ each: true })

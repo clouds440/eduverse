@@ -189,6 +189,7 @@ export class StudentService {
       include: { sections: { select: { id: true, academicCycleId: true } } },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
+    if (!cohort.isActive) throw new ConflictException('Cannot enroll students into an inactive cohort');
     return cohort;
   }
 

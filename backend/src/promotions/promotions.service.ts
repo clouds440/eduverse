@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PromoteStudentsDto } from './dto/promote-students.dto';
@@ -43,6 +44,7 @@ export class PromotionsService {
       },
     });
     if (!toCohort) throw new NotFoundException('Target cohort not found in the target cycle');
+    if (!toCohort.isActive) throw new ConflictException('Cannot promote students into an inactive cohort');
 
     // Validate students
     const students = await this.prisma.student.findMany({

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { Plus, Users } from 'lucide-react';
+import { FileUp, Plus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
@@ -20,8 +20,10 @@ import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/compo
 import { DocsLink } from '@/components/ui/DocsLink';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
+import { Badge } from '@/components/ui/Badge';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 export default function CohortsPage() {
     const { token, user } = useAuth();
@@ -55,6 +57,7 @@ export default function CohortsPage() {
 
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCohort, setDeletingCohort] = useState<Cohort | null>(null);
+    const [importOpen, setImportOpen] = useState(false);
 
     const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
@@ -74,12 +77,26 @@ export default function CohortsPage() {
 
         try {
             await api.cohorts.deleteCohort(deletingCohort.id, token);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort deleted successfully', type: 'success' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort archived successfully', type: 'success' } });
             setDeleteDialogOpen(false);
             mutate(matchesCacheKeyPrefix('cohorts'));
         } catch (err: unknown) {
             const apiError = err as ApiError;
-            const rawMessage = apiError?.response?.data?.message || apiError?.message || 'Error deleting cohort';
+            const rawMessage = apiError?.response?.data?.message || apiError?.message || 'Error archiving cohort';
+            const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        }
+    };
+
+    const handleRestore = async (cohort: Cohort) => {
+        if (!token) return;
+        try {
+            await api.cohorts.updateCohort(cohort.id, { isActive: true }, token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort reactivated successfully', type: 'success' } });
+            mutate(matchesCacheKeyPrefix('cohorts'));
+        } catch (err: unknown) {
+            const apiError = err as ApiError;
+            const rawMessage = apiError?.response?.data?.message || apiError?.message || 'Error reactivating cohort';
             const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         }
@@ -114,7 +131,10 @@ export default function CohortsPage() {
                         <Users className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-foreground">{row.name}</p>
+                        <div className="flex min-w-0 items-center gap-2">
+                            <p className="truncate text-sm font-black text-foreground">{row.name}</p>
+                            {row.isActive === false && <Badge variant="warning" size="sm">Inactive</Badge>}
+                        </div>
                         <p className="mt-1 text-xs font-black uppercase tracking-wider text-muted-foreground">{row.code}</p>
                     </div>
                 </div>
@@ -147,12 +167,17 @@ export default function CohortsPage() {
                 <TableActions
                     onEdit={isAdmin ? () => router.push(`/cohorts/edit/${row.id}?returnTo=/cohorts`) : undefined}
                     onView={() => router.push(`/cohorts/${row.id}`)}
-                    onDelete={isAdmin ? () => {
+                    onDelete={isAdmin && row.isActive !== false ? () => {
                         setDeletingCohort(row);
                         setDeleteDialogOpen(true);
                     } : undefined}
                     editTitle="Edit Cohort"
-                    deleteTitle="Delete Cohort"
+                    deleteTitle="Archive Cohort"
+                    extraActions={isAdmin && row.isActive === false ? [{
+                        variant: 'restore',
+                        title: 'Reactivate Cohort',
+                        onClick: () => handleRestore(row),
+                    }] : []}
                     variant="default"
                     isViewAndEdit={false}
                 />
@@ -187,13 +212,24 @@ export default function CohortsPage() {
                         />
                     )}
                     actions={isAdmin ? (
-                        <Button
-                            onClick={() => router.push('/cohorts/create')}
-                            icon={Plus}
-                            className="shrink-0"
-                        >
-                            New Cohort
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                icon={FileUp}
+                                onClick={() => setImportOpen(true)}
+                                className="shrink-0"
+                            >
+                                Import CSV
+                            </Button>
+                            <Button
+                                onClick={() => router.push('/cohorts/create')}
+                                icon={Plus}
+                                className="shrink-0"
+                            >
+                                New Cohort
+                            </Button>
+                        </div>
                     ) : undefined}
                     renderFilters={() => (
                         <FilterDrawerGrid>
@@ -245,10 +281,17 @@ export default function CohortsPage() {
                 isOpen={deleteDialogOpen}
                 onClose={() => setDeleteDialogOpen(false)}
                 onConfirm={handleDeleteConfirm}
-                title={<>Delete Cohort <strong>{deletingCohort?.name}</strong></>}
-                description="Are you sure you want to delete this cohort? This action cannot be undone."
-                confirmText="Yes, Delete"
-                isDestructive={true}
+                title={<>Archive Cohort <strong>{deletingCohort?.name}</strong></>}
+                description="This will mark the cohort inactive while preserving students, sections, and history. It can be reactivated later."
+                confirmText="Yes, Archive"
+                isDestructive={false}
+            />
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="cohorts"
+                title="Cohorts"
+                cachePrefix="cohorts"
             />
         </PageShell>
     );

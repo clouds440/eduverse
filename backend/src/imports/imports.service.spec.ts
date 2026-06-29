@@ -39,6 +39,7 @@ function createService(overrides: Partial<Record<string, any>> = {}) {
     { createDepartment: jest.fn() } as any,
     { createBuilding: jest.fn() } as any,
     { createRoom: jest.fn() } as any,
+    { createCohort: jest.fn() } as any,
     attendance as any,
   );
 
@@ -234,5 +235,69 @@ describe('ImportsService building validation', () => {
     expect(result.invalidRows[0].errors).toEqual([
       { rowNumber: 2, field: 'departmentCodes', message: 'None of these department codes were found: NOPE, MISSING' },
     ]);
+  });
+});
+
+describe('ImportsService cohort validation', () => {
+  const admin = {
+    id: 'admin-1',
+    role: 'ORG_ADMIN',
+    name: 'Admin',
+    email: 'admin@example.test',
+  };
+
+  it('resolves academicCycleCode and prepares plain empty cohorts', async () => {
+    const { service } = createService({
+      prisma: {
+        academicCycle: { findFirst: jest.fn().mockResolvedValue({ id: 'cycle-2026' }) },
+      },
+    });
+    const csv = [
+      'name,code,academicCycleCode',
+      'Grade 9 Batch A,GRADE-9-A,2026-SPRING',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'cohorts', csv, admin);
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data).toEqual({
+      name: 'Grade 9 Batch A',
+      code: 'GRADE-9-A',
+      academicCycleId: 'cycle-2026',
+    });
+    expect(result.validRows[0].raw).toEqual({
+      name: 'Grade 9 Batch A',
+      code: 'GRADE-9-A',
+      academicCycleCode: '2026-SPRING',
+    });
+  });
+
+  it('rejects unknown academic cycle codes and duplicate cohort codes', async () => {
+    const { service } = createService({
+      prisma: {
+        academicCycle: { findFirst: jest.fn().mockResolvedValue(null) },
+        cohort: {
+          findFirst: jest.fn(async ({ where }) => (
+            where.code?.equals === 'GRADE-10-A' ? { id: 'existing-cohort' } : null
+          )),
+        },
+      },
+    });
+    const csv = [
+      'name,code,academicCycleCode',
+      'Grade 10 Batch A,GRADE-10-A,UNKNOWN',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'cohorts', csv, admin);
+
+    expect(result.summary.valid).toBe(0);
+    expect(result.summary.invalid).toBe(1);
+    expect(result.invalidRows[0].errors.map((error) => `${error.field || 'row'}: ${error.message}`)).toEqual(
+      expect.arrayContaining([
+        'academicCycleCode: Academic cycle code "UNKNOWN" was not found',
+        'row: Cohort code already exists',
+      ]),
+    );
   });
 });

@@ -8,6 +8,7 @@ import { SectionsModule } from '../sections/sections.module';
 import { DepartmentsModule } from '../departments/departments.module';
 import { BuildingsModule } from '../buildings/buildings.module';
 import { RoomsModule } from '../rooms/rooms.module';
+import { CohortsModule } from '../cohorts/cohorts.module';
 import { AttendanceModule } from '../attendance/attendance.module';
 import { ImportsController } from './imports.controller';
 import { ImportsService } from './imports.service';
@@ -23,6 +24,7 @@ import { ImportsService } from './imports.service';
     DepartmentsModule,
     BuildingsModule,
     RoomsModule,
+    CohortsModule,
     AttendanceModule,
   ],
   controllers: [ImportsController],

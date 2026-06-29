@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, Matches, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean, Matches, MaxLength } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 
 export class UpdateCohortDto {
@@ -9,6 +9,10 @@ export class UpdateCohortDto {
   @IsString()
   @IsOptional()
   academicCycleId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 
   @IsString()
   @IsOptional()
