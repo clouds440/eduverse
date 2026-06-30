@@ -14,8 +14,11 @@ async function bootstrap() {
   // Validate required environment variables before starting
   validateEnv();
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   const logger = new Logger('Bootstrap');
+
+  app.useBodyParser('json', { limit: '25mb' });
+  app.useBodyParser('urlencoded', { limit: '25mb', extended: true });
 
   const allowedOrigins = (process.env.FRONTEND_URL!)
     .split(',')

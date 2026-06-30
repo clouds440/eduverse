@@ -21,7 +21,7 @@ export interface DepartmentPerformancePoint {
 }
 
 function formatDepartmentName(department: { name: string; code?: string | null }) {
-  return department.code ? `${department.code} - ${department.name}` : department.name;
+  return department.code || department.name;
 }
 
 export async function getDepartmentAdminInsights(

@@ -146,6 +146,28 @@ describe('ImportsService student validation', () => {
     expect(result.invalidRows.map((row) => row.rowNumber)).toEqual([3, 4]);
   });
 
+  it('rejects CSV imports over 1,000 rows with a clear error', async () => {
+    const { service } = createService();
+    const rows = Array.from({ length: 1001 }, (_, index) => [
+      `Student ${index + 1}`,
+      `student-${index + 1}@test.test`,
+      'Student123',
+      `REG-${index + 1}`,
+      `R-${index + 1}`,
+      'Science',
+      'Female',
+      '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '', '',
+    ].join(','));
+    const csv = [studentHeaders.join(','), ...rows].join('\n');
+
+    await expect(service.validateEntityCsv('org-1', 'students', csv, {
+      id: 'admin-1',
+      role: 'ORG_ADMIN',
+      name: 'Admin',
+      email: 'admin@example.test',
+    })).rejects.toThrow('CSV import is limited to 1,000 rows at a time');
+  });
+
   it('prefixes student CSV field names on typed validation errors', async () => {
     const { service } = createService();
     const rowWithBadAge = [

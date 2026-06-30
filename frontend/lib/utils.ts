@@ -88,8 +88,6 @@ export function getSectionTintStyle(color: SectionColorInput) {
 }
 
 export function formatCourseSectionLabel({
-    courseCode,
-    courseName,
     sectionCode,
     sectionName,
 }: {
@@ -98,14 +96,10 @@ export function formatCourseSectionLabel({
     sectionCode?: string | null;
     sectionName?: string | null;
 }) {
-    const sectionLabel = sectionName || 'Unnamed section';
-    const courseLabel = courseCode || courseName || null;
-    return courseLabel ? `${sectionLabel} - ${courseLabel}` : sectionLabel;
+    return sectionName || sectionCode || 'Unnamed section';
 }
 
 export function getCourseSectionLabelParts({
-    courseCode,
-    courseName,
     sectionCode,
     sectionName,
 }: {
@@ -115,10 +109,10 @@ export function getCourseSectionLabelParts({
     sectionName?: string | null;
 }) {
     return {
-        courseName: courseCode || courseName || null,
-        sectionName: sectionName || null,
+        courseName: null,
+        sectionName: sectionName || sectionCode || null,
         sectionCode: sectionCode || null,
-        inlineLabel: formatCourseSectionLabel({ courseCode, courseName, sectionCode, sectionName }),
+        inlineLabel: formatCourseSectionLabel({ sectionCode, sectionName }),
     };
 }
 

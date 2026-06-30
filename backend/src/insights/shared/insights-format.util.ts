@@ -20,6 +20,6 @@ export function labelize(value: string) {
     .join(' ');
 }
 
-export function formatSectionLabel(sectionName: string, courseName?: string | null) {
-  return courseName ? `${sectionName} (${courseName})` : sectionName;
+export function formatSectionLabel(sectionName: string, _courseName?: string | null) {
+  return sectionName;
 }

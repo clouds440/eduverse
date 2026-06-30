@@ -212,15 +212,17 @@ interface BarChartProps {
   color?: string;
   horizontal?: boolean;
   disableHover?: boolean;
+  categoryAxisWidth?: number;
 }
 
-export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, color = COLORS.primary, horizontal = false, disableHover = false }: BarChartProps) {
+export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, color = COLORS.primary, horizontal = false, disableHover = false, categoryAxisWidth }: BarChartProps) {
   const isCompact = useCompactChart();
 
   if (!data || data.length === 0) return null;
 
   const layout = horizontal ? 'vertical' : undefined;
   const chartHeight = isCompact ? Math.min(height, horizontal ? 260 : 220) : height;
+  const resolvedCategoryAxisWidth = categoryAxisWidth ? (isCompact ? Math.min(categoryAxisWidth, 96) : categoryAxisWidth) : (isCompact ? 72 : 92);
 
   return (
     <div className="w-full">
@@ -244,7 +246,7 @@ export function InsightBarChart({ data, dataKey, nameKey, height = 300, title, c
                 tick={getAxisTick(isCompact)}
                 axisLine={false}
                 tickLine={false}
-                width={isCompact ? 72 : 92}
+                width={resolvedCategoryAxisWidth}
               />
             </>
           ) : (

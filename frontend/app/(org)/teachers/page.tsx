@@ -211,9 +211,10 @@ export default function TeachersPage() {
                                 key={entry.departmentId}
                                 variant="primary"
                                 size="sm"
+                                title={formatDepartmentLabel(entry.department)}
                                 style={entry.department.color ? { borderColor: `${entry.department.color}55`, backgroundColor: `${entry.department.color}18`, color: entry.department.color } : undefined}
                             >
-                                {formatDepartmentLabel(entry.department)}
+                                {entry.department.code || entry.department.name || 'Dept'}
                             </Badge>
                         ))}
                         {departmentLinks.length > 2 && <Badge variant="neutral" size="sm">+{departmentLinks.length - 2}</Badge>}

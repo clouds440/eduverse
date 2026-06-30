@@ -12,6 +12,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
@@ -22,7 +23,10 @@ import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-requ
 import { ImportsService } from './imports.service';
 import type { AttendanceImportTargetMode, ImportEntity, ImportPreviewRow, InvalidImportRow } from './imports.types';
 
+const CSV_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
+
 @Access(AccessLevel.WRITE)
+@SkipThrottle()
 @Controller('org/imports')
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
@@ -39,7 +43,7 @@ export class ImportsController {
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Post(':entity/validate')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: CSV_UPLOAD_LIMIT_BYTES } }))
   validateEntity(
     @OrgId() orgId: string,
     @Param('entity') entity: string,
@@ -96,7 +100,7 @@ export class ImportsController {
 
   @Roles(Role.ORG_MANAGER, Role.TEACHER)
   @Post('attendance/monthly/validate')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: CSV_UPLOAD_LIMIT_BYTES } }))
   validateAttendance(
     @OrgId() orgId: string,
     @UploadedFile() file: Express.Multer.File,

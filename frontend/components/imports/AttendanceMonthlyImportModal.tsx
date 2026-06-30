@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { StatusBanner } from '@/components/ui/StatusBanner';
-import { downloadCsv, formatImportErrors } from './importUtils';
+import { chunkImportRows, downloadCsv, formatImportErrors, mergeImportConfirmResults } from './importUtils';
 
 const TARGET_OPTIONS: { value: AttendanceImportTargetMode; label: string }[] = [
     { value: 'FIRST_SCHEDULE', label: 'First scheduled session' },
@@ -43,6 +43,7 @@ export function AttendanceMonthlyImportModal({
     const [validation, setValidation] = useState<ImportValidationResult | null>(null);
     const [result, setResult] = useState<ImportConfirmResult | null>(null);
     const [activeAction, setActiveAction] = useState<'template' | 'validate' | 'confirm' | 'errors' | null>(null);
+    const [confirmProgress, setConfirmProgress] = useState<{ current: number; total: number } | null>(null);
     const busy = activeAction !== null;
     const isConfirming = activeAction === 'confirm';
     const invalidRows = result?.errors || validation?.invalidRows || [];
@@ -77,14 +78,29 @@ export function AttendanceMonthlyImportModal({
     const handleConfirm = async () => {
         if (!token || !validation) return;
         setActiveAction('confirm');
+        setConfirmProgress(null);
+        const batchResults: ImportConfirmResult[] = [];
         try {
-            const response = await api.imports.confirmAttendanceMonthly(options, validation.validRows, token);
+            const batches = chunkImportRows(validation.validRows);
+            setConfirmProgress({ current: 0, total: batches.length });
+            for (const [index, batch] of batches.entries()) {
+                batchResults.push(await api.imports.confirmAttendanceMonthly(options, batch, token));
+                setConfirmProgress({ current: index + 1, total: batches.length });
+            }
+            const response = mergeImportConfirmResults('attendance-monthly', batchResults);
             setResult(response);
             mutate(matchesCacheKeyPrefixStartsWith('attendance-'));
             dispatch({ type: 'TOAST_ADD', payload: { message: `Imported ${response.importedCount} attendance mark${response.importedCount === 1 ? '' : 's'}`, type: 'success' } });
         } catch (error) {
+            if (batchResults.length) {
+                const partial = mergeImportConfirmResults('attendance-monthly', batchResults);
+                setResult(partial);
+                mutate(matchesCacheKeyPrefixStartsWith('attendance-'));
+                dispatch({ type: 'TOAST_ADD', payload: { message: `Imported ${partial.importedCount} marks before a later batch failed`, type: 'info' } });
+            }
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to import attendance', type: 'error' } });
         } finally {
+            setConfirmProgress(null);
             setActiveAction(null);
         }
     };
@@ -107,6 +123,7 @@ export function AttendanceMonthlyImportModal({
         setFile(null);
         setValidation(null);
         setResult(null);
+        setConfirmProgress(null);
         onClose();
     };
 
@@ -115,7 +132,7 @@ export function AttendanceMonthlyImportModal({
             isOpen={isOpen}
             onClose={resetAndClose}
             title="Import Monthly Attendance"
-            subtitle="Use name, rollNumber, and day columns with P, A, L, E values."
+            subtitle="Use name, rollNumber, and day columns with P, A, L, E values. Limit: 1k rows per CSV."
             maxWidth="max-w-5xl"
             footer={(
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
@@ -129,6 +146,9 @@ export function AttendanceMonthlyImportModal({
             )}
         >
             <div className="space-y-4">
+                {confirmProgress && (
+                    <StatusBanner title="Importing in batches" variant="info" description={`Batch ${confirmProgress.current} of ${confirmProgress.total}`} />
+                )}
                 <div className="grid gap-3 sm:grid-cols-[150px_150px_1fr]">
                     <div className="space-y-2">
                         <Label>Year</Label>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { ShieldCheck, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { BadgeVariant, PaginatedResponse, Role, User, UserStatus } from '@/types';
+import { BadgeVariant, DepartmentScopeType, PaginatedResponse, Role, User, UserStatus } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { matchesCacheKeyPrefix, CacheKeyPrefix } from '@/lib/swr';
@@ -22,6 +22,7 @@ import { BrandIcon } from '@/components/ui/Brand';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
+import { formatDepartmentLabel } from '@/lib/utils';
 
 interface RoleAccountParams {
     page: number;
@@ -85,6 +86,7 @@ export default function RoleAccountListPage({
 
     const hasAccess = !!user?.role && allowedRoles.includes(user.role);
     const canGenerateResetForRole = labelSingular !== 'Sub Admin' || user?.role === Role.ORG_ADMIN;
+    const isSubAdminList = labelSingular === 'Sub Admin';
 
     useEffect(() => {
         if (user && !hasAccess) {
@@ -167,6 +169,33 @@ export default function RoleAccountListPage({
                 return <Badge variant={variant}>{label}</Badge>;
             },
         },
+        ...(isSubAdminList ? [{
+            header: 'Departments',
+            sortable: false,
+            accessor: (row: User) => {
+                if (row.departmentScopeType !== DepartmentScopeType.SELECTED) {
+                    return <Badge variant="primary" size="sm">All</Badge>;
+                }
+
+                const departmentLinks = row.subAdminDepartments || [];
+                return departmentLinks.length ? (
+                    <div className="flex max-w-56 flex-wrap gap-1">
+                        {departmentLinks.slice(0, 3).map((entry) => (
+                            <Badge
+                                key={entry.departmentId}
+                                variant="primary"
+                                size="sm"
+                                title={formatDepartmentLabel(entry.department)}
+                                style={entry.department.color ? { borderColor: `${entry.department.color}55`, backgroundColor: `${entry.department.color}18`, color: entry.department.color } : undefined}
+                            >
+                                {entry.department.code || entry.department.name || 'Dept'}
+                            </Badge>
+                        ))}
+                        {departmentLinks.length > 3 && <Badge variant="neutral" size="sm">+{departmentLinks.length - 3}</Badge>}
+                    </div>
+                ) : <span className="text-muted-foreground/30 italic">No departments</span>;
+            },
+        } as Column<User>] : []),
         {
             header: 'Phone',
             sortable: true,
@@ -208,7 +237,7 @@ export default function RoleAccountListPage({
                 />
             ),
         },
-    ], [canGenerateResetForRole, generatePasswordResetLink, generatingResetUserId, handleRestore, isDeletedView, labelSingular, routeBase, router]);
+    ], [canGenerateResetForRole, generatePasswordResetLink, generatingResetUserId, handleRestore, isDeletedView, isSubAdminList, labelSingular, routeBase, router]);
 
     const activeFilters: ActiveFilter[] = [
         ...(isDeletedView ? [{

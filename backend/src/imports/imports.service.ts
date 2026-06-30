@@ -86,6 +86,8 @@ type EntityConfig<T extends Record<string, unknown>> = {
   forbiddenForSubAdmin?: boolean;
 };
 
+const MAX_IMPORT_ROWS = 1000;
+
 @Injectable()
 export class ImportsService {
   constructor(
@@ -116,6 +118,7 @@ export class ImportsService {
     this.assertEntityPermission(entity, actor);
     const config = this.getEntityConfig(entity);
     const parsed = parseCsv(csvContent);
+    this.assertImportRowLimit(parsed.rows.length);
     validateStrictHeaders(parsed.headers, config.headers);
     return this.validateEntityRows(orgId, config, parsed.rows, actor);
   }
@@ -128,6 +131,7 @@ export class ImportsService {
   ): Promise<ImportConfirmResult> {
     this.assertEntityPermission(entity, actor);
     const config = this.getEntityConfig(entity);
+    this.assertImportRowLimit(rows?.length || 0);
     const rawRows = this.previewRowsToCsvRows(rows);
     const validation = await this.validateEntityRows(orgId, config, rawRows, actor);
     const errors: InvalidImportRow[] = [...validation.invalidRows];
@@ -160,6 +164,7 @@ export class ImportsService {
 
   buildEntityErrorReport(entity: ImportEntity, rows: InvalidImportRow[]) {
     const config = this.getEntityConfig(entity);
+    this.assertImportRowLimit(rows?.length || 0);
     return buildErrorReportCsv(rows, config.headers);
   }
 
@@ -197,6 +202,7 @@ export class ImportsService {
     const days = this.daysInMonth(options.year, options.month);
     const headers = ['name', 'rollNumber', ...days.map(String)];
     const parsed = parseCsv(csvContent);
+    this.assertImportRowLimit(parsed.rows.length);
     validateStrictHeaders(parsed.headers, headers);
 
     const section = await this.attendance.getSection(orgId, options.sectionId, actor);
@@ -306,6 +312,7 @@ export class ImportsService {
   ): Promise<ImportConfirmResult> {
     this.assertAttendancePermission(actor);
     this.normalizeAttendanceOptions(options);
+    this.assertImportRowLimit(rows?.length || 0);
     const rawRows = this.previewRowsToCsvRows(rows);
     const csv = this.rowsToCsv(rawRows, ['name', 'rollNumber', ...this.daysInMonth(options.year, options.month).map(String)]);
     const validation = await this.validateAttendanceMonthlyCsv(orgId, csv, options, actor);
@@ -337,6 +344,7 @@ export class ImportsService {
   }
 
   buildAttendanceErrorReport(rows: InvalidImportRow[], year: number, month: number) {
+    this.assertImportRowLimit(rows?.length || 0);
     const headers = ['name', 'rollNumber', ...this.daysInMonth(year, month).map(String)];
     return buildErrorReportCsv(rows, headers);
   }
@@ -811,6 +819,12 @@ export class ImportsService {
   private assertAttendancePermission(actor: AuthUser) {
     if (![Role.ORG_MANAGER, Role.TEACHER].includes(actor.role as Role)) {
       throw new ForbiddenException('You do not have permission to import attendance');
+    }
+  }
+
+  private assertImportRowLimit(rowCount: number) {
+    if (rowCount > MAX_IMPORT_ROWS) {
+      throw new BadRequestException(`CSV import is limited to ${MAX_IMPORT_ROWS.toLocaleString()} rows at a time`);
     }
   }
 

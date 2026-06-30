@@ -20,6 +20,10 @@ function formatName(entity: { name: string; code?: string | null }) {
   return entity.code ? `${entity.code} - ${entity.name}` : entity.name;
 }
 
+function formatBuildingName(entity: { name: string; code?: string | null }) {
+  return entity.name || entity.code || 'Unnamed building';
+}
+
 export async function getBuildingRoomInsights(
   prisma: PrismaService,
   orgId: string,
@@ -63,8 +67,9 @@ export async function getBuildingRoomInsights(
 
   const roomUsage = rooms.map((room) => {
     const building = formatName(room.building);
+    const buildingName = formatBuildingName(room.building);
     const buildingStats = buildingRooms.get(room.building.id) || {
-      building,
+      building: buildingName,
       rooms: 0,
       scheduledSlots: 0,
     };

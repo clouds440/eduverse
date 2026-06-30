@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { ApiError, Course, Department, Role } from '@/types';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -216,7 +217,15 @@ export default function CoursesPage() {
             header: 'Department',
             sortable: true,
             sortKey: 'departmentId',
-            accessor: (row) => row.department ? formatDepartmentLabel(row.department) : <span className="text-muted-foreground/50 italic">Unassigned</span>,
+            accessor: (row) => row.department ? (
+                <Badge
+                    variant="primary"
+                    size="sm"
+                    style={row.department.color ? { borderColor: `${row.department.color}55`, backgroundColor: `${row.department.color}18`, color: row.department.color } : undefined}
+                >
+                    {formatDepartmentLabel(row.department)}
+                </Badge>
+            ) : <span className="text-muted-foreground/50 italic">Unassigned</span>,
         },
         {
             header: 'Credits',

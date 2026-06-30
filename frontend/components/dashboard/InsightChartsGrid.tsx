@@ -284,7 +284,17 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
         </div>
         {charts.buildingUsage && charts.buildingUsage.length > 0 && (
           <ChartPanel>
-            <InsightBarChart data={charts.buildingUsage} dataKey="scheduledSlots" nameKey="building" title="Building Scheduled Slots" color={COLORS.orange} horizontal disableHover />
+            <InsightBarChart
+              data={charts.buildingUsage}
+              dataKey="scheduledSlots"
+              nameKey="building"
+              title="Building Scheduled Slots"
+              color={COLORS.orange}
+              horizontal
+              disableHover
+              categoryAxisWidth={132}
+              height={Math.max(320, charts.buildingUsage.length * 42)}
+            />
           </ChartPanel>
         )}
       </div>

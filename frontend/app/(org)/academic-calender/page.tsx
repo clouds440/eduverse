@@ -113,8 +113,9 @@ function getDepartmentSummary(holiday: Holiday) {
     if (holiday.departmentScopeType === DepartmentScopeType.ALL) return 'All departments';
     const departments = holiday.departmentLinks?.map((link) => link.department).filter(Boolean) as Department[] | undefined;
     if (!departments?.length) return 'Selected departments';
-    if (departments.length <= 2) return departments.map(formatDepartmentLabel).join(', ');
-    return `${departments.slice(0, 2).map(formatDepartmentLabel).join(', ')} +${departments.length - 2}`;
+    const labels = departments.map((department) => department.code || department.name || 'Dept');
+    if (labels.length <= 2) return labels.join(', ');
+    return `${labels.slice(0, 2).join(', ')} +${labels.length - 2}`;
 }
 
 export default function HolidaysPage() {
