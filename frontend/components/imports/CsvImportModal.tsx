@@ -45,7 +45,9 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
             ? 'Buildings use building code and optional departmentCodes, landmark, directions, sort order, and reserved map fields.'
             : entity === 'cohorts'
                 ? 'Cohort CSV imports create empty cohorts only. Add students and sections manually after import; academicCycleCode is resolved from the academic cycle code.'
-                : null;
+                : entity === 'guardians'
+                    ? 'Guardians can use linkedStudents to link one or more students by registration number. Example: "REG-001,REG-002". These links use the guardian-student relationship table and can always be linked or unlinked later.'
+                    : null;
 
     const handleDownloadTemplate = async () => {
         if (!token) return;

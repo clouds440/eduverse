@@ -236,8 +236,9 @@ export default function BuildingsTab() {
         },
         {
             header: 'Departments',
+            width: 320,
             accessor: (row) => (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex min-w-64 max-w-96 flex-wrap gap-1.5 py-0.5">
                     {row.departments?.length ? row.departments.map((department) => (
                         <Badge
                             key={department.id}
@@ -387,4 +388,3 @@ export default function BuildingsTab() {
         </>
     );
 }
-

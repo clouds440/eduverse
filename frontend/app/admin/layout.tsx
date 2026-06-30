@@ -1,20 +1,17 @@
 'use client';
 
 import { useEffect, useCallback, useMemo } from 'react';
-import { usePathname } from 'next/navigation';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
-import { Building, Key, Mail, MessageSquare, ScrollText, Settings, Users } from 'lucide-react';
+import { Building, Mail, MessageSquare, ScrollText, Settings, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import statsStore from '@/lib/statsStore';
 import { Role } from '@/types';
 import { useSocket } from '@/hooks/useSocket';
 import { useGlobal } from '@/context/GlobalContext';
-import { PageTabs } from '@/components/ui/PageShell';
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
     const { user, token } = useAuth();
     const { state, dispatch } = useGlobal();
-    const pathname = usePathname();
     const stats = state.stats.admin;
     const chatStats = state.stats.chat;
 
@@ -119,71 +116,17 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             badge: chatStats && chatStats.unread > 0 ? `${chatStats.unread} New` : undefined
         });
 
+        adminLinks.push({
+            id: 'SETTINGS',
+            label: 'Settings',
+            href: '/admin/settings',
+            icon: Settings,
+        });
+
         return adminLinks;
     }, [chatStats, stats, user?.role]);
 
     const bottomLinks = useMemo<SidebarLink[]>(() => [], []);
-
-    const adminTabs = useMemo(() => [
-        {
-            value: 'organizations',
-            label: 'Organizations',
-            href: '/admin/organizations',
-            icon: Building,
-            count: stats ? (stats.PENDING + stats.APPROVED + stats.REJECTED + stats.SUSPENDED) : undefined,
-        },
-        {
-            value: 'platform-admins',
-            label: 'Platform Admins',
-            href: '/admin/platform-admins',
-            icon: Users,
-            count: stats?.PLATFORM_ADMINS,
-            hidden: user?.role !== Role.SUPER_ADMIN,
-        },
-        {
-            value: 'logs',
-            label: 'Audit Logs',
-            href: '/admin/logs',
-            icon: ScrollText,
-            hidden: user?.role !== Role.SUPER_ADMIN,
-        },
-        {
-            value: 'mail',
-            label: 'Mail',
-            href: '/admin/mail',
-            icon: Mail,
-            count: stats?.UNREAD_MAIL || undefined,
-        },
-        {
-            value: 'chat',
-            label: 'Messages',
-            href: '/admin/chat',
-            icon: MessageSquare,
-            count: chatStats?.unread || undefined,
-        },
-        {
-            value: 'settings',
-            label: 'Settings',
-            href: '/admin/settings',
-            icon: Settings,
-        },
-        {
-            value: 'change-password',
-            label: 'Password',
-            href: '/admin/change-password',
-            icon: Key,
-        },
-    ], [chatStats?.unread, stats, user?.role]);
-
-    const activeAdminTab = useMemo(() => {
-        if (pathname.startsWith('/admin/platform-admins')) return 'platform-admins';
-        if (pathname.startsWith('/admin/logs')) return 'logs';
-        if (pathname.startsWith('/admin/mail')) return 'mail';
-        if (pathname.startsWith('/admin/chat')) return 'chat';
-        if (pathname.startsWith('/admin/settings')) return 'settings';
-        if (pathname.startsWith('/admin/change-password')) return 'change-password';
-        return 'organizations';
-    }, [pathname]);
 
     return (
         <DashboardLayout
@@ -191,13 +134,6 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             bottomLinks={bottomLinks}
         >
             <div className="flex h-full min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
-                <PageTabs
-                    ariaLabel="Admin portal navigation"
-                    items={adminTabs}
-                    activeValue={activeAdminTab}
-                    size="sm"
-                    hideOnScroll
-                />
                 <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
                     {children}
                 </div>

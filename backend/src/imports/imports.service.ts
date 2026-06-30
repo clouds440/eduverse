@@ -579,7 +579,7 @@ export class ImportsService {
       },
       guardians: {
         entity: 'guardians',
-        headers: ['name', 'email', 'password', 'phone', 'status', 'address'],
+        headers: ['name', 'email', 'password', 'phone', 'status', 'address', 'linkedStudents'],
         required: ['name', 'email', 'password'],
         dto: CreateGuardianDto,
         examples: [{
@@ -589,6 +589,7 @@ export class ImportsService {
           phone: '+923009990000',
           status: 'ACTIVE',
           address: 'Lahore',
+          linkedStudents: '',
         }],
         normalize: (row) => ({
           name: optionalString(row.name),
@@ -597,7 +598,19 @@ export class ImportsService {
           phone: optionalString(row.phone),
           status: optionalEnum(row.status, Object.values(UserStatus)) || UserStatus.ACTIVE,
           address: optionalString(row.address),
+          linkedStudents: splitIds(row.linkedStudents),
         }),
+        resolveRelations: async (orgId, data, _actor, row) => {
+          const resolvedStudents = await this.resolveStudentIdsByRegistrationNumbers(
+            orgId,
+            data.linkedStudents as string[] | undefined,
+            'linkedStudents',
+            row.rowNumber,
+          );
+          data.linkedStudentIds = resolvedStudents.ids;
+          delete data.linkedStudents;
+          return resolvedStudents.warnings;
+        },
         create: (orgId, data) => this.guardians.createGuardian(orgId, data as unknown as CreateGuardianDto),
         duplicateKeys: [
           { label: 'Email', value: (data) => data.email as string, existing: (orgId, value) => this.userExists(value) },
@@ -1157,6 +1170,54 @@ export class ImportsService {
       })),
     };
   }
+
+  private async resolveStudentIdByRegistrationNumber(orgId: string, registrationNumber?: string, field = 'linkedStudents') {
+    const value = registrationNumber?.trim();
+    if (!value) return undefined;
+    const student = await this.prisma.student.findFirst({
+      where: {
+        organizationId: orgId,
+        registrationNumber: { equals: value, mode: Prisma.QueryMode.insensitive },
+      },
+      select: { id: true },
+    });
+    if (!student) throw new BadRequestException({ field, message: `Student registration number "${value}" was not found` });
+    return student.id;
+  }
+
+  private async resolveStudentIdsByRegistrationNumbers(orgId: string, registrationNumbers?: string[], field = 'linkedStudents', rowNumber = 0) {
+    const values = Array.from(new Set((registrationNumbers || []).map((value) => value.trim()).filter(Boolean)));
+    const ids: string[] = [];
+    const missing: string[] = [];
+    for (const value of values) {
+      try {
+        ids.push((await this.resolveStudentIdByRegistrationNumber(orgId, value, field))!);
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          missing.push(value);
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (missing.length && ids.length === 0) {
+      throw new BadRequestException({
+        field,
+        message: missing.length === 1
+          ? `Student registration number "${missing[0]}" was not found`
+          : `None of these student registration numbers were found: ${missing.join(', ')}`,
+      });
+    }
+    return {
+      ids,
+      warnings: missing.map((value) => ({
+        rowNumber,
+        field,
+        message: `Ignored unknown student registration number "${value}"`,
+      })),
+    };
+  }
+
   private async userExists(email: string) {
     return Boolean(await this.prisma.user.findUnique({ where: { email }, select: { id: true } }));
   }

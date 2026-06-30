@@ -197,14 +197,15 @@ export default function StudentsPage() {
                             <Badge
                                 variant="primary"
                                 size="sm"
+                                title={formatDepartmentLabel(row.primaryDepartment)}
                                 style={row.primaryDepartment.color ? { borderColor: `${row.primaryDepartment.color}55`, backgroundColor: `${row.primaryDepartment.color}18`, color: row.primaryDepartment.color } : undefined}
                             >
-                                {formatDepartmentLabel(row.primaryDepartment)}
+                                {row.primaryDepartment.code || row.primaryDepartment.name || 'Dept'}
                             </Badge>
                         )}
                         {extraDepartments.slice(0, row.primaryDepartment ? 1 : 2).map((entry) => (
-                            <Badge key={entry.departmentId} variant="neutral" size="sm">
-                                {formatDepartmentLabel(entry.department)}
+                            <Badge key={entry.departmentId} variant="neutral" size="sm" title={formatDepartmentLabel(entry.department)}>
+                                {entry.department.code || entry.department.name || 'Dept'}
                             </Badge>
                         ))}
                         {extraDepartments.length > (row.primaryDepartment ? 1 : 2) && (

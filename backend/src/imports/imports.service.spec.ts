@@ -427,6 +427,86 @@ describe('ImportsService teacher validation', () => {
   });
 });
 
+describe('ImportsService guardian validation', () => {
+  const guardianHeaders = ['name', 'email', 'password', 'phone', 'status', 'address', 'linkedStudents'];
+  const admin = {
+    id: 'admin-1',
+    role: 'ORG_ADMIN',
+    name: 'Admin',
+    email: 'admin@example.test',
+  };
+
+  it('resolves linkedStudents from quoted comma-separated registration numbers', async () => {
+    const { service } = createService({
+      prisma: {
+        student: {
+          findFirst: jest.fn(async ({ where }) => {
+            if (where.registrationNumber?.equals === 'REG-001') return { id: 'student-1' };
+            if (where.registrationNumber?.equals === 'REG-002') return { id: 'student-2' };
+            return null;
+          }),
+        },
+      },
+    });
+    const csv = [
+      guardianHeaders.join(','),
+      ['Guardian One', 'guardian-one@test.test', 'Guardian123', '+923001110000', 'ACTIVE', 'Lahore', '"REG-001,REG-002"'].join(','),
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'guardians', csv, admin);
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data.linkedStudentIds).toEqual(['student-1', 'student-2']);
+  });
+
+  it('keeps guardian rows valid when at least one linked student registration number resolves', async () => {
+    const { service } = createService({
+      prisma: {
+        student: {
+          findFirst: jest.fn(async ({ where }) => (
+            where.registrationNumber?.equals === 'REG-001' ? { id: 'student-1' } : null
+          )),
+        },
+      },
+    });
+    const csv = [
+      guardianHeaders.join(','),
+      ['Guardian Partial', 'guardian-partial@test.test', 'Guardian123', '+923001110001', 'ACTIVE', 'Lahore', '"REG-001,NOPE"'].join(','),
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'guardians', csv, admin);
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.partial).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data.linkedStudentIds).toEqual(['student-1']);
+    expect(result.validRows[0].warnings).toEqual([
+      { rowNumber: 2, field: 'linkedStudents', message: 'Ignored unknown student registration number "NOPE"' },
+    ]);
+  });
+
+  it('rejects guardian rows when every linked student registration number is unknown', async () => {
+    const { service } = createService({
+      prisma: {
+        student: { findFirst: jest.fn().mockResolvedValue(null) },
+      },
+    });
+    const csv = [
+      guardianHeaders.join(','),
+      ['Guardian Bad', 'guardian-bad@test.test', 'Guardian123', '+923001110002', 'ACTIVE', 'Lahore', '"NOPE,MISSING"'].join(','),
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'guardians', csv, admin);
+
+    expect(result.summary.valid).toBe(0);
+    expect(result.summary.invalid).toBe(1);
+    expect(result.invalidRows[0].errors).toEqual([
+      { rowNumber: 2, field: 'linkedStudents', message: 'None of these student registration numbers were found: NOPE, MISSING' },
+    ]);
+  });
+});
+
 describe('ImportsService building validation', () => {
   const admin = {
     id: 'admin-1',

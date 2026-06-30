@@ -1,6 +1,7 @@
 import {
   IsEmail,
   IsEnum,
+  IsArray,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -38,4 +39,9 @@ export class CreateGuardianDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  linkedStudentIds?: string[];
 }

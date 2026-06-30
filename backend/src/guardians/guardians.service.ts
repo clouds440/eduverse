@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -29,6 +30,7 @@ export class GuardiansService {
   async createGuardian(orgId: string, data: CreateGuardianDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const linkedStudentIds = await this.assertLinkedStudentsBelongToOrg(tx, orgId, data.linkedStudentIds);
         const user = await this.userService.createUser(
           {
             email: data.email,
@@ -51,10 +53,36 @@ export class GuardiansService {
           },
           include: this.guardianInclude(),
         });
+
+        for (const studentId of linkedStudentIds) {
+          await tx.guardianStudent.upsert({
+            where: { studentId },
+            create: {
+              guardianId: guardian.id,
+              studentId,
+              organizationId: orgId,
+              relationshipLabel: 'Guardian',
+            },
+            update: {
+              guardianId: guardian.id,
+              organizationId: orgId,
+              relationshipLabel: 'Guardian',
+            },
+          });
+        }
+
+        if (linkedStudentIds.length) {
+          const linkedGuardian = await tx.guardianProfile.findUnique({
+            where: { id: guardian.id },
+            include: this.guardianInclude(),
+          });
+          return this.normalizeGuardian(linkedGuardian);
+        }
+
         return this.normalizeGuardian(guardian);
       });
     } catch (error) {
-      if (error instanceof ConflictException) throw error;
+      if (error instanceof BadRequestException || error instanceof ConflictException) throw error;
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Guardian account already exists');
       }
@@ -547,6 +575,30 @@ export class GuardiansService {
           )
         : null,
     };
+  }
+
+  private normalizeLinkedStudentIds(studentIds?: string[]) {
+    return Array.from(new Set((studentIds || []).map((id) => id.trim()).filter(Boolean)));
+  }
+
+  private async assertLinkedStudentsBelongToOrg(
+    tx: Prisma.TransactionClient,
+    orgId: string,
+    studentIds?: string[],
+  ) {
+    const uniqueIds = this.normalizeLinkedStudentIds(studentIds);
+    if (!uniqueIds.length) return [];
+
+    const students = await tx.student.findMany({
+      where: { id: { in: uniqueIds }, organizationId: orgId },
+      select: { id: true },
+    });
+
+    if (students.length !== uniqueIds.length) {
+      throw new BadRequestException('One or more linked students do not belong to this organization');
+    }
+
+    return uniqueIds;
   }
 
   private normalizeGuardian(guardian: any) {
