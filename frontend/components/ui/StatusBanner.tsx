@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, ChevronDown, Info, LucideIcon, MoreHorizontal, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, LucideIcon, X, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { StatusBannerVariant } from '@/types';
 

@@ -395,9 +395,9 @@ export function InsightPieChart({ data, height = 300, title, showLegend = true }
     <div className="w-full">
       <ChartTitle title={title} detail={total > 0 ? `${total} total` : 'No recorded values'} />
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px] md:items-center">
-        <div className="relative min-h-[12.5rem]">
+        <div className="relative min-h-50">
           {visibleData.length === 0 ? (
-            <div className="flex h-[12.5rem] items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/25 text-center">
+            <div className="flex h-50 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/25 text-center">
               <div>
                 <p className="text-sm font-black text-foreground">No chartable values</p>
                 <p className="mt-1 text-xs font-semibold text-muted-foreground">Labels are still listed for context.</p>

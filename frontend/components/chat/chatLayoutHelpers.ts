@@ -2,6 +2,15 @@ import { Chat, ChatMessage, ChatType, User } from '@/types';
 import { RefObject } from 'react';
 import { isToday, isYesterday, format } from 'date-fns';
 import { registerOptimisticImageFallbacks } from '@/lib/optimisticMedia';
+import {
+    ALLOWED_UPLOAD_TYPES,
+    ARCHIVE_FILE_TYPES,
+    getFileTypeInfo as getSharedFileTypeInfo,
+    OFFICE_FILE_TYPES,
+    PRESENTATION_FILE_TYPES,
+    SPREADSHEET_FILE_TYPES,
+    WORD_FILE_TYPES
+} from '@/lib/attachmentUtils';
 
 export type ChatMessageWithMeta = ChatMessage & {
     readBy?: string[];
@@ -154,7 +163,7 @@ export function getTruncatedMessagePreview(content: string | undefined, max: num
     // Truncate only the text portion
     const truncatedText = cleanedText.length > max ? `${cleanedText.slice(0, max)}...` : cleanedText;
 
-    // Return the truncated text followed by the intact attachment links (which the MarkdownRenderer will cleanly render)
+    // Return the truncated text followed by the intact attachment links.
     return [truncatedText, ...attachmentLinks].filter(Boolean).join(' ');
 }
 
@@ -162,52 +171,6 @@ type FileUploadResult = {
     url?: string;
     path?: string;
 };
-
-export const OFFICE_FILE_TYPES = new Set([
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/msword',
-    'application/vnd.ms-excel',
-    'application/vnd.ms-powerpoint'
-]);
-
-const WORD_FILE_TYPES = new Set([
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/msword',
-]);
-
-const SPREADSHEET_FILE_TYPES = new Set([
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-excel',
-]);
-
-const PRESENTATION_FILE_TYPES = new Set([
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/vnd.ms-powerpoint',
-]);
-
-export const ARCHIVE_FILE_TYPES = new Set([
-    'application/zip',
-    'application/x-zip-compressed',
-    'application/x-rar-compressed',
-    'application/vnd.rar',
-]);
-
-/** All MIME types allowed for chat file uploads */
-export const ALLOWED_UPLOAD_TYPES = new Set([
-    // Images
-    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-    // Documents
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    // Archives
-    'application/zip', 'application/x-zip-compressed',
-    'application/x-rar-compressed', 'application/vnd.rar',
-]);
 
 /** File extensions allowed as fallback when MIME type is empty */
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.docx', '.xlsx', '.pptx', '.zip', '.rar', '.doc', '.ppt', '.xls']);
@@ -288,7 +251,7 @@ export function buildAttachmentMarkdown(files: File[], uploadResults: FileUpload
         const isImage = file.type.startsWith('image/');
         const isPdf = file.type === 'application/pdf';
         const isArchive = ARCHIVE_FILE_TYPES.has(file.type);
-        const fileInfo = getFileTypeInfo(file.type);
+        const fileInfo = getSharedFileTypeInfo(file.type);
 
         if (isImage) return `\n![${safeName}](${url})`;
         if (isPdf) return `\n[📄 PDF: ${safeName}](${url})`;
@@ -519,7 +482,7 @@ export function buildOptimisticAttachmentMarkdown(files: File[]): string {
     return files.map(file => {
         const localUrl = URL.createObjectURL(file);
         const safeName = escapeFileName(file.name);
-        const fileInfo = getFileTypeInfo(file.type);
+        const fileInfo = getSharedFileTypeInfo(file.type);
         if (file.type.startsWith('image/')) return `\n![${safeName}](${localUrl})`;
         if (file.type === 'application/pdf') return `\n[📄 PDF: ${safeName}](${localUrl})`;
         if (OFFICE_FILE_TYPES.has(file.type)) return `\n[${fileInfo.tag} ${safeName}](${localUrl})`;

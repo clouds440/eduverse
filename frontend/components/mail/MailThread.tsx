@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { MailDetail, MailMessage as MailMessageType, MailActionLog, Attachment, Role } from '@/types';
-import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import { RichMessageRenderer } from '@/components/ui/RichMessageRenderer';
 import { MarkdownEditor, MarkdownEditorHandle } from '@/components/ui/MarkdownEditor';
 import { getPublicUrl, downloadFile, formatBytes } from '@/lib/utils';
 import { BrandIcon } from '@/components/ui/Brand';
@@ -157,7 +157,7 @@ const MessageBubble = memo(function MessageBubble({ message, isOwn }: { message:
                             : 'rounded-tl-md border-border/70 bg-card/90'
                     }`}
                 >
-                    <MarkdownRenderer
+                    <RichMessageRenderer
                         content={message.content}
                         className="text-sm font-medium text-foreground"
                         attachmentAlign={isOwn ? 'right' : 'left'}

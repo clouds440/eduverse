@@ -1,7 +1,6 @@
 ﻿'use client';
 
 import type { ComponentPropsWithoutRef, CSSProperties, ElementType } from 'react';
-import type { Course, Section } from '@/types';
 import { cn, getCourseSectionLabelParts, getSectionColor, getSectionTextStyle } from '@/lib/utils';
 
 type SectionLike = {

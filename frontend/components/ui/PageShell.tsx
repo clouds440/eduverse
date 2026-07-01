@@ -555,7 +555,6 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
                                     ? 'max-w-36 truncate text-[11px] sm:max-w-52'
                                     : 'hidden max-w-64 text-xs sm:block',
                             )}
-                            title={currentDateTime.toLocaleString()}
                         >
                             {currentDateTime.toLocaleString()}
                         </time>

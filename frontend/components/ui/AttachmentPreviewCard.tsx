@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Archive, Download, File, FileSpreadsheet, FileText, Paperclip, Presentation, CheckCircle, Loader2 } from 'lucide-react';
-import { getFileTypeInfo } from '../chat/chatLayoutHelpers';
+import { getFileTypeInfo } from '@/lib/attachmentUtils';
 import { downloadFile, formatBytes } from '@/lib/utils';
 
 export type AttachmentPreviewKind = 'pdf' | 'doc' | 'sheet' | 'presentation' | 'archive' | 'attachment';

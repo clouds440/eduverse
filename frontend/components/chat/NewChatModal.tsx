@@ -110,7 +110,7 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                 // Fetch explicitly from chat endpoint instead of mail contacts
                 const users = await api.chat.searchUsers(token);
                 // Filter out existing participants if in add mode
-                let filteredUsers = mode === 'ADD_PARTICIPANTS'
+                const filteredUsers = mode === 'ADD_PARTICIPANTS'
                     ? users.filter(u => !existingParticipantIds.includes(u.id))
                     : users;
 

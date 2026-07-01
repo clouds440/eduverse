@@ -1,6 +1,5 @@
 'use client';
 
-import { CalendarRange } from 'lucide-react';
 import type { InsightTimeRange } from '@/types';
 
 export const INSIGHT_TIME_RANGE_OPTIONS: Array<{ value: InsightTimeRange; label: string }> = [
