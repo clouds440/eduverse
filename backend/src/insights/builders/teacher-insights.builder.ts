@@ -270,7 +270,7 @@ export class TeacherInsightsBuilder {
           label: 'Students Reached',
           value: `${uniqueStudents}`,
           detail: 'Across all assigned sections',
-          href: '/students?my=true',
+          href: '/users/students?my=true',
           tone: InsightTone.DEFAULT,
         },
         {
@@ -342,7 +342,7 @@ export class TeacherInsightsBuilder {
             title: student.name,
             description: 'Official attendance trend',
             meta: formatPercent(student.percent),
-            href: student.sectionId ? `/attendance/${student.sectionId}` : '/students?my=true',
+            href: student.sectionId ? `/attendance/${student.sectionId}` : '/users/students?my=true',
             badge: 'At risk',
             tone: InsightTone.DANGER,
           })),
@@ -561,7 +561,7 @@ export class TeacherInsightsBuilder {
         title: `${topRisk.name} attendance is slipping`,
         description: 'Official attendance in selected period',
         meta: formatPercent(topRisk.percent),
-        href: topRisk.sectionId ? `/attendance/${topRisk.sectionId}` : '/students?my=true',
+        href: topRisk.sectionId ? `/attendance/${topRisk.sectionId}` : '/users/students?my=true',
         badge: 'Learner risk',
         tone: InsightTone.DANGER,
       };

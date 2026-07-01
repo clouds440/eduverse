@@ -75,10 +75,10 @@ export function getRoleDashboardPath(identity: RoleIdentity | RoleLike, id?: str
         case Role.GUARDIAN:
             return '/guardian';
         case Role.STUDENT:
-            return userId ? `/students/${userId}` : '/overview';
+            return userId ? `/student/${userId}` : '/overview';
         case Role.TEACHER:
         case Role.ORG_MANAGER:
-            return userId ? `/teachers/${userId}` : '/overview';
+            return userId ? `/teacher/${userId}` : '/overview';
         case Role.ORG_ADMIN:
         case Role.SUB_ADMIN:
             return '/overview';

@@ -105,11 +105,6 @@ const ReadOnlyBanner = () => (
 
 const USER_MANAGEMENT_PREFIXES = [
     '/users',
-    '/sub-admins',
-    '/finance-managers',
-    '/guardians',
-    '/teachers',
-    '/students',
 ];
 
 function isUserManagementPath(pathname: string) {

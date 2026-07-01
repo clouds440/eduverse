@@ -66,7 +66,7 @@ export default function CohortsPage() {
 
     useEffect(() => {
         if (user?.role === Role.STUDENT) {
-            router.replace(`/students/${user.id}`);
+            router.replace(`/student/${user.id}`);
         }
     }, [router, user]);
 

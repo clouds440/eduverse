@@ -248,7 +248,7 @@ export class AuthService {
             title: 'Suspicious Activity Detected',
             body: `Your account was accessed from a new location (${location}). Previous location: ${existingSession.location}. If this wasn't you, please revoke this session in your settings.`,
             type: 'SECURITY',
-            actionUrl: '/settings#sessions',
+            actionUrl: this.getAccountSecurityUrl(user),
             metadata: {
               deviceId: loginDto.deviceId,
               deviceName: loginDto.deviceName,
@@ -292,7 +292,7 @@ export class AuthService {
             title: 'New Device Login',
             body: `A new device (${loginDto.deviceName || 'Unknown Device'}) has logged into your account from ${location || 'Unknown Location'} (IP: ${ip}). If this wasn't you, please revoke this session in your settings.`,
             type: 'SECURITY',
-            actionUrl: '/settings#sessions',
+            actionUrl: this.getAccountSecurityUrl(user),
             metadata: {
               deviceId: loginDto.deviceId,
               deviceName: loginDto.deviceName,
@@ -374,12 +374,20 @@ export class AuthService {
 
       await this.assertTokenBelongsToUser(input.currentToken, state.userId);
       await this.linkGoogleAccount(state.userId, googleIdentity);
+      const user = await this.prisma.user.findUnique({
+        where: { id: state.userId },
+        select: { id: true, role: true },
+      });
+      const target = this.getAccountSettingsTarget(
+        user ?? { id: state.userId, role: Role.ORG_ADMIN },
+        'linked-accounts',
+      );
 
       return {
         purpose: state.purpose,
-        redirectUrl: this.buildFrontendRedirect('/settings', {
+        redirectUrl: this.buildFrontendRedirect(target.path, {
           googleLink: 'success',
-        }, 'linked-accounts'),
+        }, target.hash),
       };
     }
 
@@ -655,6 +663,36 @@ export class AuthService {
     });
     if (hash) url.hash = hash;
     return url.toString();
+  }
+
+  private getAccountSecurityUrl(user: Pick<User, 'id' | 'role'>) {
+    const target = this.getAccountSettingsTarget(user, 'sessions');
+    return `${target.path}${target.hash ? `#${target.hash}` : ''}`;
+  }
+
+  private getAccountSettingsTarget(
+    user: Pick<User, 'id' | 'role'>,
+    hash?: string,
+  ) {
+    switch (user.role) {
+      case Role.SUPER_ADMIN:
+      case Role.PLATFORM_ADMIN:
+        return { path: '/admin/settings', hash };
+      case Role.ORG_MANAGER:
+      case Role.TEACHER:
+        return { path: `/teacher/${user.id}/profile`, hash };
+      case Role.STUDENT:
+        return { path: `/student/${user.id}?tab=profile`, hash };
+      case Role.SUB_ADMIN:
+        return { path: `/sub-admin/${user.id}/profile`, hash };
+      case Role.FINANCE_MANAGER:
+        return { path: `/finance-manager/${user.id}/profile`, hash };
+      case Role.GUARDIAN:
+        return { path: '/guardian?view=profile', hash: undefined };
+      case Role.ORG_ADMIN:
+      default:
+        return { path: '/settings', hash };
+    }
   }
 
   private sanitizeFrontendPath(path?: string) {
@@ -1231,7 +1269,7 @@ export class AuthService {
       title: 'Password reset completed',
       body: 'Your EduVerse password was reset. All active sessions were signed out.',
       type: 'SECURITY',
-      actionUrl: '/settings#sessions',
+      actionUrl: this.getAccountSecurityUrl(resetToken.user),
     });
 
     return { message: 'Password reset successful. Please sign in with your new password.' };

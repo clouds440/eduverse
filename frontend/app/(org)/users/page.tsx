@@ -261,12 +261,12 @@ export default function UsersPage() {
 
                                                 <div className="grid shrink-0 grid-cols-2 gap-2 sm:w-48">
                                                     <Link href={area.href} className="min-w-0">
-                                                        <Button type="button" variant="secondary" className="w-full">
+                                                        <Button type="button" variant="secondary" className="w-full cursor-pointer">
                                                             View
                                                         </Button>
                                                     </Link>
                                                     <Link href={area.createHref} className="min-w-0">
-                                                        <Button type="button" icon={UserPlus} className="w-full">
+                                                        <Button type="button" icon={UserPlus} className="w-full cursor-pointer">
                                                             Add
                                                         </Button>
                                                     </Link>

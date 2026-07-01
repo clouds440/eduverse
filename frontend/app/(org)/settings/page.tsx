@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChangeEvent, FormEvent, ReactNode } from 'react';
@@ -224,15 +224,19 @@ export default function SettingsPage() {
             return;
         }
         if (user.role === Role.ORG_MANAGER || user.role === Role.TEACHER) {
-            router.push(`/teachers/${user.id}/profile${hash}`);
+            router.push(`/teacher/${user.id}/profile${hash}`);
             return;
         }
         if (user.role === Role.SUB_ADMIN) {
-            router.push(`/sub-admins/${user.id}/profile${hash}`);
+            router.push(`/sub-admin/${user.id}/profile${hash}`);
+            return;
+        }
+        if (user.role === Role.FINANCE_MANAGER) {
+            router.push(`/finance-manager/${user.id}/profile${hash}`);
             return;
         }
         if (user.role === Role.STUDENT) {
-            router.push(`/students/${user.id}?tab=profile${hash}`);
+            router.push(`/student/${user.id}?tab=profile${hash}`);
             return;
         }
 

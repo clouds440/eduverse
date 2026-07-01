@@ -719,4 +719,19 @@ describe('AuthService Google linked accounts', () => {
       'This Google account is already linked to another EduVerse account.',
     );
   });
+
+  it('builds account security links with canonical profile routes', () => {
+    const getAccountSecurityUrl = (service as unknown as {
+      getAccountSecurityUrl: (user: { id: string; role: Role }) => string;
+    }).getAccountSecurityUrl.bind(service);
+
+    expect(getAccountSecurityUrl({ id: 'admin-1', role: Role.ORG_ADMIN })).toBe('/settings#sessions');
+    expect(getAccountSecurityUrl({ id: 'platform-1', role: Role.PLATFORM_ADMIN })).toBe('/admin/settings#sessions');
+    expect(getAccountSecurityUrl({ id: 'teacher-1', role: Role.TEACHER })).toBe('/teacher/teacher-1/profile#sessions');
+    expect(getAccountSecurityUrl({ id: 'manager-1', role: Role.ORG_MANAGER })).toBe('/teacher/manager-1/profile#sessions');
+    expect(getAccountSecurityUrl({ id: 'student-1', role: Role.STUDENT })).toBe('/student/student-1?tab=profile#sessions');
+    expect(getAccountSecurityUrl({ id: 'sub-admin-1', role: Role.SUB_ADMIN })).toBe('/sub-admin/sub-admin-1/profile#sessions');
+    expect(getAccountSecurityUrl({ id: 'finance-1', role: Role.FINANCE_MANAGER })).toBe('/finance-manager/finance-1/profile#sessions');
+    expect(getAccountSecurityUrl({ id: 'guardian-1', role: Role.GUARDIAN })).toBe('/guardian?view=profile');
+  });
 });

@@ -134,4 +134,74 @@ describe('OrgService updateSettings', () => {
       }),
     );
   });
+
+  it('generates singular self-service profile routes', () => {
+    const getEditHref = (
+      service as unknown as {
+        getPublicProfileEditHref: (
+          actor: { id: string; role?: string },
+          target: { userId: string; role: string; entityId?: string },
+        ) => string | null;
+      }
+    ).getPublicProfileEditHref.bind(service);
+
+    expect(getEditHref({ id: 'student-user', role: Role.STUDENT }, {
+      userId: 'student-user',
+      role: Role.STUDENT,
+      entityId: 'student-row',
+    })).toBe('/student/student-user?tab=profile');
+    expect(getEditHref({ id: 'teacher-user', role: Role.TEACHER }, {
+      userId: 'teacher-user',
+      role: Role.TEACHER,
+      entityId: 'teacher-row',
+    })).toBe('/teacher/teacher-user/profile');
+    expect(getEditHref({ id: 'sub-admin-user', role: Role.SUB_ADMIN }, {
+      userId: 'sub-admin-user',
+      role: Role.SUB_ADMIN,
+      entityId: 'sub-admin-user',
+    })).toBe('/sub-admin/sub-admin-user/profile');
+    expect(getEditHref({ id: 'finance-user', role: Role.FINANCE_MANAGER }, {
+      userId: 'finance-user',
+      role: Role.FINANCE_MANAGER,
+      entityId: 'finance-user',
+    })).toBe('/finance-manager/finance-user/profile');
+  });
+
+  it('generates canonical /users edit routes for managed profiles', () => {
+    const getEditHref = (
+      service as unknown as {
+        getPublicProfileEditHref: (
+          actor: { id: string; role?: string },
+          target: { userId: string; role: string; entityId?: string },
+        ) => string | null;
+      }
+    ).getPublicProfileEditHref.bind(service);
+    const admin = { id: 'admin-user', role: Role.ORG_ADMIN };
+
+    expect(getEditHref(admin, {
+      userId: 'student-user',
+      role: Role.STUDENT,
+      entityId: 'student-row',
+    })).toBe('/users/students/edit/student-row');
+    expect(getEditHref(admin, {
+      userId: 'teacher-user',
+      role: Role.TEACHER,
+      entityId: 'teacher-row',
+    })).toBe('/users/teachers/edit/teacher-row');
+    expect(getEditHref(admin, {
+      userId: 'sub-admin-user',
+      role: Role.SUB_ADMIN,
+      entityId: 'sub-admin-user',
+    })).toBe('/users/sub-admins/edit/sub-admin-user');
+    expect(getEditHref(admin, {
+      userId: 'finance-user',
+      role: Role.FINANCE_MANAGER,
+      entityId: 'finance-user',
+    })).toBe('/users/finance-managers/edit/finance-user');
+    expect(getEditHref(admin, {
+      userId: 'guardian-user',
+      role: Role.GUARDIAN,
+      entityId: 'guardian-row',
+    })).toBe('/users/guardians/edit/guardian-row');
+  });
 });

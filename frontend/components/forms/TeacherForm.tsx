@@ -5,7 +5,7 @@ import { matchesCacheKeyPrefix } from '@/lib/swr';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { User, Mail, Lock, BookOpen, Phone, Plus, ShieldCheck, UserX, CalendarClock, MapPin, UserLock, BriefcaseBusiness } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
@@ -95,10 +95,9 @@ function teacherStatusIcon(status?: TeacherStatus) {
 export default function TeacherForm({ teacherId, initialData, isProfile, defaultManager = false }: TeacherFormProps) {
     const { token, user: currentUser, updateUser } = useAuth();
     const router = useRouter();
-    const pathname = usePathname();
     const { dispatch } = useGlobal();
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
-    const listHref = pathname.startsWith('/users/teachers') ? '/users/teachers' : '/teachers';
+    const listHref = '/users/teachers';
 
     const initialIsManager = initialData?.user?.role === Role.ORG_MANAGER || defaultManager || (isProfile && currentUser?.role === Role.ORG_MANAGER);
     const resolver = useMemo(

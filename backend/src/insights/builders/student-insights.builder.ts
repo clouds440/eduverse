@@ -201,7 +201,7 @@ export class StudentInsightsBuilder {
         title: 'Submission recorded',
         description: `${submission.assessment.title} - ${formatSectionLabel(submission.assessment.section.name, submission.assessment.section.course.name)}`,
         createdAt: submission.submittedAt.toISOString(),
-        href: `/students/${studentUserId}?tab=assessments&assessmentId=${submission.assessment.id}`,
+        href: `/student/${studentUserId}?tab=assessments&assessmentId=${submission.assessment.id}`,
         tone: InsightTone.SUCCESS,
       })),
       ...attendanceRecords.slice(0, 4).map((record) => ({
@@ -209,7 +209,7 @@ export class StudentInsightsBuilder {
         title: 'Attendance updated',
         description: `${formatSectionLabel(record.session.section.name, record.session.section.course.name)} - ${record.status}`,
         createdAt: record.session.date.toISOString(),
-        href: `/students/${studentUserId}?tab=attendance`,
+        href: `/student/${studentUserId}?tab=attendance`,
         tone:
           record.status === AttendanceStatus.ABSENT
             ? InsightTone.DANGER
@@ -240,7 +240,7 @@ export class StudentInsightsBuilder {
           label: 'Enrolled Sections',
           value: `${enrollments.length}`,
           detail: `${upcomingClasses.length} upcoming classes in view`,
-          href: `/students/${studentUserId}?tab=courses`,
+          href: `/student/${studentUserId}?tab=courses`,
           tone: InsightTone.INFO,
         },
         {
@@ -248,7 +248,7 @@ export class StudentInsightsBuilder {
           label: 'Average Final Grade',
           value: grades.length > 0 ? formatPercent(averageGrade, 1) : 'No grade',
           detail: `${grades.length} graded sections`,
-          href: `/students/${studentUserId}?tab=grades`,
+          href: `/student/${studentUserId}?tab=grades`,
           tone:
             averageGrade >= 80
               ? InsightTone.SUCCESS
@@ -261,7 +261,7 @@ export class StudentInsightsBuilder {
           label: 'Official Attendance',
           value: formatPercent(overallAttendancePercent),
           detail: `${attendanceRecords.length} official marks in ${range.range}`,
-          href: `/students/${studentUserId}?tab=attendance`,
+          href: `/student/${studentUserId}?tab=attendance`,
           tone:
             overallAttendancePercent >= 85
               ? InsightTone.SUCCESS
@@ -274,7 +274,7 @@ export class StudentInsightsBuilder {
           label: 'Pending Assessments',
           value: `${pendingAssessments.length}`,
           detail: `${overdueAssessments.length} overdue submissions`,
-          href: `/students/${studentUserId}?tab=assessments`,
+          href: `/student/${studentUserId}?tab=assessments`,
           tone: overdueAssessments.length > 0 ? InsightTone.DANGER : pendingAssessments.length > 0 ? InsightTone.WARNING : InsightTone.SUCCESS,
         },
         {
@@ -298,7 +298,7 @@ export class StudentInsightsBuilder {
               title: `${assessment.title} is overdue`,
               description: `${formatSectionLabel(assessment.section.name, assessment.section.course.name)} - ${assessment.type}`,
               meta: assessment.dueDate ? `Due ${assessment.dueDate.toLocaleDateString()}` : undefined,
-              href: `/students/${studentUserId}?tab=assessments&assessmentId=${assessment.id}`,
+              href: `/student/${studentUserId}?tab=assessments&assessmentId=${assessment.id}`,
               badge: 'Overdue',
               tone: InsightTone.DANGER,
             })),
@@ -323,7 +323,7 @@ export class StudentInsightsBuilder {
               title: `${formatSectionLabel(section.sectionName, section.courseName)} attendance is low`,
               description: section.courseName,
               meta: formatPercent(section.percent),
-              href: `/students/${studentUserId}?tab=attendance`,
+              href: `/student/${studentUserId}?tab=attendance`,
               badge: 'Attendance risk',
               tone: InsightTone.DANGER,
             })),
@@ -332,7 +332,7 @@ export class StudentInsightsBuilder {
               title: `${formatSectionLabel(grade.sectionName, grade.courseName)} grade is below target`,
               description: grade.courseName,
               meta: formatPercent(grade.finalPercentage, 1),
-              href: `/students/${studentUserId}?tab=grades`,
+              href: `/student/${studentUserId}?tab=grades`,
               badge: 'Grade risk',
               tone: InsightTone.WARNING,
             })),
@@ -350,7 +350,7 @@ export class StudentInsightsBuilder {
               meta: assessment.dueDate
                 ? `Due ${assessment.dueDate.toLocaleDateString()}`
                 : 'No due date',
-              href: `/students/${studentUserId}?tab=assessments&assessmentId=${assessment.id}`,
+              href: `/student/${studentUserId}?tab=assessments&assessmentId=${assessment.id}`,
               badge: 'Pending',
               tone: InsightTone.WARNING,
             })),
@@ -572,7 +572,7 @@ export class StudentInsightsBuilder {
         title: `${overdueAssessment.title} is overdue`,
         description: `${formatSectionLabel(overdueAssessment.section.name, overdueAssessment.section.course.name)} - ${overdueAssessment.type}`,
         meta: overdueAssessment.dueDate ? `Due ${overdueAssessment.dueDate.toLocaleString()}` : undefined,
-        href: `/students/${input.studentUserId}?tab=assessments&assessmentId=${overdueAssessment.id}`,
+        href: `/student/${input.studentUserId}?tab=assessments&assessmentId=${overdueAssessment.id}`,
         badge: 'Overdue',
         tone: InsightTone.DANGER,
       };
@@ -597,7 +597,7 @@ export class StudentInsightsBuilder {
         title: `${formatSectionLabel(lowAttendance.sectionName, lowAttendance.courseName)} attendance is low`,
         description: lowAttendance.courseName,
         meta: formatPercent(lowAttendance.percent),
-        href: `/students/${input.studentUserId}?tab=attendance`,
+        href: `/student/${input.studentUserId}?tab=attendance`,
         badge: 'Attendance risk',
         tone: InsightTone.DANGER,
       };
@@ -610,7 +610,7 @@ export class StudentInsightsBuilder {
         title: `${formatSectionLabel(lowGrade.sectionName, lowGrade.courseName)} grade is below target`,
         description: lowGrade.courseName,
         meta: formatPercent(lowGrade.finalPercentage, 1),
-        href: `/students/${input.studentUserId}?tab=grades`,
+        href: `/student/${input.studentUserId}?tab=grades`,
         badge: 'Grade risk',
         tone: InsightTone.WARNING,
       };
@@ -625,7 +625,7 @@ export class StudentInsightsBuilder {
         title: `${input.nextDeadline.title} needs attention`,
         description: `${formatSectionLabel(input.nextDeadline.section.name, input.nextDeadline.section.course.name)} - ${input.nextDeadline.type}`,
         meta: `Due ${input.nextDeadline.dueDate.toLocaleString()}`,
-        href: `/students/${input.studentUserId}?tab=assessments&assessmentId=${input.nextDeadline.id}`,
+        href: `/student/${input.studentUserId}?tab=assessments&assessmentId=${input.nextDeadline.id}`,
         badge: 'Nearest deadline',
         tone: InsightTone.WARNING,
       };

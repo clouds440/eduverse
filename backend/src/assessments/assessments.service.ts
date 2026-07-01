@@ -114,7 +114,7 @@ export class AssessmentsService {
         userId: e.student.userId,
         title: 'New Assessment Created',
         body: `A new assessment "${assessment.title}" has been added.`,
-        actionUrl: `/students/${e.student.userId}?tab=assessments&sectionId=${data.sectionId}`,
+        actionUrl: `/student/${e.student.userId}?tab=assessments&sectionId=${data.sectionId}`,
         type: 'ASSESSMENT_CREATED',
       });
     }
@@ -631,7 +631,7 @@ export class AssessmentsService {
           userId: student.userId,
           title: 'Assessment Graded',
           body: `Your grade for "${assessment.title}" has been ${data.status.toLowerCase()}.`,
-          actionUrl: `/students/${student.userId}?tab=assessments?sectionId=${assessment.sectionId}`,
+          actionUrl: `/student/${student.userId}?tab=assessments&sectionId=${assessment.sectionId}`,
           type: 'ASSESSMENT_GRADED',
         });
       }

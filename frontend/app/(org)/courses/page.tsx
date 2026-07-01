@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -82,7 +82,7 @@ export default function CoursesPage() {
 
     useEffect(() => {
         if (user?.role === Role.STUDENT) {
-            router.replace(`/students/${user.id}`);
+            router.replace(`/student/${user.id}`);
         }
     }, [router, user]);
 

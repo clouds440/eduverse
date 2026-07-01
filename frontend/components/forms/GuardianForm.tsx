@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { CalendarClock, Home, Link as LinkIcon, Lock, Mail, Phone, ShieldCheck, User, User2, UserPlus, Users, UserX } from 'lucide-react';
 import { mutate } from 'swr';
 import { api } from '@/lib/api';
@@ -31,11 +31,10 @@ const USER_STATUS_OPTIONS = [
 export default function GuardianForm({ guardianId, initialData }: GuardianFormProps) {
     const { token } = useAuth();
     const router = useRouter();
-    const pathname = usePathname();
     const { dispatch } = useGlobal();
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
-    const listHref = pathname.startsWith('/users/guardians') ? '/users/guardians' : '/guardians';
-    const studentListHref = pathname.startsWith('/users/guardians') ? '/users/students' : '/students';
+    const listHref = '/users/guardians';
+    const studentListHref = '/users/students';
     const [form, setForm] = useState({
         name: initialData?.user?.name || '',
         email: initialData?.user?.email || '',

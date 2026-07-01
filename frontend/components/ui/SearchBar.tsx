@@ -36,6 +36,7 @@ export function SearchBar({
     const pathname = usePathname();
     const [isExpanded, setIsExpanded] = useState(false);
     const prevDebouncedValueRef = useRef(debouncedValue);
+    const onChangeRef = useRef(onChange);
     const inputRef = useRef<HTMLInputElement>(null);
     const didMountPathRef = useRef(false);
     const isExpandable = mobileMode === 'expandable';
@@ -49,7 +50,12 @@ export function SearchBar({
         : 'pointer-events-none absolute inset-0 opacity-0 sm:pointer-events-auto sm:static sm:opacity-100';
 
     useEffect(() => {
+        onChangeRef.current = onChange;
+    }, [onChange]);
+
+    useEffect(() => {
         setLocalValue(value);
+        prevDebouncedValueRef.current = value;
     }, [value]);
 
     useEffect(() => {
@@ -65,14 +71,14 @@ export function SearchBar({
     useEffect(() => {
         if (debouncedValue !== prevDebouncedValueRef.current) {
             prevDebouncedValueRef.current = debouncedValue;
-            onChange(debouncedValue);
+            onChangeRef.current(debouncedValue);
         }
-    }, [debouncedValue, onChange]);
+    }, [debouncedValue]);
 
     const clearSearch = () => {
         setLocalValue('');
         prevDebouncedValueRef.current = '';
-        onChange('');
+        onChangeRef.current('');
         if (isExpandable) {
             inputRef.current?.focus();
         }

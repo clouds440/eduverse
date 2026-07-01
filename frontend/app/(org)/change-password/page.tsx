@@ -49,10 +49,10 @@ export default function OrganizationChangePasswordPage() {
                                 : user.role === Role.FINANCE_MANAGER
                                     ? '/finance'
                                 : user.role === Role.STUDENT
-                                    ? `/students/${user.id}`
+                                    ? `/student/${user.id}`
                                 : user.role === Role.GUARDIAN
                                     ? '/guardian'
-                                    : `/teachers/${user.id}`;
+                                    : `/teacher/${user.id}`;
                             router.push(target);
                         }, 100);
                     }}

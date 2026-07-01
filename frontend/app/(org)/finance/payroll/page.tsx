@@ -34,9 +34,9 @@ function labelize(value?: string | null) {
 }
 
 function profileHref(row: PayrollRosterRow) {
-    if (row.targetType === FinanceTargetType.TEACHER) return `/teachers/${row.user.id}/profile`;
-    if (row.targetType === FinanceTargetType.SUB_ADMIN) return `/sub-admins/${row.user.id}/profile`;
-    return `/finance-managers/${row.user.id}/profile`;
+    if (row.targetType === FinanceTargetType.TEACHER) return `/teacher/${row.user.id}/profile`;
+    if (row.targetType === FinanceTargetType.SUB_ADMIN) return `/sub-admin/${row.user.id}/profile`;
+    return `/finance-manager/${row.user.id}/profile`;
 }
 
 function StaffIdentity({ row }: { row: PayrollRosterRow }) {

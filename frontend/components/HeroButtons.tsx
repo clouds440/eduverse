@@ -17,8 +17,8 @@ export function HeroButtons() {
         [Role.ORG_ADMIN]: "/overview",
         [Role.SUB_ADMIN]: "/overview",
 
-        [Role.TEACHER]: (userId) => `/teachers/${userId}`,
-        [Role.ORG_MANAGER]: (userId) => `/teachers/${userId}`,
+        [Role.TEACHER]: (userId) => `/teacher/${userId}`,
+        [Role.ORG_MANAGER]: (userId) => `/teacher/${userId}`,
 
         [Role.GUARDIAN]: "/guardian",
         };

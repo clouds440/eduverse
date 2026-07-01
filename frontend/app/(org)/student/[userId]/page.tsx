@@ -157,7 +157,7 @@ function StudentPortalContent() {
 
         if (!isAuthorized) {
             if (user.role === Role.ORG_ADMIN || user.role === Role.ORG_MANAGER) {
-                router.replace(`/students/edit/${studentData.id}`);
+                router.replace(`/users/students/edit/${studentData.id}`);
             } else {
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Students can only open their own student portal.', type: 'error' } });
             }

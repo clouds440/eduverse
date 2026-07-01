@@ -4,7 +4,6 @@ import { api } from '@/lib/api';
 import { subAdminCreateSchema, subAdminUpdateSchema } from '@/lib/schemas';
 import { User } from '@/types';
 import RoleAccountForm from '@/components/role-accounts/RoleAccountForm';
-import { usePathname } from 'next/navigation';
 
 interface SubAdminFormProps {
     subAdminId?: string;
@@ -12,9 +11,6 @@ interface SubAdminFormProps {
 }
 
 export default function SubAdminForm({ subAdminId, initialData }: SubAdminFormProps) {
-    const pathname = usePathname();
-    const listHref = pathname.startsWith('/users/sub-admins') ? '/users/sub-admins' : '/sub-admins';
-
     return (
         <RoleAccountForm
             accountId={subAdminId}
@@ -26,7 +22,7 @@ export default function SubAdminForm({ subAdminId, initialData }: SubAdminFormPr
             updateSchema={subAdminUpdateSchema}
             createAccount={api.org.createSubAdmin}
             updateAccount={api.org.updateSubAdmin}
-            listHref={listHref}
+            listHref="/users/sub-admins"
             enableDepartmentScope
         />
     );

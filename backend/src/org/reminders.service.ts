@@ -134,7 +134,7 @@ export class RemindersService {
             title: 'Assessment Overdue',
             body: `Your assessment "${assessment.title}" is overdue. Please provide an excuse or submit your work as soon as possible.`,
             type: 'ASSESSMENT_OVERDUE',
-            actionUrl: `/students/${studentUser.id}?tab=assessments&assessmentId=${assessment.id}`,
+            actionUrl: `/student/${studentUser.id}?tab=assessments&assessmentId=${assessment.id}`,
             metadata: { assessmentId: assessment.id },
           },
           { assessmentId: assessment.id },

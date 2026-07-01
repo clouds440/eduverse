@@ -36,7 +36,7 @@ export default function Overview({
                             </div>
                         </div>
                         <Link
-                            href={`/students/${user.id}?tab=evaluations`}
+                            href={`/student/${user.id}?tab=evaluations`}
                             className="inline-flex min-h-10 items-center justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-xs transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:self-center"
                         >
                             Review now

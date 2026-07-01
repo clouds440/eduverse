@@ -223,7 +223,7 @@ export class AdminInsightsBuilder {
         title: 'Teacher added',
         description: teacher.user.name || 'New teacher profile created',
         createdAt: teacher.createdAt.toISOString(),
-        href: '/teachers',
+        href: '/users/teachers',
         tone: InsightTone.INFO,
       })),
       ...recentStudents.map((student) => ({
@@ -231,7 +231,7 @@ export class AdminInsightsBuilder {
         title: 'Student enrolled',
         description: student.user.name || student.registrationNumber,
         createdAt: student.createdAt.toISOString(),
-        href: '/students',
+        href: '/users/students',
         tone: InsightTone.SUCCESS,
       })),
       ...recentAssessments.map((assessment) => ({
@@ -271,7 +271,7 @@ export class AdminInsightsBuilder {
           label: 'Active Staff',
           value: `${teachers}`,
           detail: `${sectionsWithoutTeachers.length} sections need a teacher`,
-          href: '/teachers',
+          href: '/users/teachers',
           tone: sectionsWithoutTeachers.length > 0 ? InsightTone.WARNING : InsightTone.SUCCESS,
         },
         {
@@ -279,7 +279,7 @@ export class AdminInsightsBuilder {
           label: 'Active Students',
           value: `${students}`,
           detail: `${sections.length} active sections`,
-          href: '/students',
+          href: '/users/students',
           tone: InsightTone.INFO,
         },
         {

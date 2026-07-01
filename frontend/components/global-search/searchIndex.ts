@@ -18,6 +18,7 @@ import {
 import { Role } from '@/types';
 import type { JwtPayload } from '@/context/AuthContext';
 import { buildOrgSidebarLinks } from '@/lib/orgSidebar';
+import { financeManagerProfilePath, studentPortalPath, subAdminProfilePath, teacherProfilePath } from '@/lib/routes';
 
 export type RouteSearchGroup = 'Navigation' | 'Actions' | 'Settings' | 'Academic' | 'Finance';
 
@@ -394,8 +395,10 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
     const role = user?.role;
     const canManageAcademic = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
     const canUseFinance = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.FINANCE_MANAGER;
-    const teacherProfileHref = user?.id ? `/teachers/${user.id}/profile` : '/settings';
-    const studentProfileHref = user?.id ? `/students/${user.id}?tab=profile` : '/settings';
+    const teacherProfileHref = user?.id ? teacherProfilePath(user.id) : '/settings';
+    const studentProfileHref = user?.id ? studentPortalPath(user.id, 'profile') : '/settings';
+    const subAdminProfileHref = user?.id ? subAdminProfilePath(user.id) : '/overview';
+    const financeManagerProfileHref = user?.id ? financeManagerProfilePath(user.id) : '/finance';
 
     return [
         ...(canManageAcademic ? [
@@ -516,6 +519,26 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
             href: studentProfileHref,
             group: 'Settings' as const,
             description: 'View your student profile',
+            icon: Settings,
+            aliases: ['profile'],
+            keywords: ['account'],
+        }] : []),
+        ...(role === Role.SUB_ADMIN ? [{
+            id: 'sub-admin-profile',
+            title: 'Profile Settings',
+            href: subAdminProfileHref,
+            group: 'Settings' as const,
+            description: 'Update your profile',
+            icon: Settings,
+            aliases: ['profile'],
+            keywords: ['account'],
+        }] : []),
+        ...(role === Role.FINANCE_MANAGER ? [{
+            id: 'finance-manager-profile',
+            title: 'Profile Settings',
+            href: financeManagerProfileHref,
+            group: 'Settings' as const,
+            description: 'Update your profile',
             icon: Settings,
             aliases: ['profile'],
             keywords: ['account'],

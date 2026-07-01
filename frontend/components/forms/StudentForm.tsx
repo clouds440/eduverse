@@ -6,7 +6,7 @@ import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, CalendarClock, UserRoundCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
@@ -110,10 +110,9 @@ function studentStatusIcon(status?: StudentStatus) {
 export default function StudentForm({ studentId, initialData, isProfile }: StudentFormProps) {
     const { token, user: currentUser, updateUser } = useAuth();
     const router = useRouter();
-    const pathname = usePathname();
     const { dispatch } = useGlobal();
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
-    const listHref = pathname.startsWith('/users/students') ? '/users/students' : '/students';
+    const listHref = '/users/students';
 
     const resolver = useMemo(
         () => zodResolver(isProfile ? studentProfileSchema : (studentId ? studentUpdateSchema : studentCreateSchema)),

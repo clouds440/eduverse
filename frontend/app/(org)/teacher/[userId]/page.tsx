@@ -49,7 +49,7 @@ export default function TeacherLandingPage() {
         if (user.id !== userId) {
             if (user.role === Role.ORG_ADMIN || user.role === Role.ORG_MANAGER) {
                 // Redirect to edit page for admins/managers
-                router.replace(`/teachers/edit/${teacherData.id}`);
+                router.replace(`/users/teachers/edit/${teacherData.id}`);
             } else {
                 // Unauthorized access
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'You do not have permission to view this teacher profile.', type: 'error' } });

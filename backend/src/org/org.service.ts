@@ -380,10 +380,10 @@ export class OrgService {
     if (!this.canEditPublicProfile(actor, target)) return null;
 
     if (actor.id === target.userId) {
-      if (target.role === Role.STUDENT) return `/students/${target.userId}?tab=profile`;
-      if (target.role === Role.TEACHER || target.role === Role.ORG_MANAGER) return `/teachers/${target.userId}/profile`;
-      if (target.role === Role.SUB_ADMIN) return `/sub-admins/${target.userId}/profile`;
-      if (target.role === Role.FINANCE_MANAGER) return `/finance-managers/${target.userId}/profile`;
+      if (target.role === Role.STUDENT) return `/student/${target.userId}?tab=profile`;
+      if (target.role === Role.TEACHER || target.role === Role.ORG_MANAGER) return `/teacher/${target.userId}/profile`;
+      if (target.role === Role.SUB_ADMIN) return `/sub-admin/${target.userId}/profile`;
+      if (target.role === Role.FINANCE_MANAGER) return `/finance-manager/${target.userId}/profile`;
     }
 
     if (!target.entityId && ([Role.STUDENT, Role.TEACHER, Role.ORG_MANAGER, Role.GUARDIAN] as string[]).includes(target.role)) {
@@ -392,16 +392,16 @@ export class OrgService {
 
     switch (target.role) {
       case Role.STUDENT:
-        return `/students/edit/${target.entityId}`;
+        return `/users/students/edit/${target.entityId}`;
       case Role.TEACHER:
       case Role.ORG_MANAGER:
-        return `/teachers/edit/${target.entityId}`;
+        return `/users/teachers/edit/${target.entityId}`;
       case Role.SUB_ADMIN:
-        return `/sub-admins/edit/${target.userId}`;
+        return `/users/sub-admins/edit/${target.userId}`;
       case Role.FINANCE_MANAGER:
-        return `/finance-managers/edit/${target.userId}`;
+        return `/users/finance-managers/edit/${target.userId}`;
       case Role.GUARDIAN:
-        return `/guardians/edit/${target.entityId}`;
+        return `/users/guardians/edit/${target.entityId}`;
       default:
         return null;
     }
