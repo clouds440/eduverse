@@ -392,6 +392,8 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
         const isPlatformAdmin = currentUserRole === Role.PLATFORM_ADMIN || currentUserRole === Role.SUPER_ADMIN;
 
         useEffect(() => {
+            // Switching threads intentionally closes any draft composer from the prior thread.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setComposerOpen(false);
             onComposerOpenChange?.(false);
         }, [mail.id, onComposerOpenChange]);

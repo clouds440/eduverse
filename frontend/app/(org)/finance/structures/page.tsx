@@ -66,7 +66,7 @@ export default function StructuresPage() {
             search: search || undefined,
         })
     );
-    const structures = structuresRes?.data || [];
+    const structures = useMemo(() => structuresRes?.data || [], [structuresRes?.data]);
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.FINANCE_MANAGER;
 

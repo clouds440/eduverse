@@ -23,6 +23,7 @@ import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 import { formatDepartmentLabel } from '@/lib/utils';
+import { UserCommsAction } from '@/components/communication/UserCommsAction';
 
 interface RoleAccountParams {
     page: number;
@@ -212,29 +213,40 @@ export default function RoleAccountListPage({
             header: 'Actions',
             width: 180,
             accessor: (row: User) => (
-                <TableActions
-                    onView={isDeletedView ? undefined : () => router.push(`/profiles/${row.id}`)}
-                    onEdit={isDeletedView ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
-                    onDelete={isDeletedView ? undefined : () => {
-                        setDeletingAccount(row);
-                        setDeleteDialogOpen(true);
-                    }}
-                    variant="user"
-                    extraActions={isDeletedView ? [
-                        {
-                            variant: 'restore' as const,
-                            title: 'Restore',
-                            onClick: () => handleRestore(row.id),
-                        },
-                    ] : [
-                        ...(canGenerateResetForRole ? [{
-                            variant: 'passwordReset' as const,
-                            title: 'Copy Password Reset Link',
-                            loading: generatingResetUserId === row.id,
-                            onClick: () => generatePasswordResetLink(row.id),
-                        }] : []),
-                    ]}
-                />
+                <div className="flex items-center gap-1">
+                    <TableActions
+                        onView={isDeletedView ? undefined : () => router.push(`/profiles/${row.id}`)}
+                        onEdit={isDeletedView ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
+                        onDelete={isDeletedView ? undefined : () => {
+                            setDeletingAccount(row);
+                            setDeleteDialogOpen(true);
+                        }}
+                        variant="user"
+                        extraActions={isDeletedView ? [
+                            {
+                                variant: 'restore' as const,
+                                title: 'Restore',
+                                onClick: () => handleRestore(row.id),
+                            },
+                        ] : [
+                            ...(canGenerateResetForRole ? [{
+                                variant: 'passwordReset' as const,
+                                title: 'Copy Password Reset Link',
+                                loading: generatingResetUserId === row.id,
+                                onClick: () => generatePasswordResetLink(row.id),
+                            }] : []),
+                        ]}
+                    />
+                    {!isDeletedView && (
+                        <UserCommsAction
+                            targetUserId={row.id}
+                            targetName={row.name}
+                            targetEmail={row.email}
+                            initialSubject={`Inquiry regarding ${row.name || row.email}`}
+                            mailEnabled
+                        />
+                    )}
+                </div>
             ),
         },
     ], [canGenerateResetForRole, generatePasswordResetLink, generatingResetUserId, handleRestore, isDeletedView, isSubAdminList, labelSingular, routeBase, router]);

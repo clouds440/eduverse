@@ -12,6 +12,7 @@ import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
 function formatPercent(value: number) {
@@ -36,16 +37,15 @@ export default function Grades({ grades, transcriptHref = '/transcripts', showSe
     ), [grades]);
 
     const filteredGrades = useMemo(() => {
-        const query = search.trim().toLowerCase();
         const scopedGrades = selectedSectionId
             ? grades.filter((grade) => grade.sectionId === selectedSectionId)
             : grades;
-        if (!query) return scopedGrades;
-        return scopedGrades.filter((grade) => (
-            grade.courseName.toLowerCase().includes(query)
-            || grade.sectionName.toLowerCase().includes(query)
-            || grade.letterGrade?.toLowerCase().includes(query)
-        ));
+        return fuzzyFilterAndRank(scopedGrades, search, (grade) => [
+            grade.courseName,
+            grade.sectionName,
+            grade.letterGrade,
+            ...(grade.assessments || []).map((assessment) => assessment.title),
+        ]);
     }, [grades, search, selectedSectionId]);
 
     const averageGrade = grades.length > 0

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { useUI } from '@/context/UIContext';
@@ -10,6 +10,7 @@ import { useSocket } from '@/hooks/useSocket';
 import Image from 'next/image';
 import { api } from '@/lib/api';
 import { getFileTypeInfo } from '@/lib/attachmentUtils';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { getRoleLabel } from '@/lib/roles';
 import { getUserColor, downloadFile, formatBytes } from '@/lib/utils';
 import {
@@ -100,6 +101,7 @@ export function ChatLayout() {
     useEffect(() => { dispatchRef.current = dispatch; }, [dispatch]);
     const { isDesktop, mounted } = useUI();
     const { goBack } = useBackNavigation();
+    const router = useRouter();
     const { subscribe, joinRoom, leaveRoom, emit } = useSocket({ token, userId: user?.id, enabled: !!token });
     const searchParams = useSearchParams();
     const initialChatId = searchParams.get('id');
@@ -1138,16 +1140,16 @@ export function ChatLayout() {
             result = result.filter(chat => chat.type === ChatType.DIRECT);
         }
 
-        // Filter by search query
         if (searchQuery.trim()) {
-            const lowerQuery = searchQuery.toLowerCase();
-            result = result.filter(chat => {
+            result = fuzzyFilterAndRank(result, searchQuery, (chat) => {
                 if (chat.type === ChatType.GROUP) {
-                    return (chat.name || '').toLowerCase().includes(lowerQuery);
+                    return [
+                        chat.name,
+                        ...(chat.participants || []).map((participant) => participant.user?.name || participant.user?.email),
+                    ];
                 }
                 const otherUser = chat.participants?.find(p => p.userId !== user?.id)?.user;
-                return (otherUser?.name || '').toLowerCase().includes(lowerQuery) ||
-                    (otherUser?.email || '').toLowerCase().includes(lowerQuery);
+                return [otherUser?.name, otherUser?.email];
             });
         }
 
@@ -1168,9 +1170,10 @@ export function ChatLayout() {
         if (!activeChat || activeChat.type !== ChatType.GROUP) return [];
         const members = activeChat.participants?.filter(p => p.isActive && p.userId !== user?.id) || [];
         if (!mentionSearchQuery) return members;
-        return members.filter(m =>
-            m.user?.name?.toLowerCase().includes(mentionSearchQuery.toLowerCase())
-        );
+        return fuzzyFilterAndRank(members, mentionSearchQuery, (member) => [
+            member.user?.name,
+            member.user?.email,
+        ]);
     }, [activeChat, mentionSearchQuery, user?.id]);
 
     const handleSelectMember = useCallback((member: ChatParticipant) => {
@@ -2103,14 +2106,22 @@ export function ChatLayout() {
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
                                     {activeParticipants.map(p => (
-                                        <div key={p.id} className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-card/80 transition-colors group/item">
-                                            <div className="flex items-center space-x-2 sm:space-x-2.5 min-w-0">
+                                        <div key={p.id} className="flex items-center justify-between gap-2 rounded-2xl p-1.5 transition-colors hover:bg-card/80 group/item">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowParticipants(false);
+                                                    router.push(`/profiles/${p.userId}`);
+                                                }}
+                                                className="flex min-w-0 flex-1 items-center space-x-2 rounded-xl p-1 text-left transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:space-x-2.5"
+                                                title={`View ${p.user?.name || 'member'} profile`}
+                                            >
                                                 <ChatAvatar targetUser={p.user} className="w-7 h-7 sm:w-8 sm:h-8" isOnline={!!onlineUsers[p.userId]} />
                                                 <div className="min-w-0">
                                                     <p className="text-[12px] sm:text-[13px] font-bold truncate" style={{ color: getUserColor(p.user?.id) }}>{p.user?.name} {p.userId === user.id && <span className="text-muted-foreground font-normal">(You)</span>}</p>
                                                     <p className="text-[11px] text-muted-foreground font-medium truncate">{getRoleLabel(p.user?.role, '')}</p>
                                                 </div>
-                                            </div>
+                                            </button>
                                             {isGroupAdmin && p.userId !== user.id && p.userId !== activeChat.creatorId && (
                                                 <Button
                                                     variant="danger"

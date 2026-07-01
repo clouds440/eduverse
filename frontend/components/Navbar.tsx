@@ -60,12 +60,12 @@ export default function Navbar() {
     const hasOpenNavDropdown = isThemeMenuOpen || isGlobalSearchOpen || isAnnouncementMenuOpen || isNotificationMenuOpen;
     const keepNavVisible = isMobileOpen || hasOpenNavDropdown || isNavInteractionHeld;
 
-    const isScrollableElement = (element?: HTMLElement | null) => {
+    const isScrollableElement = useCallback((element?: HTMLElement | null) => {
         if (!element || element === document.documentElement || element === document.body) return false;
         return element.scrollHeight - element.clientHeight > 2;
-    };
+    }, []);
 
-    const getPrimaryScrollState = (preferredTarget?: HTMLElement | null) => {
+    const getPrimaryScrollState = useCallback((preferredTarget?: HTMLElement | null) => {
         if (typeof window === 'undefined') return { scrollTop: 0, scrollRange: 0 };
 
         const preferredScrollable = isScrollableElement(preferredTarget) ? preferredTarget : null;
@@ -99,7 +99,7 @@ export default function Navbar() {
             ),
             scrollRange: Math.max(documentScrollRange, candidateScrollRange),
         };
-    };
+    }, [isScrollableElement]);
 
     const setNavHiddenState = useCallback((nextHidden: boolean) => {
         if (navHiddenRef.current === nextHidden) return;
@@ -116,7 +116,7 @@ export default function Navbar() {
         }
         setIsNavInteractionHeld(false);
         lastScrollTopRef.current = getPrimaryScrollState(activeScrollTargetRef.current).scrollTop;
-    }, []);
+    }, [getPrimaryScrollState]);
 
     const holdNavForInteraction = useCallback(() => {
         if (interactionHoldTimerRef.current !== null) {
@@ -130,11 +130,13 @@ export default function Navbar() {
             setIsNavInteractionHeld(false);
             lastScrollTopRef.current = getPrimaryScrollState(activeScrollTargetRef.current).scrollTop;
         }, NAV_INTERACTION_HOLD_MS);
-    }, [setNavHiddenState]);
+    }, [getPrimaryScrollState, setNavHiddenState]);
 
     useEffect(() => {
         const root = document.documentElement;
         root.style.setProperty('--dashboard-nav-offset', 'var(--app-nav-height)');
+        // Route changes intentionally reset nav visibility before scroll listeners resume.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsNavHidden(false);
         navHiddenRef.current = false;
         upwardDeltaRef.current = 0;
@@ -157,6 +159,8 @@ export default function Navbar() {
 
     useEffect(() => {
         if (keepNavVisible) {
+            // This effect synchronizes nav visibility with transient menu/layout state.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setNavHiddenState(false);
             return;
         }
@@ -237,7 +241,7 @@ export default function Navbar() {
             window.removeEventListener('scroll', scheduleUpdate);
             window.removeEventListener('resize', scheduleUpdate);
         };
-    }, [keepNavVisible, pathname, setNavHiddenState]);
+    }, [getPrimaryScrollState, keepNavVisible, pathname, setNavHiddenState]);
 
     useEffect(() => () => {
         if (interactionHoldTimerRef.current !== null) {

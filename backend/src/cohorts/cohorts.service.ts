@@ -12,6 +12,7 @@ import {
   getPaginationOptions,
   formatPaginatedResponse,
   PaginationOptions,
+  fuzzyFilterAndRank,
 } from '../common/utils';
 import { Prisma, EnrollmentSource } from '@/prisma/prisma-client';
 import { Role } from '../common/enums';
@@ -149,22 +150,28 @@ export class CohortsService {
       sortOrder: options.sortOrder || 'desc',
     });
 
-    const where: Prisma.CohortWhereInput = {
+    const baseWhere: Prisma.CohortWhereInput = {
       organizationId: orgId,
       ...(options.academicCycleId
         ? { academicCycleId: options.academicCycleId }
         : options.includeAllCycles
           ? {}
           : { academicCycle: { isActive: true } }),
-      ...(options.search
-        ? {
+    };
+    const searchWhere: Prisma.CohortWhereInput = options.search
+      ? {
           OR: [
             { name: { contains: options.search, mode: 'insensitive' } },
             { code: { contains: options.search, mode: 'insensitive' } },
           ],
         }
-        : {}),
-    };
+      : {};
+    const where: Prisma.CohortWhereInput = { ...baseWhere, ...searchWhere };
+
+    const include = {
+      academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+      _count: { select: { students: true, sections: true } },
+    } satisfies Prisma.CohortInclude;
 
     const [cohorts, totalRecords] = await Promise.all([
       this.prisma.cohort.findMany({
@@ -172,13 +179,32 @@ export class CohortsService {
         skip,
         take,
         orderBy: { [sortBy]: sortOrder },
-        include: {
-          academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
-          _count: { select: { students: true, sections: true } },
-        },
+        include,
       }),
       this.prisma.cohort.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.cohort.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy: { [sortBy]: sortOrder },
+        include,
+      });
+      const ranked = fuzzyFilterAndRank(candidates, options.search, (cohort) => [
+        cohort.name,
+        cohort.code,
+        cohort.academicCycle?.name,
+        cohort.academicCycle?.code,
+      ]);
+
+      return formatPaginatedResponse(
+        ranked.slice(skip, skip + take),
+        ranked.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(cohorts, totalRecords, options.page, options.limit);
   }

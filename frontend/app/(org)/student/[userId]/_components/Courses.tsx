@@ -13,6 +13,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import type { ActiveFilter } from '@/components/ui/PageShell';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -40,16 +41,15 @@ export default function Courses({ sections, assessments }: { sections: Section[]
     const [sectionFilter, setSectionFilter] = useState('');
 
     const filteredSections = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        return sections.filter((section) => {
-            const matchesSection = !sectionFilter || section.id === sectionFilter;
-            const matchesSearch = !query
-                || section.name.toLowerCase().includes(query)
-                || section.course?.name?.toLowerCase().includes(query)
-                || section.teachers?.some((teacher) => teacher.user?.name?.toLowerCase().includes(query));
-
-            return matchesSection && matchesSearch;
-        });
+        const scopedSections = sectionFilter
+            ? sections.filter((section) => section.id === sectionFilter)
+            : sections;
+        return fuzzyFilterAndRank(scopedSections, search, (section) => [
+            section.name,
+            section.course?.name,
+            section.course?.code,
+            ...(section.teachers?.map((teacher) => teacher.user?.name || teacher.user?.email || teacher.subject) || []),
+        ]);
     }, [search, sectionFilter, sections]);
     const selectedSection = sections.find((section) => section.id === sectionFilter);
     const activeFilters = useMemo<ActiveFilter[]>(() => (

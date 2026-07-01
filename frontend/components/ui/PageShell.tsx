@@ -179,6 +179,8 @@ function usePageScrollVisibility(elementRef: React.RefObject<HTMLElement | null>
     useEffect(() => {
         if (!enabled) {
             isVisibleRef.current = true;
+            // Disabling scroll hiding intentionally restores visibility immediately.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsVisible(true);
             return;
         }
@@ -603,7 +605,7 @@ export function ResourceToolbar({ search, filters, actions, activeFilters = [], 
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     {search && <div className="min-w-0 flex-1">{search}</div>}
                     {(filters || actions) && (
-                        <div className="flex w-full min-w-0 items-center justify-end gap-2 overflow-x-auto scrollbar-none lg:w-auto lg:overflow-visible">
+                        <div className="flex w-full min-w-0 flex-row flex-wrap items-center justify-end gap-2 lg:w-auto">
                             {filters}
                             {actions}
                         </div>

@@ -14,6 +14,7 @@ import {
   getPaginationOptions,
   formatPaginatedResponse,
   PaginationOptions,
+  fuzzyFilterAndRank,
 } from '../common/utils';
 import { normalizeSectionColor } from './section-colors';
 import {
@@ -55,7 +56,7 @@ export class SectionsService {
     const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
     const scopeWhere = sectionDepartmentScopeWhere(departmentScope);
 
-    const where: Prisma.SectionWhereInput = {
+    const baseWhere: Prisma.SectionWhereInput = {
       course: { organizationId: orgId },
       ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
       ...(options.departmentId ? { course: { organizationId: orgId, departmentId: options.departmentId } } : {}),
@@ -73,19 +74,25 @@ export class SectionsService {
             ],
           }
         : {}),
-      ...(options.search
-        ? {
-            OR: [
-              { name: { contains: options.search, mode: 'insensitive' } },
-              { code: { contains: options.search, mode: 'insensitive' } },
-              { room: { contains: options.search, mode: 'insensitive' } },
-              {
-                course: {
-                  name: { contains: options.search, mode: 'insensitive' },
-                },
+    };
+    const searchWhere: Prisma.SectionWhereInput = options.search
+      ? {
+          OR: [
+            { name: { contains: options.search, mode: 'insensitive' } },
+            { code: { contains: options.search, mode: 'insensitive' } },
+            { room: { contains: options.search, mode: 'insensitive' } },
+            {
+              course: {
+                name: { contains: options.search, mode: 'insensitive' },
               },
-            ],
-          }
+            },
+          ],
+        }
+      : {};
+    const where: Prisma.SectionWhereInput = {
+      ...baseWhere,
+      ...(options.search
+        ? searchWhere
         : {}),
     };
 
@@ -97,58 +104,96 @@ export class SectionsService {
       orderBy = { [sortBy]: sortOrder };
     }
 
+    const include = {
+      course: { include: { department: true } },
+      defaultRoom: { include: { building: true } },
+      teachers: {
+        include: { user: { select: { id: true, email: true, name: true } } },
+      },
+      schedules: {
+        select: {
+          id: true,
+          day: true,
+          date: true,
+          type: true,
+          startTime: true,
+          endTime: true,
+          room: true,
+          roomId: true,
+          roomRef: { include: { building: true } },
+          teacherId: true,
+          teacher: {
+            include: { user: { select: { id: true, email: true, name: true } } },
+          },
+        },
+        orderBy: [{ day: 'asc' as const }, { startTime: 'asc' as const }],
+      },
+      enrollments: {
+        include: {
+          student: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      academicCycle: true,
+      cohort: true,
+      _count: { select: { enrollments: true, courseMaterials: true } },
+    } satisfies Prisma.SectionInclude;
+
     const [sections, totalRecords] = await Promise.all([
       this.prisma.section.findMany({
         where,
         skip,
         take,
-        include: {
-          course: { include: { department: true } },
-          defaultRoom: { include: { building: true } },
-          teachers: {
-            include: { user: { select: { id: true, email: true, name: true } } },
-          },
-          schedules: {
-            select: {
-              id: true,
-              day: true,
-              date: true,
-              type: true,
-              startTime: true,
-              endTime: true,
-              room: true,
-              roomId: true,
-              roomRef: { include: { building: true } },
-              teacherId: true,
-              teacher: {
-                include: { user: { select: { id: true, email: true, name: true } } },
-              },
-            },
-            orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
-          },
-          enrollments: {
-            include: {
-              student: {
-                include: {
-                  user: {
-                    select: {
-                      id: true,
-                      name: true,
-                      email: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          academicCycle: true,
-          cohort: true,
-          _count: { select: { enrollments: true, courseMaterials: true } },
-        },
+        include,
         orderBy,
       }),
       this.prisma.section.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.section.findMany({
+        where: baseWhere,
+        take: 500,
+        include,
+        orderBy,
+      });
+      const fuzzySections = fuzzyFilterAndRank(candidates, options.search, (section) => [
+        section.name,
+        section.code,
+        section.room,
+        section.course?.name,
+        section.course?.code,
+        section.course?.department?.name,
+        section.defaultRoom?.name,
+        section.defaultRoom?.building?.name,
+        ...section.teachers.map((teacher) => teacher.user?.name),
+      ]);
+      const formattedFuzzySections = fuzzySections.slice(skip, skip + take).map((s) => ({
+        ...s,
+        students: s.enrollments.map((e) => ({
+          ...e.student,
+          user: e.student.user,
+        })),
+        studentsCount: s._count?.enrollments || 0,
+        courseMaterialsCount: s._count?.courseMaterials || 0,
+      }));
+
+      return formatPaginatedResponse(
+        formattedFuzzySections,
+        fuzzySections.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     const formattedSections = sections.map((s) => ({
       ...s,

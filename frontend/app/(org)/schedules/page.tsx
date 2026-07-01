@@ -15,6 +15,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { SearchBar } from '@/components/ui/SearchBar';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { fuzzySearchScore } from '@/lib/fuzzySearch';
 import { formatCourseSectionLabel, formatRoomLabel, getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
@@ -257,11 +258,13 @@ export default function SchedulesPage() {
     }, [sections]);
 
     const filteredSections = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
+        const term = searchTerm.trim();
         return sections.filter((section) => (
-            (!term || [
+            (!term || fuzzySearchScore(term, [
                 section.name,
+                section.code,
                 section.course?.name,
+                section.course?.code,
                 section.course?.department?.name,
                 section.course?.department?.code,
                 section.cohort?.name,
@@ -274,7 +277,7 @@ export default function SchedulesPage() {
                     schedule.endTime,
                     getScheduleRoomLabel(schedule),
                 ]) || []),
-            ].some((value) => String(value || '').toLowerCase().includes(term))) &&
+            ]) > 0) &&
             (!courseId || section.course?.id === courseId) &&
             (!departmentId || section.course?.department?.id === departmentId) &&
             (!cohortId || section.cohort?.id === cohortId) &&

@@ -172,7 +172,6 @@ export async function createTranscriptPdf({
     studentPhotoUrl,
     student,
     cycles,
-    cumulativeAverage,
     summary,
     theme = 'light',
 }: TranscriptPdfInput) {

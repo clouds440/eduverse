@@ -9,6 +9,7 @@ import {
 import { Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums';
+import { fuzzyFilterAndRank } from '../common/utils';
 import { UserService } from '../users/user.service';
 import { CreateGuardianDto } from './dto/create-guardian.dto';
 import { UpdateGuardianDto } from './dto/update-guardian.dto';
@@ -94,22 +95,48 @@ export class GuardiansService {
   }
 
   async getGuardians(orgId: string, search?: string) {
+    const baseWhere: Prisma.GuardianProfileWhereInput = {
+      organizationId: orgId,
+    };
+    const searchWhere: Prisma.GuardianProfileWhereInput = search
+      ? {
+          OR: [
+            { user: { name: { contains: search, mode: 'insensitive' } } },
+            { user: { email: { contains: search, mode: 'insensitive' } } },
+            { phone: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+    const where: Prisma.GuardianProfileWhereInput = { ...baseWhere, ...searchWhere };
+
     const guardians = await this.prisma.guardianProfile.findMany({
-      where: {
-        organizationId: orgId,
-        ...(search
-          ? {
-              OR: [
-                { user: { name: { contains: search, mode: 'insensitive' } } },
-                { user: { email: { contains: search, mode: 'insensitive' } } },
-                { phone: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
+      where,
       include: this.guardianInclude(),
       orderBy: { createdAt: 'desc' },
     });
+
+    if (search && guardians.length === 0) {
+      const candidates = await this.prisma.guardianProfile.findMany({
+        where: baseWhere,
+        take: 500,
+        include: this.guardianInclude(),
+        orderBy: { createdAt: 'desc' },
+      });
+      const ranked = fuzzyFilterAndRank(candidates, search, (guardian) => [
+        guardian.user?.name,
+        guardian.user?.email,
+        guardian.user?.phone,
+        guardian.phone,
+        guardian.address,
+        ...(guardian.studentLinks || []).flatMap((link) => [
+          link.student?.user?.name,
+          link.student?.registrationNumber,
+          link.student?.rollNumber,
+        ]),
+      ]);
+      return ranked.map((guardian) => this.normalizeGuardian(guardian));
+    }
+
     return guardians.map((guardian) => this.normalizeGuardian(guardian));
   }
 

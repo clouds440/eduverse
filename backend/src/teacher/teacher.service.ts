@@ -6,7 +6,7 @@ import { SectionsService } from '../sections/sections.service';
 import { DepartmentScopeType, Role, TeacherStatus, UserStatus } from '../common/enums';
 import { CreateTeacherDto } from '../org/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '../org/dto/update-teacher.dto';
-import { PaginationOptions, getPaginationOptions, formatPaginatedResponse, extractUpdateFields } from '../common/utils';
+import { PaginationOptions, getPaginationOptions, formatPaginatedResponse, extractUpdateFields, fuzzyFilterAndRank } from '../common/utils';
 import { Prisma } from '@/prisma/prisma-client';
 import { extractTimetableEntries } from '../common/utils';
 import {
@@ -75,7 +75,7 @@ export class TeacherService {
     const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
     const scopeWhere = teacherDepartmentScopeWhere(departmentScope);
 
-    const where: Prisma.TeacherWhereInput = {
+    const baseWhere: Prisma.TeacherWhereInput = {
       organizationId: orgId,
       ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
       ...(options.departmentId
@@ -86,8 +86,9 @@ export class TeacherService {
         : status
           ? { in: status.split(',') as TeacherStatus[] }
           : { not: TeacherStatus.DELETED },
-      ...(options.search
-        ? {
+    };
+    const searchWhere: Prisma.TeacherWhereInput = options.search
+      ? {
           OR: [
             {
               user: {
@@ -106,8 +107,8 @@ export class TeacherService {
             },
           ],
         }
-        : {}),
-    };
+      : {};
+    const where: Prisma.TeacherWhereInput = { ...baseWhere, ...searchWhere };
 
     // Handle nested sorting for user fields
     let orderBy: Prisma.TeacherOrderByWithRelationInput = {};
@@ -122,31 +123,67 @@ export class TeacherService {
       orderBy = { [sortBy]: sortOrder };
     }
 
+    const include = {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+          avatarUrl: true,
+          avatarUpdatedAt: true,
+        },
+      },
+      sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
+      teacherDepartments: { include: { department: true } },
+      managerDepartments: { include: { department: true } },
+    } satisfies Prisma.TeacherInclude;
+
     const [teachers, totalRecords] = await Promise.all([
       this.prisma.teacher.findMany({
         where,
         skip,
         take,
         orderBy,
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              phone: true,
-              role: true,
-              avatarUrl: true,
-              avatarUpdatedAt: true,
-            },
-          },
-          sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
-          teacherDepartments: { include: { department: true } },
-          managerDepartments: { include: { department: true } },
-        },
+        include,
       }),
       this.prisma.teacher.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.teacher.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy,
+        include,
+      });
+      const ranked = fuzzyFilterAndRank(candidates, options.search, (teacher) => [
+        teacher.user?.name,
+        teacher.user?.email,
+        teacher.user?.phone,
+        teacher.subject,
+        teacher.department,
+        teacher.designation,
+        ...(teacher.sections || []).flatMap((section) => [section.name, section.course?.name]),
+        ...(teacher.teacherDepartments || []).flatMap((link) => [
+          link.department?.name,
+          link.department?.code,
+        ]),
+        ...(teacher.managerDepartments || []).flatMap((link) => [
+          link.department?.name,
+          link.department?.code,
+        ]),
+      ]);
+      const pageItems = ranked.slice(skip, skip + take);
+
+      return formatPaginatedResponse(
+        pageItems,
+        ranked.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(
       teachers,
@@ -175,7 +212,7 @@ export class TeacherService {
               ],
             };
 
-    const where: Prisma.TeacherWhereInput = {
+    const baseWhere: Prisma.TeacherWhereInput = {
       organizationId: orgId,
       user: { role: Role.ORG_MANAGER },
       ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
@@ -187,8 +224,9 @@ export class TeacherService {
         : status
           ? { in: status.split(',') as TeacherStatus[] }
           : { not: TeacherStatus.DELETED },
-      ...(options.search
-        ? {
+    };
+    const searchWhere: Prisma.TeacherWhereInput = options.search
+      ? {
           OR: [
             {
               user: {
@@ -207,8 +245,8 @@ export class TeacherService {
             },
           ],
         }
-        : {}),
-    };
+      : {};
+    const where: Prisma.TeacherWhereInput = { ...baseWhere, ...searchWhere };
 
     let orderBy: Prisma.TeacherOrderByWithRelationInput = {};
     const userFields = ['name', 'email', 'phone'];
@@ -222,31 +260,67 @@ export class TeacherService {
       orderBy = { [sortBy]: sortOrder };
     }
 
+    const include = {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          role: true,
+          avatarUrl: true,
+          avatarUpdatedAt: true,
+        },
+      },
+      sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
+      teacherDepartments: { include: { department: true } },
+      managerDepartments: { include: { department: true } },
+    } satisfies Prisma.TeacherInclude;
+
     const [managers, totalRecords] = await Promise.all([
       this.prisma.teacher.findMany({
         where,
         skip,
         take,
         orderBy,
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              phone: true,
-              role: true,
-              avatarUrl: true,
-              avatarUpdatedAt: true,
-            },
-          },
-          sections: { select: { id: true, name: true, color: true, course: { select: { id: true, name: true } } } },
-          teacherDepartments: { include: { department: true } },
-          managerDepartments: { include: { department: true } },
-        },
+        include,
       }),
       this.prisma.teacher.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.teacher.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy,
+        include,
+      });
+      const ranked = fuzzyFilterAndRank(candidates, options.search, (manager) => [
+        manager.user?.name,
+        manager.user?.email,
+        manager.user?.phone,
+        manager.subject,
+        manager.department,
+        manager.designation,
+        ...(manager.sections || []).flatMap((section) => [section.name, section.course?.name]),
+        ...(manager.teacherDepartments || []).flatMap((link) => [
+          link.department?.name,
+          link.department?.code,
+        ]),
+        ...(manager.managerDepartments || []).flatMap((link) => [
+          link.department?.name,
+          link.department?.code,
+        ]),
+      ]);
+      const pageItems = ranked.slice(skip, skip + take);
+
+      return formatPaginatedResponse(
+        pageItems,
+        ranked.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(
       managers,

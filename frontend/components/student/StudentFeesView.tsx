@@ -35,6 +35,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import type { ActiveFilter } from '@/components/ui/PageShell';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { moneySubtract, toMoneyNumber } from '@/lib/money';
 
 const statusTabs = [
@@ -129,16 +130,13 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
         };
     }, [entries]);
 
-    const searchQuery = search.trim().toLowerCase();
-
     const filteredStructures = useMemo(() => {
-        if (!searchQuery) return structures;
-        return structures.filter((structure: FinancialStructure) => (
-            structure.title.toLowerCase().includes(searchQuery)
-            || structure.description?.toLowerCase().includes(searchQuery)
-            || structure.category.toLowerCase().includes(searchQuery)
-        ));
-    }, [searchQuery, structures]);
+        return fuzzyFilterAndRank(structures, search, (structure: FinancialStructure) => [
+            structure.title,
+            structure.description,
+            structure.category,
+        ]);
+    }, [search, structures]);
 
     const filteredEntries = useMemo(() => {
         const tabEntries = activeTab === 'DUE'
@@ -148,12 +146,13 @@ export function StudentFeesView({ studentId, viewerRole, allowClaims = true }: S
                 : activeTab === 'PAID'
                     ? stats.paidEntries
                     : entries;
-        if (!searchQuery) return tabEntries;
-        return tabEntries.filter((entry) => (
-            entry.title.toLowerCase().includes(searchQuery)
-            || entry.status.toLowerCase().includes(searchQuery)
-        ));
-    }, [activeTab, entries, searchQuery, stats]);
+        return fuzzyFilterAndRank(tabEntries, search, (entry) => [
+            entry.title,
+            entry.status,
+            entry.structure?.title,
+            entry.assignment?.entityName,
+        ]);
+    }, [activeTab, entries, search, stats]);
 
     const structureClaimEntries = useMemo(() => {
         const byStructureId = new Map<string, FinancialEntry>();

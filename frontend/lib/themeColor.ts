@@ -39,7 +39,8 @@ export function getSafePrimaryColor(value: string | null | undefined) {
     return normalized ? normalized : DEFAULT_PRIMARY;
 }
 
-export function getPrimaryColorError(value: string | null | undefined) {
+export function getPrimaryColorError(_value: string | null | undefined) {
+    void _value;
     return null;
 }
 

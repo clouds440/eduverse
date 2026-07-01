@@ -99,8 +99,8 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
         setFormData(getInitialFormData(cohort));
     }, [cohort]);
 
-    const students = studentsData?.data || [];
-    const sections = sectionsData?.data || [];
+    const students = useMemo(() => studentsData?.data || [], [studentsData?.data]);
+    const sections = useMemo(() => sectionsData?.data || [], [sectionsData?.data]);
     const filteredSections = useMemo(() => {
         if (!formData.academicCycleId) return sections;
         return sections.filter((section) => section.academicCycleId === formData.academicCycleId);

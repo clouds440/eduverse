@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DepartmentScopeType, Role, UserStatus } from '../common/enums';
 import {
   formatPaginatedResponse,
+  fuzzyFilterAndRank,
   getPaginationOptions,
   PaginationOptions,
 } from '../common/utils';
@@ -67,6 +68,7 @@ export class RoleAccountsService {
     const { skip, take, sortBy, sortOrder, status, deleted } =
       getPaginationOptions(options);
 
+    const baseWhere = this.buildWhere(orgId, role, undefined, status, deleted);
     const where = this.buildWhere(orgId, role, options.search, status, deleted);
     const orderBy = this.buildOrderBy(sortBy, sortOrder);
 
@@ -80,6 +82,31 @@ export class RoleAccountsService {
       }),
       this.prisma.user.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.user.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy,
+        select: roleAccountSelect,
+      });
+      const ranked = fuzzyFilterAndRank(candidates, options.search, (account) => [
+        account.name,
+        account.email,
+        account.phone,
+        ...(account.subAdminDepartments || []).flatMap((link) => [
+          link.department?.name,
+          link.department?.code,
+        ]),
+      ]);
+
+      return formatPaginatedResponse(
+        ranked.slice(skip, skip + take),
+        ranked.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(
       accounts,

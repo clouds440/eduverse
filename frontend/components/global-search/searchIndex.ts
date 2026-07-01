@@ -682,7 +682,11 @@ function scoreField(field: string, query: string, tokens: string[], weight: numb
         else {
             const fuzzy = Math.max(...fieldTokens.map((fieldToken) => subsequenceScore(token, fieldToken)), 0);
             if (fuzzy) score += fuzzy * weight;
-            else if (token.length >= 4 && fieldTokens.some((fieldToken) => editDistance(token, fieldToken) <= 2)) {
+            else if (token.length >= 4 && fieldTokens.some((fieldToken) => {
+                const maxDistance = token.length >= 7 && fieldToken.length >= 7 ? 2 : 1;
+                const anchored = token[0] === fieldToken[0] || token.slice(0, 2) === fieldToken.slice(0, 2);
+                return anchored && editDistance(token, fieldToken) <= maxDistance;
+            })) {
                 score += 10 * weight;
             }
         }

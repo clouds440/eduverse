@@ -17,6 +17,7 @@ import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell'
 import { BrandIcon } from '@/components/ui/Brand';
 import { TableActions } from '@/components/ui/TableActions';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
+import { UserCommsAction } from '@/components/communication/UserCommsAction';
 
 export default function GuardiansPage() {
     const { token, user } = useAuth();
@@ -62,18 +63,27 @@ export default function GuardiansPage() {
             header: 'Actions',
             width: 190,
             accessor: (guardian) => (
-                <TableActions
-                    onView={() => router.push(`/profiles/${guardian.user.id}`)}
-                    onEdit={() => router.push(`${routeBase}/edit/${guardian.id}`)}
-                    variant="user"
-                    extraActions={[
-                        {
-                            variant: 'link',
-                            title: 'Link Students',
-                            onClick: () => router.push(`${routeBase}/link/${guardian.id}`),
-                        },
-                    ]}
-                />
+                <div className="flex items-center gap-1">
+                    <TableActions
+                        onView={() => router.push(`/profiles/${guardian.user.id}`)}
+                        onEdit={() => router.push(`${routeBase}/edit/${guardian.id}`)}
+                        variant="user"
+                        extraActions={[
+                            {
+                                variant: 'link',
+                                title: 'Link Students',
+                                onClick: () => router.push(`${routeBase}/link/${guardian.id}`),
+                            },
+                        ]}
+                    />
+                    <UserCommsAction
+                        targetUserId={guardian.user.id}
+                        targetName={guardian.user.name}
+                        targetEmail={guardian.user.email}
+                        initialSubject={`Inquiry regarding ${guardian.user.name || 'guardian'}`}
+                        mailEnabled
+                    />
+                </div>
             ),
         },
     ];

@@ -7,16 +7,13 @@ import {
     Bell,
     CalendarClock,
     Clock,
-    CreditCard,
     FileText,
-    GraduationCap,
-    Rows3,
     UserRoundCheck,
     Users,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { AttendanceStatus, DashboardInsights, FinalGradeResponse, GuardianOverview, GuardianStudentInsight, Role, type InsightTimeRange } from '@/types';
+import { DashboardInsights, FinalGradeResponse, GuardianOverview, GuardianStudentInsight, Role, type InsightTimeRange } from '@/types';
 import InsightsOverview from '@/components/dashboard/InsightsOverview';
 import { getInsightRangePreview, InsightRangeControl } from '@/components/dashboard/InsightRangeControl';
 import { Badge } from '@/components/ui/Badge';
@@ -53,13 +50,6 @@ const viewLabels: Record<GuardianView, string> = {
 
 function normalizeView(value: string): GuardianView {
     return value in viewLabels ? value as GuardianView : 'overview';
-}
-
-function attendanceVariant(status?: AttendanceStatus | null) {
-    if (status === AttendanceStatus.PRESENT) return 'success';
-    if (status === AttendanceStatus.ABSENT) return 'error';
-    if (status === AttendanceStatus.LATE) return 'warning';
-    return 'neutral';
 }
 
 function formatDate(value?: string | null) {
@@ -265,67 +255,6 @@ function StudentsTab({ selectedInsight, studentInsights }: TabProps) {
     );
 }
 
-function AttendanceTab({ data, selectedStudentName }: TabProps) {
-    return (
-        <ResourcePanel className="overflow-visible p-4">
-            <SectionTitle icon={Rows3} title={`Attendance for ${selectedStudentName}`} />
-            <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
-                {(['present', 'absent', 'late', 'excused'] as const).map((key) => (
-                    <DetailCard key={key} label={key} value={data.attendanceSummary?.[key] || 0} />
-                ))}
-            </div>
-            <div className="mt-4 space-y-2">
-                {(data.recentAttendance || []).slice(0, 12).map((record) => (
-                    <div key={record.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 p-3">
-                        <div className="min-w-0">
-                            <p className="wrap-break-word text-sm font-bold">{record.session?.section?.course?.name || record.session?.section?.name}</p>
-                            <p className="text-xs font-semibold text-muted-foreground">{formatDate(record.session?.date)}</p>
-                        </div>
-                        <Badge variant={attendanceVariant(record.status)} size="sm">{record.status}</Badge>
-                    </div>
-                ))}
-                {(!data.recentAttendance || data.recentAttendance.length === 0) && (
-                    <p className="text-sm font-semibold text-muted-foreground">No attendance records yet.</p>
-                )}
-            </div>
-        </ResourcePanel>
-    );
-}
-
-function GradesTab({ data, selectedInsight, selectedStudentName }: TabProps) {
-    return (
-        <ResourcePanel className="overflow-visible p-4">
-            <SectionTitle icon={GraduationCap} title={`Grades for ${selectedStudentName}`} />
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                <DetailCard label="Average" value={formatPercent(selectedInsight.grades.averagePercentage)} helper="visible grades" />
-                <DetailCard label="Grade Count" value={selectedInsight.grades.count} helper="published/finalized" />
-                <DetailCard label="Latest" value={formatPercent(selectedInsight.grades.latestPercentage)} helper={selectedInsight.grades.latestTitle || 'No latest grade'} />
-            </div>
-            <div className="mt-3 space-y-2">
-                {data.recentGrades.map((grade) => (
-                    <div key={grade.id} className="min-w-0 rounded-md border border-border/70 bg-background/60 p-3">
-                        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="wrap-break-word text-sm font-black">{grade.assessment?.title || 'Assessment'}</p>
-                                <p className="wrap-break-word text-xs font-semibold text-muted-foreground">
-                                    {grade.assessment?.section?.course?.name || grade.assessment?.section?.name}
-                                </p>
-                            </div>
-                            <Badge variant={grade.status === 'FINALIZED' ? 'success' : 'info'} size="sm">{grade.status}</Badge>
-                        </div>
-                        <p className="mt-2 wrap-break-word text-sm font-bold">
-                            {grade.marksObtained}/{grade.assessment?.totalMarks || '-'} marks
-                        </p>
-                    </div>
-                ))}
-                {data.recentGrades.length === 0 && (
-                    <p className="text-sm font-semibold text-muted-foreground">No published grades yet.</p>
-                )}
-            </div>
-        </ResourcePanel>
-    );
-}
-
 function TimetableTab({ data, selectedInsight, selectedStudentName }: TabProps) {
     return (
         <ResourcePanel className="overflow-visible p-4">
@@ -368,33 +297,6 @@ function AssessmentsTab({ data, selectedStudentName }: TabProps) {
                 ))}
                 {data.upcomingAssessments.length === 0 && (
                     <p className="text-sm font-semibold text-muted-foreground">No upcoming assessments.</p>
-                )}
-            </div>
-        </ResourcePanel>
-    );
-}
-
-function FeesTab({ data, selectedStudentName }: TabProps) {
-    return (
-        <ResourcePanel className="overflow-visible p-4">
-            <SectionTitle icon={CreditCard} title={`Fees & Payments for ${selectedStudentName}`} />
-            <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-3">
-                <DetailCard label="Due" value={<FinancialAmount amount={data.financeSummary?.totalDue || 0} />} />
-                <DetailCard label="Paid" value={<FinancialAmount amount={data.financeSummary?.totalPaid || 0} />} />
-                <DetailCard label="Balance" value={<FinancialAmount amount={data.financeSummary?.balance || 0} />} />
-            </div>
-            <div className="mt-3 space-y-2">
-                {data.recentFinanceEntries.slice(0, 10).map((entry) => (
-                    <div key={entry.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 p-3">
-                        <div className="min-w-0">
-                            <p className="wrap-break-word text-sm font-black">{entry.title}</p>
-                            <p className="text-xs font-semibold text-muted-foreground">Due {formatDate(entry.dueDate)}</p>
-                        </div>
-                        <Badge variant={entry.status === 'PAID' ? 'success' : entry.status === 'OVERDUE' ? 'error' : 'warning'} size="sm">{entry.status}</Badge>
-                    </div>
-                ))}
-                {data.recentFinanceEntries.length === 0 && (
-                    <p className="text-sm font-semibold text-muted-foreground">No fee records yet.</p>
                 )}
             </div>
         </ResourcePanel>
@@ -548,9 +450,9 @@ export default function GuardianPortalPage() {
         () => api.org.getGuardianOverview(token!, selectedStudentId || undefined)
     );
 
-    const linkedStudents = data?.linkedStudents || [];
+    const linkedStudents = useMemo(() => data?.linkedStudents || [], [data?.linkedStudents]);
     const selectedStudent = data?.selectedStudent;
-    const studentInsights = data?.studentInsights || [];
+    const studentInsights = useMemo(() => data?.studentInsights || [], [data?.studentInsights]);
     const selectedInsight = data?.selectedInsight || studentInsights.find((insight) => insight.studentId === selectedStudent?.id) || null;
     const selectedStudentName = selectedInsight?.studentName || selectedStudent?.user?.name || 'Selected student';
     const selectedInsightStudentId = selectedInsight?.studentId || selectedStudentId || undefined;
@@ -581,6 +483,8 @@ export default function GuardianPortalPage() {
     }, [selectedStudentId, selectStudent, studentInsights, view]);
 
     useEffect(() => {
+        // Route-tab changes intentionally clear actions registered by the previous tab.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setTabHeaderActions(null);
     }, [view, selectedStudentId]);
 

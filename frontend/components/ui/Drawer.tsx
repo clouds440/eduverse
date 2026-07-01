@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, ReactNode, useId, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, ReactNode, useId, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Filter, LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -33,7 +33,7 @@ export function Drawer({
     const effectivePosition = mounted && isDesktop ? 'right' : position;
     const [coords, setCoords] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
 
-    const updateCoords = () => {
+    const updateCoords = useCallback(() => {
         const trigger = triggerRef.current;
         if (!trigger) return;
         const rect = trigger.getBoundingClientRect();
@@ -49,7 +49,7 @@ export function Drawer({
             width,
             maxHeight: Math.max(160, window.innerHeight - top - margin),
         });
-    };
+    }, [effectivePosition]);
 
     useBackStackEntry({
         enabled: isOpen,
@@ -98,7 +98,7 @@ export function Drawer({
             window.removeEventListener('resize', updateCoords);
             window.removeEventListener('scroll', updateCoords, { capture: true });
         };
-    }, [isOpen, effectivePosition]);
+    }, [isOpen, updateCoords]);
 
     return (
         <div className="relative">

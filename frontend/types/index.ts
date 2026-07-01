@@ -31,6 +31,30 @@ export interface User {
     updatedAt?: string;
 }
 
+export interface ChatSearchUser extends User {
+    studentProfile?: {
+        registrationNumber?: string | null;
+        rollNumber?: string | null;
+    } | null;
+    teacherProfile?: {
+        designation?: string | null;
+    } | null;
+    guardianProfile?: {
+        phone?: string | null;
+        studentLinks?: {
+            relationshipLabel?: string | null;
+            student?: {
+                registrationNumber?: string | null;
+                rollNumber?: string | null;
+                user?: {
+                    id: string;
+                    name?: string | null;
+                } | null;
+            } | null;
+        }[];
+    } | null;
+}
+
 export interface Teacher {
     id: string;
     education?: string;

@@ -7,7 +7,7 @@ import type {
     PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload,
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
     UpdateGradeRequest, CreateSubmissionRequest, FinalGradeResponse, MailTarget,
-    Chat, ChatMessage, Notification, Announcement, TargetType, AnnouncementPriority, User,
+    Chat, ChatMessage, ChatSearchUser, Notification, Announcement, TargetType, AnnouncementPriority, User,
     ThemeMode, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
@@ -797,8 +797,8 @@ export const api = {
     },
 
     chat: {
-        searchUsers: (token: string, search?: string) =>
-            request<User[]>(`/chat/users${buildQueryString({ search })}`, { token }),
+        searchUsers: (token: string, params: { search?: string, role?: string } = {}) =>
+            request<ChatSearchUser[]>(`/chat/users${buildQueryString(params)}`, { token }),
         createDirectChat: (participantId: string, token: string) =>
             request<Chat>('/chat/direct', { method: 'POST', body: JSON.stringify({ participantId }), token }),
         createGroupChat: (name: string, participantIds: string[], token: string) =>

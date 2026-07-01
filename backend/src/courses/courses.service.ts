@@ -13,6 +13,7 @@ import {
   getPaginationOptions,
   formatPaginatedResponse,
   PaginationOptions,
+  fuzzyFilterAndRank,
 } from '../common/utils';
 import {
   courseDepartmentScopeWhere,
@@ -41,7 +42,7 @@ export class CoursesService {
     const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
     const scopeWhere = courseDepartmentScopeWhere(departmentScope);
 
-    const where: Prisma.CourseWhereInput = {
+    const baseWhere: Prisma.CourseWhereInput = {
       organizationId: orgId,
       ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
       ...(options.departmentId ? { departmentId: options.departmentId } : {}),
@@ -56,27 +57,56 @@ export class CoursesService {
             },
           }
         : {}),
+    };
+    const searchWhere: Prisma.CourseWhereInput = options.search
+      ? {
+          OR: [
+            { name: { contains: options.search, mode: 'insensitive' } },
+            { code: { contains: options.search, mode: 'insensitive' } },
+            { description: { contains: options.search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+    const where: Prisma.CourseWhereInput = {
+      ...baseWhere,
       ...(options.search
-        ? {
-            OR: [
-              { name: { contains: options.search, mode: 'insensitive' } },
-              { code: { contains: options.search, mode: 'insensitive' } },
-              { description: { contains: options.search, mode: 'insensitive' } },
-            ],
-          }
+        ? searchWhere
         : {}),
     };
+    const include = { sections: true, department: true } satisfies Prisma.CourseInclude;
 
     const [courses, totalRecords] = await Promise.all([
       this.prisma.course.findMany({
         where,
         skip,
         take,
-        include: { sections: true, department: true },
+        include,
         orderBy: { [sortBy]: sortOrder },
       }),
       this.prisma.course.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.course.findMany({
+        where: baseWhere,
+        take: 500,
+        include,
+        orderBy: { [sortBy]: sortOrder },
+      });
+      const fuzzyCourses = fuzzyFilterAndRank(candidates, options.search, (course) => [
+        course.name,
+        course.code,
+        course.description,
+        course.department?.name,
+        course.department?.code,
+      ]);
+      return formatPaginatedResponse(
+        fuzzyCourses.slice(skip, skip + take),
+        fuzzyCourses.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(
       courses,

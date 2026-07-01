@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import useSWR from 'swr';
 import { ArrowLeft, BookOpen, Download, GraduationCap, Printer, RefreshCw, Settings2, Users } from 'lucide-react';
-import { GradeStatus, type BadgeVariant, type SectionGradebookAssessment, type SectionGradebookCell, type SectionGradebookResponse, type SectionGradebookStudentRow } from '@/types';
+import { GradeStatus, type BadgeVariant, type SectionGradebookCell, type SectionGradebookResponse, type SectionGradebookStudentRow } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { DataTable, type Column } from '@/components/ui/DataTable';
@@ -20,6 +20,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { useAuth } from '@/context/AuthContext';
 import { PLATFORM_NAME } from '@/lib/constants';
+import { fuzzySearchScore } from '@/lib/fuzzySearch';
 import { downloadPdfBlob, sanitizePdfFilename } from '@/lib/pdf/core';
 import { createSectionGradesPdf } from '@/lib/pdf/sectionGrades';
 import { getCourseSectionLabelParts, getPublicUrl, getSectionColor } from '@/lib/utils';
@@ -142,14 +143,14 @@ export default function SectionGradesPage() {
     const { data: gradebook, isLoading, error, mutate } = useSWR<SectionGradebookResponse>(gradebookKey);
 
     const filteredRows = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
+        const term = searchTerm.trim();
         return (gradebook?.students || []).filter((row) => {
-            const matchesSearch = !term || [
+            const matchesSearch = !term || fuzzySearchScore(term, [
                 row.student.user?.name,
                 row.student.user?.email,
                 row.student.registrationNumber,
                 row.student.rollNumber,
-            ].some((value) => String(value || '').toLowerCase().includes(term));
+            ]) > 0;
 
             const matchesStatus = statusFilter === 'ALL'
                 || row.grades.some((grade) => statusFilter === 'MISSING' ? !grade.status : grade.status === statusFilter);
@@ -227,7 +228,7 @@ export default function SectionGradesPage() {
         <PageShell>
             <PageHeader
                 title={labelParts?.inlineLabel || 'Section Grades'}
-                description={<>Review every student's marks across all assessments in this section. <DocsLink href="/docs/gradebook#grades-page">Read grade docs</DocsLink></>}
+                description={<>Review every student&apos;s marks across all assessments in this section. <DocsLink href="/docs/gradebook#grades-page">Read grade docs</DocsLink></>}
                 icon={GraduationCap}
                 breadcrumbs={[
                     { label: 'Organization' },

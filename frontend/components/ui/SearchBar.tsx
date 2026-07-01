@@ -54,6 +54,8 @@ export function SearchBar({
     }, [onChange]);
 
     useEffect(() => {
+        // Keep the debounced local input synchronized with controlled route/query state.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLocalValue(value);
         prevDebouncedValueRef.current = value;
     }, [value]);
@@ -63,6 +65,8 @@ export function SearchBar({
             didMountPathRef.current = true;
             return;
         }
+        // Route changes intentionally clear the transient search text.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLocalValue('');
         if (isExpandable) setIsExpanded(false);
     }, [isExpandable, pathname]);

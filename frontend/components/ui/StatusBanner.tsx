@@ -97,8 +97,6 @@ export function StatusBanner({
     if (!visible) return null;
 
     const isCompact = compact === true || (compact === 'auto' && isCompactViewport);
-    const hasDetails = Boolean(description || children);
-
     return (
         <section className={cn('relative rounded-lg border p-2.5 shadow-sm sm:p-3', tone.shell, className)}>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

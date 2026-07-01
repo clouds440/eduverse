@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, RoomType } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
+import { formatPaginatedResponse, fuzzyFilterAndRank, getPaginationOptions, PaginationOptions } from '../common/utils';
 import { FilesService } from '../files/files.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
@@ -135,7 +135,7 @@ export class RoomsService {
       sortOrder: options.sortOrder || 'asc',
     });
 
-    const where: Prisma.RoomWhereInput = {
+    const baseWhere: Prisma.RoomWhereInput = {
       organizationId: orgId,
       ...(options.isActive !== undefined ? { isActive: options.isActive } : {}),
       ...(options.buildingId ? { buildingId: options.buildingId } : {}),
@@ -143,8 +143,9 @@ export class RoomsService {
       ...(options.departmentId
         ? { building: { buildingDepartments: { some: { departmentId: options.departmentId } } } }
         : {}),
-      ...(options.search
-        ? {
+    };
+    const searchWhere: Prisma.RoomWhereInput = options.search
+      ? {
           OR: [
             { name: { contains: options.search, mode: 'insensitive' } },
             { code: { contains: options.search, mode: 'insensitive' } },
@@ -156,21 +157,51 @@ export class RoomsService {
             { building: { code: { contains: options.search, mode: 'insensitive' } } },
           ],
         }
-        : {}),
-    };
+      : {};
+    const where: Prisma.RoomWhereInput = { ...baseWhere, ...searchWhere };
+    const orderBy = sortBy === 'building'
+      ? { building: { name: sortOrder } }
+      : { [sortBy]: sortOrder };
 
     const [rooms, totalRecords] = await Promise.all([
       this.prisma.room.findMany({
         where,
         skip,
         take,
-        orderBy: sortBy === 'building'
-          ? { building: { name: sortOrder } }
-          : { [sortBy]: sortOrder },
+        orderBy,
         include: this.includeRelations,
       }),
       this.prisma.room.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.room.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy,
+        include: this.includeRelations,
+      });
+      const ranked = fuzzyFilterAndRank(candidates, options.search, (room) => [
+        room.name,
+        room.code,
+        room.floor,
+        room.type,
+        room.description,
+        room.landmark,
+        room.directionsNote,
+        room.building?.name,
+        room.building?.code,
+        ...(room.building?.buildingDepartments?.map((link) => link.department.name) || []),
+        ...(room.building?.buildingDepartments?.map((link) => link.department.code) || []),
+      ]);
+
+      return formatPaginatedResponse(
+        ranked.slice(skip, skip + take).map((room) => this.shapeRoom(room)),
+        ranked.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(
       rooms.map((room) => this.shapeRoom(room)),

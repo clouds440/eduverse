@@ -83,7 +83,7 @@ export default function EntriesPage() {
             dueTo: dueTo || undefined,
         })
     );
-    const entries = entriesRes?.data || [];
+    const entries = useMemo(() => entriesRes?.data || [], [entriesRes?.data]);
 
     const isManagement = user?.role === Role.ORG_ADMIN || user?.role === Role.FINANCE_MANAGER;
     const canSelfClaim = user?.role === Role.STUDENT || user?.role === Role.TEACHER || user?.role === Role.GUARDIAN;

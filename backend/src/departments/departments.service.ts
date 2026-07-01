@@ -1,7 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
+import { formatPaginatedResponse, fuzzyFilterAndRank, getPaginationOptions, PaginationOptions } from '../common/utils';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { normalizeEntityColor } from '../common/colors';
@@ -85,17 +85,23 @@ export class DepartmentsService {
       sortOrder: options.sortOrder || 'asc',
     });
 
-    const where: Prisma.DepartmentWhereInput = {
+    const baseWhere: Prisma.DepartmentWhereInput = {
       organizationId: orgId,
       ...(options.isActive !== undefined ? { isActive: options.isActive } : {}),
-      ...(options.search
-        ? {
+    };
+    const searchWhere: Prisma.DepartmentWhereInput = options.search
+      ? {
           OR: [
             { name: { contains: options.search, mode: 'insensitive' } },
             { code: { contains: options.search, mode: 'insensitive' } },
             { description: { contains: options.search, mode: 'insensitive' } },
           ],
         }
+      : {};
+    const where: Prisma.DepartmentWhereInput = {
+      ...baseWhere,
+      ...(options.search
+        ? searchWhere
         : {}),
     };
 
@@ -109,6 +115,28 @@ export class DepartmentsService {
       }),
       this.prisma.department.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.department.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy: { [sortBy]: sortOrder },
+        include: this.includeRelations,
+      });
+      const fuzzyDepartments = fuzzyFilterAndRank(candidates, options.search, (department) => [
+        department.name,
+        department.code,
+        department.description,
+        ...department.buildingDepartments.map((link) => link.building.name),
+        ...department.buildingDepartments.map((link) => link.building.code),
+      ]);
+      return formatPaginatedResponse(
+        fuzzyDepartments.slice(skip, skip + take).map((department) => this.shapeDepartment(department)),
+        fuzzyDepartments.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(
       departments.map((department) => this.shapeDepartment(department)),

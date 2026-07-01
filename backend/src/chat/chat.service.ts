@@ -19,6 +19,7 @@ import {
   ChatMessageType,
   Prisma,
 } from '@/prisma/prisma-client';
+import { fuzzyFilterAndRank } from '../common/utils';
 
 interface CurrentUser {
   id: string;
@@ -143,88 +144,113 @@ export class ChatService {
     return false;
   }
 
-  async searchUsers(query: string, user: CurrentUser) {
-    const searchQuery = query.trim();
+  private getChatSearchTerms(query: string) {
+    const normalized = query.trim().replace(/\s+/g, ' ');
+    if (!normalized) return [];
 
-    let whereClause: Prisma.UserWhereInput = {
-      id: { not: user.id }, // don't return self
-      organizationId: user.organizationId,
-    };
+    const terms = new Set([normalized]);
+    const lower = normalized.toLowerCase();
+    const phoneticPairs: Array<[RegExp, string]> = [
+      [/ahmed/g, 'ahmad'],
+      [/ahmad/g, 'ahmed'],
+      [/mohammed/g, 'muhammad'],
+      [/muhammad/g, 'mohammed'],
+      [/mohammad/g, 'muhammad'],
+      [/fatima/g, 'fatma'],
+      [/fatma/g, 'fatima'],
+    ];
 
-    if (searchQuery) {
-      whereClause = {
-        ...whereClause,
+    for (const [pattern, replacement] of phoneticPairs) {
+      const variant = lower.replace(pattern, replacement);
+      if (variant !== lower) terms.add(variant);
+    }
+
+    const compact = lower.replace(/[aeiou]/g, '');
+    if (compact.length >= 3) terms.add(compact);
+
+    return Array.from(terms);
+  }
+
+  private getRoleSearchWhere(searchTerms: string[], targetRole?: Role): Prisma.UserWhereInput {
+    const userTextSearch = searchTerms.flatMap((term) => [
+      { name: { contains: term, mode: 'insensitive' as const } },
+      { email: { contains: term, mode: 'insensitive' as const } },
+      { phone: { contains: term, mode: 'insensitive' as const } },
+    ]);
+
+    const studentSearch = searchTerms.flatMap((term) => [
+      { studentProfile: { is: { registrationNumber: { contains: term, mode: 'insensitive' as const } } } },
+      { studentProfile: { is: { rollNumber: { contains: term, mode: 'insensitive' as const } } } },
+    ]);
+
+    const teacherSearch = searchTerms.map((term) => ({
+      teacherProfile: { is: { designation: { contains: term, mode: 'insensitive' as const } } },
+    }));
+
+    const guardianSearch = searchTerms.flatMap((term) => [
+      { guardianProfile: { is: { phone: { contains: term, mode: 'insensitive' as const } } } },
+      {
+        guardianProfile: {
+          is: {
+            studentLinks: {
+              some: {
+                OR: [
+                  { relationshipLabel: { contains: term, mode: 'insensitive' as const } },
+                  { student: { registrationNumber: { contains: term, mode: 'insensitive' as const } } },
+                  { student: { rollNumber: { contains: term, mode: 'insensitive' as const } } },
+                  { student: { user: { name: { contains: term, mode: 'insensitive' as const } } } },
+                  { student: { user: { email: { contains: term, mode: 'insensitive' as const } } } },
+                ],
+              },
+            },
+          },
+        },
+      },
+    ]);
+
+    if (targetRole === Role.STUDENT) return { OR: [...userTextSearch, ...studentSearch] };
+    if (targetRole === Role.TEACHER || targetRole === Role.ORG_MANAGER) return { OR: [...userTextSearch, ...teacherSearch] };
+    if (targetRole === Role.GUARDIAN) return { OR: [...userTextSearch, ...guardianSearch] };
+
+    return { OR: [...userTextSearch, ...studentSearch, ...teacherSearch, ...guardianSearch] };
+  }
+
+  private getContactableUsersWhere(user: CurrentUser, assignedStudentUserIds: string[], teacherUserIds: string[]): Prisma.UserWhereInput {
+    if (user.role === Role.TEACHER) {
+      return {
         OR: [
-          { name: { contains: searchQuery, mode: 'insensitive' } },
-          { email: { contains: searchQuery, mode: 'insensitive' } },
+          { role: Role.ORG_ADMIN },
+          { role: Role.SUB_ADMIN },
+          { role: Role.ORG_MANAGER },
+          { role: Role.STUDENT, id: { in: assignedStudentUserIds } },
         ],
       };
     }
 
-    // Strict Role-Based Search Filters
-    if (user.role === Role.TEACHER) {
-      const assignedStudentUserIds = await this.getAssignedStudentUserIds(
-        user.id,
-        user.role,
-      );
+    if (user.role === Role.STUDENT) {
+      return { role: Role.TEACHER, id: { in: teacherUserIds } };
+    }
 
-      // Teachers can see academic leadership and assigned students.
-      whereClause = {
-        ...whereClause,
-        AND: [
-          {
-            OR: [
-              { role: Role.ORG_ADMIN },
-              { role: Role.SUB_ADMIN },
-              { role: Role.ORG_MANAGER },
-              {
-                role: Role.STUDENT,
-                id: { in: assignedStudentUserIds },
-              },
-            ],
-          },
-        ],
-      };
-    } else if (user.role === Role.STUDENT) {
-      const teacherUserIds = await this.getAssignedTeacherUserIdsForStudent(user.id);
-      whereClause = {
-        ...whereClause,
-        role: Role.TEACHER,
-        id: { in: teacherUserIds },
-      };
-    } else if (user.role === Role.GUARDIAN) {
-      whereClause = {
-        ...whereClause,
-        role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER] },
-      };
-    } else if (user.role === Role.FINANCE_MANAGER) {
-      whereClause = {
-        ...whereClause,
-        role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN] },
-      };
-    } else if (user.role === Role.ORG_MANAGER) {
-      const assignedStudentUserIds = await this.getAssignedStudentUserIds(
-        user.id,
-        user.role,
-      );
-      const manager = await this.prisma.teacher.findUnique({
-        where: { userId: user.id },
-        include: { sections: { select: { teachers: { select: { userId: true } } } } },
-      });
-      const teacherUserIds = manager?.sections.flatMap((section) =>
-        section.teachers.map((teacher) => teacher.userId),
-      ) || [];
-      whereClause = {
-        ...whereClause,
+    if (user.role === Role.GUARDIAN) {
+      return { role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER] } };
+    }
+
+    if (user.role === Role.FINANCE_MANAGER) {
+      return { role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN] } };
+    }
+
+    if (user.role === Role.ORG_MANAGER) {
+      return {
         OR: [
           { role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN] } },
           { role: Role.TEACHER, id: { in: teacherUserIds } },
           { role: Role.STUDENT, id: { in: assignedStudentUserIds } },
         ],
       };
-    } else if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
-      whereClause = {
-        ...whereClause,
+    }
+
+    if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
+      return {
         role: {
           in: [
             Role.ORG_ADMIN,
@@ -237,69 +263,129 @@ export class ChatService {
           ],
         },
       };
-    } else if (
-      user.role !== Role.SUPER_ADMIN &&
-      user.role !== Role.PLATFORM_ADMIN
-    ) {
-      // General Org Users (if any other roles exist) - exclude students by default
-      whereClause = {
-        ...whereClause,
-        role: { not: Role.STUDENT },
-      };
-    } else if (
-      user.role === Role.SUPER_ADMIN ||
-      user.role === Role.PLATFORM_ADMIN
-    ) {
-      // Platform Admins can only see other platform admins/super admins
-      whereClause = {
-        ...whereClause,
-        role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] },
-      };
-      delete whereClause.organizationId;
     }
 
-    // If no search query, limit to a smaller initial set of relevant users (e.g., admins/colleagues)
-    if (
-      !searchQuery &&
-      user.role !== Role.SUPER_ADMIN &&
-      user.role !== Role.PLATFORM_ADMIN
-    ) {
-      // For org users, prioritize admins and managers in the initial list
-      // For admins/managers, also include students to make group creation easier
-      const defaultRoles =
-        user.role === Role.STUDENT
-          ? [Role.TEACHER]
-          : user.role === Role.GUARDIAN
-            ? [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER]
-            : user.role === Role.FINANCE_MANAGER
-              ? [Role.ORG_ADMIN, Role.SUB_ADMIN]
-              : user.role === Role.ORG_MANAGER
-                ? [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER, Role.STUDENT]
-                : user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN
-                  ? [
-                      Role.ORG_ADMIN,
-                      Role.SUB_ADMIN,
-                      Role.ORG_MANAGER,
-                      Role.FINANCE_MANAGER,
-                      Role.TEACHER,
-                      Role.STUDENT,
-                      Role.GUARDIAN,
-                    ]
-                  : [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER];
-      whereClause.role = { in: defaultRoles };
+    if (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN) {
+      return { role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] } };
     }
+
+    return { role: { not: Role.STUDENT } };
+  }
+
+  async searchUsers(query: string, user: CurrentUser, selectedRole?: Role) {
+    const searchQuery = query.trim();
+    if (!searchQuery) return [];
+
+    const roleValues = Object.values(Role) as Role[];
+    const targetRole = selectedRole && roleValues.includes(selectedRole) ? selectedRole : undefined;
+    if (!targetRole) return [];
+    const searchTerms = this.getChatSearchTerms(searchQuery);
+
+    let assignedStudentUserIds: string[] = [];
+    let teacherUserIds: string[] = [];
+
+    if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
+      assignedStudentUserIds = await this.getAssignedStudentUserIds(user.id, user.role);
+    }
+
+    if (user.role === Role.STUDENT) {
+      teacherUserIds = await this.getAssignedTeacherUserIdsForStudent(user.id);
+    } else if (user.role === Role.ORG_MANAGER) {
+      const manager = await this.prisma.teacher.findUnique({
+        where: { userId: user.id },
+        include: { sections: { select: { teachers: { select: { userId: true } } } } },
+      });
+      teacherUserIds = manager?.sections.flatMap((section) =>
+        section.teachers.map((teacher) => teacher.userId),
+      ) || [];
+    }
+
+    const baseAnd: Prisma.UserWhereInput[] = [
+      this.getContactableUsersWhere(user, assignedStudentUserIds, teacherUserIds),
+      ...(targetRole ? [{ role: targetRole }] : []),
+    ];
+    const whereClause: Prisma.UserWhereInput = {
+      id: { not: user.id }, // don't return self
+      ...(this.isPlatformUser(user.role) ? {} : { organizationId: user.organizationId }),
+      AND: [...baseAnd, this.getRoleSearchWhere(searchTerms, targetRole)],
+    };
+    const fallbackWhereClause: Prisma.UserWhereInput = {
+      id: { not: user.id },
+      ...(this.isPlatformUser(user.role) ? {} : { organizationId: user.organizationId }),
+      AND: baseAnd,
+    };
+    const userSelect = {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      avatarUrl: true,
+      avatarUpdatedAt: true,
+      phone: true,
+      studentProfile: {
+        select: {
+          registrationNumber: true,
+          rollNumber: true,
+        },
+      },
+      teacherProfile: {
+        select: {
+          designation: true,
+        },
+      },
+      guardianProfile: {
+        select: {
+          phone: true,
+          studentLinks: {
+            select: {
+              relationshipLabel: true,
+              student: {
+                select: {
+                  registrationNumber: true,
+                  rollNumber: true,
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+            take: 5,
+          },
+        },
+      },
+    } satisfies Prisma.UserSelect;
 
     const usersList = await this.prisma.user.findMany({
       where: whereClause,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        avatarUrl: true,
-      },
+      select: userSelect,
       take: 20,
     });
+
+    if (usersList.length === 0) {
+      const candidates = await this.prisma.user.findMany({
+        where: fallbackWhereClause,
+        select: userSelect,
+        take: 500,
+      });
+      return fuzzyFilterAndRank(candidates, searchQuery, (candidate) => [
+        candidate.name,
+        candidate.email,
+        candidate.phone,
+        candidate.studentProfile?.registrationNumber,
+        candidate.studentProfile?.rollNumber,
+        candidate.teacherProfile?.designation,
+        candidate.guardianProfile?.phone,
+        ...(candidate.guardianProfile?.studentLinks || []).flatMap((link) => [
+          link.relationshipLabel,
+          link.student?.registrationNumber,
+          link.student?.rollNumber,
+          link.student?.user?.name,
+        ]),
+      ]).slice(0, 20);
+    }
 
     return usersList;
   }

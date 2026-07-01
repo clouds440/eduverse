@@ -21,6 +21,7 @@ import { StatusBanner } from '@/components/ui/StatusBanner';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { DocsLink } from '@/components/ui/DocsLink';
+import { fuzzyFilterAndRank, fuzzySearchScore } from '@/lib/fuzzySearch';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 import { BrandIcon } from '@/components/ui/Brand';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
@@ -183,19 +184,20 @@ function UnfinalizedGradesPanel({ token, canReview }: { token: string | null; ca
     }, [reviewRows]);
 
     const filteredRows = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
+        const term = searchTerm.trim();
         return reviewRows.filter((row) => {
             const matchesStatus = statusFilter === 'ALL' || row.grade.status === statusFilter;
             const matchesSection = !sectionFilter || row.sectionId === sectionFilter;
-            const matchesSearch = !term || [
+            const matchesSearch = !term || fuzzySearchScore(term, [
                 row.student.user?.name,
+                row.student.user?.email,
                 row.student.registrationNumber,
                 row.student.rollNumber,
                 row.assessmentTitle,
                 row.assessmentType,
                 row.courseName,
                 row.sectionName,
-            ].some((value) => String(value || '').toLowerCase().includes(term));
+            ]) > 0;
 
             return matchesStatus && matchesSection && matchesSearch;
         });
@@ -414,13 +416,12 @@ export default function GradesPage() {
     const sections = useMemo(() => sectionsData?.data || [], [sectionsData?.data]);
 
     const filteredSections = useMemo(() => {
-        const term = searchTerm.toLowerCase();
-        if (!term) return sections;
-
-        return sections.filter((section) => (
-            section.name.toLowerCase().includes(term) ||
-            (section.course?.name || '').toLowerCase().includes(term)
-        ));
+        return fuzzyFilterAndRank(sections, searchTerm, (section) => [
+            section.name,
+            section.code,
+            section.course?.name,
+            section.course?.code,
+        ]);
     }, [searchTerm, sections]);
 
     const headerActions = (

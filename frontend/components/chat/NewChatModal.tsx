@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { invalidateChats } from '@/lib/chatStore';
@@ -8,15 +8,32 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { CustomSelect } from '@/components/ui/CustomSelect';
-import { CustomMultiSelect, MultiSelectOption } from '@/components/ui/CustomMultiSelect';
+import { CustomSelect, type DropdownOption } from '@/components/ui/CustomSelect';
+import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
+import { Badge } from '@/components/ui/Badge';
 import { Users, Shield, User as UserIcon, ChevronLeft, MessageSquarePlus } from 'lucide-react';
 import { useGlobal } from '@/context/GlobalContext';
-import { Role } from '@/types';
+import { ChatSearchUser, Role } from '@/types';
 import { formatCourseSectionLabel } from '@/lib/utils';
 import { getRoleLabel } from '@/lib/roles';
 
 const STABLE_EMPTY_ARRAY: string[] = [];
+
+const SEARCHABLE_ROLE_OPTIONS = [
+    Role.ORG_ADMIN,
+    Role.SUB_ADMIN,
+    Role.ORG_MANAGER,
+    Role.FINANCE_MANAGER,
+    Role.TEACHER,
+    Role.STUDENT,
+    Role.GUARDIAN,
+    Role.SUPER_ADMIN,
+    Role.PLATFORM_ADMIN,
+];
+
+type ChatUserOption = DropdownOption<string> & {
+    user: ChatSearchUser;
+};
 
 interface Props {
     isOpen: boolean;
@@ -43,8 +60,13 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
     const [participantIds, setParticipantIds] = useState<string[]>([]);
     const [groupName, setGroupName] = useState('');
 
-    const [contactableUsers, setContactableUsers] = useState<MultiSelectOption[]>([]);
+    const [selectedRole, setSelectedRole] = useState<Role | ''>('');
+    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [lastSearchQuery, setLastSearchQuery] = useState('');
+    const [contactableUsers, setContactableUsers] = useState<ChatUserOption[]>([]);
+    const [selectedUsersById, setSelectedUsersById] = useState<Record<string, ChatSearchUser>>({});
     const [isFetchingUsers, setIsFetchingUsers] = useState(false);
+    const searchRequestIdRef = useRef(0);
 
     // For Teachers: Quick add from Section
     const [sections, setSections] = useState<{ value: string; label: string }[]>([]);
@@ -56,6 +78,59 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
             setType('DIRECT');
         }
     }, [canCreateGroups, mode, type]);
+
+    const roleOptions = useMemo<DropdownOption<string>[]>(() => {
+        if (!user) return [];
+
+        const roles = (() => {
+            if (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN) {
+                return [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN];
+            }
+            if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
+                return [
+                    Role.ORG_ADMIN,
+                    Role.SUB_ADMIN,
+                    Role.ORG_MANAGER,
+                    Role.FINANCE_MANAGER,
+                    Role.TEACHER,
+                    Role.STUDENT,
+                    Role.GUARDIAN,
+                ];
+            }
+            if (user.role === Role.ORG_MANAGER) return [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER, Role.STUDENT];
+            if (user.role === Role.TEACHER) return [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.STUDENT];
+            if (user.role === Role.STUDENT) return [Role.TEACHER];
+            if (user.role === Role.GUARDIAN) return [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER];
+            if (user.role === Role.FINANCE_MANAGER) return [Role.ORG_ADMIN, Role.SUB_ADMIN];
+            return SEARCHABLE_ROLE_OPTIONS;
+        })();
+
+        return roles.map((role) => ({
+            value: role,
+            label: getRoleLabel(role),
+            icon: role.includes('ADMIN') || role.includes('MANAGER') ? Shield : UserIcon,
+        }));
+    }, [user]);
+
+    useEffect(() => {
+        if (!selectedRole && roleOptions.length > 0) {
+            setSelectedRole(roleOptions[0].value as Role);
+        }
+    }, [roleOptions, selectedRole]);
+
+    const resetUserSearch = useCallback(() => {
+        setContactableUsers([]);
+        setUserSearchQuery('');
+        setLastSearchQuery('');
+        setRecipientId('');
+        searchRequestIdRef.current += 1;
+        setIsFetchingUsers(false);
+    }, []);
+
+    const handleRoleChange = useCallback((role: string) => {
+        setSelectedRole(role as Role);
+        resetUserSearch();
+    }, [resetUserSearch]);
 
     useEffect(() => {
         if (!isOpen || !token || user?.role !== Role.TEACHER) return;
@@ -101,34 +176,67 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
         }
     };
 
-    useEffect(() => {
-        if (!isOpen || !token) return;
+    const toUserOption = useCallback((targetUser: ChatSearchUser): ChatUserOption => {
+        const linkedStudents = targetUser.guardianProfile?.studentLinks
+            ?.map(link => link.student?.user?.name || link.student?.registrationNumber || link.student?.rollNumber)
+            .filter(Boolean) as string[] | undefined;
 
-        const fetchUsers = async () => {
-            setIsFetchingUsers(true);
-            try {
-                // Fetch explicitly from chat endpoint instead of mail contacts
-                const users = await api.chat.searchUsers(token);
-                // Filter out existing participants if in add mode
-                const filteredUsers = mode === 'ADD_PARTICIPANTS'
-                    ? users.filter(u => !existingParticipantIds.includes(u.id))
-                    : users;
+        const description = targetUser.role === Role.STUDENT
+            ? [targetUser.studentProfile?.registrationNumber, targetUser.studentProfile?.rollNumber].filter(Boolean).join(' / ')
+            : targetUser.role === Role.TEACHER || targetUser.role === Role.ORG_MANAGER
+                ? targetUser.teacherProfile?.designation || targetUser.email
+                : targetUser.email;
 
-                setContactableUsers(filteredUsers.map(u => ({
-                    value: u.id,
-                    label: `${u.name || u.email}${u.role ? ` (${getRoleLabel(u.role)})` : ''}`,
-                    icon: u.role && (u.role.includes('ADMIN') || u.role.includes('MANAGER')) ? Shield : UserIcon
-                })));
-            } catch (error) {
-                console.error('Failed to fetch contactable users', error);
-                dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to load contacts', type: 'error' } });
-            } finally {
+        const meta = targetUser.role === Role.STUDENT
+            ? targetUser.email
+            : undefined;
+
+        return {
+            value: targetUser.id,
+            label: targetUser.name || targetUser.email,
+            description,
+            meta,
+            badges: targetUser.role === Role.GUARDIAN ? linkedStudents : undefined,
+            avatarUser: targetUser,
+            user: targetUser,
+        };
+    }, []);
+
+    const handleUserSearch = useCallback(async (query: string) => {
+        setUserSearchQuery(query);
+        const search = query.trim();
+        const requestId = searchRequestIdRef.current + 1;
+        searchRequestIdRef.current = requestId;
+
+        if (!token || !selectedRole || search.length < 2) {
+            setContactableUsers([]);
+            setLastSearchQuery('');
+            setIsFetchingUsers(false);
+            return;
+        }
+
+        setIsFetchingUsers(true);
+        setLastSearchQuery(search);
+        setContactableUsers([]);
+        try {
+            const users = await api.chat.searchUsers(token, { search, role: selectedRole });
+            if (requestId !== searchRequestIdRef.current) return;
+            const filteredUsers = users.filter((targetUser) => {
+                if (mode === 'ADD_PARTICIPANTS' && existingParticipantIds.includes(targetUser.id)) return false;
+                return true;
+            });
+
+            setContactableUsers(filteredUsers.map(toUserOption));
+        } catch (error) {
+            if (requestId !== searchRequestIdRef.current) return;
+            console.error('Failed to search contactable users', error);
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to search contacts', type: 'error' } });
+        } finally {
+            if (requestId === searchRequestIdRef.current) {
                 setIsFetchingUsers(false);
             }
-        };
-
-        fetchUsers();
-    }, [isOpen, token, dispatch, mode, existingParticipantIds, type]);
+        }
+    }, [dispatch, existingParticipantIds, mode, selectedRole, toUserOption, token]);
 
     const applyPresetGroup = async (preset: { label: string; role?: string; source?: 'TEACHERS' | 'STUDENTS' | 'MANAGERS' }) => {
         if (!token) return;
@@ -146,7 +254,7 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                 const res = await api.org.getManagers(token, { page: 1, limit: 1000 });
                 ids = res.data.map(m => m.user.id);
             } else if (preset.role) {
-                const users = await api.chat.searchUsers(token);
+                const users = await api.chat.searchUsers(token, { search: 'admin', role: preset.role });
                 ids = users.filter(u => u.role === preset.role).map(u => u.id);
             }
 
@@ -167,7 +275,39 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
         setParticipantIds([]);
         setGroupName('');
         setSelectedSectionId('');
+        setSelectedUsersById({});
+        resetUserSearch();
     };
+
+    const rememberSelectedUsers = useCallback((ids: string[]) => {
+        const selectedUsers = contactableUsers
+            .filter(option => ids.includes(option.value))
+            .map(option => option.user);
+
+        if (selectedUsers.length === 0) return;
+
+        setSelectedUsersById(prev => {
+            const next = { ...prev };
+            selectedUsers.forEach((selected) => {
+                next[selected.id] = selected;
+            });
+            return next;
+        });
+    }, [contactableUsers]);
+
+    const handleRecipientChange = useCallback((userId: string) => {
+        setRecipientId(userId);
+        rememberSelectedUsers(userId ? [userId] : []);
+    }, [rememberSelectedUsers]);
+
+    const handleParticipantsChange = useCallback((nextParticipantIds: string[]) => {
+        setParticipantIds(nextParticipantIds);
+        rememberSelectedUsers(nextParticipantIds);
+    }, [rememberSelectedUsers]);
+
+    const removeParticipant = useCallback((userId: string) => {
+        setParticipantIds(prev => prev.filter(id => id !== userId));
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -211,6 +351,40 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
             dispatch({ type: 'UI_STOP_PROCESSING', payload: mode === 'ADD_PARTICIPANTS' ? 'chat-add-participants' : 'chat-create' });
         }
     };
+
+    const selectedContactOptions = useMemo(
+        () => Object.values(selectedUsersById).map(toUserOption),
+        [selectedUsersById, toUserOption],
+    );
+    const contactOptions = useMemo(() => {
+        const seen = new Set<string>();
+        return [...selectedContactOptions, ...contactableUsers].filter((option) => {
+            if (seen.has(option.value)) return false;
+            seen.add(option.value);
+            return true;
+        });
+    }, [contactableUsers, selectedContactOptions]);
+    const availableContactOptions = useMemo(
+        () => contactOptions.filter(option => mode !== 'ADD_PARTICIPANTS' || !existingParticipantIds.includes(option.value)),
+        [contactOptions, existingParticipantIds, mode],
+    );
+    const contactSearchPlaceholder = selectedRole === Role.STUDENT
+        ? 'Search roll no, reg no, name, email, phone...'
+        : selectedRole === Role.TEACHER || selectedRole === Role.ORG_MANAGER
+            ? 'Search name, email, phone, designation...'
+            : selectedRole === Role.GUARDIAN
+                ? 'Search guardian or linked student...'
+                : 'Search name, email, phone...';
+    const contactEmptyMessage = !selectedRole
+        ? 'Select a role first.'
+        : userSearchQuery.trim().length < 2
+            ? 'Type at least 2 characters to search.'
+            : lastSearchQuery
+                ? `No ${getRoleLabel(selectedRole).toLowerCase()} found for "${lastSearchQuery}".`
+                : 'Type to search contacts.';
+    const selectedParticipantUsers = participantIds
+        .map(id => selectedUsersById[id])
+        .filter(Boolean);
 
     return (
         <Modal
@@ -332,27 +506,76 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                                 </div>
                             )}
 
-                            <div className="min-h-30">
+                            <div className="min-h-30 space-y-3">
+                                <CustomSelect
+                                    value={selectedRole}
+                                    onChange={handleRoleChange}
+                                    options={roleOptions}
+                                    placeholder="Select role..."
+                                    icon={Shield}
+                                    disabled={roleOptions.length === 0}
+                                    required
+                                />
+
                                 {type === 'DIRECT' ? (
                                     <CustomSelect
                                         value={recipientId}
-                                        onChange={setRecipientId}
-                                        options={contactableUsers.map(u => ({ ...u, value: u.value }))}
-                                        placeholder={isFetchingUsers ? "Loading contacts..." : "Search and select a person..."}
-                                        searchable
-                                        disabled={isFetchingUsers}
+                                        onChange={handleRecipientChange}
+                                        options={availableContactOptions}
+                                        placeholder="Search and select a person..."
+                                        disabled={!selectedRole}
                                         required
                                         icon={UserIcon}
+                                        searchable
+                                        searchValue={userSearchQuery}
+                                        onSearchChange={handleUserSearch}
+                                        searchPlaceholder={contactSearchPlaceholder}
+                                        isSearching={isFetchingUsers}
+                                        emptyMessage={contactEmptyMessage}
                                     />
                                 ) : (
-                                    <CustomMultiSelect
-                                        values={participantIds}
-                                        onChange={setParticipantIds}
-                                        options={contactableUsers}
-                                        placeholder={isFetchingUsers ? "Loading staff & students..." : "Select collaborators..."}
-                                        disabled={isFetchingUsers}
-                                        icon={Users}
-                                    />
+                                    <>
+                                        <CustomMultiSelect
+                                            values={participantIds}
+                                            onChange={handleParticipantsChange}
+                                            options={availableContactOptions}
+                                            placeholder="Search and add participants..."
+                                            disabled={!selectedRole}
+                                            icon={Users}
+                                            searchable
+                                            searchValue={userSearchQuery}
+                                            onSearchChange={handleUserSearch}
+                                            searchPlaceholder={contactSearchPlaceholder}
+                                            isSearching={isFetchingUsers}
+                                            emptyMessage={contactEmptyMessage}
+                                        />
+                                        {participantIds.length > 0 && (
+                                            <div className="rounded-xl border border-border bg-card/60 p-3">
+                                                <div className="mb-2 flex items-center justify-between">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Selected Participants</span>
+                                                    <Badge variant="primary" size="sm">{participantIds.length}</Badge>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {selectedParticipantUsers.map((participant) => (
+                                                        <button
+                                                            key={participant.id}
+                                                            type="button"
+                                                            onClick={() => removeParticipant(participant.id)}
+                                                            className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-bold text-foreground transition-colors hover:border-danger/40 hover:text-danger"
+                                                            title="Remove participant"
+                                                        >
+                                                            {participant.name || participant.email}
+                                                        </button>
+                                                    ))}
+                                                    {participantIds.length > selectedParticipantUsers.length && (
+                                                        <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
+                                                            {participantIds.length - selectedParticipantUsers.length} added from template
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                             <div className="mt-4 p-4 bg-accent rounded-xl border border-border text-[11px] text-foreground font-medium leading-relaxed">

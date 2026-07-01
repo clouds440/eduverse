@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { FileUp, Plus, Users } from 'lucide-react';
@@ -91,7 +91,7 @@ export default function CohortsPage() {
         }
     };
 
-    const handleRestore = async (cohort: Cohort) => {
+    const handleRestore = useCallback(async (cohort: Cohort) => {
         if (!token) return;
         try {
             await api.cohorts.updateCohort(cohort.id, { isActive: true }, token);
@@ -103,7 +103,7 @@ export default function CohortsPage() {
             const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         }
-    };
+    }, [dispatch, token]);
 
     const activeFilters: ActiveFilter[] = [
         ...(searchTerm ? [{
@@ -192,7 +192,7 @@ export default function CohortsPage() {
                 />
             ),
         },
-    ], [isAdmin, router]);
+    ], [handleRestore, isAdmin, router]);
 
     if (cohortsError) {
         return <ErrorState error={cohortsError} onRetry={() => mutateCohorts()} />;

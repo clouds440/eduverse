@@ -26,6 +26,8 @@ import { StarRatingInput } from '@/components/evaluations/StarRatingInput';
 import { PublicProfile, PublicProfileDepartment, PublicProfileSection } from '@/types';
 import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
 import { getRoleLabel } from '@/lib/roles';
+import { UserCommsAction } from '@/components/communication/UserCommsAction';
+import { useAuth } from '@/context/AuthContext';
 
 function formatDate(value?: string | null) {
     if (!value) return null;
@@ -256,6 +258,14 @@ function profileIcon(profile?: PublicProfile) {
     return Users;
 }
 
+function ProfileKindIcon({ profile }: { profile: PublicProfile }) {
+    if (profile.kind === 'student') return <GraduationCap className="h-4 w-4" aria-hidden="true" />;
+    if (profile.kind === 'teacher' || profile.kind === 'manager') return <BadgeCheck className="h-4 w-4" aria-hidden="true" />;
+    if (profile.kind === 'financeManager') return <WalletCards className="h-4 w-4" aria-hidden="true" />;
+    if (profile.kind === 'subAdmin') return <ShieldCheck className="h-4 w-4" aria-hidden="true" />;
+    return <Users className="h-4 w-4" aria-hidden="true" />;
+}
+
 function profileStatus(profile: PublicProfile) {
     const status = (profile.kind === 'student' || profile.kind === 'teacher' || profile.kind === 'manager')
         ? profile.profile.status || profile.user.status
@@ -264,7 +274,6 @@ function profileStatus(profile: PublicProfile) {
 }
 
 function ProfileHero({ profile }: { profile: PublicProfile }) {
-    const Icon = profileIcon(profile);
     const joinedAt = formatDate(profile.user.createdAt);
 
     return (
@@ -281,7 +290,7 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
                             className="ring-4 ring-background shadow-md"
                         />
                         <span className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-primary shadow-sm">
-                            <Icon className="h-4 w-4" aria-hidden="true" />
+                            <ProfileKindIcon profile={profile} />
                         </span>
                     </div>
                     <div className="min-w-0">
@@ -318,6 +327,7 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
 }
 
 export default function PublicProfilePage() {
+    const { user } = useAuth();
     const params = useParams();
     const userId = params.id as string;
     const { data: profile, isLoading, error, mutate } = useSWR<PublicProfile>(
@@ -354,6 +364,9 @@ export default function PublicProfilePage() {
         );
     }
 
+    const canContactProfile = user?.id !== profile.user.id;
+    const hasHeaderActions = canContactProfile || (profile.canEdit && profile.editHref);
+
     return (
         <PageShell>
             <PageHeader
@@ -366,10 +379,22 @@ export default function PublicProfilePage() {
                     { label: 'Profile' },
                 ]}
                 meta={<Badge variant="neutral" size="sm">{profileStatus(profile)}</Badge>}
-                actions={profile.canEdit && profile.editHref ? (
-                    <Link href={profile.editHref}>
-                        <Button type="button" icon={Pencil} variant="secondary">Edit Profile</Button>
-                    </Link>
+                actions={hasHeaderActions ? (
+                    <>
+                        {canContactProfile && (
+                            <UserCommsAction
+                                targetUserId={profile.user.id}
+                                targetName={profile.user.name}
+                                initialSubject={`Inquiry regarding ${profile.user.name || getRoleLabel(profile.user.role)}`}
+                                display="button"
+                            />
+                        )}
+                        {profile.canEdit && profile.editHref && (
+                            <Link href={profile.editHref}>
+                                <Button type="button" icon={Pencil} variant="secondary">Edit Profile</Button>
+                            </Link>
+                        )}
+                    </>
                 ) : undefined}
             />
 

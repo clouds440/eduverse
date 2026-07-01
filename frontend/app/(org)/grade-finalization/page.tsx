@@ -5,6 +5,7 @@ import Link from 'next/link';
 import useSWR from 'swr';
 import { AlertTriangle, Building2, CheckCircle2, FileText, GraduationCap, RefreshCw, Search } from 'lucide-react';
 import { api } from '@/lib/api';
+import { fuzzySearchScore } from '@/lib/fuzzySearch';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import {
@@ -123,10 +124,10 @@ export default function GradeFinalizationPage() {
     }, [rows]);
 
     const filteredRows = useMemo(() => {
-        const term = search.trim().toLowerCase();
+        const term = search.trim();
         return rows.filter((row) => {
             const matchesTeacher = !teacherId || row.teachers.some((teacher) => teacher.id === teacherId);
-            const matchesSearch = !term || [
+            const matchesSearch = !term || fuzzySearchScore(term, [
                 row.assessmentTitle,
                 row.assessmentType,
                 row.course.name,
@@ -136,7 +137,7 @@ export default function GradeFinalizationPage() {
                 row.academicCycle?.name,
                 row.academicCycle?.gpaPolicyName,
                 getTeacherLabel(row),
-            ].some((value) => String(value || '').toLowerCase().includes(term));
+            ]) > 0;
 
             return matchesTeacher && matchesSearch;
         });

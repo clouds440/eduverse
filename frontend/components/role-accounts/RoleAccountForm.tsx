@@ -37,8 +37,8 @@ interface RoleAccountFormProps<TCreatePayload extends RoleAccountPayload = Creat
     label: string;
     description: string;
     cacheKeyPrefix: CacheKeyPrefix;
-    createSchema: ZodType<RoleAccountFormData>;
-    updateSchema: ZodType<RoleAccountFormData>;
+    createSchema: ZodType<RoleAccountFormData, RoleAccountFormData>;
+    updateSchema: ZodType<RoleAccountFormData, RoleAccountFormData>;
     createAccount: (data: TCreatePayload, token: string) => Promise<AppUser>;
     updateAccount: (id: string, data: TUpdatePayload, token: string) => Promise<AppUser>;
     listHref: string;
@@ -104,7 +104,7 @@ export default function RoleAccountForm<TCreatePayload extends RoleAccountPayloa
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
 
     const resolver = useMemo(
-        () => zodResolver((accountId ? updateSchema : createSchema) as any) as unknown as Resolver<RoleAccountFormData>,
+        () => zodResolver(accountId ? updateSchema : createSchema) as unknown as Resolver<RoleAccountFormData>,
         [accountId, createSchema, updateSchema]
     );
 

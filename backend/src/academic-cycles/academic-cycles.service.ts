@@ -11,6 +11,7 @@ import {
   getPaginationOptions,
   formatPaginatedResponse,
   PaginationOptions,
+  fuzzyFilterAndRank,
 } from '../common/utils';
 import { Prisma } from '@/prisma/prisma-client';
 import { GpaService } from '../gpa/gpa.service';
@@ -104,17 +105,31 @@ export class AcademicCyclesService {
       sortOrder: options.sortOrder || 'desc',
     });
 
-    const where: Prisma.AcademicCycleWhereInput = {
+    const baseWhere: Prisma.AcademicCycleWhereInput = {
       organizationId: orgId,
-      ...(options.search
-        ? {
+    };
+    const searchWhere: Prisma.AcademicCycleWhereInput = options.search
+      ? {
           OR: [
             { name: { contains: options.search, mode: 'insensitive' } },
             { code: { contains: options.search, mode: 'insensitive' } },
           ],
         }
-        : {}),
-    };
+      : {};
+    const where: Prisma.AcademicCycleWhereInput = { ...baseWhere, ...searchWhere };
+
+    const include = {
+      gpaPolicy: {
+        select: { id: true, name: true, isArchived: true },
+      },
+      _count: {
+        select: {
+          cohorts: true,
+          sections: true,
+          enrollments: true,
+        },
+      },
+    } satisfies Prisma.AcademicCycleInclude;
 
     const [cycles, totalRecords] = await Promise.all([
       this.prisma.academicCycle.findMany({
@@ -122,26 +137,34 @@ export class AcademicCyclesService {
         skip,
         take,
         orderBy: { [sortBy]: sortOrder },
-        include: {
-          gpaPolicy: {
-            select: { id: true, name: true, isArchived: true },
-          },
-          _count: {
-            select: {
-              cohorts: true,
-              sections: true,
-              enrollments: true,
-            },
-          },
-        },
+        include,
       }),
       this.prisma.academicCycle.count({ where }),
     ]);
 
+    let visibleCycles = cycles;
+    let visibleTotal = totalRecords;
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.academicCycle.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy: { [sortBy]: sortOrder },
+        include,
+      });
+      const ranked = fuzzyFilterAndRank(candidates, options.search, (cycle) => [
+        cycle.name,
+        cycle.code,
+        cycle.gpaPolicy?.name,
+      ]);
+      visibleCycles = ranked.slice(skip, skip + take);
+      visibleTotal = ranked.length;
+    }
+
     const finalizedGrades = await this.prisma.grade.groupBy({
       by: ['academicCycleId'],
       where: {
-        academicCycleId: { in: cycles.map((cycle) => cycle.id) },
+        academicCycleId: { in: visibleCycles.map((cycle) => cycle.id) },
         status: 'FINALIZED',
       },
       _count: { _all: true },
@@ -149,8 +172,8 @@ export class AcademicCyclesService {
     const finalizedCycleIds = new Set(finalizedGrades.map((row) => row.academicCycleId).filter(Boolean));
 
     return formatPaginatedResponse(
-      cycles.map((cycle) => ({ ...cycle, hasFinalizedGrades: finalizedCycleIds.has(cycle.id) })),
-      totalRecords,
+      visibleCycles.map((cycle) => ({ ...cycle, hasFinalizedGrades: finalizedCycleIds.has(cycle.id) })),
+      visibleTotal,
       options.page,
       options.limit,
     );

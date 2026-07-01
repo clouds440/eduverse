@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {
     Activity,
     ArrowRight,
@@ -276,13 +277,13 @@ export function ProductShowcase() {
 
                         <Reveal delay={300}>
                             <div className="pt-2">
-                                <a
+                                <Link
                                     href="/docs"
                                     className="group inline-flex items-center gap-2 text-sm font-black text-primary"
                                 >
                                     See how it works in the docs
                                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                                </a>
+                                </Link>
                             </div>
                         </Reveal>
                     </div>

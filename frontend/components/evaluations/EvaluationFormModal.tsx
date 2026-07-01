@@ -21,6 +21,8 @@ export function EvaluationFormModal({ task, isOpen, isSubmitting, onClose, onSub
     const [feedback, setFeedback] = useState('');
 
     useEffect(() => {
+        // Opening a different task intentionally resets the local draft fields.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRating(task?.evaluation?.rating ?? 0);
         setFeedback(task?.evaluation?.feedback ?? '');
     }, [task]);

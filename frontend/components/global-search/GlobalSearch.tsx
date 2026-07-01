@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
@@ -48,14 +48,17 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
     const visibleResults = isOpen ? results : [];
 
     useEffect(() => {
+        // Route changes intentionally close and clear the transient command palette.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setQuery('');
         setIsOpen(false);
         setActiveIndex(0);
     }, [pathname]);
 
-    useEffect(() => {
+    const handleSearchChange = useCallback((nextQuery: string) => {
+        setQuery(nextQuery);
         setActiveIndex(0);
-    }, [query]);
+    }, []);
 
     useEffect(() => {
         if (!isOpen || !visibleResults.length) return;
@@ -124,7 +127,7 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
         >
             <SearchBar
                 value={query}
-                onChange={setQuery}
+                onChange={handleSearchChange}
                 placeholder="What would you like to do?"
                 ariaLabel="Search pages and actions"
                 delay={80}

@@ -29,6 +29,8 @@ export function DocsMobileNavigation({ activeSlug }: DocsMobileNavigationProps) 
 
   useEffect(() => {
     if (!activeSections.length) {
+      // Sync the active section with the currently loaded docs page.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveSectionId('');
       return;
     }
@@ -70,11 +72,15 @@ export function DocsMobileNavigation({ activeSlug }: DocsMobileNavigationProps) 
   }, [activeSections]);
 
   useEffect(() => {
+    // Route changes intentionally close transient mobile drawers.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileContentsOpen(false);
     setIsMobileSearchOpen(false);
   }, [pathname]);
 
   useEffect(() => {
+    // Mount state gates the portal so server and client markup stay aligned.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
   }, []);
 

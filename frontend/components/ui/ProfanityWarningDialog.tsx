@@ -17,6 +17,8 @@ export function ProfanityWarningDialog({ warning, onClose }: ProfanityWarningDia
     const titleId = useId();
 
     useEffect(() => {
+        // Mount state gates the portal so it only renders on the client.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMounted(true);
     }, []);
 

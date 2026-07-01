@@ -16,6 +16,7 @@ import { DismissiblePanel } from '@/components/ui/DismissiblePanel';
 import { PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 
 interface SectionSummary {
     id: string;
@@ -98,12 +99,10 @@ export default function Attendance({ studentId }: AttendanceProps) {
     }, [records]);
 
     const filteredSectionSummaries = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        if (!query) return sectionSummaries;
-        return sectionSummaries.filter((summary) => (
-            summary.courseName.toLowerCase().includes(query)
-            || summary.sectionName.toLowerCase().includes(query)
-        ));
+        return fuzzyFilterAndRank(sectionSummaries, search, (summary) => [
+            summary.courseName,
+            summary.sectionName,
+        ]);
     }, [search, sectionSummaries]);
     const selectedSummary = useMemo(() => (
         selectedSectionId ? sectionSummaries.find((section) => section.id === selectedSectionId) : undefined

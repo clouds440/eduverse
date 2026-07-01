@@ -134,7 +134,7 @@ interface LineChartProps {
 
 export function InsightLineChart({ data, height = 300, color = COLORS.primary, title }: LineChartProps) {
   const isCompact = useCompactChart();
-  const sourceData = data || [];
+  const sourceData = useMemo(() => data || [], [data]);
 
   const formattedData = useMemo(() => sourceData.map((item) => {
     const date = new Date(item.date);

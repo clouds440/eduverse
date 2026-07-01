@@ -2,10 +2,13 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
-import { LucideIcon, ChevronDown, Search } from "lucide-react";
+import { LucideIcon, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
 import { useBackStackEntry } from "@/context/BackNavigationContext";
+import { Badge } from "./Badge";
+import { BrandIcon } from "./Brand";
+import { SearchBar } from "./SearchBar";
 
 export interface DropdownOption<T extends string = string> {
     value: T;
@@ -13,6 +16,16 @@ export interface DropdownOption<T extends string = string> {
     icon?: LucideIcon;
     iconClassName?: string;
     badge?: number | string;
+    description?: string;
+    meta?: string;
+    badges?: string[];
+    avatarUser?: {
+        id?: string;
+        name?: string | null;
+        avatarUrl?: string | null;
+        avatarUpdatedAt?: string | null;
+        role?: string;
+    } | null;
 }
 
 export interface CustomSelectProps<T extends string = string> {
@@ -26,6 +39,11 @@ export interface CustomSelectProps<T extends string = string> {
     required?: boolean;
     error?: boolean;
     searchable?: boolean;
+    searchValue?: string;
+    onSearchChange?: (value: string) => void;
+    searchPlaceholder?: string;
+    isSearching?: boolean;
+    emptyMessage?: string;
 }
 
 function CustomSelectComponent<T extends string = string>({
@@ -38,7 +56,12 @@ function CustomSelectComponent<T extends string = string>({
     disabled = false,
     required = false,
     error = false,
-    searchable = false
+    searchable = false,
+    searchValue,
+    onSearchChange,
+    searchPlaceholder,
+    isSearching = false,
+    emptyMessage,
 }: CustomSelectProps<T>) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -46,7 +69,7 @@ function CustomSelectComponent<T extends string = string>({
     const [activeIndex, setActiveIndex] = useState(0);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const searchInputRef = useRef<HTMLInputElement>(null);
+    const searchBarRef = useRef<HTMLDivElement>(null);
     const listboxId = useId();
 
     useBackStackEntry({
@@ -57,26 +80,29 @@ function CustomSelectComponent<T extends string = string>({
     });
 
     const selectedOption = useMemo(() => options.find(opt => opt.value === value), [options, value]);
+    const effectiveSearchTerm = searchValue ?? searchTerm;
+    const usesRemoteSearch = Boolean(onSearchChange);
     const visibleOptions = useMemo(() => {
-        if (!searchable || !searchTerm) return options;
-        const lowSearch = searchTerm.toLowerCase();
+        if (!searchable || !effectiveSearchTerm || usesRemoteSearch) return options;
+        const lowSearch = effectiveSearchTerm.toLowerCase();
         return options.filter(opt =>
-            opt.label.toLowerCase().includes(lowSearch)
+            opt.label.toLowerCase().includes(lowSearch) ||
+            opt.description?.toLowerCase().includes(lowSearch) ||
+            opt.meta?.toLowerCase().includes(lowSearch) ||
+            opt.badges?.some((badge) => badge.toLowerCase().includes(lowSearch))
         );
-    }, [options, searchTerm, searchable]);
+    }, [effectiveSearchTerm, options, searchable, usesRemoteSearch]);
     const visibleOptionsCount = visibleOptions.length;
     const selectedVisibleIndex = useMemo(
         () => visibleOptions.findIndex((option) => option.value === value),
         [value, visibleOptions],
     );
     const getOptionId = useCallback((index: number) => `${listboxId}-option-${index}`, [listboxId]);
-    const isSearchTrigger = searchable && isOpen;
-
     // Clear search term when closed
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- Preserve dropdown search reset behavior; moving this into close handlers previously caused runtime regressions.
-        if (!isOpen) setSearchTerm("");
-    }, [isOpen]);
+        if (!isOpen && searchValue === undefined) setSearchTerm("");
+    }, [isOpen, searchValue]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -88,7 +114,9 @@ function CustomSelectComponent<T extends string = string>({
 
     useEffect(() => {
         if (!isOpen || !searchable) return;
-        const frameId = window.requestAnimationFrame(() => searchInputRef.current?.focus({ preventScroll: true }));
+        const frameId = window.requestAnimationFrame(() => {
+            searchBarRef.current?.querySelector('input')?.focus({ preventScroll: true });
+        });
         return () => window.cancelAnimationFrame(frameId);
     }, [isOpen, searchable]);
 
@@ -133,7 +161,7 @@ function CustomSelectComponent<T extends string = string>({
     useLayoutEffect(() => {
         if (!isOpen) return;
         updateCoords();
-    }, [visibleOptionsCount, isOpen, searchTerm, updateCoords]);
+    }, [visibleOptionsCount, isOpen, effectiveSearchTerm, updateCoords]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -153,6 +181,13 @@ function CustomSelectComponent<T extends string = string>({
         setIsOpen(false);
     }, [onChange]);
 
+    const handleSearchChange = useCallback((nextSearch: string) => {
+        if (searchValue === undefined) {
+            setSearchTerm(nextSearch);
+        }
+        onSearchChange?.(nextSearch);
+    }, [onSearchChange, searchValue]);
+
     const moveActiveOption = useCallback((direction: 1 | -1) => {
         setActiveIndex((currentIndex) => {
             if (visibleOptions.length === 0) return 0;
@@ -171,8 +206,8 @@ function CustomSelectComponent<T extends string = string>({
             setIsOpen(true);
             return;
         }
-        if (!searchable) setIsOpen(false);
-    }, [disabled, isOpen, searchable]);
+        setIsOpen(false);
+    }, [disabled, isOpen]);
 
     const handleChevronMouseDown = useCallback((event: React.MouseEvent) => {
         event.preventDefault();
@@ -245,46 +280,39 @@ function CustomSelectComponent<T extends string = string>({
                 aria-disabled={disabled || undefined}
                 tabIndex={disabled ? -1 : 0}
             >
-                {isSearchTrigger ? (
-                    <>
-                        <Search className="mr-2 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                        <input
-                            ref={searchInputRef}
-                            type="text"
-                            className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
-                            placeholder={selectedOption ? selectedOption.label : placeholder}
-                            value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
-                            onClick={(event) => event.stopPropagation()}
-                            onKeyDown={handleComboboxKeyDown}
-                            aria-label={`Search ${placeholder}`}
+                <>
+                    {/* Prefix Icon (Prop) or Selected Option Icon */}
+                    {(selectedOption?.icon || Icon) && (
+                        <div className="mr-2 shrink-0">
+                            {selectedOption?.icon ? (
+                                <selectedOption.icon className={cn("h-4 w-4", selectedOption.iconClassName || (isOpen ? 'text-primary' : 'text-muted-foreground'))} />
+                            ) : (
+                                Icon && <Icon className={cn("h-4 w-4 transition-colors", isOpen ? 'text-primary' : error ? 'text-danger' : 'text-muted-foreground group-focus-within:text-primary')} />
+                            )}
+                        </div>
+                    )}
+
+                    {selectedOption?.avatarUser && (
+                        <BrandIcon
+                            variant="user"
+                            size="sm"
+                            user={selectedOption.avatarUser}
+                            initialsFallback
+                            className="mr-2 h-6 w-6"
                         />
-                    </>
-                ) : (
-                    <>
-                        {/* Prefix Icon (Prop) or Selected Option Icon */}
-                        {(selectedOption?.icon || Icon) && (
-                            <div className="mr-2 shrink-0">
-                                {selectedOption?.icon ? (
-                                    <selectedOption.icon className={cn("h-4 w-4", selectedOption.iconClassName || (isOpen ? 'text-primary' : 'text-muted-foreground'))} />
-                                ) : (
-                                    Icon && <Icon className={cn("h-4 w-4 transition-colors", isOpen ? 'text-primary' : error ? 'text-danger' : 'text-muted-foreground group-focus-within:text-primary')} />
-                                )}
-                            </div>
-                        )}
+                    )}
 
-                        <span className={`flex-1 truncate ${!selectedOption ? 'text-muted-foreground' : ''}`}>
-                            {selectedOption ? selectedOption.label : placeholder}
+                    <span className={`flex-1 truncate ${!selectedOption ? 'text-muted-foreground' : ''}`}>
+                        {selectedOption ? selectedOption.label : placeholder}
+                    </span>
+
+                    {/* Selected Option Badge (Visible when closed too) */}
+                    {selectedOption?.badge !== undefined && (
+                        <span className="mx-2 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary shrink-0">
+                            {selectedOption.badge}
                         </span>
-
-                        {/* Selected Option Badge (Visible when closed too) */}
-                        {selectedOption?.badge !== undefined && (
-                            <span className="mx-2 px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary shrink-0">
-                                {selectedOption.badge}
-                            </span>
-                        )}
-                    </>
-                )}
+                    )}
+                </>
 
                 <button
                     type="button"
@@ -320,9 +348,26 @@ function CustomSelectComponent<T extends string = string>({
                     onMouseDown={(event) => event.stopPropagation()}
                     onKeyDown={handleComboboxKeyDown}
                 >
+                    {searchable && (
+                        <div ref={searchBarRef} className="border-b border-border/60 px-3 pb-2">
+                            <SearchBar
+                                value={effectiveSearchTerm}
+                                onChange={handleSearchChange}
+                                placeholder={searchPlaceholder || `Search ${placeholder.toLowerCase()}...`}
+                                delay={350}
+                                size="compact"
+                                className="w-full"
+                                ariaLabel={`Search ${placeholder}`}
+                            />
+                        </div>
+                    )}
                     <div className="overflow-y-auto flex-1 custom-scrollbar">
                         {visibleOptions.length === 0 ? (
-                            <div className="px-4 py-4 text-sm sm:text-base text-muted-foreground text-center text-balance">{searchable ? `No results found for "${searchTerm}"` : 'No options available'}</div>
+                            <div className="px-4 py-4 text-sm sm:text-base text-muted-foreground text-center text-balance">
+                                {isSearching
+                                    ? 'Searching...'
+                                    : emptyMessage || (searchable && effectiveSearchTerm ? `No results found for "${effectiveSearchTerm}"` : 'No options available')}
+                            </div>
                         ) : (
                             visibleOptions.map((option, index) => (
                                 <button
@@ -342,8 +387,34 @@ function CustomSelectComponent<T extends string = string>({
                                     role="option"
                                     aria-selected={option.value === value}
                                 >
-                                    {option.icon && <option.icon className={cn("mr-2 h-4 w-4", option.iconClassName)} />}
-                                    <span className="flex-1">{option.label}</span>
+                                    {option.avatarUser ? (
+                                        <BrandIcon
+                                            variant="user"
+                                            size="sm"
+                                            user={option.avatarUser}
+                                            initialsFallback
+                                            className="mr-2 h-8 w-8"
+                                        />
+                                    ) : option.icon ? (
+                                        <option.icon className={cn("mr-2 h-4 w-4", option.iconClassName)} />
+                                    ) : null}
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate font-bold">{option.label}</span>
+                                        {(option.description || option.meta || option.badges?.length) && (
+                                            <span className={cn(
+                                                "mt-0.5 flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-semibold",
+                                                option.value === value ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                                            )}>
+                                                {option.description && <span className="truncate">{option.description}</span>}
+                                                {option.meta && <span className="truncate">{option.meta}</span>}
+                                                {option.badges?.slice(0, 3).map((item) => (
+                                                    <Badge key={item} variant="neutral" size="sm" className="h-5 max-w-32 truncate px-1.5 text-[10px]">
+                                                        {item}
+                                                    </Badge>
+                                                ))}
+                                            </span>
+                                        )}
+                                    </span>
                                     {option.badge !== undefined && (
                                         <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${option.value === value ? 'bg-card/20 text-card-text' : 'bg-primary/10 text-primary'
                                             }`}>
@@ -373,6 +444,11 @@ function areEqual<T extends string = string>(
     if (prevProps.required !== nextProps.required) return false;
     if (prevProps.error !== nextProps.error) return false;
     if (prevProps.searchable !== nextProps.searchable) return false;
+    if (prevProps.searchValue !== nextProps.searchValue) return false;
+    if (prevProps.onSearchChange !== nextProps.onSearchChange) return false;
+    if (prevProps.searchPlaceholder !== nextProps.searchPlaceholder) return false;
+    if (prevProps.isSearching !== nextProps.isSearching) return false;
+    if (prevProps.emptyMessage !== nextProps.emptyMessage) return false;
     if (prevProps.onChange !== nextProps.onChange) return false;
 
     // Compare options length
@@ -386,6 +462,10 @@ function areEqual<T extends string = string>(
             a.value !== b.value ||
             a.label !== b.label ||
             a.badge !== b.badge ||
+            a.description !== b.description ||
+            a.meta !== b.meta ||
+            a.avatarUser !== b.avatarUser ||
+            (a.badges || []).join('|') !== (b.badges || []).join('|') ||
             a.icon !== b.icon ||
             a.iconClassName !== b.iconClassName
         ) {

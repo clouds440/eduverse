@@ -16,7 +16,7 @@ import { CreateGroupChatDto } from './dto/create-group.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { AddParticipantsDto } from './dto/add-participants.dto';
-import { ChatParticipantRole } from '@/prisma/prisma-client';
+import { ChatParticipantRole, Role } from '@/prisma/prisma-client';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
@@ -53,13 +53,14 @@ export class ChatController {
   @Get('users')
   async searchUsers(
     @Query('search') search: string,
+    @Query('role') role: Role,
     @Request() req: AuthenticatedRequest,
   ) {
     return this.chatService.searchUsers(search || '', {
       id: req.user.id,
       role: req.user.role,
       organizationId: req.user.organizationId,
-    });
+    }, role);
   }
 
   @Post('direct')

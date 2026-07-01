@@ -93,13 +93,13 @@ export function PageControls({
     return (
         <div className="flex w-full min-w-0 flex-col gap-2">
             {hasTopControls && (
-                <div className="flex w-full min-w-0 items-center gap-2 sm:flex-wrap sm:justify-end">
+                <div className="flex w-full min-w-0 flex-col md:flex-row flex-wrap items-center justify-end gap-2">
                     {leading && (
-                        <div className="min-w-0 flex-1 sm:w-72 sm:flex-none lg:w-84">
+                        <div className="w-full min-w-full md:min-w-72 flex-1 sm:w-72 sm:flex-none lg:w-84">
                             {leading}
                         </div>
                     )}
-                    <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 overflow-x-auto scrollbar-none">
+                    <div className="flex min-w-0 flex-1 flex-row flex-wrap items-center justify-end gap-2 sm:flex-none">
                         {drawer}
                         {actions}
                     </div>

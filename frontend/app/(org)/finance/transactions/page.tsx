@@ -2,14 +2,13 @@
 
 import React, { useMemo } from 'react';
 import useSWR from 'swr';
-import { FileText, LockKeyhole, Search } from 'lucide-react';
+import { FileText, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { BillingCycle, FinanceCategory, FinanceTargetType, Transaction, TransactionType } from '@/types';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
-import { StatusBanner } from '@/components/ui/StatusBanner';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { Badge } from '@/components/ui/Badge';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
@@ -67,7 +66,7 @@ export default function TransactionsPage() {
             dateTo: dateTo || undefined,
         })
     );
-    const transactions = transactionsRes?.data || [];
+    const transactions = useMemo(() => transactionsRes?.data || [], [transactionsRes?.data]);
 
     const handlePageSizeChange = (newSize: number) => {
         setPageSize(newSize);

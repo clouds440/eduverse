@@ -16,7 +16,6 @@ import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Badge } from '@/components/ui/Badge';
-import { NewMailModal } from '@/components/mail/NewMailModal';
 import { BrandIcon } from '@/components/ui/Brand';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Toggle } from '@/components/ui/Toggle';
@@ -28,6 +27,7 @@ import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
+import { UserCommsAction } from '@/components/communication/UserCommsAction';
 
 interface TeacherParams {
     page: number;
@@ -50,9 +50,6 @@ export default function TeachersPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingTeacher, setDeletingTeacher] = useState<Teacher | null>(null);
     const [importOpen, setImportOpen] = useState(false);
-    const [newMailOpen, setNewMailOpen] = useState(false);
-    const [initialTargetId, setInitialTargetId] = useState<string | undefined>(undefined);
-    const [initialSubject, setInitialSubject] = useState<string | undefined>(undefined);
 
     // URL State
     const page = getNumberParam('page', 1);
@@ -260,40 +257,42 @@ export default function TeachersPage() {
             header: 'Actions',
             width: 200,
             accessor: (row: Teacher) => (
-                <TableActions
-                    onView={isDeletedView ? undefined : () => router.push(`/profiles/${row.user.id}`)}
-                    onEdit={isDeletedView ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
-                    onDelete={isDeletedView ? undefined : () => {
-                        setDeletingTeacher(row);
-                        setDeleteDialogOpen(true);
-                    }}
-                    variant="user"
-                    extraActions={[
-                        ...(isDeletedView ? [
-                            {
-                                variant: 'restore' as const,
-                                title: 'Restore',
-                                onClick: () => handleRestore(row.id)
-                            }
-                        ] : [
-                            ...(canManageTeachers ? [{
-                                variant: 'passwordReset' as const,
-                                title: 'Copy Password Reset Link',
-                                loading: generatingResetUserId === row.user.id,
-                                onClick: () => generatePasswordResetLink(row.user.id),
-                            }] : []),
-                            {
-                                variant: 'mail' as const,
-                                title: 'Send Mail',
-                                onClick: () => {
-                                    setInitialTargetId(row.user.id);
-                                    setInitialSubject(`Inquiry regarding ${row.user.name}`);
-                                    setNewMailOpen(true);
+                <div className="flex items-center gap-1">
+                    <TableActions
+                        onView={isDeletedView ? undefined : () => router.push(`/profiles/${row.user.id}`)}
+                        onEdit={isDeletedView ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
+                        onDelete={isDeletedView ? undefined : () => {
+                            setDeletingTeacher(row);
+                            setDeleteDialogOpen(true);
+                        }}
+                        variant="user"
+                        extraActions={[
+                            ...(isDeletedView ? [
+                                {
+                                    variant: 'restore' as const,
+                                    title: 'Restore',
+                                    onClick: () => handleRestore(row.id)
                                 }
-                            }
-                        ])
-                    ]}
-                />
+                            ] : [
+                                ...(canManageTeachers ? [{
+                                    variant: 'passwordReset' as const,
+                                    title: 'Copy Password Reset Link',
+                                    loading: generatingResetUserId === row.user.id,
+                                    onClick: () => generatePasswordResetLink(row.user.id),
+                                }] : []),
+                            ])
+                        ]}
+                    />
+                    {!isDeletedView && (
+                        <UserCommsAction
+                            targetUserId={row.user.id}
+                            targetName={row.user.name}
+                            targetEmail={row.user.email}
+                            initialSubject={`Inquiry regarding ${row.user.name}`}
+                            mailEnabled
+                        />
+                    )}
+                </div>
             )
         }
     ], [canManageTeachers, generatePasswordResetLink, generatingResetUserId, isDeletedView, router, routeBase, handleRestore, isManagersView]);
@@ -491,19 +490,6 @@ export default function TeachersPage() {
                 isDestructive={true}
             />
 
-            <NewMailModal
-                isOpen={newMailOpen}
-                onClose={() => {
-                    setNewMailOpen(false);
-                    setInitialTargetId(undefined);
-                    setInitialSubject(undefined);
-                }}
-                initialTargetId={initialTargetId}
-                initialSubject={initialSubject}
-                onSuccess={() => {
-                    dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });
-                }}
-            />
             <CsvImportModal
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}

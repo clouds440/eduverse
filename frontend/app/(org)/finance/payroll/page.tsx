@@ -5,6 +5,7 @@ import Link from 'next/link';
 import useSWR from 'swr';
 import { Mail, UserRound, Users, WalletCards } from 'lucide-react';
 import { api } from '@/lib/api';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { DataTable, type Column } from '@/components/ui/DataTable';
@@ -116,13 +117,11 @@ export default function FinancePayrollPage() {
 
     const rows = useMemo(() => data || [], [data]);
     const filteredRows = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        if (!query) return rows;
-        return rows.filter((row) => [
+        return fuzzyFilterAndRank(rows, search, (row) => [
             row.user.name,
             row.user.email,
             row.user.role,
-        ].some((value) => String(value || '').toLowerCase().includes(query)));
+        ]);
     }, [rows, search]);
     const activeFilters = useMemo<ActiveFilter[]>(() => (
         search ? [{

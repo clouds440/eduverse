@@ -5,6 +5,7 @@ import { Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
+import { fuzzySearchScore, normalizeFuzzyText } from '@/lib/fuzzySearch';
 import { buildDocsSearchEntries } from '../_data/docs';
 import type { DocsSearchEntry } from '../_data/docs';
 
@@ -31,7 +32,7 @@ function escapeRegExp(value: string) {
 }
 
 function normalize(value: string) {
-  return value.toLowerCase();
+  return normalizeFuzzyText(value);
 }
 
 function includesToken(value: string, token: string) {
@@ -109,7 +110,7 @@ function pickSnippetSource(entry: DocsSearchEntry, query: string, tokens: string
 }
 
 function scoreEntry(entry: DocsSearchEntry, tokens: string[]): number {
-  return tokens.reduce((total, token) => {
+  const tokenScore = tokens.reduce((total, token) => {
     const titleMatch = includesToken(entry.titleText, token);
     const tagMatch = includesToken(entry.tagText, token) || entry.pageTags.some((tag) => includesToken(tag, token));
     const categoryMatch = includesToken(entry.categoryText, token);
@@ -123,6 +124,14 @@ function scoreEntry(entry: DocsSearchEntry, tokens: string[]): number {
       + (bodyMatch ? 1 : 0)
       + (pageTitleMatch && (titleMatch || tagMatch || bodyMatch) ? 2 : 0);
   }, 0);
+  const fuzzyScore = fuzzySearchScore(tokens.join(' '), [
+    entry.titleText,
+    entry.tagText,
+    entry.categoryText,
+    entry.pageTitle,
+    entry.bodyText,
+  ]);
+  return tokenScore + fuzzyScore / 20;
 }
 
 function HighlightedText({ text, tokens }: { text: string; tokens: string[] }) {
@@ -159,20 +168,14 @@ export function DocsSearch({ compact, onNavigate, autoFocus, className, resultsM
 
     return entries
       .map<ScoredDocsSearchEntry | null>((entry) => {
-        const matchableText = [
-          entry.titleText,
-          entry.tagText,
-          entry.categoryText,
-          entry.bodyText,
-        ].join(' ');
-        const matchesAllTokens = tokens.every((token) => includesToken(matchableText, token));
-        if (!matchesAllTokens) return null;
+        const score = scoreEntry(entry, tokens);
+        if (score <= 0) return null;
 
         const snippetSource = pickSnippetSource(entry, normalizedQuery, tokens);
         return {
           ...entry,
           matchedTokens: tokens,
-          score: scoreEntry(entry, tokens),
+          score,
           snippet: extractMatchSnippet(snippetSource, normalizedQuery, tokens),
         };
       })

@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
-import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
+import { formatPaginatedResponse, fuzzyFilterAndRank, getPaginationOptions, PaginationOptions } from '../common/utils';
 import { FilesService } from '../files/files.service';
 import { AssignBuildingDepartmentsDto } from './dto/assign-building-departments.dto';
 import { CreateBuildingDto } from './dto/create-building.dto';
@@ -122,14 +122,15 @@ export class BuildingsService {
       sortOrder: options.sortOrder || 'asc',
     });
 
-    const where: Prisma.BuildingWhereInput = {
+    const baseWhere: Prisma.BuildingWhereInput = {
       organizationId: orgId,
       ...(options.isActive !== undefined ? { isActive: options.isActive } : {}),
       ...(options.departmentId
         ? { buildingDepartments: { some: { departmentId: options.departmentId } } }
         : {}),
-      ...(options.search
-        ? {
+    };
+    const searchWhere: Prisma.BuildingWhereInput = options.search
+      ? {
           OR: [
             { name: { contains: options.search, mode: 'insensitive' } },
             { code: { contains: options.search, mode: 'insensitive' } },
@@ -139,8 +140,8 @@ export class BuildingsService {
             { directionsNote: { contains: options.search, mode: 'insensitive' } },
           ],
         }
-        : {}),
-    };
+      : {};
+    const where: Prisma.BuildingWhereInput = { ...baseWhere, ...searchWhere };
 
     const [buildings, totalRecords] = await Promise.all([
       this.prisma.building.findMany({
@@ -152,6 +153,32 @@ export class BuildingsService {
       }),
       this.prisma.building.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.building.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy: { [sortBy]: sortOrder },
+        include: this.includeRelations,
+      });
+      const ranked = fuzzyFilterAndRank(candidates, options.search, (building) => [
+        building.name,
+        building.code,
+        building.address,
+        building.description,
+        building.landmark,
+        building.directionsNote,
+        ...building.buildingDepartments.map((link) => link.department.name),
+        ...building.buildingDepartments.map((link) => link.department.code),
+      ]);
+
+      return formatPaginatedResponse(
+        ranked.slice(skip, skip + take).map((building) => this.shapeBuilding(building)),
+        ranked.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(
       buildings.map((building) => this.shapeBuilding(building)),

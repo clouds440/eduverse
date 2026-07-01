@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { useMemo, useState } from 'react';
 import { getSectionSurfaceStyle } from '@/lib/utils';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
 function SectionRowsSkeleton() {
@@ -45,12 +46,12 @@ export default function AttendanceLandingPage() {
     const sections = useMemo(() => sectionsData?.data || [], [sectionsData?.data]);
 
     const filteredSections = useMemo(() => {
-        if (!searchTerm) return sections;
-        const term = searchTerm.toLowerCase();
-        return sections.filter(section =>
-            section.name.toLowerCase().includes(term) ||
-            (section.course?.name || '').toLowerCase().includes(term)
-        );
+        return fuzzyFilterAndRank(sections, searchTerm, (section) => [
+            section.name,
+            section.code,
+            section.course?.name,
+            section.course?.code,
+        ]);
     }, [sections, searchTerm]);
 
     if (!user) {

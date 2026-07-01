@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { CheckCircle2, Loader2, Search, Users } from 'lucide-react';
 import { api } from '@/lib/api';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -40,7 +41,7 @@ export default function LinkGuardianStudentsPage() {
         () => api.org.getStudents(token!, { page: 1, limit: 1000, status: `${StudentStatus.ACTIVE},${StudentStatus.SUSPENDED}` })
     );
 
-    const students = studentsData?.data || [];
+    const students = useMemo(() => studentsData?.data || [], [studentsData?.data]);
     const linkedStudentIds = useMemo(() => new Set((guardian?.students || []).map((student) => student.id)), [guardian?.students]);
 
     useEffect(() => {
@@ -57,15 +58,16 @@ export default function LinkGuardianStudentsPage() {
     }, [guardian, initialized]);
 
     const filteredStudents = useMemo(() => {
-        const term = search.trim().toLowerCase();
-        if (!term) return students;
-        return students.filter((student: Student) => [
+        return fuzzyFilterAndRank(students, search, (student: Student) => [
             student.user?.name,
             student.user?.email,
+            student.user?.phone,
             student.registrationNumber,
             student.rollNumber,
             student.cohort?.name,
-        ].some((value) => String(value || '').toLowerCase().includes(term)));
+            student.primaryDepartment?.name,
+            student.primaryDepartment?.code,
+        ]);
     }, [search, students]);
 
     const toggleStudent = (student: Student) => {

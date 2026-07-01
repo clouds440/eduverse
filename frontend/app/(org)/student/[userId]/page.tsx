@@ -147,6 +147,8 @@ function StudentPortalContent() {
     }, []);
 
     useEffect(() => {
+        // Tab changes intentionally clear actions registered by the previous tab.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setTabHeaderActions(null);
     }, [tab]);
 

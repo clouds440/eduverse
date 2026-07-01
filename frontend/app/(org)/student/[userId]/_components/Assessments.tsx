@@ -20,6 +20,7 @@ import { CustomSelect } from '@/components/ui/CustomSelect';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import type { ActiveFilter } from '@/components/ui/PageShell';
+import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 
 function getGradeTone(marks: number, total: number) {
     const percentage = total > 0 ? (marks / total) * 100 : 0;
@@ -76,16 +77,18 @@ export default function Assessments({ sections, assessments }: { sections: Secti
     }, [assessments, sections]);
 
     const filteredAssessments = useMemo(() => {
-        const query = search.trim().toLowerCase();
-        return assessments.filter((assessment) => {
+        const scopedAssessments = selectedSectionId
+            ? assessments.filter((assessment) => assessment.sectionId === selectedSectionId)
+            : assessments;
+        return fuzzyFilterAndRank(scopedAssessments, search, (assessment) => {
             const section = resolveSection(assessment);
-            const matchesSection = selectedSectionId ? assessment.sectionId === selectedSectionId : true;
-            const matchesSearch = !query
-                || assessment.title.toLowerCase().includes(query)
-                || assessment.type.toLowerCase().includes(query)
-                || section?.name?.toLowerCase().includes(query)
-                || section?.course?.name?.toLowerCase().includes(query);
-            return matchesSection && matchesSearch;
+            return [
+                assessment.title,
+                assessment.type,
+                section?.name,
+                section?.course?.name,
+                section?.course?.code,
+            ];
         });
     }, [assessments, search, selectedSectionId, resolveSection]);
 

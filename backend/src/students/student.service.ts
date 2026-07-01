@@ -21,6 +21,7 @@ import {
   BCRYPT_ROUNDS,
   PaginationOptions,
   extractTimetableEntries,
+  fuzzyFilterAndRank,
 } from '../common/utils';
 import {
   assertDepartmentIdsBelongToOrg,
@@ -395,7 +396,7 @@ export class StudentService {
         : []),
     ];
 
-    const where: Prisma.StudentWhereInput = {
+    const baseWhere: Prisma.StudentWhereInput = {
       organizationId: orgId,
       ...(andFilters.length ? { AND: andFilters } : {}),
       status: deleted
@@ -424,32 +425,33 @@ export class StudentService {
             },
           }
         : {}),
-      ...(options.search
-        ? {
-            OR: [
-              {
-                user: {
-                  name: { contains: options.search, mode: 'insensitive' },
-                },
-              },
-              {
-                user: {
-                  email: { contains: options.search, mode: 'insensitive' },
-                },
-              },
-              {
-                registrationNumber: {
-                  contains: options.search,
-                  mode: 'insensitive',
-                },
-              },
-              { rollNumber: { contains: options.search, mode: 'insensitive' } },
-              { major: { contains: options.search, mode: 'insensitive' } },
-              { department: { contains: options.search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
     };
+    const searchWhere: Prisma.StudentWhereInput = options.search
+      ? {
+          OR: [
+            {
+              user: {
+                name: { contains: options.search, mode: 'insensitive' },
+              },
+            },
+            {
+              user: {
+                email: { contains: options.search, mode: 'insensitive' },
+              },
+            },
+            {
+              registrationNumber: {
+                contains: options.search,
+                mode: 'insensitive',
+              },
+            },
+            { rollNumber: { contains: options.search, mode: 'insensitive' } },
+            { major: { contains: options.search, mode: 'insensitive' } },
+            { department: { contains: options.search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+    const where: Prisma.StudentWhereInput = { ...baseWhere, ...searchWhere };
 
     // Handle nested sorting for user fields
     let orderBy: Prisma.StudentOrderByWithRelationInput = {};
@@ -464,38 +466,79 @@ export class StudentService {
       orderBy = { [sortBy]: sortOrder };
     }
 
+    const include = {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          avatarUrl: true,
+          avatarUpdatedAt: true,
+        },
+      },
+      cohort: true,
+      primaryDepartment: true,
+      studentDepartments: { include: { department: true } },
+      ...this.studentGuardianInclude(),
+      enrollments: {
+        include: {
+          section: {
+            include: { course: true },
+          },
+        },
+      },
+    } satisfies Prisma.StudentInclude;
+
     const [students, totalRecords] = await Promise.all([
       this.prisma.student.findMany({
         where,
         skip,
         take,
         orderBy,
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              phone: true,
-              avatarUrl: true,
-              avatarUpdatedAt: true,
-            },
-          },
-          cohort: true,
-          primaryDepartment: true,
-          studentDepartments: { include: { department: true } },
-          ...this.studentGuardianInclude(),
-          enrollments: {
-            include: {
-              section: {
-                include: { course: true },
-              },
-            },
-          },
-        },
+        include,
       }),
       this.prisma.student.count({ where }),
     ]);
+
+    if (options.search && totalRecords === 0) {
+      const candidates = await this.prisma.student.findMany({
+        where: baseWhere,
+        take: 500,
+        orderBy,
+        include,
+      });
+      const ranked = fuzzyFilterAndRank(candidates, options.search, (student) => [
+        student.user?.name,
+        student.user?.email,
+        student.user?.phone,
+        student.registrationNumber,
+        student.rollNumber,
+        student.major,
+        student.department,
+        student.cohort?.name,
+        student.cohort?.code,
+        student.primaryDepartment?.name,
+        student.primaryDepartment?.code,
+        ...(student.studentDepartments || []).flatMap((link) => [
+          link.department?.name,
+          link.department?.code,
+        ]),
+        ...(student.enrollments || []).flatMap((enrollment) => [
+          enrollment.section?.name,
+          enrollment.section?.course?.name,
+          enrollment.section?.course?.code,
+        ]),
+      ]);
+      const pageItems = ranked.slice(skip, skip + take);
+
+      return formatPaginatedResponse(
+        pageItems.map((student) => this.normalizeStudentGuardian(student)),
+        ranked.length,
+        options.page,
+        options.limit,
+      );
+    }
 
     return formatPaginatedResponse(
       students.map((student) => this.normalizeStudentGuardian(student)),

@@ -3,16 +3,28 @@
 import * as React from "react";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useId } from "react";
 import { createPortal } from "react-dom";
-import { LucideIcon, ChevronDown, X, Check, Search } from "lucide-react";
+import { LucideIcon, ChevronDown, X, Check } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
 import { useBackStackEntry } from "@/context/BackNavigationContext";
 import { cn } from "@/lib/utils";
+import { BrandIcon } from "@/components/ui/Brand";
+import { SearchBar } from "@/components/ui/SearchBar";
 
 export interface MultiSelectOption {
     value: string;
     label: string;
     icon?: LucideIcon;
+    description?: string;
+    meta?: string;
+    badges?: string[];
+    avatarUser?: {
+        id?: string;
+        name?: string | null;
+        avatarUrl?: string | null;
+        avatarUpdatedAt?: string | null;
+        role?: string;
+    } | null;
 }
 
 export interface CustomMultiSelectProps {
@@ -24,6 +36,12 @@ export interface CustomMultiSelectProps {
     className?: string;
     disabled?: boolean;
     error?: boolean;
+    searchable?: boolean;
+    searchValue?: string;
+    onSearchChange?: (value: string) => void;
+    searchPlaceholder?: string;
+    isSearching?: boolean;
+    emptyMessage?: string;
 }
 
 function CustomMultiSelectComponent({
@@ -35,6 +53,12 @@ function CustomMultiSelectComponent({
     className = "",
     disabled = false,
     error = false,
+    searchable = true,
+    searchValue,
+    onSearchChange,
+    searchPlaceholder,
+    isSearching = false,
+    emptyMessage,
 }: CustomMultiSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -42,7 +66,7 @@ function CustomMultiSelectComponent({
     const [activeIndex, setActiveIndex] = useState(0);
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const searchInputRef = useRef<HTMLInputElement>(null);
+    const searchBarRef = useRef<HTMLDivElement>(null);
     const listboxId = useId();
 
     useBackStackEntry({
@@ -57,15 +81,20 @@ function CustomMultiSelectComponent({
 
     // Derived state for selected options - O(n)
     const selectedOptions = useMemo(() => options.filter(opt => valuesSet.has(opt.value)), [options, valuesSet]);
+    const effectiveSearchTerm = searchValue ?? searchTerm;
+    const usesRemoteSearch = Boolean(onSearchChange);
 
     // Filtered options based on search term
     const visibleOptions = useMemo(() => {
-        if (!searchTerm) return options;
-        const lowSearch = searchTerm.toLowerCase();
+        if (!effectiveSearchTerm || usesRemoteSearch) return options;
+        const lowSearch = effectiveSearchTerm.toLowerCase();
         return options.filter(opt =>
-            opt.label.toLowerCase().includes(lowSearch)
+            opt.label.toLowerCase().includes(lowSearch) ||
+            opt.description?.toLowerCase().includes(lowSearch) ||
+            opt.meta?.toLowerCase().includes(lowSearch) ||
+            opt.badges?.some((badge) => badge.toLowerCase().includes(lowSearch))
         );
-    }, [options, searchTerm]);
+    }, [effectiveSearchTerm, options, usesRemoteSearch]);
     const visibleOptionsCount = visibleOptions.length;
     const getOptionId = useCallback((index: number) => `${listboxId}-option-${index}`, [listboxId]);
 
@@ -119,13 +148,13 @@ function CustomMultiSelectComponent({
     useLayoutEffect(() => {
         if (!isOpen) return;
         updateCoords();
-    }, [visibleOptionsCount, isOpen, searchTerm, updateCoords]);
+    }, [visibleOptionsCount, isOpen, effectiveSearchTerm, updateCoords]);
 
     // Clear search term when closed
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- Preserve dropdown search reset behavior; moving this into close handlers previously caused runtime regressions.
-        if (!isOpen) setSearchTerm("");
-    }, [isOpen]);
+        if (!isOpen && searchValue === undefined) setSearchTerm("");
+    }, [isOpen, searchValue]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -136,10 +165,12 @@ function CustomMultiSelectComponent({
     }, [isOpen, visibleOptionsCount]);
 
     useEffect(() => {
-        if (!isOpen) return;
-        const frameId = window.requestAnimationFrame(() => searchInputRef.current?.focus({ preventScroll: true }));
+        if (!isOpen || !searchable) return;
+        const frameId = window.requestAnimationFrame(() => {
+            searchBarRef.current?.querySelector('input')?.focus({ preventScroll: true });
+        });
         return () => window.cancelAnimationFrame(frameId);
-    }, [isOpen]);
+    }, [isOpen, searchable]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -171,6 +202,13 @@ function CustomMultiSelectComponent({
         e.stopPropagation();
         onChange(values.filter(v => v !== val));
     }, [values, onChange]);
+
+    const handleSearchChange = useCallback((nextSearch: string) => {
+        if (searchValue === undefined) {
+            setSearchTerm(nextSearch);
+        }
+        onSearchChange?.(nextSearch);
+    }, [onSearchChange, searchValue]);
 
     const moveActiveOption = useCallback((direction: 1 | -1) => {
         setActiveIndex((currentIndex) => {
@@ -295,28 +333,27 @@ function CustomMultiSelectComponent({
                     aria-multiselectable="true"
                     onKeyDown={handleKeyDown}
                 >
-                    <div className="border-b border-border/60 px-3 pb-2">
-                        <div className="relative">
-                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                <Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                            </div>
-                            <input
-                                ref={searchInputRef}
-                                type="text"
-                                className="block w-full rounded-md border border-border bg-input py-2 pl-9 pr-3 text-sm text-foreground transition-colors placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                placeholder="Search..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                onKeyDown={handleKeyDown}
-                                aria-label={`Search ${placeholder}`}
+                    {searchable && (
+                        <div ref={searchBarRef} className="border-b border-border/60 px-3 pb-2">
+                            <SearchBar
+                                value={effectiveSearchTerm}
+                                onChange={handleSearchChange}
+                                placeholder={searchPlaceholder || `Search ${placeholder.toLowerCase()}...`}
+                                delay={350}
+                                size="compact"
+                                className="w-full"
+                                ariaLabel={`Search ${placeholder}`}
                             />
                         </div>
-                    </div>
+                    )}
 
                     <div className="max-h-56 sm:max-h-64 overflow-y-auto custom-scrollbar">
                         {visibleOptions.length === 0 ? (
-                            <div className="px-4 py-3 sm:py-4 text-sm sm:text-base text-muted-foreground text-center">No options found</div>
+                            <div className="px-4 py-3 sm:py-4 text-sm sm:text-base text-muted-foreground text-center">
+                                {isSearching
+                                    ? 'Searching...'
+                                    : emptyMessage || (searchable && effectiveSearchTerm ? `No results found for "${effectiveSearchTerm}"` : 'No options found')}
+                            </div>
                         ) : (
                             visibleOptions.map((option, index) => {
                                 const isSelected = valuesSet.has(option.value);
@@ -338,9 +375,32 @@ function CustomMultiSelectComponent({
                                         role="option"
                                         aria-selected={isSelected}
                                     >
-                                        <div className="flex items-center truncate">
-                                            {option.icon && <option.icon className="mr-2 h-4 w-4 text-muted-foreground/60" />}
-                                            <span className="truncate">{option.label}</span>
+                                        <div className="flex min-w-0 items-center">
+                                            {option.avatarUser ? (
+                                                <BrandIcon
+                                                    variant="user"
+                                                    size="sm"
+                                                    user={option.avatarUser}
+                                                    initialsFallback
+                                                    className="mr-2 h-8 w-8"
+                                                />
+                                            ) : option.icon ? (
+                                                <option.icon className="mr-2 h-4 w-4 text-muted-foreground/60" />
+                                            ) : null}
+                                            <span className="min-w-0">
+                                                <span className="block truncate">{option.label}</span>
+                                                {(option.description || option.meta || option.badges?.length) && (
+                                                    <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                                                        {option.description && <span className="truncate">{option.description}</span>}
+                                                        {option.meta && <span className="truncate">{option.meta}</span>}
+                                                        {option.badges?.slice(0, 3).map((item) => (
+                                                            <Badge key={item} variant="neutral" size="sm" className="h-5 max-w-32 truncate px-1.5 text-[10px]">
+                                                                {item}
+                                                            </Badge>
+                                                        ))}
+                                                    </span>
+                                                )}
+                                            </span>
                                         </div>
                                         {isSelected && <Check className="ml-2 h-4 w-4 shrink-0 text-primary" />}
                                     </button>
@@ -364,6 +424,12 @@ function areMultiSelectPropsEqual(
     if (prevProps.className !== nextProps.className) return false;
     if (prevProps.disabled !== nextProps.disabled) return false;
     if (prevProps.error !== nextProps.error) return false;
+    if (prevProps.searchable !== nextProps.searchable) return false;
+    if (prevProps.searchValue !== nextProps.searchValue) return false;
+    if (prevProps.onSearchChange !== nextProps.onSearchChange) return false;
+    if (prevProps.searchPlaceholder !== nextProps.searchPlaceholder) return false;
+    if (prevProps.isSearching !== nextProps.isSearching) return false;
+    if (prevProps.emptyMessage !== nextProps.emptyMessage) return false;
     if (prevProps.onChange !== nextProps.onChange) return false;
 
     // Compare values array length and contents
@@ -377,7 +443,15 @@ function areMultiSelectPropsEqual(
     for (let i = 0; i < prevProps.options.length; i++) {
         const a = prevProps.options[i];
         const b = nextProps.options[i];
-        if (a.value !== b.value || a.label !== b.label || a.icon !== b.icon) {
+        if (
+            a.value !== b.value ||
+            a.label !== b.label ||
+            a.icon !== b.icon ||
+            a.description !== b.description ||
+            a.meta !== b.meta ||
+            a.avatarUser !== b.avatarUser ||
+            (a.badges || []).join('|') !== (b.badges || []).join('|')
+        ) {
             return false;
         }
     }
