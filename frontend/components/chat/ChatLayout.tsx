@@ -1675,7 +1675,7 @@ export function ChatLayout() {
                 </div>
 
                 {/* Search */}
-                <div className="px-3 sm:px-4 py-3">
+                <div className="px-2 py-3">
                     <div className="relative">
                         <Search size={isDesktop ? 16 : 14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                         <input
