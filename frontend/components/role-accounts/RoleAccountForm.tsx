@@ -29,7 +29,9 @@ export type RoleAccountFormData = {
     departmentIds?: string[];
 };
 
-interface RoleAccountFormProps {
+type RoleAccountPayload = CreateRoleAccountRequest | UpdateRoleAccountRequest;
+
+interface RoleAccountFormProps<TCreatePayload extends RoleAccountPayload = CreateRoleAccountRequest, TUpdatePayload extends RoleAccountPayload = UpdateRoleAccountRequest> {
     accountId?: string;
     initialData?: AppUser;
     label: string;
@@ -37,8 +39,8 @@ interface RoleAccountFormProps {
     cacheKeyPrefix: CacheKeyPrefix;
     createSchema: ZodType<RoleAccountFormData>;
     updateSchema: ZodType<RoleAccountFormData>;
-    createAccount: (data: CreateRoleAccountRequest, token: string) => Promise<AppUser>;
-    updateAccount: (id: string, data: UpdateRoleAccountRequest, token: string) => Promise<AppUser>;
+    createAccount: (data: TCreatePayload, token: string) => Promise<AppUser>;
+    updateAccount: (id: string, data: TUpdatePayload, token: string) => Promise<AppUser>;
     listHref: string;
     enableDepartmentScope?: boolean;
 }
@@ -49,21 +51,29 @@ const USER_STATUS_OPTIONS = [
     { value: UserStatus.ON_LEAVE, label: 'On Leave', icon: CalendarClock },
 ];
 
-function getAccountDefaults(initialData?: AppUser): RoleAccountFormData {
-    return initialData ? {
+function getAccountDefaults(initialData?: AppUser, enableDepartmentScope = false): RoleAccountFormData {
+    const defaults = initialData ? {
         name: initialData.name || '',
         email: initialData.email || '',
         phone: initialData.phone || '',
         password: '',
         status: initialData.status || UserStatus.ACTIVE,
-        departmentScopeType: initialData.departmentScopeType || DepartmentScopeType.ALL,
-        departmentIds: initialData.subAdminDepartments?.map((entry) => entry.departmentId) || [],
     } : {
         name: '',
         email: '',
         phone: '',
         password: '',
         status: UserStatus.ACTIVE,
+    };
+
+    if (!enableDepartmentScope) return defaults;
+
+    return initialData ? {
+        ...defaults,
+        departmentScopeType: initialData.departmentScopeType || DepartmentScopeType.ALL,
+        departmentIds: initialData.subAdminDepartments?.map((entry) => entry.departmentId) || [],
+    } : {
+        ...defaults,
         departmentScopeType: DepartmentScopeType.ALL,
         departmentIds: [],
     };
@@ -75,7 +85,7 @@ function userStatusIcon(status?: UserStatus) {
     return ShieldCheck;
 }
 
-export default function RoleAccountForm({
+export default function RoleAccountForm<TCreatePayload extends RoleAccountPayload = CreateRoleAccountRequest, TUpdatePayload extends RoleAccountPayload = UpdateRoleAccountRequest>({
     accountId,
     initialData,
     label,
@@ -87,7 +97,7 @@ export default function RoleAccountForm({
     updateAccount,
     listHref,
     enableDepartmentScope = false,
-}: RoleAccountFormProps) {
+}: RoleAccountFormProps<TCreatePayload, TUpdatePayload>) {
     const { token } = useAuth();
     const router = useRouter();
     const { dispatch } = useGlobal();
@@ -107,7 +117,7 @@ export default function RoleAccountForm({
         formState: { errors },
     } = useForm<RoleAccountFormData>({
         resolver,
-        defaultValues: getAccountDefaults(initialData),
+        defaultValues: getAccountDefaults(initialData, enableDepartmentScope),
     });
 
     const watchedStatus = useWatch({ control, name: 'status' }) as UserStatus | undefined;
@@ -148,21 +158,21 @@ export default function RoleAccountForm({
 
         dispatch({ type: 'UI_START_PROCESSING', payload: `${cacheKeyPrefix}-submit` });
         try {
-            const { password, ...rest } = data;
-            const payload: CreateRoleAccountRequest | UpdateRoleAccountRequest = {
+            const { password, departmentScopeType, departmentIds, ...rest } = data;
+            const payload: RoleAccountPayload = {
                 ...rest,
                 ...(enableDepartmentScope
                     ? {
-                        departmentScopeType: data.departmentScopeType || DepartmentScopeType.ALL,
-                        departmentIds: data.departmentScopeType === DepartmentScopeType.SELECTED ? data.departmentIds || [] : [],
+                        departmentScopeType: departmentScopeType || DepartmentScopeType.ALL,
+                        departmentIds: departmentScopeType === DepartmentScopeType.SELECTED ? departmentIds || [] : [],
                     }
                     : {}),
                 ...(accountId ? (password ? { password } : {}) : { password }),
             };
 
             const savedAccount = accountId
-                ? await updateAccount(accountId, payload as UpdateRoleAccountRequest, token)
-                : await createAccount(payload as CreateRoleAccountRequest, token);
+                ? await updateAccount(accountId, payload as TUpdatePayload, token)
+                : await createAccount(payload as TCreatePayload, token);
 
             if (pendingPhoto) {
                 await api.org.uploadAvatar(savedAccount.id, pendingPhoto, token);

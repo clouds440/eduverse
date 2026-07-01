@@ -923,8 +923,8 @@ export interface CreateRoleAccountRequest {
 
 export type UpdateRoleAccountRequest = Partial<CreateRoleAccountRequest>;
 
-export type CreateFinanceManagerRequest = CreateRoleAccountRequest;
-export type UpdateFinanceManagerRequest = UpdateRoleAccountRequest;
+export type CreateFinanceManagerRequest = Omit<CreateRoleAccountRequest, 'departmentScopeType' | 'departmentIds'>;
+export type UpdateFinanceManagerRequest = Partial<CreateFinanceManagerRequest>;
 
 export interface CreateStudentRequest {
     name: string;

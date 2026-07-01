@@ -94,11 +94,14 @@ export type TeacherProfileFormData = z.infer<typeof teacherProfileSchema>;
 // --- SUB ADMIN SCHEMAS ---
 // =========================
 
-const subAdminBaseSchema = z.object({
+const roleAccountBaseSchema = z.object({
     name: z.string().min(1, 'Full Name is required'),
     phone: z.string().regex(phoneRegex, 'Invalid phone number').optional().or(z.literal('')),
     email: z.string().email('Invalid email address'),
     status: z.nativeEnum(UserStatus),
+});
+
+const subAdminBaseSchema = roleAccountBaseSchema.extend({
     departmentScopeType: z.nativeEnum(DepartmentScopeType).optional(),
     departmentIds: z.array(z.string()).default([]),
 });
@@ -115,10 +118,14 @@ export const subAdminUpdateSchema = subAdminBaseSchema.extend({
 
 export type SubAdminUpdateFormData = z.infer<typeof subAdminUpdateSchema>;
 
-export const financeManagerCreateSchema = subAdminCreateSchema;
+export const financeManagerCreateSchema = roleAccountBaseSchema.extend({
+    password: passwordRules,
+});
 export type FinanceManagerCreateFormData = z.infer<typeof financeManagerCreateSchema>;
 
-export const financeManagerUpdateSchema = subAdminUpdateSchema;
+export const financeManagerUpdateSchema = roleAccountBaseSchema.extend({
+    password: optionalPasswordRules,
+});
 export type FinanceManagerUpdateFormData = z.infer<typeof financeManagerUpdateSchema>;
 
 // =========================
