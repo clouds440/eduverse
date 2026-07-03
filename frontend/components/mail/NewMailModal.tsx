@@ -141,6 +141,12 @@ function resolveTargetSelection(incomingIds: string[], previousIds: string[], ta
         }
 
         if (addedTarget.type === 'ROLE') {
+            finalIds = finalIds.filter((id) => {
+                if (id === addedId) return true;
+                const target = targetMap.get(id);
+                return target?.type !== 'ROLE';
+            });
+
             if (addedTarget.role === Role.TEACHER || addedTarget.role === Role.ORG_MANAGER) {
                 finalIds = finalIds.filter((id) => id !== 'ROLE:ORG_STAFF');
             }
@@ -166,12 +172,45 @@ function resolveTargetSelection(incomingIds: string[], previousIds: string[], ta
     return { finalIds, feedback };
 }
 
-function mergeMailTargets(currentTargets: MailTarget[], incomingTargets: MailTarget[]) {
-    const targetMap = new Map(currentTargets.map((target) => [target.id, target]));
+function uniqueMailTargets(incomingTargets: MailTarget[]) {
+    const targetMap = new Map<string, MailTarget>();
     for (const target of incomingTargets) {
         targetMap.set(target.id, target);
     }
     return Array.from(targetMap.values());
+}
+
+function getRoleShortcutsForSender(role: Role | undefined): MailTarget[] {
+    if (role === Role.SUPER_ADMIN) {
+        return [
+            { id: `ROLE:${Role.PLATFORM_ADMIN}`, label: 'All Platform Admins', type: 'ROLE', role: Role.PLATFORM_ADMIN },
+            { id: `ROLE:${Role.ORG_ADMIN}`, label: 'All Org Admins', type: 'ROLE', role: Role.ORG_ADMIN },
+        ];
+    }
+
+    if (role === Role.PLATFORM_ADMIN) {
+        return [
+            { id: `ROLE:${Role.ORG_ADMIN}`, label: 'All Org Admins', type: 'ROLE', role: Role.ORG_ADMIN },
+        ];
+    }
+
+    if (role === Role.ORG_ADMIN || role === Role.SUB_ADMIN) {
+        return [
+            { id: `ROLE:${Role.PLATFORM_ADMIN}`, label: 'Platform Administrative Team', type: 'ROLE', role: Role.PLATFORM_ADMIN },
+            { id: `ROLE:${Role.TEACHER}`, label: 'All Teachers', type: 'ROLE', role: Role.TEACHER },
+            { id: `ROLE:${Role.ORG_MANAGER}`, label: 'All Org Managers', type: 'ROLE', role: Role.ORG_MANAGER },
+            { id: `ROLE:${Role.FINANCE_MANAGER}`, label: 'All Finance Managers', type: 'ROLE', role: Role.FINANCE_MANAGER },
+            { id: 'ROLE:ORG_STAFF', label: 'All Employees', type: 'ROLE', role: 'ORG_STAFF', description: 'Teachers and managers' },
+        ];
+    }
+
+    if (role === Role.GUARDIAN) {
+        return [
+            { id: `ROLE:${Role.PLATFORM_ADMIN}`, label: 'Platform Administrative Team', type: 'ROLE', role: Role.PLATFORM_ADMIN },
+        ];
+    }
+
+    return [];
 }
 
 export function NewMailModal({
@@ -201,10 +240,16 @@ export function NewMailModal({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const targetSearchRequestIdRef = useRef(0);
 
-    const targetMap = useMemo(() => new Map(targets.map((target) => [target.id, target])), [targets]);
+    const roleShortcuts = useMemo(() => getRoleShortcutsForSender(user?.role as Role | undefined), [user?.role]);
+    const allTargets = useMemo(() => uniqueMailTargets([...roleShortcuts, ...targets]), [roleShortcuts, targets]);
+    const targetMap = useMemo(() => new Map(allTargets.map((target) => [target.id, target])), [allTargets]);
     const selectedTargets = useMemo(
         () => targetIds.map((id) => targetMap.get(id)).filter(Boolean) as MailTarget[],
         [targetIds, targetMap],
+    );
+    const selectedUserTargetIds = useMemo(
+        () => selectedTargets.filter((target) => target.type === 'USER').map((target) => target.id),
+        [selectedTargets],
     );
 
     const isPlatformAdmin = user?.role === Role.PLATFORM_ADMIN || user?.role === Role.SUPER_ADMIN;
@@ -233,10 +278,10 @@ export function NewMailModal({
     );
 
     const targetOptions = useMemo(
-        () => targets.map((target) => ({
+        () => targets.filter((target) => target.type === 'USER').map((target) => ({
             value: target.id,
-            label: target.type === 'ROLE' ? `${target.label} group` : target.label,
-            icon: target.type === 'ROLE' ? Users : User,
+            label: target.label,
+            icon: User,
         })),
         [targets],
     );
@@ -281,8 +326,8 @@ export function NewMailModal({
         return () => window.clearTimeout(timer);
     }, [error, info]);
 
-    const handleTargetChange = useCallback((newTargetIds: string[]) => {
-        const { finalIds, feedback } = resolveTargetSelection(newTargetIds, targetIds, targets);
+    const applyTargetIds = useCallback((nextTargetIds: string[]) => {
+        const { finalIds, feedback } = resolveTargetSelection(nextTargetIds, targetIds, allTargets);
         const nextTargets = finalIds.map((id) => targetMap.get(id)).filter(Boolean) as MailTarget[];
         const nextCategories = getCategoriesForContext(user?.role as Role | undefined, nextTargets.map((target) => target.role || ''));
 
@@ -292,7 +337,25 @@ export function NewMailModal({
         setCategory((current) => nextCategories.some((item) => item.value === current)
             ? current
             : nextCategories[0]?.value || MailCategory.GENERAL_INQUIRY);
-    }, [targetIds, targetMap, targets, user?.role]);
+    }, [allTargets, targetIds, targetMap, user?.role]);
+
+    const handleTargetChange = useCallback((newUserTargetIds: string[]) => {
+        const currentRoleIds = targetIds.filter((id) => targetMap.get(id)?.type === 'ROLE');
+        applyTargetIds([...currentRoleIds, ...newUserTargetIds]);
+    }, [applyTargetIds, targetIds, targetMap]);
+
+    const toggleRoleTarget = useCallback((target: MailTarget) => {
+        if (targetIds.includes(target.id)) {
+            applyTargetIds(targetIds.filter((id) => id !== target.id));
+            return;
+        }
+
+        applyTargetIds([...targetIds, target.id]);
+    }, [applyTargetIds, targetIds]);
+
+    const removeTarget = useCallback((targetId: string) => {
+        applyTargetIds(targetIds.filter((id) => id !== targetId));
+    }, [applyTargetIds, targetIds]);
 
     const handleTargetSearch = useCallback((nextSearch: string) => {
         setTargetSearch(nextSearch);
@@ -303,15 +366,21 @@ export function NewMailModal({
         if (!token || search.length < 2) {
             setSearching(false);
             setLastTargetSearch('');
+            setTargets((currentTargets) => currentTargets.filter((target) => target.type === 'USER' && targetIds.includes(target.id)));
             return;
         }
 
         setSearching(true);
         setLastTargetSearch(search);
+        setTargets((currentTargets) => currentTargets.filter((target) => target.type === 'USER' && targetIds.includes(target.id)));
         api.mail.getContactableUsers(token, search)
             .then((data) => {
                 if (targetSearchRequestIdRef.current !== requestId) return;
-                setTargets((currentTargets) => mergeMailTargets(currentTargets, data));
+                const userResults = data.filter((target) => target.type === 'USER');
+                setTargets((currentTargets) => {
+                    const selectedUsers = currentTargets.filter((target) => target.type === 'USER' && targetIds.includes(target.id));
+                    return uniqueMailTargets([...selectedUsers, ...userResults]);
+                });
                 setError('');
             })
             .catch((err) => {
@@ -322,7 +391,7 @@ export function NewMailModal({
             .finally(() => {
                 if (targetSearchRequestIdRef.current === requestId) setSearching(false);
             });
-    }, [token]);
+    }, [targetIds, token]);
 
     const handleCategoryChange = useCallback((value: string) => {
         setCategory(value);
@@ -469,25 +538,62 @@ export function NewMailModal({
                             <label className="mb-2 block text-xs font-black uppercase tracking-widest text-muted-foreground">
                                 Recipients
                             </label>
+                            {roleShortcuts.length > 0 && (
+                                <div className="mb-4 space-y-2 rounded-xl border border-border/70 bg-card/50 p-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Group Shortcuts</span>
+                                        <span className="text-[10px] font-bold text-muted-foreground">Optional</span>
+                                    </div>
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        {roleShortcuts.map((target) => {
+                                            const selected = targetIds.includes(target.id);
+                                            return (
+                                                <button
+                                                    key={target.id}
+                                                    type="button"
+                                                    onClick={() => toggleRoleTarget(target)}
+                                                    className={`flex min-h-10 items-center justify-between rounded-lg border px-3 py-2 text-left text-xs font-bold transition-colors ${selected
+                                                        ? 'border-primary/60 bg-primary/10 text-primary'
+                                                        : 'border-border bg-background text-foreground hover:border-primary/45 hover:bg-primary/5'
+                                                        }`}
+                                                >
+                                                    <span className="truncate">{target.label}</span>
+                                                    {selected && <span className="ml-2 shrink-0 text-[10px] uppercase tracking-widest">Selected</span>}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mb-2">
+                                <span className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                    Individual Recipients
+                                </span>
+                                <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
+                                    Search by name, email, phone, role, or profile details.
+                                </p>
+                            </div>
                             <CustomMultiSelect
-                                values={targetIds}
+                                values={selectedUserTargetIds}
                                 onChange={handleTargetChange}
                                 options={targetOptions}
                                 className="w-full"
-                                placeholder="Search and select recipients..."
+                                placeholder="Search and select people..."
                                 searchable
                                 searchValue={targetSearch}
                                 onSearchChange={handleTargetSearch}
-                                searchPlaceholder="Search recipients by name, email, or role..."
+                                searchPlaceholder="Search individual recipients..."
                                 isSearching={searching}
                                 emptyMessage={
                                     targetSearch.trim().length < 2
-                                        ? 'Type at least 2 characters to search recipients.'
+                                        ? 'Type at least 2 characters to search people.'
                                         : lastTargetSearch
-                                            ? `No recipients found for "${lastTargetSearch}".`
-                                            : 'Type to search recipients.'
+                                            ? `No people found for "${lastTargetSearch}".`
+                                            : 'Type to search people.'
                                 }
                                 disabled={!token}
+                                hideSelectedValues
                             />
 
                             <div className="mt-3 max-h-36 overflow-y-auto rounded-xl border border-border/60 bg-card/50 p-2 custom-scrollbar">
@@ -498,7 +604,7 @@ export function NewMailModal({
                                                 <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                                                     {target.type === 'ROLE' ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
                                                 </div>
-                                                <div className="min-w-0">
+                                                <div className="min-w-0 flex-1">
                                                     <p className="truncate text-xs font-black text-foreground">{target.label}</p>
                                                     <p className="truncate text-[11px] font-semibold text-muted-foreground">
                                                         {target.type === 'USER'
@@ -506,6 +612,15 @@ export function NewMailModal({
                                                             : target.description || 'Recipient group'}
                                                     </p>
                                                 </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeTarget(target.id)}
+                                                    className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                                                    aria-label={`Remove ${target.label}`}
+                                                    title={`Remove ${target.label}`}
+                                                >
+                                                    <X className="h-4 w-4" aria-hidden="true" />
+                                                </button>
                                             </div>
                                         ))}
                                     </div>

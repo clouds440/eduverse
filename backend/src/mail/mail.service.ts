@@ -45,6 +45,26 @@ export interface ContactTarget {
   description?: string;
 }
 
+type NotificationMetadata = Record<string, unknown>;
+type MailIdentity = {
+  role?: Role | string | null;
+  name?: string | null;
+  email?: string | null;
+} & Record<string, unknown>;
+type TransformableMailMessage = {
+  sender?: MailIdentity | null;
+} & Record<string, unknown>;
+type TransformableMailActionLog = {
+  performer?: MailIdentity | null;
+} & Record<string, unknown>;
+type TransformableMail = {
+  creator?: MailIdentity | null;
+  assignee?: MailIdentity | null;
+  assignees?: MailIdentity[] | null;
+  messages?: TransformableMailMessage[] | null;
+  actionLogs?: TransformableMailActionLog[] | null;
+} & Record<string, unknown>;
+
 import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
@@ -977,6 +997,7 @@ export class MailService {
 
     const fullMail = await this.getMailByIdInternal(mailId);
     const transformed = this.transformMail(fullMail, user.role as Role);
+    if (!transformed) throw new NotFoundException('Mail not found');
 
     // --- Persistent Notifications for Replies ---
     const bodyContent = `${user.name || user.email} replied to mail "${mail.subject}".`;
@@ -1009,19 +1030,29 @@ export class MailService {
     search?: string,
   ): Promise<ContactTarget[]> {
     const role = user.role as Role;
+    const searchQuery = search?.trim();
+    const includeRoleTargets = !searchQuery;
+    const searchRole = searchQuery && (Object.values(Role) as string[]).includes(searchQuery.toUpperCase())
+      ? (searchQuery.toUpperCase() as Role)
+      : undefined;
 
     const targets: ContactTarget[] = [];
 
-    const searchFilter: Prisma.UserWhereInput = search
+    const searchFilter: Prisma.UserWhereInput = searchQuery
       ? {
           OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
+            { name: { contains: searchQuery, mode: 'insensitive' } },
+            { email: { contains: searchQuery, mode: 'insensitive' } },
+            { phone: { contains: searchQuery, mode: 'insensitive' } },
+            ...(searchRole ? [{ role: { equals: searchRole } }] : []),
             {
               teacherProfile: {
-                is: { designation: { contains: search, mode: 'insensitive' } },
+                is: { designation: { contains: searchQuery, mode: 'insensitive' } },
               },
             },
+            { studentProfile: { is: { registrationNumber: { contains: searchQuery, mode: 'insensitive' } } } },
+            { studentProfile: { is: { rollNumber: { contains: searchQuery, mode: 'insensitive' } } } },
+            { guardianProfile: { is: { phone: { contains: searchQuery, mode: 'insensitive' } } } },
           ],
         }
       : {};
@@ -1038,7 +1069,8 @@ export class MailService {
           avatarUrl: true,
           teacherProfile: { select: { designation: true } },
         },
-        take: 15,
+        orderBy: [{ name: 'asc' }, { email: 'asc' }],
+        take: 20,
       });
       users.forEach((u) => {
         const profile = u.teacherProfile as { designation?: string } | null;
@@ -1066,71 +1098,79 @@ export class MailService {
 
     if (organizationStatus !== OrgStatus.APPROVED) {
       // Suspended/Rejected/Pending orgs can ONLY see platform administrative team
-      targets.push({
-        id: `ROLE:${Role.PLATFORM_ADMIN}`,
-        label: 'Platform Administrative Team',
-        type: 'ROLE',
-        role: Role.PLATFORM_ADMIN,
-      });
+      if (includeRoleTargets) {
+        targets.push({
+          id: `ROLE:${Role.PLATFORM_ADMIN}`,
+          label: 'Platform Administrative Team',
+          type: 'ROLE',
+          role: Role.PLATFORM_ADMIN,
+        });
+      }
       return targets;
     }
 
     if (role === Role.SUPER_ADMIN) {
       // Super Admin -> All/Single Platform Admin, All/Single Org Admin
-      targets.push({
-        id: `ROLE:${Role.PLATFORM_ADMIN}`,
-        label: 'All Platform Admins',
-        type: 'ROLE',
-        role: Role.PLATFORM_ADMIN,
-      });
-      targets.push({
-        id: `ROLE:${Role.ORG_ADMIN}`,
-        label: 'All Org Admins',
-        type: 'ROLE',
-        role: Role.ORG_ADMIN,
-      });
+      if (includeRoleTargets) {
+        targets.push({
+          id: `ROLE:${Role.PLATFORM_ADMIN}`,
+          label: 'All Platform Admins',
+          type: 'ROLE',
+          role: Role.PLATFORM_ADMIN,
+        });
+        targets.push({
+          id: `ROLE:${Role.ORG_ADMIN}`,
+          label: 'All Org Admins',
+          type: 'ROLE',
+          role: Role.ORG_ADMIN,
+        });
+      }
       await addUsers({ role: { in: [Role.PLATFORM_ADMIN, Role.ORG_ADMIN] } });
     } else if (role === Role.PLATFORM_ADMIN) {
       // Platform Admin -> Super Admin, All/Single Org Admin
-      targets.push({
-        id: `ROLE:${Role.ORG_ADMIN}`,
-        label: 'All Org Admins',
-        type: 'ROLE',
-        role: Role.ORG_ADMIN,
-      });
+      if (includeRoleTargets) {
+        targets.push({
+          id: `ROLE:${Role.ORG_ADMIN}`,
+          label: 'All Org Admins',
+          type: 'ROLE',
+          role: Role.ORG_ADMIN,
+        });
+      }
       await addUsers({ role: { in: [Role.SUPER_ADMIN, Role.ORG_ADMIN] } });
     } else if (role === Role.ORG_ADMIN || role === Role.SUB_ADMIN) {
       // Org Admin/Sub Admin -> operational org contacts plus platform support.
-      targets.push({
-        id: `ROLE:${Role.PLATFORM_ADMIN}`,
-        label: 'Platform Administrative Team',
-        type: 'ROLE',
-        role: Role.PLATFORM_ADMIN,
-      });
-      targets.push({
-        id: `ROLE:${Role.TEACHER}`,
-        label: 'All Teachers',
-        type: 'ROLE',
-        role: Role.TEACHER,
-      });
-      targets.push({
-        id: `ROLE:${Role.ORG_MANAGER}`,
-        label: 'All Org Managers',
-        type: 'ROLE',
-        role: Role.ORG_MANAGER,
-      });
-      targets.push({
-        id: `ROLE:${Role.FINANCE_MANAGER}`,
-        label: 'All Finance Managers',
-        type: 'ROLE',
-        role: Role.FINANCE_MANAGER,
-      });
-      targets.push({
-        id: `ROLE:ORG_STAFF`,
-        label: 'All Employees (Teachers & Managers)',
-        type: 'ROLE',
-        role: 'ORG_STAFF',
-      });
+      if (includeRoleTargets) {
+        targets.push({
+          id: `ROLE:${Role.PLATFORM_ADMIN}`,
+          label: 'Platform Administrative Team',
+          type: 'ROLE',
+          role: Role.PLATFORM_ADMIN,
+        });
+        targets.push({
+          id: `ROLE:${Role.TEACHER}`,
+          label: 'All Teachers',
+          type: 'ROLE',
+          role: Role.TEACHER,
+        });
+        targets.push({
+          id: `ROLE:${Role.ORG_MANAGER}`,
+          label: 'All Org Managers',
+          type: 'ROLE',
+          role: Role.ORG_MANAGER,
+        });
+        targets.push({
+          id: `ROLE:${Role.FINANCE_MANAGER}`,
+          label: 'All Finance Managers',
+          type: 'ROLE',
+          role: Role.FINANCE_MANAGER,
+        });
+        targets.push({
+          id: `ROLE:ORG_STAFF`,
+          label: 'All Employees (Teachers & Managers)',
+          type: 'ROLE',
+          role: 'ORG_STAFF',
+        });
+      }
 
       await addUsers({
         organizationId: user.organizationId,
@@ -1163,12 +1203,14 @@ export class MailService {
         role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.STUDENT, Role.GUARDIAN] },
       });
     } else if (role === Role.GUARDIAN) {
-      targets.push({
-        id: `ROLE:${Role.PLATFORM_ADMIN}`,
-        label: 'Platform Administrative Team',
-        type: 'ROLE',
-        role: Role.PLATFORM_ADMIN,
-      });
+      if (includeRoleTargets) {
+        targets.push({
+          id: `ROLE:${Role.PLATFORM_ADMIN}`,
+          label: 'Platform Administrative Team',
+          type: 'ROLE',
+          role: Role.PLATFORM_ADMIN,
+        });
+      }
       await addUsers({
         organizationId: user.organizationId,
         role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER] },
@@ -1327,7 +1369,7 @@ export class MailService {
       targetRole?: string | null;
       organizationId?: string | null;
     },
-    notification: { title: string; body: string; type: string; metadata?: any },
+    notification: { title: string; body: string; type: string; metadata?: NotificationMetadata },
     senderId: string,
     forceTargetIds?: string[],
   ) {
@@ -1396,7 +1438,7 @@ export class MailService {
   /**
    * Anonymizes Super Admin / Platform Admin sender info for non-admin viewers.
    */
-  private anonymizeUser(user: any, viewerRole: Role) {
+  private anonymizeUser<T extends MailIdentity | null | undefined>(user: T, viewerRole: Role): T {
     if (!user) return user;
     const isAdminSender =
       user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN;
@@ -1408,7 +1450,7 @@ export class MailService {
         name: 'EduVerse Team',
         email:
           user.role === Role.SUPER_ADMIN ? 'System Admin' : 'Platform Admin',
-      };
+      } as T;
     }
     return user;
   }
@@ -1416,7 +1458,7 @@ export class MailService {
   /**
    * Transforms a mail object by anonymizing administrative identities if the viewer is a non-admin.
    */
-  private transformMail(mail: any, viewerRole: Role) {
+  private transformMail<T extends TransformableMail | null | undefined>(mail: T, viewerRole: Role): T {
     if (!mail) return mail;
 
     const anonymized = {
@@ -1434,6 +1476,6 @@ export class MailService {
       })),
     };
 
-    return anonymized;
+    return anonymized as T;
   }
 }
