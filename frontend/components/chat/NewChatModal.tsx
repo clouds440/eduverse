@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef, useId } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { invalidateChats } from '@/lib/chatStore';
@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/Label';
 import { CustomSelect, type DropdownOption } from '@/components/ui/CustomSelect';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { Badge } from '@/components/ui/Badge';
-import { Users, Shield, User as UserIcon, ChevronLeft, MessageSquarePlus } from 'lucide-react';
+import { Users, Shield, User as UserIcon, ChevronLeft, MessageSquarePlus, X } from 'lucide-react';
 import { useGlobal } from '@/context/GlobalContext';
 import { ChatSearchUser, Role } from '@/types';
 import { formatCourseSectionLabel } from '@/lib/utils';
@@ -35,6 +35,28 @@ type ChatUserOption = DropdownOption<string> & {
     user: ChatSearchUser;
 };
 
+type ChatPresetKey =
+    | 'PLATFORM_ADMINS'
+    | 'ALL_TEACHERS'
+    | 'ALL_MANAGERS'
+    | 'ALL_SUB_ADMINS'
+    | 'ALL_FINANCE_MANAGERS'
+    | 'ALL_GUARDIANS'
+    | 'GUARDIANS_BY_COHORT'
+    | 'ALL_STUDENTS'
+    | 'STUDENTS_BY_COHORT'
+    | 'STUDENTS_BY_DEPARTMENT'
+    | 'TEACHERS_BY_DEPARTMENT';
+
+type ChatPresetRequirement = 'cohort' | 'department';
+
+interface ChatPreset {
+    key: ChatPresetKey;
+    label: string;
+    groupName: string;
+    requirement?: ChatPresetRequirement;
+}
+
 interface Props {
     isOpen: boolean;
     onClose: () => void;
@@ -47,13 +69,11 @@ interface Props {
 export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', chatId, existingParticipantIds = STABLE_EMPTY_ARRAY }: Props) {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
+    const formId = useId();
     const canCreateGroups = !!user &&
         user.role !== Role.STUDENT &&
         user?.role !== Role.GUARDIAN &&
         user?.role !== Role.FINANCE_MANAGER;
-    const canUseOrgWidePresets =
-        user?.role === Role.ORG_ADMIN ||
-        user?.role === Role.SUB_ADMIN;
 
     const [type, setType] = useState<'DIRECT' | 'GROUP'>(mode === 'ADD_PARTICIPANTS' ? 'GROUP' : 'DIRECT');
     const [recipientId, setRecipientId] = useState('');
@@ -72,6 +92,67 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
     const [sections, setSections] = useState<{ value: string; label: string }[]>([]);
     const [selectedSectionId, setSelectedSectionId] = useState('');
     const [isApplyingPreset, setIsApplyingPreset] = useState(false);
+    const [cohortOptions, setCohortOptions] = useState<DropdownOption<string>[]>([]);
+    const [departmentOptions, setDepartmentOptions] = useState<DropdownOption<string>[]>([]);
+    const [selectedPresetCohortId, setSelectedPresetCohortId] = useState('');
+    const [selectedPresetDepartmentId, setSelectedPresetDepartmentId] = useState('');
+
+    const visiblePresets = useMemo<ChatPreset[]>(() => {
+        if (!user || mode !== 'CREATE') return [];
+
+        if (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN) {
+            return [{ key: 'PLATFORM_ADMINS', label: 'Platform Admins', groupName: 'Platform Admins' }];
+        }
+
+        if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
+            return [
+                { key: 'ALL_TEACHERS', label: 'All Teachers', groupName: 'All Teachers' },
+                { key: 'ALL_STUDENTS', label: 'All Students', groupName: 'All Students' },
+                { key: 'ALL_MANAGERS', label: 'All Managers', groupName: 'All Managers' },
+                { key: 'ALL_SUB_ADMINS', label: 'All Sub Admins', groupName: 'All Sub Admins' },
+                { key: 'ALL_FINANCE_MANAGERS', label: 'All Finance Managers', groupName: 'All Finance Managers' },
+                { key: 'ALL_GUARDIANS', label: 'All Guardians', groupName: 'All Guardians' },
+                { key: 'STUDENTS_BY_COHORT', label: 'Students by Cohort', groupName: 'Cohort Students', requirement: 'cohort' },
+                { key: 'GUARDIANS_BY_COHORT', label: 'Guardians by Cohort', groupName: 'Cohort Guardians', requirement: 'cohort' },
+                { key: 'TEACHERS_BY_DEPARTMENT', label: 'Teachers by Department', groupName: 'Department Teachers', requirement: 'department' },
+                { key: 'STUDENTS_BY_DEPARTMENT', label: 'Students by Department', groupName: 'Department Students', requirement: 'department' },
+            ];
+        }
+
+        if (user.role === Role.ORG_MANAGER) {
+            return [
+                { key: 'ALL_TEACHERS', label: 'All Assigned Teachers', groupName: 'Assigned Teachers' },
+                { key: 'ALL_STUDENTS', label: 'All Assigned Students', groupName: 'Assigned Students' },
+                { key: 'STUDENTS_BY_COHORT', label: 'Students by Cohort', groupName: 'Cohort Students', requirement: 'cohort' },
+                { key: 'TEACHERS_BY_DEPARTMENT', label: 'Teachers by Department', groupName: 'Department Teachers', requirement: 'department' },
+                { key: 'STUDENTS_BY_DEPARTMENT', label: 'Students by Department', groupName: 'Department Students', requirement: 'department' },
+            ];
+        }
+
+        if (user.role === Role.TEACHER) {
+            return [
+                { key: 'ALL_STUDENTS', label: 'All Assigned Students', groupName: 'Assigned Students' },
+                { key: 'STUDENTS_BY_COHORT', label: 'Students by Cohort', groupName: 'Cohort Students', requirement: 'cohort' },
+                { key: 'STUDENTS_BY_DEPARTMENT', label: 'Students by Department', groupName: 'Department Students', requirement: 'department' },
+            ];
+        }
+
+        return [];
+    }, [mode, user]);
+
+    const needsPresetCohort = visiblePresets.some((preset) => preset.requirement === 'cohort');
+    const needsPresetDepartment = visiblePresets.some((preset) => preset.requirement === 'department');
+    const basePresets = useMemo(() => visiblePresets.filter((preset) => !preset.requirement), [visiblePresets]);
+    const cohortPresets = useMemo(() => visiblePresets.filter((preset) => preset.requirement === 'cohort'), [visiblePresets]);
+    const departmentPresets = useMemo(() => visiblePresets.filter((preset) => preset.requirement === 'department'), [visiblePresets]);
+    const selectedPresetCohortLabel = useMemo(
+        () => cohortOptions.find((option) => option.value === selectedPresetCohortId)?.label,
+        [cohortOptions, selectedPresetCohortId],
+    );
+    const selectedPresetDepartmentLabel = useMemo(
+        () => departmentOptions.find((option) => option.value === selectedPresetDepartmentId)?.label,
+        [departmentOptions, selectedPresetDepartmentId],
+    );
 
     useEffect(() => {
         if (mode === 'CREATE' && !canCreateGroups && type === 'GROUP') {
@@ -148,6 +229,50 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
         };
         fetchSections();
     }, [isOpen, token, user?.role]);
+
+    useEffect(() => {
+        if (!isOpen || !token || type !== 'GROUP' || mode !== 'CREATE') return;
+
+        let cancelled = false;
+
+        const fetchPresetFilters = async () => {
+            try {
+                const [cohortsResult, departmentsResult] = await Promise.all([
+                    needsPresetCohort
+                        ? api.cohorts.getCohorts(token, { page: 1, limit: 1000, includeAllCycles: true })
+                        : Promise.resolve(null),
+                    needsPresetDepartment
+                        ? api.org.getDepartments(token, { page: 1, limit: 1000, isActive: true })
+                        : Promise.resolve(null),
+                ]);
+
+                if (cancelled) return;
+
+                if (cohortsResult) {
+                    setCohortOptions(cohortsResult.data.map((cohort) => ({
+                        value: cohort.id,
+                        label: cohort.code ? `${cohort.name} (${cohort.code})` : cohort.name,
+                    })));
+                }
+
+                if (departmentsResult) {
+                    setDepartmentOptions(departmentsResult.data.map((department) => ({
+                        value: department.id,
+                        label: department.code ? `${department.name} (${department.code})` : department.name,
+                    })));
+                }
+            } catch (err) {
+                console.error('Failed to fetch chat preset filters', err);
+                dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to load group shortcut filters', type: 'error' } });
+            }
+        };
+
+        fetchPresetFilters();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [dispatch, isOpen, mode, needsPresetCohort, needsPresetDepartment, token, type]);
 
     const handleSectionSelect = async (sectionId: string) => {
         setSelectedSectionId(sectionId);
@@ -238,33 +363,54 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
         }
     }, [dispatch, existingParticipantIds, mode, selectedRole, toUserOption, token]);
 
-    const applyPresetGroup = async (preset: { label: string; role?: string; source?: 'TEACHERS' | 'STUDENTS' | 'MANAGERS' }) => {
+    const applyPresetGroup = async (preset: ChatPreset) => {
         if (!token) return;
+
+        const cohortId = preset.requirement === 'cohort' ? selectedPresetCohortId : undefined;
+        const departmentId = preset.requirement === 'department' ? selectedPresetDepartmentId : undefined;
+
+        if (preset.requirement === 'cohort' && !cohortId) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Choose a cohort first', type: 'info' } });
+            return;
+        }
+        if (preset.requirement === 'department' && !departmentId) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Choose a department first', type: 'info' } });
+            return;
+        }
+
         setIsApplyingPreset(true);
         try {
-            let ids: string[] = [];
+            const users = await api.chat.getPresetUsers(token, {
+                preset: preset.key,
+                cohortId,
+                departmentId,
+            });
+            const eligibleUsers = users.filter((targetUser) => {
+                if (mode === 'ADD_PARTICIPANTS' && existingParticipantIds.includes(targetUser.id)) return false;
+                return true;
+            });
+            const ids = eligibleUsers.map((targetUser) => targetUser.id);
 
-            if (preset.source === 'TEACHERS') {
-                const res = await api.org.getTeachers(token, { page: 1, limit: 1000 });
-                ids = res.data.map(t => t.user.id);
-            } else if (preset.source === 'STUDENTS') {
-                const res = await api.org.getStudents(token, { page: 1, limit: 1000 });
-                ids = res.data.map(s => s.userId || s.user?.id).filter(Boolean) as string[];
-            } else if (preset.source === 'MANAGERS') {
-                const res = await api.org.getManagers(token, { page: 1, limit: 1000 });
-                ids = res.data.map(m => m.user.id);
-            } else if (preset.role) {
-                const users = await api.chat.searchUsers(token, { search: 'admin', role: preset.role });
-                ids = users.filter(u => u.role === preset.role).map(u => u.id);
-            }
-
-            // Merge into participants
             setParticipantIds(prev => Array.from(new Set([...prev, ...ids])));
-            dispatch({ type: 'TOAST_ADD', payload: { message: `Added ${ids.length} users to the group`, type: 'success' } });
-            setGroupName(prev => prev || preset.label.replace('[GROUP] ', ''));
+            setSelectedUsersById(prev => {
+                const next = { ...prev };
+                eligibleUsers.forEach((targetUser) => {
+                    next[targetUser.id] = targetUser;
+                });
+                return next;
+            });
+            dispatch({
+                type: 'TOAST_ADD',
+                payload: {
+                    message: ids.length > 0 ? `Added ${ids.length} users to the group` : 'No users found for this shortcut',
+                    type: ids.length > 0 ? 'success' : 'info',
+                },
+            });
+            setGroupName(prev => prev || preset.groupName);
         } catch (err) {
             console.error('Failed to apply group preset', err);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to add preset members', type: 'error' } });
+            const message = err instanceof Error ? err.message : 'Failed to add preset members';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
             setIsApplyingPreset(false);
         }
@@ -275,6 +421,8 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
         setParticipantIds([]);
         setGroupName('');
         setSelectedSectionId('');
+        setSelectedPresetCohortId('');
+        setSelectedPresetDepartmentId('');
         setSelectedUsersById({});
         resetUserSearch();
     };
@@ -307,6 +455,16 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
 
     const removeParticipant = useCallback((userId: string) => {
         setParticipantIds(prev => prev.filter(id => id !== userId));
+        setSelectedUsersById(prev => {
+            const next = { ...prev };
+            delete next[userId];
+            return next;
+        });
+    }, []);
+
+    const clearParticipants = useCallback(() => {
+        setParticipantIds([]);
+        setSelectedUsersById({});
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -385,19 +543,55 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
     const selectedParticipantUsers = participantIds
         .map(id => selectedUsersById[id])
         .filter(Boolean);
+    const renderPresetButton = (preset: ChatPreset) => {
+        const disabledByRequirement =
+            (preset.requirement === 'cohort' && !selectedPresetCohortId) ||
+            (preset.requirement === 'department' && !selectedPresetDepartmentId);
+
+        return (
+            <button
+                key={preset.key}
+                type="button"
+                disabled={isApplyingPreset || disabledByRequirement}
+                onClick={() => applyPresetGroup(preset)}
+                className="flex min-h-10 w-full items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-left text-xs font-bold text-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                <span className="truncate">{preset.label}</span>
+                <ChevronLeft className="ml-2 h-3 w-3 shrink-0 rotate-180 opacity-45" />
+            </button>
+        );
+    };
 
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
             title={mode === 'ADD_PARTICIPANTS' ? "Add Participants" : "Start New Conversation"}
-            maxWidth="max-w-2xl"
+            maxWidth="max-w-5xl"
+            bodyClassName="px-3 py-3 sm:px-5 sm:py-5"
+            footer={
+                <div className="flex flex-row justify-end gap-3">
+                    <Button variant="secondary" onClick={onClose} type="button">
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        form={formId}
+                        variant="primary"
+                        icon={mode === 'ADD_PARTICIPANTS' ? Users : MessageSquarePlus}
+                        loadingId={mode === 'ADD_PARTICIPANTS' ? 'chat-add-participants' : 'chat-create'}
+                        className="px-8 shadow-lg shadow-primary/20 sm:px-10"
+                    >
+                        {mode === 'ADD_PARTICIPANTS' ? 'Add' : 'Create Chat'}
+                    </Button>
+                </div>
+            }
         >
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form id={formId} onSubmit={handleSubmit} className="space-y-5">
                 {mode === 'CREATE' && (
-                    <div className="bg-card -mx-6 px-6 py-4 border-b border-border">
-                        <Label className="text-[10px] font-black tracking-widest text-primary/70 mb-3 block">Conversation Type</Label>
-                        <div className={`grid grid-cols-1 ${canCreateGroups ? 'sm:grid-cols-2' : ''} gap-3 sm:gap-4`}>
+                    <div className="rounded-lg border border-border bg-card/60 p-3 sm:p-4">
+                        <Label className="mb-3 block text-[10px] font-black uppercase tracking-widest text-primary/70">Conversation Type</Label>
+                        <div className={`grid grid-cols-1 ${canCreateGroups ? 'sm:grid-cols-2' : ''} gap-2 sm:gap-3`}>
                             <button
                                 type="button"
                                 onClick={() => setType('DIRECT')}
@@ -436,59 +630,100 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                    <div className={`${type === 'GROUP' && mode === 'CREATE' ? 'md:col-span-5' : 'md:col-span-12'} space-y-6`}>
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+                    <div className={`${type === 'GROUP' && mode === 'CREATE' ? 'lg:col-span-5' : 'lg:col-span-12'} space-y-5`}>
                         {type === 'GROUP' && mode === 'CREATE' && (
-                            <div className="animate-in fade-in slide-in-from-left duration-300">
-                                <Label className="text-xs font-bold text-foreground mb-1.5 block">Group Details</Label>
-                                <Input
-                                    required
-                                    value={groupName}
-                                    onChange={e => setGroupName(e.target.value)}
-                                    placeholder={user?.role === Role.PLATFORM_ADMIN || user?.role === Role.SUPER_ADMIN ? "e.g. Platform Announcement" : "e.g. Study Group"}
-                                    icon={Users}
-                                    className="h-12"
-                                />
+                            <div className="space-y-4 animate-in fade-in slide-in-from-left duration-300">
+                                <section className="rounded-lg border border-border bg-card/60 p-3 sm:p-4">
+                                    <Label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-muted-foreground">Group Name</Label>
+                                    <Input
+                                        required
+                                        value={groupName}
+                                        onChange={e => setGroupName(e.target.value)}
+                                        placeholder={user?.role === Role.PLATFORM_ADMIN || user?.role === Role.SUPER_ADMIN ? "e.g. Platform Announcement" : "e.g. Study Group"}
+                                        icon={Users}
+                                        className="h-11"
+                                    />
+                                </section>
 
-                                {/* Quick group presets */}
-                                <div className="mt-4 pt-4 border-t border-border">
-                                    <Label className="text-[10px] font-black text-foreground mb-3 block">Quick Templates</Label>
-                                    <div className="flex flex-col gap-2">
-                                        {canUseOrgWidePresets && (
-                                            <>
-                                                <button type="button" disabled={isApplyingPreset} onClick={() => applyPresetGroup({ label: '[GROUP] All Teachers', source: 'TEACHERS' })} className="px-4 py-2 bg-accent border border-border hover:border-primary hover:bg-primary/5 rounded-lg text-[12px] font-bold text-foreground transition-all text-left flex items-center justify-between group">
-                                                    <span>All Teachers</span>
-                                                    <ChevronLeft className="w-3 h-3 opacity-0 group-hover:opacity-40 rotate-180" />
-                                                </button>
-                                                <button type="button" disabled={isApplyingPreset} onClick={() => applyPresetGroup({ label: '[GROUP] All Students', source: 'STUDENTS' })} className="px-4 py-2 bg-accent border border-border hover:border-primary hover:bg-primary/5 rounded-lg text-[12px] font-bold text-foreground transition-all text-left flex items-center justify-between group">
-                                                    <span>All Students</span>
-                                                    <ChevronLeft className="w-3 h-3 opacity-0 group-hover:opacity-40 rotate-180" />
-                                                </button>
-                                                {(user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN) && (
-                                                    <button type="button" disabled={isApplyingPreset} onClick={() => applyPresetGroup({ label: '[GROUP] All Managers', source: 'MANAGERS' })} className="px-4 py-2 bg-accent border border-border hover:border-primary hover:bg-primary/5 rounded-lg text-[12px] font-bold text-foreground transition-all text-left flex items-center justify-between group">
-                                                        <span>All Managers</span>
-                                                        <ChevronLeft className="w-3 h-3 opacity-0 group-hover:opacity-40 rotate-180" />
-                                                    </button>
-                                                )}
-                                            </>
+                                {visiblePresets.length > 0 && (
+                                    <section className="space-y-3 rounded-lg border border-border bg-card/60 p-3 sm:p-4">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <Label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground">Shortcuts</Label>
+                                            {isApplyingPreset && <span className="text-[10px] font-bold text-primary">Adding...</span>}
+                                        </div>
+
+                                        {basePresets.length > 0 && (
+                                            <div className="grid gap-2 sm:grid-cols-2">
+                                                {basePresets.map(renderPresetButton)}
+                                            </div>
                                         )}
-                                        {(user?.role === Role.PLATFORM_ADMIN || user?.role === Role.SUPER_ADMIN) && (
-                                            <button type="button" disabled={isApplyingPreset} onClick={() => applyPresetGroup({ label: '[GROUP] Platform Admins', role: Role.PLATFORM_ADMIN })} className="px-4 py-2 bg-accent border border-border hover:border-primary hover:bg-primary/5 rounded-lg text-[12px] font-bold text-foreground transition-all text-left flex items-center justify-between group">
-                                                <span>Platform Admins</span>
-                                                <ChevronLeft className="w-3 h-3 opacity-0 group-hover:opacity-40 rotate-180" />
-                                            </button>
+
+                                        {cohortPresets.length > 0 && (
+                                            <div className="space-y-2 rounded-lg border border-border/70 bg-background/45 p-3">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cohort</Label>
+                                                    {selectedPresetCohortLabel && (
+                                                        <span className="max-w-40 truncate text-[10px] font-bold text-primary">{selectedPresetCohortLabel}</span>
+                                                    )}
+                                                </div>
+                                                <CustomSelect
+                                                    options={cohortOptions}
+                                                    value={selectedPresetCohortId}
+                                                    onChange={setSelectedPresetCohortId}
+                                                    placeholder="Choose cohort..."
+                                                    icon={Users}
+                                                    searchable
+                                                    clearable
+                                                    clearLabel="Clear cohort"
+                                                    disabled={cohortOptions.length === 0}
+                                                />
+                                                <div className="grid gap-2 sm:grid-cols-2">
+                                                    {cohortPresets.map(renderPresetButton)}
+                                                </div>
+                                            </div>
                                         )}
-                                    </div>
-                                </div>
+
+                                        {departmentPresets.length > 0 && (
+                                            <div className="space-y-2 rounded-lg border border-border/70 bg-background/45 p-3">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Department</Label>
+                                                    {selectedPresetDepartmentLabel && (
+                                                        <span className="max-w-40 truncate text-[10px] font-bold text-primary">{selectedPresetDepartmentLabel}</span>
+                                                    )}
+                                                </div>
+                                                <CustomSelect
+                                                    options={departmentOptions}
+                                                    value={selectedPresetDepartmentId}
+                                                    onChange={setSelectedPresetDepartmentId}
+                                                    placeholder="Choose department..."
+                                                    icon={Users}
+                                                    searchable
+                                                    clearable
+                                                    clearLabel="Clear department"
+                                                    disabled={departmentOptions.length === 0}
+                                                />
+                                                <div className="grid gap-2 sm:grid-cols-2">
+                                                    {departmentPresets.map(renderPresetButton)}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </section>
+                                )}
                             </div>
                         )}
                     </div>
 
-                    <div className={`${type === 'GROUP' && mode === 'CREATE' ? 'md:col-span-7' : 'md:col-span-12'} space-y-6`}>
-                        <div>
-                            <Label className="text-xs font-bold text-foreground mb-1.5 block">
-                                {type === 'DIRECT' ? 'Select Contact' : 'Invite Participants'}
-                            </Label>
+                    <div className={`${type === 'GROUP' && mode === 'CREATE' ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-5`}>
+                        <section className="rounded-lg border border-border bg-card/60 p-3 sm:p-4">
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                <Label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                    {type === 'DIRECT' ? 'Contact' : 'Participants'}
+                                </Label>
+                                {type === 'GROUP' && (
+                                    <Badge variant="primary" size="sm">{participantIds.length}</Badge>
+                                )}
+                            </div>
 
                             {type === 'GROUP' && user?.role === Role.TEACHER && sections.length > 0 && (
                                 <div className="mb-4 p-3 bg-primary/5 rounded-xl border border-primary/10">
@@ -507,6 +742,14 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                             )}
 
                             <div className="min-h-30 space-y-3">
+                                <div>
+                                    <Label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                        {type === 'DIRECT' ? 'Select Individual Contact' : 'Add Individual Participant'}
+                                    </Label>
+                                    <p className="text-[11px] font-semibold text-muted-foreground">
+                                        Choose a role, then search for one person to add.
+                                    </p>
+                                </div>
                                 <CustomSelect
                                     value={selectedRole}
                                     onChange={handleRoleChange}
@@ -548,13 +791,23 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                                             searchPlaceholder={contactSearchPlaceholder}
                                             isSearching={isFetchingUsers}
                                             emptyMessage={contactEmptyMessage}
+                                            hideSelectedValues
                                         />
-                                        {participantIds.length > 0 && (
-                                            <div className="rounded-xl border border-border bg-card/60 p-3">
-                                                <div className="mb-2 flex items-center justify-between">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Selected Participants</span>
-                                                    <Badge variant="primary" size="sm">{participantIds.length}</Badge>
-                                                </div>
+                                        <div className="rounded-xl border border-border bg-background/55 p-3">
+                                            <div className="mb-2 flex items-center justify-between gap-3">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Selected</span>
+                                                {participantIds.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={clearParticipants}
+                                                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                                                    >
+                                                        <X className="h-3 w-3" aria-hidden="true" />
+                                                        Clear
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {participantIds.length > 0 ? (
                                                 <div className="flex flex-wrap gap-2">
                                                     {selectedParticipantUsers.map((participant) => (
                                                         <button
@@ -573,8 +826,12 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                                                         </span>
                                                     )}
                                                 </div>
-                                            </div>
-                                        )}
+                                            ) : (
+                                                <p className="rounded-lg border border-dashed border-border/70 px-3 py-4 text-center text-xs font-semibold text-muted-foreground">
+                                                    No participants selected.
+                                                </p>
+                                            )}
+                                        </div>
                                     </>
                                 )}
                             </div>
@@ -585,18 +842,10 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
                                         ? "Direct messages are end-to-end between you and the recipient."
                                         : "Group participants can be managed later by the creator."}
                             </div>
-                        </div>
+                        </section>
                     </div>
                 </div>
 
-                <div className="flex justify-end space-x-4 pt-6 border-t border-border -mx-6 px-6 pb-2">
-                    <Button variant="secondary" onClick={onClose} type="button">
-                        Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" icon={mode === 'ADD_PARTICIPANTS' ? Users : MessageSquarePlus} loadingId={mode === 'ADD_PARTICIPANTS' ? 'chat-add-participants' : 'chat-create'} className="px-10 shadow-lg shadow-primary/20">
-                        {mode === 'ADD_PARTICIPANTS' ? 'Add' : 'Create Chat'}
-                    </Button>
-                </div>
             </form>
         </Modal>
     );

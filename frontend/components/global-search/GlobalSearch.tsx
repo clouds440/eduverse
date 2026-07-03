@@ -60,6 +60,11 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
         setActiveIndex(0);
     }, []);
 
+    const handleSearchClear = useCallback(() => {
+        setIsOpen(false);
+        setActiveIndex(0);
+    }, []);
+
     useEffect(() => {
         if (!isOpen || !visibleResults.length) return;
         const activeItem = resultRefs.current[activeIndex];
@@ -136,6 +141,7 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
                 size="compact"
                 appearance="nav"
                 expandedClassName="w-[min(16rem,calc(100vw-12rem))] sm:w-80"
+                onClear={handleSearchClear}
             />
 
             {isOpen && (

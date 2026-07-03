@@ -20,6 +20,7 @@ interface NewMailModalProps {
     onClose: () => void;
     onSuccess?: () => void;
     initialTargetId?: string;
+    initialTarget?: MailTarget;
     initialSubject?: string;
 }
 
@@ -165,11 +166,20 @@ function resolveTargetSelection(incomingIds: string[], previousIds: string[], ta
     return { finalIds, feedback };
 }
 
+function mergeMailTargets(currentTargets: MailTarget[], incomingTargets: MailTarget[]) {
+    const targetMap = new Map(currentTargets.map((target) => [target.id, target]));
+    for (const target of incomingTargets) {
+        targetMap.set(target.id, target);
+    }
+    return Array.from(targetMap.values());
+}
+
 export function NewMailModal({
     isOpen,
     onClose,
     onSuccess,
     initialTargetId,
+    initialTarget,
     initialSubject,
 }: NewMailModalProps) {
     const { token, user } = useAuth();
@@ -180,6 +190,8 @@ export function NewMailModal({
     const [message, setMessage] = useState('');
     const [targetIds, setTargetIds] = useState<string[]>([]);
     const [targets, setTargets] = useState<MailTarget[]>([]);
+    const [targetSearch, setTargetSearch] = useState('');
+    const [lastTargetSearch, setLastTargetSearch] = useState('');
     const [searching, setSearching] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [noReply, setNoReply] = useState(false);
@@ -187,6 +199,7 @@ export function NewMailModal({
     const [error, setError] = useState('');
     const [info, setInfo] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const targetSearchRequestIdRef = useRef(0);
 
     const targetMap = useMemo(() => new Map(targets.map((target) => [target.id, target])), [targets]);
     const selectedTargets = useMemo(
@@ -231,43 +244,31 @@ export function NewMailModal({
     const templateOptions = useMemo(() => isPlatformAdmin ? ADMIN_TEMPLATE_OPTIONS : [], [isPlatformAdmin]);
 
     useEffect(() => {
-        if (!isOpen || !token) return;
+        if (!isOpen) return;
 
-        let cancelled = false;
-        setSearching(true);
+        targetSearchRequestIdRef.current += 1;
+        const initialTargets = initialTarget ? [initialTarget] : [];
+        const initialIds = initialTargetId && initialTargets.some((target) => target.id === initialTargetId)
+            ? [initialTargetId]
+            : [];
+        const { finalIds, feedback } = resolveTargetSelection(initialIds, [], initialTargets);
+        const nextTargets = finalIds
+            .map((id) => initialTargets.find((target) => target.id === id))
+            .filter(Boolean) as MailTarget[];
+        const nextCategories = getCategoriesForContext(user?.role as Role | undefined, nextTargets.map((target) => target.role || ''));
 
-        api.mail.getContactableUsers(token)
-            .then((data) => {
-                if (cancelled) return;
-
-                setTargets(data);
-                if (initialTargetId) {
-                    const { finalIds, feedback } = resolveTargetSelection([initialTargetId], [], data);
-                    setTargetIds(finalIds);
-                    setInfo(feedback);
-
-                    const nextTargets = finalIds
-                        .map((id) => data.find((target) => target.id === id))
-                        .filter(Boolean) as MailTarget[];
-                    const nextCategories = getCategoriesForContext(user?.role as Role | undefined, nextTargets.map((target) => target.role || ''));
-                    setCategory((current) => nextCategories.some((item) => item.value === current)
-                        ? current
-                        : nextCategories[0]?.value || MailCategory.GENERAL_INQUIRY);
-                }
-                if (initialSubject) setSubject(initialSubject);
-            })
-            .catch((err) => {
-                console.error(err);
-                if (!cancelled) setError('Unable to load recipients.');
-            })
-            .finally(() => {
-                if (!cancelled) setSearching(false);
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [initialSubject, initialTargetId, isOpen, token, user?.role]);
+        setTargets(initialTargets);
+        setTargetIds(finalIds);
+        setTargetSearch('');
+        setLastTargetSearch('');
+        setSearching(false);
+        setError('');
+        setInfo(feedback);
+        setCategory((current) => nextCategories.length === 0 || nextCategories.some((item) => item.value === current)
+            ? current
+            : nextCategories[0]?.value || MailCategory.GENERAL_INQUIRY);
+        if (initialSubject) setSubject(initialSubject);
+    }, [initialSubject, initialTarget, initialTargetId, isOpen, user?.role]);
 
     useEffect(() => {
         if (!error && !info) return;
@@ -292,6 +293,36 @@ export function NewMailModal({
             ? current
             : nextCategories[0]?.value || MailCategory.GENERAL_INQUIRY);
     }, [targetIds, targetMap, targets, user?.role]);
+
+    const handleTargetSearch = useCallback((nextSearch: string) => {
+        setTargetSearch(nextSearch);
+        const search = nextSearch.trim();
+        targetSearchRequestIdRef.current += 1;
+        const requestId = targetSearchRequestIdRef.current;
+
+        if (!token || search.length < 2) {
+            setSearching(false);
+            setLastTargetSearch('');
+            return;
+        }
+
+        setSearching(true);
+        setLastTargetSearch(search);
+        api.mail.getContactableUsers(token, search)
+            .then((data) => {
+                if (targetSearchRequestIdRef.current !== requestId) return;
+                setTargets((currentTargets) => mergeMailTargets(currentTargets, data));
+                setError('');
+            })
+            .catch((err) => {
+                if (targetSearchRequestIdRef.current !== requestId) return;
+                console.error(err);
+                setError('Unable to search recipients.');
+            })
+            .finally(() => {
+                if (targetSearchRequestIdRef.current === requestId) setSearching(false);
+            });
+    }, [token]);
 
     const handleCategoryChange = useCallback((value: string) => {
         setCategory(value);
@@ -368,6 +399,8 @@ export function NewMailModal({
             setPriority('NORMAL');
             setMessage('');
             setTargetIds([]);
+            setTargetSearch('');
+            setLastTargetSearch('');
             setSelectedFiles([]);
             setNoReply(false);
             onSuccess?.();
@@ -391,6 +424,9 @@ export function NewMailModal({
             loadingId="new-mail-submit"
             maxWidth="max-w-6xl"
             bodyClassName="px-4 py-4 sm:px-5 md:px-6 md:py-5"
+            footerClassName="flex-row"
+            cancelButtonClassName="flex-1 sm:flex-none"
+            submitButtonClassName="flex-1 sm:flex-none"
             feedback={
                 error ? (
                     <div className="flex items-start gap-3 rounded-xl border border-danger/20 bg-danger/10 p-3 text-danger">
@@ -438,8 +474,20 @@ export function NewMailModal({
                                 onChange={handleTargetChange}
                                 options={targetOptions}
                                 className="w-full"
-                                placeholder={searching ? 'Loading recipients...' : 'Select recipients...'}
-                                disabled={searching}
+                                placeholder="Search and select recipients..."
+                                searchable
+                                searchValue={targetSearch}
+                                onSearchChange={handleTargetSearch}
+                                searchPlaceholder="Search recipients by name, email, or role..."
+                                isSearching={searching}
+                                emptyMessage={
+                                    targetSearch.trim().length < 2
+                                        ? 'Type at least 2 characters to search recipients.'
+                                        : lastTargetSearch
+                                            ? `No recipients found for "${lastTargetSearch}".`
+                                            : 'Type to search recipients.'
+                                }
+                                disabled={!token}
                             />
 
                             <div className="mt-3 max-h-36 overflow-y-auto rounded-xl border border-border/60 bg-card/50 p-2 custom-scrollbar">

@@ -799,6 +799,8 @@ export const api = {
     chat: {
         searchUsers: (token: string, params: { search?: string, role?: string } = {}) =>
             request<ChatSearchUser[]>(`/chat/users${buildQueryString(params)}`, { token }),
+        getPresetUsers: (token: string, params: { preset: string, cohortId?: string, departmentId?: string }) =>
+            request<ChatSearchUser[]>(`/chat/preset-users${buildQueryString(params)}`, { token }),
         createDirectChat: (participantId: string, token: string) =>
             request<Chat>('/chat/direct', { method: 'POST', body: JSON.stringify({ participantId }), token }),
         createGroupChat: (name: string, participantIds: string[], token: string) =>

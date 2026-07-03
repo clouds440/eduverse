@@ -42,6 +42,7 @@ export interface CustomMultiSelectProps {
     searchPlaceholder?: string;
     isSearching?: boolean;
     emptyMessage?: string;
+    hideSelectedValues?: boolean;
 }
 
 function CustomMultiSelectComponent({
@@ -59,6 +60,7 @@ function CustomMultiSelectComponent({
     searchPlaceholder,
     isSearching = false,
     emptyMessage,
+    hideSelectedValues = false,
 }: CustomMultiSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -273,7 +275,9 @@ function CustomMultiSelectComponent({
                 )}
 
                 <div className="flex flex-1 flex-wrap items-center gap-1.5 overflow-hidden py-0.5">
-                    {selectedOptions.length > 0 ? (
+                    {hideSelectedValues && values.length > 0 ? (
+                        <span className="text-sm font-semibold text-muted-foreground">{values.length} selected</span>
+                    ) : selectedOptions.length > 0 ? (
                         selectedOptions.map(opt => (
                             <Badge
                                 key={opt.value}
@@ -430,6 +434,7 @@ function areMultiSelectPropsEqual(
     if (prevProps.searchPlaceholder !== nextProps.searchPlaceholder) return false;
     if (prevProps.isSearching !== nextProps.isSearching) return false;
     if (prevProps.emptyMessage !== nextProps.emptyMessage) return false;
+    if (prevProps.hideSelectedValues !== nextProps.hideSelectedValues) return false;
     if (prevProps.onChange !== nextProps.onChange) return false;
 
     // Compare values array length and contents

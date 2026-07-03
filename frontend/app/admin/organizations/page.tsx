@@ -7,7 +7,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { ShieldOff, ShieldAlert, ShieldCheck, Building2, MapPin, Mail, Calendar, LucideIcon, Tag, Phone, Info, Hash, Clock, GraduationCap, BookOpen, School, Library, MonitorPlay, Pencil, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import statsStore from '@/lib/statsStore';
-import { Organization, OrgStatus } from '@/types';
+import { MailTarget, Organization, OrgStatus, Role } from '@/types';
 import { getPublicUrl } from '@/lib/utils';
 import { TableActions, AdminAction } from '@/components/ui/TableActions';
 import { ModalForm } from '@/components/ui/ModalForm';
@@ -54,6 +54,7 @@ export default function OrganizationsPage() {
 
     const [newMailOpen, setNewMailOpen] = useState(false);
     const [initialTargetId, setInitialTargetId] = useState<string | undefined>(undefined);
+    const [initialTarget, setInitialTarget] = useState<MailTarget | undefined>(undefined);
     const [initialSubject, setInitialSubject] = useState<string | undefined>(undefined);
 
     const [pageSize, setPageSize] = usePersistentPageSize('edu-admin-orgs-limit', 10);
@@ -166,6 +167,15 @@ export default function OrganizationsPage() {
 
     const handleSendMail = (org: Organization) => {
         setInitialTargetId(org.adminUserId);
+        setInitialTarget(org.adminUserId
+            ? {
+                id: org.adminUserId,
+                label: `${org.name} admin`,
+                email: org.email,
+                type: 'USER',
+                role: Role.ORG_ADMIN,
+            }
+            : undefined);
         setInitialSubject(`Inquiry regarding ${org.name}`);
         setNewMailOpen(true);
     };
@@ -618,9 +628,11 @@ export default function OrganizationsPage() {
                 onClose={() => {
                     setNewMailOpen(false);
                     setInitialTargetId(undefined);
+                    setInitialTarget(undefined);
                     setInitialSubject(undefined);
                 }}
                 initialTargetId={initialTargetId}
+                initialTarget={initialTarget}
                 initialSubject={initialSubject}
                 onSuccess={() => {
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });

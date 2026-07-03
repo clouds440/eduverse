@@ -16,6 +16,7 @@ interface SearchBarProps {
     size?: 'default' | 'compact';
     appearance?: 'field' | 'nav';
     expandedClassName?: string;
+    onClear?: () => void;
 }
 
 export function SearchBar({
@@ -30,6 +31,7 @@ export function SearchBar({
     size = 'default',
     appearance = 'field',
     expandedClassName,
+    onClear,
 }: SearchBarProps) {
     const [localValue, setLocalValue] = useState(value);
     const debouncedValue = useDebounce(localValue, delay);
@@ -37,6 +39,7 @@ export function SearchBar({
     const [isExpanded, setIsExpanded] = useState(false);
     const prevDebouncedValueRef = useRef(debouncedValue);
     const onChangeRef = useRef(onChange);
+    const onClearRef = useRef(onClear);
     const inputRef = useRef<HTMLInputElement>(null);
     const didMountPathRef = useRef(false);
     const isExpandable = mobileMode === 'expandable';
@@ -45,6 +48,7 @@ export function SearchBar({
     const isNav = appearance === 'nav';
     const heightClass = isCompact ? (isNav ? 'h-9' : 'h-10') : 'h-11';
     const collapsedWidthClass = isCompact ? (isNav ? 'w-9' : 'w-10') : 'w-11';
+    const showClearButton = isOpen && (Boolean(localValue) || (isNav && isExpandable));
     const hiddenInputClass = expandOn === 'all'
         ? 'pointer-events-none absolute inset-0 opacity-0'
         : 'pointer-events-none absolute inset-0 opacity-0 sm:pointer-events-auto sm:static sm:opacity-100';
@@ -52,6 +56,10 @@ export function SearchBar({
     useEffect(() => {
         onChangeRef.current = onChange;
     }, [onChange]);
+
+    useEffect(() => {
+        onClearRef.current = onClear;
+    }, [onClear]);
 
     useEffect(() => {
         // Keep the debounced local input synchronized with controlled route/query state.
@@ -83,7 +91,10 @@ export function SearchBar({
         setLocalValue('');
         prevDebouncedValueRef.current = '';
         onChangeRef.current('');
-        if (isExpandable) {
+        onClearRef.current?.();
+        if (isExpandable && isNav) {
+            setIsExpanded(false);
+        } else if (isExpandable) {
             inputRef.current?.focus();
         }
     };
@@ -136,7 +147,7 @@ export function SearchBar({
                     heightClass,
                     isNav
                         ? 'rounded-full bg-card/95 pl-9 pr-9'
-                        : 'rounded-md bg-input pl-10 pr-10',
+                        : 'rounded-md bg-card pl-10 pr-10',
                     isExpandable && !isOpen && hiddenInputClass,
                 )}
                 placeholder={placeholder}
@@ -155,15 +166,15 @@ export function SearchBar({
             )}>
                 <Search className="h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" aria-hidden="true" />
             </div>
-            {localValue && isOpen && (
+            {showClearButton && (
                 <button
                     type="button"
                     onClick={clearSearch}
                     className={cn(
-                        'absolute inset-y-0 right-0 flex items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
-                        isNav ? 'pr-3' : 'pr-3.5',
+                        'absolute inset-y-0 right-0 z-20 flex items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                        isNav ? 'w-9 rounded-r-full text-foreground' : 'w-10 rounded-r-md',
                     )}
-                    aria-label="Clear search"
+                    aria-label={localValue ? 'Clear search' : 'Close search'}
                 >
                     <X className="h-4 w-4" aria-hidden="true" />
                 </button>

@@ -11,7 +11,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { useAccess } from '@/hooks/useAccess';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { Role } from '@/types';
+import { MailTarget, Role } from '@/types';
 
 type UserCommsActionDisplay = 'table' | 'button';
 
@@ -50,6 +50,7 @@ export function UserCommsAction({
     const [choiceOpen, setChoiceOpen] = useState(false);
     const [mailOpen, setMailOpen] = useState(false);
     const [mailAllowed, setMailAllowed] = useState(mailEnabled ?? false);
+    const [initialMailTarget, setInitialMailTarget] = useState<MailTarget | null>(null);
     const [checkingMail, setCheckingMail] = useState(mailEnabled === undefined);
     const [creatingChat, setCreatingChat] = useState(false);
 
@@ -62,14 +63,23 @@ export function UserCommsAction({
         targetEmail || targetName || undefined
     ), [targetEmail, targetName]);
 
+    const fallbackMailTarget = useMemo<MailTarget>(() => ({
+        id: targetUserId,
+        label: targetName || targetEmail || 'User',
+        email: targetEmail || undefined,
+        type: 'USER',
+    }), [targetEmail, targetName, targetUserId]);
+
     useEffect(() => {
         if (mailEnabled !== undefined) {
             setMailAllowed(mailEnabled);
+            setInitialMailTarget(mailEnabled ? fallbackMailTarget : null);
             setCheckingMail(false);
             return;
         }
         if (!canRender || !token) {
             setMailAllowed(false);
+            setInitialMailTarget(null);
             setCheckingMail(false);
             return;
         }
@@ -79,10 +89,15 @@ export function UserCommsAction({
         api.mail.getContactableUsers(token, mailSearch)
             .then((targets) => {
                 if (cancelled) return;
-                setMailAllowed(targets.some((target) => target.type === 'USER' && target.id === targetUserId));
+                const matchingTarget = targets.find((target) => target.type === 'USER' && target.id === targetUserId) ?? null;
+                setMailAllowed(Boolean(matchingTarget));
+                setInitialMailTarget(matchingTarget);
             })
             .catch(() => {
-                if (!cancelled) setMailAllowed(false);
+                if (!cancelled) {
+                    setMailAllowed(false);
+                    setInitialMailTarget(null);
+                }
             })
             .finally(() => {
                 if (!cancelled) setCheckingMail(false);
@@ -91,7 +106,7 @@ export function UserCommsAction({
         return () => {
             cancelled = true;
         };
-    }, [canRender, mailEnabled, mailSearch, targetUserId, token]);
+    }, [canRender, fallbackMailTarget, mailEnabled, mailSearch, targetUserId, token]);
 
     if (!canRender) return null;
 
@@ -210,6 +225,7 @@ export function UserCommsAction({
                 isOpen={mailOpen}
                 onClose={() => setMailOpen(false)}
                 initialTargetId={targetUserId}
+                initialTarget={initialMailTarget ?? fallbackMailTarget}
                 initialSubject={subject}
                 onSuccess={() => {
                     dispatch({ type: 'TOAST_ADD', payload: { message: 'Mail sent successfully', type: 'success' } });

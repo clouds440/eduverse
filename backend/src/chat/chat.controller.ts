@@ -63,6 +63,20 @@ export class ChatController {
     }, role);
   }
 
+  @Get('preset-users')
+  async getPresetUsers(
+    @Query('preset') preset: string,
+    @Query('cohortId') cohortId: string | undefined,
+    @Query('departmentId') departmentId: string | undefined,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.getPresetUsers(preset || '', {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+    }, { cohortId, departmentId });
+  }
+
   @Post('direct')
   @Access(AccessLevel.WRITE)
   async createDirectChat(

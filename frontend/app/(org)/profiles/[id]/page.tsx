@@ -380,13 +380,14 @@ export default function PublicProfilePage() {
                 ]}
                 meta={<Badge variant="neutral" size="sm">{profileStatus(profile)}</Badge>}
                 actions={hasHeaderActions ? (
-                    <>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                         {canContactProfile && (
                             <UserCommsAction
                                 targetUserId={profile.user.id}
                                 targetName={profile.user.name}
                                 initialSubject={`Inquiry regarding ${profile.user.name || getRoleLabel(profile.user.role)}`}
                                 display="button"
+                                className="max-w-fit"
                             />
                         )}
                         {profile.canEdit && profile.editHref && (
@@ -394,7 +395,7 @@ export default function PublicProfilePage() {
                                 <Button type="button" icon={Pencil} variant="secondary">Edit Profile</Button>
                             </Link>
                         )}
-                    </>
+                    </div>
                 ) : undefined}
             />
 

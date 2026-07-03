@@ -28,6 +28,11 @@ interface CurrentUser {
   name?: string;
 }
 
+type ChatPresetFilters = {
+  cohortId?: string;
+  departmentId?: string;
+};
+
 @Injectable()
 export class ChatService {
   constructor(
@@ -39,6 +44,52 @@ export class ChatService {
 
   private isPlatformUser(role: Role) {
     return role === Role.SUPER_ADMIN || role === Role.PLATFORM_ADMIN;
+  }
+
+  private getChatUserSelect() {
+    return {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      avatarUrl: true,
+      avatarUpdatedAt: true,
+      phone: true,
+      studentProfile: {
+        select: {
+          registrationNumber: true,
+          rollNumber: true,
+        },
+      },
+      teacherProfile: {
+        select: {
+          designation: true,
+        },
+      },
+      guardianProfile: {
+        select: {
+          phone: true,
+          studentLinks: {
+            select: {
+              relationshipLabel: true,
+              student: {
+                select: {
+                  registrationNumber: true,
+                  rollNumber: true,
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+            take: 5,
+          },
+        },
+      },
+    } satisfies Prisma.UserSelect;
   }
 
   private async getAssignedStudentUserIds(userId: string, role: Role) {
@@ -80,6 +131,23 @@ export class ChatService {
       ...new Set(
         student?.enrollments.flatMap((enrollment) =>
           enrollment.section.teachers.map((teacher) => teacher.userId),
+        ) || [],
+      ),
+    ];
+  }
+
+  private async getAssignedTeacherUserIdsForManager(userId: string) {
+    const manager = await this.prisma.teacher.findUnique({
+      where: { userId },
+      include: {
+        sections: { select: { teachers: { select: { userId: true } } } },
+      },
+    });
+
+    return [
+      ...new Set(
+        manager?.sections.flatMap((section) =>
+          section.teachers.map((teacher) => teacher.userId),
         ) || [],
       ),
     ];
@@ -291,13 +359,7 @@ export class ChatService {
     if (user.role === Role.STUDENT) {
       teacherUserIds = await this.getAssignedTeacherUserIdsForStudent(user.id);
     } else if (user.role === Role.ORG_MANAGER) {
-      const manager = await this.prisma.teacher.findUnique({
-        where: { userId: user.id },
-        include: { sections: { select: { teachers: { select: { userId: true } } } } },
-      });
-      teacherUserIds = manager?.sections.flatMap((section) =>
-        section.teachers.map((teacher) => teacher.userId),
-      ) || [];
+      teacherUserIds = await this.getAssignedTeacherUserIdsForManager(user.id);
     }
 
     const baseAnd: Prisma.UserWhereInput[] = [
@@ -314,49 +376,7 @@ export class ChatService {
       ...(this.isPlatformUser(user.role) ? {} : { organizationId: user.organizationId }),
       AND: baseAnd,
     };
-    const userSelect = {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      avatarUrl: true,
-      avatarUpdatedAt: true,
-      phone: true,
-      studentProfile: {
-        select: {
-          registrationNumber: true,
-          rollNumber: true,
-        },
-      },
-      teacherProfile: {
-        select: {
-          designation: true,
-        },
-      },
-      guardianProfile: {
-        select: {
-          phone: true,
-          studentLinks: {
-            select: {
-              relationshipLabel: true,
-              student: {
-                select: {
-                  registrationNumber: true,
-                  rollNumber: true,
-                  user: {
-                    select: {
-                      id: true,
-                      name: true,
-                    },
-                  },
-                },
-              },
-            },
-            take: 5,
-          },
-        },
-      },
-    } satisfies Prisma.UserSelect;
+    const userSelect = this.getChatUserSelect();
 
     const usersList = await this.prisma.user.findMany({
       where: whereClause,
@@ -388,6 +408,150 @@ export class ChatService {
     }
 
     return usersList;
+  }
+
+  async getPresetUsers(preset: string, user: CurrentUser, filters: ChatPresetFilters) {
+    const presetKey = preset.trim().toUpperCase();
+    const isOrgAdmin = user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN;
+    const isTeacherOrManager = user.role === Role.TEACHER || user.role === Role.ORG_MANAGER;
+    const isPlatformUser = this.isPlatformUser(user.role);
+    const select = this.getChatUserSelect();
+    const baseAnd: Prisma.UserWhereInput[] = [
+      { id: { not: user.id } },
+      ...(isPlatformUser ? [] : [{ organizationId: user.organizationId }]),
+    ];
+    const whereWith = (...clauses: Prisma.UserWhereInput[]): Prisma.UserWhereInput => ({
+      AND: [...baseAnd, ...clauses],
+    });
+    const requireCohort = () => {
+      if (!filters.cohortId) throw new BadRequestException('Choose a cohort for this shortcut.');
+      return filters.cohortId;
+    };
+    const requireDepartment = () => {
+      if (!filters.departmentId) throw new BadRequestException('Choose a department for this shortcut.');
+      return filters.departmentId;
+    };
+    const requireOrgAdminPreset = () => {
+      if (!isOrgAdmin) throw new ForbiddenException('You cannot use this group shortcut.');
+    };
+    const requireStudentPreset = () => {
+      if (!isOrgAdmin && !isTeacherOrManager) throw new ForbiddenException('You cannot use this group shortcut.');
+    };
+
+    let where: Prisma.UserWhereInput;
+
+    if (presetKey === 'PLATFORM_ADMINS') {
+      if (!isPlatformUser) throw new ForbiddenException('You cannot use this group shortcut.');
+      where = whereWith({ role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] } });
+    } else if (presetKey === 'ALL_TEACHERS') {
+      if (isOrgAdmin) {
+        where = whereWith({ role: Role.TEACHER });
+      } else if (user.role === Role.ORG_MANAGER) {
+        const teacherUserIds = await this.getAssignedTeacherUserIdsForManager(user.id);
+        where = whereWith({ role: Role.TEACHER }, { id: { in: teacherUserIds } });
+      } else {
+        throw new ForbiddenException('You cannot use this group shortcut.');
+      }
+    } else if (presetKey === 'ALL_MANAGERS') {
+      requireOrgAdminPreset();
+      where = whereWith({ role: Role.ORG_MANAGER });
+    } else if (presetKey === 'ALL_SUB_ADMINS') {
+      requireOrgAdminPreset();
+      where = whereWith({ role: Role.SUB_ADMIN });
+    } else if (presetKey === 'ALL_FINANCE_MANAGERS') {
+      requireOrgAdminPreset();
+      where = whereWith({ role: Role.FINANCE_MANAGER });
+    } else if (presetKey === 'ALL_GUARDIANS') {
+      requireOrgAdminPreset();
+      where = whereWith({ role: Role.GUARDIAN });
+    } else if (presetKey === 'GUARDIANS_BY_COHORT') {
+      requireOrgAdminPreset();
+      const cohortId = requireCohort();
+      where = whereWith({
+        role: Role.GUARDIAN,
+        guardianProfile: {
+          is: {
+            studentLinks: {
+              some: {
+                student: { cohortId },
+              },
+            },
+          },
+        },
+      });
+    } else if (presetKey === 'ALL_STUDENTS') {
+      requireStudentPreset();
+      if (isOrgAdmin) {
+        where = whereWith({ role: Role.STUDENT });
+      } else {
+        const studentUserIds = await this.getAssignedStudentUserIds(user.id, user.role);
+        where = whereWith({ role: Role.STUDENT }, { id: { in: studentUserIds } });
+      }
+    } else if (presetKey === 'STUDENTS_BY_COHORT') {
+      requireStudentPreset();
+      const cohortId = requireCohort();
+      if (isOrgAdmin) {
+        where = whereWith({ role: Role.STUDENT }, { studentProfile: { is: { cohortId } } });
+      } else {
+        const studentUserIds = await this.getAssignedStudentUserIds(user.id, user.role);
+        where = whereWith(
+          { role: Role.STUDENT },
+          { id: { in: studentUserIds } },
+          { studentProfile: { is: { cohortId } } },
+        );
+      }
+    } else if (presetKey === 'STUDENTS_BY_DEPARTMENT') {
+      requireStudentPreset();
+      const departmentId = requireDepartment();
+      const departmentFilter: Prisma.UserWhereInput = {
+        studentProfile: {
+          is: {
+            OR: [
+              { primaryDepartmentId: departmentId },
+              { studentDepartments: { some: { departmentId } } },
+            ],
+          },
+        },
+      };
+
+      if (isOrgAdmin) {
+        where = whereWith({ role: Role.STUDENT }, departmentFilter);
+      } else {
+        const studentUserIds = await this.getAssignedStudentUserIds(user.id, user.role);
+        where = whereWith(
+          { role: Role.STUDENT },
+          { id: { in: studentUserIds } },
+          departmentFilter,
+        );
+      }
+    } else if (presetKey === 'TEACHERS_BY_DEPARTMENT') {
+      const departmentId = requireDepartment();
+      const departmentFilter: Prisma.UserWhereInput = {
+        teacherProfile: {
+          is: {
+            teacherDepartments: { some: { departmentId } },
+          },
+        },
+      };
+
+      if (isOrgAdmin) {
+        where = whereWith({ role: Role.TEACHER }, departmentFilter);
+      } else if (user.role === Role.ORG_MANAGER) {
+        const teacherUserIds = await this.getAssignedTeacherUserIdsForManager(user.id);
+        where = whereWith({ role: Role.TEACHER }, { id: { in: teacherUserIds } }, departmentFilter);
+      } else {
+        throw new ForbiddenException('You cannot use this group shortcut.');
+      }
+    } else {
+      throw new BadRequestException('Unknown group shortcut.');
+    }
+
+    return this.prisma.user.findMany({
+      where,
+      select,
+      orderBy: [{ name: 'asc' }, { email: 'asc' }],
+      take: 1000,
+    });
   }
 
   async createDirectChat(dto: CreateDirectChatDto, user: CurrentUser) {
@@ -534,9 +698,14 @@ export class ChatService {
       // Organization Policy: Students can only participate in section-based chats initiated by THEIR teachers.
       const studentsInGroup = usersList.filter((u) => u.role === Role.STUDENT);
       if (studentsInGroup.length > 0) {
-        if (user.role !== Role.TEACHER && user.role !== Role.ORG_MANAGER) {
+        if (
+          user.role !== Role.TEACHER &&
+          user.role !== Role.ORG_MANAGER &&
+          user.role !== Role.ORG_ADMIN &&
+          user.role !== Role.SUB_ADMIN
+        ) {
           throw new ForbiddenException(
-            'Only teachers or managers can create group chats involving students.',
+            'Only academic staff or administrators can create group chats involving students.',
           );
         }
       }
@@ -840,7 +1009,7 @@ export class ChatService {
     if (!participant) throw new NotFoundException('Participant not found');
 
     const now = new Date();
-    const data: any = {};
+    const data: Prisma.ChatParticipantUpdateInput = {};
 
     if (options.hide) {
       data.hiddenAt = now;
@@ -1501,12 +1670,13 @@ export class ChatService {
     }));
 
     // Local history clearing logic
+    const clearedAtFilter: Prisma.DateTimeFilter<'ChatMessage'> = participant.clearedAt
+      ? { gt: participant.clearedAt }
+      : {};
     const baseWhere: Prisma.ChatMessageWhereInput = {
       chatId,
       ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
-      ...(participant.clearedAt
-        ? { createdAt: { gt: participant.clearedAt } }
-        : {}),
+      ...(participant.clearedAt ? { createdAt: clearedAtFilter } : {}),
     };
 
     const include = {
@@ -1546,7 +1716,7 @@ export class ChatService {
       const before = await this.prisma.chatMessage.findMany({
         where: {
           ...baseWhere,
-          createdAt: { ...baseWhere.createdAt as any, lte: target.createdAt },
+          createdAt: { ...clearedAtFilter, lte: target.createdAt },
         },
         orderBy: { createdAt: 'desc' },
         take: halfLimit + 1,
@@ -1557,7 +1727,7 @@ export class ChatService {
       const after = await this.prisma.chatMessage.findMany({
         where: {
           ...baseWhere,
-          createdAt: { ...baseWhere.createdAt as any, gt: target.createdAt },
+          createdAt: { ...clearedAtFilter, gt: target.createdAt },
         },
         orderBy: { createdAt: 'asc' },
         take: halfLimit,

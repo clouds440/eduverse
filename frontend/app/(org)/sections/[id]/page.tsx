@@ -232,7 +232,7 @@ export default function SectionDetailPage() {
     };
 
     return (
-        <PageShell className="gap-0 overflow-x-hidden overflow-y-auto custom-scrollbar">
+        <PageShell className="gap-1 overflow-x-hidden overflow-y-auto custom-scrollbar">
             <PageHeader
                 title={<CourseSectionLabel section={section} />}
                 description="A clearer control panel for class operations, grades, attendance, schedules, and materials."

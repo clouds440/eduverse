@@ -4,6 +4,7 @@ import React, { ReactNode, useId } from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import type { ButtonVariant } from '@/types';
+import { cn } from '@/lib/utils';
 
 interface ModalFormProps {
     isOpen: boolean;
@@ -20,6 +21,9 @@ interface ModalFormProps {
     maxWidth?: string;
     modalClassName?: string;
     bodyClassName?: string;
+    footerClassName?: string;
+    cancelButtonClassName?: string;
+    submitButtonClassName?: string;
     feedback?: ReactNode;
     requireWrite?: boolean;
 }
@@ -39,18 +43,21 @@ export function ModalForm({
     maxWidth = 'max-w-lg',
     modalClassName = 'animate-scale-in',
     bodyClassName = '',
+    footerClassName,
+    cancelButtonClassName,
+    submitButtonClassName,
     feedback,
     requireWrite
 }: ModalFormProps) {
     const formId = useId();
     const footer = (showCancel || showSubmit) ? (
-        <div className="flex justify-end gap-3 sm:gap-4 flex-col-reverse sm:flex-row">
+        <div className={cn('flex justify-end gap-3 sm:gap-4 flex-col-reverse sm:flex-row', footerClassName)}>
             {showCancel && (
                 <Button
                     type="button"
                     variant="secondary"
                     onClick={onClose}
-                    className="w-full sm:w-auto"
+                    className={cn('w-full sm:w-auto', cancelButtonClassName)}
                 >
                     Cancel
                 </Button>
@@ -63,7 +70,7 @@ export function ModalForm({
                     loadingId={loadingId}
                     requireWrite={requireWrite !== false}
                     variant={variant}
-                    className="w-full sm:w-auto"
+                    className={cn('w-full sm:w-auto', submitButtonClassName)}
                 >
                     {submitText}
                 </Button>

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
-import { LucideIcon, ChevronDown } from "lucide-react";
+import { LucideIcon, ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FloatingPosition, getFloatingPosition } from "@/lib/floatingPosition";
 import { useBackStackEntry } from "@/context/BackNavigationContext";
@@ -44,6 +44,8 @@ export interface CustomSelectProps<T extends string = string> {
     searchPlaceholder?: string;
     isSearching?: boolean;
     emptyMessage?: string;
+    clearable?: boolean;
+    clearLabel?: string;
 }
 
 function CustomSelectComponent<T extends string = string>({
@@ -62,6 +64,8 @@ function CustomSelectComponent<T extends string = string>({
     searchPlaceholder,
     isSearching = false,
     emptyMessage,
+    clearable = false,
+    clearLabel = 'Clear selection',
 }: CustomSelectProps<T>) {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -219,6 +223,15 @@ function CustomSelectComponent<T extends string = string>({
         event.stopPropagation();
     }, []);
 
+    const handleClearMouseDown = useCallback((event: React.MouseEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!disabled) {
+            onChange('' as T);
+            setIsOpen(false);
+        }
+    }, [disabled, onChange]);
+
     const handleComboboxKeyDown = useCallback((event: React.KeyboardEvent) => {
         if (disabled) return;
 
@@ -314,16 +327,31 @@ function CustomSelectComponent<T extends string = string>({
                     )}
                 </>
 
-                <button
-                    type="button"
-                    tabIndex={-1}
-                    onMouseDown={handleChevronMouseDown}
-                    onClick={stopChevronClickPropagation}
-                    className="ml-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
-                    aria-label={isOpen ? 'Close options' : 'Open options'}
-                >
-                    <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isOpen && "rotate-180")} />
-                </button>
+                <div className="ml-2 flex shrink-0 items-center gap-1">
+                    {clearable && value && (
+                        <button
+                            type="button"
+                            tabIndex={-1}
+                            onMouseDown={handleClearMouseDown}
+                            onClick={stopChevronClickPropagation}
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-danger focus:outline-none"
+                            aria-label={clearLabel}
+                            title={clearLabel}
+                        >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        tabIndex={-1}
+                        onMouseDown={handleChevronMouseDown}
+                        onClick={stopChevronClickPropagation}
+                        className="inline-flex h-5 w-5 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
+                        aria-label={isOpen ? 'Close options' : 'Open options'}
+                    >
+                        <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isOpen && "rotate-180")} />
+                    </button>
+                </div>
             </div>
 
             {isOpen && coords && createPortal(
