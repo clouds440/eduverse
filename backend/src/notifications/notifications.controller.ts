@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Patch,
   Post,
@@ -42,6 +43,27 @@ export class NotificationsController {
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
     );
+  }
+
+  @Get('dropdown')
+  async getDropdownNotifications(
+    @Request() req: AuthenticatedRequest,
+    @Query('readPage') readPage?: string,
+    @Query('readLimit') readLimit?: string,
+  ) {
+    return this.notificationsService.getDropdownNotifications(
+      req.user.id,
+      readPage ? parseInt(readPage, 10) : 1,
+      readLimit ? parseInt(readLimit, 10) : 10,
+    );
+  }
+
+  @Delete(':id')
+  async deleteNotification(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.notificationsService.deleteNotification(id, req.user.id);
   }
 
   @Patch('read-all')

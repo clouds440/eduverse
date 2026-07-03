@@ -1,9 +1,15 @@
 import { api } from './api';
 import { Notification } from '@/types';
 
-const cache: { items: Notification[]; unreadCount: number } = { items: [], unreadCount: 0 };
+const cache: { items: Notification[]; unreadCount: number; readPage: number; hasMoreRead: boolean } = {
+    items: [],
+    unreadCount: 0,
+    readPage: 1,
+    hasMoreRead: false,
+};
 const listeners = new Set<() => void>();
 const inFlightMark = new Set<string>();
+const inFlightDelete = new Set<string>();
 let inFlightMarkAll = false;
 
 function notify() {
@@ -12,9 +18,14 @@ function notify() {
 
 export const notificationsStore = {
     async fetchAll(token?: string) {
+        return this.fetchDropdown(token, { readPage: 1, append: false });
+    },
+
+    async fetchDropdown(token?: string, options: { readPage?: number; append?: boolean } = {}) {
         if (!token) return cache;
         try {
-            const res = await api.notifications.getUserNotifications(token, { limit: 50 });
+            const readPage = options.readPage || 1;
+            const res = await api.notifications.getDropdownNotifications(token, { readPage, readLimit: 10 });
             let items: Notification[] = res.data || [];
 
             // Reflect optimistic single-item marks locally
@@ -27,12 +38,20 @@ export const notificationsStore = {
                 items = items.map(n => ({ ...n, isRead: true }));
             }
 
-            cache.items = items;
+            if (options.append && readPage > 1) {
+                const itemMap = new Map(cache.items.map((item) => [item.id, item]));
+                for (const item of items) itemMap.set(item.id, item);
+                cache.items = Array.from(itemMap.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            } else {
+                cache.items = items;
+            }
             cache.unreadCount = inFlightMarkAll ? 0 : (res.unreadCount || cache.items.filter((n: Notification) => !n.isRead).length);
+            cache.readPage = res.readPage;
+            cache.hasMoreRead = res.hasMoreRead;
             notify();
             return cache;
         } catch (err) {
-            console.error('notificationsStore.fetchAll error', err);
+            console.error('notificationsStore.fetchDropdown error', err);
             throw err;
         }
     },
@@ -56,14 +75,14 @@ export const notificationsStore = {
             const arr = [...cache.items];
             arr.splice(idx, 1);
             arr.unshift(updated);
-            cache.items = arr.slice(0, 50);
+            cache.items = arr;
             try { console.debug('[notificationsStore] applyNew (existing) id=', notif.id); } catch { }
             notify();
             return;
         }
 
         const alreadyMarked = inFlightMark.has(notif.id);
-        cache.items = [{ ...(alreadyMarked ? { ...notif, isRead: true } : notif) }, ...cache.items].slice(0, 50);
+        cache.items = [{ ...(alreadyMarked ? { ...notif, isRead: true } : notif) }, ...cache.items];
         if (!notif.isRead && !alreadyMarked && !inFlightMarkAll) {
             cache.unreadCount = (cache.unreadCount || 0) + 1;
         }
@@ -91,6 +110,16 @@ export const notificationsStore = {
     applyReadAll() {
         cache.items = cache.items.map(n => ({ ...n, isRead: true }));
         cache.unreadCount = 0;
+        notify();
+    },
+
+    applyDelete(notificationId: string, wasUnread?: boolean) {
+        const optimisticDelete = inFlightDelete.has(notificationId);
+        const existing = cache.items.find(n => n.id === notificationId);
+        cache.items = cache.items.filter(n => n.id !== notificationId);
+        if (!optimisticDelete && (wasUnread || existing?.isRead === false) && !inFlightMarkAll) {
+            cache.unreadCount = Math.max(0, (cache.unreadCount || 0) - 1);
+        }
         notify();
     },
 
@@ -130,6 +159,25 @@ export const notificationsStore = {
             try { await this.fetchAll(token); } catch { /* swallow */ }
         } finally {
             inFlightMarkAll = false;
+        }
+    },
+
+    async deleteGuard(id: string, token?: string) {
+        if (!token) return;
+        const existing = cache.items.find(n => n.id === id);
+        this.applyDelete(id);
+        inFlightDelete.add(id);
+        try {
+            await api.notifications.deleteNotification(id, token);
+        } catch (err) {
+            console.error('deleteNotificationGuard error', err);
+            if (existing) {
+                cache.items = [existing, ...cache.items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                if (!existing.isRead) cache.unreadCount = (cache.unreadCount || 0) + 1;
+                notify();
+            }
+        } finally {
+            inFlightDelete.delete(id);
         }
     }
 };

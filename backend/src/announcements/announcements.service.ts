@@ -158,6 +158,7 @@ export class AnnouncementsService {
     user: CurrentUser,
     page: number = 1,
     limit: number = 10,
+    unreadSince?: number,
   ) {
     // Build OR conditions to fetch only announcements relevant to the user's hierarchy
     const conditions: Prisma.AnnouncementWhereInput[] = [
@@ -209,14 +210,62 @@ export class AnnouncementsService {
       AND: [{ OR: conditions }, { createdAt: { gte: thirtyDaysAgo } }],
     };
 
-    const skip = (page - 1) * limit;
+    const safePage = Math.max(1, page || 1);
+    const safeLimit = Math.min(50, Math.max(1, limit || 10));
+    const skip = (safePage - 1) * safeLimit;
+
+    if (unreadSince !== undefined && Number.isFinite(unreadSince)) {
+      const unreadAfter = new Date(Math.max(0, unreadSince) + 1000);
+      const unreadWhere: Prisma.AnnouncementWhereInput = {
+        AND: [where, { createdAt: { gt: unreadAfter } }],
+      };
+      const olderWhere: Prisma.AnnouncementWhereInput = {
+        AND: [where, { createdAt: { lte: unreadAfter } }],
+      };
+
+      const [unread, older, olderTotal] = await Promise.all([
+        this.prisma.announcement.findMany({
+          where: unreadWhere,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            creator: {
+              select: { id: true, name: true, role: true, avatarUrl: true },
+            },
+          },
+        }),
+        this.prisma.announcement.findMany({
+          where: olderWhere,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: safeLimit,
+          include: {
+            creator: {
+              select: { id: true, name: true, role: true, avatarUrl: true },
+            },
+          },
+        }),
+        this.prisma.announcement.count({ where: olderWhere }),
+      ]);
+
+      const data = [...unread, ...older].sort(
+        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+      );
+
+      return {
+        data,
+        total: unread.length + olderTotal,
+        page: safePage,
+        currentPage: safePage,
+        totalPages: Math.ceil(olderTotal / safeLimit),
+      };
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.announcement.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take: safeLimit,
         include: {
           creator: {
             select: { id: true, name: true, role: true, avatarUrl: true },
@@ -229,8 +278,9 @@ export class AnnouncementsService {
     return {
       data,
       total,
-      page,
-      totalPages: Math.ceil(total / limit),
+      page: safePage,
+      currentPage: safePage,
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 }

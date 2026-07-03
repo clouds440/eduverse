@@ -770,7 +770,7 @@ export const api = {
     },
 
     mail: {
-        getMails: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, category?: string } = {}) =>
+        getMails: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', status?: string, category?: string, direction?: string } = {}) =>
             request<PaginatedResponse<MailItem>>(`/mail${buildQueryString(params)}`, { token }),
         getMail: (id: string, token: string) =>
             request<MailDetail>(`/mail/${id}`, { token }),
@@ -836,10 +836,14 @@ export const api = {
     notifications: {
         getUserNotifications: (token: string, params: { page?: number, limit?: number } = {}) =>
             request<PaginatedResponse<Notification> & { unreadCount: number }>(`/notifications${buildQueryString(params)}`, { token }),
+        getDropdownNotifications: (token: string, params: { readPage?: number, readLimit?: number } = {}) =>
+            request<{ data: Notification[]; unreadCount: number; readPage: number; readLimit: number; totalRead: number; hasMoreRead: boolean }>(`/notifications/dropdown${buildQueryString(params)}`, { token }),
         markAsRead: (id: string, token: string) =>
             request<void>(`/notifications/${id}/read`, { method: 'PATCH', token }),
         markAllAsRead: (token: string) =>
             request<void>('/notifications/read-all', { method: 'PATCH', token }),
+        deleteNotification: (id: string, token: string) =>
+            request<void>(`/notifications/${id}`, { method: 'DELETE', token }),
         clearCategory: (category: 'CHAT' | 'MAIL', token: string) =>
             request<void>(`/notifications/clear-category/${category}`, { method: 'PATCH', token }),
         getPushConfig: (token: string) =>
@@ -855,7 +859,7 @@ export const api = {
     announcements: {
         createAnnouncement: (data: { title: string, body: string, targetType: TargetType, targetId?: string, actionUrl?: string, priority?: AnnouncementPriority }, token: string) =>
             request<Announcement>('/announcements', { method: 'POST', body: JSON.stringify(data), token }),
-        getAnnouncements: (token: string, params: { page?: number, limit?: number } = {}) =>
+        getAnnouncements: (token: string, params: { page?: number, limit?: number, unreadSince?: number } = {}) =>
             request<PaginatedResponse<Announcement>>(`/announcements${buildQueryString(params)}`, { token }),
     },
 

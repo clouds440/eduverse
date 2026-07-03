@@ -145,6 +145,44 @@ export class NotificationsService {
     };
   }
 
+  async getDropdownNotifications(
+    userId: string,
+    readPage: number = 1,
+    readLimit: number = 10,
+  ) {
+    const safeReadPage = Math.max(1, readPage || 1);
+    const safeReadLimit = Math.min(50, Math.max(1, readLimit || 10));
+    const readSkip = (safeReadPage - 1) * safeReadLimit;
+
+    const [unread, read, unreadCount, totalRead] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: { userId, isRead: false },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.notification.findMany({
+        where: { userId, isRead: true },
+        orderBy: { createdAt: 'desc' },
+        skip: readSkip,
+        take: safeReadLimit,
+      }),
+      this.prisma.notification.count({ where: { userId, isRead: false } }),
+      this.prisma.notification.count({ where: { userId, isRead: true } }),
+    ]);
+
+    const data = [...unread, ...read].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+
+    return {
+      data,
+      unreadCount,
+      readPage: safeReadPage,
+      readLimit: safeReadLimit,
+      totalRead,
+      hasMoreRead: readSkip + read.length < totalRead,
+    };
+  }
+
   async markAsRead(notificationId: string, userId: string) {
     const notification = await this.prisma.notification.findUnique({
       where: { id: notificationId },
@@ -162,6 +200,27 @@ export class NotificationsService {
     this.events.emitToUser(userId, 'notification:read', { notificationId });
 
     return updated;
+  }
+
+  async deleteNotification(notificationId: string, userId: string) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification || notification.userId !== userId) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    await this.prisma.notification.delete({
+      where: { id: notificationId },
+    });
+
+    this.events.emitToUser(userId, 'notification:deleted', {
+      notificationId,
+      wasUnread: !notification.isRead,
+    });
+
+    return { deleted: true };
   }
 
   async markAllAsRead(userId: string) {

@@ -38,6 +38,7 @@ export class AnnouncementsController {
     @Request() req: AuthenticatedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('unreadSince') unreadSince?: string,
   ) {
     return this.announcementsService.getAnnouncements(
       {
@@ -47,6 +48,7 @@ export class AnnouncementsController {
       },
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 10,
+      unreadSince !== undefined ? parseInt(unreadSince, 10) : undefined,
     );
   }
 }

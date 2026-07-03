@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Check, Loader2 } from 'lucide-react';
+import { Bell, Check, Loader2, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSocket } from '@/hooks/useSocket';
 import { Notification } from '@/types';
@@ -24,6 +24,9 @@ export function NotificationDropdown({ onOpenChange }: NotificationDropdownProps
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingEarlier, setIsLoadingEarlier] = useState(false);
+    const [readPage, setReadPage] = useState(1);
+    const [hasMoreRead, setHasMoreRead] = useState(false);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -47,8 +50,10 @@ export function NotificationDropdown({ onOpenChange }: NotificationDropdownProps
         let mounted = true;
         notificationsStore.fetchAll(token).then(cache => {
             if (!mounted) return;
-            setNotifications(cache.items.slice(0, 10));
+            setNotifications(cache.items);
             setUnreadCount(cache.unreadCount || 0);
+            setReadPage(cache.readPage || 1);
+            setHasMoreRead(cache.hasMoreRead || false);
         }).catch(err => console.error('Failed to load notifications from store', err))
             .finally(() => {
                 if (mounted) {
@@ -58,8 +63,10 @@ export function NotificationDropdown({ onOpenChange }: NotificationDropdownProps
 
         const unsub = notificationsStore.subscribe(() => {
             const c = notificationsStore.getAll();
-            setNotifications(c.items.slice(0, 10));
+            setNotifications(c.items);
             setUnreadCount(c.unreadCount || 0);
+            setReadPage(c.readPage || 1);
+            setHasMoreRead(c.hasMoreRead || false);
         });
         return () => { mounted = false; unsub(); };
     }, [token]);
@@ -82,10 +89,16 @@ export function NotificationDropdown({ onOpenChange }: NotificationDropdownProps
             notificationsStore.applyReadAll();
         });
 
+        const unsubDeleted = subscribe('notification:deleted', (data: unknown) => {
+            const { notificationId, wasUnread } = data as { notificationId: string; wasUnread?: boolean };
+            notificationsStore.applyDelete(notificationId, wasUnread);
+        });
+
         return () => {
             unsubNew();
             unsubRead();
             unsubReadAll();
+            unsubDeleted();
         };
     }, [subscribe]);
 
@@ -108,6 +121,21 @@ export function NotificationDropdown({ onOpenChange }: NotificationDropdownProps
     const markAllAsRead = async () => {
         if (!token || unreadCount === 0) return;
         await notificationsStore.markAllAsReadGuard(token);
+    };
+
+    const deleteNotification = async (id: string) => {
+        if (!token) return;
+        await notificationsStore.deleteGuard(id, token);
+    };
+
+    const showEarlier = async () => {
+        if (!token || isLoadingEarlier || !hasMoreRead) return;
+        setIsLoadingEarlier(true);
+        try {
+            await notificationsStore.fetchDropdown(token, { readPage: readPage + 1, append: true });
+        } finally {
+            setIsLoadingEarlier(false);
+        }
     };
 
     if (!token || !user) return null;
@@ -172,27 +200,59 @@ export function NotificationDropdown({ onOpenChange }: NotificationDropdownProps
                                         </>
                                     );
 
-                                    const className = `flex items-start p-4 hover:bg-card/10 transition-colors cursor-pointer ${!notif.isRead ? 'bg-primary/5' : ''}`;
+                                    const className = `flex items-start p-4 pr-11 hover:bg-card/10 transition-colors cursor-pointer ${!notif.isRead ? 'bg-primary/5' : ''}`;
                                     const handleClick = () => {
                                         if (!notif.isRead) markAsRead(notif.id);
                                         setIsOpen(false);
                                     };
                                     const safeActionUrl = normalizeSafeUrl(notif.actionUrl, { allowRelative: true });
+                                    const deleteButton = (
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                deleteNotification(notif.id);
+                                            }}
+                                            className="absolute right-2 top-3 rounded-md p-1.5 text-muted-foreground opacity-70 transition-colors hover:bg-danger/10 hover:text-danger sm:opacity-0 sm:group-hover:opacity-100"
+                                            aria-label="Delete notification"
+                                            title="Delete notification"
+                                        >
+                                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                        </button>
+                                    );
 
                                     if (safeActionUrl) {
                                         return (
-                                            <Link key={notif.id} href={safeActionUrl} onClick={handleClick} className={className}>
-                                                {content}
-                                            </Link>
+                                            <div key={notif.id} className="group relative">
+                                                <Link href={safeActionUrl} onClick={handleClick} className={className}>
+                                                    {content}
+                                                </Link>
+                                                {deleteButton}
+                                            </div>
                                         );
                                     }
 
                                     return (
-                                        <div key={notif.id} onClick={handleClick} className={className}>
+                                        <div key={notif.id} onClick={handleClick} className={`${className} group relative`}>
                                             {content}
+                                            {deleteButton}
                                         </div>
                                     );
                                 })}
+                                {hasMoreRead && (
+                                    <div className="p-3">
+                                        <button
+                                            type="button"
+                                            onClick={showEarlier}
+                                            disabled={isLoadingEarlier}
+                                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {isLoadingEarlier && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+                                            <span>Show earlier</span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">

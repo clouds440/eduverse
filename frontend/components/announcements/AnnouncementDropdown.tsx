@@ -28,11 +28,15 @@ export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingEarlier, setIsLoadingEarlier] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [lastSeen, setLastSeen] = useState<number>(0);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const hasAutoOpened = useRef(false);
+    const fetchUnreadSinceRef = useRef(0);
 
     useBackStackEntry({
         enabled: isOpen,
@@ -63,12 +67,19 @@ export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps
         const fetchAnnouncements = async () => {
             setIsLoading(true);
             try {
-                const res = await api.announcements.getAnnouncements(token, { limit: 10 });
-                setAnnouncements(res.data);
-
                 // Compare with localStorage to see if there are new ones
                 const ls = localStorage.getItem(`announcements_heard_${user?.id}`);
-                const lsTime = ls ? parseInt(ls, 10) : 0;
+                const parsedLastSeen = ls ? parseInt(ls, 10) : 0;
+                const lsTime = Number.isFinite(parsedLastSeen) ? parsedLastSeen : 0;
+                fetchUnreadSinceRef.current = lsTime;
+
+                const res = await api.announcements.getAnnouncements(token, {
+                    limit: 10,
+                    unreadSince: fetchUnreadSinceRef.current,
+                });
+                setAnnouncements(res.data);
+                setPage(res.currentPage || 1);
+                setHasMore((res.currentPage || 1) < (res.totalPages || 1));
                 setLastSeen(lsTime);
 
                 const count = res.data.filter(a => {
@@ -106,7 +117,7 @@ export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps
 
         const unsubNew = subscribe('announcement:new', (newAnnouncement: unknown) => {
             const announcement = newAnnouncement as Announcement;
-            setAnnouncements(prev => [announcement, ...prev].slice(0, 10)); // Keep top 10
+            setAnnouncements(prev => [announcement, ...prev]);
             setUnreadCount(prev => prev + 1);
             dispatch({ type: 'TOAST_ADD', payload: { message: announcement.title, type: 'info' } });
 
@@ -140,6 +151,31 @@ export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps
         setIsOpen(nextState);
         if (nextState && unreadCount > 0) {
             markAllAsSeen(announcements);
+        }
+    };
+
+    const showEarlier = async () => {
+        if (!token || isLoadingEarlier || !hasMore) return;
+
+        setIsLoadingEarlier(true);
+        try {
+            const nextPage = page + 1;
+            const res = await api.announcements.getAnnouncements(token, {
+                page: nextPage,
+                limit: 10,
+                unreadSince: fetchUnreadSinceRef.current,
+            });
+            setAnnouncements((current) => {
+                const itemMap = new Map(current.map((announcement) => [announcement.id, announcement]));
+                for (const announcement of res.data) itemMap.set(announcement.id, announcement);
+                return Array.from(itemMap.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            });
+            setPage(res.currentPage || nextPage);
+            setHasMore((res.currentPage || nextPage) < (res.totalPages || 1));
+        } catch (err) {
+            console.error('Failed to fetch earlier announcements', err);
+        } finally {
+            setIsLoadingEarlier(false);
         }
     };
 
@@ -263,6 +299,19 @@ export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps
                                         </div>
                                     );
                                 })}
+                                {hasMore && (
+                                    <div className="p-3">
+                                        <button
+                                            type="button"
+                                            onClick={showEarlier}
+                                            disabled={isLoadingEarlier}
+                                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold text-muted-foreground transition-colors hover:border-info/40 hover:text-info disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {isLoadingEarlier && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+                                            <span>Show earlier</span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">

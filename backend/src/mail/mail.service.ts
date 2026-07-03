@@ -34,6 +34,8 @@ const FINANCE_MAIL_CATEGORIES = new Set([
   'GENERAL_INQUIRY',
   'OTHER',
 ]);
+const MAIL_DIRECTIONS = ['sent', 'received', 'assigned', 'team'] as const;
+type MailDirection = (typeof MAIL_DIRECTIONS)[number];
 
 export interface ContactTarget {
   id: string;
@@ -356,7 +358,7 @@ export class MailService {
 
   async getMails(
     user: MailUser,
-    options: PaginationOptions & { status?: string; category?: string },
+    options: PaginationOptions & { status?: string; category?: string; direction?: string },
   ) {
     const { skip, take, search, sortBy, sortOrder } = getPaginationOptions({
       ...options,
@@ -364,11 +366,45 @@ export class MailService {
       sortOrder: options.sortOrder || 'desc',
     });
 
+    const directToUserFilter: Prisma.MailWhereInput = {
+      OR: [
+        { assigneeId: user.id },
+        { assignees: { some: { id: user.id } } },
+      ],
+    };
+    const teamTargetFilters: Prisma.MailWhereInput[] = [
+      { targetRole: user.role as Role },
+      ...(user.role === Role.SUPER_ADMIN
+        ? [{ targetRole: Role.PLATFORM_ADMIN }, { targetRole: Role.SUPER_ADMIN }]
+        : []),
+      ...(user.role === Role.TEACHER || user.role === Role.ORG_MANAGER
+        ? [{ targetRole: 'ORG_STAFF' }]
+        : []),
+    ];
+    const direction = MAIL_DIRECTIONS.includes(options.direction as MailDirection)
+      ? (options.direction as MailDirection)
+      : undefined;
+    const directionFilter: Prisma.MailWhereInput | null = direction === 'sent'
+      ? { creatorId: user.id }
+      : direction === 'assigned'
+        ? directToUserFilter
+        : direction === 'team'
+          ? { OR: teamTargetFilters }
+          : direction === 'received'
+            ? {
+                AND: [
+                  { creatorId: { not: user.id } },
+                  { OR: [directToUserFilter, ...teamTargetFilters] },
+                ],
+              }
+            : null;
+
     const where: Prisma.MailWhereInput = {
       AND: [
         // Optional base filters
         ...(options.status ? [{ status: options.status as MailStatus }] : []),
         ...(options.category ? [{ category: options.category }] : []),
+        ...(directionFilter ? [directionFilter] : []),
 
         // Participation / Visibility Filter
         ...(user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { MessageSquare, ArrowUpRight, CheckCircle2, XCircle, Tag, Calendar, Filter, Clock, MailPlus, Hash, Inbox } from 'lucide-react';
+import { MessageSquare, ArrowUpRight, CheckCircle2, XCircle, Tag, Calendar, Filter, Clock, MailPlus, Hash, Inbox, Send, UserCheck, Users } from 'lucide-react';
 import useSWR, { mutate as mutateCache } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { api } from '@/lib/api';
@@ -54,6 +54,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     const page = parseInt(searchParams.get('page') || '1', 10);
     const searchQuery = searchParams.get('search') || '';
     const statusFilter = searchParams.get('status') || '';
+    const directionFilter = searchParams.get('direction') || '';
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc';
     const isAdminMail = user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN;
@@ -81,10 +82,11 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
             limit: pageSize,
             search: searchQuery,
             status: statusFilter || undefined,
+            direction: directionFilter || undefined,
             sortBy,
             sortOrder,
         }] as const;
-    }, [token, page, pageSize, searchQuery, statusFilter, sortBy, sortOrder]);
+    }, [token, page, pageSize, searchQuery, statusFilter, directionFilter, sortBy, sortOrder]);
 
     const { data: paginatedData, error: fetchError, isLoading: fetching, mutate: retryMails } = useSWR<PaginatedResponse<MailItem>>(mailsKey);
     const totalMails = paginatedData?.totalRecords ?? state.stats.mail?.total;
@@ -151,6 +153,14 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
     ];
 
     const statusFilterLabel = statusOptions.find((option) => option.value === statusFilter)?.label;
+    const directionOptions = [
+        { value: '', label: 'All Mail', icon: Inbox },
+        { value: 'received', label: 'Received', icon: Inbox },
+        { value: 'sent', label: 'Sent', icon: Send },
+        { value: 'assigned', label: 'Assigned to me', icon: UserCheck },
+        { value: 'team', label: 'Team mail', icon: Users },
+    ];
+    const directionFilterLabel = directionOptions.find((option) => option.value === directionFilter)?.label;
     const activeFilters = useMemo<ActiveFilter[]>(() => {
         const filters: ActiveFilter[] = [];
 
@@ -172,11 +182,27 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
             });
         }
 
+        if (directionFilter && directionFilterLabel) {
+            filters.push({
+                key: 'direction',
+                label: 'Mailbox',
+                value: directionFilterLabel,
+                onRemove: () => clearFilter('direction'),
+            });
+        }
+
         return filters;
-    }, [clearFilter, searchQuery, statusFilter, statusFilterLabel]);
+    }, [clearFilter, searchQuery, statusFilter, statusFilterLabel, directionFilter, directionFilterLabel]);
 
     const filters = (
         <FilterDrawerGrid>
+            <CustomSelect
+                options={directionOptions}
+                value={directionFilter}
+                onChange={(val: string) => updateFilters('direction', val)}
+                placeholder="Filter Mailbox"
+                icon={Inbox}
+            />
             <CustomSelect
                 options={statusOptions}
                 value={statusFilter}

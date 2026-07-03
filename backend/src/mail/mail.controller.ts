@@ -60,6 +60,7 @@ export class MailController {
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('status') status?: string,
     @Query('category') category?: string,
+    @Query('direction') direction?: string,
   ) {
     return this.mailService.getMails(
       {
@@ -77,6 +78,7 @@ export class MailController {
         sortOrder,
         status,
         category,
+        direction,
       },
     );
   }
