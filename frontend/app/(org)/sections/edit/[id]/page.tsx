@@ -48,12 +48,6 @@ interface SectionEditErrors {
     general?: string;
 }
 
-function getStudentSectionIds(student: Student) {
-    return student.enrollments
-        ?.map((enrollment) => enrollment.section?.id)
-        .filter((id): id is string => Boolean(id)) || [];
-}
-
 export default function EditSectionPage() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
@@ -217,20 +211,18 @@ export default function EditSectionPage() {
             const newlyEnrolledIds = selectedStudentIds.filter((id) => !currentlyEnrolledIds.includes(id));
             const removedIds = currentlyEnrolledIds.filter((id) => !selectedStudentIds.includes(id));
 
-            for (const studentId of newlyEnrolledIds) {
-                const student = students.find((candidate) => candidate.id === studentId);
-                if (!student) continue;
-
-                const currentSectionIds = getStudentSectionIds(student);
-                await api.org.updateStudent(studentId, { sectionIds: [...currentSectionIds, section.id] }, token);
+            if (newlyEnrolledIds.length > 0) {
+                const result = await api.org.bulkEnrollStudentsInSection(section.id, newlyEnrolledIds, token);
+                result.results?.flatMap((item) => item.warnings || []).forEach((warning) => {
+                    dispatch({ type: 'TOAST_ADD', payload: { message: warning.message, type: 'info' } });
+                });
             }
 
             for (const studentId of removedIds) {
-                const student = students.find((candidate) => candidate.id === studentId);
-                if (!student) continue;
-
-                const currentSectionIds = getStudentSectionIds(student);
-                await api.org.updateStudent(studentId, { sectionIds: currentSectionIds.filter((id) => id !== section.id) }, token);
+                const result = await api.org.withdrawStudentFromSection(studentId, section.id, token);
+                result.warnings?.forEach((warning) => {
+                    dispatch({ type: 'TOAST_ADD', payload: { message: warning.message, type: 'info' } });
+                });
             }
 
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Section updated successfully', type: 'success' } });

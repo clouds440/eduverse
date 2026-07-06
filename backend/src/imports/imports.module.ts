@@ -10,6 +10,7 @@ import { BuildingsModule } from '../buildings/buildings.module';
 import { RoomsModule } from '../rooms/rooms.module';
 import { CohortsModule } from '../cohorts/cohorts.module';
 import { AttendanceModule } from '../attendance/attendance.module';
+import { EnrollmentsModule } from '../enrollments/enrollments.module';
 import { ImportsController } from './imports.controller';
 import { ImportsService } from './imports.service';
 
@@ -26,6 +27,7 @@ import { ImportsService } from './imports.service';
     RoomsModule,
     CohortsModule,
     AttendanceModule,
+    EnrollmentsModule,
   ],
   controllers: [ImportsController],
   providers: [ImportsService],

@@ -26,6 +26,7 @@ import { BuildingsService } from '../buildings/buildings.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { AttendanceService } from '../attendance/attendance.service';
 import { CohortsService } from '../cohorts/cohorts.service';
+import { EnrollmentsService } from '../enrollments/enrollments.service';
 import { CreateStudentDto } from '../org/dto/create-student.dto';
 import { CreateTeacherDto } from '../org/dto/create-teacher.dto';
 import { CreateGuardianDto } from '../guardians/dto/create-guardian.dto';
@@ -102,6 +103,7 @@ export class ImportsService {
     private readonly rooms: RoomsService,
     private readonly cohorts: CohortsService,
     private readonly attendance: AttendanceService,
+    private readonly enrollments: EnrollmentsService,
   ) {}
 
   getTemplate(entity: ImportEntity) {
@@ -492,12 +494,25 @@ export class ImportsService {
           sectionCodes: splitIds(row.sectionCodes),
           cohortCode: this.normalizeCode(row.cohortCode),
         }),
-        create: (orgId, data, actor) => this.students.createStudent(orgId, data as unknown as CreateStudentDto, {
-          id: actor.id,
-          role: actor.role,
-          name: actor.name,
-          email: actor.email || '',
-        }),
+        create: async (orgId, data, actor) => {
+          const sectionIds = ((data.sectionIds as string[] | undefined) || []).filter(Boolean);
+          const student = await this.students.createStudent(orgId, data as unknown as CreateStudentDto, {
+            id: actor.id,
+            role: actor.role,
+            name: actor.name,
+            email: actor.email || '',
+          }) as { id: string };
+          for (const sectionId of sectionIds) {
+            await this.enrollments.enroll(orgId, { studentId: student.id, sectionId }, {
+              id: actor.id,
+              role: actor.role,
+            });
+          }
+          if (data.cohortId) {
+            await this.cohorts.addStudentToCohort(orgId, data.cohortId as string, student.id);
+          }
+          return student;
+        },
         resolveRelations: async (orgId, data, _actor, row) => {
           data.primaryDepartmentId = await this.resolveDepartmentId(orgId, data.primaryDepartmentCode as string | undefined, 'primaryDepartmentCode');
           const resolvedDepartments = await this.resolveDepartmentIds(orgId, data.departmentCodes as string[] | undefined, 'departmentCodes', row.rowNumber);

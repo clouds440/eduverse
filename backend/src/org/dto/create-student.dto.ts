@@ -59,11 +59,6 @@ export class CreateStudentDto {
   @IsNotEmpty()
   major: string;
 
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  sectionIds?: string[];
-
   @IsString()
   @IsOptional()
   department?: string;
@@ -107,10 +102,6 @@ export class CreateStudentDto {
   @IsEnum(StudentStatus)
   @IsOptional()
   status?: StudentStatus;
-
-  @IsString()
-  @IsOptional()
-  cohortId?: string;
 
   @IsString()
   @IsOptional()

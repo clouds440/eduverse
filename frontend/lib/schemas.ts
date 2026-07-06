@@ -151,8 +151,6 @@ const studentBaseSchema = z.object({
     emergencyContact: z.string().optional().or(z.literal('')),
     bloodGroup: z.string().optional().or(z.literal('')),
     address: z.string().optional().or(z.literal('')),
-    sectionIds: z.array(z.string()).default([]),
-    cohortId: z.string().optional().or(z.literal('')),
     guardianId: z.string().optional().or(z.literal('')),
     guardianRelationship: z.string().optional().or(z.literal('')),
 });

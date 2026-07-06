@@ -296,6 +296,10 @@ export default function StudentsPage() {
                                 ] : []
                             ) : [
                                 ...(canManageStudents ? [{
+                                    variant: 'enrollment' as const,
+                                    title: 'Manage Enrollment',
+                                    onClick: () => router.push(`${routeBase}/edit/${row.id}/enrollment`),
+                                }, {
                                     variant: 'passwordReset' as const,
                                     title: 'Copy Password Reset Link',
                                     loading: generatingResetUserId === row.user.id,

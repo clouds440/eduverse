@@ -22,6 +22,7 @@ import type {
     Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
+    PreferenceWindow, PreferenceWindowRequest, PreferenceResults, PreferenceSubmission, Enrollment, EnrollmentMutationResponse,
     LinkedAccount, PasswordResetLinkResponse, PublicProfile
 } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
@@ -488,6 +489,16 @@ export const api = {
             request<Student>('/org/students', { method: 'POST', body: JSON.stringify(data), token }),
         updateStudent: (id: string, data: UpdateStudentRequest, token: string) =>
             request<Student>(`/org/students/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getEnrollments: (token: string, params: { studentId?: string, sectionId?: string, academicCycleId?: string } = {}) =>
+            request<Enrollment[]>(`/org/enrollments${buildQueryString(params)}`, { token }),
+        enrollStudentInSection: (studentId: string, sectionId: string, token: string) =>
+            request<EnrollmentMutationResponse>('/org/enrollments', { method: 'POST', body: JSON.stringify({ studentId, sectionId }), token }),
+        bulkEnrollStudentsInSection: (sectionId: string, studentIds: string[], token: string) =>
+            request<EnrollmentMutationResponse>('/org/enrollments/bulk', { method: 'POST', body: JSON.stringify({ sectionId, studentIds }), token }),
+        withdrawStudentFromSection: (studentId: string, sectionId: string, token: string) =>
+            request<EnrollmentMutationResponse>('/org/enrollments/withdraw', { method: 'POST', body: JSON.stringify({ studentId, sectionId }), token }),
+        transferStudentEnrollment: (studentId: string, fromSectionId: string, toSectionId: string, token: string) =>
+            request<EnrollmentMutationResponse>('/org/enrollments/transfer', { method: 'POST', body: JSON.stringify({ studentId, fromSectionId, toSectionId }), token }),
         restoreStudent: (id: string, status: string, token: string) =>
             request<{ message: string }>(`/org/students/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ status }), token }),
         deleteStudent: (id: string, token: string) =>
@@ -673,6 +684,28 @@ export const api = {
             request<BulkCreateEvaluationWindowsResponse>('/org/evaluations/windows/bulk', { method: 'POST', body: JSON.stringify(data), token }),
         updateEvaluationWindow: (id: string, data: UpdateEvaluationWindowRequest, token: string) =>
             request<EvaluationWindow>(`/org/evaluations/windows/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+
+        // --- Preference Windows ---
+        getPreferenceWindows: (token: string, params: { page?: number, limit?: number, status?: string, kind?: string, academicCycleId?: string, courseId?: string, cohortId?: string } = {}) =>
+            request<PaginatedResponse<PreferenceWindow>>(`/org/preference-windows${buildQueryString(params)}`, { token }),
+        getPreferenceWindow: (id: string, token: string) =>
+            request<PreferenceWindow>(`/org/preference-windows/${id}`, { token }),
+        createPreferenceWindow: (data: PreferenceWindowRequest, token: string) =>
+            request<PreferenceWindow>('/org/preference-windows', { method: 'POST', body: JSON.stringify(data), token }),
+        updatePreferenceWindow: (id: string, data: PreferenceWindowRequest, token: string) =>
+            request<PreferenceWindow>(`/org/preference-windows/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        activatePreferenceWindow: (id: string, token: string, priority?: AnnouncementPriority) =>
+            request<PreferenceWindow>(`/org/preference-windows/${id}/activate`, { method: 'POST', body: JSON.stringify({ priority }), token }),
+        closePreferenceWindow: (id: string, token: string) =>
+            request<PreferenceWindow>(`/org/preference-windows/${id}/close`, { method: 'POST', token }),
+        getPreferenceWindowResults: (id: string, token: string) =>
+            request<PreferenceResults>(`/org/preference-windows/${id}/results`, { token }),
+        getMyPreferenceWindows: (token: string) =>
+            request<PreferenceWindow[]>('/org/preference-windows/my', { token }),
+        getStudentPreferenceWindow: (id: string, token: string) =>
+            request<PreferenceWindow>(`/org/preference-windows/${id}/student`, { token }),
+        submitPreferenceWindow: (id: string, rankedOptionIds: string[], token: string) =>
+            request<PreferenceSubmission>(`/org/preference-windows/${id}/submission`, { method: 'PUT', body: JSON.stringify({ rankedOptionIds }), token }),
 
         // --- GPA Policies ---
         getGpaPolicies: (token: string, params: { includeArchived?: boolean } = {}) =>

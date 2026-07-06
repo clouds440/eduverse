@@ -141,6 +141,8 @@ export enum TargetType {
     ORG = 'ORG',
     ROLE = 'ROLE',
     SECTION = 'SECTION',
+    COURSE = 'COURSE',
+    COHORT = 'COHORT',
 }
 
 export enum AnnouncementPriority {
@@ -167,6 +169,24 @@ export enum HolidayMatchMode {
 export enum EvaluationType {
     TEACHER = 'TEACHER',
     COURSE = 'COURSE',
+}
+
+export enum PreferenceWindowKind {
+    SECTION_CHOICE = 'SECTION_CHOICE',
+    COURSE_CHOICE = 'COURSE_CHOICE',
+}
+
+export enum PreferenceWindowStatus {
+    DRAFT = 'DRAFT',
+    ACTIVE = 'ACTIVE',
+    CLOSED = 'CLOSED',
+    ARCHIVED = 'ARCHIVED',
+}
+
+export enum PreferenceTargetType {
+    COURSE = 'COURSE',
+    COHORT = 'COHORT',
+    SECTION = 'SECTION',
 }
 
 export enum ThemeMode {

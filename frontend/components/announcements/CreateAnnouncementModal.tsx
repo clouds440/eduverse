@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/Label';
 import { CustomSelect, DropdownOption } from '@/components/ui/CustomSelect';
 import { TargetType, Role, AnnouncementPriority } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
-import { Send, Type, Megaphone, Globe, Building2, Shield, Layout, User } from 'lucide-react';
+import { Send, Type, Megaphone, Globe, Building2, Shield, Layout, User, BookOpen, Network } from 'lucide-react';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { getRoleLabel } from '@/lib/roles';
 
@@ -63,6 +63,12 @@ export function CreateAnnouncementModal({ isOpen, onClose, onSuccess }: Props) {
                 if (targetType === TargetType.SECTION) {
                     const res = await api.org.getSections(token, { limit: 100 });
                     setTargetOptions(res.data.map(s => ({ value: s.id, label: s.name, icon: Layout })));
+                } else if (targetType === TargetType.COURSE) {
+                    const res = await api.org.getCourses(token, { limit: 500 });
+                    setTargetOptions(res.data.map(c => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name, icon: BookOpen })));
+                } else if (targetType === TargetType.COHORT) {
+                    const res = await api.cohorts.getCohorts(token, { limit: 500, includeAllCycles: true });
+                    setTargetOptions(res.data.map(c => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name, icon: Network })));
                 } else if (targetType === TargetType.ORG && isPlatformAdmin) {
                     const res = await api.admin.getOrganizations(token, { limit: 100 });
                     setTargetOptions(res.data.map(o => ({ value: o.id, label: o.name, icon: Building2 })));
@@ -203,6 +209,8 @@ export function CreateAnnouncementModal({ isOpen, onClose, onSuccess }: Props) {
                                 ...(isPlatformAdmin ? [{ value: TargetType.GLOBAL, label: 'Global', icon: Globe }] : []),
                                 ...(user.role !== Role.TEACHER ? [{ value: TargetType.ORG, label: 'Organization-wide', icon: Building2 }] : []),
                                 ...(user.role === Role.ORG_ADMIN || isPlatformAdmin ? [{ value: TargetType.ROLE, label: 'Specific Role', icon: Shield }] : []),
+                                ...(user.role !== Role.TEACHER ? [{ value: TargetType.COURSE, label: 'Specific Course', icon: BookOpen }] : []),
+                                ...(user.role !== Role.TEACHER ? [{ value: TargetType.COHORT, label: 'Specific Cohort', icon: Network }] : []),
                                 { value: TargetType.SECTION, label: 'Specific Section', icon: Layout },
                             ]}
                         />

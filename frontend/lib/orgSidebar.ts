@@ -19,6 +19,7 @@ import {
   Network,
   ScrollText,
   Settings,
+  ListChecks,
   Trophy,
   Users,
   Wallet,
@@ -226,6 +227,13 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     roles: ADMIN_ROLES,
   },
   {
+    id: "PREFERENCE_WINDOWS",
+    label: "Preferences",
+    href: "/preference-windows",
+    icon: ListChecks,
+    roles: ADMIN_ROLES,
+  },
+  {
     id: "FINANCE",
     label: (ctx) => (ctx.role === Role.SUB_ADMIN ? "Finance Audit" : "Finance"),
     href: "/finance",
@@ -353,6 +361,13 @@ const MANAGER_ITEMS: SidebarItemConfig[] = [
     icon: ClipboardList,
     roles: [Role.ORG_MANAGER],
   },
+  {
+    id: "PREFERENCE_WINDOWS",
+    label: "Preferences",
+    href: "/preference-windows",
+    icon: ListChecks,
+    roles: [Role.ORG_MANAGER],
+  },
 ];
 
 const TEACHER_AND_MANAGER_ITEMS: SidebarItemConfig[] = [
@@ -448,6 +463,15 @@ const STUDENT_ITEMS: SidebarItemConfig[] = [
     href: (ctx) =>
       ctx.userId ? studentPortalPath(ctx.userId, "evaluations") : null,
     icon: ClipboardList,
+    roles: [Role.STUDENT],
+    hiddenWhen: requiresUserId,
+  },
+  {
+    id: "PREFERENCES",
+    label: "Preferences",
+    href: (ctx) =>
+      ctx.userId ? studentPortalPath(ctx.userId, "preferences") : null,
+    icon: ListChecks,
     roles: [Role.STUDENT],
     hiddenWhen: requiresUserId,
   },

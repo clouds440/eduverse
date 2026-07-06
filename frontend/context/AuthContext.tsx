@@ -123,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                     if (user.role === Role.STUDENT) {
                         const isStudentPortal = pathSegments[1] === 'student' && pathSegments[2] === user.id;
+                        const isStudentPreferenceWindow = pathSegments[1] === 'preference-windows' && Boolean(pathSegments[2]) && pathSegments.length === 3;
                         const isSupportInOrg = pathSegments[1] === 'mail';
                         const isAllowedShared = ['chat', 'timetable', 'attendance', 'change-password', 'course-materials', 'transcripts', 'fees', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
                         const isSettingsPage = pathSegments.includes('settings');
@@ -133,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
 
-                        if (!isStudentPortal && !isSupportInOrg && !isAllowedShared) {
+                        if (!isStudentPortal && !isStudentPreferenceWindow && !isSupportInOrg && !isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Students can only access their own student portal and shared school tools.', type: 'error' } });
                             router.replace(`/student/${user.id}`);
                             return;
@@ -164,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'schedules',
                             'transcripts',
                             'promotions',
+                            'preference-windows',
                             'grade-finalization',
                             'finance',
                             'teacher-finance',
@@ -222,12 +224,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const isDisallowedUsersRoute = pathSegments[1] === 'users' && (pathSegments[2] !== 'students' || Boolean(pathSegments[3]));
                         const isSettingsPage = pathSegments.includes('settings');
                         const isGradeFinalizationPage = pathSegments[1] === 'grade-finalization';
+                        const isPreferenceWindowsPage = pathSegments[1] === 'preference-windows';
                         if (isSettingsPage) {
                             // Settings page handles its own redirect, no toast needed
                             router.replace(`/teacher/${user.id}/profile`);
                             return;
                         }
-                        if (isTeacherList || isDisallowedUsersRoute || isGradeFinalizationPage) {
+                        if (isTeacherList || isDisallowedUsersRoute || isGradeFinalizationPage || isPreferenceWindowsPage) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Teachers can only access their assigned teaching workspace.', type: 'error' } });
                             router.replace(`/teacher/${user.id}`);
                             return;

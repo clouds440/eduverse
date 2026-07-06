@@ -36,6 +36,8 @@ import { ImportsModule } from './imports/imports.module';
 import { HolidaysModule } from './holidays/holidays.module';
 import { EvaluationsModule } from './evaluations/evaluations.module';
 import { CampusNavigationModule } from './campus-navigation/campus-navigation.module';
+import { PreferenceWindowsModule } from './preference-windows/preference-windows.module';
+import { EnrollmentsModule } from './enrollments/enrollments.module';
 
 @Module({
   imports: [
@@ -76,6 +78,8 @@ import { CampusNavigationModule } from './campus-navigation/campus-navigation.mo
     ImportsModule,
     HolidaysModule,
     EvaluationsModule,
+    PreferenceWindowsModule,
+    EnrollmentsModule,
   ],
   providers: [
     {

@@ -42,6 +42,7 @@ model Organization {
   subOrgs         Organization[] @relation("ParentChildOrg")
   chats           Chat[]
   announcements   Announcement[]
+  preferenceWindows PreferenceWindow[]
   holidays        Holiday[]
   evaluationWindows EvaluationWindow[]
   evaluations       Evaluation[]
@@ -103,6 +104,9 @@ model User {
   deletedChatMessages   ChatMessage[]      @relation("DeletedChatMessages")
   userNotifications     Notification[]     @relation("UserNotifications")
   createdAnnouncements  Announcement[]     @relation("CreatedAnnouncements")
+  createdPreferenceWindows PreferenceWindow[] @relation("CreatedPreferenceWindows")
+  updatedPreferenceWindows PreferenceWindow[] @relation("UpdatedPreferenceWindows")
+  preferenceSubmissions PreferenceSubmission[] @relation("PreferenceSubmissionUsers")
   createdHolidays        Holiday[]          @relation("CreatedHolidays")
   updatedHolidays        Holiday[]          @relation("UpdatedHolidays")
   createdEvaluationWindows EvaluationWindow[] @relation("CreatedEvaluationWindows")
@@ -298,6 +302,8 @@ model Course {
   assessments    Assessment[]
   evaluationWindows EvaluationWindow[]
   evaluations       Evaluation[]
+  preferenceOptions PreferenceWindowOption[] @relation("PreferenceOptionCourse")
+  preferenceAudiences PreferenceWindowAudience[] @relation("PreferenceAudienceCourse")
   @@unique([organizationId, code])
 
   @@index([organizationId])
@@ -537,6 +543,8 @@ model Section {
   evaluations        Evaluation[]
   courseMaterials    CourseMaterial[]
   enrollmentHistories EnrollmentHistory[]
+  preferenceOptions PreferenceWindowOption[] @relation("PreferenceOptionSection")
+  preferenceAudiences PreferenceWindowAudience[] @relation("PreferenceAudienceSection")
   @@unique([organizationId, code])
   @@index([organizationId])
 
@@ -597,6 +605,7 @@ model Student {
   grades             Grade[]
   evaluations         Evaluation[]
   submissions        Submission[]
+  preferenceSubmissions PreferenceSubmission[]
   attendanceRecords  AttendanceRecord[]
   enrollmentHistories     EnrollmentHistory[]
   cohortMembershipHistories CohortMembershipHistory[]
@@ -1026,6 +1035,8 @@ enum TargetType {
   ORG
   ROLE
   SECTION
+  COURSE
+  COHORT
 }
 
 enum HolidayType {
@@ -1056,9 +1067,136 @@ model Announcement {
 
   creator      User          @relation("CreatedAnnouncements", fields: [creatorId], references: [id])
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  preferenceWindows PreferenceWindow[]
 
   @@index([organizationId])
   @@index([targetType, targetId])
+}
+
+enum PreferenceWindowKind {
+  SECTION_CHOICE
+  COURSE_CHOICE
+}
+
+enum PreferenceWindowStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  ARCHIVED
+}
+
+enum PreferenceTargetType {
+  COURSE
+  COHORT
+  SECTION
+}
+
+model PreferenceWindow {
+  id              String                 @id @default(uuid())
+  organizationId  String
+  academicCycleId String
+  title           String
+  description     String?
+  kind            PreferenceWindowKind
+  status          PreferenceWindowStatus @default(DRAFT)
+  startAt         DateTime
+  endAt           DateTime
+  announcementId  String?
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  academicCycle AcademicCycle @relation(fields: [academicCycleId], references: [id], onDelete: Cascade)
+  announcement  Announcement? @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  createdBy     User          @relation("CreatedPreferenceWindows", fields: [createdById], references: [id])
+  updatedBy     User?         @relation("UpdatedPreferenceWindows", fields: [updatedById], references: [id])
+  options       PreferenceWindowOption[]
+  audiences     PreferenceWindowAudience[]
+  submissions   PreferenceSubmission[]
+
+  @@index([organizationId])
+  @@index([academicCycleId])
+  @@index([kind])
+  @@index([status])
+  @@index([startAt, endAt])
+  @@index([announcementId])
+}
+
+model PreferenceWindowOption {
+  id           String               @id @default(uuid())
+  windowId     String
+  targetType   PreferenceTargetType
+  courseId     String?
+  sectionId    String?
+  displayOrder Int                  @default(0)
+
+  window  PreferenceWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+  course  Course?          @relation("PreferenceOptionCourse", fields: [courseId], references: [id], onDelete: Cascade)
+  section Section?         @relation("PreferenceOptionSection", fields: [sectionId], references: [id], onDelete: Cascade)
+  ranks   PreferenceRank[]
+
+  @@index([windowId])
+  @@index([courseId])
+  @@index([sectionId])
+  @@unique([windowId, courseId])
+  @@unique([windowId, sectionId])
+}
+
+model PreferenceWindowAudience {
+  id         String               @id @default(uuid())
+  windowId   String
+  targetType PreferenceTargetType
+  courseId   String?
+  cohortId   String?
+  sectionId  String?
+
+  window  PreferenceWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+  course  Course?          @relation("PreferenceAudienceCourse", fields: [courseId], references: [id], onDelete: Cascade)
+  cohort  Cohort?          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  section Section?         @relation("PreferenceAudienceSection", fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([windowId])
+  @@index([courseId])
+  @@index([cohortId])
+  @@index([sectionId])
+  @@unique([windowId, courseId])
+  @@unique([windowId, cohortId])
+  @@unique([windowId, sectionId])
+}
+
+model PreferenceSubmission {
+  id            String   @id @default(uuid())
+  windowId      String
+  studentId     String
+  submittedById String
+  submittedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  window      PreferenceWindow @relation(fields: [windowId], references: [id], onDelete: Cascade)
+  student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  submittedBy User             @relation("PreferenceSubmissionUsers", fields: [submittedById], references: [id])
+  ranks       PreferenceRank[]
+
+  @@unique([windowId, studentId])
+  @@index([windowId])
+  @@index([studentId])
+  @@index([submittedById])
+}
+
+model PreferenceRank {
+  id           String @id @default(uuid())
+  submissionId String
+  optionId     String
+  rank         Int
+
+  submission PreferenceSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  option     PreferenceWindowOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, optionId])
+  @@unique([submissionId, rank])
+  @@index([optionId])
 }
 
 // ─── TIMETABLE & ATTENDANCE SYSTEM ──────────────────────────────────────────
@@ -1319,6 +1457,7 @@ model AcademicCycle {
   evaluationWindows   EvaluationWindow[]
   evaluations         Evaluation[]
   sectionSchedules    SectionSchedule[]
+  preferenceWindows   PreferenceWindow[]
 
     @@index([organizationId])
     @@index([isActive])
@@ -1341,6 +1480,7 @@ model Cohort {
   students      Student[]
   sections      Section[]
   cohortMembershipHistories CohortMembershipHistory[]
+  preferenceAudiences PreferenceWindowAudience[]
 
   @@index([organizationId])
   @@index([academicCycleId])

@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { EnrollmentSource, GradeStatus, Prisma } from '@/prisma/prisma-client';
+import { GradeStatus, Prisma } from '@/prisma/prisma-client';
 import { Role, StudentStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -76,10 +76,6 @@ export class StudentService {
         rollNumber,
       },
     });
-  }
-
-  private normalizeSectionIds(sectionIds?: string[]) {
-    return Array.from(new Set(sectionIds || [])).filter(Boolean);
   }
 
   private async validateGuardianAssignment(
@@ -178,179 +174,6 @@ export class StudentService {
         orderBy: { updatedAt: 'desc' as const },
       },
     };
-  }
-
-  private async getCohortForEnrollment(
-    tx: Prisma.TransactionClient,
-    orgId: string,
-    cohortId: string,
-  ) {
-    const cohort = await tx.cohort.findFirst({
-      where: { id: cohortId, organizationId: orgId },
-      include: { sections: { select: { id: true, academicCycleId: true } } },
-    });
-    if (!cohort) throw new NotFoundException('Cohort not found');
-    if (!cohort.isActive) throw new ConflictException('Cannot enroll students into an inactive cohort');
-    return cohort;
-  }
-
-  private async createManualEnrollments(
-    tx: Prisma.TransactionClient,
-    studentId: string,
-    sectionIds: string[],
-  ) {
-    const uniqueSectionIds = this.normalizeSectionIds(sectionIds);
-    if (uniqueSectionIds.length === 0) return;
-
-    const sections = await tx.section.findMany({
-      where: { id: { in: uniqueSectionIds } },
-      select: { id: true, academicCycleId: true },
-    });
-    const sectionCycleMap = new Map(sections.map((section) => [section.id, section.academicCycleId]));
-
-    for (const sectionId of uniqueSectionIds) {
-      const existing = await tx.enrollment.findUnique({
-        where: { studentId_sectionId: { studentId, sectionId } },
-      });
-
-      if (existing) {
-        if (existing.source !== EnrollmentSource.MANUAL) {
-          await tx.enrollment.update({
-            where: { id: existing.id },
-            data: {
-              source: EnrollmentSource.MANUAL,
-              isExcludedFromCohort: false,
-              academicCycleId: existing.academicCycleId || sectionCycleMap.get(sectionId) || undefined,
-            },
-          });
-          await tx.enrollmentHistory.create({
-            data: {
-              studentId,
-              sectionId,
-              academicCycleId: existing.academicCycleId || sectionCycleMap.get(sectionId) || undefined,
-              source: EnrollmentSource.MANUAL,
-            },
-          });
-        }
-        continue;
-      }
-
-      await tx.enrollment.create({
-        data: {
-          studentId,
-          sectionId,
-          academicCycleId: sectionCycleMap.get(sectionId) || undefined,
-          source: EnrollmentSource.MANUAL,
-        },
-      });
-
-      await tx.enrollmentHistory.create({
-        data: {
-          studentId,
-          sectionId,
-          academicCycleId: sectionCycleMap.get(sectionId) || undefined,
-          source: EnrollmentSource.MANUAL,
-        },
-      });
-    }
-  }
-
-  private async autoEnrollCohortSections(
-    tx: Prisma.TransactionClient,
-    studentId: string,
-    sections: { id: string; academicCycleId: string }[],
-    fallbackAcademicCycleId: string,
-  ) {
-    for (const section of sections) {
-      const existing = await tx.enrollment.findUnique({
-        where: { studentId_sectionId: { studentId, sectionId: section.id } },
-      });
-
-      // Existing manual enrollment wins. Removing the cohort later must not
-      // remove an individually selected section.
-      if (existing) continue;
-
-      await tx.enrollment.create({
-        data: {
-          studentId,
-          sectionId: section.id,
-          academicCycleId: section.academicCycleId || fallbackAcademicCycleId,
-          source: EnrollmentSource.COHORT,
-        },
-      });
-
-      await tx.enrollmentHistory.create({
-        data: {
-          studentId,
-          sectionId: section.id,
-          academicCycleId: section.academicCycleId || fallbackAcademicCycleId,
-          source: EnrollmentSource.COHORT,
-        },
-      });
-    }
-  }
-
-  private async removeCohortEnrollments(
-    tx: Prisma.TransactionClient,
-    studentId: string,
-    cohortId: string,
-  ) {
-    const cohortEnrollments = await tx.enrollment.findMany({
-      where: {
-        studentId,
-        source: EnrollmentSource.COHORT,
-        isExcludedFromCohort: false,
-        section: { cohortId },
-      },
-      select: { id: true, sectionId: true },
-    });
-
-    if (cohortEnrollments.length === 0) return;
-
-    const sectionIds = cohortEnrollments.map((enrollment) => enrollment.sectionId);
-    await tx.enrollmentHistory.updateMany({
-      where: {
-        studentId,
-        sectionId: { in: sectionIds },
-        source: EnrollmentSource.COHORT,
-        removedAt: null,
-      },
-      data: { removedAt: new Date() },
-    });
-
-    await tx.enrollment.deleteMany({
-      where: { id: { in: cohortEnrollments.map((enrollment) => enrollment.id) } },
-    });
-  }
-
-  private async moveStudentToCohort(
-    tx: Prisma.TransactionClient,
-    orgId: string,
-    studentId: string,
-    fromCohortId: string | null,
-    toCohortId: string | null,
-  ) {
-    if (fromCohortId === toCohortId) return;
-
-    if (fromCohortId) {
-      await this.removeCohortEnrollments(tx, studentId, fromCohortId);
-      await tx.cohortMembershipHistory.updateMany({
-        where: { studentId, cohortId: fromCohortId, leftAt: null },
-        data: { leftAt: new Date() },
-      });
-    }
-
-    if (!toCohortId) return;
-
-    const cohort = await this.getCohortForEnrollment(tx, orgId, toCohortId);
-    await tx.cohortMembershipHistory.create({
-      data: {
-        studentId,
-        cohortId: toCohortId,
-        academicCycleId: cohort.academicCycleId,
-      },
-    });
-    await this.autoEnrollCohortSections(tx, studentId, cohort.sections, cohort.academicCycleId);
   }
 
   async assertStudentsBelongToSection(
@@ -658,7 +481,6 @@ export class StudentService {
             bloodGroup: data.bloodGroup,
             gender: data.gender,
             status: data.status as unknown as StudentStatus,
-            cohortId: data.cohortId || null,
             updatedBy: userContext.name || userContext.email,
             studentDepartments: data.departmentIds?.length
               ? {
@@ -688,12 +510,6 @@ export class StudentService {
             data.guardianId,
             data.guardianRelationship,
           );
-        }
-
-        await this.createManualEnrollments(prisma, student.id, data.sectionIds || []);
-
-        if (data.cohortId) {
-          await this.moveStudentToCohort(prisma, orgId, student.id, null, data.cohortId);
         }
 
         const createdStudent = await prisma.student.findUnique({
@@ -760,7 +576,6 @@ export class StudentService {
       'bloodGroup',
       'gender',
       'status',
-      'cohortId',
     ];
 
     const { userData, entityData: studentData } = await extractUpdateFields(
@@ -814,16 +629,6 @@ export class StudentService {
       } else {
         studentData.graduationDate = null;
       }
-    }
-
-    const nextCohortId = data.cohortId === ''
-      ? null
-      : data.cohortId !== undefined
-        ? data.cohortId
-        : undefined;
-
-    if (data.cohortId === '') {
-      studentData.cohortId = null;
     }
 
     const departmentScope = await getDepartmentScope(
@@ -881,56 +686,6 @@ export class StudentService {
             })),
           });
         }
-      }
-
-      if (data.sectionIds !== undefined) {
-        // Fetch current MANUAL enrollments
-        const currentManualEnrollments = await tx.enrollment.findMany({
-          where: { studentId: id, source: 'MANUAL' },
-          select: { id: true, sectionId: true, academicCycleId: true },
-        });
-
-        const currentSectionIds = new Set(currentManualEnrollments.map(e => e.sectionId));
-        const normalizedSectionIds = this.normalizeSectionIds(data.sectionIds);
-        const newSectionIds = new Set(normalizedSectionIds);
-
-        const sectionsToAdd = normalizedSectionIds.filter(id => !currentSectionIds.has(id));
-        const sectionsToRemove = currentManualEnrollments.filter(e => !newSectionIds.has(e.sectionId));
-
-        if (sectionsToRemove.length > 0) {
-          const idsToRemove = sectionsToRemove.map(e => e.id);
-          const sectionIdsToRemove = sectionsToRemove.map(e => e.sectionId);
-
-          // Mark as removed in history
-          await tx.enrollmentHistory.updateMany({
-            where: {
-              studentId: id,
-              sectionId: { in: sectionIdsToRemove },
-              source: 'MANUAL',
-              removedAt: null,
-            },
-            data: { removedAt: new Date() },
-          });
-
-          // Delete the manual enrollments
-          await tx.enrollment.deleteMany({
-            where: { id: { in: idsToRemove } },
-          });
-        }
-
-        if (sectionsToAdd.length > 0) {
-          await this.createManualEnrollments(tx, id, sectionsToAdd);
-        }
-      }
-
-      if (nextCohortId !== undefined) {
-        await this.moveStudentToCohort(tx, orgId, id, student.cohortId, nextCohortId);
-      }
-
-      const effectiveCohortId = nextCohortId !== undefined ? nextCohortId : student.cohortId;
-      if (data.sectionIds !== undefined && effectiveCohortId) {
-        const cohort = await this.getCohortForEnrollment(tx, orgId, effectiveCohortId);
-        await this.autoEnrollCohortSections(tx, id, cohort.sections, cohort.academicCycleId);
       }
 
       const savedStudent = await tx.student.findUnique({

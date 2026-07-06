@@ -584,7 +584,7 @@ Legacy top-level routes such as `/teachers`, `/students`, `/sub-admins`, `/finan
 1. Org admin creates courses with credit hours.
 2. Org admin creates sections for courses and academic cycles.
 3. Teachers are assigned to sections.
-4. Students are enrolled directly or through cohorts.
+4. Students are enrolled through the dedicated enrollment workflow, either directly into sections or through cohorts.
 5. Materials, schedules, attendance, assessments, and grades attach to sections.
 
 ### Multi-Teacher Sections

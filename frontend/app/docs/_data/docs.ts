@@ -299,12 +299,13 @@ export const docsPages: DocPage[] = [
           },
           {
             type: 'list',
-            items: [
-              'Cohort placement is useful when a whole group should move through the same academic cycle together.',
-              'Individual section placement is useful when one student needs a class outside their cohort setup.',
-              'Changing placement can affect what the student sees in their portal, so review the cohort and section list before saving.',
-            ],
-          },
+              items: [
+                'Cohort placement is useful when a whole group should move through the same academic cycle together.',
+                'Individual section placement is useful when one student needs a class outside their cohort setup.',
+                'Student profile editing does not change placement. Use the dedicated enrollment management page from the student record to change cohort or section enrollment.',
+                'Changing placement can affect what the student sees in their portal, so review the cohort and section list before confirming enrollment changes.',
+              ],
+            },
         ],
       },
       {
@@ -451,7 +452,7 @@ export const docsPages: DocPage[] = [
             items: [
               'Create a new section when the same course is taught to a different group, cycle, teacher, or schedule.',
               'Choose a default room when the class usually meets in the same place. The schedule room still decides the actual timetable location.',
-              'Open the section detail page to manage schedules, materials, assessments, attendance, and enrollment.',
+                'Open the section detail page to manage schedules, materials, assessments, and attendance. Use enrollment management screens for student placement changes.',
             ],
           },
         ],
@@ -1247,8 +1248,8 @@ export const docsPages: DocPage[] = [
       },
     ],
   },
-  {
-    slug: 'evaluations-feedback',
+    {
+      slug: 'evaluations-feedback',
     title: 'Evaluations and Feedback',
     description: 'Collect concise course and teacher feedback from eligible enrolled students.',
     category: 'Academics',
@@ -1330,10 +1331,101 @@ export const docsPages: DocPage[] = [
           },
         ],
       },
-    ],
-  },
-  {
-    slug: 'transcripts',
+      ],
+    },
+    {
+      slug: 'preference-windows',
+      title: 'Preference Windows',
+      description: 'Let students rank course or section options while final enrollment stays controlled by staff.',
+      category: 'Academics',
+      tags: ['preferences', 'section choice', 'course choice', 'voting', 'ranked choice', 'announcements'],
+      related: ['students', 'courses-sections', 'cohorts-promotions', 'announcements', 'student-guide'],
+      sections: [
+        {
+          id: 'purpose',
+          title: 'What preference windows do',
+          tags: ['purpose', 'ranked choice'],
+          blocks: [
+            {
+              type: 'paragraph',
+              text: 'Preference windows collect ranked student choices between existing course or section options. They are advisory: staff still control final cohort and section enrollment.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Use section choice when students choose between equivalent sections of an existing course or offering.',
+                'Use course choice when students choose between existing course options for the next placement step.',
+                'Options must already exist as courses or sections with schedules before a window is opened.',
+                'Preference windows do not create courses, sections, teachers, rooms, or schedules.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'opening-window',
+          title: 'Opening a window',
+          tags: ['admin', 'sub admin', 'manager', 'announcement'],
+          blocks: [
+            {
+              type: 'steps',
+              items: [
+                'Open Preference Windows from the Academics navigation.',
+                'Create a draft and choose Section choice or Course choice.',
+                'Select existing section or course options.',
+                'Choose the audience by course, cohort, or section. If a course audience is selected, its sections are already included.',
+                'Set start time and deadline.',
+                'Activate the window to publish it and create high-priority announcements for the selected audience.',
+              ],
+            },
+            {
+              type: 'note',
+              title: 'Announcements are the call to action',
+              text: 'Activated preference windows create announcements with a link to the student choice page. Use urgent priority only when the window needs immediate attention.',
+            },
+          ],
+        },
+        {
+          id: 'student-voting',
+          title: 'Student voting experience',
+          tags: ['student', 'portal', 'ranking'],
+          blocks: [
+            {
+              type: 'paragraph',
+              text: 'Students see open preference windows in the Preferences tab of the student portal and from the announcement deep link. They rank every available option before the deadline.',
+            },
+            {
+              type: 'steps',
+              items: [
+                'Open the announcement or the Preferences tab.',
+                'Review option cards with course, section, teacher, schedule, room, and capacity context where available.',
+                'Move options up or down until the order matches the student preference.',
+                'Submit before the deadline. If the window is still open, the student can update the ranking.',
+                'After the deadline, submitted rankings remain visible for review but cannot be changed.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'results-and-enrollment',
+          title: 'Results and enrollment',
+          tags: ['results', 'enrollment', 'admin'],
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Results show audience size, submitted count, pending count, first-choice votes, rank distribution, and student-by-student rankings.',
+                'For section-choice windows, Admin and Sub Admin users can enroll a student into one of the polled sections directly from results.',
+                'The quick enroll action uses the dedicated enrollment workflow and stops if the student is already enrolled in that section.',
+                'Capacity and schedule issues are warnings only; they do not block staff from enrolling a student.',
+                'There is no automatic allocation in this version.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      slug: 'transcripts',
     title: 'Transcripts',
     description: 'Generate academic records with marks, percentages, letter grades, credit hours, GPA, and CGPA.',
     category: 'Academics',
@@ -3758,6 +3850,7 @@ export const docsNavGroups: DocNavGroup[] = [
       'submissions',
       'gradebook',
       'evaluations-feedback',
+      'preference-windows',
       'gpa-policies',
       'timetable',
       'attendance',

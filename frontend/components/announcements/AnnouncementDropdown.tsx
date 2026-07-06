@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Megaphone, Loader2, Plus, Globe, Building2, Shield, Layout } from 'lucide-react';
+import { Megaphone, Loader2, Plus, Globe, Building2, Shield, Layout, BookOpen, Network } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSocket } from '@/hooks/useSocket';
 import { api } from '@/lib/api';
@@ -232,6 +232,8 @@ export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps
                                         [TargetType.ORG]: <Building2 className="w-3 h-3" />,
                                         [TargetType.ROLE]: <Shield className="w-3 h-3" />,
                                         [TargetType.SECTION]: <Layout className="w-3 h-3" />,
+                                        [TargetType.COURSE]: <BookOpen className="w-3 h-3" />,
+                                        [TargetType.COHORT]: <Network className="w-3 h-3" />,
                                     };
 
                                     const bgClass = priorityColors[announcement.priority || 'NORMAL'] || priorityColors.NORMAL;

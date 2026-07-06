@@ -94,6 +94,24 @@ export class AnnouncementsService {
           throw new ForbiddenException('Teacher profile not found');
         }
       }
+    } else if (dto.targetType === TargetType.COURSE) {
+      if (user.role === Role.TEACHER) {
+        throw new ForbiddenException('Teachers are not authorized to create course-based announcements.');
+      }
+      const course = await this.prisma.course.findFirst({
+        where: { id: dto.targetId, organizationId: user.organizationId || undefined },
+        select: { id: true },
+      });
+      if (!course) throw new ForbiddenException('Cannot target a course you do not have access to.');
+    } else if (dto.targetType === TargetType.COHORT) {
+      if (user.role === Role.TEACHER) {
+        throw new ForbiddenException('Teachers are not authorized to create cohort-based announcements.');
+      }
+      const cohort = await this.prisma.cohort.findFirst({
+        where: { id: dto.targetId, organizationId: user.organizationId || undefined },
+        select: { id: true },
+      });
+      if (!cohort) throw new ForbiddenException('Cannot target a cohort you do not have access to.');
     }
 
     // Set OrganizationId if it's not a global announcement and creator is part of an org
@@ -149,6 +167,22 @@ export class AnnouncementsService {
       enrollments.forEach((e) => {
         this.events.emitToUser(e.student.userId, eventName, announcement);
       });
+    } else if (dto.targetType === TargetType.COURSE && dto.targetId) {
+      const enrollments = await this.prisma.enrollment.findMany({
+        where: { section: { courseId: dto.targetId } },
+        select: { student: { select: { userId: true } } },
+      });
+      Array.from(new Set(enrollments.map((e) => e.student.userId))).forEach((userId) => {
+        this.events.emitToUser(userId, eventName, announcement);
+      });
+    } else if (dto.targetType === TargetType.COHORT && dto.targetId) {
+      const students = await this.prisma.student.findMany({
+        where: { cohortId: dto.targetId },
+        select: { userId: true },
+      });
+      students.forEach((student) => {
+        this.events.emitToUser(student.userId, eventName, announcement);
+      });
     }
 
     return announcement;
@@ -192,12 +226,22 @@ export class AnnouncementsService {
       if (student) {
         const profile = await this.prisma.student.findUnique({
           where: { userId: user.id },
-          include: { enrollments: true },
+          include: { enrollments: { include: { section: { select: { courseId: true } } } } },
         });
         if (profile && profile.enrollments.length > 0) {
           conditions.push({
             targetType: TargetType.SECTION,
             targetId: { in: profile.enrollments.map((e) => e.sectionId) },
+          });
+          conditions.push({
+            targetType: TargetType.COURSE,
+            targetId: { in: Array.from(new Set(profile.enrollments.map((e) => e.section.courseId))) },
+          });
+        }
+        if (profile?.cohortId) {
+          conditions.push({
+            targetType: TargetType.COHORT,
+            targetId: profile.cohortId,
           });
         }
       }

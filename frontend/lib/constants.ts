@@ -31,6 +31,7 @@ export const DASHBOARD_MODULES = [
     'academic-calender',
     'cohorts',
     'promotions',
+    'preference-windows',
     'transcripts',
     'finance',
     'teacher-finance',

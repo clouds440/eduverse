@@ -1,6 +1,8 @@
 ﻿import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
 export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
+import type { PreferenceWindowKind, PreferenceWindowStatus, PreferenceTargetType } from './enums';
+export { PreferenceWindowKind, PreferenceWindowStatus, PreferenceTargetType } from './enums';
 import type { ScheduleType } from './enums';
 export { ScheduleType } from './enums';
 
@@ -437,7 +439,7 @@ export interface Student {
     gender?: string | null;
     status?: StudentStatus;
     user: User;
-    enrollments?: { section: Section; source?: string; isExcludedFromCohort?: boolean; academicCycleId?: string }[];
+    enrollments?: { id?: string; sectionId?: string; section: Section; source?: 'MANUAL' | 'COHORT' | string; isExcludedFromCohort?: boolean; academicCycleId?: string }[];
     updatedBy?: string;
     cohortId?: string | null;
     cohort?: Cohort;
@@ -984,8 +986,6 @@ export interface CreateStudentRequest {
     bloodGroup?: string | null;
     gender?: string | null;
     status?: StudentStatus;
-    sectionIds?: string[];
-    cohortId?: string | null;
     guardianId?: string | null;
     guardianRelationship?: string | null;
     primaryDepartmentId?: string | null;
@@ -993,6 +993,26 @@ export interface CreateStudentRequest {
 }
 
 export type UpdateStudentRequest = Partial<CreateStudentRequest>;
+
+export interface Enrollment {
+    id: string;
+    studentId: string;
+    sectionId: string;
+    academicCycleId?: string | null;
+    source: 'MANUAL' | 'COHORT';
+    isExcludedFromCohort: boolean;
+    createdAt: string;
+    updatedAt: string;
+    student?: Student;
+    section?: Section;
+}
+
+export interface EnrollmentMutationResponse {
+    enrollment?: Enrollment;
+    count?: number;
+    warnings?: { code: string; message: string }[];
+    results?: EnrollmentMutationResponse[];
+}
 
 export interface CreateGuardianRequest {
     name: string;
@@ -1578,6 +1598,104 @@ export interface EvaluationWindow {
     section?: Pick<Section, 'id' | 'name' | 'courseId'> | null;
     createdBy?: Pick<User, 'id' | 'name' | 'email'>;
     updatedBy?: Pick<User, 'id' | 'name' | 'email'> | null;
+}
+
+export interface PreferenceWindowOption {
+    id: string;
+    windowId: string;
+    targetType: PreferenceTargetType;
+    courseId?: string | null;
+    sectionId?: string | null;
+    displayOrder: number;
+    course?: Course | null;
+    section?: Section | null;
+}
+
+export interface PreferenceWindowAudience {
+    id: string;
+    windowId: string;
+    targetType: PreferenceTargetType;
+    courseId?: string | null;
+    cohortId?: string | null;
+    sectionId?: string | null;
+    course?: Course | null;
+    cohort?: Cohort | null;
+    section?: Section | null;
+}
+
+export interface PreferenceRank {
+    id: string;
+    submissionId: string;
+    optionId: string;
+    rank: number;
+    option?: PreferenceWindowOption;
+}
+
+export interface PreferenceSubmission {
+    id: string;
+    windowId: string;
+    studentId: string;
+    submittedById: string;
+    submittedAt: string;
+    updatedAt: string;
+    student?: Student;
+    ranks?: PreferenceRank[];
+}
+
+export interface PreferenceWindow {
+    id: string;
+    organizationId: string;
+    academicCycleId: string;
+    title: string;
+    description?: string | null;
+    kind: PreferenceWindowKind;
+    status: PreferenceWindowStatus;
+    startAt: string;
+    endAt: string;
+    announcementId?: string | null;
+    createdById: string;
+    updatedById?: string | null;
+    createdAt: string;
+    updatedAt: string;
+    academicCycle?: AcademicCycle;
+    options?: PreferenceWindowOption[];
+    audiences?: PreferenceWindowAudience[];
+    submissions?: PreferenceSubmission[];
+    _count?: { submissions?: number; options?: number; audiences?: number };
+}
+
+export interface PreferenceWindowRequest {
+    kind: PreferenceWindowKind;
+    academicCycleId: string;
+    title: string;
+    description?: string | null;
+    startAt: string;
+    endAt: string;
+    optionCourseIds?: string[];
+    optionSectionIds?: string[];
+    audienceCourseIds?: string[];
+    audienceCohortIds?: string[];
+    audienceSectionIds?: string[];
+}
+
+export interface PreferenceResults {
+    window: PreferenceWindow;
+    audienceCount: number;
+    submittedCount: number;
+    pendingCount: number;
+    optionStats: {
+        optionId: string;
+        firstChoices: number;
+        responses: number;
+        averageRank: number | null;
+        capacityWarnings: string[];
+    }[];
+    students: {
+        student: Student;
+        submitted: boolean;
+        ranks: PreferenceRank[];
+        currentSectionIds: string[];
+    }[];
 }
 
 export interface Evaluation {

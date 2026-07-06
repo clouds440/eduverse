@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, CalendarClock, UserRoundCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
-import { Department, Section, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, Cohort, AcademicCycle, GuardianProfile } from '@/types';
+import { Department, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, GuardianProfile } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -18,7 +18,7 @@ import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { FormActions, FormField, FormGrid, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
 import { DocsLink } from '@/components/ui/DocsLink';
-import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
+import { formatDepartmentLabel } from '@/lib/utils';
 import { useForm, SubmitHandler, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { studentCreateSchema, studentUpdateSchema, studentProfileSchema, StudentCreateFormData, StudentUpdateFormData, StudentProfileFormData } from '@/lib/schemas';
@@ -58,7 +58,6 @@ function getStudentDefaults(initialData?: Student) {
         rollNumber: initialData.rollNumber || '',
         admissionDate: dateInputValue(initialData.admissionDate, todayInputValue()),
         status: initialData.status as StudentStatus || StudentStatus.ACTIVE,
-        sectionIds: initialData.enrollments?.filter(e => e.source !== 'COHORT').map(e => e.section.id) || [],
         major: initialData.major || '',
         department: initialData.department || '',
         primaryDepartmentId: initialData.primaryDepartmentId || '',
@@ -71,7 +70,6 @@ function getStudentDefaults(initialData?: Student) {
         emergencyContact: initialData.emergencyContact || '',
         bloodGroup: initialData.bloodGroup || '',
         address: initialData.address || '',
-        cohortId: initialData.cohortId || '',
         guardianId: initialData.guardianId || '',
         guardianRelationship: initialData.guardianRelationship || '',
     } : {
@@ -82,7 +80,6 @@ function getStudentDefaults(initialData?: Student) {
         rollNumber: '',
         admissionDate: todayInputValue(),
         status: StudentStatus.ACTIVE,
-        sectionIds: [],
         major: '',
         department: '',
         primaryDepartmentId: '',
@@ -95,7 +92,6 @@ function getStudentDefaults(initialData?: Student) {
         emergencyContact: '',
         bloodGroup: '',
         address: '',
-        cohortId: '',
         guardianId: '',
         guardianRelationship: '',
     };
@@ -140,29 +136,12 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     }, [initialData, reset]);
 
     const watchedStatus = useWatch({ control, name: 'status' }) as StudentStatus | undefined;
-    const watchedSectionIds = useWatch({ control, name: 'sectionIds' }) as string[] | undefined;
-    const watchedCohortId = useWatch({ control, name: 'cohortId' }) as string | undefined;
     const watchedGender = useWatch({ control, name: 'gender' }) as string | undefined;
     const watchedGuardianId = useWatch({ control, name: 'guardianId' }) as string | undefined;
     const watchedPrimaryDepartmentId = useWatch({ control, name: 'primaryDepartmentId' }) as string | undefined;
     const watchedDepartmentIds = useWatch({ control, name: 'departmentIds' }) as string[] | undefined;
 
-    const { data: sectionsData } = useSWR<{ data: Section[] }>(token ? ['sections', { limit: 1000 }] as const : null);
-    const { data: cohortsData } = useSWR<{ data: (Cohort & { academicCycle?: AcademicCycle })[] }>(token ? ['cohorts', { limit: 500 }] as const : null);
     const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
-
-    const sectionOptions = useMemo(() => (sectionsData?.data || []).map(section => ({
-        value: section.id,
-        label: formatCourseSectionLabel({ courseName: section.course?.name, sectionName: section.name }),
-    })), [sectionsData?.data]);
-
-    const cohortOptions = useMemo(() => [
-        { label: 'No Cohort', value: '' },
-        ...(cohortsData?.data?.map(cohort => ({
-            value: cohort.id,
-            label: `${cohort.code ? `${cohort.code} - ` : ''}${cohort.name} (${cohort.academicCycle?.code ? `${cohort.academicCycle.code} - ` : ''}${cohort.academicCycle?.name || 'No Cycle'})`,
-        })) || []),
-    ], [cohortsData?.data]);
 
     const departmentOptions = useMemo(() => [
         { label: 'No Primary Department', value: '' },
@@ -201,18 +180,6 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
         if (isProfile || isWatchMode) return;
         setValue('status', value as StudentStatus);
         trigger('status');
-    }, [isProfile, isWatchMode, setValue, trigger]);
-
-    const handleCohortChange = useCallback((value: string) => {
-        if (isProfile || isWatchMode) return;
-        setValue('cohortId', value);
-        trigger('cohortId');
-    }, [isProfile, isWatchMode, setValue, trigger]);
-
-    const handleSectionsChange = useCallback((values: string[]) => {
-        if (isProfile || isWatchMode) return;
-        setValue('sectionIds', values);
-        trigger('sectionIds');
     }, [isProfile, isWatchMode, setValue, trigger]);
 
     const handleGenderChange = useCallback((value: string) => {
@@ -456,31 +423,26 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
 
             <FormSection
                 title="Academic Placement"
-                description={<>Cohort and individual section placement. <DocsLink href="/docs/students#student-academic-placement">Read placement rules</DocsLink></>}
+                description={<>Cohort placement and department context. Individual section enrollment is managed from enrollment workflows. <DocsLink href="/docs/students#student-academic-placement">Read placement rules</DocsLink></>}
                 icon={Users}
             >
                 <FormGrid className="items-start">
-                    <FormField label="Enroll in Cohort" error={errors.cohortId?.message}>
-                        <CustomSelect
-                            options={cohortOptions}
-                            value={watchedCohortId || ''}
-                            onChange={handleCohortChange}
-                            placeholder="Select a cohort..."
-                            error={!!errors.cohortId}
-                            disabled={identityLocked}
-                            icon={Users}
-                        />
-                    </FormField>
-
-                    <FormField label="Enroll in Individual Sections" error={errors.sectionIds?.message}>
-                        <CustomMultiSelect
-                            options={sectionOptions}
-                            values={watchedSectionIds || []}
-                            onChange={handleSectionsChange}
-                            placeholder="Select one or more sections..."
-                            error={!!errors.sectionIds}
-                            disabled={identityLocked}
-                        />
+                    <FormField label="Current Cohort">
+                        <div className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border bg-muted/35 px-3.5 py-2.5">
+                            <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+                                {initialData?.cohort
+                                    ? `${initialData.cohort.code ? `${initialData.cohort.code} - ` : ''}${initialData.cohort.name}`
+                                    : 'No cohort assigned'}
+                            </span>
+                            {!isProfile && !isWatchMode && studentId && (
+                                <Link
+                                    href={`/users/students/edit/${studentId}/enrollment`}
+                                    className="shrink-0 text-xs font-black text-primary hover:underline"
+                                >
+                                    Manage
+                                </Link>
+                            )}
+                        </div>
                     </FormField>
 
                     <FormField label="Additional Departments" error={errors.departmentIds?.message}>
