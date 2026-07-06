@@ -259,7 +259,7 @@ export default function Navbar() {
                     releaseNavInteractionHold();
                 }
             }}
-            className={`fixed top-0 left-0 right-0 z-100 h-16 border-b border-border/70 bg-background/85 text-navbar-foreground shadow-sm backdrop-blur-md transition-transform duration-200 ease-out ${isNavHidden ? '-translate-y-full' : 'translate-y-0'}`}
+            className={`app-navbar fixed top-0 left-0 right-0 z-100 h-16 border-b border-border/70 bg-background/85 text-navbar-foreground shadow-sm backdrop-blur-md transition-transform duration-200 ease-out ${isNavHidden ? '-translate-y-full' : 'translate-y-0'}`}
         >
             <div className="mx-auto flex h-full w-full items-center justify-between gap-2 px-3 sm:px-4 lg:pr-8">
                 <div className="flex min-w-0 flex-1 items-center gap-2">

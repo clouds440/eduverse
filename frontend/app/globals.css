@@ -231,7 +231,7 @@ html.pwa-standalone [contenteditable="true"] {
   user-select: text;
 }
 
-html.pwa-standalone nav {
+html.pwa-standalone .app-navbar {
   top: var(--app-viewport-top);
   height: var(--app-nav-height);
   min-height: var(--app-nav-height);
