@@ -4,7 +4,9 @@ import {
     Building,
     Calendar,
     FileText,
+    GraduationCap,
     Key,
+    ListChecks,
     Mail,
     MessageSquare,
     ReceiptText,
@@ -65,6 +67,8 @@ const GROUP_BY_ID: Record<string, RouteSearchGroup> = {
     GRADES: 'Academic',
     GPA_POLICIES: 'Settings',
     HOLIDAYS: 'Academic',
+    PREFERENCES: 'Academic',
+    PREFERENCE_WINDOWS: 'Academic',
     SCHEDULES: 'Academic',
     SECTIONS: 'Academic',
     TIMETABLE: 'Academic',
@@ -167,15 +171,25 @@ const ROUTE_METADATA: Record<string, Pick<RouteSearchItem, 'description' | 'alia
         aliases: ['classes'],
         keywords: ['cls', 'sec', 'section', 'roster'],
     },
+    PREFERENCES: {
+        description: 'Rank open course or section preference polls',
+        aliases: ['student polls', 'course preference', 'section preference'],
+        keywords: ['poll', 'vote', 'choice', 'rank', 'preferences'],
+    },
+    PREFERENCE_WINDOWS: {
+        description: 'Create, activate, and review section/course polls',
+        aliases: ['polls', 'course polls', 'section polls', 'preference windows'],
+        keywords: ['poll', 'vote', 'choice', 'ranked preference', 'announcement', 'audience'],
+    },
     SETTINGS: {
         description: 'Organization and account settings',
         aliases: ['appearance', 'profile'],
         keywords: ['theme', 'organization', 'settings'],
     },
     STUDENTS: {
-        description: 'Student records and rosters',
-        aliases: ['learners'],
-        keywords: ['std', 'stu', 'student'],
+        description: 'Student records, rosters, and enrollment management',
+        aliases: ['learners', 'student enrollment'],
+        keywords: ['std', 'stu', 'student', 'enroll', 'withdraw', 'transfer', 'cohort placement'],
     },
     TIMETABLE: {
         description: 'Weekly timetable',
@@ -394,6 +408,8 @@ function userManagementItems(role?: Role | null): RouteSearchItem[] {
 function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
     const role = user?.role;
     const canManageAcademic = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
+    const canManagePolls = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.ORG_MANAGER;
+    const canManageStudentEnrollment = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
     const canUseFinance = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.FINANCE_MANAGER;
     const teacherProfileHref = user?.id ? teacherProfilePath(user.id) : '/settings';
     const studentProfileHref = user?.id ? studentPortalPath(user.id, 'profile') : '/settings';
@@ -443,6 +459,26 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
                 keywords: ['batch', 'cohort'],
             },
         ] : []),
+        ...(canManagePolls ? [{
+            id: 'create-preference-poll',
+            title: 'New Section/Course Poll',
+            href: '/preference-windows?create=poll',
+            group: 'Actions' as const,
+            description: 'Open the poll window creator',
+            icon: ListChecks,
+            aliases: ['new preference window', 'create poll', 'course poll', 'section poll'],
+            keywords: ['poll', 'vote', 'choice', 'ranked preference', 'announcement audience'],
+        }] : []),
+        ...(canManageStudentEnrollment ? [{
+            id: 'manage-student-enrollment',
+            title: 'Manage Student Enrollment',
+            href: '/users/students',
+            group: 'Actions' as const,
+            description: 'Choose a student, then manage cohort placement and section enrollment',
+            icon: GraduationCap,
+            aliases: ['student enrollment', 'enroll student', 'withdraw student', 'change cohort'],
+            keywords: ['enroll', 'withdraw', 'transfer', 'section enrollment', 'cohort placement'],
+        }] : []),
         ...(canUseFinance ? [
             {
                 id: 'finance-structures',

@@ -6,6 +6,7 @@ import { CalendarDays, CheckCircle2, ListChecks, Network, Plus, XCircle } from '
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import {
     AnnouncementPriority,
     AcademicCycle,
@@ -19,7 +20,8 @@ import {
     Role,
     Section,
 } from '@/types';
-import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
+import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -27,10 +29,32 @@ import { Label } from '@/components/ui/Label';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { CustomSelect } from '@/components/ui/CustomSelect';
-import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
+import { CustomMultiSelect, type MultiSelectOption } from '@/components/ui/CustomMultiSelect';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { ModalForm } from '@/components/ui/ModalForm';
+import { SearchBar } from '@/components/ui/SearchBar';
+
+const MIN_SEARCH_LENGTH = 2;
+const STATUS_OPTIONS = [
+    { value: 'ALL', label: 'All statuses' },
+    { value: PreferenceWindowStatus.ACTIVE, label: 'Active' },
+    { value: PreferenceWindowStatus.DRAFT, label: 'Draft' },
+    { value: PreferenceWindowStatus.CLOSED, label: 'Closed' },
+    { value: PreferenceWindowStatus.ARCHIVED, label: 'Archived' },
+];
+
+type SelectOption = MultiSelectOption & { courseId?: string };
+type FormErrors = Partial<Record<
+    'title' |
+    'academicCycleId' |
+    'startAt' |
+    'endAt' |
+    'options' |
+    'audience',
+    string
+>>;
 
 function asIso(value: string) {
     return value ? new Date(value).toISOString() : '';
@@ -40,6 +64,45 @@ function optionLabel(option: { course?: Course | null; section?: Section | null 
     if (option.section) return `${option.section.course?.name || 'Course'} - ${option.section.name}`;
     if (option.course) return option.course.code ? `${option.course.code} - ${option.course.name}` : option.course.name;
     return 'Option';
+}
+
+function courseLabel(course: Course) {
+    return course.code ? `${course.code} - ${course.name}` : course.name;
+}
+
+function sectionLabel(section: Section) {
+    return `${section.course?.code ? `${section.course.code} - ` : ''}${section.course?.name || 'Course'} / ${section.name}`;
+}
+
+function cohortLabel(cohort: Cohort) {
+    return cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name;
+}
+
+function cycleLabel(cycle: AcademicCycle) {
+    return cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name;
+}
+
+function mergeSelectedOptions(options: SelectOption[], selected: SelectOption[]) {
+    const byId = new Map<string, SelectOption>();
+    selected.forEach((option) => byId.set(option.value, option));
+    options.forEach((option) => byId.set(option.value, option));
+    return Array.from(byId.values());
+}
+
+function syncSelectedOptions(nextValues: string[], availableOptions: SelectOption[], previousOptions: SelectOption[]) {
+    const byId = new Map<string, SelectOption>();
+    previousOptions.forEach((option) => byId.set(option.value, option));
+    availableOptions.forEach((option) => byId.set(option.value, option));
+    return nextValues.map((value) => byId.get(value) || { value, label: 'Selected item' });
+}
+
+function FieldError({ message }: { message?: string }) {
+    if (!message) return null;
+    return <p className="text-xs font-bold text-danger">{message}</p>;
+}
+
+function searchTooShortMessage(search: string, label: string) {
+    return search.trim().length < MIN_SEARCH_LENGTH ? `Type at least ${MIN_SEARCH_LENGTH} characters to search ${label}.` : `No ${label} found.`;
 }
 
 function WindowResults({ id, window, onEnrollmentUpdated }: { id: string; window: PreferenceWindow; onEnrollmentUpdated: () => void }) {
@@ -155,11 +218,13 @@ function WindowResults({ id, window, onEnrollmentUpdated }: { id: string; window
 export default function PreferenceWindowsPage() {
     const { token } = useAuth();
     const { dispatch } = useGlobal();
+    const { searchParams, getStringParam, updateQueryParams } = useUrlQueryState();
     const [selectedId, setSelectedId] = useState('');
     const [kind, setKind] = useState<PreferenceWindowKind>(PreferenceWindowKind.SECTION_CHOICE);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [academicCycleId, setAcademicCycleId] = useState('');
+    const [selectedCycleOption, setSelectedCycleOption] = useState<SelectOption | null>(null);
     const [startAt, setStartAt] = useState('');
     const [endAt, setEndAt] = useState('');
     const [optionCourseIds, setOptionCourseIds] = useState<string[]>([]);
@@ -167,26 +232,146 @@ export default function PreferenceWindowsPage() {
     const [audienceCourseIds, setAudienceCourseIds] = useState<string[]>([]);
     const [audienceCohortIds, setAudienceCohortIds] = useState<string[]>([]);
     const [audienceSectionIds, setAudienceSectionIds] = useState<string[]>([]);
+    const [selectedOptionCourses, setSelectedOptionCourses] = useState<SelectOption[]>([]);
+    const [selectedOptionSections, setSelectedOptionSections] = useState<SelectOption[]>([]);
+    const [selectedAudienceCourses, setSelectedAudienceCourses] = useState<SelectOption[]>([]);
+    const [selectedAudienceCohorts, setSelectedAudienceCohorts] = useState<SelectOption[]>([]);
+    const [selectedAudienceSections, setSelectedAudienceSections] = useState<SelectOption[]>([]);
+    const [cycleSearch, setCycleSearch] = useState('');
+    const [optionCourseSearch, setOptionCourseSearch] = useState('');
+    const [optionSectionSearch, setOptionSectionSearch] = useState('');
+    const [audienceCourseSearch, setAudienceCourseSearch] = useState('');
+    const [audienceCohortSearch, setAudienceCohortSearch] = useState('');
+    const [audienceSectionSearch, setAudienceSectionSearch] = useState('');
+    const [formErrors, setFormErrors] = useState<FormErrors>({});
+    const [submitError, setSubmitError] = useState<Error | string | null>(null);
+    const [creating, setCreating] = useState(false);
 
-    const windowsKey = token ? ['preference-windows', token] as const : null;
+    const statusFilter = getStringParam('status', PreferenceWindowStatus.ACTIVE);
+    const kindFilter = getStringParam('kind', 'ALL');
+    const searchTerm = getStringParam('search');
+    const isCreateOpen = searchParams.get('create') === 'poll';
+
+    const windowsKey = token ? ['preference-windows', token, statusFilter, kindFilter] as const : null;
     const { data: windows, error, isLoading, mutate } = useSWR<PaginatedResponse<PreferenceWindow>>(
         windowsKey,
-        ([, t]) => api.org.getPreferenceWindows(t as string, { limit: 50 }),
+        ([, t, status, filterKind]) => api.org.getPreferenceWindows(t as string, {
+            limit: 100,
+            status: status === 'ALL' ? undefined : status as string,
+            kind: filterKind === 'ALL' ? undefined : filterKind as string,
+        }),
     );
-    const { data: cycles } = useSWR<PaginatedResponse<AcademicCycle>>(token ? ['preference-cycles', token] as const : null, ([, t]) => api.academicCycles.getCycles(t as string, { limit: 100 }));
-    const { data: courses } = useSWR<PaginatedResponse<Course>>(token ? ['preference-courses', token] as const : null, ([, t]) => api.org.getCourses(t as string, { limit: 1000 }));
-    const { data: cohorts } = useSWR<PaginatedResponse<Cohort>>(token ? ['preference-cohorts', token] as const : null, ([, t]) => api.cohorts.getCohorts(t as string, { limit: 500, includeAllCycles: true }));
-    const { data: sections } = useSWR<PaginatedResponse<Section>>(token && academicCycleId ? ['preference-sections', token, academicCycleId] as const : null, ([, t, cycleId]) => api.org.getSections(t as string, { limit: 1000, academicCycleId: cycleId as string }));
 
-    const allCourses = courses?.data || [];
-    const allSections = sections?.data || [];
-    const blockedAudienceSectionIds = new Set(allSections.filter((section) => audienceCourseIds.includes(section.courseId || '')).map((section) => section.id));
-    const selectedWindow = windows?.data.find((item) => item.id === selectedId);
+    const normalizedCycleSearch = cycleSearch.trim();
+    const normalizedOptionCourseSearch = optionCourseSearch.trim();
+    const normalizedOptionSectionSearch = optionSectionSearch.trim();
+    const normalizedAudienceCourseSearch = audienceCourseSearch.trim();
+    const normalizedAudienceCohortSearch = audienceCohortSearch.trim();
+    const normalizedAudienceSectionSearch = audienceSectionSearch.trim();
+
+    const { data: cycles, isLoading: cyclesLoading } = useSWR<PaginatedResponse<AcademicCycle>>(
+        token && isCreateOpen && normalizedCycleSearch.length >= MIN_SEARCH_LENGTH
+            ? ['preference-cycle-search', token, normalizedCycleSearch] as const
+            : null,
+        ([, t, search]) => api.academicCycles.getCycles(t as string, { limit: 25, search: search as string }),
+    );
+    const { data: optionCourses, isLoading: optionCoursesLoading } = useSWR<PaginatedResponse<Course>>(
+        token && isCreateOpen && kind === PreferenceWindowKind.COURSE_CHOICE && normalizedOptionCourseSearch.length >= MIN_SEARCH_LENGTH
+            ? ['preference-option-course-search', token, normalizedOptionCourseSearch] as const
+            : null,
+        ([, t, search]) => api.org.getCourses(t as string, { limit: 25, search: search as string }),
+    );
+    const { data: optionSections, isLoading: optionSectionsLoading } = useSWR<PaginatedResponse<Section>>(
+        token && isCreateOpen && kind === PreferenceWindowKind.SECTION_CHOICE && academicCycleId && normalizedOptionSectionSearch.length >= MIN_SEARCH_LENGTH
+            ? ['preference-option-section-search', token, academicCycleId, normalizedOptionSectionSearch] as const
+            : null,
+        ([, t, cycleId, search]) => api.org.getSections(t as string, { limit: 25, academicCycleId: cycleId as string, search: search as string }),
+    );
+    const { data: audienceCourses, isLoading: audienceCoursesLoading } = useSWR<PaginatedResponse<Course>>(
+        token && isCreateOpen && normalizedAudienceCourseSearch.length >= MIN_SEARCH_LENGTH
+            ? ['preference-audience-course-search', token, normalizedAudienceCourseSearch] as const
+            : null,
+        ([, t, search]) => api.org.getCourses(t as string, { limit: 25, search: search as string }),
+    );
+    const { data: audienceCohorts, isLoading: audienceCohortsLoading } = useSWR<PaginatedResponse<Cohort>>(
+        token && isCreateOpen && academicCycleId && normalizedAudienceCohortSearch.length >= MIN_SEARCH_LENGTH
+            ? ['preference-audience-cohort-search', token, academicCycleId, normalizedAudienceCohortSearch] as const
+            : null,
+        ([, t, cycleId, search]) => api.cohorts.getCohorts(t as string, { limit: 25, academicCycleId: cycleId as string, search: search as string }),
+    );
+    const { data: audienceSections, isLoading: audienceSectionsLoading } = useSWR<PaginatedResponse<Section>>(
+        token && isCreateOpen && academicCycleId && normalizedAudienceSectionSearch.length >= MIN_SEARCH_LENGTH
+            ? ['preference-audience-section-search', token, academicCycleId, normalizedAudienceSectionSearch] as const
+            : null,
+        ([, t, cycleId, search]) => api.org.getSections(t as string, { limit: 25, academicCycleId: cycleId as string, search: search as string }),
+    );
+
+    const cycleOptions = useMemo<SelectOption[]>(() => mergeSelectedOptions(
+        (cycles?.data || []).map((cycle) => ({ value: cycle.id, label: cycleLabel(cycle), icon: CalendarDays })),
+        selectedCycleOption ? [selectedCycleOption] : [],
+    ), [cycles?.data, selectedCycleOption]);
+    const optionCourseOptions = useMemo<SelectOption[]>(() => mergeSelectedOptions(
+        (optionCourses?.data || []).map((course) => ({ value: course.id, label: courseLabel(course), description: course.department?.name })),
+        selectedOptionCourses,
+    ), [optionCourses?.data, selectedOptionCourses]);
+    const optionSectionOptions = useMemo<SelectOption[]>(() => mergeSelectedOptions(
+        (optionSections?.data || []).map((section) => ({ value: section.id, label: sectionLabel(section), courseId: section.courseId, description: section.academicCycle?.name, meta: section.cohort?.name })),
+        selectedOptionSections,
+    ), [optionSections?.data, selectedOptionSections]);
+    const audienceCourseOptions = useMemo<SelectOption[]>(() => mergeSelectedOptions(
+        (audienceCourses?.data || []).map((course) => ({ value: course.id, label: courseLabel(course), description: course.department?.name })),
+        selectedAudienceCourses,
+    ), [audienceCourses?.data, selectedAudienceCourses]);
+    const audienceCohortOptions = useMemo<SelectOption[]>(() => mergeSelectedOptions(
+        (audienceCohorts?.data || []).map((cohort) => ({ value: cohort.id, label: cohortLabel(cohort), icon: Network, description: cohort.academicCycle?.name })),
+        selectedAudienceCohorts,
+    ), [audienceCohorts?.data, selectedAudienceCohorts]);
+    const selectedAudienceCourseSet = useMemo(() => new Set(audienceCourseIds), [audienceCourseIds]);
+    const audienceSectionOptions = useMemo<SelectOption[]>(() => mergeSelectedOptions(
+        (audienceSections?.data || [])
+            .filter((section) => !selectedAudienceCourseSet.has(section.courseId || ''))
+            .map((section) => ({ value: section.id, label: sectionLabel(section), courseId: section.courseId, description: section.academicCycle?.name, meta: section.cohort?.name })),
+        selectedAudienceSections,
+    ), [audienceSections?.data, selectedAudienceCourseSet, selectedAudienceSections]);
+
+    const filteredWindows = useMemo(() => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return windows?.data || [];
+        return (windows?.data || []).filter((window) => [
+            window.title,
+            window.description,
+            window.kind,
+            window.status,
+            ...(window.options || []).map(optionLabel),
+        ].filter(Boolean).some((value) => String(value).toLowerCase().includes(term)));
+    }, [searchTerm, windows?.data]);
+
+    const activeFilters: ActiveFilter[] = [
+        ...(statusFilter ? [{
+            key: 'status',
+            label: 'Status',
+            value: STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label || statusFilter,
+            onRemove: () => updateQueryParams({ status: 'ALL' }),
+        }] : []),
+        ...(kindFilter !== 'ALL' ? [{
+            key: 'kind',
+            label: 'Type',
+            value: kindFilter === PreferenceWindowKind.SECTION_CHOICE ? 'Section choice' : 'Course choice',
+            onRemove: () => updateQueryParams({ kind: 'ALL' }),
+        }] : []),
+        ...(searchTerm ? [{
+            key: 'search',
+            label: 'Search',
+            value: searchTerm,
+            onRemove: () => updateQueryParams({ search: undefined }),
+        }] : []),
+    ];
 
     const resetForm = () => {
         setTitle('');
         setDescription('');
         setAcademicCycleId('');
+        setSelectedCycleOption(null);
         setStartAt('');
         setEndAt('');
         setOptionCourseIds([]);
@@ -194,17 +379,57 @@ export default function PreferenceWindowsPage() {
         setAudienceCourseIds([]);
         setAudienceCohortIds([]);
         setAudienceSectionIds([]);
+        setSelectedOptionCourses([]);
+        setSelectedOptionSections([]);
+        setSelectedAudienceCourses([]);
+        setSelectedAudienceCohorts([]);
+        setSelectedAudienceSections([]);
+        setCycleSearch('');
+        setOptionCourseSearch('');
+        setOptionSectionSearch('');
+        setAudienceCourseSearch('');
+        setAudienceCohortSearch('');
+        setAudienceSectionSearch('');
         setKind(PreferenceWindowKind.SECTION_CHOICE);
+        setFormErrors({});
+        setSubmitError(null);
+    };
+
+    const closeCreateModal = () => {
+        updateQueryParams({ create: undefined });
+        resetForm();
+    };
+
+    const validateForm = () => {
+        const nextErrors: FormErrors = {};
+        const optionCount = kind === PreferenceWindowKind.COURSE_CHOICE ? optionCourseIds.length : optionSectionIds.length;
+        const audienceCount = audienceCourseIds.length + audienceCohortIds.length + audienceSectionIds.length;
+        const start = startAt ? new Date(startAt) : null;
+        const end = endAt ? new Date(endAt) : null;
+
+        if (!title.trim()) nextErrors.title = 'Title is required.';
+        if (!academicCycleId) nextErrors.academicCycleId = 'Academic cycle is required.';
+        if (!startAt || Number.isNaN(start?.getTime())) nextErrors.startAt = 'Start time is required.';
+        if (!endAt || Number.isNaN(end?.getTime())) nextErrors.endAt = 'Deadline is required.';
+        if (start && end && start >= end) nextErrors.endAt = 'Deadline must be after the start time.';
+        if (optionCount < 2) nextErrors.options = 'Choose at least two poll options.';
+        if (audienceCount < 1) nextErrors.audience = 'Choose at least one audience target.';
+
+        setFormErrors(nextErrors);
+        return Object.keys(nextErrors).length === 0;
     };
 
     const createWindow = async (event: React.FormEvent) => {
         event.preventDefault();
-        if (!token) return;
+        setSubmitError(null);
+        if (!token || !validateForm()) return;
+
+        setCreating(true);
         try {
             await api.org.createPreferenceWindow({
                 kind,
-                title,
-                description,
+                title: title.trim(),
+                description: description.trim(),
                 academicCycleId,
                 startAt: asIso(startAt),
                 endAt: asIso(endAt),
@@ -212,13 +437,20 @@ export default function PreferenceWindowsPage() {
                 optionSectionIds: kind === PreferenceWindowKind.SECTION_CHOICE ? optionSectionIds : undefined,
                 audienceCourseIds,
                 audienceCohortIds,
-                audienceSectionIds: audienceSectionIds.filter((id) => !blockedAudienceSectionIds.has(id)),
+                audienceSectionIds: audienceSectionIds.filter((sectionId) => {
+                    const sectionOption = selectedAudienceSections.find((option) => option.value === sectionId);
+                    return !sectionOption?.courseId || !selectedAudienceCourseSet.has(sectionOption.courseId);
+                }),
             }, token);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Preference window created', type: 'success' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Poll window draft created', type: 'success' } });
             resetForm();
+            updateQueryParams({ create: undefined, status: PreferenceWindowStatus.DRAFT });
             await mutate();
         } catch (error) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to create window', type: 'error' } });
+            setSubmitError(error instanceof Error ? error : 'Unable to create poll window');
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to create poll window', type: 'error' } });
+        } finally {
+            setCreating(false);
         }
     };
 
@@ -226,7 +458,8 @@ export default function PreferenceWindowsPage() {
         if (!token) return;
         try {
             await api.org.activatePreferenceWindow(id, token, urgent ? AnnouncementPriority.URGENT : AnnouncementPriority.HIGH);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Preference window activated', type: 'success' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Poll window activated', type: 'success' } });
+            updateQueryParams({ status: PreferenceWindowStatus.ACTIVE });
             await mutate();
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to activate window', type: 'error' } });
@@ -237,7 +470,7 @@ export default function PreferenceWindowsPage() {
         if (!token) return;
         try {
             await api.org.closePreferenceWindow(id, token);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Preference window closed', type: 'success' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Poll window closed', type: 'success' } });
             await mutate();
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to close window', type: 'error' } });
@@ -251,89 +484,57 @@ export default function PreferenceWindowsPage() {
                 description="Open ranked preference polls from existing courses, sections, cohorts, and schedules."
                 icon={ListChecks}
                 breadcrumbs={[{ label: 'Academics' }, { label: 'Section/Course Polls' }]}
+                actions={(
+                    <PageControls
+                        activeFilters={activeFilters}
+                        leading={<SearchBar value={searchTerm} onChange={(value) => updateQueryParams({ search: value })} placeholder="Search polls..." mobileMode="expandable" />}
+                        actions={<Button icon={Plus} onClick={() => updateQueryParams({ create: 'poll' })} requireWrite>New Poll</Button>}
+                        renderFilters={() => (
+                            <FilterDrawerGrid>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Status</Label>
+                                    <CustomSelect
+                                        value={statusFilter}
+                                        onChange={(value) => updateQueryParams({ status: value })}
+                                        options={STATUS_OPTIONS}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Poll Type</Label>
+                                    <CustomSelect
+                                        value={kindFilter}
+                                        onChange={(value) => updateQueryParams({ kind: value })}
+                                        options={[
+                                            { value: 'ALL', label: 'All types' },
+                                            { value: PreferenceWindowKind.SECTION_CHOICE, label: 'Section choice' },
+                                            { value: PreferenceWindowKind.COURSE_CHOICE, label: 'Course choice' },
+                                        ]}
+                                    />
+                                </div>
+                            </FilterDrawerGrid>
+                        )}
+                    />
+                )}
             />
             <ResourcePanel>
-                <div className="grid min-h-0 flex-1 items-start gap-4 overflow-y-auto p-3 custom-scrollbar xl:grid-cols-[420px_minmax(0,1fr)]">
-                    <Card padding="md" hoverable={false} className="h-auto overflow-visible">
-                        <form onSubmit={createWindow} className="space-y-4">
-                            <h2 className="text-base font-black">Create Draft</h2>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label>Window Type</Label>
-                                    <CustomSelect value={kind} onChange={(value) => setKind(value as PreferenceWindowKind)} options={[
-                                        { value: PreferenceWindowKind.SECTION_CHOICE, label: 'Section choice' },
-                                        { value: PreferenceWindowKind.COURSE_CHOICE, label: 'Course choice' },
-                                    ]} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Academic Cycle</Label>
-                                    <CustomSelect value={academicCycleId} onChange={(value) => { setAcademicCycleId(value); setOptionSectionIds([]); setAudienceSectionIds([]); }} options={[
-                                        { value: '', label: 'Select cycle' },
-                                        ...(cycles?.data || []).map((cycle) => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name })),
-                                    ]} searchable />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Title</Label>
-                                <Input value={title} onChange={(event) => setTitle(event.target.value)} required icon={ListChecks} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Description</Label>
-                                <Textarea value={description} onChange={(event) => setDescription(event.target.value)} />
-                            </div>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label>Starts</Label>
-                                    <Input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} required icon={CalendarDays} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Deadline</Label>
-                                    <Input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} required icon={CalendarDays} />
-                                </div>
-                            </div>
-
-                            {kind === PreferenceWindowKind.COURSE_CHOICE ? (
-                                <div className="space-y-2">
-                                    <Label>Course Options</Label>
-                                    <CustomMultiSelect values={optionCourseIds} onChange={setOptionCourseIds} options={allCourses.map((course) => ({ value: course.id, label: course.code ? `${course.code} - ${course.name}` : course.name }))} placeholder="Choose course options" />
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <Label>Section Options</Label>
-                                    <CustomMultiSelect values={optionSectionIds} onChange={setOptionSectionIds} disabled={!academicCycleId} options={allSections.map((section) => ({ value: section.id, label: `${section.course?.name || 'Course'} - ${section.name}` }))} placeholder={academicCycleId ? 'Choose section options' : 'Select cycle first'} />
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <Label>Audience Courses</Label>
-                                <CustomMultiSelect values={audienceCourseIds} onChange={(values) => {
-                                    setAudienceCourseIds(values);
-                                    setAudienceSectionIds((current) => current.filter((id) => !allSections.some((section) => section.id === id && values.includes(section.courseId || ''))));
-                                }} options={allCourses.map((course) => ({ value: course.id, label: course.code ? `${course.code} - ${course.name}` : course.name }))} placeholder="Optional course audiences" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Audience Cohorts</Label>
-                                <CustomMultiSelect values={audienceCohortIds} onChange={setAudienceCohortIds} options={(cohorts?.data || []).map((cohort) => ({ value: cohort.id, label: cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name, icon: Network }))} placeholder="Optional cohort audiences" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Audience Sections</Label>
-                                <CustomMultiSelect values={audienceSectionIds} onChange={(values) => setAudienceSectionIds(values.filter((id) => !blockedAudienceSectionIds.has(id)))} disabled={!academicCycleId} options={allSections.filter((section) => !blockedAudienceSectionIds.has(section.id)).map((section) => ({ value: section.id, label: `${section.course?.name || 'Course'} - ${section.name}` }))} placeholder={academicCycleId ? 'Optional section audiences' : 'Select cycle first'} />
-                                {blockedAudienceSectionIds.size > 0 && <p className="text-xs font-bold text-muted-foreground">Sections under selected audience courses are already included.</p>}
-                            </div>
-                            <Button type="submit" icon={Plus} className="w-full" requireWrite>Create Draft</Button>
-                        </form>
-                    </Card>
-
-                    <div className="space-y-3">
-                        {isLoading ? (
-                            Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-lg" />)
-                        ) : error ? (
-                            <ErrorState error={error} onRetry={() => mutate()} />
-                        ) : (windows?.data || []).length === 0 ? (
-                            <EmptyState icon={ListChecks} title="No preference windows yet" className="min-h-80" />
-                        ) : (
-                            windows?.data.map((window) => (
-                                <Card key={window.id} padding="md" hoverable={false}>
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar">
+                    {isLoading ? (
+                        <div className="space-y-3">
+                            {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-32 rounded-lg" />)}
+                        </div>
+                    ) : error ? (
+                        <ErrorState error={error} onRetry={() => mutate()} />
+                    ) : filteredWindows.length === 0 ? (
+                        <EmptyState
+                            icon={ListChecks}
+                            title={statusFilter === PreferenceWindowStatus.ACTIVE ? 'No active polls' : 'No poll windows found'}
+                            description={activeFilters.length > 0 ? 'Adjust filters to broaden the poll list.' : 'Create a poll window when students need to rank course or section options.'}
+                            className="min-h-96"
+                        />
+                    ) : (
+                        <div className="space-y-3">
+                            {filteredWindows.map((window) => (
+                                <Card key={window.id} padding="md" hoverable={false} className="h-auto">
                                     <div className="flex flex-wrap items-start justify-between gap-3">
                                         <div>
                                             <div className="mb-2 flex flex-wrap gap-2">
@@ -371,11 +572,223 @@ export default function PreferenceWindowsPage() {
                                         />
                                     )}
                                 </Card>
-                            ))
-                        )}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </ResourcePanel>
+
+            <ModalForm
+                isOpen={isCreateOpen}
+                onClose={closeCreateModal}
+                title="Create Poll Window"
+                onSubmit={createWindow}
+                submitText="Create Draft"
+                isSubmitting={creating}
+                maxWidth="max-w-4xl"
+                bodyClassName="max-h-[min(82vh,760px)] overflow-y-auto custom-scrollbar"
+                feedback={submitError ? <ErrorState error={submitError} showRetry={false} className="max-w-none p-3 sm:p-4" /> : undefined}
+            >
+                <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label>Poll Type</Label>
+                            <CustomSelect
+                                value={kind}
+                                onChange={(value) => {
+                                    const nextKind = value as PreferenceWindowKind;
+                                    setKind(nextKind);
+                                    setOptionCourseIds([]);
+                                    setOptionSectionIds([]);
+                                    setSelectedOptionCourses([]);
+                                    setSelectedOptionSections([]);
+                                    setFormErrors((current) => ({ ...current, options: undefined }));
+                                }}
+                                options={[
+                                    { value: PreferenceWindowKind.SECTION_CHOICE, label: 'Section choice' },
+                                    { value: PreferenceWindowKind.COURSE_CHOICE, label: 'Course choice' },
+                                ]}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Academic Cycle</Label>
+                            <CustomSelect
+                                value={academicCycleId}
+                                onChange={(value) => {
+                                    setAcademicCycleId(value);
+                                    setSelectedCycleOption(value ? cycleOptions.find((option) => option.value === value) || null : null);
+                                    setOptionSectionIds([]);
+                                    setAudienceCohortIds([]);
+                                    setAudienceSectionIds([]);
+                                    setSelectedOptionSections([]);
+                                    setSelectedAudienceCohorts([]);
+                                    setSelectedAudienceSections([]);
+                                    setFormErrors((current) => ({ ...current, academicCycleId: undefined, options: undefined, audience: undefined }));
+                                }}
+                                options={[{ value: '', label: 'Search cycle' }, ...cycleOptions]}
+                                searchable
+                                searchValue={cycleSearch}
+                                onSearchChange={setCycleSearch}
+                                searchPlaceholder="Type at least 2 characters..."
+                                isSearching={cyclesLoading}
+                                emptyMessage={searchTooShortMessage(cycleSearch, 'academic cycles')}
+                                error={!!formErrors.academicCycleId}
+                                clearable
+                                clearLabel="Clear academic cycle"
+                            />
+                            <FieldError message={formErrors.academicCycleId} />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Title</Label>
+                        <Input value={title} onChange={(event) => { setTitle(event.target.value); setFormErrors((current) => ({ ...current, title: undefined })); }} icon={ListChecks} error={!!formErrors.title} placeholder="Fall 2026 section choice" />
+                        <FieldError message={formErrors.title} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Description</Label>
+                        <Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional context for students." />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label>Starts</Label>
+                            <Input type="datetime-local" value={startAt} onChange={(event) => { setStartAt(event.target.value); setFormErrors((current) => ({ ...current, startAt: undefined, endAt: undefined })); }} icon={CalendarDays} error={!!formErrors.startAt} />
+                            <FieldError message={formErrors.startAt} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Deadline</Label>
+                            <Input type="datetime-local" value={endAt} onChange={(event) => { setEndAt(event.target.value); setFormErrors((current) => ({ ...current, endAt: undefined })); }} icon={CalendarDays} error={!!formErrors.endAt} />
+                            <FieldError message={formErrors.endAt} />
+                        </div>
+                    </div>
+
+                    {kind === PreferenceWindowKind.COURSE_CHOICE ? (
+                        <div className="space-y-2">
+                            <Label>Course Options</Label>
+                            <CustomMultiSelect
+                                values={optionCourseIds}
+                                onChange={(values) => {
+                                    setOptionCourseIds(values);
+                                    setSelectedOptionCourses(syncSelectedOptions(values, optionCourseOptions, selectedOptionCourses));
+                                    setFormErrors((current) => ({ ...current, options: undefined }));
+                                }}
+                                options={optionCourseOptions}
+                                placeholder="Search course options"
+                                searchable
+                                searchValue={optionCourseSearch}
+                                onSearchChange={setOptionCourseSearch}
+                                searchPlaceholder="Type at least 2 characters..."
+                                isSearching={optionCoursesLoading}
+                                emptyMessage={searchTooShortMessage(optionCourseSearch, 'courses')}
+                                error={!!formErrors.options}
+                            />
+                            <FieldError message={formErrors.options} />
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <Label>Section Options</Label>
+                            <CustomMultiSelect
+                                values={optionSectionIds}
+                                onChange={(values) => {
+                                    setOptionSectionIds(values);
+                                    setSelectedOptionSections(syncSelectedOptions(values, optionSectionOptions, selectedOptionSections));
+                                    setFormErrors((current) => ({ ...current, options: undefined }));
+                                }}
+                                disabled={!academicCycleId}
+                                options={optionSectionOptions}
+                                placeholder={academicCycleId ? 'Search section options' : 'Select cycle first'}
+                                searchable
+                                searchValue={optionSectionSearch}
+                                onSearchChange={setOptionSectionSearch}
+                                searchPlaceholder="Type at least 2 characters..."
+                                isSearching={optionSectionsLoading}
+                                emptyMessage={!academicCycleId ? 'Select an academic cycle before searching sections.' : searchTooShortMessage(optionSectionSearch, 'sections')}
+                                error={!!formErrors.options}
+                            />
+                            <FieldError message={formErrors.options} />
+                        </div>
+                    )}
+
+                    <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                        <h3 className="text-sm font-black text-foreground">Audience</h3>
+                        <p className="mt-1 text-xs font-semibold text-muted-foreground">Students are resolved from selected courses, cohorts, and sections. When this draft is activated, the selected audience receives a high-priority announcement with the poll link. Course audiences already include sections under that course.</p>
+                        <div className="mt-3 grid gap-3">
+                            <div className="space-y-2">
+                                <Label>Audience Courses</Label>
+                                <CustomMultiSelect
+                                    values={audienceCourseIds}
+                                    onChange={(values) => {
+                                        setAudienceCourseIds(values);
+                                        const nextCourses = syncSelectedOptions(values, audienceCourseOptions, selectedAudienceCourses);
+                                        setSelectedAudienceCourses(nextCourses);
+                                        const courseSet = new Set(values);
+                                        const keptSections = selectedAudienceSections.filter((option) => !option.courseId || !courseSet.has(option.courseId));
+                                        setSelectedAudienceSections(keptSections);
+                                        setAudienceSectionIds((current) => current.filter((sectionId) => keptSections.some((option) => option.value === sectionId)));
+                                        setFormErrors((current) => ({ ...current, audience: undefined }));
+                                    }}
+                                    options={audienceCourseOptions}
+                                    placeholder="Search course audiences"
+                                    searchable
+                                    searchValue={audienceCourseSearch}
+                                    onSearchChange={setAudienceCourseSearch}
+                                    searchPlaceholder="Type at least 2 characters..."
+                                    isSearching={audienceCoursesLoading}
+                                    emptyMessage={searchTooShortMessage(audienceCourseSearch, 'courses')}
+                                    error={!!formErrors.audience}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Audience Cohorts</Label>
+                                <CustomMultiSelect
+                                    values={audienceCohortIds}
+                                    onChange={(values) => {
+                                        setAudienceCohortIds(values);
+                                        setSelectedAudienceCohorts(syncSelectedOptions(values, audienceCohortOptions, selectedAudienceCohorts));
+                                        setFormErrors((current) => ({ ...current, audience: undefined }));
+                                    }}
+                                    disabled={!academicCycleId}
+                                    options={audienceCohortOptions}
+                                    placeholder={academicCycleId ? 'Search cohort audiences' : 'Select cycle first'}
+                                    searchable
+                                    searchValue={audienceCohortSearch}
+                                    onSearchChange={setAudienceCohortSearch}
+                                    searchPlaceholder="Type at least 2 characters..."
+                                    isSearching={audienceCohortsLoading}
+                                    emptyMessage={!academicCycleId ? 'Select an academic cycle before searching cohorts.' : searchTooShortMessage(audienceCohortSearch, 'cohorts')}
+                                    error={!!formErrors.audience}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Audience Sections</Label>
+                                <CustomMultiSelect
+                                    values={audienceSectionIds}
+                                    onChange={(values) => {
+                                        const filteredValues = values.filter((sectionId) => {
+                                            const option = audienceSectionOptions.find((item) => item.value === sectionId);
+                                            return !option?.courseId || !selectedAudienceCourseSet.has(option.courseId);
+                                        });
+                                        setAudienceSectionIds(filteredValues);
+                                        setSelectedAudienceSections(syncSelectedOptions(filteredValues, audienceSectionOptions, selectedAudienceSections));
+                                        setFormErrors((current) => ({ ...current, audience: undefined }));
+                                    }}
+                                    disabled={!academicCycleId}
+                                    options={audienceSectionOptions}
+                                    placeholder={academicCycleId ? 'Search section audiences' : 'Select cycle first'}
+                                    searchable
+                                    searchValue={audienceSectionSearch}
+                                    onSearchChange={setAudienceSectionSearch}
+                                    searchPlaceholder="Type at least 2 characters..."
+                                    isSearching={audienceSectionsLoading}
+                                    emptyMessage={!academicCycleId ? 'Select an academic cycle before searching sections.' : searchTooShortMessage(audienceSectionSearch, 'sections')}
+                                    error={!!formErrors.audience}
+                                />
+                                {audienceCourseIds.length > 0 && <p className="text-xs font-bold text-muted-foreground">Sections under selected audience courses are already included and are hidden when detected.</p>}
+                            </div>
+                        </div>
+                        <FieldError message={formErrors.audience} />
+                    </div>
+                </div>
+            </ModalForm>
         </PageShell>
     );
 }
