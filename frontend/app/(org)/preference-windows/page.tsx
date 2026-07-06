@@ -347,11 +347,11 @@ export default function PreferenceWindowsPage() {
     }, [searchTerm, windows?.data]);
 
     const activeFilters: ActiveFilter[] = [
-        ...(statusFilter ? [{
+        ...(statusFilter !== PreferenceWindowStatus.ACTIVE ? [{
             key: 'status',
             label: 'Status',
             value: STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label || statusFilter,
-            onRemove: () => updateQueryParams({ status: 'ALL' }),
+            onRemove: () => updateQueryParams({ status: undefined }),
         }] : []),
         ...(kindFilter !== 'ALL' ? [{
             key: 'kind',
