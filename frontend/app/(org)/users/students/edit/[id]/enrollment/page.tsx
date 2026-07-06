@@ -19,9 +19,16 @@ import { Loading } from '@/components/ui/Loading';
 import { FormActions, FormField, FormGrid, FormPageHeader, FormPageShell, FormSection } from '@/components/ui/FormLayout';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 
+const MIN_SEARCH_LENGTH = 2;
+
 function sectionLabel(section?: Section | null) {
     if (!section) return 'Unknown section';
     return `${section.course?.code ? `${section.course.code} - ` : ''}${section.course?.name || 'Course'} / ${section.name}`;
+}
+
+function cohortLabel(cohort?: Cohort | null) {
+    if (!cohort) return 'No cohort assigned';
+    return `${cohort.code ? `${cohort.code} - ` : ''}${cohort.name}`;
 }
 
 export default function StudentEnrollmentPage() {
@@ -32,6 +39,10 @@ export default function StudentEnrollmentPage() {
     const { dispatch } = useGlobal();
     const [selectedCohortId, setSelectedCohortId] = useState('');
     const [selectedSectionId, setSelectedSectionId] = useState('');
+    const [cohortSearch, setCohortSearch] = useState('');
+    const [sectionSearch, setSectionSearch] = useState('');
+    const [selectedCohortOption, setSelectedCohortOption] = useState<{ value: string; label: string; icon: typeof Network } | null>(null);
+    const [selectedSectionOption, setSelectedSectionOption] = useState<{ value: string; label: string; icon: typeof Layers } | null>(null);
     const [saving, setSaving] = useState('');
 
     const canManage = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
@@ -45,31 +56,45 @@ export default function StudentEnrollmentPage() {
 
     const studentKey = token && studentId ? ['student', studentId] as const : null;
     const { data: student, error: studentError, isLoading: studentLoading, mutate: mutateStudent } = useSWR<Student>(studentKey);
-    const { data: sectionsData } = useSWR<PaginatedResponse<Section>>(token && canManage ? ['sections', { limit: 1000 }] as const : null);
-    const { data: cohortsData } = useSWR<PaginatedResponse<Cohort>>(token && canManage ? ['cohorts', { limit: 1000 }] as const : null);
+    const normalizedCohortSearch = cohortSearch.trim();
+    const normalizedSectionSearch = sectionSearch.trim();
+    const { data: sectionsData, isLoading: sectionsLoading } = useSWR<PaginatedResponse<Section>>(
+        token && canManage && normalizedSectionSearch.length >= MIN_SEARCH_LENGTH
+            ? ['sections', { limit: 25, search: normalizedSectionSearch, activeAcademicCycleOnly: true }] as const
+            : null,
+    );
+    const { data: cohortsData, isLoading: cohortsLoading } = useSWR<PaginatedResponse<Cohort>>(
+        token && canManage && normalizedCohortSearch.length >= MIN_SEARCH_LENGTH
+            ? ['cohorts', { limit: 25, search: normalizedCohortSearch }] as const
+            : null,
+    );
 
     useEffect(() => {
-        if (student) setSelectedCohortId(student.cohortId || '');
-    }, [student?.id, student?.cohortId]);
+        if (!student) return;
+        setSelectedCohortId(student.cohortId || '');
+        setSelectedCohortOption(student.cohort ? { value: student.cohort.id, label: cohortLabel(student.cohort), icon: Network } : null);
+    }, [student]);
 
     const enrollments = student?.enrollments || [];
     const currentSectionIds = useMemo(() => new Set(enrollments.map((enrollment) => enrollment.section?.id).filter(Boolean)), [enrollments]);
     const sectionOptions = useMemo(() => [
         { value: '', label: 'Choose section', icon: Layers },
+        ...(selectedSectionOption && !sectionsData?.data?.some((section) => section.id === selectedSectionOption.value) ? [selectedSectionOption] : []),
         ...((sectionsData?.data || []).map((section) => ({
             value: section.id,
             label: sectionLabel(section),
             icon: Layers,
         }))),
-    ], [sectionsData?.data]);
+    ], [sectionsData?.data, selectedSectionOption]);
     const cohortOptions = useMemo(() => [
         { value: '', label: 'No cohort', icon: Network },
+        ...(selectedCohortOption && !cohortsData?.data?.some((cohort) => cohort.id === selectedCohortOption.value) ? [selectedCohortOption] : []),
         ...((cohortsData?.data || []).map((cohort) => ({
             value: cohort.id,
-            label: `${cohort.code ? `${cohort.code} - ` : ''}${cohort.name}`,
+            label: cohortLabel(cohort),
             icon: Network,
         }))),
-    ], [cohortsData?.data]);
+    ], [cohortsData?.data, selectedCohortOption]);
 
     const refresh = async () => {
         await mutateStudent();
@@ -93,6 +118,8 @@ export default function StudentEnrollmentPage() {
             showWarnings(result.warnings);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Section enrollment added', type: 'success' } });
             setSelectedSectionId('');
+            setSelectedSectionOption(null);
+            setSectionSearch('');
             await refresh();
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to enroll student', type: 'error' } });
@@ -157,11 +184,26 @@ export default function StudentEnrollmentPage() {
                     <FormGrid columns={2}>
                         <FormField label="Current Cohort">
                             <div className="flex min-h-11 items-center rounded-md border border-border bg-muted/35 px-3.5 py-2.5 text-sm font-semibold">
-                                {student.cohort ? `${student.cohort.code ? `${student.cohort.code} - ` : ''}${student.cohort.name}` : 'No cohort assigned'}
+                                {cohortLabel(student.cohort)}
                             </div>
                         </FormField>
                         <FormField label="Change Cohort">
-                            <CustomSelect options={cohortOptions} value={selectedCohortId} onChange={setSelectedCohortId} searchable />
+                            <CustomSelect
+                                options={cohortOptions}
+                                value={selectedCohortId}
+                                onChange={(value) => {
+                                    setSelectedCohortId(value);
+                                    setSelectedCohortOption(value ? cohortOptions.find((option) => option.value === value) || null : null);
+                                }}
+                                searchable
+                                searchValue={cohortSearch}
+                                onSearchChange={setCohortSearch}
+                                searchPlaceholder="Type at least 2 characters..."
+                                isSearching={cohortsLoading}
+                                emptyMessage={normalizedCohortSearch.length < MIN_SEARCH_LENGTH ? 'Type at least 2 characters to search current-cycle cohorts.' : 'No current-cycle cohorts found.'}
+                                clearable
+                                clearLabel="Clear cohort selection"
+                            />
                         </FormField>
                     </FormGrid>
                     <div className="mt-4 flex justify-end">
@@ -174,7 +216,22 @@ export default function StudentEnrollmentPage() {
                 <FormSection title="Section Enrollments" description="Capacity and schedule conflicts warn but do not block enrollment." icon={BookOpen}>
                     <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                         <FormField label="Add Section">
-                            <CustomSelect options={sectionOptions} value={selectedSectionId} onChange={setSelectedSectionId} searchable />
+                            <CustomSelect
+                                options={sectionOptions}
+                                value={selectedSectionId}
+                                onChange={(value) => {
+                                    setSelectedSectionId(value);
+                                    setSelectedSectionOption(value ? sectionOptions.find((option) => option.value === value) || null : null);
+                                }}
+                                searchable
+                                searchValue={sectionSearch}
+                                onSearchChange={setSectionSearch}
+                                searchPlaceholder="Type at least 2 characters..."
+                                isSearching={sectionsLoading}
+                                emptyMessage={normalizedSectionSearch.length < MIN_SEARCH_LENGTH ? 'Type at least 2 characters to search current-cycle sections.' : 'No current-cycle sections found.'}
+                                clearable
+                                clearLabel="Clear section selection"
+                            />
                         </FormField>
                         <Button type="button" icon={Plus} onClick={addSection} disabled={!selectedSectionId} isLoading={saving === 'section-add'} loadingText="Adding">
                             Enroll

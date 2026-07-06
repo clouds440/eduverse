@@ -228,7 +228,7 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
   },
   {
     id: "PREFERENCE_WINDOWS",
-    label: "Preferences",
+    label: "Section/Course Polls",
     href: "/preference-windows",
     icon: ListChecks,
     roles: ADMIN_ROLES,
@@ -363,7 +363,7 @@ const MANAGER_ITEMS: SidebarItemConfig[] = [
   },
   {
     id: "PREFERENCE_WINDOWS",
-    label: "Preferences",
+    label: "Section/Course Polls",
     href: "/preference-windows",
     icon: ListChecks,
     roles: [Role.ORG_MANAGER],

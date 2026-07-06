@@ -41,6 +41,8 @@ const GENDER_OPTIONS = [
     { value: 'Other', label: 'Other' },
 ];
 
+const MIN_SEARCH_LENGTH = 2;
+
 function todayInputValue() {
     return new Date().toISOString().split('T')[0];
 }
@@ -108,6 +110,8 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     const router = useRouter();
     const { dispatch } = useGlobal();
     const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+    const [guardianSearch, setGuardianSearch] = useState('');
+    const [selectedGuardianOption, setSelectedGuardianOption] = useState<{ value: string; label: string; avatarUser?: GuardianProfile['user'] } | null>(null);
     const listHref = '/users/students';
 
     const resolver = useMemo(
@@ -162,19 +166,32 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     const registrationLocked = isProfile || isWatchMode || (!!studentId && !canManageStudentRecords);
     const currentUserAvatarUrl = isProfile ? currentUser?.avatarUrl : '';
     const canManageGuardianLink = !isProfile && !isWatchMode && canManageStudentRecords;
+    const normalizedGuardianSearch = guardianSearch.trim();
 
-    const { data: guardians = [] } = useSWR<GuardianProfile[]>(
-        token && canManageGuardianLink ? ['guardians', token] as const : null,
-        ([, t]) => api.org.getGuardians(t as string)
+    const initialGuardianOption = useMemo(() => initialData?.guardian ? {
+        value: initialData.guardian.id,
+        label: initialData.guardian.user?.name || initialData.guardian.user?.email || 'Linked guardian',
+        avatarUser: initialData.guardian.user,
+    } : null, [initialData?.guardian]);
+
+    useEffect(() => {
+        setSelectedGuardianOption(initialGuardianOption);
+    }, [initialGuardianOption]);
+
+    const { data: guardians = [], isLoading: guardiansLoading } = useSWR<GuardianProfile[]>(
+        token && canManageGuardianLink && normalizedGuardianSearch.length >= MIN_SEARCH_LENGTH ? ['guardian-search', normalizedGuardianSearch, token] as const : null,
+        ([, search, t]) => api.org.getGuardians(t as string, { search: search as string })
     );
 
     const guardianOptions = useMemo(() => [
         { label: 'No Guardian', value: '' },
+        ...(selectedGuardianOption && !guardians.some((guardian) => guardian.id === selectedGuardianOption.value) ? [selectedGuardianOption] : []),
         ...guardians.map(guardian => ({
             value: guardian.id,
             label: guardian.user?.name || guardian.user?.email || 'Guardian',
+            avatarUser: guardian.user,
         })),
-    ], [guardians]);
+    ], [guardians, selectedGuardianOption]);
 
     const handleStatusChange = useCallback((value: string) => {
         if (isProfile || isWatchMode) return;
@@ -202,10 +219,11 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
 
     const handleGuardianChange = useCallback((value: string) => {
         if (!canManageGuardianLink) return;
+        setSelectedGuardianOption(value ? guardianOptions.find((option) => option.value === value) || null : null);
         setValue('guardianId', value);
         if (!value) setValue('guardianRelationship', '');
         trigger(['guardianId', 'guardianRelationship']);
-    }, [canManageGuardianLink, setValue, trigger]);
+    }, [canManageGuardianLink, guardianOptions, setValue, trigger]);
 
     const handlePhotoReady = useCallback((file: File) => {
         setPendingPhoto(file);
@@ -504,7 +522,15 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                                 error={!!errors.guardianId}
                                 disabled={false}
                                 icon={UserRoundCheck}
-                                placeholder="Select guardian"
+                                placeholder="Search guardian"
+                                searchable
+                                searchValue={guardianSearch}
+                                onSearchChange={setGuardianSearch}
+                                searchPlaceholder="Type at least 2 characters..."
+                                isSearching={guardiansLoading}
+                                emptyMessage={normalizedGuardianSearch.length < MIN_SEARCH_LENGTH ? 'Type at least 2 characters to search guardians.' : 'No guardians found.'}
+                                clearable
+                                clearLabel="Unlink guardian"
                             />
                             <div className="flex flex-wrap gap-2 text-xs font-bold text-muted-foreground">
                                 <Link href="/users/guardians/add" className="text-primary hover:underline">

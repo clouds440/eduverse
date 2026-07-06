@@ -166,7 +166,7 @@ export default function DepartmentsPage() {
                     editTitle="Edit Department"
                     extraActions={canChangeDepartmentStatus ? [{
                         variant: row.isActive ? 'suspend' : 'restore',
-                        title: row.isActive ? 'Deactivate' : 'Activate',
+                        title: row.isActive ? 'Deactivate Department - hide it from active setup filters' : 'Activate Department - make it available in setup filters',
                         onClick: () => setActiveTarget(row),
                     }] : []}
                 />

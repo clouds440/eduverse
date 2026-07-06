@@ -247,14 +247,14 @@ export default function PreferenceWindowsPage() {
     return (
         <PageShell>
             <PageHeader
-                title="Preference Windows"
-                description="Open ranked preference windows from existing courses, sections, cohorts, and schedules."
+                title="Section/Course Polls"
+                description="Open ranked preference polls from existing courses, sections, cohorts, and schedules."
                 icon={ListChecks}
-                breadcrumbs={[{ label: 'Academics' }, { label: 'Preference Windows' }]}
+                breadcrumbs={[{ label: 'Academics' }, { label: 'Section/Course Polls' }]}
             />
             <ResourcePanel>
-                <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-3 custom-scrollbar xl:grid-cols-[420px_minmax(0,1fr)]">
-                    <Card padding="md" hoverable={false}>
+                <div className="grid min-h-0 flex-1 items-start gap-4 overflow-y-auto p-3 custom-scrollbar xl:grid-cols-[420px_minmax(0,1fr)]">
+                    <Card padding="md" hoverable={false} className="h-auto overflow-visible">
                         <form onSubmit={createWindow} className="space-y-4">
                             <h2 className="text-base font-black">Create Draft</h2>
                             <div className="grid gap-3 sm:grid-cols-2">

@@ -389,6 +389,7 @@ export class StudentService {
             avatarUpdatedAt: true,
           },
         },
+        cohort: true,
         primaryDepartment: true,
         studentDepartments: { include: { department: true } },
         enrollments: {
