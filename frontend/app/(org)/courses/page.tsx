@@ -221,7 +221,7 @@ export default function CoursesPage() {
                 <Badge
                     variant="primary"
                     size="sm"
-                    style={row.department.color ? { borderColor: `${row.department.color}55`, backgroundColor: `${row.department.color}18`, color: row.department.color } : undefined}
+                    color={row.department.color}
                 >
                     {formatDepartmentLabel(row.department)}
                 </Badge>
@@ -452,6 +452,5 @@ export default function CoursesPage() {
         </PageShell>
     );
 }
-
 
 

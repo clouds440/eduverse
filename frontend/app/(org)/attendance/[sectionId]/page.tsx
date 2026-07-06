@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { CalendarDays, BarChart3, Edit3, ChevronLeft, ChevronRight, Clock, Table2, FileUp } from 'lucide-react';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { PageHeader } from '@/components/ui/PageShell';
-import { cn, getSectionTintStyle } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { AttendanceMonthlyImportModal } from '@/components/imports/AttendanceMonthlyImportModal';
 
@@ -198,7 +198,7 @@ export default function SectionAttendancePage() {
                     icon={CalendarDays}
                     meta={(
                         <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="neutral" dot size="md" style={getSectionTintStyle(section)}>
+                            <Badge variant="neutral" dot size="md" color={section?.color}>
                                 {section?.course?.name || 'Course'}
                             </Badge>
                             <Badge variant="secondary" size="md" icon={Table2}>

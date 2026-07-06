@@ -350,7 +350,23 @@ export interface CampusNavigationFloor {
 export interface CampusNavigationBuilding extends Omit<Building, 'rooms'> {
     rooms: CampusNavigationRoom[];
     floors: CampusNavigationFloor[];
+    roomsTotal: number;
+    floorsTotal: number;
+    roomsPreviewLimit?: number;
     matchesQuery?: boolean;
+}
+
+export interface CampusNavigationBuildingRoomsResponse {
+    buildingId: string;
+    rooms: CampusNavigationRoom[];
+    floors: CampusNavigationFloor[];
+    roomsTotal: number;
+    floorsTotal: number;
+}
+
+export interface CampusNavigationRoomSelection {
+    room: CampusNavigationRoom;
+    building: CampusNavigationBuilding;
 }
 
 export interface CampusNavigationResponse {

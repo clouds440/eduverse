@@ -12,7 +12,9 @@ import type {
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
+    CampusNavigationBuildingRoomsResponse,
     CampusNavigationResponse,
+    CampusNavigationRoomSelection,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, TeacherFinanceOverview, MessageResponse, AuditLogItem, PayrollRosterRow,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, SectionGradebookResponse, OrgUserCounts,
@@ -572,6 +574,10 @@ export const api = {
             request<Room>(`/org/rooms/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
         getCampusNavigation: (token: string, params: { q?: string, roomId?: string, buildingCode?: string, departmentCode?: string, floor?: string, roomType?: RoomType | '' } = {}) =>
             request<CampusNavigationResponse>(`/org/campus-navigation${buildQueryString(params)}`, { token }),
+        getCampusNavigationRoom: (token: string, roomId: string) =>
+            request<CampusNavigationRoomSelection>(`/org/campus-navigation/rooms/${roomId}`, { token }),
+        getCampusNavigationBuildingRooms: (token: string, buildingId: string, params: { q?: string, floor?: string, roomType?: RoomType | '' } = {}) =>
+            request<CampusNavigationBuildingRoomsResponse>(`/org/campus-navigation/buildings/${buildingId}/rooms${buildQueryString(params)}`, { token }),
 
         // FIX 3 applied: was duplicating raw fetch + 401 handling
         uploadAvatar: (userId: string, file: File, token: string): Promise<{ avatarUrl: string; avatarUpdatedAt: string }> => {

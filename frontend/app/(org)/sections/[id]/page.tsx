@@ -30,7 +30,7 @@ import { Badge } from '@/components/ui/Badge';
 import { NotFound } from '@/components/NotFound';
 import { PageHeader, PageShell, PageTabs, ResourcePanel } from '@/components/ui/PageShell';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { cn, formatCourseSectionLabel, formatRoomLabel, getSectionColor, getSectionSurfaceStyle, getSectionTextStyle, getSectionTintStyle } from '@/lib/utils';
+import { cn, formatCourseSectionLabel, formatRoomLabel, getSectionColor, getSectionSurfaceStyle, getSectionTextStyle } from '@/lib/utils';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
 interface SummaryTileProps {
@@ -251,7 +251,7 @@ export default function SectionDetailPage() {
                 ]}
                 meta={(
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <Badge variant="neutral" size="sm" icon={BookOpen} style={getSectionTintStyle(section)}>
+                        <Badge variant="neutral" size="sm" icon={BookOpen} color={section.color}>
                             {courseName}
                         </Badge>
                         <Badge variant="neutral" size="sm">{section.id.substring(0, 8)}</Badge>
@@ -368,4 +368,3 @@ export default function SectionDetailPage() {
         </PageShell>
     );
 }
-

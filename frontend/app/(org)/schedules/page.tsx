@@ -125,9 +125,9 @@ function SectionScheduleCard({ section }: { section: Section }) {
                     <div className="min-w-0">
                         <CourseSectionLabel section={section} as="h2" className="truncate text-base font-black md:text-lg" />
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                            <Badge variant="neutral" size="sm" style={sectionBadgeStyle}>{section.course?.name || 'Generic Course'}</Badge>
-                            {section.cohort?.name && <Badge variant="neutral" size="sm" style={sectionBadgeStyle}>{section.cohort.name}</Badge>}
-                            <Badge variant="neutral" size="sm" style={sectionBadgeStyle}>
+                            <Badge variant="neutral" size="sm" color={section.color}>{section.course?.name || 'Generic Course'}</Badge>
+                            {section.cohort?.name && <Badge variant="neutral" size="sm" color={section.color}>{section.cohort.name}</Badge>}
+                            <Badge variant="neutral" size="sm" color={section.color}>
                                 {schedules.length} slot{schedules.length === 1 ? '' : 's'}
                             </Badge>
                         </div>

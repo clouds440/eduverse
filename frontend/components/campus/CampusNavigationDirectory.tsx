@@ -1,17 +1,40 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { Building2, DoorOpen, MapPin, Navigation, Users } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, DoorOpen, MapPin, Navigation, Users } from 'lucide-react';
+import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { formatBuildingLabel, formatDepartmentLabel, getPublicUrl } from '@/lib/utils';
-import { CampusNavigationBuilding, CampusNavigationResponse, CampusNavigationRoom, RoomType } from '@/types';
+import {
+    CampusNavigationBuilding,
+    CampusNavigationBuildingRoomsResponse,
+    CampusNavigationResponse,
+    CampusNavigationRoom,
+    CampusNavigationRoomSelection,
+    RoomType,
+} from '@/types';
 
 type CampusTargetType = 'building' | 'department' | 'room' | 'area' | 'landmark';
 
+interface CampusNavigationQueryParams {
+    q?: string;
+    buildingCode?: string;
+    departmentCode?: string;
+    floor?: string;
+    roomType?: RoomType | '';
+}
+
 interface CampusNavigationDirectoryProps {
     data?: CampusNavigationResponse;
+    queryParams?: CampusNavigationQueryParams;
+    selectedRoomData?: CampusNavigationRoomSelection;
+    isSelectedRoomLoading?: boolean;
     targetType?: CampusTargetType;
     targetCode?: string;
     targetId?: string;
@@ -65,14 +88,6 @@ function RoomCard({ room, building, highlighted, onOpen }: { room: CampusNavigat
                 </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-1.5">
-                {building.departments?.map((department) => (
-                    <Badge key={department.id} variant="primary" size="sm" style={department.color ? { borderColor: `${department.color}55`, backgroundColor: `${department.color}18`, color: department.color } : undefined}>
-                        {formatDepartmentLabel(department)}
-                    </Badge>
-                ))}
-            </div>
-
             {(room.landmark || room.directionsNote || room.description) && (
                 <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
                     {room.landmark && <p><span className="font-bold text-foreground">Landmark:</span> {room.landmark}</p>}
@@ -95,20 +110,57 @@ function RoomCard({ room, building, highlighted, onOpen }: { room: CampusNavigat
     );
 }
 
-function RoomDetailsModal({ selection, onClose }: { selection?: { room: CampusNavigationRoom; building: CampusNavigationBuilding }; onClose: () => void }) {
+function RoomDetailsSkeleton() {
+    return (
+        <div className="grid min-h-0 gap-0 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
+            <Skeleton className="min-h-72 rounded-none lg:min-h-[32rem]" />
+            <div className="space-y-4 p-4 sm:p-5">
+                <div className="flex flex-wrap gap-1.5">
+                    <Skeleton className="h-6 w-20" />
+                    <Skeleton className="h-6 w-28" />
+                    <Skeleton className="h-6 w-18" />
+                </div>
+                <div className="space-y-3 rounded-md border border-border/70 bg-background/65 p-3">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                </div>
+                <div className="space-y-3 rounded-md border border-border/70 bg-background/65 p-3">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function RoomDetailsModal({
+    isOpen,
+    isLoading,
+    selection,
+    onClose,
+}: {
+    isOpen: boolean;
+    isLoading?: boolean;
+    selection?: CampusNavigationRoomSelection;
+    onClose: () => void;
+}) {
     const room = selection?.room;
     const building = selection?.building;
 
     return (
         <Modal
-            isOpen={Boolean(room && building)}
+            isOpen={isOpen}
             onClose={onClose}
             title={room ? `${room.name} (${room.code})` : 'Room details'}
             subtitle={building ? `${formatBuildingLabel(building)} - Floor ${room?.floor || ''}` : undefined}
             maxWidth="max-w-5xl"
             bodyClassName="p-0"
         >
-            {room && building && (
+            {isLoading ? (
+                <RoomDetailsSkeleton />
+            ) : room && building ? (
                 <div className="grid min-h-0 gap-0 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
                     <div className="relative min-h-72 bg-primary/10 lg:min-h-[32rem]">
                         {room.imageUrl ? (
@@ -149,7 +201,7 @@ function RoomDetailsModal({ selection, onClose }: { selection?: { room: CampusNa
                             {building.departments?.length ? (
                                 <div className="mt-3 flex flex-wrap gap-1.5">
                                     {building.departments.map((department) => (
-                                        <Badge key={department.id} variant="primary" size="sm" style={department.color ? { borderColor: `${department.color}55`, backgroundColor: `${department.color}18`, color: department.color } : undefined}>
+                                        <Badge key={department.id} variant="primary" size="sm" color={department.color}>
                                             {formatDepartmentLabel(department)}
                                         </Badge>
                                     ))}
@@ -172,13 +224,36 @@ function RoomDetailsModal({ selection, onClose }: { selection?: { room: CampusNa
                         )}
                     </div>
                 </div>
+            ) : (
+                <EmptyState title="Room not found" description="The selected room may no longer be available." className="m-4 min-h-64" />
             )}
         </Modal>
     );
 }
 
-function BuildingSection({ building, targetType, targetCode, targetId, onRoomOpen }: { building: CampusNavigationBuilding; targetType?: CampusTargetType; targetCode?: string; targetId?: string; onRoomOpen?: (roomId: string) => void }) {
+function BuildingSection({
+    building,
+    targetType,
+    targetCode,
+    targetId,
+    onRoomOpen,
+    onLoadAllRooms,
+    isLoadingRooms,
+    isRoomsCollapsed,
+    onToggleRooms,
+}: {
+    building: CampusNavigationBuilding;
+    targetType?: CampusTargetType;
+    targetCode?: string;
+    targetId?: string;
+    onRoomOpen?: (roomId: string) => void;
+    onLoadAllRooms: (buildingId: string) => void;
+    isLoadingRooms: boolean;
+    isRoomsCollapsed: boolean;
+    onToggleRooms: (buildingId: string) => void;
+}) {
     const highlighted = isTarget(targetType, targetCode, targetId, 'building', building);
+    const hasMoreRooms = building.roomsTotal > building.rooms.length;
 
     return (
         <section className={`rounded-lg border bg-card ${highlighted ? 'border-primary shadow-sm shadow-primary/10' : 'border-border/70'}`}>
@@ -193,17 +268,18 @@ function BuildingSection({ building, targetType, targetCode, targetId, onRoomOpe
                             </div>
                         )}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <Building2 className="h-5 w-5 text-primary" aria-hidden="true" />
                             <h3 className="truncate text-base font-black text-foreground">{formatBuildingLabel(building)}</h3>
-                            <Badge variant="neutral" size="sm">{building.rooms.length} rooms</Badge>
+                            <Badge variant="neutral" size="sm">{building.roomsTotal} rooms</Badge>
+                            <Badge variant="neutral" size="sm">{building.floorsTotal} floors</Badge>
                         </div>
                         {building.address && <p className="mt-1 text-sm font-medium text-muted-foreground">{building.address}</p>}
                     </div>
                     <div className="flex flex-wrap gap-1.5 lg:ml-auto">
                         {building.departments?.map((department) => (
-                            <Badge key={department.id} variant="primary" size="sm" style={department.color ? { borderColor: `${department.color}55`, backgroundColor: `${department.color}18`, color: department.color } : undefined}>
+                            <Badge key={department.id} variant="primary" size="sm" color={department.color}>
                                 {formatDepartmentLabel(department)}
                             </Badge>
                         ))}
@@ -211,35 +287,74 @@ function BuildingSection({ building, targetType, targetCode, targetId, onRoomOpe
                 </div>
 
                 {(building.landmark || building.directionsNote || building.description) && (
-                    <div className="mt-3 grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
+                    <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
                         {building.landmark && <p><span className="font-bold text-foreground">Landmark:</span> {building.landmark}</p>}
                         {building.directionsNote && <p><span className="font-bold text-foreground">Directions:</span> {building.directionsNote}</p>}
-                        {building.description && <p className="md:col-span-2">{building.description}</p>}
+                        {building.description && <p>{building.description}</p>}
+                    </div>
+                )}
+
+                {building.roomsTotal > 0 && (
+                    <div className="mt-3 flex justify-end">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            icon={isRoomsCollapsed ? ChevronDown : ChevronUp}
+                            onClick={() => onToggleRooms(building.id)}
+                        >
+                            {isRoomsCollapsed ? 'Show rooms' : 'Hide rooms'}
+                        </Button>
                     </div>
                 )}
             </div>
 
-            <div className="divide-y divide-border/60">
-                {building.floors.map((floor) => (
-                    <div key={floor.floor} className="grid gap-3 p-4 lg:grid-cols-[9rem_1fr]">
-                        <div className="flex items-center gap-2 text-sm font-black text-foreground lg:items-start">
-                            <Navigation className="h-4 w-4 text-primary" aria-hidden="true" />
-                            Floor {floor.floor}
+            {!isRoomsCollapsed && (
+                <div className="divide-y divide-border/60">
+                    {building.floors.map((floor) => (
+                        <div key={floor.floor} className="grid gap-3 p-4 lg:grid-cols-[9rem_1fr]">
+                            <div className="flex items-center gap-2 text-sm font-black text-foreground lg:items-start">
+                                <Navigation className="h-4 w-4 text-primary" aria-hidden="true" />
+                                Floor {floor.floor}
+                            </div>
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                {floor.rooms.map((room) => (
+                                    <RoomCard
+                                        key={room.id}
+                                        room={room}
+                                        building={building}
+                                        highlighted={isTarget(targetType, targetCode, targetId, 'room', room) || isTarget(targetType, targetCode, targetId, 'landmark', room)}
+                                        onOpen={onRoomOpen}
+                                    />
+                                ))}
+                            </div>
                         </div>
-                        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                            {floor.rooms.map((room) => (
-                                <RoomCard
-                                    key={room.id}
-                                    room={room}
-                                    building={building}
-                                    highlighted={isTarget(targetType, targetCode, targetId, 'room', room) || isTarget(targetType, targetCode, targetId, 'landmark', room)}
-                                    onOpen={onRoomOpen}
-                                />
-                            ))}
+                    ))}
+
+                    {hasMoreRooms && (
+                        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm font-semibold text-muted-foreground">
+                                Showing {building.rooms.length} of {building.roomsTotal} rooms.
+                            </p>
+                            {isLoadingRooms ? (
+                                <div className="flex items-center gap-2">
+                                    <Skeleton className="h-5 w-36" />
+                                    <Skeleton className="h-9 w-28" />
+                                </div>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => onLoadAllRooms(building.id)}
+                                >
+                                    Load all rooms
+                                </Button>
+                            )}
                         </div>
-                    </div>
-                ))}
-            </div>
+                    )}
+                </div>
+            )}
         </section>
     );
 }
@@ -253,8 +368,67 @@ function findRoomSelection(data: CampusNavigationResponse | undefined, roomId: s
     return undefined;
 }
 
-export function CampusNavigationDirectory({ data, targetType, targetCode, targetId, selectedRoomId, onRoomOpen, onRoomClose }: CampusNavigationDirectoryProps) {
-    const selectedRoom = findRoomSelection(data, selectedRoomId);
+export function CampusNavigationDirectory({
+    data,
+    queryParams,
+    selectedRoomData,
+    isSelectedRoomLoading,
+    targetType,
+    targetCode,
+    targetId,
+    selectedRoomId,
+    onRoomOpen,
+    onRoomClose,
+}: CampusNavigationDirectoryProps) {
+    const { token } = useAuth();
+    const [loadedRoomsByBuilding, setLoadedRoomsByBuilding] = useState<Record<string, CampusNavigationBuildingRoomsResponse>>({});
+    const [loadingBuildingId, setLoadingBuildingId] = useState<string | null>(null);
+    const [collapsedBuildingIds, setCollapsedBuildingIds] = useState<Set<string>>(() => new Set());
+    const previewSelection = findRoomSelection(data, selectedRoomId);
+    const selectedRoom = selectedRoomData || previewSelection;
+    const queryKey = useMemo(() => JSON.stringify(queryParams || {}), [queryParams]);
+
+    useEffect(() => {
+        setLoadedRoomsByBuilding({});
+        setLoadingBuildingId(null);
+        setCollapsedBuildingIds(new Set());
+    }, [queryKey]);
+
+    const getBuildingWithLoadedRooms = (building: CampusNavigationBuilding): CampusNavigationBuilding => {
+        const loaded = loadedRoomsByBuilding[building.id];
+        if (!loaded) return building;
+        return {
+            ...building,
+            rooms: loaded.rooms,
+            floors: loaded.floors,
+            roomsTotal: loaded.roomsTotal,
+            floorsTotal: loaded.floorsTotal,
+        };
+    };
+
+    const handleLoadAllRooms = async (buildingId: string) => {
+        if (!token || loadingBuildingId) return;
+        setLoadingBuildingId(buildingId);
+        try {
+            const loadedRooms = await api.org.getCampusNavigationBuildingRooms(token, buildingId, {
+                q: queryParams?.q,
+                floor: queryParams?.floor,
+                roomType: queryParams?.roomType,
+            });
+            setLoadedRoomsByBuilding((current) => ({ ...current, [buildingId]: loadedRooms }));
+        } finally {
+            setLoadingBuildingId(null);
+        }
+    };
+
+    const toggleRoomsCollapsed = (buildingId: string) => {
+        setCollapsedBuildingIds((current) => {
+            const next = new Set(current);
+            if (next.has(buildingId)) next.delete(buildingId);
+            else next.add(buildingId);
+            return next;
+        });
+    };
 
     if (!data || data.buildings.length === 0) {
         return (
@@ -265,7 +439,12 @@ export function CampusNavigationDirectory({ data, targetType, targetCode, target
                     description="Try another building, department, floor, room type, code, or landmark."
                     className="min-h-80"
                 />
-                <RoomDetailsModal selection={selectedRoom} onClose={onRoomClose || (() => undefined)} />
+                <RoomDetailsModal
+                    isOpen={Boolean(selectedRoomId)}
+                    isLoading={isSelectedRoomLoading}
+                    selection={selectedRoom}
+                    onClose={onRoomClose || (() => undefined)}
+                />
             </>
         );
     }
@@ -273,10 +452,9 @@ export function CampusNavigationDirectory({ data, targetType, targetCode, target
     return (
         <>
             <div className="space-y-3">
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-2 sm:grid-cols-3">
                     {[
                         ['Buildings', data.counts.buildings],
-                        ['Floors', data.counts.floors],
                         ['Rooms', data.counts.rooms],
                         ['Departments', data.counts.departments],
                     ].map(([label, value]) => (
@@ -287,18 +465,30 @@ export function CampusNavigationDirectory({ data, targetType, targetCode, target
                     ))}
                 </div>
 
-                {data.buildings.map((building) => (
-                    <BuildingSection
-                        key={building.id}
-                        building={building}
-                        targetType={targetType}
-                        targetCode={targetCode}
-                        targetId={targetId}
-                        onRoomOpen={onRoomOpen}
-                    />
-                ))}
+                {data.buildings.map((building) => {
+                    const displayedBuilding = getBuildingWithLoadedRooms(building);
+                    return (
+                        <BuildingSection
+                            key={building.id}
+                            building={displayedBuilding}
+                            targetType={targetType}
+                            targetCode={targetCode}
+                            targetId={targetId}
+                            onRoomOpen={onRoomOpen}
+                            onLoadAllRooms={handleLoadAllRooms}
+                            isLoadingRooms={loadingBuildingId === building.id}
+                            isRoomsCollapsed={collapsedBuildingIds.has(building.id)}
+                            onToggleRooms={toggleRoomsCollapsed}
+                        />
+                    );
+                })}
             </div>
-            <RoomDetailsModal selection={selectedRoom} onClose={onRoomClose || (() => undefined)} />
+            <RoomDetailsModal
+                isOpen={Boolean(selectedRoomId)}
+                isLoading={isSelectedRoomLoading}
+                selection={selectedRoom}
+                onClose={onRoomClose || (() => undefined)}
+            />
         </>
     );
 }

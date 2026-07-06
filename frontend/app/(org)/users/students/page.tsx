@@ -23,7 +23,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
-import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
+import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
@@ -193,13 +193,13 @@ export default function StudentsPage() {
                                 variant="primary"
                                 size="sm"
                                 title={formatDepartmentLabel(row.primaryDepartment)}
-                                style={row.primaryDepartment.color ? { borderColor: `${row.primaryDepartment.color}55`, backgroundColor: `${row.primaryDepartment.color}18`, color: row.primaryDepartment.color } : undefined}
+                                color={row.primaryDepartment.color}
                             >
                                 {row.primaryDepartment.code || row.primaryDepartment.name || 'Dept'}
                             </Badge>
                         )}
                         {extraDepartments.slice(0, row.primaryDepartment ? 1 : 2).map((entry) => (
-                            <Badge key={entry.departmentId} variant="neutral" size="sm" title={formatDepartmentLabel(entry.department)}>
+                            <Badge key={entry.departmentId} variant="neutral" size="sm" title={formatDepartmentLabel(entry.department)} color={entry.department.color}>
                                 {entry.department.code || entry.department.name || 'Dept'}
                             </Badge>
                         ))}
@@ -236,7 +236,7 @@ export default function StudentsPage() {
                     <div className="flex flex-wrap gap-1 max-w-50">
                         {sectionsList.map(sec => (
                             <span key={sec?.id || sec?.name} title={formatCourseSectionLabel({ courseName: sec?.course?.name, sectionName: sec?.name })}>
-                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5" style={getSectionSurfaceStyle(sec, '18', '55')}>
+                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5" color={sec?.color}>
                                     <CourseSectionLabel section={sec} className="truncate" />
                                 </Badge>
                             </span>
@@ -246,7 +246,7 @@ export default function StudentsPage() {
                     <div className="flex flex-wrap gap-1 max-w-50">
                         {sectionsList.slice(0, 1).map(sec => (
                             <span key={sec?.id || sec?.name} title={formatCourseSectionLabel({ courseName: sec?.course?.name, sectionName: sec?.name })}>
-                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5" style={getSectionSurfaceStyle(sec, '18', '55')}>
+                                <Badge variant="neutral" size="sm" className="truncate max-w-37.5" color={sec?.color}>
                                     <CourseSectionLabel section={sec} className="truncate" />
                                 </Badge>
                             </span>

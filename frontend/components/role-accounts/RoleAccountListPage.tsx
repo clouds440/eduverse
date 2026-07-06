@@ -187,7 +187,7 @@ export default function RoleAccountListPage({
                                 variant="primary"
                                 size="sm"
                                 title={formatDepartmentLabel(entry.department)}
-                                style={entry.department.color ? { borderColor: `${entry.department.color}55`, backgroundColor: `${entry.department.color}18`, color: entry.department.color } : undefined}
+                                color={entry.department.color}
                             >
                                 {entry.department.code || entry.department.name || 'Dept'}
                             </Badge>

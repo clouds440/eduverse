@@ -18,7 +18,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { Toggle } from '@/components/ui/Toggle';
 import { DocsLink } from '@/components/ui/DocsLink';
-import { formatRoomLabel, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
+import { formatRoomLabel, getSectionSurfaceStyle } from '@/lib/utils';
 
 const DAY_OPTIONS = [
     { value: '0', label: 'Sunday' },
@@ -357,7 +357,7 @@ export default memo(function SectionSchedules({ section, role }: SectionSchedule
                         >
                             <div className="flex min-w-0 items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <Badge variant="neutral" size="sm" icon={CalendarDays} style={getSectionTintStyle(section)}>
+                                    <Badge variant="neutral" size="sm" icon={CalendarDays} color={section.color}>
                                         {schedule.date ? getDateLabel(schedule.date) : getDayLabel(schedule.day)}
                                     </Badge>
                                     {schedule.type === ScheduleType.AD_HOC && (

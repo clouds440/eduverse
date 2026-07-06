@@ -255,7 +255,7 @@ export default function GradeFinalizationPage() {
                             size="sm"
                             className="mt-1"
                             title={formatDepartmentLabel(row.course.department)}
-                            style={row.course.department.color ? { borderColor: `${row.course.department.color}55`, backgroundColor: `${row.course.department.color}18`, color: row.course.department.color } : undefined}
+                            color={row.course.department.color}
                         >
                             {row.course.department.code || row.course.department.name || 'Dept'}
                         </Badge>

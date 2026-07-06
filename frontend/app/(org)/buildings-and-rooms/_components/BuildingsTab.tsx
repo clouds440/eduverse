@@ -245,7 +245,7 @@ export default function BuildingsTab() {
                             variant="primary"
                             size="sm"
                             title={formatDepartmentLabel(department)}
-                            style={department.color ? { borderColor: `${department.color}55`, backgroundColor: `${department.color}18`, color: department.color } : undefined}
+                            color={department.color}
                         >
                             {department.code || department.name || 'Dept'}
                         </Badge>

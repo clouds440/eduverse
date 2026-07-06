@@ -14,8 +14,9 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { api } from '@/lib/api';
 import { formatBuildingLabel, formatDepartmentLabel } from '@/lib/utils';
-import { CampusNavigationResponse, RoomType } from '@/types';
+import { CampusNavigationResponse, CampusNavigationRoomSelection, RoomType } from '@/types';
 
 export default function CampusNavigationPage() {
     const { token } = useAuth();
@@ -33,15 +34,18 @@ export default function CampusNavigationPage() {
 
     const params = useMemo(() => ({
         q,
-        roomId,
         buildingCode,
         departmentCode,
         floor,
         roomType,
-    }), [buildingCode, departmentCode, floor, q, roomId, roomType]);
+    }), [buildingCode, departmentCode, floor, q, roomType]);
 
     const { data, isLoading, error, mutate } = useSWR<CampusNavigationResponse>(
         token ? ['campus-navigation', params] as const : null,
+    );
+    const { data: selectedRoomData, isLoading: selectedRoomLoading } = useSWR<CampusNavigationRoomSelection>(
+        token && roomId ? ['campus-navigation-room', roomId] as const : null,
+        ([, selectedRoomId]: readonly ['campus-navigation-room', string]) => api.org.getCampusNavigationRoom(token!, selectedRoomId),
     );
 
     const buildingOptions = useMemo(() => {
@@ -143,6 +147,9 @@ export default function CampusNavigationPage() {
                     ) : (
                         <CampusNavigationDirectory
                             data={data}
+                            queryParams={params}
+                            selectedRoomData={selectedRoomData}
+                            isSelectedRoomLoading={Boolean(roomId && selectedRoomLoading)}
                             targetType={targetType || undefined}
                             targetCode={targetCode || undefined}
                             targetId={targetId || undefined}

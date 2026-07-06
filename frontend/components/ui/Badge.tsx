@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@/lib/utils';
+import { cn, getSectionTintStyle, isValidHexColor } from '@/lib/utils';
 import type { BadgeVariant } from '@/types';
 type BadgeSize = 'xs' | 'sm' | 'md';
 type BadgeShape = 'rounded' | 'pill';
@@ -16,6 +16,8 @@ interface BadgeProps {
     /** Optional icon on the left */
     icon?: React.ElementType<{ className?: string }>;
     shape?: BadgeShape;
+    /** Exact hex identity color from the section/department color palette. Preserves variants when omitted. */
+    color?: string | null;
     style?: React.CSSProperties;
 }
 
@@ -67,9 +69,12 @@ export function Badge({
     dot,
     icon: Icon,
     shape = 'rounded',
+    color,
     style,
     onClick,
 }: BadgeProps) {
+    const colorStyle = isValidHexColor(color) ? getSectionTintStyle(color) : undefined;
+    const mergedStyle = colorStyle ? { ...colorStyle, ...style } : style;
     const classes = cn(
         "inline-flex items-center justify-center border font-semibold leading-none whitespace-nowrap",
         "select-none shrink-0",
@@ -82,7 +87,10 @@ export function Badge({
     const content = (
         <>
             {dot && (
-                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColors[variant])} />
+                <span
+                    className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColors[variant])}
+                    style={colorStyle ? { backgroundColor: colorStyle.color } : undefined}
+                />
             )}
             {Icon && (
                 <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -97,7 +105,7 @@ export function Badge({
                 type="button"
                 className={classes}
                 title={title}
-                style={style}
+                style={mergedStyle}
                 onClick={onClick}
             >
                 {content}
@@ -109,7 +117,7 @@ export function Badge({
         <span
             className={classes}
             title={title}
-            style={style}
+            style={mergedStyle}
         >
             {content}
         </span>

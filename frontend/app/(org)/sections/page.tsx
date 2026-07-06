@@ -173,7 +173,7 @@ export default function SectionsPage() {
                             size="sm"
                             className="truncate max-w-37.5"
                             title="Click edit icon to view all"
-                            style={getSectionSurfaceStyle(row, '18', '55')}
+                            color={row.color}
                         >
                             {studentsList.length === 1 ? '1 Student' : studentsList.length + ' Students'}
                         </Badge>

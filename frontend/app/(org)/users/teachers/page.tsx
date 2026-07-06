@@ -24,7 +24,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
-import { formatCourseSectionLabel, formatDepartmentLabel, getSectionSurfaceStyle } from '@/lib/utils';
+import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
@@ -208,7 +208,7 @@ export default function TeachersPage() {
                                 variant="primary"
                                 size="sm"
                                 title={formatDepartmentLabel(entry.department)}
-                                style={entry.department.color ? { borderColor: `${entry.department.color}55`, backgroundColor: `${entry.department.color}18`, color: entry.department.color } : undefined}
+                                color={entry.department.color}
                             >
                                 {entry.department.code || entry.department.name || 'Dept'}
                             </Badge>
@@ -233,7 +233,7 @@ export default function TeachersPage() {
                                 size="sm"
                                 className="truncate max-w-37.5"
                                 title={formatCourseSectionLabel({ courseName: sec?.course?.name, sectionName: sec?.name })}
-                                style={getSectionSurfaceStyle(sec, '18', '55')}
+                                color={sec?.color}
                             >
                                 <CourseSectionLabel section={sec} className="truncate" />
                             </Badge>
