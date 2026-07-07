@@ -33,15 +33,6 @@ export function AICopilotPanel() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
-  const [isDocked, setIsDocked] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("eduverse-ai-copilot-docked") === "true";
-  });
-  const [dockedWidth, setDockedWidth] = useState(() => {
-    if (typeof window === "undefined") return 520;
-    const stored = Number(window.localStorage.getItem("eduverse-ai-copilot-docked-width"));
-    return Number.isFinite(stored) ? Math.min(Math.max(stored, 420), 760) : 520;
-  });
   const {
     isOpen,
     close,
@@ -51,6 +42,11 @@ export function AICopilotPanel() {
     conversations,
     conversationsLoading,
     suggestedQuestions,
+    isDocked,
+    dockedWidth,
+    dockHostAvailable,
+    setIsDocked,
+    setDockedWidth,
     entitlement,
     entitlementLoading,
     isSending,
@@ -93,26 +89,7 @@ export function AICopilotPanel() {
   const hasMessages = messages.length > 0;
   const disabled = entitlementLoading || allowed === false || isSending;
   const showSuggestions = allowed === true && !hasMessages && suggestedQuestions.length > 0;
-  const dockedActive = isDesktop && isDocked;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("eduverse-ai-copilot-docked", String(isDocked));
-  }, [isDocked]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem("eduverse-ai-copilot-docked-width", String(dockedWidth));
-  }, [dockedWidth]);
-
-  useEffect(() => {
-    if (!mounted || !isOpen || !dockedActive) return;
-    const previousPadding = document.body.style.paddingRight;
-    document.body.style.paddingRight = `${dockedWidth}px`;
-    return () => {
-      document.body.style.paddingRight = previousPadding;
-    };
-  }, [dockedActive, dockedWidth, isOpen, mounted]);
+  const dockedActive = isDesktop && isDocked && dockHostAvailable;
 
   if (!mounted || !isOpen) return null;
 
@@ -164,15 +141,15 @@ export function AICopilotPanel() {
         aria-label="EduVerse AI Copilot"
         style={dockedActive ? { width: dockedWidth } : undefined}
         className={cn(
-          "fixed z-100 flex min-w-0 flex-col overflow-hidden border border-border/70 bg-background shadow-2xl",
+          "z-100 flex min-w-0 flex-col overflow-hidden border border-border/70 bg-background shadow-2xl",
           dockedActive
-            ? "bottom-0 right-0 top-0 rounded-none border-y-0 border-r-0 animate-in fade-in slide-in-from-right-3 duration-200"
+            ? "relative h-full rounded-none border-y-0 border-r-0 animate-in fade-in slide-in-from-right-3 duration-200"
             : "animate-in fade-in slide-in-from-bottom-4 duration-200",
           isDesktop
             ? dockedActive
               ? ""
-              : "bottom-5 right-5 top-5 w-[min(560px,calc(100vw-2.5rem))] rounded-xl"
-            : "inset-0 rounded-none",
+              : "fixed bottom-5 right-5 top-5 w-[min(560px,calc(100vw-2.5rem))] rounded-xl"
+            : "fixed inset-0 rounded-none",
         )}
       >
         {dockedActive && (
@@ -207,7 +184,7 @@ export function AICopilotPanel() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {isDesktop && (
+            {isDesktop && dockHostAvailable && (
               <Button
                 type="button"
                 size="icon"
@@ -378,16 +355,11 @@ export function AICopilotPanel() {
 
         {showSuggestions && (
           <div className="shrink-0 border-t border-border/70 bg-background px-3 pt-3 sm:px-4">
-            <div className="min-w-0 rounded-lg border border-border/70 bg-card p-2.5 shadow-sm sm:p-3">
-              <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground sm:text-xs">
-                Suggested questions
-              </p>
-              <AISuggestedPrompts
-                suggestions={suggestedQuestions}
-                onSelect={sendPrompt}
-                disabled={disabled}
-              />
-            </div>
+            <AISuggestedPrompts
+              suggestions={suggestedQuestions}
+              onSelect={sendPrompt}
+              disabled={disabled}
+            />
           </div>
         )}
 

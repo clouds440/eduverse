@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useUI } from '@/context/UIContext';
@@ -35,6 +36,11 @@ interface AICopilotContextValue {
     conversationsLoading: boolean;
     suggestedQuestions: AISuggestedQuestion[];
     suggestedQuestionsLoading: boolean;
+    isDocked: boolean;
+    dockedWidth: number;
+    dockHostAvailable: boolean;
+    setIsDocked: (value: boolean | ((current: boolean) => boolean)) => void;
+    setDockedWidth: (value: number | ((current: number) => number)) => void;
     sendPrompt: (prompt: string) => Promise<void>;
     retryLast: () => Promise<void>;
     cancel: () => void;
@@ -49,7 +55,8 @@ const AICopilotContext = createContext<AICopilotContextValue | undefined>(undefi
 
 export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     const { token, user } = useAuth();
-    const { mounted } = useUI();
+    const { isDesktop, mounted } = useUI();
+    const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<AICopilotMessage[]>([]);
     const [conversationId, setConversationId] = useState<string | undefined>();
@@ -63,6 +70,16 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     const [entitlementLoading, setEntitlementLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isDocked, setIsDocked] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return window.localStorage.getItem('eduverse-ai-copilot-docked') === 'true';
+    });
+    const [dockedWidth, setDockedWidth] = useState(() => {
+        if (typeof window === 'undefined') return 520;
+        const stored = Number(window.localStorage.getItem('eduverse-ai-copilot-docked-width'));
+        return Number.isFinite(stored) ? Math.min(Math.max(stored, 420), 760) : 520;
+    });
+    const [dockHostAvailable, setDockHostAvailable] = useState(false);
     const abortRef = useRef<AbortController | null>(null);
     const lastPromptRef = useRef<string | null>(null);
     const messagesRef = useRef<AICopilotMessage[]>([]);
@@ -71,6 +88,21 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         messagesRef.current = messages;
     }, [messages]);
+
+    useEffect(() => {
+        if (!mounted) return;
+        setDockHostAvailable(Boolean(document.getElementById('eduverse-ai-copilot-dock-host')));
+    }, [mounted, pathname]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('eduverse-ai-copilot-docked', String(isDocked));
+    }, [isDocked]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem('eduverse-ai-copilot-docked-width', String(dockedWidth));
+    }, [dockedWidth]);
 
     useEffect(() => {
         if (!conversationStorageKey || conversationId) return;
@@ -383,6 +415,11 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         conversationsLoading,
         suggestedQuestions,
         suggestedQuestionsLoading,
+        isDocked,
+        dockedWidth,
+        dockHostAvailable,
+        setIsDocked,
+        setDockedWidth,
         sendPrompt,
         retryLast,
         cancel,
@@ -391,17 +428,22 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         refreshConversations,
         loadConversation,
         renameConversation,
-    }), [activeConversationTitle, cancel, close, conversationId, conversations, conversationsLoading, entitlement, entitlementLoading, error, isOpen, isSending, loadConversation, messages, open, refreshConversations, refreshEntitlement, renameConversation, resetConversation, retryLast, sendPrompt, suggestedQuestions, suggestedQuestionsLoading, toggle]);
+    }), [activeConversationTitle, cancel, close, conversationId, conversations, conversationsLoading, dockHostAvailable, dockedWidth, entitlement, entitlementLoading, error, isDocked, isOpen, isSending, loadConversation, messages, open, refreshConversations, refreshEntitlement, renameConversation, resetConversation, retryLast, sendPrompt, suggestedQuestions, suggestedQuestionsLoading, toggle]);
+
+    const dockTarget = mounted && isDesktop && isDocked && dockHostAvailable
+        ? document.getElementById('eduverse-ai-copilot-dock-host')
+        : null;
+    const portalTarget = dockTarget ?? (mounted ? document.body : null);
 
     return (
         <AICopilotContext.Provider value={value}>
             {children}
-            {mounted && user && token && createPortal(
+            {portalTarget && user && token && createPortal(
                 <>
                     <AICopilotButton />
                     <AICopilotPanel />
                 </>,
-                document.body,
+                portalTarget,
             )}
         </AICopilotContext.Provider>
     );

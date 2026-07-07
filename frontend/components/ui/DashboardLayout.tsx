@@ -390,7 +390,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 flex flex-col min-w-0 h-full relative overflow-hidden">
+            <main className="flex-1 flex min-w-0 h-full relative overflow-hidden">
                 {/* Universal Content Wrapper - This is the ONLY scrollable area (unless in app-like routes) */}
                 <div
                     data-dashboard-scroll-container="true"
@@ -399,6 +399,10 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                     {user?.accessLevel === 1 && <ReadOnlyBanner />}
                     {children}
                 </div>
+                <div
+                    id="eduverse-ai-copilot-dock-host"
+                    className="relative hidden h-full shrink-0 overflow-hidden lg:block"
+                />
             </main>
         </div>
     );

@@ -7,11 +7,12 @@ import { useUI } from '@/context/UIContext';
 import { cn } from '@/lib/utils';
 
 export function AICopilotButton() {
-    const { isOpen, toggle, entitlement, entitlementLoading, isSending } = useAICopilot();
+    const { isOpen, toggle, entitlement, entitlementLoading, isSending, isDocked, dockHostAvailable } = useAICopilot();
     const { isDesktop, mounted } = useUI();
     const [dismissedOnPhone, setDismissedOnPhone] = useState(false);
     const isAllowed = entitlement?.allowed;
 
+    if (mounted && isDesktop && isOpen && isDocked && dockHostAvailable) return null;
     if (!mounted || (!isDesktop && dismissedOnPhone && !isOpen)) return null;
 
     return (
