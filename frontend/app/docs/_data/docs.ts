@@ -1496,6 +1496,215 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'ai-copilot',
+    title: 'AI Copilot',
+    description: 'Use EduVerse AI Copilot as a role-aware academic and operations assistant.',
+    category: 'Operations',
+    tags: ['ai', 'copilot', 'credits', 'subscription', 'study assistant'],
+    related: ['payments-billing', 'settings', 'roles-permissions', 'timetable', 'dashboard-insights'],
+    sections: [
+      {
+        id: 'what-copilot-does',
+        title: 'What Copilot does',
+        tags: ['overview', 'role aware', 'permissions'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'EduVerse AI Copilot is a premium assistant that helps users understand their work, plan next steps, and find useful information inside EduVerse. It is role-aware, schedule-aware, and permission-aware.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Copilot uses the signed-in user role, organization context, current permissions, schedule, academic records, docs, and recent conversation context where allowed.',
+              'Copilot is read-only. It can explain, summarize, plan, and guide, but it does not directly create, edit, delete, approve, or finalize records.',
+              'Copilot never grants extra access. A personal AI subscription only unlocks Copilot for that user; it does not unlock data the user could not normally view.',
+              'Copilot keeps enough recent conversation context to answer natural follow-up questions without requiring the user to repeat everything.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'role-capabilities',
+        title: 'Role capabilities',
+        tags: ['student', 'teacher', 'manager', 'org admin', 'guardian'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Role', 'Copilot focus', 'Useful questions'],
+            rows: [
+              ['Student', 'Study coach, schedule-aware planner, deadline assistant, attendance advisor, course guidance, evaluation explanations, and personalized study plans.', 'What should I study today? What classes do I have tomorrow? Why is my attendance at risk? Explain my weakest course.'],
+              ['Teacher', 'Teaching workload assistant for next classes, weekly schedule, pending grading, attendance reminders, preparation ideas, and students who may need attention.', 'What do I teach next? Summarize my week. What grading is pending? Which students need attention?'],
+              ['Manager', 'Academic operations assistant for department summaries, workload analysis, staffing concerns, attendance trends, evaluation trends, and schedule bottlenecks.', 'Summarize today\'s academic activity. Show workload issues. Which departments need attention? Identify scheduling bottlenecks.'],
+              ['Org Admin', 'Organization health assistant for operations, AI usage, AI Credits, estimated cost, subscription management, and role access configuration.', 'How much AI usage do we have left? Which roles are using Copilot most? Show organization health. Should we enable Copilot for students?'],
+              ['Finance Manager', 'Finance-focused assistant for fee status, payment claim review context, finance summaries, and permitted finance workflow guidance.', 'Which payment claims need review? Summarize unpaid balances. What finance activity changed recently?'],
+              ['Guardian', 'Linked-student assistant for attendance, grades, timetable, fee status, and school guidance where the guardian already has access.', 'How is my linked student doing? Are there attendance concerns? What fees need attention?'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Same permissions, better guidance',
+            text: 'Copilot answers are limited by the same access rules as the rest of EduVerse. For example, a teacher can receive help for assigned sections, while a guardian can only receive linked-student context.',
+          },
+        ],
+      },
+      {
+        id: 'schedule-aware-help',
+        title: 'Schedule-aware help',
+        tags: ['timetable', 'schedule', 'planning'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Schedules are a primary Copilot data source. Copilot can use timetable context to make study plans, teacher briefings, and management summaries more practical.',
+          },
+          {
+            type: 'table',
+            headers: ['Role', 'Schedule examples'],
+            rows: [
+              ['Student', 'Plan study time around today\'s classes, tomorrow\'s classes, upcoming deadlines, and attendance risk.'],
+              ['Teacher', 'Prepare for the next class, review today\'s classes, summarize next week, and spot pending attendance or grading work.'],
+              ['Manager', 'Review overloaded teachers, schedule density, room/time bottlenecks, and departments that may need attention.'],
+              ['Org Admin', 'Review organization-level schedule health and operational bottlenecks where the admin has access.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'availability-and-credits',
+        title: 'Availability and credits',
+        tags: ['subscription', 'credits', 'quota'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Copilot is available only when the user has an active organization-funded or personal AI subscription source with remaining AI Credits.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Organization subscriptions are managed by Org Admins and can enable Copilot for selected roles.',
+              'Org Admins can set monthly AI Credit caps per role, such as students, teachers, managers, finance managers, sub admins, guardians, and org admins.',
+              'Organization AI Credits are used before personal AI Credits when both are available.',
+              'If organization credits run out, org-funded Copilot stops for everyone unless a user also has an active personal subscription.',
+              'Personal subscriptions unlock Copilot only for the purchasing user and use that user\'s personal monthly AI Credits.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Student access warning',
+            text: 'Enabling Copilot for students can increase usage quickly because student accounts are usually the largest group in an organization. Review role caps and usage trends before enabling broad student access.',
+          },
+        ],
+      },
+      {
+        id: 'usage-and-history',
+        title: 'Usage and history',
+        tags: ['dashboard', 'history', 'cost'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Org Admins can review organization usage, credits, trends, active users, feature usage, and estimated cost.',
+              'Individual users can review their own personal usage and remaining credits where a personal or enabled organization subscription applies.',
+              'Copilot chats can be reopened from history. Each chat keeps a simple editable title based on the first message.',
+              'Only a recent chunk of conversation history is sent back to Copilot for follow-up context.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'payments-billing',
+    title: 'Payments and Billing',
+    description: 'Understand school payment verification and AI subscription billing flows.',
+    category: 'Operations',
+    tags: ['payments', 'billing', 'subscription', 'checkout', 'finance'],
+    related: ['finance', 'fees', 'ai-copilot', 'settings'],
+    sections: [
+      {
+        id: 'two-payment-flows',
+        title: 'Two payment flows',
+        tags: ['school fees', 'ai subscription'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'EduVerse separates school finance payments from EduVerse AI subscription billing. They look related because both involve payment status, but they are handled by different workflows.',
+          },
+          {
+            type: 'table',
+            headers: ['Flow', 'Used for', 'How it works'],
+            rows: [
+              ['School finance payments', 'Student fees, staff payroll, and organization finance records.', 'Users submit payment claims or staff record verified payments. Finance staff review proof, confirm or reject claims, and maintain transactions and audit logs.'],
+              ['AI subscription billing', 'Premium EduVerse AI Copilot packages for an organization or individual user.', 'The user opens the AI subscription page, chooses a package, completes the hosted checkout, and EduVerse updates access after the subscription is confirmed.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'school-payment-process',
+        title: 'School payment process',
+        tags: ['payment claim', 'verification', 'finance'],
+        blocks: [
+          {
+            type: 'flow',
+            title: 'Manual verification flow',
+            steps: ['Finance entry is created', 'Student or assigned user submits a payment claim', 'Finance staff review receipt, reference, amount, and payer', 'Payment is confirmed or rejected', 'Balance, transaction history, and audit logs update'],
+          },
+          {
+            type: 'list',
+            items: [
+              'A payment claim is not paid until an allowed staff member verifies it.',
+              'A user cannot confirm their own claim.',
+              'Partial confirmation is used when only part of the balance was verified.',
+              'Transactions show confirmed money records; audit logs show the action history behind finance changes.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'ai-subscription-process',
+        title: 'AI subscription process',
+        tags: ['ai', 'subscription', 'checkout', 'billing portal'],
+        blocks: [
+          {
+            type: 'flow',
+            title: 'AI subscription flow',
+            steps: ['Open AI Usage', 'Choose View or change subscription', 'Select an organization or personal package', 'Complete secure checkout', 'Return to EduVerse', 'Copilot unlocks after subscription confirmation and role access checks'],
+          },
+          {
+            type: 'table',
+            headers: ['Subscription type', 'Who manages it', 'Who receives access'],
+            rows: [
+              ['Organization AI subscription', 'Org Admin only.', 'Selected roles in the organization, according to Org Admin role access settings and monthly credit caps.'],
+              ['Personal AI subscription', 'The individual user.', 'Only the purchasing user. It does not change organization permissions or reveal extra records.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Hosted checkout',
+            text: 'AI subscription checkout and subscription management use a secure hosted billing flow. EduVerse uses the checkout result to update Copilot access, credits, and billing-period status.',
+          },
+        ],
+      },
+      {
+        id: 'billing-management',
+        title: 'Billing management',
+        tags: ['portal', 'cancel', 'renewal', 'credits'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Org Admins manage organization AI packages from the AI subscription page.',
+              'Users manage personal AI packages from the AI subscription page.',
+              'After a subscription exists, the billing portal can be used to view or change the package where available.',
+              'Monthly AI Credits reset with the active subscription billing period.',
+              'If checkout or billing confirmation is delayed, Copilot access may update after the billing provider sends the subscription event.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'finance',
     title: 'Finance',
     description: 'Manage fee structures, staff payroll, entries, payment claims, confirmed transactions, and finance audit history.',
@@ -1578,7 +1787,7 @@ export const docsPages: DocPage[] = [
               'Amounts support cents, so values such as 1250.50 can be saved and shown correctly.',
               'Generated entries track payment state separately from the structure definition.',
               'Timed entries generated by the finance scheduler create in-app notifications and web push notifications when push is enabled.',
-              'Payment processing is recorded inside EduVerse, but external payment gateway integration is outside the current scope.',
+              'School finance payment verification is recorded inside EduVerse. AI subscription checkout is handled separately from school fee and payroll workflows.',
             ],
           },
           {
@@ -3859,7 +4068,7 @@ export const docsNavGroups: DocNavGroup[] = [
   },
   {
     title: 'Operations',
-    pages: ['finance', 'fees', 'communication', 'chat', 'mail', 'announcements', 'notifications', 'files-attachments', 'settings'],
+    pages: ['ai-copilot', 'payments-billing', 'finance', 'fees', 'communication', 'chat', 'mail', 'announcements', 'notifications', 'files-attachments', 'settings'],
   },
   { title: 'Support', pages: ['account-security', 'support-contact', 'troubleshooting'] },
 ];

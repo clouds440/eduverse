@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Headers, Patch, Post, Query, Request, Res } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Headers, Param, Patch, Post, Query, Request, Res } from '@nestjs/common';
 import { AISubscriptionOwnerType, Role } from '@/prisma/prisma-client';
 import type { Response } from 'express';
 import { Roles } from '../auth/roles.decorator';
@@ -12,7 +12,7 @@ import { AIEntitlementService } from './ai-entitlement.service';
 import { AIKnowledgeService } from './ai-knowledge.service';
 import { AIService } from './ai.service';
 import { AISettingsService } from './ai-settings.service';
-import { AIChatRequestDto } from './dto/ai-chat.dto';
+import { AIChatRequestDto, UpdateAIConversationDto } from './dto/ai-chat.dto';
 import {
   CreateAIBillingCheckoutDto,
   CreateAIBillingPortalDto,
@@ -83,6 +83,38 @@ export class AIController {
     } finally {
       res.end();
     }
+  }
+
+  @Get('copilot/suggestions')
+  @Roles(...COPILOT_USER_ROLES)
+  getSuggestedQuestions(@Request() req: AuthenticatedRequest) {
+    return this.aiService.generateSuggestedQuestions(req.user);
+  }
+
+  @Get('copilot/conversations')
+  @Roles(...COPILOT_USER_ROLES)
+  getConversations(@Request() req: AuthenticatedRequest) {
+    return this.aiService.listConversations(req.user);
+  }
+
+  @Get('copilot/conversations/:id')
+  @Roles(...COPILOT_USER_ROLES)
+  getConversation(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') conversationId: string,
+  ) {
+    return this.aiService.getConversation(req.user, conversationId);
+  }
+
+  @Patch('copilot/conversations/:id')
+  @Roles(...COPILOT_USER_ROLES)
+  @Access(AccessLevel.WRITE)
+  updateConversationTitle(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') conversationId: string,
+    @Body() dto: UpdateAIConversationDto,
+  ) {
+    return this.aiService.updateConversationTitle(req.user, conversationId, dto.title);
   }
 
   @Get('docs/search')
@@ -217,7 +249,7 @@ export class AIController {
   @Public()
   handleBillingWebhook(
     @Request() req: AuthenticatedRequest & { rawBody?: Buffer },
-    @Headers('stripe-signature') signature?: string,
+    @Headers('x-signature') signature?: string,
   ) {
     return this.billingService.handleWebhook(req.rawBody ?? Buffer.from(''), signature);
   }

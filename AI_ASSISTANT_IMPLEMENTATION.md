@@ -1,6 +1,6 @@
 # EduVerse AI Copilot Implementation Plan
 
-Status: Implementation in progress. Phases 0 through 20 are complete.
+Status: Implementation in progress. Phases 0 through 21 are complete.
 
 ## Purpose
 
@@ -34,8 +34,9 @@ The core split stays strict:
 - [x] Phase 16: Streaming Copilot UX
 - [x] Phase 17: Tests and rollout hardening
 - [x] Phase 18: Cross-role performance intelligence tools and automatic Copilot context collection
-- [x] Phase 19: Real LangChain/OpenAI provider, Stripe billing, and conversation retention cleanup
+- [x] Phase 19: Real LangChain/Gemini provider, Lemon Squeezy billing, and conversation retention cleanup
 - [x] Phase 20: Separate AI usage, settings, and subscription flows
+- [x] Phase 21: Public docs and TDD refresh for AI role capabilities and payment flows
 
 ## Current System Findings
 
@@ -324,6 +325,41 @@ Show:
 
 Do not show "most active users" or organization trends on the personal dashboard.
 
+## AI Billing Process
+
+AI subscription billing is separate from school finance payments.
+
+School finance payments:
+
+- Cover student fees, payroll, and other organization finance records.
+- Use internal payment claims, staff verification, transactions, and finance audit logs.
+- Do not unlock EduVerse AI Copilot.
+
+AI subscription billing:
+
+- Covers premium Copilot packages for organizations and individual users.
+- Uses hosted checkout and a billing portal.
+- Uses signed subscription webhooks to sync plan, status, credit period, monthly AI Credits, and billing portal links.
+- Must not crash app startup when billing env values are missing. Checkout, portal, and webhook actions should fail with clear configuration errors instead.
+
+Current provider implementation:
+
+- Lemon Squeezy hosted checkout.
+- Lemon Squeezy customer portal links when available.
+- Signed webhook validation with `X-Signature` over the raw request body.
+- Supported events include subscription created, updated, cancelled, resumed, expired, paused, and unpaused.
+
+Required env:
+
+- `LEMON_SQUEEZY_API_KEY`
+- `LEMON_SQUEEZY_STORE_ID`
+- `LEMON_SQUEEZY_WEBHOOK_SECRET`
+- `LEMON_SQUEEZY_AI_ORG_STARTER_VARIANT_ID`
+- `LEMON_SQUEEZY_AI_ORG_GROWTH_VARIANT_ID`
+- `LEMON_SQUEEZY_AI_ORG_ENTERPRISE_VARIANT_ID`
+- `LEMON_SQUEEZY_AI_PERSONAL_STARTER_VARIANT_ID`
+- `LEMON_SQUEEZY_AI_PERSONAL_PRO_VARIANT_ID`
+
 ## Data Model Plan
 
 Add AI-specific persistence without mixing AI billing state into auth.
@@ -515,8 +551,16 @@ All endpoints are authenticated.
 
 - `PATCH /ai/org/subscription`
   - `ORG_ADMIN` only.
-  - Minimal v1 can simulate plan selection.
-  - Later this should initiate or sync with a billing provider.
+  - Legacy development-only plan update route.
+  - Production subscription changes should use checkout and portal routes.
+
+- `POST /ai/billing/org/checkout`
+  - `ORG_ADMIN` only.
+  - Creates a hosted checkout URL for an organization AI plan.
+
+- `POST /ai/billing/org/portal`
+  - `ORG_ADMIN` only.
+  - Returns the billing portal URL for an existing organization AI subscription when available.
 
 - `GET /ai/org/usage`
   - `ORG_ADMIN` only.
@@ -528,11 +572,26 @@ All endpoints are authenticated.
   - Returns personal subscription and usage for current user.
 
 - `PATCH /ai/personal/subscription`
-  - Minimal v1 can simulate plan selection.
-  - Later this should initiate or sync with billing.
+  - Legacy development-only plan update route.
+  - Production subscription changes should use checkout and portal routes.
+
+- `POST /ai/billing/personal/checkout`
+  - Creates a hosted checkout URL for a personal AI plan.
+
+- `POST /ai/billing/personal/portal`
+  - Returns the billing portal URL for an existing personal AI subscription when available.
 
 - `GET /ai/personal/usage`
   - Returns personal dashboard data.
+
+### Billing Webhook
+
+- `POST /ai/billing/webhook`
+  - Public billing-provider callback.
+  - Must use the raw request body for signature validation.
+  - Must validate the `X-Signature` HMAC before reading subscription data.
+  - Syncs local `AISubscription` records from subscription events.
+  - Stores external customer, subscription, variant, and portal identifiers.
 
 ## Entitlement and Credit Flow
 
@@ -771,10 +830,15 @@ Provider interface:
 - `estimateCredits(input)`
 - `getProviderName()`
 
-Supported later:
+Current implementation:
 
-- OpenAI
-- Gemini
+- LangChain-backed external model provider.
+- Gemini adapter via `@langchain/google-genai`.
+- General env naming: `AI_API_KEY`, `AI_MODEL`, `AI_TEMPERATURE`, and `AI_MAX_RETRIES`.
+- No local AI fallback. Copilot requires an external model API key.
+
+Potential later adapters:
+
 - Claude
 - Groq
 - DeepSeek
@@ -916,7 +980,8 @@ States:
 
 Location:
 
-- Add an `AI Copilot` tab in organization settings, visible only to `ORG_ADMIN`.
+- Dedicated `/ai/subscription` flow, linked from AI Usage.
+- Organization AI settings stay in organization settings and are visible only when an active org AI subscription exists.
 
 Includes:
 
@@ -924,23 +989,23 @@ Includes:
 - available org plans
 - monthly org AI Credits
 - current period usage
+- estimated monthly usage
+- upgrade/downgrade CTA
+- hosted checkout action
+- billing portal action when available
+
+Organization AI settings include:
+
 - role enablement toggles
 - per-role monthly credit caps
 - warning when enabling students or guardians
-- usage dashboard link
-- estimated monthly usage
-- upgrade/downgrade CTA
-
-Minimal v1 plan selection:
-
-- In-app simulated plan change is acceptable for development.
-- Later replace with billing provider checkout/portal.
+- link back to usage and subscription flows
 
 ## Personal Subscription UI
 
 Location:
 
-- Account/profile area or Copilot disabled/credit panel.
+- Dedicated `/ai/subscription` flow, linked from AI Usage and Copilot disabled states.
 
 Includes:
 
@@ -949,7 +1014,8 @@ Includes:
 - personal monthly AI Credits
 - credits used and remaining
 - current period
-- subscribe/cancel CTA
+- hosted checkout action
+- billing portal action when available
 
 ## Usage Dashboard UI
 
@@ -1022,6 +1088,11 @@ Backend:
 - Entitlement service tests.
 - Organization subscription tests.
 - Personal subscription tests.
+- Hosted checkout payload tests for organization and personal AI plans.
+- Billing portal link tests.
+- Billing webhook signature validation tests using raw request body and `X-Signature`.
+- Billing webhook event sync tests for created, updated, cancelled, resumed, expired, paused, and unpaused subscriptions.
+- Missing billing env tests to ensure app startup does not crash and billing actions return clear configuration errors.
 - Role access policy tests.
 - Per-role credit cap tests.
 - Org credits first, personal credits fallback tests.
@@ -1038,6 +1109,8 @@ Frontend:
 
 - Copilot naming and role-specific home state.
 - Settings AI Copilot tab visibility.
+- AI usage, AI settings, and AI subscription separation.
+- AI subscription checkout and portal states.
 - Role toggle UI.
 - Student/guardian warning.
 - Per-role credit cap UI.
@@ -1045,6 +1118,9 @@ Frontend:
 - Personal dashboard rendering.
 - Assistant disabled states.
 - Suggested prompts by role.
+- AI-generated suggested questions hidden when unavailable.
+- Conversation history list, load, and title edit states.
+- Public docs entries for AI role capabilities and payment/billing process.
 - Internal markdown link navigation.
 
 E2E:
@@ -1059,6 +1135,10 @@ E2E:
 - Personal credits still work after org credits are exhausted.
 - Schedule follow-up works.
 - Tool permission denial is explained naturally.
+- Organization AI checkout unlocks Copilot after billing webhook sync.
+- Personal AI checkout unlocks only the purchasing user after billing webhook sync.
+- Billing portal link opens only after a subscription exists.
+- School finance payment claims do not affect AI subscription state.
 
 ## Rollout Strategy
 
@@ -1075,7 +1155,8 @@ E2E:
 11. Enable role-specific Copilot shell for staff on test orgs.
 12. Enable student and guardian role toggles.
 13. Add billing provider integration.
-14. Gradually roll out by organization.
+14. Add public docs for AI role capabilities and payment flow.
+15. Gradually roll out by organization.
 
 ## Risks
 
@@ -1084,7 +1165,7 @@ E2E:
 - Student and guardian usage can consume org credits quickly.
 - Personal subscriptions can create support confusion if org policy is disabled.
 - Docs source duplication can drift.
-- Provider outage can break Copilot if fallback is not planned.
+- Provider outage or missing AI API key disables Copilot because there is intentionally no local AI fallback.
 - Evaluation summaries can accidentally expose sensitive feedback if mappers are not strict.
 - Soft-limit plans need clear overage communication.
 - Conversation memory can accidentally retain sensitive tool details without summarization and retention rules.
@@ -1103,7 +1184,6 @@ E2E:
 - What is the AI Credit to provider token conversion policy?
 - Should conversation history persist across sessions or expire quickly?
 - What retention period should apply to Copilot conversations?
-- Which billing provider will manage real subscriptions?
 - Should overage billing be automatic or require admin approval?
 
 ## Stop Point
@@ -1122,14 +1202,15 @@ Phase 0 through Phase 17 implementation notes:
 - Phase 9 added backend-owned docs and route search sources, role-filtered route metadata, compact docs search results, search endpoints, and audited `searchDocs`/`searchRoutes` AI tool registration.
 - Phase 10 added audited schedule-aware tools for today, tomorrow, weekly schedule, next class, teacher schedule load, and schedule bottleneck summaries using existing timetable access rules where possible.
 - Phase 11 added audited read-only tools for current permissions, role-aware insights, courses, sections, section details, deadlines, pending grading, attendance risk, evaluation summaries, finance summaries, AI usage, AI credits, and AI role access policy.
-- Phase 12 added the backend provider abstraction, local deterministic provider, LangChain adapter seam, role-aware prompt construction, non-streaming `/ai/copilot/chat` endpoint, entitlement checks, provider token/credit estimates, and usage recording.
+- Phase 12 added the backend provider abstraction, initial placeholder provider path, LangChain adapter seam, role-aware prompt construction, non-streaming `/ai/copilot/chat` endpoint, entitlement checks, provider token/credit estimates, and usage recording.
 - Phase 13 added the global frontend Copilot shell: a persistent provider in the org layout, floating Copilot button, responsive side/fullscreen panel, optimistic message state, cancellation, retry, entitlement refresh, and `/ai/copilot/chat` API integration.
 - Phase 14 added role-specific Copilot home states and suggested prompts for students, teachers, managers, and org admins, with credit/source status, subscription-aware disabled states, and separated frontend AI helpers/components.
 - Phase 15 added backend-owned Copilot conversation memory with owned conversation lookup, expiry, message persistence, compact older-turn summaries, current-turn de-duplication, and session-scoped frontend conversation id restore.
 - Phase 16 added a streaming Copilot path with `POST /ai/copilot/chat/stream`, server-sent events, frontend SSE parsing, progressive assistant message rendering, stop handling, and complete response reconciliation.
 - Phase 17 added focused backend tests for conversation compaction and the chat lifecycle, fixed provider adapter initialization order for runtime/test safety, and verified backend and frontend production builds.
 - Phase 18 added audited, permission-scoped performance/profile tools for teachers, courses, students, departments, organization health, academic entity search, and students needing attention. It also added automatic backend tool-context collection for schedule, deadline, workload, performance, improvement, AI usage, docs, and route prompts so Copilot answers are grounded in actual EduVerse data.
-- Phase 19 replaced the placeholder LangChain adapter with a real `@langchain/openai` `ChatOpenAI` provider path, added model-driven backend tool planning with deterministic fallback routing, added OpenAI model env configuration, installed real LangChain/OpenAI dependencies, added Stripe checkout/portal/webhook billing integration with durable Stripe subscription fields, wired org and personal billing UI flows to Stripe, and added scheduled deletion of expired Copilot conversations.
+- Phase 19 replaced the placeholder provider with a real LangChain Gemini provider path, added model-driven backend tool planning with deterministic fallback routing, added general AI model env configuration, installed real LangChain/Gemini dependencies, added Lemon Squeezy checkout/portal/webhook billing integration with durable Lemon Squeezy subscription fields, wired org and personal billing UI flows to Lemon Squeezy, and added scheduled deletion of expired Copilot conversations.
 - Phase 20 separated AI usage, org settings, and subscription management into distinct frontend flows. `/ai` is now a gated usage dashboard with a link to subscriptions, `/ai/subscription` owns org and personal package checkout/portal actions, org settings only shows AI role/credit configuration when an active org AI subscription exists, and the Copilot disabled state points users to subscribe. The Copilot composer was restyled to match the main chat input pattern without chat-only attachments/features.
+- Phase 21 updated user-facing docs for AI Copilot role capabilities and payment/billing process, kept public AI docs provider-neutral, added the new docs pages to navigation, and refreshed the TDD with the current checkout, portal, webhook, provider, and test coverage requirements.
 
-Next implementation phase: production rollout polish, provider observability, webhook end-to-end testing with Stripe CLI, and deeper role/scope test coverage.
+Next implementation phase: production rollout polish, provider observability, Lemon Squeezy webhook end-to-end testing, and deeper role/scope test coverage.

@@ -79,9 +79,82 @@ export class AIService {
     };
   }
 
+  listConversations(user: User) {
+    return this.conversationService.listConversations({
+      id: user.id,
+      organizationId: user.organizationId,
+    });
+  }
+
+  getConversation(user: User, conversationId: string) {
+    return this.conversationService.getConversation(
+      {
+        id: user.id,
+        organizationId: user.organizationId,
+      },
+      conversationId,
+    );
+  }
+
+  updateConversationTitle(user: User, conversationId: string, title: string) {
+    return this.conversationService.updateConversationTitle(
+      {
+        id: user.id,
+        organizationId: user.organizationId,
+      },
+      conversationId,
+      title,
+    );
+  }
+
+  async generateSuggestedQuestions(user: User) {
+    const input = this.buildSuggestionInput(user);
+    const credits = this.providerService.estimateCredits(input);
+    const entitlement = await this.entitlementService.resolveEntitlement(
+      {
+        id: user.id,
+        organizationId: user.organizationId,
+        role: user.role,
+        status: user.status,
+      },
+      credits,
+    );
+
+    if (!entitlement.allowed) {
+      throw new ForbiddenException({
+        code: entitlement.code,
+        message: entitlement.message,
+      });
+    }
+
+    const output = await this.providerService.chat(input);
+    await this.creditService.recordUsage({
+      source: entitlement.source,
+      userId: user.id,
+      organizationId: user.organizationId,
+      role: user.role,
+      credits: output.creditEstimate,
+      providerTokenEstimate: output.providerTokenEstimate,
+      estimatedCost: estimateProviderCost(output),
+    });
+
+    return {
+      suggestions: parseSuggestedQuestions(output.content),
+      provider: {
+        name: output.providerName,
+        model: output.model,
+      },
+      usage: {
+        creditEstimate: output.creditEstimate,
+        providerTokenEstimate: output.providerTokenEstimate,
+        sourceType: entitlement.source.sourceType,
+        remainingCreditsBeforeRequest: entitlement.source.balance.remainingCredits,
+      },
+    };
+  }
+
   private async prepareChat(user: User, dto: AIChatRequestDto) {
-    const fallbackHistory = this.toProviderHistory(dto.history);
-    const estimatedInput = this.buildProviderInput(user, dto, fallbackHistory);
+    const estimatedInput = this.buildProviderInput(user, dto);
     const estimatedCredits = this.providerService.estimateCredits(estimatedInput);
     const entitlement = await this.entitlementService.resolveEntitlement(
       {
@@ -110,7 +183,6 @@ export class AIService {
     );
     const context = await this.conversationService.getContextMessages(
       conversation.id,
-      fallbackHistory,
     );
     const toolMessages = await this.collectRelevantToolContext(
       user,
@@ -145,15 +217,6 @@ export class AIService {
     };
   }
 
-  private toProviderHistory(history?: AIChatRequestDto['history']): AIProviderMessage[] {
-    return (history ?? [])
-      .slice(-12)
-      .map<AIProviderMessage>((message) => ({
-        role: message.role,
-        content: message.content,
-      }));
-  }
-
   buildProviderInput(
     user: User,
     dto: AIChatRequestDto,
@@ -172,6 +235,39 @@ export class AIService {
         userId: user.id,
         organizationId: user.organizationId,
         role: user.role,
+        name: user.name,
+        email: user.email,
+        status: user.status,
+      },
+    };
+  }
+
+  private buildSuggestionInput(user: User): AIProviderChatInput {
+    return {
+      systemPrompt: [
+        buildSystemPrompt(user),
+        '',
+        'Generate suggested questions for this user before they start a Copilot conversation.',
+        'Return only valid JSON. No markdown. No commentary.',
+        'JSON shape: [{"label":"2 to 4 words","prompt":"a natural question the user can ask"}]',
+        'Create exactly 3 useful, role-aware questions.',
+        'Only suggest questions answerable from available EduVerse backend tools: schedules, courses, sections, enrollment, academic cycles, attendance, grades, deadlines, evaluations, finance summaries, organization health, AI usage, docs, routes, mail/entity search, and visible performance profiles.',
+        'Do not suggest actions that mutate data, send messages, create records, approve payments, edit settings, or require data outside the user permissions.',
+      ].join('\n'),
+      messages: [
+        {
+          role: 'user',
+          content: 'Generate my EduVerse AI Copilot suggested questions.',
+        },
+      ],
+      tools: [],
+      metadata: {
+        userId: user.id,
+        organizationId: user.organizationId,
+        role: user.role,
+        name: user.name,
+        email: user.email,
+        status: user.status,
       },
     };
   }
@@ -191,9 +287,12 @@ export class AIService {
     };
     const planningInput = this.buildProviderInput(user, dto, contextMessages);
     const plannedToolRequests = await this.providerService.planTools(planningInput).catch(() => []);
-    const toolRequests = plannedToolRequests.length
+    const toolRequests = withEntityResolution(
+      plannedToolRequests.length
       ? normalizePlannedTools(plannedToolRequests, dto.prompt)
-      : selectRelevantTools(dto.prompt, user.role ?? undefined);
+      : selectRelevantTools(dto.prompt, user.role ?? undefined),
+      dto.prompt,
+    );
     const results: AIProviderMessage[] = [];
 
     for (const request of toolRequests) {
@@ -326,6 +425,10 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
     add(role === 'STUDENT' || role === 'GUARDIAN' ? 'getStudentPerformanceProfile' : 'getPendingGrading', input);
   }
 
+  if (mentionsAny(text, ['enrollment', 'enrolled', 'highest enrollment', 'most enrolled', 'largest courses', 'popular courses'])) {
+    add('getCourseEnrollmentRanking', { search: prompt, limit: 10 });
+  }
+
   if (mentionsAny(text, ['attendance', 'absent', 'late', 'risk'])) {
     add(role === 'STUDENT' || role === 'GUARDIAN' ? 'getStudentPerformanceProfile' : 'getAttendanceRisk', input);
   }
@@ -369,6 +472,43 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
   return requests.slice(0, 6);
 }
 
+function withEntityResolution(
+  requests: SelectedToolRequest[],
+  prompt: string,
+): SelectedToolRequest[] {
+  const entities = entityKindsFromPrompt(prompt);
+  if (!entities.length) return requests.slice(0, 6);
+  if (requests.some((request) => request.name === 'resolveEduVerseEntities')) {
+    return requests.slice(0, 6);
+  }
+
+  return [
+    {
+      name: 'resolveEduVerseEntities',
+      input: { search: prompt, entities, limit: 6 },
+    },
+    ...requests,
+  ].slice(0, 6);
+}
+
+function entityKindsFromPrompt(prompt: string) {
+  const text = prompt.toLowerCase();
+  const entities: string[] = [];
+  const add = (entity: string) => {
+    if (!entities.includes(entity)) entities.push(entity);
+  };
+
+  if (mentionsAny(text, ['semester', 'term', 'academic cycle', 'cycle'])) add('academicCycle');
+  if (mentionsAny(text, ['course', 'subject', 'class'])) add('course');
+  if (mentionsAny(text, ['section', 'class'])) add('section');
+  if (mentionsAny(text, ['student', 'learner', 'roll number', 'registration'])) add('student');
+  if (mentionsAny(text, ['teacher', 'faculty', 'instructor'])) add('teacher');
+  if (mentionsAny(text, ['department', 'dept'])) add('department');
+  if (mentionsAny(text, ['mail', 'message', 'thread', 'ticket'])) add('mail');
+
+  return entities;
+}
+
 function mentionsAny(value: string, terms: string[]) {
   return terms.some((term) => value.includes(term));
 }
@@ -388,8 +528,7 @@ function normalizePlannedTools(
 }
 
 function estimateProviderCost(output: AIProviderChatOutput) {
-  if (output.providerName === 'local') return 0;
-  const costPerThousandTokens = Number(process.env.AI_PROVIDER_COST_PER_1K_TOKENS ?? 0);
+  const costPerThousandTokens = Number(process.env.AI_COST_PER_1K_TOKENS ?? 0);
   if (!Number.isFinite(costPerThousandTokens) || costPerThousandTokens <= 0) return 0;
   return (output.providerTokenEstimate / 1000) * costPerThousandTokens;
 }
@@ -402,8 +541,18 @@ function buildSystemPrompt(user: User) {
     'Never claim access to data that was not provided by backend tools or conversation context.',
     'Respect existing EduVerse permissions. Personal AI subscriptions never expand data access.',
     'Prefer backend tools for facts about schedules, courses, sections, attendance, grades, finance, evaluations, docs, routes, AI credits, and organization usage.',
+    'When a prompt names or implies an EduVerse entity, use entity resolver results to identify the exact record before relying on other tools.',
+    'If entity resolver results are ambiguous, ask one concise clarifying question instead of guessing.',
     'When tool results indicate failure, explain the failure plainly using the tool result code and message.',
     `Current user role: ${role}.`,
+    `Current user general info: ${JSON.stringify({
+      id: user.id,
+      name: user.name ?? null,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      organizationId: user.organizationId ?? null,
+    })}.`,
     roleGuidance(role),
   ].join('\n');
 }
@@ -422,4 +571,33 @@ function roleGuidance(role: string) {
     return 'Org admin mode: help with organization health, AI usage, AI costs, subscription management, and feature configuration.';
   }
   return 'Use the user role to keep answers scoped, operational, and permission-aware.';
+}
+
+function parseSuggestedQuestions(content: string) {
+  const normalized = content
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+
+  try {
+    const parsed = JSON.parse(normalized);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item, index) => {
+        if (!item || typeof item !== 'object') return null;
+        const label = typeof item.label === 'string' ? item.label.trim() : '';
+        const prompt = typeof item.prompt === 'string' ? item.prompt.trim() : '';
+        if (!label || !prompt) return null;
+        return {
+          id: `suggestion-${index + 1}`,
+          label: label.slice(0, 48),
+          prompt: prompt.slice(0, 240),
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 3);
+  } catch {
+    return [];
+  }
 }

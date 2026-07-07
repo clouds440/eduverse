@@ -33,7 +33,10 @@ import type {
     AIChatRequest,
     AIChatResponse,
     AIChatStreamEvent,
+    AIConversationDetail,
+    AIConversationSummary,
     AIEntitlementResponse,
+    AISuggestedQuestionsResponse,
     AIDocsSearchResult,
     AIRouteSearchResult,
     AISubscriptionOwnerType,
@@ -535,6 +538,14 @@ export const api = {
             request<AIChatResponse>('/ai/copilot/chat', { method: 'POST', body: JSON.stringify(data), token, signal }),
         streamChat: (data: AIChatRequest, token: string, handlers: AIChatStreamHandlers, signal?: AbortSignal) =>
             streamAiChat(data, token, handlers, signal),
+        getSuggestedQuestions: (token: string) =>
+            request<AISuggestedQuestionsResponse>('/ai/copilot/suggestions', { token }),
+        getConversations: (token: string) =>
+            request<AIConversationSummary[]>('/ai/copilot/conversations', { token }),
+        getConversation: (id: string, token: string) =>
+            request<AIConversationDetail>(`/ai/copilot/conversations/${id}`, { token }),
+        updateConversationTitle: (id: string, title: string, token: string) =>
+            request<AIConversationSummary>(`/ai/copilot/conversations/${id}`, { method: 'PATCH', body: JSON.stringify({ title }), token }),
         getOrgSettings: (token: string) =>
             request<AIOrgSettingsResponse>('/ai/org/settings', { token }),
         updateOrgSubscription: (plan: AISubscriptionPlan, token: string) =>

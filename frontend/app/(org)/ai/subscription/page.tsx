@@ -107,7 +107,7 @@ export default function AISubscriptionPage() {
         dispatch({ type: 'UI_START_PROCESSING', payload: `ai-org-checkout-${plan}` });
         try {
             const checkout = await api.ai.createOrgBillingCheckout(plan, token);
-            if (!checkout.checkoutUrl) throw new Error('Stripe checkout did not return a redirect URL.');
+            if (!checkout.checkoutUrl) throw new Error('Lemon Squeezy checkout did not return a redirect URL.');
             window.location.assign(checkout.checkoutUrl);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to start organization AI checkout';
@@ -122,7 +122,7 @@ export default function AISubscriptionPage() {
         dispatch({ type: 'UI_START_PROCESSING', payload: `ai-personal-checkout-${plan}` });
         try {
             const checkout = await api.ai.createPersonalBillingCheckout(plan, token);
-            if (!checkout.checkoutUrl) throw new Error('Stripe checkout did not return a redirect URL.');
+            if (!checkout.checkoutUrl) throw new Error('Lemon Squeezy checkout did not return a redirect URL.');
             window.location.assign(checkout.checkoutUrl);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to start personal AI checkout';
@@ -191,7 +191,7 @@ export default function AISubscriptionPage() {
                                 <p className="text-sm font-black text-foreground">Organization subscription</p>
                                 <p className="mt-1 text-xs font-semibold text-muted-foreground">Current package: {orgSettings.subscription.plan} - {orgSettings.subscription.status}</p>
                             </div>
-                            {orgSettings.subscription.stripeCustomerId && (
+                            {orgSettings.subscription.lemonSqueezySubscriptionId && (
                                 <Button type="button" variant="secondary" icon={ExternalLink} loadingId="ai-org-portal" onClick={() => openPortal(AISubscriptionOwnerType.ORGANIZATION)} className="text-xs" px="px-3" py="py-2">
                                     Billing portal
                                 </Button>
@@ -215,7 +215,7 @@ export default function AISubscriptionPage() {
                                 <p className="text-sm font-black text-foreground">Personal subscription</p>
                                 <p className="mt-1 text-xs font-semibold text-muted-foreground">Current package: {personalSettings.subscription.plan} - {personalSettings.subscription.status}</p>
                             </div>
-                            {personalSettings.subscription.stripeCustomerId && (
+                            {personalSettings.subscription.lemonSqueezySubscriptionId && (
                                 <Button type="button" variant="secondary" icon={ExternalLink} loadingId="ai-personal-portal" onClick={() => openPortal(AISubscriptionOwnerType.USER)} className="text-xs" px="px-3" py="py-2">
                                     Billing portal
                                 </Button>

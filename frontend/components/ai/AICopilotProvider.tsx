@@ -4,9 +4,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { useGlobal } from '@/context/GlobalContext';
 import { useUI } from '@/context/UIContext';
-import { AIChatMessagePayload, AIChatResponse, AIEntitlementResponse } from '@/types';
+import { AIChatResponse, AIConversationSummary, AIEntitlementResponse, AISuggestedQuestion, AIUsageSourceType } from '@/types';
 import { AICopilotButton } from './AICopilotButton';
 import { AICopilotPanel } from './AICopilotPanel';
 
@@ -31,22 +30,35 @@ interface AICopilotContextValue {
     isSending: boolean;
     error: string | null;
     conversationId?: string;
+    activeConversationTitle?: string | null;
+    conversations: AIConversationSummary[];
+    conversationsLoading: boolean;
+    suggestedQuestions: AISuggestedQuestion[];
+    suggestedQuestionsLoading: boolean;
     sendPrompt: (prompt: string) => Promise<void>;
     retryLast: () => Promise<void>;
     cancel: () => void;
     resetConversation: () => void;
     refreshEntitlement: () => Promise<void>;
+    refreshConversations: () => Promise<void>;
+    loadConversation: (conversationId: string) => Promise<void>;
+    renameConversation: (conversationId: string, title: string) => Promise<void>;
 }
 
 const AICopilotContext = createContext<AICopilotContextValue | undefined>(undefined);
 
 export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     const { token, user } = useAuth();
-    const { dispatch } = useGlobal();
     const { mounted } = useUI();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<AICopilotMessage[]>([]);
     const [conversationId, setConversationId] = useState<string | undefined>();
+    const [activeConversationTitle, setActiveConversationTitle] = useState<string | null | undefined>();
+    const [conversations, setConversations] = useState<AIConversationSummary[]>([]);
+    const [conversationsLoading, setConversationsLoading] = useState(false);
+    const [suggestedQuestions, setSuggestedQuestions] = useState<AISuggestedQuestion[]>([]);
+    const [suggestedQuestionsLoading, setSuggestedQuestionsLoading] = useState(false);
+    const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
     const [entitlement, setEntitlement] = useState<AIEntitlementResponse | null>(null);
     const [entitlementLoading, setEntitlementLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
@@ -89,17 +101,54 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         }
     }, [token, user]);
 
+    const refreshConversations = useCallback(async () => {
+        if (!token || !user) return;
+        setConversationsLoading(true);
+        try {
+            setConversations(await api.ai.getConversations(token));
+        } catch (err) {
+            console.warn('Unable to load AI Copilot conversations', err);
+        } finally {
+            setConversationsLoading(false);
+        }
+    }, [token, user]);
+
+    const refreshSuggestedQuestions = useCallback(async () => {
+        if (!token || !user || suggestedQuestionsLoading || suggestionsLoaded) return;
+        setSuggestedQuestionsLoading(true);
+        try {
+            const response = await api.ai.getSuggestedQuestions(token);
+            setSuggestedQuestions(response.suggestions);
+            setSuggestionsLoaded(true);
+        } catch (err) {
+            console.warn('Unable to load AI Copilot suggestions', err);
+            setSuggestionsLoaded(true);
+        } finally {
+            setSuggestedQuestionsLoading(false);
+        }
+    }, [suggestedQuestionsLoading, suggestionsLoaded, token, user]);
+
     useEffect(() => {
         if (!token || !user) {
             messagesRef.current = [];
             setMessages([]);
             setConversationId(undefined);
+            setActiveConversationTitle(undefined);
+            setConversations([]);
+            setSuggestedQuestions([]);
+            setSuggestionsLoaded(false);
             if (conversationStorageKey) sessionStorage.removeItem(conversationStorageKey);
             setEntitlement(null);
             return;
         }
         void refreshEntitlement();
-    }, [conversationStorageKey, refreshEntitlement, token, user]);
+        void refreshConversations();
+    }, [conversationStorageKey, refreshConversations, refreshEntitlement, token, user]);
+
+    useEffect(() => {
+        if (!isOpen || entitlement?.allowed !== true || suggestionsLoaded) return;
+        void refreshSuggestedQuestions();
+    }, [entitlement?.allowed, isOpen, refreshSuggestedQuestions, suggestionsLoaded]);
 
     const close = useCallback(() => setIsOpen(false), []);
     const open = useCallback(() => {
@@ -125,10 +174,59 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         messagesRef.current = [];
         setMessages([]);
         setConversationId(undefined);
+        setActiveConversationTitle(undefined);
         if (conversationStorageKey) sessionStorage.removeItem(conversationStorageKey);
         setError(null);
         lastPromptRef.current = null;
     }, [cancel, conversationStorageKey]);
+
+    const loadConversation = useCallback(async (nextConversationId: string) => {
+        if (!token || !user) return;
+        cancel();
+        setError(null);
+        const detail = await api.ai.getConversation(nextConversationId, token);
+        const nextMessages: AICopilotMessage[] = detail.messages
+            .filter((message): message is typeof message & { role: 'user' | 'assistant' } => (
+                message.role === 'user' || message.role === 'assistant'
+            ))
+            .map((message) => ({
+                id: message.id,
+                role: message.role,
+                content: message.content,
+                status: 'complete',
+                createdAt: new Date(message.createdAt).getTime(),
+                provider: message.metadata?.providerName
+                    ? {
+                        name: message.metadata.providerName,
+                        model: message.metadata.model,
+                    }
+                    : undefined,
+                usage: typeof message.metadata?.creditEstimate === 'number'
+                    ? {
+                        creditEstimate: message.metadata.creditEstimate,
+                        providerTokenEstimate: message.metadata.providerTokenEstimate ?? 0,
+                        sourceType: entitlement?.allowed ? entitlement.source.sourceType : AIUsageSourceType.PERSONAL,
+                        remainingCreditsBeforeRequest: 0,
+                    }
+                    : undefined,
+            }));
+        messagesRef.current = nextMessages;
+        setMessages(nextMessages);
+        setConversationId(detail.id);
+        setActiveConversationTitle(detail.title);
+        setIsOpen(true);
+    }, [cancel, entitlement, token, user]);
+
+    const renameConversation = useCallback(async (targetConversationId: string, title: string) => {
+        if (!token || !user) return;
+        const updated = await api.ai.updateConversationTitle(targetConversationId, title, token);
+        setConversations((current) => current.map((conversation) => (
+            conversation.id === targetConversationId ? updated : conversation
+        )));
+        if (conversationId === targetConversationId) {
+            setActiveConversationTitle(updated.title);
+        }
+    }, [conversationId, token, user]);
 
     const sendPrompt = useCallback(async (prompt: string) => {
         const trimmed = prompt.trim();
@@ -144,11 +242,6 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         setIsSending(true);
         setError(null);
         lastPromptRef.current = trimmed;
-        const history: AIChatMessagePayload[] = messagesRef.current
-            .filter((message) => message.status !== 'error' && message.content.trim())
-            .slice(-10)
-            .map((message) => ({ role: message.role, content: message.content }));
-
         const userMessage: AICopilotMessage = {
             id: makeMessageId('user'),
             role: 'user',
@@ -177,12 +270,13 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
 
         try {
             await api.ai.streamChat(
-                { prompt: trimmed, conversationId, history },
+                { prompt: trimmed, conversationId },
                 token,
                 {
                     onEvent: (event) => {
                         if (event.type === 'conversation') {
                             setConversationId(event.conversationId);
+                            setActiveConversationTitle(event.title);
                             return;
                         }
 
@@ -206,6 +300,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
                         if (event.type === 'complete') {
                             const response = event.response;
                             setConversationId(response.conversationId);
+                            setActiveConversationTitle(response.title);
                             setMessages((current) => {
                                 const next = current.map((message) => (
                                     message.id === pendingAssistantId
@@ -221,6 +316,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
                                 messagesRef.current = next;
                                 return next;
                             });
+                            void refreshConversations();
                         }
                     },
                 },
@@ -252,12 +348,11 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
                 messagesRef.current = next;
                 return next;
             });
-            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
             if (abortRef.current === controller) abortRef.current = null;
             setIsSending(false);
         }
-    }, [conversationId, dispatch, entitlement, isSending, refreshEntitlement, token, user]);
+    }, [conversationId, entitlement, isSending, refreshConversations, refreshEntitlement, token, user]);
 
     const retryLast = useCallback(async () => {
         const prompt = lastPromptRef.current;
@@ -283,12 +378,20 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         isSending,
         error,
         conversationId,
+        activeConversationTitle,
+        conversations,
+        conversationsLoading,
+        suggestedQuestions,
+        suggestedQuestionsLoading,
         sendPrompt,
         retryLast,
         cancel,
         resetConversation,
         refreshEntitlement,
-    }), [cancel, close, conversationId, entitlement, entitlementLoading, error, isOpen, isSending, messages, open, refreshEntitlement, resetConversation, retryLast, sendPrompt, toggle]);
+        refreshConversations,
+        loadConversation,
+        renameConversation,
+    }), [activeConversationTitle, cancel, close, conversationId, conversations, conversationsLoading, entitlement, entitlementLoading, error, isOpen, isSending, loadConversation, messages, open, refreshConversations, refreshEntitlement, renameConversation, resetConversation, retryLast, sendPrompt, suggestedQuestions, suggestedQuestionsLoading, toggle]);
 
     return (
         <AICopilotContext.Provider value={value}>

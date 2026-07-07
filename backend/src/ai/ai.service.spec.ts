@@ -58,8 +58,8 @@ describe('AIService', () => {
       planTools: jest.fn().mockResolvedValue([]),
       chat: jest.fn().mockResolvedValue({
         content: 'Study Algebra first.',
-        providerName: 'local',
-        model: 'local-deterministic',
+        providerName: 'gemini',
+        model: 'gemini-1.5-flash',
         providerTokenEstimate: 20,
         creditEstimate: 1,
         toolCalls: [],
@@ -124,7 +124,7 @@ describe('AIService', () => {
     expect(conversationService.appendAssistantMessage).toHaveBeenCalledWith(
       'conversation-1',
       'Study Algebra first.',
-      expect.objectContaining({ providerName: 'local', creditEstimate: 1 }),
+      expect.objectContaining({ providerName: 'gemini', creditEstimate: 1 }),
     );
     expect(creditService.recordUsage).toHaveBeenCalledWith(expect.objectContaining({
       credits: 1,

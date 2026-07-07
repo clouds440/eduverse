@@ -29,7 +29,7 @@ export function validateEnv() {
     process.exit(1);
   }
 
-  // Log optional but recommended envs
+  // Log optional but recommended envs. Some are required only when their feature is used.
   const recommendedEnvs = [
     'THROTTLE_TTL',
     'THROTTLE_LIMIT',
@@ -38,34 +38,39 @@ export function validateEnv() {
     'GOOGLE_CLIENT_ID',
     'GOOGLE_CLIENT_SECRET',
     'GOOGLE_REDIRECT_URI',
-    'AI_PROVIDER',
-    'OPENAI_API_KEY',
-    'OPENAI_MODEL',
-    'AI_PROVIDER_ALLOW_LOCAL_FALLBACK',
-    'AI_PROVIDER_COST_PER_1K_TOKENS',
-    'STRIPE_SECRET_KEY',
-    'STRIPE_WEBHOOK_SECRET',
-    'STRIPE_AI_ORG_STARTER_PRICE_ID',
-    'STRIPE_AI_ORG_GROWTH_PRICE_ID',
-    'STRIPE_AI_ORG_SCALE_PRICE_ID',
-    'STRIPE_AI_PERSONAL_STARTER_PRICE_ID',
-    'STRIPE_AI_PERSONAL_GROWTH_PRICE_ID',
-    'STRIPE_AI_PERSONAL_SCALE_PRICE_ID',
+    'AI_API_KEY',
+    'AI_MODEL',
+    'AI_TEMPERATURE',
+    'AI_MAX_RETRIES',
+    'AI_COST_PER_1K_TOKENS',
+    'LEMON_SQUEEZY_API_KEY',
+    'LEMON_SQUEEZY_STORE_ID',
+    'LEMON_SQUEEZY_WEBHOOK_SECRET',
+    'LEMON_SQUEEZY_AI_ORG_STARTER_VARIANT_ID',
+    'LEMON_SQUEEZY_AI_ORG_GROWTH_VARIANT_ID',
+    'LEMON_SQUEEZY_AI_ORG_SCALE_VARIANT_ID',
+    'LEMON_SQUEEZY_AI_PERSONAL_STARTER_VARIANT_ID',
+    'LEMON_SQUEEZY_AI_PERSONAL_GROWTH_VARIANT_ID',
+    'LEMON_SQUEEZY_AI_PERSONAL_SCALE_VARIANT_ID',
   ];
   const missingRecommended = recommendedEnvs.filter((env) => !process.env[env]);
   if (missingRecommended.length > 0) {
     logger.warn(
-      'Recommended environment variables are missing (using defaults):',
+      'Recommended environment variables are missing. Related features may use defaults or stay unavailable:',
     );
     missingRecommended.forEach((env) => logger.warn(` - ${env}`));
   }
 
-  if ((process.env.AI_PROVIDER ?? 'local').toLowerCase() === 'langchain' && !process.env.OPENAI_API_KEY) {
-    logger.warn('AI_PROVIDER=langchain requires OPENAI_API_KEY for real model responses.');
+  if (!process.env.AI_API_KEY) {
+    logger.warn('AI_API_KEY is required for EduVerse AI Copilot responses.');
   }
 
-  if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_WEBHOOK_SECRET) {
-    logger.warn('STRIPE_SECRET_KEY is configured but STRIPE_WEBHOOK_SECRET is missing; AI billing webhooks will fail verification.');
+  if (!process.env.AI_MODEL) {
+    logger.warn('AI_MODEL is required for EduVerse AI Copilot responses.');
+  }
+
+  if (process.env.LEMON_SQUEEZY_API_KEY && !process.env.LEMON_SQUEEZY_WEBHOOK_SECRET) {
+    logger.warn('LEMON_SQUEEZY_API_KEY is configured but LEMON_SQUEEZY_WEBHOOK_SECRET is missing; AI billing webhooks will fail verification.');
   }
 
   warnAboutAuthCookieConfig(logger);

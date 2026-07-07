@@ -44,6 +44,7 @@ export class AIAcademicToolsService implements OnModuleInit {
     this.register('getMyInsights', 'Return compact role-aware dashboard insights for the current user.', (input, context) => this.getMyInsights(context, parseInput(input)));
     this.register('listCourses', 'List compact courses visible to the current user.', (input, context) => this.listCourses(context, parseInput(input)));
     this.register('listSections', 'List compact sections visible to the current user.', (input, context) => this.listSections(context, parseInput(input)));
+    this.register('getCourseEnrollmentRanking', 'Rank visible courses by enrolled student count for the current or selected academic cycle.', (input, context) => this.getCourseEnrollmentRanking(context, parseInput(input)));
     this.register('getSectionDetails', 'Return compact details for a visible section.', (input, context) => this.getSectionDetails(context, parseInput(input)));
     this.register('getPendingDeadlines', 'Return upcoming assessment deadlines visible to the current user.', (input, context) => this.getPendingDeadlines(context, parseInput(input)));
     this.register('getPendingGrading', 'Return pending grading workload for staff roles.', (input, context) => this.getPendingGrading(context, parseInput(input)));
@@ -166,6 +167,89 @@ export class AIAcademicToolsService implements OnModuleInit {
     };
   }
 
+  private async getCourseEnrollmentRanking(context: AIToolContext, input: AcademicToolInput): Promise<AIToolResult<unknown>> {
+    if (!context.orgId) return permissionDenied('Organization context is required.');
+
+    const cycle = await this.resolveAcademicCycle(context.orgId, input);
+    if (!cycle) {
+      return notFound('No current academic cycle is available for this organization.');
+    }
+
+    const sectionWhere = await this.sectionWhereForActor(context, {
+      ...input,
+      search: undefined,
+    });
+    const sections = await this.prisma.section.findMany({
+      where: {
+        ...sectionWhere,
+        academicCycleId: cycle.id,
+      },
+      include: {
+        course: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
+        _count: { select: { enrollments: true } },
+      },
+      orderBy: [{ course: { name: 'asc' } }, { name: 'asc' }],
+    });
+
+    const courseMap = new Map<string, {
+      courseId: string;
+      name: string;
+      code: string | null;
+      department: string | null;
+      enrolledStudents: number;
+      sections: Array<{ sectionId: string; name: string; code: string; enrolledStudents: number; href: string }>;
+    }>();
+
+    for (const section of sections) {
+      const current = courseMap.get(section.course.id) ?? {
+        courseId: section.course.id,
+        name: section.course.name,
+        code: section.course.code,
+        department: section.course.department?.name ?? null,
+        enrolledStudents: 0,
+        sections: [],
+      };
+      current.enrolledStudents += section._count.enrollments;
+      current.sections.push({
+        sectionId: section.id,
+        name: section.name,
+        code: section.code,
+        enrolledStudents: section._count.enrollments,
+        href: `/sections/${section.id}`,
+      });
+      courseMap.set(section.course.id, current);
+    }
+
+    const courses = Array.from(courseMap.values())
+      .sort((a, b) => b.enrolledStudents - a.enrolledStudents || a.name.localeCompare(b.name))
+      .slice(0, clampLimit(input.limit, 10));
+
+    return {
+      ok: true,
+      data: {
+        academicCycle: {
+          id: cycle.id,
+          name: cycle.name,
+          code: cycle.code,
+          startDate: dateKey(cycle.startDate),
+          endDate: dateKey(cycle.endDate),
+          source: cycle.isActive ? 'active' : 'date-range-or-latest',
+        },
+        courses,
+        totalVisibleCourses: courseMap.size,
+        totalVisibleSections: sections.length,
+        note: 'Enrollment counts are summed from visible sections in the selected academic cycle.',
+      },
+    };
+  }
+
   private async getSectionDetails(context: AIToolContext, input: AcademicToolInput): Promise<AIToolResult<unknown>> {
     if (!input.sectionId) return notFound('sectionId is required.');
     const where = await this.sectionWhereForActor(context, input);
@@ -208,6 +292,40 @@ export class AIAcademicToolsService implements OnModuleInit {
         href: `/sections/${section.id}`,
       },
     };
+  }
+
+  private async resolveAcademicCycle(contextOrgId: string, input: AcademicToolInput) {
+    if (input.search) {
+      const searched = await this.prisma.academicCycle.findFirst({
+        where: {
+          organizationId: contextOrgId,
+          OR: [
+            { name: { contains: input.search, mode: Prisma.QueryMode.insensitive } },
+            { code: { contains: input.search, mode: Prisma.QueryMode.insensitive } },
+          ],
+        },
+        orderBy: [{ isActive: 'desc' }, { startDate: 'desc' }],
+      });
+      if (searched) return searched;
+    }
+
+    const now = new Date();
+    const current = await this.prisma.academicCycle.findFirst({
+      where: {
+        organizationId: contextOrgId,
+        OR: [
+          { isActive: true },
+          { startDate: { lte: now }, endDate: { gte: now } },
+        ],
+      },
+      orderBy: [{ isActive: 'desc' }, { startDate: 'desc' }],
+    });
+    if (current) return current;
+
+    return this.prisma.academicCycle.findFirst({
+      where: { organizationId: contextOrgId },
+      orderBy: { startDate: 'desc' },
+    });
   }
 
   private async getPendingDeadlines(context: AIToolContext, input: AcademicToolInput): Promise<AIToolResult<unknown>> {

@@ -706,9 +706,10 @@ export interface AISubscription {
     limitMode: AILimitMode;
     currentPeriodStart?: string | null;
     currentPeriodEnd?: string | null;
-    stripeCustomerId?: string | null;
-    stripeSubscriptionId?: string | null;
-    stripePriceId?: string | null;
+    lemonSqueezyCustomerId?: string | null;
+    lemonSqueezySubscriptionId?: string | null;
+    lemonSqueezyVariantId?: string | null;
+    lemonSqueezyPortalUrl?: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -842,7 +843,6 @@ export interface AIChatMessagePayload {
 export interface AIChatRequest {
     prompt: string;
     conversationId?: string;
-    history?: AIChatMessagePayload[];
 }
 
 export interface AIChatResponse {
@@ -884,6 +884,44 @@ export type AIChatStreamEvent =
         code?: string;
         message: string;
     };
+
+export interface AISuggestedQuestion {
+    id: string;
+    label: string;
+    prompt: string;
+}
+
+export interface AISuggestedQuestionsResponse {
+    suggestions: AISuggestedQuestion[];
+    provider: AIChatResponse['provider'];
+    usage: AIChatResponse['usage'];
+}
+
+export interface AIConversationSummary {
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    messageCount: number;
+    creditTotal: number;
+}
+
+export interface AIStoredConversationMessage {
+    id: string;
+    role: 'user' | 'assistant' | 'system' | 'tool';
+    content: string;
+    createdAt: string;
+    metadata?: {
+        providerName?: string;
+        model?: string;
+        creditEstimate?: number;
+        providerTokenEstimate?: number;
+    } | null;
+}
+
+export interface AIConversationDetail extends Omit<AIConversationSummary, 'messageCount'> {
+    messages: AIStoredConversationMessage[];
+}
 
 export interface AIDocsSearchResult {
     title: string;

@@ -142,6 +142,7 @@ export type AIStreamEvent =
       type: 'complete';
       response: {
         conversationId: string;
+        title?: string | null;
         message: {
           role: 'assistant';
           content: string;

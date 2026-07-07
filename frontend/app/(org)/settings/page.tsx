@@ -506,7 +506,7 @@ export default function SettingsPage() {
                     window.location.assign(checkout.checkoutUrl);
                     return;
                 }
-                throw new Error('Stripe checkout did not return a redirect URL.');
+                throw new Error('Lemon Squeezy checkout did not return a redirect URL.');
             }
 
             const settings = await api.ai.updateOrgSubscription(plan, token);

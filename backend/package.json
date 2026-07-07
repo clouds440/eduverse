@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@langchain/core": "^1.2.1",
-    "@langchain/openai": "^1.5.3",
+    "@langchain/google-genai": "^2.2.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
@@ -55,7 +55,6 @@
     "prisma": "^7.8.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "stripe": "^22.3.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

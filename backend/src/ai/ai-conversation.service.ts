@@ -9,6 +9,7 @@ const AI_CONTEXT_RECENT_MESSAGE_LIMIT = 12;
 const AI_CONTEXT_SUMMARY_MESSAGE_LIMIT = 16;
 const AI_CONTEXT_MAX_MESSAGE_CHARS = 4000;
 const AI_TITLE_MAX_CHARS = 80;
+const AI_CONVERSATION_LIST_LIMIT = 30;
 
 export interface AIConversationActor {
   id: string;
@@ -76,35 +77,148 @@ export class AIConversationService {
 
   async getContextMessages(
     conversationId: string,
-    fallbackHistory: AIProviderMessage[] = [],
   ): Promise<AIConversationContext> {
     const conversation = await this.prisma.aIConversation.findUnique({
       where: { id: conversationId },
       include: {
         messages: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: 'desc' },
           take: 80,
         },
       },
     });
 
-    const storedMessages = conversation?.messages.map((message) => ({
+    const storedMessages = conversation?.messages.reverse().map((message) => ({
       role: this.toProviderRole(message.role),
       content: clampMessageContent(message.content),
     })) ?? [];
 
-    const baseMessages = storedMessages.length > 0
-      ? storedMessages
-      : fallbackHistory.map((message) => ({
-          role: message.role,
-          content: clampMessageContent(message.content),
-          name: message.name,
-        }));
-
     return {
       conversationId,
       title: conversation?.title,
-      messages: compactContextMessages(baseMessages),
+      messages: compactContextMessages(storedMessages),
+    };
+  }
+
+  async listConversations(actor: AIConversationActor) {
+    const conversations = await this.prisma.aIConversation.findMany({
+      where: {
+        userId: actor.id,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } },
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: AI_CONVERSATION_LIST_LIMIT,
+      include: {
+        messages: {
+          select: {
+            role: true,
+            metadata: true,
+          },
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+    });
+
+    return conversations.map((conversation) => ({
+      id: conversation.id,
+      title: conversation.title ?? 'New Copilot conversation',
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+      messageCount: conversation._count.messages,
+      creditTotal: sumConversationCredits(conversation.messages),
+    }));
+  }
+
+  async getConversation(actor: AIConversationActor, conversationId: string) {
+    const conversation = await this.prisma.aIConversation.findFirst({
+      where: {
+        id: conversationId,
+        userId: actor.id,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } },
+        ],
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException({
+        code: 'CONVERSATION_NOT_FOUND',
+        message: 'This Copilot conversation is no longer available.',
+      });
+    }
+
+    return {
+      id: conversation.id,
+      title: conversation.title ?? 'New Copilot conversation',
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+      creditTotal: sumConversationCredits(conversation.messages),
+      messages: conversation.messages.map((message) => ({
+        id: message.id,
+        role: this.toProviderRole(message.role),
+        content: message.content,
+        createdAt: message.createdAt,
+        metadata: message.metadata,
+      })),
+    };
+  }
+
+  async updateConversationTitle(actor: AIConversationActor, conversationId: string, title: string) {
+    const conversation = await this.prisma.aIConversation.findFirst({
+      where: {
+        id: conversationId,
+        userId: actor.id,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } },
+        ],
+      },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException({
+        code: 'CONVERSATION_NOT_FOUND',
+        message: 'This Copilot conversation is no longer available.',
+      });
+    }
+
+    const updated = await this.prisma.aIConversation.update({
+      where: { id: conversation.id },
+      data: {
+        title: clampTitle(title),
+        expiresAt: this.getExpiryDate(),
+      },
+      include: {
+        messages: {
+          select: {
+            role: true,
+            metadata: true,
+          },
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+    });
+
+    return {
+      id: updated.id,
+      title: updated.title ?? 'New Copilot conversation',
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+      messageCount: updated._count.messages,
+      creditTotal: sumConversationCredits(updated.messages),
     };
   }
 
@@ -220,8 +334,24 @@ function clampMessageContent(content: string, maxChars = AI_CONTEXT_MAX_MESSAGE_
 }
 
 function createConversationTitle(prompt: string) {
+  return clampTitle(prompt);
+}
+
+function sumConversationCredits(
+  messages: Array<{ role: AIMessageRole; metadata: Prisma.JsonValue | null }>,
+) {
+  return messages.reduce((total, message) => {
+    if (message.role !== AIMessageRole.ASSISTANT) return total;
+    if (!message.metadata || typeof message.metadata !== 'object' || Array.isArray(message.metadata)) return total;
+    const creditEstimate = (message.metadata as Record<string, unknown>).creditEstimate;
+    return total + (typeof creditEstimate === 'number' && Number.isFinite(creditEstimate) ? creditEstimate : 0);
+  }, 0);
+}
+
+function clampTitle(prompt: string) {
   const normalized = prompt.replace(/\s+/g, ' ').trim();
   if (!normalized) return 'New Copilot conversation';
-  if (normalized.length <= AI_TITLE_MAX_CHARS) return normalized;
-  return `${normalized.slice(0, AI_TITLE_MAX_CHARS - 1).trimEnd()}...`;
+  const words = normalized.split(' ').slice(0, 5).join(' ');
+  if (words.length <= AI_TITLE_MAX_CHARS) return words;
+  return `${words.slice(0, AI_TITLE_MAX_CHARS - 1).trimEnd()}...`;
 }

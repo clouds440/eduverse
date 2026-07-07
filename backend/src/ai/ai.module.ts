@@ -10,10 +10,10 @@ import { AIConversationService } from './ai-conversation.service';
 import { AIAuditService } from './ai-audit.service';
 import { AICreditService } from './ai-credit.service';
 import { AIEntitlementService } from './ai-entitlement.service';
+import { AIEntityResolverService } from './ai-entity-resolver.service';
 import { AIKnowledgeService } from './ai-knowledge.service';
 import {
   AILangChainProviderAdapter,
-  AILocalProviderAdapter,
   AIProviderService,
 } from './ai-provider.service';
 import { AIPerformanceToolsService } from './ai-performance-tools.service';
@@ -34,9 +34,9 @@ import { AIUsageService } from './ai-usage.service';
     AIAuditService,
     AICreditService,
     AIEntitlementService,
+    AIEntityResolverService,
     AIKnowledgeService,
     AILangChainProviderAdapter,
-    AILocalProviderAdapter,
     AIPerformanceToolsService,
     AIProviderService,
     AIScheduleToolsService,
@@ -53,6 +53,7 @@ import { AIUsageService } from './ai-usage.service';
     AIAuditService,
     AICreditService,
     AIEntitlementService,
+    AIEntityResolverService,
     AIKnowledgeService,
     AIPerformanceToolsService,
     AIProviderService,

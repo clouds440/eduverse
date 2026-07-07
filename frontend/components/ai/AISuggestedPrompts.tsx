@@ -1,45 +1,36 @@
 'use client';
 
-import { AIPromptSuggestion } from '@/lib/ai';
+import { AISuggestedQuestion } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface AISuggestedPromptsProps {
-    suggestions: AIPromptSuggestion[];
+    suggestions: AISuggestedQuestion[];
     onSelect: (prompt: string) => void;
     disabled?: boolean;
+    loading?: boolean;
 }
 
-const toneClasses: Record<AIPromptSuggestion['tone'], string> = {
-    primary: 'text-primary bg-primary/10 border-primary/20 hover:border-primary/35 hover:bg-primary/15',
-    success: 'text-success bg-success/10 border-success/20 hover:border-success/35 hover:bg-success/15',
-    warning: 'text-warning bg-warning/10 border-warning/25 hover:border-warning/40 hover:bg-warning/15',
-    info: 'text-info bg-info/10 border-info/20 hover:border-info/35 hover:bg-info/15',
-    neutral: 'text-foreground bg-card border-border/70 hover:border-primary/25 hover:bg-muted/50',
-};
-
 export function AISuggestedPrompts({ suggestions, onSelect, disabled }: AISuggestedPromptsProps) {
+    if (suggestions.length === 0) return null;
+
     return (
-        <div className="grid grid-cols-2 gap-2">
-            {suggestions.map((suggestion) => {
-                const Icon = suggestion.icon;
-                return (
-                    <button
-                        key={suggestion.id}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => onSelect(suggestion.prompt)}
-                        className={cn(
-                            'group flex min-h-20 min-w-0 flex-col justify-between rounded-lg border p-3 text-left shadow-sm transition-colors',
-                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                            'disabled:pointer-events-none disabled:opacity-50',
-                            toneClasses[suggestion.tone],
-                        )}
-                    >
-                        <Icon className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" aria-hidden="true" />
-                        <span className="mt-3 text-sm font-black leading-tight text-foreground">{suggestion.label}</span>
-                    </button>
-                );
-            })}
+        <div className="flex max-h-[22svh] flex-wrap gap-2 overflow-y-auto pr-0.5 custom-scrollbar">
+            {suggestions.slice(0, 3).map((suggestion) => (
+                <button
+                    key={suggestion.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onSelect(suggestion.prompt)}
+                    className={cn(
+                        'min-w-0 max-w-full rounded-full border border-border/70 bg-background/80 px-3 py-1.5 text-left text-xs font-bold leading-5 text-foreground shadow-xs transition-colors',
+                        'hover:border-primary/30 hover:bg-primary/5 active:scale-[0.99]',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                        'disabled:pointer-events-none disabled:opacity-50',
+                    )}
+                >
+                    <span className="line-clamp-2">{suggestion.prompt}</span>
+                </button>
+            ))}
         </div>
     );
 }

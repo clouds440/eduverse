@@ -3,7 +3,6 @@
 import { useEffect, useRef } from "react";
 import { Sparkles } from "lucide-react";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
-import { Badge } from "@/components/ui/Badge";
 import { AICopilotMessage } from "./AICopilotProvider";
 import { cn } from "@/lib/utils";
 
@@ -73,16 +72,6 @@ export function AIMessageList({ messages }: AIMessageListProps) {
                         aria-hidden="true"
                       />
                     )}
-                  </div>
-                )}
-                {message.usage && (
-                  <div className="mt-2 flex flex-wrap gap-1.5 border-t border-border/40 pt-2">
-                    <Badge variant="secondary" size="sm">
-                      {message.usage.creditEstimate} credits
-                    </Badge>
-                    <Badge variant="neutral" size="sm">
-                      {message.provider?.name ?? "provider"}
-                    </Badge>
                   </div>
                 )}
               </div>

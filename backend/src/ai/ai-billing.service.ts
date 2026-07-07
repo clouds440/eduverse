@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import Stripe from 'stripe';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
   AISubscriptionOwnerType,
   AISubscriptionPlan,
@@ -9,6 +9,62 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AI_PLAN_CONFIG } from './ai.constants';
 import { AISubscriptionService } from './ai-subscription.service';
+
+type LemonSqueezySubscriptionStatus =
+  | 'on_trial'
+  | 'active'
+  | 'paused'
+  | 'past_due'
+  | 'unpaid'
+  | 'cancelled'
+  | 'expired';
+
+interface LemonSqueezyResource<TAttributes = Record<string, unknown>> {
+  type: string;
+  id: string;
+  attributes?: TAttributes;
+}
+
+interface LemonSqueezyCheckoutResponse {
+  data?: LemonSqueezyResource<{
+    url?: string;
+  }>;
+}
+
+interface LemonSqueezyWebhookPayload {
+  meta?: {
+    event_name?: string;
+    custom_data?: Record<string, unknown>;
+  };
+  data?: LemonSqueezyResource<LemonSqueezySubscriptionAttributes | Record<string, unknown>>;
+}
+
+interface LemonSqueezySubscriptionAttributes {
+  status?: LemonSqueezySubscriptionStatus;
+  customer_id?: number | string | null;
+  variant_id?: number | string | null;
+  renews_at?: string | null;
+  ends_at?: string | null;
+  created_at?: string | null;
+  urls?: {
+    customer_portal?: string;
+    update_payment_method?: string;
+  };
+  first_subscription_item?: {
+    variant_id?: number | string | null;
+  };
+}
+
+interface LemonSqueezyCheckoutInput {
+  ownerType: AISubscriptionOwnerType;
+  plan: AISubscriptionPlan;
+  subscriptionId: string;
+  organizationId?: string | null;
+  userId?: string | null;
+  email?: string | null;
+  name?: string | null;
+  cancelPath: string;
+}
 
 @Injectable()
 export class AIBillingService {
@@ -29,46 +85,15 @@ export class AIBillingService {
     });
     if (!organization) throw new BadRequestException('Organization not found.');
 
-    const stripe = this.stripe();
-    const customerId = subscription.stripeCustomerId
-      ?? await this.createCustomer({
-        email: organization.contactEmail || actor.email,
-        name: organization.name,
-        metadata: {
-          ownerType: AISubscriptionOwnerType.ORGANIZATION,
-          organizationId,
-        },
-      });
-    const priceId = this.priceId(AISubscriptionOwnerType.ORGANIZATION, plan);
-    await this.prisma.aISubscription.update({
-      where: { id: subscription.id },
-      data: { stripeCustomerId: customerId, stripePriceId: priceId },
+    return this.createCheckout({
+      ownerType: AISubscriptionOwnerType.ORGANIZATION,
+      plan,
+      subscriptionId: subscription.id,
+      organizationId,
+      email: organization.contactEmail || actor.email,
+      name: organization.name,
+      cancelPath: '/settings?ai_billing=cancelled',
     });
-
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${frontendBaseUrl()}/ai?ai_billing=success`,
-      cancel_url: `${frontendBaseUrl()}/settings?ai_billing=cancelled`,
-      client_reference_id: organizationId,
-      metadata: {
-        ownerType: AISubscriptionOwnerType.ORGANIZATION,
-        organizationId,
-        plan,
-        subscriptionId: subscription.id,
-      },
-      subscription_data: {
-        metadata: {
-          ownerType: AISubscriptionOwnerType.ORGANIZATION,
-          organizationId,
-          plan,
-          subscriptionId: subscription.id,
-        },
-      },
-    });
-
-    return { checkoutUrl: session.url, sessionId: session.id };
   }
 
   async createPersonalCheckoutSession(user: User, plan: AISubscriptionPlan) {
@@ -80,49 +105,17 @@ export class AIBillingService {
       user.id,
       user.organizationId,
     );
-    const stripe = this.stripe();
-    const customerId = subscription.stripeCustomerId
-      ?? await this.createCustomer({
-        email: user.email,
-        name: user.name ?? user.email,
-        metadata: {
-          ownerType: AISubscriptionOwnerType.USER,
-          userId: user.id,
-          organizationId: user.organizationId ?? '',
-        },
-      });
-    const priceId = this.priceId(AISubscriptionOwnerType.USER, plan);
-    await this.prisma.aISubscription.update({
-      where: { id: subscription.id },
-      data: { stripeCustomerId: customerId, stripePriceId: priceId },
-    });
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${frontendBaseUrl()}/ai?ai_billing=success`,
-      cancel_url: `${frontendBaseUrl()}/ai?ai_billing=cancelled`,
-      client_reference_id: user.id,
-      metadata: {
-        ownerType: AISubscriptionOwnerType.USER,
-        userId: user.id,
-        organizationId: user.organizationId ?? '',
-        plan,
-        subscriptionId: subscription.id,
-      },
-      subscription_data: {
-        metadata: {
-          ownerType: AISubscriptionOwnerType.USER,
-          userId: user.id,
-          organizationId: user.organizationId ?? '',
-          plan,
-          subscriptionId: subscription.id,
-        },
-      },
+    return this.createCheckout({
+      ownerType: AISubscriptionOwnerType.USER,
+      plan,
+      subscriptionId: subscription.id,
+      userId: user.id,
+      organizationId: user.organizationId,
+      email: user.email,
+      name: user.name ?? user.email,
+      cancelPath: '/ai?ai_billing=cancelled',
     });
-
-    return { checkoutUrl: session.url, sessionId: session.id };
   }
 
   async createPortalSession(user: User, ownerType: AISubscriptionOwnerType, returnPath?: string) {
@@ -130,73 +123,131 @@ export class AIBillingService {
       ? await this.subscriptionService.getOrCreateOrgSubscription(requiredOrgId(user))
       : await this.subscriptionService.getOrCreatePersonalSubscription(user.id, user.organizationId);
 
-    if (!subscription.stripeCustomerId) {
-      throw new BadRequestException('No Stripe customer exists for this AI subscription yet.');
+    if (subscription.lemonSqueezySubscriptionId) {
+      const resource = await this.retrieveSubscription(subscription.lemonSqueezySubscriptionId);
+      const portalUrl = resource.attributes?.urls?.customer_portal;
+      if (portalUrl) {
+        await this.prisma.aISubscription.update({
+          where: { id: subscription.id },
+          data: { lemonSqueezyPortalUrl: portalUrl },
+        });
+        return { portalUrl };
+      }
     }
 
-    const session = await this.stripe().billingPortal.sessions.create({
-      customer: subscription.stripeCustomerId,
-      return_url: `${frontendBaseUrl()}${returnPath?.startsWith('/') ? returnPath : '/ai'}`,
-    });
+    if (subscription.lemonSqueezyPortalUrl) {
+      return { portalUrl: subscription.lemonSqueezyPortalUrl };
+    }
 
-    return { portalUrl: session.url };
+    throw new BadRequestException('No Lemon Squeezy subscription portal is available for this AI subscription yet.');
   }
 
   async handleWebhook(rawBody: Buffer, signature?: string) {
-    const secret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!secret) throw new BadRequestException('STRIPE_WEBHOOK_SECRET is not configured.');
-    if (!signature) throw new BadRequestException('Missing Stripe signature.');
+    const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
+    if (!secret) throw new BadRequestException('LEMON_SQUEEZY_WEBHOOK_SECRET is not configured.');
+    if (!signature) throw new BadRequestException('Missing Lemon Squeezy signature.');
 
-    const event = this.stripe().webhooks.constructEvent(rawBody, signature, secret);
+    verifyLemonSqueezySignature(rawBody, signature, secret);
+    const payload = JSON.parse(rawBody.toString('utf8')) as LemonSqueezyWebhookPayload;
+    const eventName = payload.meta?.event_name ?? '';
 
-    if (event.type === 'checkout.session.completed') {
-      await this.handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
-    }
-
-    if (
-      event.type === 'customer.subscription.created'
-      || event.type === 'customer.subscription.updated'
-      || event.type === 'customer.subscription.deleted'
-    ) {
-      await this.syncStripeSubscription(event.data.object as Stripe.Subscription);
+    if (eventName.startsWith('subscription_') && payload.data?.type === 'subscriptions') {
+      await this.syncLemonSqueezySubscription(
+        payload.data as LemonSqueezyResource<LemonSqueezySubscriptionAttributes>,
+        payload.meta?.custom_data,
+      );
     }
 
     return { received: true };
   }
 
-  private async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-    if (session.mode !== 'subscription' || !session.subscription) return;
-    const stripeSubscriptionId = typeof session.subscription === 'string'
-      ? session.subscription
-      : session.subscription.id;
-    const subscription = await this.stripe().subscriptions.retrieve(stripeSubscriptionId);
-    await this.syncStripeSubscription(subscription, session.metadata ?? undefined);
+  private async createCheckout(input: LemonSqueezyCheckoutInput) {
+    const storeId = requiredEnv('LEMON_SQUEEZY_STORE_ID');
+    const variantId = this.variantId(input.ownerType, input.plan);
+    const body = {
+      data: {
+        type: 'checkouts',
+        attributes: {
+          product_options: {
+            redirect_url: `${frontendBaseUrl()}/ai?ai_billing=success`,
+            enabled_variants: [Number(variantId)],
+          },
+          checkout_data: {
+            email: input.email ?? undefined,
+            name: input.name ?? undefined,
+            custom: {
+              ownerType: input.ownerType,
+              organizationId: input.organizationId ?? '',
+              userId: input.userId ?? '',
+              plan: input.plan,
+              subscriptionId: input.subscriptionId,
+            },
+          },
+          expires_at: checkoutExpiryDate(),
+        },
+        relationships: {
+          store: {
+            data: {
+              type: 'stores',
+              id: storeId,
+            },
+          },
+          variant: {
+            data: {
+              type: 'variants',
+              id: variantId,
+            },
+          },
+        },
+      },
+    };
+
+    const response = await this.lemonRequest<LemonSqueezyCheckoutResponse>('/v1/checkouts', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    const checkoutUrl = response.data?.attributes?.url;
+    const checkoutId = response.data?.id;
+    if (!checkoutUrl || !checkoutId) {
+      throw new BadRequestException('Lemon Squeezy did not return a checkout URL.');
+    }
+
+    await this.prisma.aISubscription.update({
+      where: { id: input.subscriptionId },
+      data: { lemonSqueezyVariantId: variantId },
+    });
+
+    return { checkoutUrl, sessionId: checkoutId };
   }
 
-  private async syncStripeSubscription(
-    stripeSubscription: Stripe.Subscription,
-    metadataOverride?: Stripe.Metadata | null,
+  private async retrieveSubscription(subscriptionId: string) {
+    const response = await this.lemonRequest<{ data?: LemonSqueezyResource<LemonSqueezySubscriptionAttributes> }>(
+      `/v1/subscriptions/${subscriptionId}`,
+    );
+    if (!response.data) throw new BadRequestException('Lemon Squeezy subscription was not found.');
+    return response.data;
+  }
+
+  private async syncLemonSqueezySubscription(
+    resource: LemonSqueezyResource<LemonSqueezySubscriptionAttributes>,
+    customData?: Record<string, unknown>,
   ) {
-    const metadata = metadataOverride ?? stripeSubscription.metadata ?? {};
+    const attributes = resource.attributes ?? {};
+    const metadata = normalizeCustomData(customData);
     const ownerType = metadata.ownerType as AISubscriptionOwnerType | undefined;
-    const plan = this.planFromStripe(stripeSubscription, metadata.plan);
-    const firstItem = stripeSubscription.items.data[0];
-    const periodStart = timestampToDate((stripeSubscription as any).current_period_start ?? (firstItem as any)?.current_period_start);
-    const periodEnd = timestampToDate((stripeSubscription as any).current_period_end ?? (firstItem as any)?.current_period_end);
-    const stripePriceId = firstItem?.price?.id ?? null;
-    const stripeCustomerId = typeof stripeSubscription.customer === 'string'
-      ? stripeSubscription.customer
-      : stripeSubscription.customer?.id ?? null;
+    const plan = this.planFromLemonSqueezy(attributes, metadata.plan);
+    const currentPeriodEnd = parseDate(attributes.renews_at ?? attributes.ends_at);
     const data = {
       plan,
-      status: stripeStatusToAIStatus(stripeSubscription.status),
+      status: lemonStatusToAIStatus(attributes.status, attributes.ends_at),
       monthlyCredits: AI_PLAN_CONFIG[plan].monthlyCredits,
       limitMode: AI_PLAN_CONFIG[plan].limitMode,
-      currentPeriodStart: periodStart,
-      currentPeriodEnd: periodEnd,
-      stripeCustomerId,
-      stripeSubscriptionId: stripeSubscription.id,
-      stripePriceId,
+      currentPeriodStart: parseDate(attributes.created_at) ?? new Date(),
+      currentPeriodEnd,
+      lemonSqueezyCustomerId: valueToString(attributes.customer_id),
+      lemonSqueezySubscriptionId: resource.id,
+      lemonSqueezyVariantId: valueToString(attributes.variant_id ?? attributes.first_subscription_item?.variant_id),
+      lemonSqueezyPortalUrl: attributes.urls?.customer_portal ?? null,
     };
 
     if (metadata.subscriptionId) {
@@ -247,64 +298,113 @@ export class AIBillingService {
     }
   }
 
-  private async createCustomer(input: {
-    email?: string | null;
-    name?: string | null;
-    metadata: Record<string, string>;
-  }) {
-    const customer = await this.stripe().customers.create({
-      email: input.email ?? undefined,
-      name: input.name ?? undefined,
-      metadata: input.metadata,
-    });
-    return customer.id;
-  }
-
-  private stripe() {
-    const apiKey = process.env.STRIPE_SECRET_KEY;
-    if (!apiKey) throw new BadRequestException('STRIPE_SECRET_KEY is not configured.');
-    return new Stripe(apiKey);
-  }
-
-  private priceId(ownerType: AISubscriptionOwnerType, plan: AISubscriptionPlan) {
+  private variantId(ownerType: AISubscriptionOwnerType, plan: AISubscriptionPlan) {
     const prefix = ownerType === AISubscriptionOwnerType.ORGANIZATION ? 'ORG' : 'PERSONAL';
-    const specific = process.env[`STRIPE_AI_${prefix}_${plan}_PRICE_ID`];
-    const fallback = process.env[`STRIPE_AI_${plan}_PRICE_ID`];
-    const priceId = specific ?? fallback;
-    if (!priceId) {
-      throw new BadRequestException(`Stripe price id is not configured for ${prefix} ${plan}.`);
+    const specific = process.env[`LEMON_SQUEEZY_AI_${prefix}_${plan}_VARIANT_ID`];
+    const fallback = process.env[`LEMON_SQUEEZY_AI_${plan}_VARIANT_ID`];
+    const variantId = specific ?? fallback;
+    if (!variantId) {
+      throw new BadRequestException(`Lemon Squeezy variant id is not configured for ${prefix} ${plan}.`);
     }
-    return priceId;
+    return variantId;
   }
 
-  private planFromStripe(stripeSubscription: Stripe.Subscription, metadataPlan?: string) {
+  private planFromLemonSqueezy(attributes: LemonSqueezySubscriptionAttributes, metadataPlan?: string) {
     if (metadataPlan && metadataPlan in AISubscriptionPlan) {
       return metadataPlan as AISubscriptionPlan;
     }
 
-    const priceId = stripeSubscription.items.data[0]?.price?.id;
+    const variantId = valueToString(attributes.variant_id ?? attributes.first_subscription_item?.variant_id);
+    if (!variantId) return AISubscriptionPlan.NONE;
     const matched = Object.values(AISubscriptionPlan).find((plan) =>
       plan !== AISubscriptionPlan.NONE
       && [
-        process.env[`STRIPE_AI_ORG_${plan}_PRICE_ID`],
-        process.env[`STRIPE_AI_PERSONAL_${plan}_PRICE_ID`],
-        process.env[`STRIPE_AI_${plan}_PRICE_ID`],
-      ].includes(priceId),
+        process.env[`LEMON_SQUEEZY_AI_ORG_${plan}_VARIANT_ID`],
+        process.env[`LEMON_SQUEEZY_AI_PERSONAL_${plan}_VARIANT_ID`],
+        process.env[`LEMON_SQUEEZY_AI_${plan}_VARIANT_ID`],
+      ].includes(variantId),
     );
 
     return matched ?? AISubscriptionPlan.NONE;
   }
+
+  private async lemonRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const response = await fetch(`https://api.lemonsqueezy.com${path}`, {
+      ...init,
+      headers: {
+        Accept: 'application/vnd.api+json',
+        'Content-Type': 'application/vnd.api+json',
+        Authorization: `Bearer ${requiredEnv('LEMON_SQUEEZY_API_KEY')}`,
+        ...(init.headers as Record<string, string> | undefined),
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new BadRequestException(`Lemon Squeezy request failed (${response.status}): ${body.slice(0, 240)}`);
+    }
+
+    return response.json() as Promise<T>;
+  }
 }
 
-function stripeStatusToAIStatus(status: Stripe.Subscription.Status) {
-  if (status === 'active' || status === 'trialing') return AISubscriptionStatus.ACTIVE;
-  if (status === 'canceled' || status === 'incomplete_expired') return AISubscriptionStatus.CANCELED;
-  if (status === 'past_due' || status === 'unpaid') return AISubscriptionStatus.PAST_DUE;
+function lemonStatusToAIStatus(status?: LemonSqueezySubscriptionStatus, endsAt?: string | null) {
+  if (status === 'active' || status === 'on_trial') return AISubscriptionStatus.ACTIVE;
+  if (status === 'cancelled') {
+    const endDate = parseDate(endsAt);
+    return endDate && endDate > new Date()
+      ? AISubscriptionStatus.ACTIVE
+      : AISubscriptionStatus.CANCELED;
+  }
+  if (status === 'past_due' || status === 'unpaid' || status === 'paused') return AISubscriptionStatus.PAST_DUE;
+  if (status === 'expired') return AISubscriptionStatus.CANCELED;
   return AISubscriptionStatus.INACTIVE;
 }
 
-function timestampToDate(value?: number | null) {
-  return typeof value === 'number' ? new Date(value * 1000) : null;
+function verifyLemonSqueezySignature(rawBody: Buffer, signature: string, secret: string) {
+  const digest = Buffer.from(createHmac('sha256', secret).update(rawBody).digest('hex'), 'utf8');
+  const received = Buffer.from(signature, 'utf8');
+  if (digest.length !== received.length || !timingSafeEqual(digest, received)) {
+    throw new BadRequestException('Invalid Lemon Squeezy signature.');
+  }
+}
+
+function normalizeCustomData(value?: Record<string, unknown>) {
+  const custom = value ?? {};
+  return {
+    ownerType: stringValue(custom.ownerType),
+    organizationId: stringValue(custom.organizationId),
+    userId: stringValue(custom.userId),
+    plan: stringValue(custom.plan),
+    subscriptionId: stringValue(custom.subscriptionId),
+  };
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function valueToString(value: unknown) {
+  if (value === null || value === undefined) return null;
+  return String(value);
+}
+
+function parseDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function requiredEnv(name: string) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new BadRequestException(`${name} is not configured.`);
+  return value;
+}
+
+function checkoutExpiryDate() {
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 2);
+  return expiresAt.toISOString();
 }
 
 function frontendBaseUrl() {

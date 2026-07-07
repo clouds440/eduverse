@@ -1,13 +1,4 @@
-import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
-
-export class AIChatMessageDto {
-  @IsString()
-  role!: 'user' | 'assistant';
-
-  @IsString()
-  @MaxLength(12000)
-  content!: string;
-}
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class AIChatRequestDto {
   @IsString()
@@ -17,8 +8,10 @@ export class AIChatRequestDto {
   @IsString()
   @IsOptional()
   conversationId?: string;
+}
 
-  @IsArray()
-  @IsOptional()
-  history?: AIChatMessageDto[];
+export class UpdateAIConversationDto {
+  @IsString()
+  @MaxLength(80)
+  title!: string;
 }
