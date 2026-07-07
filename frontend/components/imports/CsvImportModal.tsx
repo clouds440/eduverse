@@ -29,7 +29,7 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
     const [file, setFile] = useState<File | null>(null);
     const [validation, setValidation] = useState<ImportValidationResult | null>(null);
     const [result, setResult] = useState<ImportConfirmResult | null>(null);
-    const [activeAction, setActiveAction] = useState<'template' | 'validate' | 'confirm' | 'issues' | null>(null);
+    const [activeAction, setActiveAction] = useState<'template' | 'structure' | 'validate' | 'confirm' | 'issues' | null>(null);
     const [confirmProgress, setConfirmProgress] = useState<{ current: number; total: number } | null>(null);
 
     const busy = activeAction !== null;
@@ -63,6 +63,19 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
             downloadCsv(`${entity}-template.csv`, csv);
         } catch (error) {
             dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download template', type: 'error' } });
+        } finally {
+            setActiveAction(null);
+        }
+    };
+
+    const handleDownloadStructure = async () => {
+        if (!token) return;
+        setActiveAction('structure');
+        try {
+            const csv = await api.imports.getStructure(entity, token);
+            downloadCsv(`${entity}-structure.csv`, csv);
+        } catch (error) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to download structure', type: 'error' } });
         } finally {
             setActiveAction(null);
         }
@@ -139,13 +152,18 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
             isOpen={isOpen}
             onClose={resetAndClose}
             title={`Import ${title}`}
-            subtitle="Download the template, validate your CSV, then confirm valid rows. Limit: 1k rows per CSV."
+            subtitle="Download the example template or DB-filled structure, validate your CSV, then confirm valid rows. Limit: 1k rows per CSV."
             maxWidth="max-w-5xl"
             footer={(
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-                    <Button type="button" variant="secondary" icon={Download} onClick={handleDownloadTemplate} disabled={busy} isLoading={activeAction === 'template'}>
-                        Template
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button type="button" variant="secondary" icon={Download} onClick={handleDownloadTemplate} disabled={busy} isLoading={activeAction === 'template'}>
+                            Template
+                        </Button>
+                        <Button type="button" variant="outline" icon={Download} onClick={handleDownloadStructure} disabled={busy} isLoading={activeAction === 'structure'}>
+                            Structure
+                        </Button>
+                    </div>
                     <div className="flex gap-2">
                         {invalidRows.length > 0 && (
                             <Button type="button" variant="outline" icon={Download} onClick={handleDownloadErrors} disabled={busy} isLoading={activeAction === 'issues'}>

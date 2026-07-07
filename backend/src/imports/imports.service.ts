@@ -112,6 +112,13 @@ export class ImportsService {
     return makeTemplateCsv(config.headers, config.examples);
   }
 
+  async getStructure(orgId: string, entity: ImportEntity, actor: AuthUser) {
+    this.assertEntityPermission(entity, actor);
+    const config = this.getEntityConfig(entity);
+    const rows = await this.getStructureRows(orgId, entity);
+    return makeTemplateCsv(config.headers, rows.length ? rows : config.examples);
+  }
+
   async validateEntityCsv(
     orgId: string,
     entity: ImportEntity,
@@ -442,6 +449,207 @@ export class ImportsService {
         skipped: invalidRows.length,
       },
     };
+  }
+
+  private async getStructureRows(orgId: string, entity: ImportEntity): Promise<Record<string, unknown>[]> {
+    const limit = MAX_IMPORT_ROWS;
+    switch (entity) {
+      case 'students': {
+        const [departments, sections, cohorts] = await Promise.all([
+          this.prisma.department.findMany({ where: { organizationId: orgId, isActive: true }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+          this.prisma.section.findMany({ where: { organizationId: orgId }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+          this.prisma.cohort.findMany({ where: { organizationId: orgId, isActive: true }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+        ]);
+        const departmentCode = departments[0]?.code || '';
+        return this.repeatStructureRows(Math.max(sections.length, cohorts.length, departments.length, 1), (index) => ({
+          name: '',
+          email: '',
+          password: 'Student123',
+          registrationNumber: '',
+          rollNumber: '',
+          major: '',
+          gender: '',
+          phone: '',
+          fatherName: '',
+          age: '',
+          address: '',
+          admissionDate: '',
+          graduationDate: '',
+          emergencyContact: '',
+          bloodGroup: '',
+          status: StudentStatus.ACTIVE,
+          primaryDepartmentCode: departments[index]?.code || departmentCode,
+          departmentCodes: departments[index]?.code || '',
+          sectionCodes: sections[index]?.code || '',
+          cohortCode: cohorts[index]?.code || '',
+        }));
+      }
+      case 'teachers': {
+        const [departments, sections] = await Promise.all([
+          this.prisma.department.findMany({ where: { organizationId: orgId, isActive: true }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+          this.prisma.section.findMany({ where: { organizationId: orgId }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+        ]);
+        return this.repeatStructureRows(Math.max(departments.length, sections.length, 1), (index) => ({
+          name: '',
+          email: '',
+          password: 'Teacher123',
+          phone: '',
+          education: '',
+          designation: '',
+          subject: '',
+          department: '',
+          joiningDate: '',
+          emergencyContact: '',
+          bloodGroup: '',
+          address: '',
+          status: 'ACTIVE',
+          isManager: false,
+          departmentCodes: departments[index]?.code || '',
+          sectionCodes: sections[index]?.code || '',
+        }));
+      }
+      case 'guardians': {
+        const students = await this.prisma.student.findMany({
+          where: { organizationId: orgId },
+          select: { registrationNumber: true },
+          orderBy: { registrationNumber: 'asc' },
+          take: limit,
+        });
+        return this.repeatStructureRows(Math.max(students.length, 1), (index) => ({
+          name: '',
+          email: '',
+          password: 'Guardian123',
+          phone: '',
+          status: UserStatus.ACTIVE,
+          address: '',
+          linkedStudents: students[index]?.registrationNumber || '',
+        }));
+      }
+      case 'courses': {
+        const departments = await this.prisma.department.findMany({
+          where: { organizationId: orgId, isActive: true },
+          select: { code: true },
+          orderBy: { code: 'asc' },
+          take: limit,
+        });
+        return this.repeatStructureRows(Math.max(departments.length, 1), (index) => ({
+          name: '',
+          code: '',
+          description: '',
+          creditHours: 3,
+          departmentCode: departments[index]?.code || '',
+        }));
+      }
+      case 'sections': {
+        const [courses, cycles, rooms, cohorts] = await Promise.all([
+          this.prisma.course.findMany({ where: { organizationId: orgId }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+          this.prisma.academicCycle.findMany({ where: { organizationId: orgId }, select: { code: true }, orderBy: { startDate: 'desc' }, take: limit }),
+          this.prisma.room.findMany({ where: { organizationId: orgId, isActive: true }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+          this.prisma.cohort.findMany({ where: { organizationId: orgId, isActive: true }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+        ]);
+        return this.repeatStructureRows(Math.max(courses.length, rooms.length, cohorts.length, 1), (index) => ({
+          name: '',
+          code: '',
+          courseCode: courses[index]?.code || courses[0]?.code || '',
+          academicCycleCode: cycles[index]?.code || cycles[0]?.code || '',
+          room: '',
+          defaultRoomCode: rooms[index]?.code || '',
+          cohortCode: cohorts[index]?.code || '',
+          color: '#3B82F6',
+        }));
+      }
+      case 'schedules': {
+        const sections = await this.prisma.section.findMany({
+          where: { organizationId: orgId },
+          select: {
+            code: true,
+            defaultRoom: { select: { code: true } },
+            teachers: { select: { user: { select: { email: true } } }, take: 1 },
+          },
+          orderBy: { code: 'asc' },
+          take: limit,
+        });
+        return this.repeatStructureRows(Math.max(sections.length, 1), (index) => ({
+          sectionCode: sections[index]?.code || '',
+          day: '',
+          date: '',
+          startTime: '',
+          endTime: '',
+          teacherEmail: sections[index]?.teachers[0]?.user.email || '',
+          roomCode: sections[index]?.defaultRoom?.code || '',
+          type: ScheduleType.OFFICIAL,
+        }));
+      }
+      case 'cohorts': {
+        const cycles = await this.prisma.academicCycle.findMany({
+          where: { organizationId: orgId },
+          select: { code: true },
+          orderBy: { startDate: 'desc' },
+          take: limit,
+        });
+        return this.repeatStructureRows(Math.max(cycles.length, 1), (index) => ({
+          name: '',
+          code: '',
+          academicCycleCode: cycles[index]?.code || '',
+        }));
+      }
+      case 'departments':
+        return [{ name: '', code: '', description: '', color: '#3B82F6', isActive: true }];
+      case 'buildings': {
+        const departments = await this.prisma.department.findMany({
+          where: { organizationId: orgId, isActive: true },
+          select: { code: true },
+          orderBy: { code: 'asc' },
+          take: limit,
+        });
+        return this.repeatStructureRows(Math.max(departments.length, 1), (index) => ({
+          name: '',
+          code: '',
+          address: '',
+          description: '',
+          landmark: '',
+          directionsNote: '',
+          sortOrder: '',
+          mapX: '',
+          mapY: '',
+          mapWidth: '',
+          mapHeight: '',
+          isActive: true,
+          departmentCodes: departments[index]?.code || '',
+        }));
+      }
+      case 'rooms': {
+        const buildings = await this.prisma.building.findMany({
+          where: { organizationId: orgId, isActive: true },
+          select: { code: true },
+          orderBy: { code: 'asc' },
+          take: limit,
+        });
+        return this.repeatStructureRows(Math.max(buildings.length, 1), (index) => ({
+          buildingCode: buildings[index]?.code || '',
+          name: '',
+          code: '',
+          floor: '',
+          type: RoomType.CLASSROOM,
+          capacity: '',
+          description: '',
+          landmark: '',
+          directionsNote: '',
+          sortOrder: '',
+          mapX: '',
+          mapY: '',
+          mapWidth: '',
+          mapHeight: '',
+          isActive: true,
+        }));
+      }
+      default:
+        return [];
+    }
+  }
+
+  private repeatStructureRows(count: number, build: (index: number) => Record<string, unknown>) {
+    return Array.from({ length: Math.min(Math.max(count, 1), MAX_IMPORT_ROWS) }, (_, index) => build(index));
   }
 
   private getEntityConfig(entity: ImportEntity): EntityConfig<Record<string, unknown>> {

@@ -3,18 +3,19 @@ import { ImportsService } from './imports.service';
 function createService(overrides: Partial<Record<string, any>> = {}) {
   const prisma = {
     user: { findUnique: jest.fn().mockResolvedValue(null) },
-    student: { findFirst: jest.fn().mockResolvedValue(null) },
-    department: { count: jest.fn().mockResolvedValue(0), findFirst: jest.fn().mockResolvedValue(null) },
-    building: { findFirst: jest.fn().mockResolvedValue(null) },
-    room: { findFirst: jest.fn().mockResolvedValue(null) },
-    academicCycle: { findFirst: jest.fn().mockResolvedValue({ id: 'cycle-1' }) },
-    cohort: { findFirst: jest.fn().mockResolvedValue(null) },
+    student: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    department: { count: jest.fn().mockResolvedValue(0), findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    building: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    room: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    academicCycle: { findFirst: jest.fn().mockResolvedValue({ id: 'cycle-1' }), findMany: jest.fn().mockResolvedValue([]) },
+    cohort: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    course: { findMany: jest.fn().mockResolvedValue([]) },
     sectionSchedule: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     attendanceSession: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
     },
-    section: { findUnique: jest.fn().mockResolvedValue({ academicCycleId: 'cycle-1' }) },
+    section: { findUnique: jest.fn().mockResolvedValue({ academicCycleId: 'cycle-1' }), findMany: jest.fn().mockResolvedValue([]) },
     ...overrides.prisma,
   };
 
@@ -111,6 +112,61 @@ describe('ImportsService monthly attendance validation', () => {
         'No enrolled student matches this name and roll number',
       ]),
     );
+  });
+});
+
+describe('ImportsService structure downloads', () => {
+  const admin = {
+    id: 'admin-1',
+    role: 'ORG_ADMIN',
+    name: 'Admin',
+    email: 'admin@example.test',
+  };
+
+  it('fills code reference fields from the database', async () => {
+    const { service } = createService({
+      prisma: {
+        department: {
+          count: jest.fn().mockResolvedValue(0),
+          findFirst: jest.fn().mockResolvedValue(null),
+          findMany: jest.fn().mockResolvedValue([{ code: 'CS' }, { code: 'IT' }]),
+        },
+      },
+    });
+
+    const csv = await service.getStructure('org-1', 'courses', admin);
+
+    expect(csv).toBe([
+      'name,code,description,creditHours,departmentCode',
+      ',,,3,CS',
+      ',,,3,IT',
+      '',
+    ].join('\n'));
+  });
+
+  it('fills schedule structure with section codes, default room codes, and assigned teacher emails', async () => {
+    const { service } = createService({
+      prisma: {
+        section: {
+          findUnique: jest.fn().mockResolvedValue({ academicCycleId: 'cycle-1' }),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              code: 'GRADE-9-A',
+              defaultRoom: { code: 'ROOM-101' },
+              teachers: [{ user: { email: 'teacher@example.test' } }],
+            },
+          ]),
+        },
+      },
+    });
+
+    const csv = await service.getStructure('org-1', 'schedules', admin);
+
+    expect(csv).toBe([
+      'sectionCode,day,date,startTime,endTime,teacherEmail,roomCode,type',
+      'GRADE-9-A,,,,,teacher@example.test,ROOM-101,OFFICIAL',
+      '',
+    ].join('\n'));
   });
 });
 

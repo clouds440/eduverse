@@ -42,6 +42,18 @@ export class ImportsController {
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Get(':entity/structure')
+  async getStructure(
+    @OrgId() orgId: string,
+    @Param('entity') entity: string,
+    @Request() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    const csv = await this.importsService.getStructure(orgId, entity as ImportEntity, req.user);
+    this.sendCsv(res, csv, `${entity}-structure.csv`);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Post(':entity/validate')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: CSV_UPLOAD_LIMIT_BYTES } }))
   validateEntity(

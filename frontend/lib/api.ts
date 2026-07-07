@@ -913,6 +913,8 @@ export const api = {
     imports: {
         getTemplate: (entity: ImportEntity, token: string) =>
             requestText(`/org/imports/${entity}/template`, { token }),
+        getStructure: (entity: ImportEntity, token: string) =>
+            requestText(`/org/imports/${entity}/structure`, { token }),
         validate: (entity: ImportEntity, file: File, token: string) => {
             const formData = new FormData();
             formData.append('file', file);
