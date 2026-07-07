@@ -7,13 +7,15 @@ import { DoorOpen, FileUp, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
-import { formatBuildingLabel, formatDepartmentLabel, getPublicUrl } from '@/lib/utils';
+import { searchFilterLookup } from '@/lib/filterLookups';
+import { formatBuildingLabel, getPublicUrl } from '@/lib/utils';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { ApiError, Building, Department, PaginatedResponse, Role, Room, RoomType } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
@@ -102,10 +104,7 @@ export default function RoomsTab() {
         token ? ['rooms', params] as const : null,
     );
     const { data: buildingsData } = useSWR<PaginatedResponse<Building>>(
-        token ? ['buildings', { limit: 500, sortBy: 'name', sortOrder: 'asc' }] as const : null,
-    );
-    const { data: departmentsData } = useSWR<PaginatedResponse<Department>>(
-        token ? ['departments', { limit: 500, sortBy: 'name', sortOrder: 'asc' }] as const : null,
+        token && modalOpen ? ['buildings', { limit: 500, sortBy: 'name', sortOrder: 'asc' }] as const : null,
     );
 
     const buildingOptions = useMemo(() => (
@@ -114,13 +113,6 @@ export default function RoomsTab() {
             label: formatBuildingLabel(building),
         })) || []
     ), [buildingsData]);
-    const departmentOptions = useMemo(() => (
-        departmentsData?.data?.map((department) => ({
-            value: department.id,
-            label: formatDepartmentLabel(department),
-        })) || []
-    ), [departmentsData]);
-
     const openCreate = () => {
         setEditingRoom(null);
         setFormData(emptyForm);
@@ -206,10 +198,10 @@ export default function RoomsTab() {
     const activeFilters = useMemo<ActiveFilter[]>(() => [
         ...(searchTerm ? [{ key: 'search', label: 'Search', value: searchTerm, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
         ...(status ? [{ key: 'status', label: 'Status', value: status === 'active' ? 'Active' : 'Inactive', onRemove: () => updateQueryParams({ status: undefined, page: 1 }) }] : []),
-        ...(buildingId ? [{ key: 'buildingId', label: 'Building', value: buildingsData?.data?.find((building) => building.id === buildingId)?.name || 'Selected building', onRemove: () => updateQueryParams({ buildingId: undefined, page: 1 }) }] : []),
-        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }) }] : []),
+        ...(buildingId ? [{ key: 'buildingId', label: 'Building', value: 'Selected building', onRemove: () => updateQueryParams({ buildingId: undefined, page: 1 }) }] : []),
+        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }) }] : []),
         ...(type ? [{ key: 'type', label: 'Type', value: formatRoomType(type), onRemove: () => updateQueryParams({ type: undefined, page: 1 }) }] : []),
-    ], [buildingId, buildingsData?.data, departmentId, departmentsData?.data, searchTerm, status, type, updateQueryParams]);
+    ], [buildingId, departmentId, searchTerm, status, type, updateQueryParams]);
 
     const pageControls = useMemo(() => (
         <PageControls
@@ -234,22 +226,26 @@ export default function RoomsTab() {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Building</Label>
-                        <CustomSelect
-                            options={[{ label: 'All Buildings', value: '' }, ...buildingOptions]}
+                        <RemoteFilterSelect<Building>
+                            cacheKey="rooms-building-filter"
                             value={buildingId}
                             onChange={(value) => updateQueryParams({ buildingId: value, page: 1 })}
                             placeholder="All Buildings"
-                            searchable
+                            allLabel="All Buildings"
+                            selectedLabel="Selected building"
+                            loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'buildings', search })}
                         />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Department</Label>
-                        <CustomSelect
-                            options={[{ label: 'All Departments', value: '' }, ...departmentOptions]}
+                        <RemoteFilterSelect<Department>
+                            cacheKey="rooms-department-filter"
                             value={departmentId}
                             onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
                             placeholder="All Departments"
-                            searchable
+                            allLabel="All Departments"
+                            selectedLabel="Selected department"
+                            loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'departments', search, isActive: true })}
                         />
                     </div>
                     <div className="space-y-2">
@@ -264,7 +260,7 @@ export default function RoomsTab() {
                 </FilterDrawerGrid>
             )}
         />
-    ), [activeFilters, buildingId, buildingOptions, departmentId, departmentOptions, isAdmin, searchTerm, status, type, updateQueryParams]);
+    ), [activeFilters, buildingId, departmentId, isAdmin, searchTerm, status, token, type, updateQueryParams]);
     const controlsHosted = usePageActionsHost(pageControls);
 
     const columns = useMemo<Column<Room>[]>(() => [

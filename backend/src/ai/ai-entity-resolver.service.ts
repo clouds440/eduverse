@@ -44,7 +44,7 @@ export class AIEntityResolverService implements OnModuleInit {
     this.toolRegistry.register({
       name: 'resolveEduVerseEntities',
       description:
-        'Fuzzy-search visible EduVerse entities by keyword before using a domain tool. Supports courses, sections, academic cycles/semesters, students, teachers, departments, and mail threads. Returns IDs, labels, confidence, and ambiguity hints.',
+        'Fuzzy-search visible EduVerse entities by keyword before using a domain tool. Supports courses, sections, academic cycles/semesters, students, teachers/managers/staff, departments, and mail threads. Returns IDs, labels, confidence, and ambiguity hints.',
       run: (input, context) => this.resolveEntities(context, parseInput(input)),
     });
   }
@@ -407,7 +407,7 @@ function requestedKinds(input: EntityResolverInput, search: string): EntityKind[
     if (mentionsAny(text, ['course', 'subject', 'class'])) normalized.add('course');
     if (mentionsAny(text, ['section', 'class'])) normalized.add('section');
     if (mentionsAny(text, ['student', 'learner', 'registration', 'roll'])) normalized.add('student');
-    if (mentionsAny(text, ['teacher', 'faculty', 'instructor'])) normalized.add('teacher');
+    if (mentionsAny(text, ['teacher', 'faculty', 'instructor', 'manager', 'staff'])) normalized.add('teacher');
     if (mentionsAny(text, ['department', 'dept'])) normalized.add('department');
     if (mentionsAny(text, ['mail', 'message', 'thread', 'ticket'])) normalized.add('mail');
   }
@@ -425,7 +425,7 @@ function entityAliases(value: string): EntityKind[] {
   if (['course', 'courses', 'subject', 'subjects', 'class', 'classes'].includes(text)) return ['course'];
   if (['section', 'sections', 'class section', 'class sections'].includes(text)) return ['section'];
   if (['student', 'students', 'learner', 'learners'].includes(text)) return ['student'];
-  if (['teacher', 'teachers', 'faculty', 'instructor', 'instructors'].includes(text)) return ['teacher'];
+  if (['teacher', 'teachers', 'faculty', 'instructor', 'instructors', 'manager', 'managers', 'staff'].includes(text)) return ['teacher'];
   if (['department', 'departments', 'dept', 'depts'].includes(text)) return ['department'];
   if (['mail', 'mails', 'message', 'messages', 'thread', 'threads', 'ticket', 'tickets'].includes(text)) return ['mail'];
   return [];

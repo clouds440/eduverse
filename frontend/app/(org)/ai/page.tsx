@@ -74,14 +74,14 @@ export default function AIDashboardPage() {
                                 <AlertCircle className="h-5 w-5" aria-hidden="true" />
                             </div>
                             <div className="min-w-0">
-                                <h2 className="text-base font-black text-warning">No active AI package</h2>
+                                <h2 className="text-base font-black text-warning">AI Copilot is ready to unlock</h2>
                                 <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">
-                                    {entitlement?.message ?? 'Subscribe to an AI package to use EduVerse AI Copilot and view usage.'}
+                                    {entitlement?.message ?? 'Choose an AI Copilot plan to activate role-aware assistance and usage insights.'}
                                 </p>
                             </div>
                         </div>
                         <Button type="button" variant="primary" icon={Sparkles} onClick={() => window.location.assign('/ai/subscription')} className="text-xs" px="px-4" py="py-2.5">
-                            Subscribe to a package
+                            Explore AI plans
                         </Button>
                     </div>
                 </section>

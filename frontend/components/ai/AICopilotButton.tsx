@@ -4,23 +4,36 @@ import { useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { useAICopilot } from './AICopilotProvider';
 import { useUI } from '@/context/UIContext';
+import { useGlobal } from '@/context/GlobalContext';
 import { cn } from '@/lib/utils';
 
 export function AICopilotButton() {
     const { isOpen, toggle, entitlement, entitlementLoading, isSending, isDocked, dockHostAvailable } = useAICopilot();
     const { isDesktop, mounted } = useUI();
-    const [dismissedOnPhone, setDismissedOnPhone] = useState(false);
+    const { dispatch } = useGlobal();
+    const [dismissed, setDismissed] = useState(false);
     const isAllowed = entitlement?.allowed;
 
     if (mounted && isDesktop && isOpen && isDocked && dockHostAvailable) return null;
-    if (!mounted || (!isDesktop && dismissedOnPhone && !isOpen)) return null;
+    if (!mounted || (dismissed && !isOpen)) return null;
+
+    const dismissButton = () => {
+        setDismissed(true);
+        dispatch({
+            type: 'TOAST_ADD',
+            payload: {
+                message: 'AI Copilot button hidden. Reload the page to bring it back.',
+                type: 'info',
+            },
+        });
+    };
 
     return (
         <div className="fixed bottom-4 right-4 z-80 lg:bottom-5 lg:right-5">
-            {!isDesktop && !isOpen && (
+            {!isOpen && (
                 <button
                     type="button"
-                    onClick={() => setDismissedOnPhone(true)}
+                    onClick={dismissButton}
                     aria-label="Dismiss AI Copilot button"
                     className="absolute -left-2 -top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground shadow-md transition-colors hover:text-foreground"
                 >

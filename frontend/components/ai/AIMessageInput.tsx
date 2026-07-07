@@ -48,7 +48,7 @@ export function AIMessageInput({
   return (
     <form
       onSubmit={submit}
-      className="border-t border-border/70 bg-background p-3 sm:p-4"
+      className="px-3 pb-3 pt-2 sm:px-4 sm:pb-4"
     >
       {error && (
         <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-danger/25 bg-danger/10 px-3 py-2 text-xs font-semibold text-danger">

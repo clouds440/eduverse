@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { CheckCircle2, Loader2, Search, Users } from 'lucide-react';
 import { api } from '@/lib/api';
-import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -36,12 +35,19 @@ export default function LinkGuardianStudentsPage() {
         guardianKey,
         ([, id]) => api.org.getGuardian(id as string, token!)
     );
+    const normalizedSearch = search.trim();
+    const canSearchStudents = normalizedSearch.length >= 2;
     const { data: studentsData, isLoading: studentsLoading, error: studentsError } = useSWR(
-        token && hasAccess ? ['students', { page: 1, limit: 1000, status: `${StudentStatus.ACTIVE},${StudentStatus.SUSPENDED}` }] as const : null,
-        () => api.org.getStudents(token!, { page: 1, limit: 1000, status: `${StudentStatus.ACTIVE},${StudentStatus.SUSPENDED}` })
+        token && hasAccess && canSearchStudents ? ['students', { page: 1, limit: 25, search: normalizedSearch, status: `${StudentStatus.ACTIVE},${StudentStatus.SUSPENDED}` }] as const : null,
+        () => api.org.getStudents(token!, { page: 1, limit: 25, search: normalizedSearch, status: `${StudentStatus.ACTIVE},${StudentStatus.SUSPENDED}` })
     );
 
-    const students = useMemo(() => studentsData?.data || [], [studentsData?.data]);
+    const students = useMemo(() => {
+        const merged = new Map<string, Student>();
+        (guardian?.students || []).forEach((student) => merged.set(student.id, student));
+        (studentsData?.data || []).forEach((student) => merged.set(student.id, student));
+        return Array.from(merged.values());
+    }, [guardian?.students, studentsData?.data]);
     const linkedStudentIds = useMemo(() => new Set((guardian?.students || []).map((student) => student.id)), [guardian?.students]);
 
     useEffect(() => {
@@ -56,19 +62,6 @@ export default function LinkGuardianStudentsPage() {
         setRelationships(nextRelationships);
         setInitialized(true);
     }, [guardian, initialized]);
-
-    const filteredStudents = useMemo(() => {
-        return fuzzyFilterAndRank(students, search, (student: Student) => [
-            student.user?.name,
-            student.user?.email,
-            student.user?.phone,
-            student.registrationNumber,
-            student.rollNumber,
-            student.cohort?.name,
-            student.primaryDepartment?.name,
-            student.primaryDepartment?.code,
-        ]);
-    }, [search, students]);
 
     const toggleStudent = (student: Student) => {
         setSelectedIds((current) => {
@@ -137,7 +130,7 @@ export default function LinkGuardianStudentsPage() {
         );
     }
 
-    if (guardianLoading || studentsLoading) {
+    if (guardianLoading) {
         return (
             <div className="flex min-h-[60vh] items-center justify-center">
                 <div className="flex flex-col items-center gap-4 text-primary-foreground/60">
@@ -185,7 +178,7 @@ export default function LinkGuardianStudentsPage() {
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
                     <div className="grid gap-3 lg:grid-cols-2">
-                        {filteredStudents.map((student: Student) => {
+                        {students.map((student: Student) => {
                             const selected = selectedIds.has(student.id);
                             const linkedHere = linkedStudentIds.has(student.id);
                             const linkedElsewhere = Boolean(student.guardianId && student.guardianId !== guardian.id);
@@ -231,8 +224,18 @@ export default function LinkGuardianStudentsPage() {
                             );
                         })}
                     </div>
-                    {filteredStudents.length === 0 && (
-                        <EmptyState icon={Users} title="No students found" description="Adjust the search term to find students." className="min-h-80" />
+                    {studentsLoading && (
+                        <div className="rounded-lg border border-border/70 bg-card/70 p-4 text-sm font-bold text-muted-foreground">
+                            Searching students...
+                        </div>
+                    )}
+                    {!studentsLoading && students.length === 0 && (
+                        <EmptyState
+                            icon={Users}
+                            title={canSearchStudents ? 'No students found' : 'Search students'}
+                            description={canSearchStudents ? 'Adjust the search term to find students.' : 'Type at least 2 characters to search active and suspended students.'}
+                            className="min-h-80"
+                        />
                     )}
                 </div>
             </ResourcePanel>

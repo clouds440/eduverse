@@ -13,18 +13,20 @@ import { Section, Role, AcademicCycle, Cohort, Teacher, Department } from '@/typ
 import { TableActions } from '@/components/ui/TableActions';
 import { Label } from '@/components/ui/Label';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Badge } from '@/components/ui/Badge';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
-import { formatDepartmentLabel, formatRoomLabel, getSectionSurfaceStyle, getSectionTextStyle } from '@/lib/utils';
+import { formatRoomLabel, getSectionSurfaceStyle, getSectionTextStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
@@ -87,12 +89,6 @@ export default function SectionsPage() {
 
     const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
     const { data: cyclesData } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
-    const cohortsKey = token ? ['cohorts', { limit: 500 }] as const : null;
-    const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
-    const teachersKey = token && canUseTeacherFilter ? ['teachers', { limit: 1000 }] as const : null;
-    const { data: teachersData } = useSWR<{ data: Teacher[] }>(teachersKey);
-    const departmentsKey = token && canManageSections ? ['departments', { limit: 1000, isActive: true }] as const : null;
-    const { data: departmentsData } = useSWR<{ data: Department[] }>(departmentsKey);
 
     useEffect(() => {
         if (user && user.role === Role.STUDENT) {
@@ -251,22 +247,19 @@ export default function SectionsPage() {
         ...(cohortId ? [{
             key: 'cohortId',
             label: 'Cohort',
-            value: (() => {
-                const cohort = cohortsData?.data?.find((item) => item.id === cohortId);
-                return cohort ? (cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name) : 'Selected cohort';
-            })(),
+            value: 'Selected cohort',
             onRemove: () => updateQueryParams({ cohortId: undefined, page: 1 }),
         }] : []),
         ...(teacherId ? [{
             key: 'teacherId',
             label: 'Teacher',
-            value: teachersData?.data?.find((teacher) => teacher.id === teacherId)?.user?.name || 'Selected teacher',
+            value: 'Selected teacher',
             onRemove: () => updateQueryParams({ teacherId: undefined, page: 1 }),
         }] : []),
         ...(departmentId ? [{
             key: 'departmentId',
             label: 'Department',
-            value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
+            value: 'Selected department',
             onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
         }] : []),
         ...(includeInactiveCycles ? [{
@@ -342,18 +335,14 @@ export default function SectionsPage() {
 
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Department</Label>
-                                <CustomSelect
-                                    options={[
-                                        { label: 'All Departments', value: '' },
-                                        ...(departmentsData?.data?.map(department => ({
-                                            value: department.id,
-                                            label: formatDepartmentLabel(department),
-                                        })) || [])
-                                    ]}
+                                <RemoteFilterSelect<Department>
+                                    cacheKey="sections-department-filter"
                                     value={departmentId}
                                     onChange={(val) => updateQueryParams({ departmentId: val, page: 1 })}
                                     placeholder="All Departments"
-                                    searchable
+                                    allLabel="All Departments"
+                                    selectedLabel="Selected department"
+                                    loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'departments', search, isActive: true })}
                                 />
                             </div>
 
@@ -383,33 +372,30 @@ export default function SectionsPage() {
 
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Cohort</Label>
-                                <CustomSelect
-                                    options={[
-                                        { label: 'All Cohorts', value: '' },
-                                        ...(cohortsData?.data?.map(cohort => ({ value: cohort.id, label: cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name, icon: School })) || [])
-                                    ]}
+                                <RemoteFilterSelect<Cohort>
+                                    cacheKey="sections-cohort-filter"
                                     value={cohortId}
                                     onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}
                                     placeholder="All Cohorts"
+                                    allLabel="All Cohorts"
+                                    icon={School}
+                                    selectedLabel="Selected cohort"
+                                    loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'cohorts', search })}
                                 />
                             </div>
 
                             {canUseTeacherFilter && (
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Assigned Teacher</Label>
-                                    <CustomSelect
-                                        options={[
-                                            { label: 'All Teachers', value: '' },
-                                            ...(teachersData?.data?.map(teacher => ({
-                                                value: teacher.id,
-                                                label: teacher.user?.name || teacher.user?.email || 'Unnamed teacher',
-                                                icon: UserRound,
-                                            })) || [])
-                                        ]}
+                                    <RemoteFilterSelect<Teacher>
+                                        cacheKey="sections-teacher-filter"
                                         value={teacherId}
                                         onChange={(val) => updateQueryParams({ teacherId: val, page: 1 })}
                                         placeholder="All Teachers"
-                                        searchable
+                                        allLabel="All Teachers"
+                                        icon={UserRound}
+                                        selectedLabel="Selected teacher"
+                                        loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'teachers', search })}
                                     />
                                 </div>
                             )}

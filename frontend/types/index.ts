@@ -876,6 +876,10 @@ export type AIChatStreamEvent =
         content: string;
     }
     | {
+        type: 'status';
+        label: string;
+    }
+    | {
         type: 'complete';
         response: AIChatResponse;
     }
@@ -1314,6 +1318,7 @@ export type ImportEntity =
     | 'guardians'
     | 'courses'
     | 'sections'
+    | 'schedules'
     | 'cohorts'
     | 'departments'
     | 'buildings'

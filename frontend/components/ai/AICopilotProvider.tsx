@@ -18,6 +18,7 @@ export interface AICopilotMessage {
     createdAt: number;
     provider?: AIChatResponse['provider'];
     usage?: AIChatResponse['usage'];
+    statusLabel?: string;
 }
 
 interface AICopilotContextValue {
@@ -287,7 +288,19 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
             role: 'assistant',
             content: '',
             status: 'sending',
+            statusLabel: 'Thinking...',
             createdAt: Date.now(),
+        };
+        const updatePendingStatus = (statusLabel: string) => {
+            setMessages((current) => {
+                const next = current.map((message) => (
+                    message.id === pendingAssistantId && !message.content.trim()
+                        ? { ...message, statusLabel }
+                        : message
+                ));
+                messagesRef.current = next;
+                return next;
+            });
         };
 
         setMessages((current) => {
@@ -300,19 +313,31 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
             return next;
         });
 
+        let waitingTimer: number | undefined;
+
         try {
+            waitingTimer = window.setTimeout(() => {
+                updatePendingStatus('Waiting for response...');
+            }, 10000);
             await api.ai.streamChat(
                 { prompt: trimmed, conversationId },
                 token,
                 {
                     onEvent: (event) => {
+                        if (event.type === 'status') {
+                            updatePendingStatus(event.label);
+                            return;
+                        }
+
                         if (event.type === 'conversation') {
+                            updatePendingStatus('Checking records...');
                             setConversationId(event.conversationId);
                             setActiveConversationTitle(event.title);
                             return;
                         }
 
                         if (event.type === 'delta') {
+                            if (waitingTimer) window.clearTimeout(waitingTimer);
                             setMessages((current) => {
                                 const next = current.map((message) => (
                                     message.id === pendingAssistantId
@@ -330,6 +355,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
                         }
 
                         if (event.type === 'complete') {
+                            if (waitingTimer) window.clearTimeout(waitingTimer);
                             const response = event.response;
                             setConversationId(response.conversationId);
                             setActiveConversationTitle(response.title);
@@ -354,8 +380,10 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
                 },
                 controller.signal,
             );
+            if (waitingTimer) window.clearTimeout(waitingTimer);
             void refreshEntitlement();
         } catch (err) {
+            if (waitingTimer) window.clearTimeout(waitingTimer);
             if (controller.signal.aborted) {
                 setMessages((current) => {
                     const next = current.flatMap((message) => {
@@ -381,6 +409,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
                 return next;
             });
         } finally {
+            if (waitingTimer) window.clearTimeout(waitingTimer);
             if (abortRef.current === controller) abortRef.current = null;
             setIsSending(false);
         }

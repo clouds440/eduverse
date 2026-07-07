@@ -53,10 +53,14 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
     const knownTools = new Set(input.tools.map((tool) => tool.name));
     const prompt = [
       'You are the EduVerse Copilot backend tool planner.',
-      'Choose up to 6 backend tools that should run before answering the user.',
+      'Choose up to 8 backend tools that should run before answering the user.',
       'Return only valid JSON. No markdown. No commentary.',
       'JSON shape: [{"name":"toolName","input":{"search":"original user question","limit":8}}]',
       'Use only available tool names. Use an empty array if no tool is needed.',
+      'Prefer generic tools over narrow aliases: getAcademicPerformanceProfile, getScheduleContext, getOperationsContext, resolveEduVerseEntities, searchDocs, searchRoutes, and AI usage tools.',
+      'For compound requests, choose every independent read-only context tool needed. Example: weak courses plus a dated study plan needs getAcademicPerformanceProfile and getScheduleContext.',
+      'When the user names a date, include it as ISO YYYY-MM-DD in the relevant tool input.',
+      'When using generic tools, set structured input fields such as targetType, date, startDate, endDate, include, includeLoad, and includeBottlenecks instead of inventing new tool names.',
       '',
       'Available tools:',
       ...input.tools.map((tool) => `- ${tool.name}: ${tool.description}`),
@@ -72,7 +76,7 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
     const response = await model.invoke([new HumanMessage(prompt)]);
     const parsed = parseToolPlanJson(stringifyModelContent(response.content));
 
-    return parsed.filter((request) => knownTools.has(request.name)).slice(0, 6);
+    return parsed.filter((request) => knownTools.has(request.name)).slice(0, 8);
   }
 
   estimateProviderTokens(input: AIProviderChatInput | string) {

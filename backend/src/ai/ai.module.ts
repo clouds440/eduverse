@@ -16,6 +16,7 @@ import {
   AILangChainProviderAdapter,
   AIProviderService,
 } from './ai-provider.service';
+import { AIOperationsToolsService } from './ai-operations-tools.service';
 import { AIPerformanceToolsService } from './ai-performance-tools.service';
 import { AIScheduleToolsService } from './ai-schedule-tools.service';
 import { AIService } from './ai.service';
@@ -37,6 +38,7 @@ import { AIUsageService } from './ai-usage.service';
     AIEntityResolverService,
     AIKnowledgeService,
     AILangChainProviderAdapter,
+    AIOperationsToolsService,
     AIPerformanceToolsService,
     AIProviderService,
     AIScheduleToolsService,
@@ -55,6 +57,7 @@ import { AIUsageService } from './ai-usage.service';
     AIEntitlementService,
     AIEntityResolverService,
     AIKnowledgeService,
+    AIOperationsToolsService,
     AIPerformanceToolsService,
     AIProviderService,
     AIScheduleToolsService,

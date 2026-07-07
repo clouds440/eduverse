@@ -4,12 +4,14 @@ import { useMemo, useState, type Dispatch } from 'react';
 import useSWR from 'swr';
 import { AcademicCycle, ApiError, Cohort, CopyForwardPreview, Role } from '@/types';
 import { api } from '@/lib/api';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal, type GlobalAction } from '@/context/GlobalContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
@@ -33,9 +35,6 @@ export default function PromotionsPage() {
     const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
     const { data: cyclesData, isLoading, error, mutate } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
 
-    const cohortsKey = token ? ['cohorts', { limit: 500 }] as const : null;
-    const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
-
     if (!token) return <Loading className="h-full" text="Authenticating..." />;
     if (isLoading && !cyclesData) return <Loading className="h-full" text="Loading academic transitions..." />;
     if (error) return <ErrorState error={error} onRetry={() => mutate()} />;
@@ -53,8 +52,6 @@ export default function PromotionsPage() {
     }
 
     const cycles = cyclesData?.data || [];
-    const cohorts = cohortsData?.data || [];
-
     return (
         <PageShell className="gap-0.5">
             <PageHeader
@@ -85,7 +82,7 @@ export default function PromotionsPage() {
                     {activeTab === 'copy-forward' ? (
                         <CopyForwardView cycles={cycles} token={token} dispatch={dispatch} />
                     ) : (
-                        <PromotionView cycles={cycles} cohorts={cohorts} token={token} dispatch={dispatch} />
+                        <PromotionView cycles={cycles} token={token} dispatch={dispatch} />
                     )}
                 </div>
             </ResourcePanel>
@@ -290,25 +287,20 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
     );
 }
 
-function PromotionView({ cycles, cohorts, token, dispatch }: { cycles: AcademicCycle[]; cohorts: Cohort[]; token: string; dispatch: Dispatch<GlobalAction> }) {
+function PromotionView({ cycles, token, dispatch }: { cycles: AcademicCycle[]; token: string; dispatch: Dispatch<GlobalAction> }) {
     const [originCohortId, setOriginCohortId] = useState('');
     const [targetCycleId, setTargetCycleId] = useState('');
     const [targetCohortId, setTargetCohortId] = useState('');
     const [isExecuting, setIsExecuting] = useState(false);
 
-    const originCohort = cohorts.find((cohort) => cohort.id === originCohortId);
     const {
         data: originCohortDetail,
         isLoading: isOriginCohortLoading,
         error: originCohortError,
     } = useSWR<Cohort>(originCohortId ? ['cohort', originCohortId] as const : null);
     const targetCycle = cycles.find((cycle) => cycle.id === targetCycleId);
-    const targetCohorts = useMemo(() => (
-        cohorts.filter((cohort) => cohort.academicCycleId === targetCycleId)
-    ), [cohorts, targetCycleId]);
-    const targetCohort = cohorts.find((cohort) => cohort.id === targetCohortId);
     const originStudents = originCohortDetail?.students || [];
-    const listedStudentCount = originCohort?._count?.students ?? originCohort?.students?.length ?? 0;
+    const listedStudentCount = originCohortDetail?._count?.students ?? originCohortDetail?.students?.length ?? 0;
     const studentCount = originCohortDetail ? originStudents.length : listedStudentCount;
     const studentCountLabel = originCohortId && isOriginCohortLoading ? `${listedStudentCount} listed, loading roster...` : `${studentCount}`;
 
@@ -362,11 +354,14 @@ function PromotionView({ cycles, cohorts, token, dispatch }: { cycles: AcademicC
 
                 <StepBlock step={1} title="Select the origin cohort" description="This is the cohort whose students will be promoted.">
                     <div className="space-y-3">
-                        <CustomSelect
-                            options={cohorts.map((cohort) => ({ value: cohort.id, label: `${cohort.name} (${cohort.academicCycle?.name || 'No Cycle'})` }))}
+                        <RemoteFilterSelect
+                            cacheKey="promotions-origin-cohort"
                             value={originCohortId}
                             onChange={setOriginCohortId}
                             placeholder="Select Cohort to Promote"
+                            allLabel="Select Cohort to Promote"
+                            selectedLabel="Selected cohort"
+                            loadOptions={(search) => searchFilterLookup({ token, entity: 'cohorts', search, includeAllCycles: true })}
                         />
                         {originCohortId && (
                             <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-background/55 p-3">
@@ -397,12 +392,15 @@ function PromotionView({ cycles, cohorts, token, dispatch }: { cycles: AcademicC
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-semibold">Target Cohort</label>
-                            <CustomSelect
-                                options={targetCohorts.map((cohort) => ({ value: cohort.id, label: cohort.name }))}
+                            <RemoteFilterSelect
+                                cacheKey={`promotions-target-cohort-${targetCycleId || 'none'}`}
                                 value={targetCohortId}
                                 onChange={setTargetCohortId}
                                 placeholder={targetCycleId ? 'Select Target Cohort' : 'Select cycle first'}
+                                allLabel={targetCycleId ? 'Select Target Cohort' : 'Select cycle first'}
+                                selectedLabel="Selected cohort"
                                 disabled={!targetCycleId}
+                                loadOptions={(search) => searchFilterLookup({ token, entity: 'cohorts', search, academicCycleId: targetCycleId })}
                             />
                         </div>
                     </div>
@@ -418,10 +416,10 @@ function PromotionView({ cycles, cohorts, token, dispatch }: { cycles: AcademicC
             <SummaryPanel
                 title="Promotion Summary"
                 items={[
-                    ['Origin', originCohort?.name || 'Not selected'],
+                    ['Origin', originCohortDetail?.name || (originCohortId ? 'Selected cohort' : 'Not selected')],
                     ['Students', studentCountLabel],
                     ['Target cycle', targetCycle?.name || 'Not selected'],
-                    ['Target cohort', targetCohort?.name || 'Not selected'],
+                    ['Target cohort', targetCohortId ? 'Selected cohort' : 'Not selected'],
                 ]}
             />
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertCircle, LockKeyhole, Sparkles } from 'lucide-react';
+import { LockKeyhole, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Loading } from '@/components/ui/Loading';
 import { getAIRoleHomeConfig } from '@/lib/ai';
@@ -49,20 +49,13 @@ export function AICopilotHome({
                         </div>
                     </div>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2">
                     <Link
                         href="/ai/subscription"
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary px-4 py-2.5 text-sm font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                     >
                         <Sparkles className="h-4 w-4" aria-hidden="true" />
-                        Subscribe to a package
-                    </Link>
-                    <Link
-                        href="/ai"
-                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-4 py-2.5 text-sm font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70"
-                    >
-                        <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                        View Usage
+                        Unlock AI Copilot
                     </Link>
                 </div>
             </div>

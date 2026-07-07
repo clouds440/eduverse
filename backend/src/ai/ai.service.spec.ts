@@ -67,11 +67,17 @@ describe('AIService', () => {
       stream: jest.fn(),
     };
     const toolRegistry = {
-      listTools: jest.fn().mockReturnValue([{ name: 'getMyTodaySchedule', description: 'Today schedule' }]),
-      runTool: jest.fn().mockResolvedValue({
-        ok: true,
-        data: { schedules: [{ courseName: 'Algebra', startTime: '09:00' }] },
-      }),
+      listTools: jest.fn().mockReturnValue([{ name: 'getScheduleContext', description: 'Generic schedule context' }]),
+      runTools: jest.fn().mockResolvedValue([
+        {
+          tool: 'getScheduleContext',
+          input: { date: '2026-07-07' },
+          result: {
+            ok: true,
+            data: { schedules: [{ courseName: 'Algebra', startTime: '09:00' }] },
+          },
+        },
+      ]),
     };
 
     return {
@@ -108,12 +114,13 @@ describe('AIService', () => {
       messages: expect.arrayContaining([
         { role: 'assistant', content: 'Earlier context' },
         { role: 'user', content: 'What should I study today?' },
-        expect.objectContaining({ role: 'tool', name: 'getMyTodaySchedule' }),
+        expect.objectContaining({ role: 'tool', name: 'eduverseToolResults' }),
       ]),
     }));
-    expect(toolRegistry.runTool).toHaveBeenCalledWith(
-      'getMyTodaySchedule',
-      {},
+    expect(toolRegistry.runTools).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'getScheduleContext' }),
+      ]),
       expect.objectContaining({ userId: 'user-1', orgId: 'org-1' }),
     );
     expect(entitlementService.resolveEntitlement).toHaveBeenCalledTimes(2);

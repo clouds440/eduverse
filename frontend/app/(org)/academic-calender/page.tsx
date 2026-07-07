@@ -6,6 +6,7 @@ import { Calendar, CalendarDays, Layers, Plus, Search, Send } from 'lucide-react
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { matchesAnyCacheKeyPrefix } from '@/lib/swr';
 import { formatDepartmentLabel } from '@/lib/utils';
 import {
@@ -25,6 +26,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
@@ -153,7 +155,7 @@ export default function HolidaysPage() {
         token ? ['holidays', params] as const : null,
     );
     const { data: departmentsData } = useSWR<PaginatedResponse<Department>>(
-        token ? ['departments', { limit: 1000, isActive: true, sortBy: 'name', sortOrder: 'asc' }] as const : null,
+        token && modalOpen ? ['departments', { limit: 1000, isActive: true, sortBy: 'name', sortOrder: 'asc' }] as const : null,
     );
     const departments = departmentsData?.data || [];
     const departmentOptions = departments.map((department) => ({ value: department.id, label: formatDepartmentLabel(department), icon: Layers }));
@@ -260,7 +262,7 @@ export default function HolidaysPage() {
         ...(searchTerm ? [{ key: 'search', label: 'Search', value: searchTerm, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
         ...(typeFilter ? [{ key: 'type', label: 'Type', value: getTypeLabel(typeFilter as HolidayType), onRemove: () => updateQueryParams({ type: undefined, page: 1 }) }] : []),
         ...(statusFilter ? [{ key: 'status', label: 'Status', value: statusFilter === 'active' ? 'Active' : 'Inactive', onRemove: () => updateQueryParams({ status: undefined, page: 1 }) }] : []),
-        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: departments.find((department) => department.id === departmentId)?.name || 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }) }] : []),
+        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }) }] : []),
         ...(startDate ? [{ key: 'startDate', label: 'From', value: startDate, onRemove: () => updateQueryParams({ startDate: undefined, page: 1 }) }] : []),
         ...(endDate ? [{ key: 'endDate', label: 'To', value: endDate, onRemove: () => updateQueryParams({ endDate: undefined, page: 1 }) }] : []),
     ];
@@ -337,11 +339,15 @@ export default function HolidaysPage() {
                 onChange={(value) => updateQueryParams({ status: value || undefined, page: 1 })}
                 options={[{ value: '', label: 'All statuses' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]}
             />
-            <CustomSelect
+            <RemoteFilterSelect<Department>
+                cacheKey="calendar-department-filter"
                 value={departmentId}
                 onChange={(value) => updateQueryParams({ departmentId: value || undefined, page: 1 })}
-                options={[{ value: '', label: 'All departments', icon: Layers }, ...departmentOptions]}
-                searchable
+                placeholder="All departments"
+                allLabel="All departments"
+                icon={Layers}
+                selectedLabel="Selected department"
+                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'departments', search, isActive: true })}
             />
             <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">

@@ -139,6 +139,10 @@ export type AIStreamEvent =
       content: string;
     }
   | {
+      type: 'status';
+      label: string;
+    }
+  | {
       type: 'complete';
       response: {
         conversationId: string;

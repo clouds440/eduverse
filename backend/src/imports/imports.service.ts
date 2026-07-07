@@ -25,6 +25,7 @@ import { DepartmentsService } from '../departments/departments.service';
 import { BuildingsService } from '../buildings/buildings.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { AttendanceService } from '../attendance/attendance.service';
+import { CreateScheduleDto } from '../attendance/dto/create-schedule.dto';
 import { CohortsService } from '../cohorts/cohorts.service';
 import { EnrollmentsService } from '../enrollments/enrollments.service';
 import { CreateStudentDto } from '../org/dto/create-student.dto';
@@ -697,6 +698,96 @@ export class ImportsService {
           { label: 'Section code', value: (data) => data.code as string | undefined, existing: (orgId, value) => this.sectionCodeExists(orgId, value) },
         ],
       },
+      schedules: {
+        entity: 'schedules',
+        headers: ['courseCode', 'sectionCode', 'day', 'date', 'startTime', 'endTime', 'teacherEmail', 'roomCode', 'room', 'type'],
+        required: ['courseCode', 'sectionCode', 'startTime', 'endTime'],
+        dto: CreateScheduleDto,
+        examples: [{
+          courseCode: 'PHY-101',
+          sectionCode: 'GRADE-9-A',
+          day: 'weekdays',
+          date: '',
+          startTime: '09:00',
+          endTime: '10:00',
+          teacherEmail: 'sara.ahmed@teacher.example',
+          roomCode: 'ROOM-101',
+          room: '',
+          type: 'OFFICIAL',
+        }],
+        normalize: (row) => {
+          const date = optionalDate(row.date, 'date', 'Must be a valid ISO 8601 date string');
+          const dayText = optionalString(row.day);
+          if (date && dayText) {
+            throw new BadRequestException({ field: 'day', message: 'Leave day blank when date is provided' });
+          }
+          if (!date && !dayText) {
+            throw new BadRequestException({ field: 'day', message: 'Provide day, weekdays, weekends, or a date' });
+          }
+
+          return {
+            courseCode: this.normalizeCode(row.courseCode),
+            sectionCode: this.normalizeCode(row.sectionCode),
+            scheduleDays: date ? undefined : this.parseScheduleDays(dayText, 'day'),
+            date,
+            startTime: optionalString(row.startTime),
+            endTime: optionalString(row.endTime),
+            teacherEmail: optionalString(row.teacherEmail),
+            roomCode: this.normalizeCode(row.roomCode),
+            room: optionalString(row.room),
+            type: optionalEnum(row.type, Object.values(ScheduleType), 'type') || ScheduleType.OFFICIAL,
+          };
+        },
+        resolveRelations: async (orgId, data) => {
+          const section = await this.resolveSectionForSchedule(
+            orgId,
+            data.courseCode as string | undefined,
+            data.sectionCode as string | undefined,
+          );
+          data.sectionId = section.id;
+          data.teacherId = this.resolveScheduleTeacherFromSection(section, data.teacherEmail as string | undefined);
+          data.roomId = await this.resolveRoomId(orgId, data.roomCode as string | undefined, 'roomCode');
+          delete data.courseCode;
+          delete data.sectionCode;
+          delete data.teacherEmail;
+          delete data.roomCode;
+        },
+        create: async (orgId, data, actor) => {
+          const sectionId = data.sectionId as string;
+          const scheduleDays = data.scheduleDays as number[] | undefined;
+          const base = {
+            date: data.date as string | undefined,
+            startTime: data.startTime as string,
+            endTime: data.endTime as string,
+            room: data.room as string | undefined,
+            roomId: data.roomId as string | undefined,
+            teacherId: data.teacherId as string | undefined,
+            type: data.type as ScheduleType | undefined,
+          };
+          if (scheduleDays?.length) {
+            for (const day of scheduleDays) {
+              await this.attendance.createSchedule(orgId, sectionId, { ...base, date: undefined, day } as CreateScheduleDto, actor);
+            }
+            return;
+          }
+          await this.attendance.createSchedule(orgId, sectionId, base as CreateScheduleDto, actor);
+        },
+        validateRelations: async (_orgId, data) => {
+          if (!data.date && !(data.scheduleDays as number[] | undefined)?.length) {
+            throw new BadRequestException({ field: 'day', message: 'Provide day, weekdays, weekends, or a date' });
+          }
+          if (data.date && (data.scheduleDays as number[] | undefined)?.length) {
+            throw new BadRequestException({ field: 'day', message: 'Leave day blank when date is provided' });
+          }
+        },
+        duplicateKeys: [
+          {
+            label: 'Schedule slot',
+            value: (data) => this.scheduleImportKey(data),
+            existing: (orgId, _value, data) => this.scheduleSlotExists(orgId, data),
+          },
+        ],
+      },
       cohorts: {
         entity: 'cohorts',
         headers: ['name', 'code', 'academicCycleCode'],
@@ -1114,6 +1205,130 @@ export class ImportsService {
     });
     if (!course) throw new BadRequestException({ field, message: `Course code "${value}" was not found` });
     return course.id;
+  }
+
+  private parseScheduleDays(value?: string, field = 'day') {
+    const normalized = value?.trim().toLowerCase().replace(/\s+/g, '');
+    if (!normalized) return undefined;
+    const dayMap: Record<string, number[]> = {
+      sun: [0],
+      sunday: [0],
+      su: [0],
+      mon: [1],
+      monday: [1],
+      mo: [1],
+      tue: [2],
+      tues: [2],
+      tuesday: [2],
+      tu: [2],
+      wed: [3],
+      wednesday: [3],
+      we: [3],
+      thu: [4],
+      thur: [4],
+      thurs: [4],
+      thursday: [4],
+      th: [4],
+      fri: [5],
+      friday: [5],
+      fr: [5],
+      sat: [6],
+      saturday: [6],
+      sa: [6],
+      weekday: [1, 2, 3, 4, 5],
+      weekdays: [1, 2, 3, 4, 5],
+      weekend: [0, 6],
+      weekends: [0, 6],
+    };
+    const days = dayMap[normalized];
+    if (!days) {
+      throw new BadRequestException({ field, message: 'Use Sun, Mon, Tue, Wed, Thu, Fri, Sat, weekdays, or weekends' });
+    }
+    return days;
+  }
+
+  private async resolveSectionForSchedule(orgId: string, courseCode?: string, sectionCode?: string) {
+    const normalizedCourseCode = this.normalizeCode(courseCode);
+    const normalizedSectionCode = this.normalizeCode(sectionCode);
+    if (!normalizedCourseCode) throw new BadRequestException({ field: 'courseCode', message: 'Course code is required' });
+    if (!normalizedSectionCode) throw new BadRequestException({ field: 'sectionCode', message: 'Section code is required' });
+
+    const section = await this.prisma.section.findFirst({
+      where: {
+        organizationId: orgId,
+        code: { equals: normalizedSectionCode, mode: Prisma.QueryMode.insensitive },
+        course: {
+          organizationId: orgId,
+          code: { equals: normalizedCourseCode, mode: Prisma.QueryMode.insensitive },
+        },
+      },
+      select: {
+        id: true,
+        teachers: { select: { id: true, user: { select: { email: true } } } },
+      },
+    });
+    if (!section) {
+      throw new BadRequestException({
+        field: 'sectionCode',
+        message: `Section code "${normalizedSectionCode}" was not found for course "${normalizedCourseCode}"`,
+      });
+    }
+    return section;
+  }
+
+  private resolveScheduleTeacherFromSection(
+    section: { id: string; teachers: Array<{ id: string; user: { email: string | null } }> },
+    email?: string,
+  ) {
+    const value = email?.trim();
+    if (section.teachers.length === 0) {
+      throw new BadRequestException({ field: 'teacherEmail', message: 'Assign at least one teacher to this section before importing schedules' });
+    }
+    if (!value && section.teachers.length === 1) return section.teachers[0].id;
+    if (!value) {
+      throw new BadRequestException({ field: 'teacherEmail', message: 'teacherEmail is required when a section has multiple teachers' });
+    }
+    const teacher = section.teachers.find((candidate) => candidate.user.email?.toLowerCase() === value.toLowerCase());
+    if (!teacher) {
+      throw new BadRequestException({
+        field: 'teacherEmail',
+        message: `Teacher email "${value}" was not found among this section's assigned teachers`,
+      });
+    }
+    return teacher.id;
+  }
+
+  private scheduleImportKey(data: Record<string, unknown>) {
+    const sectionId = data.sectionId as string | undefined;
+    const date = data.date as string | undefined;
+    const days = data.scheduleDays as number[] | undefined;
+    const dayKey = date ? `date:${date}` : `days:${(days || []).join('|')}`;
+    return [sectionId, dayKey, data.startTime, data.endTime, data.type].filter(Boolean).join('|');
+  }
+
+  private async scheduleSlotExists(orgId: string, data: Record<string, unknown>) {
+    const sectionId = data.sectionId as string | undefined;
+    const startTime = data.startTime as string | undefined;
+    const endTime = data.endTime as string | undefined;
+    if (!sectionId || !startTime || !endTime) return false;
+
+    const date = data.date as string | undefined;
+    const days = data.scheduleDays as number[] | undefined;
+    const type = data.type as ScheduleType | undefined;
+    const schedule = await this.prisma.sectionSchedule.findFirst({
+      where: {
+        section: { organizationId: orgId },
+        sectionId,
+        type,
+        startTime,
+        endTime,
+        ...(date
+          ? { date: new Date(date) }
+          : { date: null, day: { in: days || [] } }),
+      },
+      select: { id: true },
+    });
+    return Boolean(schedule);
   }
 
   private async resolveAcademicCycleId(orgId: string, codeOrId?: string, field = 'academicCycleCode') {

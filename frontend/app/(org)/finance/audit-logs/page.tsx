@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -20,6 +21,7 @@ import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import { PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { AuditLogItem, PaginatedResponse, Role } from '@/types';
+import { searchFilterLookup } from '@/lib/filterLookups';
 
 const actionOptions = [
     { value: '', label: 'All actions' },
@@ -194,20 +196,6 @@ export default function FinanceAuditLogsPage() {
             userId: userId || undefined,
         })
     );
-    const { data: userTargets } = useSWR(
-        token ? ['finance-audit-user-filter-options', token] : null,
-        ([, t]) => api.mail.getContactableUsers(t as string),
-    );
-    const userOptions = useMemo(() => [
-        { value: '', label: 'All users' },
-        ...((userTargets || [])
-            .filter((target) => target.type === 'USER')
-            .map((target) => ({
-                value: target.id,
-                label: target.email ? `${target.label} (${target.email})` : target.label,
-            }))),
-    ], [userTargets]);
-
     const columns = useMemo<Column<AuditLogItem>[]>(() => [
         {
             header: 'Time',
@@ -302,12 +290,12 @@ export default function FinanceAuditLogsPage() {
             filters.push({
                 key: 'userId',
                 label: 'User',
-                value: userOptions.find((option) => option.value === userId)?.label || 'Selected user',
+                value: 'Selected user',
                 onRemove: () => { setUserId(''); setPage(1); },
             });
         }
         return filters;
-    }, [action, resourceType, userId, userOptions]);
+    }, [action, resourceType, userId]);
 
     const resetControls = () => {
         setSearch('');
@@ -339,11 +327,20 @@ export default function FinanceAuditLogsPage() {
                 <FilterDrawerGrid>
                     <CustomSelect value={action} onChange={(value) => { setAction(value); setPage(1); }} options={actionOptions} icon={Filter} />
                     <CustomSelect value={resourceType} onChange={(value) => { setResourceType(value); setPage(1); }} options={resourceOptions} icon={ScrollText} />
-                    <CustomSelect value={userId} onChange={(value) => { setUserId(value); setPage(1); }} options={userOptions} icon={UserRound} searchable />
+                    <RemoteFilterSelect
+                        cacheKey="finance-audit-user-filter"
+                        value={userId}
+                        onChange={(value) => { setUserId(value); setPage(1); }}
+                        placeholder="All users"
+                        allLabel="All users"
+                        icon={UserRound}
+                        selectedLabel="Selected user"
+                        loadOptions={(searchTerm) => searchFilterLookup({ token: token!, entity: 'mailUsers', search: searchTerm })}
+                    />
                 </FilterDrawerGrid>
             )}
         />
-    ), [action, activeFilters, resourceType, search, userId, userOptions]);
+    ), [action, activeFilters, resourceType, search, token, userId]);
     const controlsHosted = usePageActionsHost(pageControls);
 
     if (!token) return <Loading className="h-full" text="Authenticating..." />;

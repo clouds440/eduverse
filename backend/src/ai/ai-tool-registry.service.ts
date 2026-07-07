@@ -70,6 +70,24 @@ export class AIToolRegistryService {
 
     return result;
   }
+
+  async runTools(
+    requests: Array<{ name: string; input?: Record<string, unknown> }>,
+    context: AIToolContext,
+  ) {
+    const uniqueRequests = requests.filter((request, index, allRequests) => (
+      allRequests.findIndex((candidate) => (
+        candidate.name === request.name
+        && JSON.stringify(candidate.input ?? {}) === JSON.stringify(request.input ?? {})
+      )) === index
+    ));
+
+    return Promise.all(uniqueRequests.map(async (request) => ({
+      tool: request.name,
+      input: request.input ?? {},
+      result: await this.runTool(request.name, request.input ?? {}, context),
+    })));
+  }
 }
 
 function estimateProviderTokens(value: unknown) {

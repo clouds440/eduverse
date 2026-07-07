@@ -48,7 +48,12 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
                 ? 'Cohort CSV imports create empty cohorts only. Add students and sections manually after import; academicCycleCode is resolved from the academic cycle code.'
                 : entity === 'guardians'
                     ? 'Guardians can use linkedStudents to link one or more students by registration number. Example: "REG-001,REG-002". These links use the guardian-student relationship table and can always be linked or unlinked later.'
-                    : null;
+                    : entity === 'schedules'
+                        ? 'Use courseCode and sectionCode. day accepts Mon-Sun, weekdays, or weekends; leave day blank when date is set. Use teacherEmail when a section has multiple teachers.'
+                        : null;
+    const importHintAction = entity === 'schedules'
+        ? { label: 'Schedule docs', href: '/docs/timetable#schedule-teacher' }
+        : undefined;
 
     const handleDownloadTemplate = async () => {
         if (!token) return;
@@ -160,7 +165,7 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
                     <StatusBanner title="Importing in batches" variant="info" description={`Batch ${confirmProgress.current} of ${confirmProgress.total}`} />
                 )}
                 {importHint && (
-                    <StatusBanner title="Template note" variant="info" description={importHint} />
+                    <StatusBanner title="Template note" variant="info" description={importHint} action={importHintAction} />
                 )}
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                     <Input

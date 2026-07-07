@@ -9,7 +9,7 @@ function createService(overrides: Partial<Record<string, any>> = {}) {
     room: { findFirst: jest.fn().mockResolvedValue(null) },
     academicCycle: { findFirst: jest.fn().mockResolvedValue({ id: 'cycle-1' }) },
     cohort: { findFirst: jest.fn().mockResolvedValue(null) },
-    sectionSchedule: { findMany: jest.fn().mockResolvedValue([]) },
+    sectionSchedule: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     attendanceSession: {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
@@ -26,6 +26,7 @@ function createService(overrides: Partial<Record<string, any>> = {}) {
       ],
     }),
     markAttendance: jest.fn(),
+    createSchedule: jest.fn().mockResolvedValue({ id: 'schedule-1' }),
     ...overrides.attendance,
   };
 
@@ -446,6 +447,122 @@ describe('ImportsService teacher validation', () => {
     expect(result.invalidRows[0].errors).toEqual([
       { rowNumber: 2, field: 'sectionCodes', message: 'None of these section codes were found: NOPE, MISSING' },
     ]);
+  });
+});
+
+describe('ImportsService schedule validation', () => {
+  const admin = {
+    id: 'admin-1',
+    role: 'ORG_ADMIN',
+    name: 'Admin',
+    email: 'admin@example.test',
+  };
+  const scheduleHeaders = ['courseCode', 'sectionCode', 'day', 'date', 'startTime', 'endTime', 'teacherEmail', 'roomCode', 'room', 'type'];
+  const sectionLookup = jest.fn().mockResolvedValue({
+    id: 'section-1',
+    teachers: [
+      { id: 'teacher-1', user: { email: 'sara.ahmed@teacher.example' } },
+      { id: 'teacher-2', user: { email: 'ali.khan@teacher.example' } },
+    ],
+  });
+
+  it('resolves weekdays, teacher email, and room code for schedules', async () => {
+    const { service } = createService({
+      prisma: {
+        section: { findFirst: sectionLookup },
+        room: { findFirst: jest.fn().mockResolvedValue({ id: 'room-1' }) },
+      },
+    });
+    const csv = [
+      scheduleHeaders.join(','),
+      'PHY-101,GRADE-9-A,weekdays,,09:00,10:00,sara.ahmed@teacher.example,ROOM-101,,OFFICIAL',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.summary.invalid).toBe(0);
+    expect(result.validRows[0].data).toMatchObject({
+      sectionId: 'section-1',
+      scheduleDays: [1, 2, 3, 4, 5],
+      teacherId: 'teacher-1',
+      roomId: 'room-1',
+      startTime: '09:00',
+      endTime: '10:00',
+    });
+  });
+
+  it('requires teacherEmail when the section has multiple assigned teachers', async () => {
+    const { service } = createService({
+      prisma: {
+        section: { findFirst: sectionLookup },
+      },
+    });
+    const csv = [
+      scheduleHeaders.join(','),
+      'PHY-101,GRADE-9-A,Mon,,09:00,10:00,,,,OFFICIAL',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
+
+    expect(result.summary.valid).toBe(0);
+    expect(result.summary.invalid).toBe(1);
+    expect(result.invalidRows[0].errors).toEqual([
+      { rowNumber: 2, field: 'teacherEmail', message: 'teacherEmail is required when a section has multiple teachers' },
+    ]);
+  });
+
+  it('does not treat different days or times as duplicate schedule rows', async () => {
+    const { service } = createService({
+      prisma: {
+        section: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'section-1',
+            teachers: [{ id: 'teacher-1', user: { email: 'sara.ahmed@teacher.example' } }],
+          }),
+        },
+      },
+    });
+    const csv = [
+      scheduleHeaders.join(','),
+      'PHY-101,GRADE-9-A,Mon,,09:00,10:00,,,,OFFICIAL',
+      'PHY-101,GRADE-9-A,Tue,,09:00,10:00,,,,OFFICIAL',
+      'PHY-101,GRADE-9-A,Mon,,10:00,11:00,,,,OFFICIAL',
+      'PHY-101,GRADE-9-A,Mon,,09:00,10:00,,,,OFFICIAL',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
+
+    expect(result.summary.valid).toBe(3);
+    expect(result.summary.invalid).toBe(1);
+    expect(result.summary.duplicate).toBe(1);
+    expect(result.invalidRows[0].errors).toEqual([
+      { rowNumber: 5, message: 'Duplicate Schedule slot in this CSV' },
+    ]);
+  });
+
+  it('expands weekdays into one schedule create per weekday during confirm', async () => {
+    const { service, attendance } = createService({
+      prisma: {
+        section: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'section-1',
+            teachers: [{ id: 'teacher-1', user: { email: 'sara.ahmed@teacher.example' } }],
+          }),
+        },
+      },
+    });
+    const csv = [
+      scheduleHeaders.join(','),
+      'PHY-101,GRADE-9-A,weekdays,,09:00,10:00,,,,OFFICIAL',
+    ].join('\n');
+    const validation = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
+
+    const result = await service.confirmEntityImport('org-1', 'schedules', validation.validRows, admin);
+
+    expect(result.importedCount).toBe(1);
+    expect(attendance.createSchedule).toHaveBeenCalledTimes(5);
+    expect(attendance.createSchedule.mock.calls.map((call: any[]) => call[2].day)).toEqual([1, 2, 3, 4, 5]);
   });
 });
 

@@ -10,6 +10,8 @@ interface ScheduleToolInput {
   startDate?: string;
   endDate?: string;
   teacherId?: string;
+  includeLoad?: boolean;
+  includeBottlenecks?: boolean;
   limit?: number;
 }
 
@@ -31,6 +33,21 @@ export class AIScheduleToolsService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    this.toolRegistry.register({
+      name: 'getScheduleContext',
+      description: 'Generic schedule context tool. Accepts date or startDate/endDate plus optional teacherId, includeLoad, and includeBottlenecks. Returns timetable, next class, free slots for single-day schedules, teacher load, and schedule bottlenecks when permitted.',
+      run: async (input: unknown, context) => this.getScheduleContext(context, parseInput(input)),
+    });
+
+    this.toolRegistry.register({
+      name: 'getMyScheduleForDate',
+      description: 'Return the current user schedule for a specific ISO date and compute free study/work slots between classes.',
+      run: async (input: unknown, context) => {
+        const parsed = parseInput(input);
+        return this.getMyScheduleForDate(context, parsed.date ?? dateKey(new Date()));
+      },
+    });
+
     this.toolRegistry.register({
       name: 'getMyTodaySchedule',
       description: 'Return the current user schedule for today.',
@@ -80,7 +97,7 @@ export class AIScheduleToolsService implements OnModuleInit {
   private async getMyScheduleForDate(
     context: AIToolContext,
     date: string,
-  ): Promise<AIToolResult<{ range: unknown; schedules: unknown[] }>> {
+  ): Promise<AIToolResult<{ range: unknown; schedules: unknown[]; freeSlots?: unknown[] }>> {
     return this.getMySchedule(context, { date });
   }
 
@@ -88,7 +105,7 @@ export class AIScheduleToolsService implements OnModuleInit {
     context: AIToolContext,
     query: { date?: string; startDate?: string; endDate?: string },
     limit = 30,
-  ): Promise<AIToolResult<{ range: unknown; schedules: unknown[] }>> {
+  ): Promise<AIToolResult<{ range: unknown; schedules: unknown[]; freeSlots?: unknown[]; studyPlanningHints?: unknown }>> {
     if (!context.orgId) return permissionDenied('Organization context is required.');
 
     const timetable = await this.attendanceService.getTimetable(
@@ -96,12 +113,67 @@ export class AIScheduleToolsService implements OnModuleInit {
       actorForScopedServices(context),
       query,
     );
+    const schedules = timetable.schedules
+      .slice(0, clampLimit(limit, 50))
+      .map(compactSchedule)
+      .sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')) || a.startTime.localeCompare(b.startTime));
+    const freeSlots = query.date ? computeFreeSlots(schedules, query.date) : undefined;
 
     return {
       ok: true,
       data: {
         range: timetable.range,
-        schedules: timetable.schedules.slice(0, clampLimit(limit, 50)).map(compactSchedule),
+        schedules,
+        freeSlots,
+        studyPlanningHints: query.date
+          ? {
+              date: query.date,
+              instruction: 'Use freeSlots to place study blocks around classes. Prefer the longest blocks for weakest courses and keep short review blocks between classes.',
+            }
+          : undefined,
+      },
+    };
+  }
+
+  private async getScheduleContext(
+    context: AIToolContext,
+    input: ScheduleToolInput,
+  ): Promise<AIToolResult<unknown>> {
+    const date = input.date;
+    const startDate = input.startDate;
+    const endDate = input.endDate;
+    const schedule = await this.getMySchedule(
+      context,
+      date
+        ? { date }
+        : startDate || endDate
+          ? {
+              startDate: startDate ?? dateKey(new Date()),
+              endDate: endDate ?? startDate ?? dateKey(new Date()),
+            }
+          : { startDate: dateKey(startOfWeek(new Date())), endDate: dateKey(addDays(startOfWeek(new Date()), 6)) },
+      input.limit,
+    );
+    const [nextClass, teacherLoad, bottlenecks] = await Promise.all([
+      this.getNextClass(context).catch((error) => unavailable(error)),
+      input.includeLoad || input.teacherId
+        ? this.getTeacherScheduleLoad(context, input).catch((error) => unavailable(error))
+        : Promise.resolve(undefined),
+      input.includeBottlenecks
+        ? this.getScheduleBottlenecks(context, input).catch((error) => unavailable(error))
+        : Promise.resolve(undefined),
+    ]);
+
+    return {
+      ok: true,
+      data: {
+        requestedRange: date
+          ? { date }
+          : { startDate, endDate, sourceRange: schedule.data?.range ?? null },
+        timetable: schedule,
+        nextClass,
+        teacherLoad,
+        bottlenecks,
       },
     };
   }
@@ -262,6 +334,8 @@ function parseInput(input: unknown): ScheduleToolInput {
     startDate: stringValue(value.startDate),
     endDate: stringValue(value.endDate),
     teacherId: stringValue(value.teacherId),
+    includeLoad: booleanValue(value.includeLoad),
+    includeBottlenecks: booleanValue(value.includeBottlenecks),
     limit: numberValue(value.limit),
   };
 }
@@ -276,12 +350,26 @@ function numberValue(value: unknown) {
   return undefined;
 }
 
+function booleanValue(value: unknown) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return ['true', '1', 'yes'].includes(value.toLowerCase());
+  return undefined;
+}
+
 function clampLimit(limit = 30, max = 30) {
   return Math.min(max, Math.max(1, Math.round(Number.isFinite(limit) ? limit : 30)));
 }
 
 function permissionDenied<T>(message: string): AIToolResult<T> {
   return { ok: false, code: 'PERMISSION_DENIED', message };
+}
+
+function unavailable(error: unknown): AIToolResult<unknown> {
+  return {
+    ok: false,
+    code: 'UNAVAILABLE',
+    message: error instanceof Error ? error.message : 'Schedule context is not available.',
+  };
 }
 
 function dateKey(value: Date) {
@@ -331,6 +419,73 @@ function compactSchedule(schedule: any) {
     teacherName: schedule.teacherName,
     href: schedule.sectionId ? `/sections/${schedule.sectionId}` : undefined,
   };
+}
+
+function computeFreeSlots(
+  schedules: Array<{ startTime: string; endTime: string; date?: string | null; sectionName?: string; courseName?: string }>,
+  date: string,
+) {
+  const dayStart = 7 * 60;
+  const dayEnd = 22 * 60;
+  const minimumSlotMinutes = 30;
+  const sorted = schedules
+    .filter((schedule) => !schedule.date || schedule.date === date)
+    .map((schedule) => ({
+      ...schedule,
+      startMinutes: timeToMinutes(schedule.startTime),
+      endMinutes: timeToMinutes(schedule.endTime),
+    }))
+    .filter((schedule) => Number.isFinite(schedule.startMinutes) && Number.isFinite(schedule.endMinutes))
+    .sort((a, b) => a.startMinutes - b.startMinutes);
+  const slots: Array<{
+    startTime: string;
+    endTime: string;
+    minutes: number;
+    fit: string;
+    after?: string;
+    before?: string;
+  }> = [];
+  let cursor = dayStart;
+  let previousLabel: string | undefined;
+
+  for (const schedule of sorted) {
+    if (schedule.startMinutes - cursor >= minimumSlotMinutes) {
+      slots.push({
+        startTime: minutesToTime(cursor),
+        endTime: minutesToTime(schedule.startMinutes),
+        minutes: schedule.startMinutes - cursor,
+        fit: studyFit(schedule.startMinutes - cursor),
+        after: previousLabel,
+        before: schedule.courseName ?? schedule.sectionName,
+      });
+    }
+    cursor = Math.max(cursor, schedule.endMinutes);
+    previousLabel = schedule.courseName ?? schedule.sectionName;
+  }
+
+  if (dayEnd - cursor >= minimumSlotMinutes) {
+    slots.push({
+      startTime: minutesToTime(cursor),
+      endTime: minutesToTime(dayEnd),
+      minutes: dayEnd - cursor,
+      fit: studyFit(dayEnd - cursor),
+      after: previousLabel,
+    });
+  }
+
+  return slots;
+}
+
+function minutesToTime(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function studyFit(minutes: number) {
+  if (minutes >= 120) return 'deep-study';
+  if (minutes >= 60) return 'focused-study';
+  return 'quick-review';
 }
 
 function actorForScopedServices(context: AIToolContext) {

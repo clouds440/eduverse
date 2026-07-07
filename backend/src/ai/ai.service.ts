@@ -36,6 +36,7 @@ export class AIService {
   }
 
   async *streamChat(user: User, dto: AIChatRequestDto): AsyncIterable<AIStreamEvent> {
+    yield { type: 'status', label: 'Thinking...' };
     const prepared = await this.prepareChat(user, dto);
     await this.conversationService.appendUserMessage(
       prepared.conversation.id,
@@ -47,6 +48,7 @@ export class AIService {
       conversationId: prepared.conversation.id,
       title: prepared.conversation.title,
     };
+    yield { type: 'status', label: 'Generating response...' };
 
     let lastOutput: AIProviderChatOutput | null = null;
     let content = '';
@@ -251,7 +253,7 @@ export class AIService {
         'Return only valid JSON. No markdown. No commentary.',
         'JSON shape: [{"label":"2 to 4 words","prompt":"a natural question the user can ask"}]',
         'Create exactly 3 useful, role-aware questions.',
-        'Only suggest questions answerable from available EduVerse backend tools: schedules, courses, sections, enrollment, academic cycles, attendance, grades, deadlines, evaluations, finance summaries, organization health, AI usage, docs, routes, mail/entity search, and visible performance profiles.',
+        'Only suggest questions answerable from available EduVerse backend tools: schedules, courses, sections, enrollment, academic cycles, calendar events, holidays, campus rooms/buildings, announcements, preference windows, attendance, grades, deadlines, evaluations, finance summaries, organization health, AI usage, docs, routes, mail/entity search, and visible performance profiles.',
         'Do not suggest actions that mutate data, send messages, create records, approve payments, edit settings, or require data outside the user permissions.',
       ].join('\n'),
       messages: [
@@ -288,31 +290,24 @@ export class AIService {
     const planningInput = this.buildProviderInput(user, dto, contextMessages);
     const plannedToolRequests = await this.providerService.planTools(planningInput).catch(() => []);
     const toolRequests = withEntityResolution(
-      plannedToolRequests.length
-      ? normalizePlannedTools(plannedToolRequests, dto.prompt)
-      : selectRelevantTools(dto.prompt, user.role ?? undefined),
+      mergeToolRequests([
+        ...selectRelevantTools(dto.prompt, user.role ?? undefined),
+        ...normalizePlannedTools(plannedToolRequests, dto.prompt),
+      ]),
       dto.prompt,
     );
-    const results: AIProviderMessage[] = [];
+    const results = await this.toolRegistry.runTools(toolRequests, toolContext);
 
-    for (const request of toolRequests) {
-      const result = await this.toolRegistry.runTool(
-        request.name,
-        request.input,
-        toolContext,
-      );
-      results.push({
-        role: 'tool',
-        name: request.name,
-        content: JSON.stringify({
-          tool: request.name,
-          input: request.input,
-          result,
-        }),
-      });
-    }
+    if (!results.length) return [];
 
-    return results;
+    return [{
+      role: 'tool',
+      name: 'eduverseToolResults',
+      content: JSON.stringify({
+        instruction: 'Each item below is a separate EduVerse tool result. Use the most specific successful result first. If an entity or tool result is ambiguous, ask one concise clarifying question.',
+        results,
+      }),
+    }];
   }
 
   private async finalizeProviderOutput(
@@ -398,6 +393,7 @@ interface SelectedToolRequest {
 function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest[] {
   const text = prompt.toLowerCase();
   const input = { search: prompt, limit: 8 };
+  const explicitDate = extractExplicitDate(prompt);
   const requests: SelectedToolRequest[] = [];
   const add = (name: string, toolInput: Record<string, unknown> = input) => {
     if (!requests.some((request) => request.name === name)) {
@@ -410,11 +406,18 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
     if (role === 'ORG_ADMIN') add('getAIUsageSummary', {});
   }
 
-  if (mentionsAny(text, ['today', 'tomorrow', 'week', 'schedule', 'class', 'teach next', 'study plan', 'planner'])) {
-    if (text.includes('tomorrow')) add('getMyTomorrowSchedule', {});
-    else if (mentionsAny(text, ['week', 'weekly'])) add('getMyWeeklySchedule', {});
-    else if (mentionsAny(text, ['next class', 'teach next', 'what do i teach next'])) add('getNextClass', {});
-    else add('getMyTodaySchedule', {});
+  if (mentionsAny(text, ['today', 'tomorrow', 'week', 'schedule', 'timetable', 'class', 'teach next', 'study plan', 'planner'])) {
+    const date = explicitDate
+      ?? (text.includes('tomorrow') ? relativeIsoDate(1) : undefined)
+      ?? (text.includes('today') ? relativeIsoDate(0) : undefined);
+    add('getScheduleContext', {
+      search: prompt,
+      limit: 30,
+      ...(date ? { date } : {}),
+      ...(!date && mentionsAny(text, ['week', 'weekly']) ? weekRangeInput() : {}),
+      includeLoad: mentionsAny(text, ['teacher', 'teach', 'load', 'workload', 'overloaded']),
+      includeBottlenecks: mentionsAny(text, ['bottleneck', 'overloaded', 'room', 'staffing']),
+    });
   }
 
   if (mentionsAny(text, ['deadline', 'assignment', 'quiz', 'exam', 'due'])) {
@@ -422,7 +425,8 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
   }
 
   if (mentionsAny(text, ['grading', 'grade', 'marks', 'pending'])) {
-    add(role === 'STUDENT' || role === 'GUARDIAN' ? 'getStudentPerformanceProfile' : 'getPendingGrading', input);
+    if (role === 'STUDENT' || role === 'GUARDIAN') add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
+    else add('getPendingGrading', input);
   }
 
   if (mentionsAny(text, ['enrollment', 'enrolled', 'highest enrollment', 'most enrolled', 'largest courses', 'popular courses'])) {
@@ -430,35 +434,57 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
   }
 
   if (mentionsAny(text, ['attendance', 'absent', 'late', 'risk'])) {
-    add(role === 'STUDENT' || role === 'GUARDIAN' ? 'getStudentPerformanceProfile' : 'getAttendanceRisk', input);
+    if (role === 'STUDENT' || role === 'GUARDIAN') add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
+    else add('getAttendanceRisk', input);
   }
 
-  if (mentionsAny(text, ['weakest', 'weak course', 'study plan', 'performing', 'performance', 'improve', 'improvement', 'need attention', 'struggling'])) {
-    add('searchAcademicEntities', input);
-    if (role === 'STUDENT' || role === 'GUARDIAN') add('getStudentPerformanceProfile', input);
+  if (mentionsAny(text, ['weakest', 'weak course', 'study plan', 'performing', 'performance', 'improve', 'improvement', 'need attention', 'struggling', 'review'])) {
+    if (role === 'STUDENT' || role === 'GUARDIAN') add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
     if (role === 'TEACHER') {
-      add('getTeacherPerformanceProfile', input);
+      add('getAcademicPerformanceProfile', { ...input, targetType: 'teacher' });
       add('getStudentsNeedingAttention', input);
     }
     if (role === 'ORG_ADMIN' || role === 'SUB_ADMIN' || role === 'ORG_MANAGER') {
-      if (mentionsAny(text, ['teacher', 'instructor', 'faculty'])) add('getTeacherPerformanceProfile', input);
-      if (mentionsAny(text, ['course', 'class', 'subject'])) add('getCoursePerformanceProfile', input);
-      if (mentionsAny(text, ['student', 'learner'])) add('getStudentPerformanceProfile', input);
-      if (mentionsAny(text, ['department'])) add('getDepartmentPerformanceProfile', input);
-      if (!mentionsAny(text, ['teacher', 'instructor', 'faculty', 'course', 'class', 'subject', 'student', 'learner', 'department'])) {
-        add('getOrganizationHealthProfile', input);
+      if (mentionsAny(text, ['teacher', 'instructor', 'faculty', 'manager', 'staff'])) add('getAcademicPerformanceProfile', { ...input, targetType: 'teacher' });
+      if (mentionsAny(text, ['course', 'class', 'subject'])) add('getAcademicPerformanceProfile', { ...input, targetType: 'course' });
+      if (mentionsAny(text, ['student', 'learner'])) add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
+      if (mentionsAny(text, ['department'])) add('getAcademicPerformanceProfile', { ...input, targetType: 'department' });
+      if (!mentionsAny(text, ['teacher', 'instructor', 'faculty', 'manager', 'staff', 'course', 'class', 'subject', 'student', 'learner', 'department'])) {
+        add('getAcademicPerformanceProfile', { ...input, targetType: 'organization' });
       }
     }
   }
 
-  if (mentionsAny(text, ['workload', 'overloaded', 'bottleneck', 'staffing', 'room'])) {
-    add('getTeacherScheduleLoad', input);
-    add('getScheduleBottlenecks', input);
-    if (role === 'ORG_ADMIN' || role === 'SUB_ADMIN' || role === 'ORG_MANAGER') add('getOrganizationHealthProfile', input);
+  if ((role === 'STUDENT' || role === 'GUARDIAN') && mentionsAny(text, ['study plan', 'study schedule', 'revision plan', 'improve them', 'weak courses'])) {
+    add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
+    add('getPendingDeadlines', { limit: 10, days: 21 });
+    if (explicitDate) add('getScheduleContext', { date: explicitDate, search: prompt, limit: 30 });
+  }
+
+  if (mentionsAny(text, ['workload', 'overloaded', 'bottleneck', 'staffing'])) {
+    add('getScheduleContext', { ...input, includeLoad: true, includeBottlenecks: true });
+    if (role === 'ORG_ADMIN' || role === 'SUB_ADMIN' || role === 'ORG_MANAGER') add('getAcademicPerformanceProfile', { ...input, targetType: 'organization' });
+  }
+
+  if (mentionsAny(text, ['calendar', 'event', 'holiday', 'closure', 'break', 'academic calendar', 'important date'])) {
+    add('getOperationsContext', { ...input, include: ['calendar'] });
+  }
+
+  if (mentionsAny(text, ['room', 'building', 'campus', 'location', 'where is', 'directions', 'capacity', 'lab', 'classroom'])) {
+    add('getOperationsContext', { ...input, include: ['campus'] });
+    if (mentionsAny(text, ['bottleneck', 'overbooked', 'occupied', 'availability', 'used', 'usage'])) add('getScheduleContext', { ...input, includeBottlenecks: true });
+  }
+
+  if (mentionsAny(text, ['announcement', 'notice', 'announcements', 'news', 'update'])) {
+    add('getOperationsContext', { ...input, include: ['announcements'] });
+  }
+
+  if (mentionsAny(text, ['poll', 'preference', 'course choice', 'section choice', 'selection window', 'choose course', 'choose section'])) {
+    add('getOperationsContext', { ...input, include: ['preferences'] });
   }
 
   if (mentionsAny(text, ['organization health', 'org health', 'academic activity', 'summary', 'trend', 'departments need attention'])) {
-    add('getOrganizationHealthProfile', input);
+    add('getAcademicPerformanceProfile', { ...input, targetType: 'organization' });
   }
 
   if (mentionsAny(text, ['where', 'open', 'navigate', 'page', 'screen'])) {
@@ -469,7 +495,7 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
     add('searchDocs', { search: prompt, limit: 5 });
   }
 
-  return requests.slice(0, 6);
+  return requests.slice(0, 8);
 }
 
 function withEntityResolution(
@@ -477,9 +503,9 @@ function withEntityResolution(
   prompt: string,
 ): SelectedToolRequest[] {
   const entities = entityKindsFromPrompt(prompt);
-  if (!entities.length) return requests.slice(0, 6);
+  if (!entities.length) return requests.slice(0, 8);
   if (requests.some((request) => request.name === 'resolveEduVerseEntities')) {
-    return requests.slice(0, 6);
+    return requests.slice(0, 8);
   }
 
   return [
@@ -488,7 +514,7 @@ function withEntityResolution(
       input: { search: prompt, entities, limit: 6 },
     },
     ...requests,
-  ].slice(0, 6);
+  ].slice(0, 8);
 }
 
 function entityKindsFromPrompt(prompt: string) {
@@ -502,7 +528,7 @@ function entityKindsFromPrompt(prompt: string) {
   if (mentionsAny(text, ['course', 'subject', 'class'])) add('course');
   if (mentionsAny(text, ['section', 'class'])) add('section');
   if (mentionsAny(text, ['student', 'learner', 'roll number', 'registration'])) add('student');
-  if (mentionsAny(text, ['teacher', 'faculty', 'instructor'])) add('teacher');
+  if (mentionsAny(text, ['teacher', 'faculty', 'instructor', 'manager', 'staff'])) add('teacher');
   if (mentionsAny(text, ['department', 'dept'])) add('department');
   if (mentionsAny(text, ['mail', 'message', 'thread', 'ticket'])) add('mail');
 
@@ -513,11 +539,24 @@ function mentionsAny(value: string, terms: string[]) {
   return terms.some((term) => value.includes(term));
 }
 
+function mergeToolRequests(requests: SelectedToolRequest[]): SelectedToolRequest[] {
+  const merged: SelectedToolRequest[] = [];
+  for (const request of requests) {
+    const input = {
+      ...(request.input ?? {}),
+    };
+    const key = `${request.name}:${JSON.stringify(input)}`;
+    if (merged.some((candidate) => `${candidate.name}:${JSON.stringify(candidate.input ?? {})}` === key)) continue;
+    merged.push({ name: request.name, input });
+  }
+  return merged.slice(0, 8);
+}
+
 function normalizePlannedTools(
   requests: AIProviderToolRequest[],
   prompt: string,
 ): SelectedToolRequest[] {
-  return requests.slice(0, 6).map((request) => ({
+  return requests.slice(0, 8).map((request) => ({
     name: request.name,
     input: {
       search: prompt,
@@ -525,6 +564,68 @@ function normalizePlannedTools(
       ...(request.input ?? {}),
     },
   }));
+}
+
+function relativeIsoDate(offsetDays: number, now = new Date()) {
+  const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+function weekRangeInput(now = new Date()) {
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + 6);
+  return {
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+  };
+}
+
+function extractExplicitDate(prompt: string, now = new Date()) {
+  const text = prompt.trim();
+  const iso = text.match(/\b(20\d{2})-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|3[01])\b/);
+  if (iso) return isoDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+
+  const monthNames = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december',
+  ];
+  const monthPattern = monthNames.join('|');
+  const daySuffix = '(?:st|nd|rd|th)?';
+  const dayMonth = new RegExp(`\\b([0-3]?\\d)${daySuffix}\\s+(?:of\\s+)?(${monthPattern})(?:\\s+(20\\d{2}))?\\b`, 'i');
+  const monthDay = new RegExp(`\\b(${monthPattern})\\s+([0-3]?\\d)${daySuffix}(?:,?\\s+(20\\d{2}))?\\b`, 'i');
+  const match = text.match(dayMonth) ?? text.match(monthDay);
+  if (!match) return null;
+
+  const monthFirst = monthNames.includes(match[1].toLowerCase());
+  const monthName = monthFirst ? match[1] : match[2];
+  const day = Number(monthFirst ? match[2] : match[1]);
+  const rawYear = monthFirst ? match[3] : match[3];
+  let year = rawYear ? Number(rawYear) : now.getUTCFullYear();
+  const month = monthNames.indexOf(monthName.toLowerCase()) + 1;
+  if (!isValidDatePart(year, month, day)) return null;
+
+  if (!rawYear) {
+    const candidate = new Date(Date.UTC(year, month - 1, day));
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    if (candidate.getTime() < today.getTime()) year += 1;
+  }
+
+  return isoDate(year, month, day);
+}
+
+function isValidDatePart(year: number, month: number, day: number) {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  const value = new Date(Date.UTC(year, month - 1, day));
+  return value.getUTCFullYear() === year
+    && value.getUTCMonth() === month - 1
+    && value.getUTCDate() === day;
+}
+
+function isoDate(year: number, month: number, day: number) {
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function estimateProviderCost(output: AIProviderChatOutput) {
@@ -540,7 +641,8 @@ function buildSystemPrompt(user: User) {
     'You are not a generic chatbot. Help users act inside EduVerse with concise, practical, markdown responses.',
     'Never claim access to data that was not provided by backend tools or conversation context.',
     'Respect existing EduVerse permissions. Personal AI subscriptions never expand data access.',
-    'Prefer backend tools for facts about schedules, courses, sections, attendance, grades, finance, evaluations, docs, routes, AI credits, and organization usage.',
+    'Prefer backend tools for facts about schedules, courses, sections, attendance, grades, finance, evaluations, docs, routes, AI credits, organization usage, calendar events, announcements, preference windows, rooms, buildings, and campus locations.',
+    'For compound requests, synthesize all relevant tool results into one coherent answer. Example: weak courses plus a dated study plan should combine performance data, deadlines, exact-day schedule, free slots, and course-specific improvement actions.',
     'When a prompt names or implies an EduVerse entity, use entity resolver results to identify the exact record before relying on other tools.',
     'If entity resolver results are ambiguous, ask one concise clarifying question instead of guessing.',
     'When tool results indicate failure, explain the failure plainly using the tool result code and message.',

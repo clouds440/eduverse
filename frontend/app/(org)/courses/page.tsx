@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { ApiError, Course, Department, Role } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -23,6 +24,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { TableActions } from '@/components/ui/TableActions';
 import { Textarea } from '@/components/ui/Textarea';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
@@ -75,7 +77,9 @@ export default function CoursesPage() {
     const [editFormData, setEditFormData] = useState({ name: '', code: '', description: '', creditHours: '3', departmentId: '' });
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingCourse, setDeletingCourse] = useState<Course | null>(null);
-    const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
+    const { data: departmentsData } = useSWR<{ data: Department[] }>(
+        token && editModalOpen ? ['departments', { limit: 1000, isActive: true }] as const : null
+    );
 
     const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const isTeacher = user?.role === Role.TEACHER;
@@ -161,7 +165,7 @@ export default function CoursesPage() {
         ...(departmentId ? [{
             key: 'departmentId',
             label: 'Department',
-            value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
+            value: 'Selected department',
             onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
         }] : []),
     ];
@@ -171,19 +175,15 @@ export default function CoursesPage() {
             {isAdmin && (
                 <div>
                     <Label className="mb-1 block text-xs font-bold uppercase tracking-widest text-muted-foreground">Department</Label>
-                    <CustomSelect
+                    <RemoteFilterSelect<Department>
+                        cacheKey="courses-department-filter"
                         value={departmentId}
                         onChange={(value) => updateQueryParams({ departmentId: value, page: 1 })}
                         icon={Building2}
-                        options={[
-                            { value: '', label: 'All Departments' },
-                            ...(departmentsData?.data?.map((department) => ({
-                                value: department.id,
-                                label: formatDepartmentLabel(department),
-                            })) || []),
-                        ]}
                         placeholder="All Departments"
-                        searchable
+                        allLabel="All Departments"
+                        selectedLabel="Selected department"
+                        loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'departments', search, isActive: true })}
                     />
                 </div>
             )}
@@ -452,5 +452,3 @@ export default function CoursesPage() {
         </PageShell>
     );
 }
-
-

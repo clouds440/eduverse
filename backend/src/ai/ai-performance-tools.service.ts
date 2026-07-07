@@ -29,6 +29,7 @@ const STAFF_ROLES = new Set<string>([Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MA
 
 interface PerformanceToolInput {
   search?: string;
+  targetType?: string;
   teacherId?: string;
   courseId?: string;
   sectionId?: string;
@@ -47,13 +48,18 @@ export class AIPerformanceToolsService implements OnModuleInit {
 
   onModuleInit() {
     this.register(
+      'getAcademicPerformanceProfile',
+      'Generic academic performance context tool. Accepts targetType student, teacher, course, department, or organization plus optional search/id fields. Returns the most complete permission-scoped performance, workload, attendance, evaluation, deadline, and recommendation profile available for that target.',
+      (input, context) => this.getAcademicPerformanceProfile(context, parseInput(input)),
+    );
+    this.register(
       'searchAcademicEntities',
-      'Search visible teachers, students, courses, sections, and departments for name-based Copilot follow-up questions.',
+      'Search visible teachers/managers/staff, students, courses, sections, and departments for name-based Copilot follow-up questions.',
       (input, context) => this.searchAcademicEntities(context, parseInput(input)),
     );
     this.register(
       'getTeacherPerformanceProfile',
-      'Return a compact, permission-scoped teacher performance profile with workload, grades, attendance, evaluations, risks, and recommendations.',
+      'Return a compact, permission-scoped teacher/manager/staff performance profile with workload, grades, attendance, evaluations, risks, schedules, and recommendations. Use this directly for teacher or manager review questions.',
       (input, context) => this.getTeacherPerformanceProfile(context, parseInput(input)),
     );
     this.register(
@@ -89,6 +95,19 @@ export class AIPerformanceToolsService implements OnModuleInit {
     run: (input: unknown, context: AIToolContext) => Promise<AIToolResult<unknown>>,
   ) {
     this.toolRegistry.register({ name, description, run });
+  }
+
+  private async getAcademicPerformanceProfile(
+    context: AIToolContext,
+    input: PerformanceToolInput,
+  ): Promise<AIToolResult<unknown>> {
+    const targetType = inferPerformanceTarget(context, input);
+    if (targetType === 'student') return this.getStudentPerformanceProfile(context, input);
+    if (targetType === 'teacher') return this.getTeacherPerformanceProfile(context, input);
+    if (targetType === 'course') return this.getCoursePerformanceProfile(context, input);
+    if (targetType === 'department') return this.getDepartmentPerformanceProfile(context, input);
+    if (targetType === 'organization') return this.getOrganizationHealthProfile(context, input);
+    return notFound('Performance target could not be inferred. Provide targetType student, teacher, course, department, or organization.');
   }
 
   private async searchAcademicEntities(
@@ -923,6 +942,7 @@ function parseInput(input: unknown): PerformanceToolInput {
   const value = input && typeof input === 'object' ? input as Record<string, unknown> : {};
   return {
     search: stringValue(value.search),
+    targetType: stringValue(value.targetType),
     teacherId: stringValue(value.teacherId),
     courseId: stringValue(value.courseId),
     sectionId: stringValue(value.sectionId),
@@ -933,6 +953,25 @@ function parseInput(input: unknown): PerformanceToolInput {
   };
 }
 
+function inferPerformanceTarget(context: AIToolContext, input: PerformanceToolInput) {
+  const target = input.targetType?.toLowerCase();
+  if (['student', 'teacher', 'course', 'department', 'organization'].includes(target ?? '')) return target;
+  if (input.studentId) return 'student';
+  if (input.teacherId) return 'teacher';
+  if (input.courseId || input.sectionId) return 'course';
+  if (input.departmentId) return 'department';
+
+  const text = (input.search ?? '').toLowerCase();
+  if (mentionsAny(text, ['student', 'learner', 'weakest', 'weak course', 'study plan'])) return 'student';
+  if (mentionsAny(text, ['teacher', 'faculty', 'instructor', 'manager', 'staff'])) return 'teacher';
+  if (mentionsAny(text, ['course', 'subject', 'class', 'section'])) return 'course';
+  if (mentionsAny(text, ['department', 'dept'])) return 'department';
+  if (context.role === Role.STUDENT || context.role === Role.GUARDIAN) return 'student';
+  if (context.role === Role.TEACHER) return 'teacher';
+  if (OVERSIGHT_ROLES.has(context.role ?? '')) return 'organization';
+  return undefined;
+}
+
 function stringValue(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
@@ -941,6 +980,10 @@ function numberValue(value: unknown) {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') return Number(value);
   return undefined;
+}
+
+function mentionsAny(value: string, terms: string[]) {
+  return terms.some((term) => value.includes(term));
 }
 
 function permissionDenied<T>(message: string): AIToolResult<T> {

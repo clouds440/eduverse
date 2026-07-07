@@ -165,8 +165,8 @@ function formatAIQuantity(value?: number | null) {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value ?? 0);
 }
 
-function formatAICost(value?: number | null) {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value ?? 0);
+function formatAICost(value?: number | null, currency = 'USD') {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value ?? 0);
 }
 
 function getAIUsagePercent(used: number, total: number) {
@@ -579,6 +579,7 @@ export default function SettingsPage() {
     const activeAIPlanOption = aiSettings?.plans.find((plan) => plan.plan === activeAIPlan);
     const aiUsagePercent = aiBalance ? getAIUsagePercent(aiBalance.usedCredits, aiBalance.monthlyCredits) : 0;
     const maxAITrendCredits = Math.max(1, ...(aiUsage?.trends ?? []).map((point) => point.creditsUsed));
+    const aiCurrency = formData.currency || orgData?.currency || 'USD';
 
     if (loading || redirecting) {
         return (
@@ -1021,7 +1022,7 @@ export default function SettingsPage() {
                                                             <p className="min-w-0 truncate text-sm font-black text-foreground">{row.name}</p>
                                                             <Badge variant="secondary" size="sm">{formatAIQuantity(row.creditsUsed)}</Badge>
                                                         </div>
-                                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">{AI_ROLE_LABELS[row.role as Role] ?? row.role ?? 'User'} · {formatAICost(row.estimatedCost)}</p>
+                                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">{AI_ROLE_LABELS[row.role as Role] ?? row.role ?? 'User'} · {formatAICost(row.estimatedCost, aiCurrency)}</p>
                                                     </div>
                                                 ))}
                                             </div>

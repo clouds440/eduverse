@@ -51,10 +51,11 @@ export function AIMessageList({ messages }: AIMessageListProps) {
                 )}
               >
                 {message.status === "sending" && !message.content ? (
-                  <div className="flex items-center gap-2 py-1.5">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-primary delay-100" />
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-primary delay-200" />
+                  <div className="flex min-w-0 items-center gap-2 py-1.5">
+                    <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
+                    <span className="truncate text-xs font-black text-muted-foreground">
+                      {message.statusLabel ?? "Thinking..."}
+                    </span>
                   </div>
                 ) : isUser ? (
                   <p className="whitespace-pre-wrap text-sm font-semibold leading-6">

@@ -5,9 +5,11 @@ import useSWR from 'swr';
 import { CalendarDays, ClipboardList, Eye, EyeOff, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { EvaluationType } from '@/types';
+import type { Course, Section, Teacher } from '@/types';
 import type { Evaluation, EvaluationWindow, PaginatedResponse } from '@/types';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { PageHeader, PageShell, PageTabs, ResourcePanel } from '@/components/ui/PageShell';
@@ -20,6 +22,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { StarRatingInput } from '@/components/evaluations/StarRatingInput';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { Label } from '@/components/ui/Label';
 
@@ -96,26 +99,11 @@ export default function EvaluationsManagementPage() {
         ([, t]) => api.org.getEvaluationWindows(t as string),
     );
     const { data: cycles } = useSWR(token ? ['cycles-for-evaluation-windows', token] as const : null, ([, t]) => api.academicCycles.getCycles(t as string, { limit: 100 }));
-    const { data: courses } = useSWR(token ? ['courses-for-evaluations', token] as const : null, ([, t]) => api.org.getCourses(t as string, { limit: 100 }));
-    const { data: sections } = useSWR(token ? ['sections-for-evaluations', token] as const : null, ([, t]) => api.org.getSections(t as string, { limit: 100 }));
-    const { data: teachers } = useSWR(token ? ['teachers-for-evaluations', token] as const : null, ([, t]) => api.org.getTeachers(t as string, { limit: 100 }));
 
     const cycleOptions = useMemo(() => [
         { value: '', label: 'All cycles' },
         ...(cycles?.data || []).map((cycle) => ({ value: cycle.id, label: cycle.name })),
     ], [cycles?.data]);
-    const courseOptions = useMemo(() => [
-        { value: '', label: 'All courses' },
-        ...(courses?.data || []).map((course) => ({ value: course.id, label: course.name })),
-    ], [courses?.data]);
-    const sectionOptions = useMemo(() => [
-        { value: '', label: 'All sections' },
-        ...(sections?.data || []).map((section) => ({ value: section.id, label: section.name })),
-    ], [sections?.data]);
-    const teacherOptions = useMemo(() => [
-        { value: '', label: 'All teachers' },
-        ...(teachers?.data || []).map((teacher) => ({ value: teacher.id, label: teacher.user?.name || teacher.user?.email || 'Teacher' })),
-    ], [teachers?.data]);
 
     const handleTabChange = (nextTab: Tab) => {
         updateQueryParams({ tab: nextTab === 'evaluations' ? undefined : nextTab });
@@ -135,13 +123,13 @@ export default function EvaluationsManagementPage() {
     const activeFilters = useMemo<ActiveFilter[]>(() => [
         ...(type ? [{ key: 'type', label: 'Type', value: typeOptions.find((option) => option.value === type)?.label || type, onRemove: () => setType('') }] : []),
         ...(academicCycleId ? [{ key: 'academicCycleId', label: 'Cycle', value: cycleOptions.find((option) => option.value === academicCycleId)?.label || 'Selected cycle', onRemove: () => setAcademicCycleId('') }] : []),
-        ...(courseId ? [{ key: 'courseId', label: 'Course', value: courseOptions.find((option) => option.value === courseId)?.label || 'Selected course', onRemove: () => setCourseId('') }] : []),
-        ...(sectionId ? [{ key: 'sectionId', label: 'Section', value: sectionOptions.find((option) => option.value === sectionId)?.label || 'Selected section', onRemove: () => setSectionId('') }] : []),
-        ...(teacherId ? [{ key: 'teacherId', label: 'Teacher', value: teacherOptions.find((option) => option.value === teacherId)?.label || 'Selected teacher', onRemove: () => setTeacherId('') }] : []),
+        ...(courseId ? [{ key: 'courseId', label: 'Course', value: 'Selected course', onRemove: () => setCourseId('') }] : []),
+        ...(sectionId ? [{ key: 'sectionId', label: 'Section', value: 'Selected section', onRemove: () => setSectionId('') }] : []),
+        ...(teacherId ? [{ key: 'teacherId', label: 'Teacher', value: 'Selected teacher', onRemove: () => setTeacherId('') }] : []),
         ...(rating ? [{ key: 'rating', label: 'Rating', value: ratingOptions.find((option) => option.value === rating)?.label || `${rating} stars`, onRemove: () => setRating('') }] : []),
         ...(hasFeedback ? [{ key: 'hasFeedback', label: 'Feedback', value: feedbackOptions.find((option) => option.value === hasFeedback)?.label || hasFeedback, onRemove: () => setHasFeedback('') }] : []),
         ...(isHidden ? [{ key: 'isHidden', label: 'Visibility', value: visibilityOptions.find((option) => option.value === isHidden)?.label || isHidden, onRemove: () => setIsHidden('') }] : []),
-    ], [academicCycleId, courseId, courseOptions, cycleOptions, hasFeedback, isHidden, rating, sectionId, sectionOptions, teacherId, teacherOptions, type]);
+    ], [academicCycleId, courseId, cycleOptions, hasFeedback, isHidden, rating, sectionId, teacherId, type]);
 
     const evaluationControls = useMemo(() => (
         <PageControls
@@ -162,15 +150,39 @@ export default function EvaluationsManagementPage() {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Course</Label>
-                        <CustomSelect value={courseId} onChange={setCourseId} options={courseOptions} searchable />
+                        <RemoteFilterSelect<Course>
+                            cacheKey="evaluations-course-filter"
+                            value={courseId}
+                            onChange={setCourseId}
+                            placeholder="All courses"
+                            allLabel="All courses"
+                            selectedLabel="Selected course"
+                            loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'courses', search })}
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Section</Label>
-                        <CustomSelect value={sectionId} onChange={setSectionId} options={sectionOptions} searchable />
+                        <RemoteFilterSelect<Section>
+                            cacheKey="evaluations-section-filter"
+                            value={sectionId}
+                            onChange={setSectionId}
+                            placeholder="All sections"
+                            allLabel="All sections"
+                            selectedLabel="Selected section"
+                            loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'sections', search })}
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Teacher</Label>
-                        <CustomSelect value={teacherId} onChange={setTeacherId} options={teacherOptions} searchable />
+                        <RemoteFilterSelect<Teacher>
+                            cacheKey="evaluations-teacher-filter"
+                            value={teacherId}
+                            onChange={setTeacherId}
+                            placeholder="All teachers"
+                            allLabel="All teachers"
+                            selectedLabel="Selected teacher"
+                            loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'teachers', search })}
+                        />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Rating</Label>
@@ -187,7 +199,7 @@ export default function EvaluationsManagementPage() {
                 </FilterDrawerGrid>
             )}
         />
-    ), [academicCycleId, activeFilters, courseId, courseOptions, cycleOptions, hasFeedback, isHidden, rating, sectionId, sectionOptions, teacherId, teacherOptions, type]);
+    ), [academicCycleId, activeFilters, courseId, cycleOptions, hasFeedback, isHidden, rating, sectionId, teacherId, token, type]);
 
     const windowControls = useMemo(() => (
         <PageControls

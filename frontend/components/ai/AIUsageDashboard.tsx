@@ -1,5 +1,8 @@
+'use client';
+
 import { BarChart3, Coins, Gauge, Sparkles, TrendingUp, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { useGlobal } from '@/context/GlobalContext';
 import type {
     AICreditBalance,
     AIFeatureUsageSummary,
@@ -27,8 +30,8 @@ function formatQuantity(value?: number | null) {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value ?? 0);
 }
 
-function formatCost(value?: number | null) {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value ?? 0);
+function formatCost(value?: number | null, currency = 'USD') {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value ?? 0);
 }
 
 function usagePercent(used: number, total: number) {
@@ -47,13 +50,15 @@ export function AIUsageDashboard({
     featureUsage = [],
     trends = [],
 }: AIUsageDashboardProps) {
+    const { state } = useGlobal();
+    const currency = state.stats.orgData?.currency || 'USD';
     const percent = usagePercent(usage.usedCredits, usage.monthlyCredits);
     const maxTrendCredits = Math.max(1, ...trends.map((point) => point.creditsUsed));
     const statItems = [
         { label: 'Plan', value: subscription.plan, detail: subscription.status, icon: Sparkles },
         { label: 'Credits used', value: formatQuantity(usage.usedCredits), detail: `${percent}% of monthly credits`, icon: Gauge },
         { label: 'Credits left', value: formatQuantity(usage.remainingCredits), detail: `${formatQuantity(usage.monthlyCredits)} monthly credits`, icon: Coins },
-        { label: 'Estimated cost', value: formatCost(estimatedCost), detail: 'Provider estimate this period', icon: TrendingUp },
+        { label: 'Estimated cost', value: formatCost(estimatedCost, currency), detail: 'Provider estimate this period', icon: TrendingUp },
     ];
 
     return (
@@ -148,7 +153,7 @@ export function AIUsageDashboard({
                                 <p className="min-w-0 truncate text-sm font-black text-foreground">{row.name}</p>
                                 <Badge variant="secondary" size="sm">{formatQuantity(row.creditsUsed)}</Badge>
                             </div>
-                            <p className="mt-1 text-xs font-semibold text-muted-foreground">{getRoleLabel(row.role as Role)} · {formatCost(row.estimatedCost)}</p>
+                            <p className="mt-1 text-xs font-semibold text-muted-foreground">{getRoleLabel(row.role as Role)} · {formatCost(row.estimatedCost, currency)}</p>
                         </div>
                     )) : roleUsage.length > 0 ? roleUsage.map((row) => (
                         <div key={row.role ?? 'unknown'} className="rounded-md border border-border/70 bg-card p-3">
@@ -156,7 +161,7 @@ export function AIUsageDashboard({
                                 <p className="min-w-0 truncate text-sm font-black text-foreground">{getRoleLabel(row.role as Role)}</p>
                                 <Badge variant="secondary" size="sm">{formatQuantity(row.creditsUsed)}</Badge>
                             </div>
-                            <p className="mt-1 text-xs font-semibold text-muted-foreground">{formatCost(row.estimatedCost)} estimated</p>
+                            <p className="mt-1 text-xs font-semibold text-muted-foreground">{formatCost(row.estimatedCost, currency)} estimated</p>
                         </div>
                     )) : (
                         <p className="rounded-md border border-border/70 bg-card p-3 text-sm font-semibold text-muted-foreground">Usage distribution appears after Copilot activity is recorded.</p>

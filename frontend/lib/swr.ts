@@ -18,6 +18,7 @@ export type CacheKeyPrefix =
     | 'guardian'
     | 'students'
     | 'sections'
+    | 'sections-for-schedules'
     | 'courses'
     | 'assessment-detail'
     | 'timetable'

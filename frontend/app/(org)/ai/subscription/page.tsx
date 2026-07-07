@@ -77,7 +77,7 @@ function PlanGrid({
                             px="px-3"
                             py="py-2.5"
                         >
-                            {activePlan === plan.plan ? 'Current package' : 'Choose package'}
+                            {activePlan === plan.plan ? 'Current plan' : 'Choose plan'}
                         </Button>
                     </div>
                 ))}
@@ -159,7 +159,7 @@ export default function AISubscriptionPage() {
         <PageShell className="gap-6 overflow-y-auto pb-8 custom-scrollbar">
             <PageHeader
                 title="AI Subscription"
-                description="Choose and manage EduVerse AI Copilot packages. Usage and org settings are separate."
+                description="Choose and manage EduVerse AI Copilot plans. Usage and org settings are separate."
                 icon={Sparkles}
                 meta={<Badge variant="purple" size="sm" icon={Sparkles}>Premium addon</Badge>}
                 actions={(
@@ -189,7 +189,7 @@ export default function AISubscriptionPage() {
                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-card p-4 shadow-sm">
                             <div className="min-w-0">
                                 <p className="text-sm font-black text-foreground">Organization subscription</p>
-                                <p className="mt-1 text-xs font-semibold text-muted-foreground">Current package: {orgSettings.subscription.plan} - {orgSettings.subscription.status}</p>
+                                <p className="mt-1 text-xs font-semibold text-muted-foreground">Current plan: {orgSettings.subscription.plan} - {orgSettings.subscription.status}</p>
                             </div>
                             {orgSettings.subscription.lemonSqueezySubscriptionId && (
                                 <Button type="button" variant="secondary" icon={ExternalLink} loadingId="ai-org-portal" onClick={() => openPortal(AISubscriptionOwnerType.ORGANIZATION)} className="text-xs" px="px-3" py="py-2">
@@ -198,8 +198,8 @@ export default function AISubscriptionPage() {
                             )}
                         </div>
                         <PlanGrid
-                            title="Organization AI Packages"
-                            subtitle="Org packages fund Copilot for enabled roles and use organization credits first."
+                            title="Organization AI Plans"
+                            subtitle="Org plans fund Copilot for enabled roles and use organization credits first."
                             plans={orgSettings.plans}
                             activePlan={orgSettings.subscription.plan}
                             loadingPrefix="ai-org-checkout"
@@ -213,7 +213,7 @@ export default function AISubscriptionPage() {
                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-card p-4 shadow-sm">
                             <div className="min-w-0">
                                 <p className="text-sm font-black text-foreground">Personal subscription</p>
-                                <p className="mt-1 text-xs font-semibold text-muted-foreground">Current package: {personalSettings.subscription.plan} - {personalSettings.subscription.status}</p>
+                                <p className="mt-1 text-xs font-semibold text-muted-foreground">Current plan: {personalSettings.subscription.plan} - {personalSettings.subscription.status}</p>
                             </div>
                             {personalSettings.subscription.lemonSqueezySubscriptionId && (
                                 <Button type="button" variant="secondary" icon={ExternalLink} loadingId="ai-personal-portal" onClick={() => openPortal(AISubscriptionOwnerType.USER)} className="text-xs" px="px-3" py="py-2">
@@ -222,7 +222,7 @@ export default function AISubscriptionPage() {
                             )}
                         </div>
                         <PlanGrid
-                            title="Personal AI Packages"
+                            title="Personal AI Plans"
                             subtitle="Personal credits unlock Copilot for you only. They do not change what data you are allowed to access."
                             plans={plans}
                             activePlan={personalSettings.subscription.plan}

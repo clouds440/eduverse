@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { BookOpen, Building2, CalendarDays, ChevronRight, Clock, GraduationCap, Layers, MapPin, Users } from 'lucide-react';
-import { Section, SectionSchedule, ScheduleType } from '@/types';
+import { BookOpen, Building2, CalendarDays, ChevronRight, Clock, FileUp, GraduationCap, Layers, MapPin, Users } from 'lucide-react';
+import { Role, Section, SectionSchedule, ScheduleType } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
@@ -16,9 +18,11 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { DocsLink } from '@/components/ui/DocsLink';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { fuzzySearchScore } from '@/lib/fuzzySearch';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { formatCourseSectionLabel, formatRoomLabel, getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { CsvImportModal } from '@/components/imports/CsvImportModal';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SCHEDULE_STATUS_OPTIONS = [
@@ -62,11 +66,6 @@ function ScheduleSkeleton() {
     );
 }
 
-function addOption(map: Map<string, string>, value?: string | null, label?: string | null) {
-    if (!value || !label || map.has(value)) return;
-    map.set(value, label);
-}
-
 function getScheduleRoomKey(schedule: SectionSchedule) {
     if (schedule.roomRef?.id) return `room:${schedule.roomRef.id}`;
     if (schedule.roomId) return `room:${schedule.roomId}`;
@@ -100,6 +99,12 @@ function getRoomKeysForSection(section: Section) {
         if (scheduleRoomKey) keys.add(scheduleRoomKey);
     });
     return keys;
+}
+
+function sectionMatchesRoomFilter(section: Section, roomFilter: string) {
+    if (!roomFilter) return true;
+    const keys = getRoomKeysForSection(section);
+    return keys.has(roomFilter) || keys.has(`room:${roomFilter}`);
 }
 
 function SectionScheduleCard({ section }: { section: Section }) {
@@ -208,8 +213,9 @@ function SectionScheduleCard({ section }: { section: Section }) {
 }
 
 export default function SchedulesPage() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const { getStringParam, updateQueryParams } = useUrlQueryState();
+    const [importOpen, setImportOpen] = useState(false);
 
     const searchTerm = getStringParam('search', '');
     const dayFilter = getStringParam('day', 'ALL');
@@ -219,43 +225,11 @@ export default function SchedulesPage() {
     const teacherId = getStringParam('teacherId', '');
     const roomKey = getStringParam('room', '');
     const scheduleStatus = (getStringParam('status', 'ALL') as ScheduleStatusFilter);
+    const canImportSchedules = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
     const sectionsKey = token ? ['sections-for-schedules', { limit: 100 }] as const : null;
     const { data: sectionsData, isLoading, error, mutate } = useSWR<{ data: Section[] }>(sectionsKey);
     const sections = useMemo(() => sectionsData?.data || [], [sectionsData?.data]);
-
-    const filterOptions = useMemo(() => {
-        const courses = new Map<string, string>();
-        const departments = new Map<string, string>();
-        const cohorts = new Map<string, string>();
-        const teachers = new Map<string, string>();
-        const rooms = new Map<string, string>();
-
-        sections.forEach((section) => {
-            addOption(courses, section.course?.id, section.course?.name);
-            addOption(departments, section.course?.department?.id, section.course?.department?.name || section.course?.department?.code);
-            addOption(cohorts, section.cohort?.id, section.cohort?.name);
-            section.teachers?.forEach((teacher) => {
-                addOption(teachers, teacher.id, teacher.user?.name || teacher.user?.email || teacher.subject || 'Unnamed teacher');
-            });
-
-            const sectionRoomKey = getSectionRoomKey(section);
-            addOption(rooms, sectionRoomKey, getSectionRoomLabel(section));
-            section.schedules?.forEach((schedule) => {
-                addOption(rooms, getScheduleRoomKey(schedule), getScheduleRoomLabel(schedule));
-            });
-        });
-
-        const sortByLabel = ([, a]: [string, string], [, b]: [string, string]) => a.localeCompare(b);
-
-        return {
-            courses: Array.from(courses.entries()).sort(sortByLabel).map(([value, label]) => ({ value, label })),
-            departments: Array.from(departments.entries()).sort(sortByLabel).map(([value, label]) => ({ value, label })),
-            cohorts: Array.from(cohorts.entries()).sort(sortByLabel).map(([value, label]) => ({ value, label })),
-            teachers: Array.from(teachers.entries()).sort(sortByLabel).map(([value, label]) => ({ value, label })),
-            rooms: Array.from(rooms.entries()).sort(sortByLabel).map(([value, label]) => ({ value, label })),
-        };
-    }, [sections]);
 
     const filteredSections = useMemo(() => {
         const term = searchTerm.trim();
@@ -282,7 +256,7 @@ export default function SchedulesPage() {
             (!departmentId || section.course?.department?.id === departmentId) &&
             (!cohortId || section.cohort?.id === cohortId) &&
             (!teacherId || section.teachers?.some((teacher) => teacher.id === teacherId)) &&
-            (!roomKey || getRoomKeysForSection(section).has(roomKey)) &&
+            sectionMatchesRoomFilter(section, roomKey) &&
             (scheduleStatus === 'ALL' ||
                 (scheduleStatus === 'SCHEDULED' && Boolean(section.schedules?.length)) ||
                 (scheduleStatus === 'UNSCHEDULED' && !section.schedules?.length)) &&
@@ -293,11 +267,11 @@ export default function SchedulesPage() {
     const activeFilters: ActiveFilter[] = [
         ...(searchTerm ? [{ key: 'search', label: 'Search', value: searchTerm, onRemove: () => updateQueryParams({ search: undefined }) }] : []),
         ...(dayFilter !== 'ALL' ? [{ key: 'day', label: 'Day', value: DAY_NAMES[Number(dayFilter)] || 'Selected day', onRemove: () => updateQueryParams({ day: undefined }) }] : []),
-        ...(courseId ? [{ key: 'courseId', label: 'Course', value: filterOptions.courses.find((course) => course.value === courseId)?.label || 'Selected course', onRemove: () => updateQueryParams({ courseId: undefined }) }] : []),
-        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: filterOptions.departments.find((department) => department.value === departmentId)?.label || 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined }) }] : []),
-        ...(cohortId ? [{ key: 'cohortId', label: 'Cohort', value: filterOptions.cohorts.find((cohort) => cohort.value === cohortId)?.label || 'Selected cohort', onRemove: () => updateQueryParams({ cohortId: undefined }) }] : []),
-        ...(teacherId ? [{ key: 'teacherId', label: 'Teacher', value: filterOptions.teachers.find((teacher) => teacher.value === teacherId)?.label || 'Selected teacher', onRemove: () => updateQueryParams({ teacherId: undefined }) }] : []),
-        ...(roomKey ? [{ key: 'room', label: 'Room', value: filterOptions.rooms.find((room) => room.value === roomKey)?.label || 'Selected room', onRemove: () => updateQueryParams({ room: undefined }) }] : []),
+        ...(courseId ? [{ key: 'courseId', label: 'Course', value: 'Selected course', onRemove: () => updateQueryParams({ courseId: undefined }) }] : []),
+        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined }) }] : []),
+        ...(cohortId ? [{ key: 'cohortId', label: 'Cohort', value: 'Selected cohort', onRemove: () => updateQueryParams({ cohortId: undefined }) }] : []),
+        ...(teacherId ? [{ key: 'teacherId', label: 'Teacher', value: 'Selected teacher', onRemove: () => updateQueryParams({ teacherId: undefined }) }] : []),
+        ...(roomKey ? [{ key: 'room', label: 'Room', value: 'Selected room', onRemove: () => updateQueryParams({ room: undefined }) }] : []),
         ...(scheduleStatus !== 'ALL' ? [{ key: 'status', label: 'Status', value: SCHEDULE_STATUS_OPTIONS.find((option) => option.value === scheduleStatus)?.label || 'Selected status', onRemove: () => updateQueryParams({ status: undefined }) }] : []),
     ];
 
@@ -315,35 +289,55 @@ export default function SchedulesPage() {
                     ...DAY_NAMES.map((label, day) => ({ value: String(day), label })),
                 ]}
             />
-            <CustomSelect
+            <RemoteFilterSelect
+                cacheKey="schedules-course-filter"
                 value={courseId}
                 onChange={(value) => updateQueryParams({ courseId: value || undefined })}
-                options={[{ value: '', label: 'All courses', icon: BookOpen }, ...filterOptions.courses]}
-                searchable
+                placeholder="All courses"
+                allLabel="All courses"
+                icon={BookOpen}
+                selectedLabel="Selected course"
+                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'courses', search })}
             />
-            <CustomSelect
+            <RemoteFilterSelect
+                cacheKey="schedules-department-filter"
                 value={departmentId}
                 onChange={(value) => updateQueryParams({ departmentId: value || undefined })}
-                options={[{ value: '', label: 'All departments', icon: Layers }, ...filterOptions.departments]}
-                searchable
+                placeholder="All departments"
+                allLabel="All departments"
+                icon={Layers}
+                selectedLabel="Selected department"
+                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'departments', search, isActive: true })}
             />
-            <CustomSelect
+            <RemoteFilterSelect
+                cacheKey="schedules-cohort-filter"
                 value={cohortId}
                 onChange={(value) => updateQueryParams({ cohortId: value || undefined })}
-                options={[{ value: '', label: 'All cohorts', icon: GraduationCap }, ...filterOptions.cohorts]}
-                searchable
+                placeholder="All cohorts"
+                allLabel="All cohorts"
+                icon={GraduationCap}
+                selectedLabel="Selected cohort"
+                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'cohorts', search })}
             />
-            <CustomSelect
+            <RemoteFilterSelect
+                cacheKey="schedules-teacher-filter"
                 value={teacherId}
                 onChange={(value) => updateQueryParams({ teacherId: value || undefined })}
-                options={[{ value: '', label: 'All teachers', icon: Users }, ...filterOptions.teachers]}
-                searchable
+                placeholder="All teachers"
+                allLabel="All teachers"
+                icon={Users}
+                selectedLabel="Selected teacher"
+                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'teachers', search })}
             />
-            <CustomSelect
+            <RemoteFilterSelect
+                cacheKey="schedules-room-filter"
                 value={roomKey}
                 onChange={(value) => updateQueryParams({ room: value || undefined })}
-                options={[{ value: '', label: 'All rooms', icon: Building2 }, ...filterOptions.rooms]}
-                searchable
+                placeholder="All rooms"
+                allLabel="All rooms"
+                icon={Building2}
+                selectedLabel="Selected room"
+                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'rooms', search, isActive: true })}
             />
             <CustomSelect<ScheduleStatusFilter>
                 value={scheduleStatus}
@@ -379,9 +373,16 @@ export default function SchedulesPage() {
                             />
                         )}
                         actions={(
-                            <div className="flex min-h-10 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-3 text-xs font-black text-muted-foreground">
-                                <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                                <span>{filteredSections.length} sections - {visibleSlotCount} slots</span>
+                            <div className="flex items-center gap-2">
+                                {canImportSchedules && (
+                                    <Button type="button" variant="secondary" icon={FileUp} onClick={() => setImportOpen(true)}>
+                                        Import CSV
+                                    </Button>
+                                )}
+                                <div className="flex min-h-10 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-3 text-xs font-black text-muted-foreground">
+                                    <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                                    <span>{filteredSections.length} sections - {visibleSlotCount} slots</span>
+                                </div>
                             </div>
                         )}
                     />
@@ -421,6 +422,13 @@ export default function SchedulesPage() {
                     </div>
                 </ResourcePanel>
             )}
+            <CsvImportModal
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                entity="schedules"
+                title="Schedules"
+                cachePrefix={['sections-for-schedules', 'schedules', 'timetable']}
+            />
         </PageShell>
     );
 }

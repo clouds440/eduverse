@@ -7,6 +7,7 @@ import { Building2, FileUp, Plus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useGlobal } from "@/context/GlobalContext";
 import { api } from "@/lib/api";
+import { searchFilterLookup } from "@/lib/filterLookups";
 import {
   formatBuildingLabel,
   formatDepartmentLabel,
@@ -25,6 +26,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CustomMultiSelect } from "@/components/ui/CustomMultiSelect";
 import { CustomSelect } from "@/components/ui/CustomSelect";
+import { RemoteFilterSelect } from "@/components/ui/RemoteFilterSelect";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
@@ -101,7 +103,7 @@ export default function BuildingsTab() {
     token ? (["buildings", params] as const) : null,
   );
   const { data: departmentsData } = useSWR<PaginatedResponse<Department>>(
-    token
+    token && modalOpen
       ? ([
           "departments",
           { limit: 500, sortBy: "name", sortOrder: "asc" },
@@ -266,10 +268,7 @@ export default function BuildingsTab() {
             {
               key: "departmentId",
               label: "Department",
-              value:
-                departmentsData?.data?.find(
-                  (department) => department.id === departmentId,
-                )?.name || "Selected department",
+              value: "Selected department",
               onRemove: () =>
                 updateQueryParams({ departmentId: undefined, page: 1 }),
             },
@@ -278,7 +277,6 @@ export default function BuildingsTab() {
     ],
     [
       departmentId,
-      departmentsData?.data,
       searchTerm,
       status,
       updateQueryParams,
@@ -336,17 +334,23 @@ export default function BuildingsTab() {
               <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Department
               </Label>
-              <CustomSelect
-                options={[
-                  { label: "All Departments", value: "" },
-                  ...departmentOptions,
-                ]}
+              <RemoteFilterSelect
+                cacheKey="buildings-department-filter"
                 value={departmentId}
                 onChange={(value) =>
                   updateQueryParams({ departmentId: value, page: 1 })
                 }
                 placeholder="All Departments"
-                searchable
+                allLabel="All Departments"
+                selectedLabel="Selected department"
+                loadOptions={(search) =>
+                  searchFilterLookup({
+                    token: token!,
+                    entity: "departments",
+                    search,
+                    isActive: true,
+                  })
+                }
               />
             </div>
           </FilterDrawerGrid>
@@ -356,10 +360,10 @@ export default function BuildingsTab() {
     [
       activeFilters,
       departmentId,
-      departmentOptions,
       isAdmin,
       searchTerm,
       status,
+      token,
       updateQueryParams,
     ],
   );

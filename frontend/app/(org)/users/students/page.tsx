@@ -11,8 +11,10 @@ import { DataTable, Column } from '@/components/ui/DataTable';
 import { BadgeVariant, Department, Role, Student, Section, StudentStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { TableActions } from '@/components/ui/TableActions';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import useSWR, { mutate } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { Badge } from '@/components/ui/Badge';
@@ -52,13 +54,6 @@ export default function StudentsPage() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [importOpen, setImportOpen] = useState(false);
-
-    // SWR for sections (for filter dropdown) - reduced limit for performance
-    const sectionsKey = token && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER)
-        ? ['sections', { my: user.role === Role.TEACHER, limit: 50 }] as const
-        : null;
-    const { data: sectionsData } = useSWR<{ data: Section[] }>(sectionsKey);
-    const sections = sectionsData?.data || [];
 
     const canManageStudents = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const canViewStudentDetails = canManageStudents || user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
@@ -104,14 +99,6 @@ export default function StudentsPage() {
     const { data: fetchedData, isLoading: isFetching } = useSWR<
         { data: Student[]; totalPages: number; totalRecords: number }
     >(studentsKey);
-
-    const cohortsKey = token && canManageStudents
-        ? ['cohorts', { limit: 100 }] as const
-        : null;
-    const { data: cohortsData } = useSWR<{ data: { id: string, name: string }[] }>(cohortsKey);
-    const cohorts = cohortsData?.data || [];
-    const departmentsKey = token && canManageStudents ? ['departments', { limit: 1000, isActive: true }] as const : null;
-    const { data: departmentsData } = useSWR<{ data: Department[] }>(departmentsKey);
 
     useEffect(() => {
         if (user && user.role === Role.STUDENT) {
@@ -370,19 +357,19 @@ export default function StudentsPage() {
         ...(cohortId ? [{
             key: 'cohort',
             label: 'Cohort',
-            value: cohorts.find((cohort) => cohort.id === cohortId)?.name || 'Selected cohort',
+            value: 'Selected cohort',
             onRemove: () => updateQueryParams({ cohortId: undefined, page: 1 }),
         }] : []),
         ...(departmentId ? [{
             key: 'department',
             label: 'Department',
-            value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
+            value: 'Selected department',
             onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
         }] : []),
         ...(sectionId ? [{
             key: 'section',
             label: 'Section',
-            value: sections.find((section) => section.id === sectionId)?.name || 'Selected section',
+            value: 'Selected section',
             onRemove: () => updateQueryParams({ sectionId: undefined, page: 1 }),
         }] : []),
         ...(showAlumni ? [{
@@ -424,14 +411,14 @@ export default function StudentsPage() {
                             <label className="text-xs font-bold text-muted-foreground mb-1 block">
                                 Cohort
                             </label>
-                            <CustomSelect
-                                options={[
-                                    { label: 'All Cohorts', value: '' },
-                                    ...cohorts.map((c) => ({ value: c.id, label: c.name })),
-                                ]}
+                            <RemoteFilterSelect<{ id: string; name: string; code?: string | null }>
+                                cacheKey="students-cohort-filter"
                                 value={cohortId}
                                 onChange={(val) => updateQueryParams({ cohortId: val, page: 1 })}
                                 placeholder="Filter Cohort"
+                                allLabel="All Cohorts"
+                                selectedLabel="Selected cohort"
+                                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'cohorts', search })}
                             />
                         </div>
                     )}
@@ -441,19 +428,15 @@ export default function StudentsPage() {
                             <label className="text-xs font-bold text-muted-foreground mb-1 block">
                                 Department
                             </label>
-                            <CustomSelect
-                                options={[
-                                    { label: 'All Departments', value: '', icon: Building2 },
-                                    ...(departmentsData?.data?.map((department) => ({
-                                        value: department.id,
-                                        label: formatDepartmentLabel(department),
-                                        icon: Building2,
-                                    })) || []),
-                                ]}
+                            <RemoteFilterSelect<Department>
+                                cacheKey="students-department-filter"
                                 value={departmentId}
                                 onChange={(val) => updateQueryParams({ departmentId: val, page: 1 })}
                                 placeholder="All Departments"
-                                searchable
+                                allLabel="All Departments"
+                                icon={Building2}
+                                selectedLabel="Selected department"
+                                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'departments', search, isActive: true })}
                             />
                         </div>
                     )}
@@ -473,17 +456,14 @@ export default function StudentsPage() {
                             <label className="text-xs font-bold text-muted-foreground mb-1 block">
                                 Section
                             </label>
-                            <CustomSelect
+                            <RemoteFilterSelect<Section>
+                                cacheKey="students-section-filter"
                                 value={sectionId}
                                 onChange={(val) => updateQueryParams({ sectionId: val, page: 1 })}
-                                options={[
-                                    { value: '', label: 'All My Sections' },
-                                    ...sections.map((sec) => ({
-                                        value: sec.id,
-                                        label: formatCourseSectionLabel({ courseName: sec.course?.name, sectionName: sec.name }),
-                                    })),
-                                ]}
                                 placeholder="All My Sections"
+                                allLabel="All My Sections"
+                                selectedLabel="Selected section"
+                                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'sections', search, my: user?.role === Role.TEACHER })}
                             />
                         </div>
                     )}

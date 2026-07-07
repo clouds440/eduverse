@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { BadgeVariant, Department, Teacher, Role, TeacherStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { useGlobal } from '@/context/GlobalContext';
 import { TableActions } from '@/components/ui/TableActions';
 import useSWR, { mutate } from 'swr';
@@ -18,6 +19,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Badge } from '@/components/ui/Badge';
 import { BrandIcon } from '@/components/ui/Brand';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { Toggle } from '@/components/ui/Toggle';
 import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
@@ -77,8 +79,6 @@ export default function TeachersPage() {
         deleted: isDeletedView,
         departmentId: departmentId || undefined,
     }), [page, pageSize, searchTerm, sortBy, sortOrder, statusFilter, showEmeritus, isDeletedView, departmentId]);
-    const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
-
     // SWR for teachers data - replaces usePaginatedData
     const teachersKey = useMemo(() => {
         if (!token) return null;
@@ -325,7 +325,7 @@ export default function TeachersPage() {
         ...(departmentId ? [{
             key: 'departmentId',
             label: 'Department',
-            value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department',
+            value: 'Selected department',
             onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
         }] : []),
     ];
@@ -355,19 +355,15 @@ export default function TeachersPage() {
                         <label className="text-xs font-bold text-muted-foreground mb-1 block">
                             Department
                         </label>
-                        <CustomSelect
-                            options={[
-                                { label: 'All Departments', value: '', icon: Building2 },
-                                ...(departmentsData?.data?.map((department) => ({
-                                    value: department.id,
-                                    label: formatDepartmentLabel(department),
-                                    icon: Building2,
-                                })) || []),
-                            ]}
+                        <RemoteFilterSelect<Department>
+                            cacheKey="teachers-department-filter"
                             value={departmentId}
                             onChange={(val) => updateQueryParams({ departmentId: val, page: 1 })}
                             placeholder="All Departments"
-                            searchable
+                            allLabel="All Departments"
+                            icon={Building2}
+                            selectedLabel="Selected department"
+                            loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'departments', search, isActive: true })}
                         />
                     </div>
 

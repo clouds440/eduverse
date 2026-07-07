@@ -3,12 +3,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
-import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role, Room, PaginatedResponse, ScheduleType } from '@/types';
+import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role, ScheduleType } from '@/types';
 import { Building2, CalendarDays, ChevronLeft, ChevronRight, Clock, Download, Maximize2, MapPin, UserRound, Users, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
@@ -19,8 +20,9 @@ import { PLATFORM_NAME } from '@/lib/constants';
 import { downloadPdfBlob, sanitizePdfFilename } from '@/lib/pdf/core';
 import { createTimetablePdf, type TimetablePdfSectionSummary } from '@/lib/pdf/timetable';
 import { getRoleLabel } from '@/lib/roles';
-import { cn, formatCourseSectionLabel, formatRoomLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
+import { cn, formatCourseSectionLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
+import { searchFilterLookup } from '@/lib/filterLookups';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -687,36 +689,9 @@ export function StudentTimetableView({
     const [selectedRoomId, setSelectedRoomId] = useState(initialRoomId);
     const [selectedStudentId, setSelectedStudentId] = useState(initialStudentId);
 
-    const { data: teachers = [] } = useSWR<Teacher[]>(token && user ? ['timetable-teachers', { limit: 250 }] as const : null);
-    const { data: students = [] } = useSWR<Student[]>(token && user ? ['timetable-students', { limit: 250 }] as const : null);
-    const { data: roomsData } = useSWR<PaginatedResponse<Room>>(token && user ? ['rooms', { limit: 1000, isActive: true }] as const : null);
-    const teacherOptions = useMemo(() => [
-        { value: '', label: 'Select teacher', icon: UserRound },
-        ...teachers.map((teacher) => ({
-            value: teacher.id,
-            label: teacher.user?.name || teacher.user?.email || teacher.subject || 'Unnamed teacher',
-            icon: UserRound,
-        })),
-    ], [teachers]);
-    const studentOptions = useMemo(() => [
-        { value: '', label: 'Select student', icon: Users },
-        ...students.map((student) => ({
-            value: student.id,
-            label: student.user?.name || student.user?.email || student.rollNumber || 'Unnamed student',
-            icon: Users,
-        })),
-    ], [students]);
-    const roomOptions = useMemo(() => [
-        { value: '', label: 'Select room', icon: Building2 },
-        ...(roomsData?.data || []).map((room) => ({
-            value: room.id,
-            label: formatRoomLabel(room),
-            icon: Building2,
-        })),
-    ], [roomsData?.data]);
-    const selectedTeacherLabel = teacherOptions.find((option) => option.value === selectedTeacherId)?.label || 'Teacher timetable';
-    const selectedStudentLabel = studentOptions.find((option) => option.value === selectedStudentId)?.label || 'Student timetable';
-    const selectedRoomLabel = roomOptions.find((option) => option.value === selectedRoomId)?.label || 'Room timetable';
+    const selectedTeacherLabel = selectedTeacherId ? 'Selected teacher' : 'Teacher timetable';
+    const selectedStudentLabel = selectedStudentId ? 'Selected student' : 'Student timetable';
+    const selectedRoomLabel = selectedRoomId ? 'Selected room' : 'Room timetable';
     const fixedStudentId = studentId || '';
     const selectedDay = useMemo(() => selectedDate ? parseDateInput(selectedDate).getDay() : null, [selectedDate]);
     const visibleDays = useMemo(() => selectedDay === null ? WEEK_DAYS : [selectedDay], [selectedDay]);
@@ -998,32 +973,41 @@ export function StudentTimetableView({
                             />
                         )}
                         {canSwitchViews && (viewMode === 'teacher' || viewMode === 'teacherRoom') && (
-                            <CustomSelect
+                            <RemoteFilterSelect
+                                cacheKey="timetable-teacher-filter"
                                 value={selectedTeacherId}
                                 onChange={setSelectedTeacherId}
-                                options={teacherOptions}
                                 placeholder="Select teacher"
-                                searchable
+                                allLabel="Select teacher"
+                                icon={UserRound}
+                                selectedLabel="Selected teacher"
+                                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'timetableTeachers', search })}
                                 className="min-w-56"
                             />
                         )}
                         {canSwitchViews && (viewMode === 'room' || viewMode === 'teacherRoom') && (
-                            <CustomSelect
+                            <RemoteFilterSelect
+                                cacheKey="timetable-room-filter"
                                 value={selectedRoomId}
                                 onChange={setSelectedRoomId}
-                                options={roomOptions}
                                 placeholder="Select room"
-                                searchable
+                                allLabel="Select room"
+                                icon={Building2}
+                                selectedLabel="Selected room"
+                                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'rooms', search, isActive: true })}
                                 className="min-w-56"
                             />
                         )}
                         {canSwitchViews && viewMode === 'student' && (
-                            <CustomSelect
+                            <RemoteFilterSelect
+                                cacheKey="timetable-student-filter"
                                 value={selectedStudentId}
                                 onChange={setSelectedStudentId}
-                                options={studentOptions}
                                 placeholder="Select student"
-                                searchable
+                                allLabel="Select student"
+                                icon={Users}
+                                selectedLabel="Selected student"
+                                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'timetableStudents', search })}
                                 className="min-w-56"
                             />
                         )}

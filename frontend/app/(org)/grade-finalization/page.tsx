@@ -5,6 +5,7 @@ import Link from 'next/link';
 import useSWR from 'swr';
 import { AlertTriangle, Building2, CheckCircle2, FileText, GraduationCap, RefreshCw, Search } from 'lucide-react';
 import { api } from '@/lib/api';
+import { searchFilterLookup } from '@/lib/filterLookups';
 import { fuzzySearchScore } from '@/lib/fuzzySearch';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -16,7 +17,6 @@ import {
     GradeFinalizationFilters,
     GradeFinalizationRow,
     GradeFinalizationStatus,
-    PaginatedResponse,
     Role,
     Section,
 } from '@/types';
@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
 import { DataTable, type Column } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -102,16 +103,6 @@ export default function GradeFinalizationPage() {
     const { data: cyclesData } = useSWR<{ data: AcademicCycle[] }>(
         token && canAccess ? ['academicCycles', { limit: 100 }] as const : null
     );
-    const { data: coursesData } = useSWR<PaginatedResponse<Course>>(
-        token && canAccess ? ['courses', { limit: 1000 }] as const : null
-    );
-    const { data: departmentsData } = useSWR<PaginatedResponse<Department>>(
-        token && canAccess ? ['departments', { limit: 1000, isActive: true }] as const : null
-    );
-    const { data: sectionsData } = useSWR<PaginatedResponse<Section>>(
-        token && canAccess ? ['sections', { limit: 1000 }] as const : null
-    );
-
     const teacherOptions = useMemo(() => {
         const teachers = new Map<string, string>();
         rows.forEach((row) => {
@@ -157,9 +148,9 @@ export default function GradeFinalizationPage() {
     const activeFilters: ActiveFilter[] = [
         ...(search ? [{ key: 'search', label: 'Search', value: search, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
         ...(academicCycleId ? [{ key: 'academicCycleId', label: 'Cycle', value: cyclesData?.data?.find((cycle) => cycle.id === academicCycleId)?.name || 'Selected cycle', onRemove: () => updateQueryParams({ academicCycleId: undefined, page: 1 }) }] : []),
-        ...(courseId ? [{ key: 'courseId', label: 'Course', value: coursesData?.data?.find((course) => course.id === courseId)?.name || 'Selected course', onRemove: () => updateQueryParams({ courseId: undefined, page: 1 }) }] : []),
-        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: departmentsData?.data?.find((department) => department.id === departmentId)?.name || 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }) }] : []),
-        ...(sectionId ? [{ key: 'sectionId', label: 'Section', value: sectionsData?.data?.find((section) => section.id === sectionId)?.name || 'Selected section', onRemove: () => updateQueryParams({ sectionId: undefined, page: 1 }) }] : []),
+        ...(courseId ? [{ key: 'courseId', label: 'Course', value: 'Selected course', onRemove: () => updateQueryParams({ courseId: undefined, page: 1 }) }] : []),
+        ...(departmentId ? [{ key: 'departmentId', label: 'Department', value: 'Selected department', onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }) }] : []),
+        ...(sectionId ? [{ key: 'sectionId', label: 'Section', value: 'Selected section', onRemove: () => updateQueryParams({ sectionId: undefined, page: 1 }) }] : []),
         ...(teacherId ? [{ key: 'teacherId', label: 'Teacher', value: teacherOptions.find((teacher) => teacher.value === teacherId)?.label || 'Selected teacher', onRemove: () => updateQueryParams({ teacherId: undefined, page: 1 }) }] : []),
         ...(status !== 'ALL' ? [{ key: 'status', label: 'Status', value: statusLabels[status], onRemove: () => updateQueryParams({ status: undefined, page: 1 }) }] : []),
     ];
@@ -177,29 +168,33 @@ export default function GradeFinalizationPage() {
                 options={[{ value: '', label: 'All cycles' }, ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.name })) || [])]}
                 searchable
             />
-            <CustomSelect
+            <RemoteFilterSelect<Course>
+                cacheKey="grade-finalization-course-filter"
                 value={courseId}
                 onChange={(value) => updateQueryParams({ courseId: value || undefined, page: 1 })}
-                options={[{ value: '', label: 'All courses' }, ...(coursesData?.data?.map((course) => ({ value: course.id, label: course.name })) || [])]}
-                searchable
+                placeholder="All courses"
+                allLabel="All courses"
+                selectedLabel="Selected course"
+                loadOptions={(searchTerm) => searchFilterLookup({ token: token!, entity: 'courses', search: searchTerm })}
             />
-            <CustomSelect
+            <RemoteFilterSelect<Department>
+                cacheKey="grade-finalization-department-filter"
                 value={departmentId}
                 onChange={(value) => updateQueryParams({ departmentId: value || undefined, page: 1 })}
-                options={[
-                    { value: '', label: 'All departments', icon: Building2 },
-                    ...(departmentsData?.data?.map((department) => ({
-                        value: department.id,
-                        label: formatDepartmentLabel(department),
-                    })) || []),
-                ]}
-                searchable
+                placeholder="All departments"
+                allLabel="All departments"
+                icon={Building2}
+                selectedLabel="Selected department"
+                loadOptions={(searchTerm) => searchFilterLookup({ token: token!, entity: 'departments', search: searchTerm, isActive: true })}
             />
-            <CustomSelect
+            <RemoteFilterSelect<Section>
+                cacheKey="grade-finalization-section-filter"
                 value={sectionId}
                 onChange={(value) => updateQueryParams({ sectionId: value || undefined, page: 1 })}
-                options={[{ value: '', label: 'All sections' }, ...(sectionsData?.data?.map((section) => ({ value: section.id, label: section.name })) || [])]}
-                searchable
+                placeholder="All sections"
+                allLabel="All sections"
+                selectedLabel="Selected section"
+                loadOptions={(searchTerm) => searchFilterLookup({ token: token!, entity: 'sections', search: searchTerm })}
             />
             <CustomSelect
                 value={teacherId}
