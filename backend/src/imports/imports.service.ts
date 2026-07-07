@@ -700,11 +700,10 @@ export class ImportsService {
       },
       schedules: {
         entity: 'schedules',
-        headers: ['courseCode', 'sectionCode', 'day', 'date', 'startTime', 'endTime', 'teacherEmail', 'roomCode', 'room', 'type'],
-        required: ['courseCode', 'sectionCode', 'startTime', 'endTime'],
+        headers: ['sectionCode', 'day', 'date', 'startTime', 'endTime', 'teacherEmail', 'roomCode', 'type'],
+        required: ['sectionCode', 'startTime', 'endTime'],
         dto: CreateScheduleDto,
         examples: [{
-          courseCode: 'PHY-101',
           sectionCode: 'GRADE-9-A',
           day: 'weekdays',
           date: '',
@@ -712,7 +711,6 @@ export class ImportsService {
           endTime: '10:00',
           teacherEmail: 'sara.ahmed@teacher.example',
           roomCode: 'ROOM-101',
-          room: '',
           type: 'OFFICIAL',
         }],
         normalize: (row) => {
@@ -726,7 +724,6 @@ export class ImportsService {
           }
 
           return {
-            courseCode: this.normalizeCode(row.courseCode),
             sectionCode: this.normalizeCode(row.sectionCode),
             scheduleDays: date ? undefined : this.parseScheduleDays(dayText, 'day'),
             date,
@@ -734,20 +731,17 @@ export class ImportsService {
             endTime: optionalString(row.endTime),
             teacherEmail: optionalString(row.teacherEmail),
             roomCode: this.normalizeCode(row.roomCode),
-            room: optionalString(row.room),
             type: optionalEnum(row.type, Object.values(ScheduleType), 'type') || ScheduleType.OFFICIAL,
           };
         },
         resolveRelations: async (orgId, data) => {
           const section = await this.resolveSectionForSchedule(
             orgId,
-            data.courseCode as string | undefined,
             data.sectionCode as string | undefined,
           );
           data.sectionId = section.id;
           data.teacherId = this.resolveScheduleTeacherFromSection(section, data.teacherEmail as string | undefined);
           data.roomId = await this.resolveRoomId(orgId, data.roomCode as string | undefined, 'roomCode');
-          delete data.courseCode;
           delete data.sectionCode;
           delete data.teacherEmail;
           delete data.roomCode;
@@ -759,7 +753,6 @@ export class ImportsService {
             date: data.date as string | undefined,
             startTime: data.startTime as string,
             endTime: data.endTime as string,
-            room: data.room as string | undefined,
             roomId: data.roomId as string | undefined,
             teacherId: data.teacherId as string | undefined,
             type: data.type as ScheduleType | undefined,
@@ -1247,20 +1240,14 @@ export class ImportsService {
     return days;
   }
 
-  private async resolveSectionForSchedule(orgId: string, courseCode?: string, sectionCode?: string) {
-    const normalizedCourseCode = this.normalizeCode(courseCode);
+  private async resolveSectionForSchedule(orgId: string, sectionCode?: string) {
     const normalizedSectionCode = this.normalizeCode(sectionCode);
-    if (!normalizedCourseCode) throw new BadRequestException({ field: 'courseCode', message: 'Course code is required' });
     if (!normalizedSectionCode) throw new BadRequestException({ field: 'sectionCode', message: 'Section code is required' });
 
     const section = await this.prisma.section.findFirst({
       where: {
         organizationId: orgId,
         code: { equals: normalizedSectionCode, mode: Prisma.QueryMode.insensitive },
-        course: {
-          organizationId: orgId,
-          code: { equals: normalizedCourseCode, mode: Prisma.QueryMode.insensitive },
-        },
       },
       select: {
         id: true,
@@ -1270,7 +1257,7 @@ export class ImportsService {
     if (!section) {
       throw new BadRequestException({
         field: 'sectionCode',
-        message: `Section code "${normalizedSectionCode}" was not found for course "${normalizedCourseCode}"`,
+        message: `Section code "${normalizedSectionCode}" was not found`,
       });
     }
     return section;

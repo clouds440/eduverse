@@ -49,7 +49,7 @@ export function CsvImportModal({ isOpen, onClose, entity, title, cachePrefix }: 
                 : entity === 'guardians'
                     ? 'Guardians can use linkedStudents to link one or more students by registration number. Example: "REG-001,REG-002". These links use the guardian-student relationship table and can always be linked or unlinked later.'
                     : entity === 'schedules'
-                        ? 'Use courseCode and sectionCode. day accepts Mon-Sun, weekdays, or weekends; leave day blank when date is set. Use teacherEmail when a section has multiple teachers.'
+                        ? 'Use sectionCode. day accepts Mon-Sun, weekdays, or weekends; leave day blank when date is set. Optional roomCode overrides the section default room. Use teacherEmail when a section has multiple teachers.'
                         : null;
     const importHintAction = entity === 'schedules'
         ? { label: 'Schedule docs', href: '/docs/timetable#schedule-teacher' }

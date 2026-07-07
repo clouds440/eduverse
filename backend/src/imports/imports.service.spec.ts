@@ -457,7 +457,7 @@ describe('ImportsService schedule validation', () => {
     name: 'Admin',
     email: 'admin@example.test',
   };
-  const scheduleHeaders = ['courseCode', 'sectionCode', 'day', 'date', 'startTime', 'endTime', 'teacherEmail', 'roomCode', 'room', 'type'];
+  const scheduleHeaders = ['sectionCode', 'day', 'date', 'startTime', 'endTime', 'teacherEmail', 'roomCode', 'type'];
   const sectionLookup = jest.fn().mockResolvedValue({
     id: 'section-1',
     teachers: [
@@ -475,7 +475,7 @@ describe('ImportsService schedule validation', () => {
     });
     const csv = [
       scheduleHeaders.join(','),
-      'PHY-101,GRADE-9-A,weekdays,,09:00,10:00,sara.ahmed@teacher.example,ROOM-101,,OFFICIAL',
+      'GRADE-9-A,weekdays,,09:00,10:00,sara.ahmed@teacher.example,ROOM-101,OFFICIAL',
     ].join('\n');
 
     const result = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
@@ -500,7 +500,7 @@ describe('ImportsService schedule validation', () => {
     });
     const csv = [
       scheduleHeaders.join(','),
-      'PHY-101,GRADE-9-A,Mon,,09:00,10:00,,,,OFFICIAL',
+      'GRADE-9-A,Mon,,09:00,10:00,,,OFFICIAL',
     ].join('\n');
 
     const result = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
@@ -525,10 +525,10 @@ describe('ImportsService schedule validation', () => {
     });
     const csv = [
       scheduleHeaders.join(','),
-      'PHY-101,GRADE-9-A,Mon,,09:00,10:00,,,,OFFICIAL',
-      'PHY-101,GRADE-9-A,Tue,,09:00,10:00,,,,OFFICIAL',
-      'PHY-101,GRADE-9-A,Mon,,10:00,11:00,,,,OFFICIAL',
-      'PHY-101,GRADE-9-A,Mon,,09:00,10:00,,,,OFFICIAL',
+      'GRADE-9-A,Mon,,09:00,10:00,,,OFFICIAL',
+      'GRADE-9-A,Tue,,09:00,10:00,,,OFFICIAL',
+      'GRADE-9-A,Mon,,10:00,11:00,,,OFFICIAL',
+      'GRADE-9-A,Mon,,09:00,10:00,,,OFFICIAL',
     ].join('\n');
 
     const result = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
@@ -554,7 +554,7 @@ describe('ImportsService schedule validation', () => {
     });
     const csv = [
       scheduleHeaders.join(','),
-      'PHY-101,GRADE-9-A,weekdays,,09:00,10:00,,,,OFFICIAL',
+      'GRADE-9-A,weekdays,,09:00,10:00,,,OFFICIAL',
     ].join('\n');
     const validation = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
 
