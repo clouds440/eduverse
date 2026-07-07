@@ -1,0 +1,217 @@
+import { Role } from '@/prisma/prisma-client';
+
+export interface AIRouteEntry {
+  label: string;
+  href: string;
+  roles: Role[];
+  description: string;
+  module: string;
+  tags: string[];
+}
+
+const ADMIN_ROLES = [Role.ORG_ADMIN, Role.SUB_ADMIN];
+const STAFF_ROLES = [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER];
+const ALL_ORG_ROLES = [
+  Role.ORG_ADMIN,
+  Role.SUB_ADMIN,
+  Role.ORG_MANAGER,
+  Role.FINANCE_MANAGER,
+  Role.TEACHER,
+  Role.STUDENT,
+  Role.GUARDIAN,
+];
+
+export const aiRouteEntries: AIRouteEntry[] = [
+  {
+    label: 'Overview',
+    href: '/overview',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN],
+    description: 'Organization dashboard for operational, academic, finance, and communication summaries.',
+    module: 'Organization',
+    tags: ['dashboard', 'overview', 'insights'],
+  },
+  {
+    label: 'AI Copilot Dashboard',
+    href: '/ai',
+    roles: ALL_ORG_ROLES,
+    description: 'Personal AI usage, credits, and AI Copilot usage dashboard. Org admins also see organization usage.',
+    module: 'AI Copilot',
+    tags: ['ai', 'copilot', 'credits', 'usage'],
+  },
+  {
+    label: 'Organization Settings',
+    href: '/settings',
+    roles: [Role.ORG_ADMIN],
+    description: 'Manage organization profile, appearance, finance defaults, branding, security, and AI Copilot settings.',
+    module: 'Settings',
+    tags: ['settings', 'organization', 'ai copilot', 'subscription'],
+  },
+  {
+    label: 'Users',
+    href: '/users',
+    roles: ADMIN_ROLES,
+    description: 'Manage organization users and role-based account areas.',
+    module: 'People',
+    tags: ['users', 'people', 'accounts'],
+  },
+  {
+    label: 'Students',
+    href: '/users/students',
+    roles: STAFF_ROLES,
+    description: 'View or manage student records according to the signed-in role scope.',
+    module: 'People',
+    tags: ['students', 'learners', 'records'],
+  },
+  {
+    label: 'Teachers and Managers',
+    href: '/users/teachers',
+    roles: ADMIN_ROLES,
+    description: 'Manage faculty and manager accounts.',
+    module: 'People',
+    tags: ['teachers', 'faculty', 'managers'],
+  },
+  {
+    label: 'Courses',
+    href: '/courses',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.TEACHER],
+    description: 'Manage or view course records depending on role permissions.',
+    module: 'Academics',
+    tags: ['courses', 'subjects'],
+  },
+  {
+    label: 'Sections',
+    href: '/sections',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER],
+    description: 'Manage or view class sections, assigned teachers, rooms, students, materials, and assessments.',
+    module: 'Academics',
+    tags: ['sections', 'classes', 'enrollment'],
+  },
+  {
+    label: 'Schedules',
+    href: '/schedules',
+    roles: ADMIN_ROLES,
+    description: 'Manage official and ad-hoc section schedules.',
+    module: 'Academics',
+    tags: ['schedules', 'classes', 'calendar'],
+  },
+  {
+    label: 'Timetable',
+    href: '/timetable',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT],
+    description: 'Role-aware timetable view for classes and teaching schedule.',
+    module: 'Academics',
+    tags: ['timetable', 'schedule', 'classes'],
+  },
+  {
+    label: 'Attendance',
+    href: '/attendance',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER],
+    description: 'Record and review attendance where role scope allows.',
+    module: 'Academics',
+    tags: ['attendance', 'absence', 'risk'],
+  },
+  {
+    label: 'Grades',
+    href: '/grades',
+    roles: [Role.ORG_MANAGER, Role.TEACHER],
+    description: 'Teacher and manager gradebook workflows for assigned academic scope.',
+    module: 'Academics',
+    tags: ['grades', 'gradebook', 'assessments'],
+  },
+  {
+    label: 'Grade Finalization',
+    href: '/grade-finalization',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER],
+    description: 'Review and finalize grades according to organization academic rules.',
+    module: 'Academics',
+    tags: ['finalization', 'grades', 'review'],
+  },
+  {
+    label: 'Transcripts',
+    href: '/transcripts',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.STUDENT],
+    description: 'View transcript and academic record summaries according to role scope.',
+    module: 'Academics',
+    tags: ['transcripts', 'gpa', 'records'],
+  },
+  {
+    label: 'Evaluations',
+    href: '/evaluations',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.STUDENT],
+    description: 'Manage or complete teacher and course evaluation workflows.',
+    module: 'Quality',
+    tags: ['evaluations', 'feedback'],
+  },
+  {
+    label: 'Finance',
+    href: '/finance',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER],
+    description: 'Finance dashboard for fees, claims, transactions, structures, and insights.',
+    module: 'Finance',
+    tags: ['finance', 'fees', 'payments'],
+  },
+  {
+    label: 'Fees and Payments',
+    href: '/fees',
+    roles: [Role.STUDENT],
+    description: 'Student fee status and payment claims.',
+    module: 'Finance',
+    tags: ['fees', 'payments', 'student finance'],
+  },
+  {
+    label: 'My Finance',
+    href: '/teacher-finance',
+    roles: [Role.SUB_ADMIN, Role.FINANCE_MANAGER, Role.TEACHER],
+    description: 'Personal finance and salary overview where enabled.',
+    module: 'Finance',
+    tags: ['salary', 'personal finance'],
+  },
+  {
+    label: 'Campus Map',
+    href: '/campus-navigation',
+    roles: ALL_ORG_ROLES,
+    description: 'Search buildings, rooms, departments, and campus directions.',
+    module: 'Campus',
+    tags: ['campus', 'map', 'rooms', 'buildings'],
+  },
+  {
+    label: 'Messages',
+    href: '/chat',
+    roles: ALL_ORG_ROLES,
+    description: 'Direct and group chat for allowed organization communication.',
+    module: 'Communication',
+    tags: ['chat', 'messages', 'communication'],
+  },
+  {
+    label: 'Mail',
+    href: '/mail',
+    roles: ALL_ORG_ROLES,
+    description: 'Role-aware mail and formal communication workflows.',
+    module: 'Communication',
+    tags: ['mail', 'inbox', 'communication'],
+  },
+  {
+    label: 'Student Portal',
+    href: '/student/{userId}',
+    roles: [Role.STUDENT],
+    description: 'Student dashboard with courses, assessments, grades, attendance, timetable, fees, and profile tabs.',
+    module: 'Student Portal',
+    tags: ['student portal', 'courses', 'grades', 'attendance'],
+  },
+  {
+    label: 'Guardian Portal',
+    href: '/guardian',
+    roles: [Role.GUARDIAN],
+    description: 'Guardian overview for linked students, attendance, grades, timetable, transcript, fees, and announcements.',
+    module: 'Guardian Portal',
+    tags: ['guardian', 'linked students', 'family'],
+  },
+  {
+    label: 'Teacher Profile',
+    href: '/teacher/{userId}/profile',
+    roles: [Role.TEACHER, Role.ORG_MANAGER],
+    description: 'Teacher or manager profile and account settings.',
+    module: 'Account',
+    tags: ['profile', 'settings', 'teacher'],
+  },
+];

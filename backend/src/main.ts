@@ -17,7 +17,14 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   const logger = new Logger('Bootstrap');
 
-  app.useBodyParser('json', { limit: '25mb' });
+  app.useBodyParser('json', {
+    limit: '25mb',
+    verify: (req: { originalUrl?: string; rawBody?: Buffer }, _res, buf: Buffer) => {
+      if (req.originalUrl === '/ai/billing/webhook') {
+        req.rawBody = Buffer.from(buf);
+      }
+    },
+  });
   app.useBodyParser('urlencoded', { limit: '25mb', extended: true });
 
   const allowedOrigins = (process.env.FRONTEND_URL!)

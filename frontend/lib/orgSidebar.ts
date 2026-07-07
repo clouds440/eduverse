@@ -19,6 +19,7 @@ import {
   Network,
   ScrollText,
   Settings,
+  Sparkles,
   ListChecks,
   Trophy,
   Users,
@@ -110,6 +111,13 @@ const COMMON_ITEMS: SidebarItemConfig[] = [
     roles: "all",
     badge: (ctx) =>
       ctx.unreadChats && ctx.unreadChats > 0 ? `${ctx.unreadChats}` : undefined,
+  },
+  {
+    id: "AI_COPILOT",
+    label: "AI Copilot",
+    href: "/ai",
+    icon: Sparkles,
+    roles: "all",
   },
   {
     id: "CAMPUS_NAVIGATION",

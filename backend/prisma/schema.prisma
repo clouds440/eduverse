@@ -64,6 +64,12 @@ model Organization {
   auditLogs           AuditLog[]
   guardianStudentLinks GuardianStudent[]
   gpaPolicies         GpaPolicy[]
+  aiSubscriptions     AISubscription[]
+  aiOrgAccessPolicy   AIOrgAccessPolicy?
+  aiRoleCreditPolicies AIRoleCreditPolicy[]
+  aiUsages            AIUsage[]
+  aiToolCallLogs      AIToolCallLog[]
+  aiConversations     AIConversation[]
 
   @@index([status])
   @@index([type])
@@ -125,6 +131,10 @@ model User {
   pushSubscriptions         WebPushSubscription[]
   passwordResetTokens       PasswordResetToken[]
   linkedAccounts            LinkedAccount[]
+  aiSubscriptions           AISubscription[]
+  aiUsages                  AIUsage[]
+  aiToolCallLogs            AIToolCallLog[]
+  aiConversations           AIConversation[]
 
   @@index([organizationId])
   @@index([role])
@@ -1037,6 +1047,200 @@ enum TargetType {
   SECTION
   COURSE
   COHORT
+}
+
+enum AISubscriptionPlan {
+  NONE
+  STARTER
+  GROWTH
+  SCALE
+}
+
+enum AISubscriptionOwnerType {
+  ORGANIZATION
+  USER
+}
+
+enum AISubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  CANCELED
+  PAST_DUE
+}
+
+enum AILimitMode {
+  HARD
+  SOFT
+}
+
+enum AIUsageSourceType {
+  ORGANIZATION
+  PERSONAL
+}
+
+enum AIMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+model AISubscription {
+  id                 String                  @id @default(uuid())
+  ownerType          AISubscriptionOwnerType
+  organizationId     String?
+  userId             String?
+  plan               AISubscriptionPlan      @default(NONE)
+  status             AISubscriptionStatus    @default(INACTIVE)
+  monthlyCredits     Int                     @default(0)
+  limitMode          AILimitMode             @default(HARD)
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  stripeCustomerId   String?
+  stripeSubscriptionId String?
+  stripePriceId      String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usages       AIUsage[]
+  toolCallLogs AIToolCallLog[]
+  conversations AIConversation[]
+
+  @@unique([ownerType, organizationId])
+  @@unique([ownerType, userId])
+  @@index([ownerType])
+  @@index([plan])
+  @@index([status])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([currentPeriodEnd])
+}
+
+model AIOrgAccessPolicy {
+  id                   String   @id @default(uuid())
+  organizationId       String   @unique
+  allowSubAdmins       Boolean  @default(false)
+  allowManagers        Boolean  @default(false)
+  allowFinanceManagers Boolean  @default(false)
+  allowTeachers        Boolean  @default(false)
+  allowStudents        Boolean  @default(false)
+  allowGuardians       Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model AIRoleCreditPolicy {
+  id             String   @id @default(uuid())
+  organizationId String
+  role           Role
+  monthlyCredits Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, role])
+  @@index([organizationId])
+  @@index([role])
+}
+
+model AIUsage {
+  id                    String            @id @default(uuid())
+  subscriptionId        String
+  sourceType            AIUsageSourceType
+  organizationId        String?
+  userId                String
+  role                  Role?
+  periodStart           DateTime
+  periodEnd             DateTime
+  creditUsed            Int               @default(0)
+  providerTokenEstimate Int               @default(0)
+  estimatedCost         Decimal           @default(0.00) @db.Decimal(12, 4)
+  overageCredits        Int               @default(0)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  subscription AISubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, userId, periodStart])
+  @@index([subscriptionId])
+  @@index([sourceType])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([role])
+  @@index([periodStart])
+  @@index([periodEnd])
+}
+
+model AIToolCallLog {
+  id                    String             @id @default(uuid())
+  userId                String?
+  orgId                 String?
+  subscriptionId        String?
+  sourceType            AIUsageSourceType?
+  toolName              String
+  allowed               Boolean
+  latencyMs             Int
+  creditEstimate        Int?
+  providerTokenEstimate Int?
+  createdAt             DateTime           @default(now())
+
+  user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization?   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  subscription AISubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([orgId])
+  @@index([subscriptionId])
+  @@index([sourceType])
+  @@index([toolName])
+  @@index([allowed])
+  @@index([createdAt])
+}
+
+model AIConversation {
+  id             String    @id @default(uuid())
+  userId         String
+  organizationId String?
+  subscriptionId String?
+  title          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  expiresAt      DateTime?
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization?   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription AISubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  messages     AIMessage[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([subscriptionId])
+  @@index([expiresAt])
+  @@index([updatedAt])
+}
+
+model AIMessage {
+  id             String        @id @default(uuid())
+  conversationId String
+  role           AIMessageRole
+  content        String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([role])
+  @@index([createdAt])
 }
 
 enum HolidayType {

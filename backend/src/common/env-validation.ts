@@ -38,6 +38,19 @@ export function validateEnv() {
     'GOOGLE_CLIENT_ID',
     'GOOGLE_CLIENT_SECRET',
     'GOOGLE_REDIRECT_URI',
+    'AI_PROVIDER',
+    'OPENAI_API_KEY',
+    'OPENAI_MODEL',
+    'AI_PROVIDER_ALLOW_LOCAL_FALLBACK',
+    'AI_PROVIDER_COST_PER_1K_TOKENS',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+    'STRIPE_AI_ORG_STARTER_PRICE_ID',
+    'STRIPE_AI_ORG_GROWTH_PRICE_ID',
+    'STRIPE_AI_ORG_SCALE_PRICE_ID',
+    'STRIPE_AI_PERSONAL_STARTER_PRICE_ID',
+    'STRIPE_AI_PERSONAL_GROWTH_PRICE_ID',
+    'STRIPE_AI_PERSONAL_SCALE_PRICE_ID',
   ];
   const missingRecommended = recommendedEnvs.filter((env) => !process.env[env]);
   if (missingRecommended.length > 0) {
@@ -45,6 +58,14 @@ export function validateEnv() {
       'Recommended environment variables are missing (using defaults):',
     );
     missingRecommended.forEach((env) => logger.warn(` - ${env}`));
+  }
+
+  if ((process.env.AI_PROVIDER ?? 'local').toLowerCase() === 'langchain' && !process.env.OPENAI_API_KEY) {
+    logger.warn('AI_PROVIDER=langchain requires OPENAI_API_KEY for real model responses.');
+  }
+
+  if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_WEBHOOK_SECRET) {
+    logger.warn('STRIPE_SECRET_KEY is configured but STRIPE_WEBHOOK_SECRET is missing; AI billing webhooks will fail verification.');
   }
 
   warnAboutAuthCookieConfig(logger);

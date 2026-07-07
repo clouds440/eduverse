@@ -1,6 +1,8 @@
 ﻿import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
 export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
+import type { AISubscriptionPlan, AISubscriptionOwnerType, AISubscriptionStatus, AILimitMode, AIUsageSourceType } from './enums';
+export { AISubscriptionPlan, AISubscriptionOwnerType, AISubscriptionStatus, AILimitMode, AIUsageSourceType } from './enums';
 import type { PreferenceWindowKind, PreferenceWindowStatus, PreferenceTargetType } from './enums';
 export { PreferenceWindowKind, PreferenceWindowStatus, PreferenceTargetType } from './enums';
 import type { ScheduleType } from './enums';
@@ -683,6 +685,220 @@ export interface OrgUserCounts {
     teachers: number;
     students: number;
     guardians: number;
+}
+
+export interface AIPlanOption {
+    plan: AISubscriptionPlan;
+    label: string;
+    monthlyCredits: number;
+    limitMode: AILimitMode;
+    description: string;
+}
+
+export interface AISubscription {
+    id: string;
+    ownerType: AISubscriptionOwnerType;
+    organizationId?: string | null;
+    userId?: string | null;
+    plan: AISubscriptionPlan;
+    status: AISubscriptionStatus;
+    monthlyCredits: number;
+    limitMode: AILimitMode;
+    currentPeriodStart?: string | null;
+    currentPeriodEnd?: string | null;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
+    stripePriceId?: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AICreditBalance {
+    periodStart: string;
+    periodEnd: string;
+    monthlyCredits: number;
+    usedCredits: number;
+    remainingCredits: number;
+    overageCredits: number;
+}
+
+export interface AIOrgAccessPolicy {
+    id: string;
+    organizationId: string;
+    allowSubAdmins: boolean;
+    allowManagers: boolean;
+    allowFinanceManagers: boolean;
+    allowTeachers: boolean;
+    allowStudents: boolean;
+    allowGuardians: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AIRoleCreditPolicy {
+    id: string;
+    organizationId: string;
+    role: Role;
+    monthlyCredits: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AIOrgSettingsResponse {
+    plans: AIPlanOption[];
+    subscription: AISubscription;
+    accessPolicy: AIOrgAccessPolicy;
+    roleCreditPolicies: AIRoleCreditPolicy[];
+    usage: AICreditBalance;
+    orgAccessRoles: Role[];
+    warning: string;
+}
+
+export interface AIUsageTopUser {
+    userId: string;
+    name: string;
+    email?: string | null;
+    role?: Role | null;
+    creditsUsed: number;
+    providerTokenEstimate: number;
+    estimatedCost: number;
+    overageCredits: number;
+}
+
+export interface AIRoleUsageSummary {
+    role?: Role | null;
+    creditsUsed: number;
+    providerTokenEstimate: number;
+    estimatedCost: number;
+    overageCredits: number;
+}
+
+export interface AIFeatureUsageSummary {
+    toolName: string;
+    calls: number;
+    allowed: number;
+    denied: number;
+    creditEstimate: number;
+}
+
+export interface AIUsageTrendPoint {
+    date: string;
+    creditsUsed: number;
+}
+
+export interface AIOrgUsageResponse {
+    subscription: AISubscription;
+    usage: AICreditBalance;
+    topUsers: AIUsageTopUser[];
+    roleUsage: AIRoleUsageSummary[];
+    featureUsage: AIFeatureUsageSummary[];
+    estimatedCost: number;
+    trends: AIUsageTrendPoint[];
+}
+
+export interface AIPersonalSettingsResponse {
+    plans: AIPlanOption[];
+    subscription: AISubscription;
+    usage: AICreditBalance;
+}
+
+export interface AIPersonalUsageResponse {
+    subscription: AISubscription;
+    usage: AICreditBalance;
+    estimatedCost: number;
+    featureUsage: AIFeatureUsageSummary[];
+    trends: AIUsageTrendPoint[];
+}
+
+export interface AIEntitlementAllowedResponse {
+    allowed: true;
+    source: {
+        sourceType: AIUsageSourceType;
+        subscription: AISubscription;
+        balance: AICreditBalance;
+        roleMonthlyCredits?: number | null;
+        roleUsedCredits?: number;
+        roleRemainingCredits?: number | null;
+        overageAllowed: boolean;
+    };
+}
+
+export interface AIEntitlementDeniedResponse {
+    allowed: false;
+    code: string;
+    message: string;
+    orgSubscriptionStatus?: AISubscriptionStatus | null;
+    orgLimitMode?: AILimitMode | null;
+    personalSubscriptionStatus?: AISubscriptionStatus | null;
+}
+
+export type AIEntitlementResponse = AIEntitlementAllowedResponse | AIEntitlementDeniedResponse;
+
+export interface AIChatMessagePayload {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+export interface AIChatRequest {
+    prompt: string;
+    conversationId?: string;
+    history?: AIChatMessagePayload[];
+}
+
+export interface AIChatResponse {
+    conversationId: string;
+    title?: string | null;
+    message: AIChatMessagePayload;
+    provider: {
+        name: string;
+        model?: string;
+    };
+    usage: {
+        creditEstimate: number;
+        providerTokenEstimate: number;
+        sourceType: AIUsageSourceType;
+        remainingCreditsBeforeRequest: number;
+    };
+    toolCalls: Array<{
+        name: string;
+        input?: unknown;
+    }>;
+}
+
+export type AIChatStreamEvent =
+    | {
+        type: 'conversation';
+        conversationId: string;
+        title?: string | null;
+    }
+    | {
+        type: 'delta';
+        content: string;
+    }
+    | {
+        type: 'complete';
+        response: AIChatResponse;
+    }
+    | {
+        type: 'error';
+        code?: string;
+        message: string;
+    };
+
+export interface AIDocsSearchResult {
+    title: string;
+    section: string;
+    snippet: string;
+    href: string;
+    tags: string[];
+}
+
+export interface AIRouteSearchResult {
+    label: string;
+    href: string;
+    roles: Role[];
+    description: string;
+    module: string;
 }
 
 export interface DashboardInsightCard {

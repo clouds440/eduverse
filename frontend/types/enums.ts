@@ -189,6 +189,35 @@ export enum PreferenceTargetType {
     SECTION = 'SECTION',
 }
 
+export enum AISubscriptionPlan {
+    NONE = 'NONE',
+    STARTER = 'STARTER',
+    GROWTH = 'GROWTH',
+    SCALE = 'SCALE',
+}
+
+export enum AISubscriptionOwnerType {
+    ORGANIZATION = 'ORGANIZATION',
+    USER = 'USER',
+}
+
+export enum AISubscriptionStatus {
+    INACTIVE = 'INACTIVE',
+    ACTIVE = 'ACTIVE',
+    CANCELED = 'CANCELED',
+    PAST_DUE = 'PAST_DUE',
+}
+
+export enum AILimitMode {
+    HARD = 'HARD',
+    SOFT = 'SOFT',
+}
+
+export enum AIUsageSourceType {
+    ORGANIZATION = 'ORGANIZATION',
+    PERSONAL = 'PERSONAL',
+}
+
 export enum ThemeMode {
     LIGHT = 'LIGHT',
     DARK = 'DARK',

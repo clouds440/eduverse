@@ -2,6 +2,7 @@ export const PLATFORM_NAME = 'EduVerse';
 
 export const DASHBOARD_MODULES = [
     'overview',
+    'ai',
     'admin',
     'users',
     'teacher',

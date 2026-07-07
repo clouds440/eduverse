@@ -38,6 +38,7 @@ import { EvaluationsModule } from './evaluations/evaluations.module';
 import { CampusNavigationModule } from './campus-navigation/campus-navigation.module';
 import { PreferenceWindowsModule } from './preference-windows/preference-windows.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
+import { AIModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
     EvaluationsModule,
     PreferenceWindowsModule,
     EnrollmentsModule,
+    AIModule,
   ],
   providers: [
     {

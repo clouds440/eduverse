@@ -16,6 +16,7 @@ import { VerificationCodeInput } from '@/components/ui/VerificationCodeInput';
 import { Badge } from '@/components/ui/Badge';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { buildOrgSidebarLinks, getOrgOverviewHref } from '@/lib/orgSidebar';
+import { AICopilotProvider } from '@/components/ai/AICopilotProvider';
 
 const MarkdownRenderer = dynamic(
     () => import('@/components/ui/MarkdownRenderer').then((module) => module.MarkdownRenderer),
@@ -400,35 +401,37 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             bottomLinks={bottomLinks}
             showPadding={showPadding}
         >
-            {user?.userStatus === 'SUSPENDED' && (
-                <div className="mx-3 my-3 flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 sm:mx-6 sm:my-4 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-                    <div className="flex items-start gap-3">
-                        <div className="p-2 bg-warning/10 rounded-md">
-                            <ShieldOff className="w-5 h-5 text-warning" />
+            <AICopilotProvider>
+                {user?.userStatus === 'SUSPENDED' && (
+                    <div className="mx-3 my-3 flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 sm:mx-6 sm:my-4 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                        <div className="flex items-start gap-3">
+                            <div className="p-2 bg-warning/10 rounded-md">
+                                <ShieldOff className="w-5 h-5 text-warning" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-warning leading-none">Read-Only Mode</p>
+                                <p className="text-sm text-warning mt-1">Your account is suspended. You can view data but cannot make changes.</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-bold text-warning leading-none">Read-Only Mode</p>
-                            <p className="text-sm text-warning mt-1">Your account is suspended. You can view data but cannot make changes.</p>
-                        </div>
+                        <Link href="/mail" className="inline-flex min-h-10 items-center justify-center rounded-md bg-warning px-4 py-2 text-xs font-black text-white transition-colors hover:bg-warning/90">
+                            Appeal Suspension
+                        </Link>
                     </div>
-                    <Link href="/mail" className="inline-flex min-h-10 items-center justify-center rounded-md bg-warning px-4 py-2 text-xs font-black text-white transition-colors hover:bg-warning/90">
-                        Appeal Suspension
-                    </Link>
-                </div>
-            )}
-            {contactEmailUnverified && (
-                <ContactEmailVerificationBanner
-                    contactEmail={orgData?.contactEmail}
-                    lastVerificationSentAt={orgData?.lastVerificationSentAt}
-                    onVerified={refreshOrgData}
-                    compact={!isAllowedRoute}
-                />
-            )}
-            {contactEmailUnverified && !isAllowedRoute ? null : !isApproved && !isAllowedRoute ? (
-                <StatusOverlay orgData={orgData} user={user} />
-            ) : (
-                children
-            )}
+                )}
+                {contactEmailUnverified && (
+                    <ContactEmailVerificationBanner
+                        contactEmail={orgData?.contactEmail}
+                        lastVerificationSentAt={orgData?.lastVerificationSentAt}
+                        onVerified={refreshOrgData}
+                        compact={!isAllowedRoute}
+                    />
+                )}
+                {contactEmailUnverified && !isAllowedRoute ? null : !isApproved && !isAllowedRoute ? (
+                    <StatusOverlay orgData={orgData} user={user} />
+                ) : (
+                    children
+                )}
+            </AICopilotProvider>
         </DashboardLayout>
     );
 }

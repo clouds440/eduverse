@@ -8,9 +8,11 @@ import type { LucideIcon } from 'lucide-react';
 import {
     AlertCircle,
     Building2,
+    BarChart3,
     CheckCircle,
     Coins,
     ExternalLink,
+    Gauge,
     Link as LinkIcon,
     Mail,
     MapPin,
@@ -21,12 +23,15 @@ import {
     School,
     Settings,
     ShieldCheck,
+    Sparkles,
+    TrendingUp,
     TriangleAlert,
     Unlink,
+    Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { LinkedAccount, Organization, Role, ThemeMode } from '@/types';
+import { AIOrgSettingsResponse, AIOrgUsageResponse, AISubscriptionOwnerType, AISubscriptionPlan, LinkedAccount, Organization, Role, ThemeMode } from '@/types';
 import { PhotoUploadPicker } from '@/components/ui/PhotoUploadPicker';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { useGlobal } from '@/context/GlobalContext';
@@ -52,11 +57,34 @@ const SETTINGS_TABS = [
     { key: 'profile', label: 'Profile', icon: Building2 },
     { key: 'appearance', label: 'Appearance', icon: Palette },
     { key: 'finance', label: 'Finance', icon: Coins },
+    { key: 'ai', label: 'AI Copilot', icon: Sparkles },
     { key: 'branding', label: 'Branding', icon: School },
     { key: 'security', label: 'Security', icon: ShieldCheck },
 ] as const;
 
 type SettingsTabKey = typeof SETTINGS_TABS[number]['key'];
+type AIOrgAccessField = 'allowSubAdmins' | 'allowManagers' | 'allowFinanceManagers' | 'allowTeachers' | 'allowStudents' | 'allowGuardians';
+
+const AI_ROLE_LABELS: Partial<Record<Role, string>> = {
+    [Role.ORG_ADMIN]: 'Org admins',
+    [Role.SUB_ADMIN]: 'Sub admins',
+    [Role.ORG_MANAGER]: 'Managers',
+    [Role.FINANCE_MANAGER]: 'Finance managers',
+    [Role.TEACHER]: 'Teachers',
+    [Role.STUDENT]: 'Students',
+    [Role.GUARDIAN]: 'Guardians',
+};
+
+const AI_ACCESS_FIELDS: Partial<Record<Role, AIOrgAccessField>> = {
+    [Role.SUB_ADMIN]: 'allowSubAdmins',
+    [Role.ORG_MANAGER]: 'allowManagers',
+    [Role.FINANCE_MANAGER]: 'allowFinanceManagers',
+    [Role.TEACHER]: 'allowTeachers',
+    [Role.STUDENT]: 'allowStudents',
+    [Role.GUARDIAN]: 'allowGuardians',
+};
+
+const AI_ACCESS_ROLE_ENTRIES = Object.entries(AI_ACCESS_FIELDS) as [Role, AIOrgAccessField][];
 
 const HASH_TAB_MAP: Record<string, SettingsTabKey> = {
     'contact-email': 'profile',
@@ -133,6 +161,19 @@ function GoogleIcon({ className }: { className?: string }) {
     return <Image src="/assets/svgs/google.svg" alt="" width={20} height={20} className={cn('h-5 w-5', className)} />;
 }
 
+function formatAIQuantity(value?: number | null) {
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value ?? 0);
+}
+
+function formatAICost(value?: number | null) {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value ?? 0);
+}
+
+function getAIUsagePercent(used: number, total: number) {
+    if (total <= 0) return 0;
+    return Math.min(100, Math.round((used / total) * 100));
+}
+
 export default function SettingsPage() {
     const { token, user } = useAuth();
     const router = useRouter();
@@ -145,6 +186,10 @@ export default function SettingsPage() {
     const [orgData, setOrgData] = useState<Organization | null>(null);
     const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
     const [linkedAccountsLoading, setLinkedAccountsLoading] = useState(false);
+    const [aiSettings, setAiSettings] = useState<AIOrgSettingsResponse | null>(null);
+    const [aiUsage, setAiUsage] = useState<AIOrgUsageResponse | null>(null);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiRoleCreditDrafts, setAiRoleCreditDrafts] = useState<Partial<Record<Role, string>>>({});
     const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
     const [redirecting, setRedirecting] = useState(user?.role === Role.ORG_ADMIN ? false : true);
     const [formErrors, setFormErrors] = useState<{ name?: string; location?: string; contactEmail?: string; phone?: string; currency?: string; accentColor?: string; general?: string }>({});
@@ -181,6 +226,24 @@ export default function SettingsPage() {
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
             setLinkedAccountsLoading(false);
+        }
+    }, [dispatch, token]);
+
+    const fetchAISettings = useCallback(async () => {
+        if (!token) return;
+        setAiLoading(true);
+        try {
+            const settings = await api.ai.getOrgSettings(token);
+            setAiSettings(settings);
+            setAiRoleCreditDrafts(Object.fromEntries(
+                settings.roleCreditPolicies.map((policy) => [policy.role, String(policy.monthlyCredits)]),
+            ) as Partial<Record<Role, string>>);
+        } catch (error) {
+            console.error('Failed to load AI Copilot settings', error);
+            const message = error instanceof Error ? error.message : 'Failed to load AI Copilot settings';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            setAiLoading(false);
         }
     }, [dispatch, token]);
 
@@ -275,6 +338,11 @@ export default function SettingsPage() {
             setPrimaryColor(formData.accentColor.primary);
         }
     }, [formData.accentColor.primary, setPrimaryColor, redirecting]);
+
+    useEffect(() => {
+        if (activeTab !== 'ai' || redirecting || loading || aiSettings) return;
+        void fetchAISettings();
+    }, [activeTab, aiSettings, fetchAISettings, loading, redirecting]);
 
     const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;
@@ -422,6 +490,96 @@ export default function SettingsPage() {
         }
     };
 
+    const refreshAIUsage = async () => {
+        if (!token) return;
+        const usage = await api.ai.getOrgUsage(token);
+        setAiUsage(usage);
+    };
+
+    const handleAIPlanChange = async (plan: AISubscriptionPlan) => {
+        if (!token) return;
+        dispatch({ type: 'UI_START_PROCESSING', payload: 'ai-plan-update' });
+        try {
+            if (plan !== AISubscriptionPlan.NONE) {
+                const checkout = await api.ai.createOrgBillingCheckout(plan, token);
+                if (checkout.checkoutUrl) {
+                    window.location.assign(checkout.checkoutUrl);
+                    return;
+                }
+                throw new Error('Stripe checkout did not return a redirect URL.');
+            }
+
+            const settings = await api.ai.updateOrgSubscription(plan, token);
+            setAiSettings(settings);
+            setAiRoleCreditDrafts(Object.fromEntries(
+                settings.roleCreditPolicies.map((policy) => [policy.role, String(policy.monthlyCredits)]),
+            ) as Partial<Record<Role, string>>);
+            await refreshAIUsage();
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'AI Copilot subscription updated.', type: 'success' } });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to update AI Copilot subscription';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'ai-plan-update' });
+        }
+    };
+
+    const handleAIBillingPortal = async () => {
+        if (!token) return;
+        dispatch({ type: 'UI_START_PROCESSING', payload: 'ai-billing-portal' });
+        try {
+            const portal = await api.ai.createBillingPortal(AISubscriptionOwnerType.ORGANIZATION, token, '/settings?tab=ai');
+            window.location.assign(portal.portalUrl);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to open AI billing portal';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'ai-billing-portal' });
+        }
+    };
+
+    const handleAIAccessToggle = async (field: AIOrgAccessField, enabled: boolean) => {
+        if (!token) return;
+        dispatch({ type: 'UI_START_PROCESSING', payload: `ai-access-${field}` });
+        try {
+            const settings = await api.ai.updateOrgAccessPolicy({ [field]: enabled } as Partial<AIOrgSettingsResponse['accessPolicy']>, token);
+            setAiSettings(settings);
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'AI Copilot role access updated.', type: 'success' } });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to update AI Copilot role access';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: `ai-access-${field}` });
+        }
+    };
+
+    const handleAIRoleCreditSave = async (role: Role) => {
+        if (!token) return;
+        const draftValue = aiRoleCreditDrafts[role] ?? '0';
+        const monthlyCredits = Math.max(0, Math.round(Number(draftValue) || 0));
+        dispatch({ type: 'UI_START_PROCESSING', payload: `ai-role-credit-${role}` });
+        try {
+            const settings = await api.ai.updateRoleCreditPolicy(role, monthlyCredits, token);
+            setAiSettings(settings);
+            setAiRoleCreditDrafts(Object.fromEntries(
+                settings.roleCreditPolicies.map((policy) => [policy.role, String(policy.monthlyCredits)]),
+            ) as Partial<Record<Role, string>>);
+            await refreshAIUsage();
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Monthly AI Credits updated.', type: 'success' } });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to update monthly AI Credits';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: `ai-role-credit-${role}` });
+        }
+    };
+
+    const aiBalance = aiUsage?.usage ?? aiSettings?.usage ?? null;
+    const activeAIPlan = aiSettings?.subscription.plan ?? AISubscriptionPlan.NONE;
+    const activeAIPlanOption = aiSettings?.plans.find((plan) => plan.plan === activeAIPlan);
+    const aiUsagePercent = aiBalance ? getAIUsagePercent(aiBalance.usedCredits, aiBalance.monthlyCredits) : 0;
+    const maxAITrendCredits = Math.max(1, ...(aiUsage?.trends ?? []).map((point) => point.creditsUsed));
+
     if (loading || redirecting) {
         return (
             <div className="flex h-64 items-center justify-center">
@@ -449,15 +607,17 @@ export default function SettingsPage() {
                                 {orgData.status.replace('_', ' ')}
                             </Badge>
                         )}
-                        <Button
-                            type="submit"
-                            form="organization-settings-form"
-                            loadingId="settings-submit"
-                            className="h-10 px-4 text-xs sm:h-11 sm:px-5 sm:text-sm"
-                            icon={Save}
-                        >
-                            Save Settings
-                        </Button>
+                        {activeTab !== 'ai' && (
+                            <Button
+                                type="submit"
+                                form="organization-settings-form"
+                                loadingId="settings-submit"
+                                className="h-10 px-4 text-xs sm:h-11 sm:px-5 sm:text-sm"
+                                icon={Save}
+                            >
+                                Save Settings
+                            </Button>
+                        )}
                     </div>
                 )}
             />
@@ -670,6 +830,238 @@ export default function SettingsPage() {
                                     ))}
                                 </div>
                             </SettingsSection>
+                        </div>
+                    )}
+                    {activeTab === 'ai' && (
+                        <div className="grid gap-4">
+                            {aiLoading && !aiSettings ? (
+                                <div className="flex min-h-56 items-center justify-center rounded-lg border border-border/70 bg-card">
+                                    <Loading size="md" />
+                                </div>
+                            ) : !aiSettings || activeAIPlan === AISubscriptionPlan.NONE || aiSettings.subscription.status !== 'ACTIVE' ? (
+                                <SettingsSection
+                                    icon={Sparkles}
+                                    title="AI Copilot Settings"
+                                    description="Organization AI settings are available after an active organization AI subscription is started."
+                                    action={(
+                                        <Button
+                                            type="button"
+                                            variant="primary"
+                                            icon={ExternalLink}
+                                            onClick={() => router.push('/ai/subscription')}
+                                            className="text-xs"
+                                            px="px-3"
+                                            py="py-2"
+                                        >
+                                            Subscribe
+                                        </Button>
+                                    )}
+                                >
+                                    <div className="rounded-lg border border-border/70 bg-background/60 p-4">
+                                        <p className="text-sm font-black text-foreground">No active organization AI subscription</p>
+                                        <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
+                                            Use the dedicated subscription page to start or change the organization package. Usage dashboards live under AI Copilot, separate from configuration.
+                                        </p>
+                                        <div className="mt-4 flex flex-wrap gap-2">
+                                            <Link
+                                                href="/ai/subscription"
+                                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary px-3 py-2 text-xs font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                                            >
+                                                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                                                View AI Packages
+                                            </Link>
+                                            <Link
+                                                href="/ai"
+                                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70"
+                                            >
+                                                <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                                                Usage
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </SettingsSection>
+                            ) : (
+                                <>
+                                    <SettingsSection
+                                        icon={Sparkles}
+                                        title="AI Copilot Settings"
+                                        description="Configure who can use the active organization AI package and how monthly credits are allocated."
+                                        action={(
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Link
+                                                    href="/ai/subscription"
+                                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70"
+                                                >
+                                                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                                                    View/change subscription
+                                                </Link>
+                                                <Link
+                                                    href="/ai"
+                                                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70"
+                                                >
+                                                    <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                                                    Usage
+                                                </Link>
+                                                <Button
+                                                    type="button"
+                                                    variant="secondary"
+                                                    icon={RefreshCw}
+                                                    onClick={fetchAISettings}
+                                                    disabled={aiLoading}
+                                                    className="text-xs"
+                                                    px="px-3"
+                                                    py="py-2"
+                                                >
+                                                    Refresh
+                                                </Button>
+                                            </div>
+                                        )}
+                                    >
+                                        <div className="grid gap-4 md:grid-cols-3">
+                                            <div className="rounded-lg border border-border/70 bg-background/60 p-4">
+                                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Plan</p>
+                                                <p className="mt-2 text-2xl font-black text-foreground">{activeAIPlanOption?.label ?? activeAIPlan}</p>
+                                                <p className="mt-1 text-xs font-semibold text-muted-foreground">{aiSettings.subscription.status}</p>
+                                            </div>
+                                            <div className="rounded-lg border border-border/70 bg-background/60 p-4">
+                                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Monthly Credits</p>
+                                                <p className="mt-2 text-2xl font-black text-foreground">{formatAIQuantity(aiSettings.subscription.monthlyCredits)}</p>
+                                                <p className="mt-1 text-xs font-semibold text-muted-foreground">{aiSettings.subscription.limitMode} limit</p>
+                                            </div>
+                                            <div className="rounded-lg border border-border/70 bg-background/60 p-4">
+                                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Subscription</p>
+                                                <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">Plan changes and billing live in the dedicated subscription flow.</p>
+                                            </div>
+                                        </div>
+                                    </SettingsSection>
+
+                                    <div className="grid gap-4 xl:grid-cols-2">
+                                        <SettingsSection
+                                            icon={Users}
+                                            title="Role Access"
+                                            description="Choose which organization roles can use organization-funded AI Copilot."
+                                        >
+                                            <div className="space-y-3">
+                                                {aiSettings?.warning && (
+                                                    <div className="flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm font-semibold text-warning">
+                                                        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                                                        <span>{aiSettings.warning}</span>
+                                                    </div>
+                                                )}
+                                                <div className="grid gap-2">
+                                                    {AI_ACCESS_ROLE_ENTRIES.map(([role, field]) => {
+                                                        const checked = Boolean(aiSettings?.accessPolicy[field]);
+                                                        return (
+                                                            <label key={role} className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
+                                                                <span className="text-sm font-semibold text-foreground">{AI_ROLE_LABELS[role as Role] ?? role}</span>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary/30"
+                                                                    checked={checked}
+                                                                    disabled={!aiSettings}
+                                                                    onChange={(event) => handleAIAccessToggle(field, event.target.checked)}
+                                                                />
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </SettingsSection>
+
+                                        <SettingsSection
+                                            icon={Gauge}
+                                            title="Role Monthly Credits"
+                                            description="Set monthly per-user credit caps for each role using the organization plan."
+                                        >
+                                            <div className="space-y-2">
+                                                {(aiSettings?.roleCreditPolicies ?? []).map((policy) => (
+                                                    <div key={policy.role} className="grid gap-2 rounded-md border border-border/70 bg-background/60 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(140px,0.4fr)_auto] sm:items-center">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-black text-foreground">{AI_ROLE_LABELS[policy.role] ?? policy.role}</p>
+                                                            <p className="text-xs font-semibold text-muted-foreground">Per user each month</p>
+                                                        </div>
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            value={aiRoleCreditDrafts[policy.role] ?? String(policy.monthlyCredits)}
+                                                            onChange={(event) => setAiRoleCreditDrafts((current) => ({ ...current, [policy.role]: event.target.value }))}
+                                                            className="h-10 border-border/60 bg-background/70 font-medium"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="secondary"
+                                                            loadingId={`ai-role-credit-${policy.role}`}
+                                                            onClick={() => handleAIRoleCreditSave(policy.role)}
+                                                            className="text-xs"
+                                                            px="px-3"
+                                                            py="py-2"
+                                                        >
+                                                            Save
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </SettingsSection>
+                                    </div>
+
+                                    {false && (
+                                    <SettingsSection
+                                        icon={BarChart3}
+                                        title="AI Usage Dashboard"
+                                        description="Track credits, active users, feature usage, and rough cost estimates for the current billing period."
+                                    >
+                                        <div className="grid gap-4 xl:grid-cols-3">
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Top Users</p>
+                                                {(aiUsage?.topUsers ?? []).length === 0 ? (
+                                                    <p className="rounded-md border border-border/70 bg-background/60 p-3 text-sm font-semibold text-muted-foreground">No AI usage recorded yet.</p>
+                                                ) : aiUsage?.topUsers.map((row) => (
+                                                    <div key={row.userId} className="rounded-md border border-border/70 bg-background/60 p-3">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <p className="min-w-0 truncate text-sm font-black text-foreground">{row.name}</p>
+                                                            <Badge variant="secondary" size="sm">{formatAIQuantity(row.creditsUsed)}</Badge>
+                                                        </div>
+                                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">{AI_ROLE_LABELS[row.role as Role] ?? row.role ?? 'User'} · {formatAICost(row.estimatedCost)}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Feature Usage</p>
+                                                {(aiUsage?.featureUsage ?? []).length === 0 ? (
+                                                    <p className="rounded-md border border-border/70 bg-background/60 p-3 text-sm font-semibold text-muted-foreground">Tool usage appears here after Copilot tools run.</p>
+                                                ) : aiUsage?.featureUsage.map((row) => (
+                                                    <div key={row.toolName} className="rounded-md border border-border/70 bg-background/60 p-3">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <p className="min-w-0 truncate text-sm font-black text-foreground">{row.toolName}</p>
+                                                            <Badge variant="primary" size="sm">{row.calls}</Badge>
+                                                        </div>
+                                                        <p className="mt-1 text-xs font-semibold text-muted-foreground">{row.allowed} allowed · {row.denied} denied</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Usage Trend</p>
+                                                {(aiUsage?.trends ?? []).length === 0 ? (
+                                                    <p className="rounded-md border border-border/70 bg-background/60 p-3 text-sm font-semibold text-muted-foreground">Daily credit trends appear after usage is recorded.</p>
+                                                ) : aiUsage?.trends.map((point) => (
+                                                    <div key={point.date} className="rounded-md border border-border/70 bg-background/60 p-3">
+                                                        <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-widest text-muted-foreground">
+                                                            <span>{point.date}</span>
+                                                            <span>{formatAIQuantity(point.creditsUsed)}</span>
+                                                        </div>
+                                                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                                                            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(3, Math.round((point.creditsUsed / maxAITrendCredits) * 100))}%` }} />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </SettingsSection>
+                                    )}
+                                </>
+                            )}
                         </div>
                     )}
                     {activeTab === 'branding' && (

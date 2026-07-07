@@ -25,6 +25,21 @@ import type {
     PreferenceWindow, PreferenceWindowRequest, PreferenceResults, PreferenceSubmission, Enrollment, EnrollmentMutationResponse,
     LinkedAccount, PasswordResetLinkResponse, PublicProfile
 } from '@/types';
+import type {
+    AIOrgSettingsResponse,
+    AIOrgUsageResponse,
+    AIPersonalSettingsResponse,
+    AIPersonalUsageResponse,
+    AIChatRequest,
+    AIChatResponse,
+    AIChatStreamEvent,
+    AIEntitlementResponse,
+    AIDocsSearchResult,
+    AIRouteSearchResult,
+    AISubscriptionOwnerType,
+    AISubscriptionPlan,
+    Role,
+} from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
 import { emitProfanityWarning, PROFANITY_ERROR_CODE } from './profanityWarning';
@@ -85,6 +100,10 @@ export class ApiNetworkError extends ApiRequestError {
 interface RequestOptions extends RequestInit {
     token?: string;
     signal?: AbortSignal;
+}
+
+interface AIChatStreamHandlers {
+    onEvent: (event: AIChatStreamEvent) => void;
 }
 
 interface QueryParams {
@@ -314,6 +333,102 @@ async function requestText(endpoint: string, options: RequestOptions = {}): Prom
     }
 }
 
+async function streamAiChat(
+    data: AIChatRequest,
+    token: string,
+    handlers: AIChatStreamHandlers,
+    signal?: AbortSignal,
+) {
+    const response = await fetch(`${getApiBaseUrl()}/ai/copilot/chat/stream`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+        signal,
+    });
+
+    if (response.status === 401 && unauthorizedHandler) {
+        unauthorizedHandler(token);
+    }
+
+    if (!response.ok) {
+        let message = `Request failed with status ${response.status}`;
+        let code: string | undefined;
+        let field: string | undefined;
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+            const parsed = parseApiErrorData(await response.json(), message);
+            message = parsed.message;
+            code = parsed.code;
+            field = parsed.field;
+        } else {
+            const text = await response.text();
+            if (text && text.length < 200) message = text;
+        }
+        maybeEmitProfanityWarning({ code, field, message });
+        throw new ApiRequestError(message, response.status, { code, field });
+    }
+
+    if (!response.body) {
+        throw new ApiNetworkError('AI Copilot stream did not return a response body.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        buffer = consumeSseBuffer(buffer, handlers);
+    }
+
+    buffer += decoder.decode();
+    consumeSseBuffer(`${buffer}\n\n`, handlers);
+}
+
+function consumeSseBuffer(buffer: string, handlers: AIChatStreamHandlers) {
+    let cursor = buffer.indexOf('\n\n');
+
+    while (cursor >= 0) {
+        const block = buffer.slice(0, cursor).trim();
+        buffer = buffer.slice(cursor + 2);
+        if (block) consumeSseBlock(block, handlers);
+        cursor = buffer.indexOf('\n\n');
+    }
+
+    return buffer;
+}
+
+function consumeSseBlock(block: string, handlers: AIChatStreamHandlers) {
+    let eventName = 'message';
+    const dataLines: string[] = [];
+
+    for (const line of block.split(/\r?\n/)) {
+        if (line.startsWith('event:')) {
+            eventName = line.slice('event:'.length).trim();
+        } else if (line.startsWith('data:')) {
+            dataLines.push(line.slice('data:'.length).trimStart());
+        }
+    }
+
+    if (dataLines.length === 0) return;
+    const parsed = JSON.parse(dataLines.join('\n')) as AIChatStreamEvent;
+    handlers.onEvent(parsed);
+
+    if (eventName === 'error' || parsed.type === 'error') {
+        throw new ApiRequestError(
+            parsed.type === 'error' ? parsed.message : 'AI Copilot stream failed.',
+            200,
+            { code: parsed.type === 'error' ? parsed.code : undefined },
+        );
+    }
+}
+
 // --- FIX 3: Consolidated FormData upload helper ---
 // Previously, uploadLogo, uploadAvatar, uploadFile, and addMessage (with files)
 // each duplicated the raw fetch + 401 handling + error parsing logic.
@@ -411,6 +526,41 @@ export const api = {
             request<PlatformAdmin>(`/admin/platform-admins/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deletePlatformAdmin: (id: string, token: string) =>
             request<void>(`/admin/platform-admins/${id}`, { method: 'DELETE', token }),
+    },
+
+    ai: {
+        getEntitlement: (token: string) =>
+            request<AIEntitlementResponse>('/ai/entitlement', { token }),
+        chat: (data: AIChatRequest, token: string, signal?: AbortSignal) =>
+            request<AIChatResponse>('/ai/copilot/chat', { method: 'POST', body: JSON.stringify(data), token, signal }),
+        streamChat: (data: AIChatRequest, token: string, handlers: AIChatStreamHandlers, signal?: AbortSignal) =>
+            streamAiChat(data, token, handlers, signal),
+        getOrgSettings: (token: string) =>
+            request<AIOrgSettingsResponse>('/ai/org/settings', { token }),
+        updateOrgSubscription: (plan: AISubscriptionPlan, token: string) =>
+            request<AIOrgSettingsResponse>('/ai/org/subscription', { method: 'PATCH', body: JSON.stringify({ plan }), token }),
+        createOrgBillingCheckout: (plan: AISubscriptionPlan, token: string) =>
+            request<{ checkoutUrl: string | null; sessionId: string }>('/ai/org/billing/checkout', { method: 'POST', body: JSON.stringify({ plan }), token }),
+        updateOrgAccessPolicy: (data: Partial<AIOrgSettingsResponse['accessPolicy']>, token: string) =>
+            request<AIOrgSettingsResponse>('/ai/org/access-policy', { method: 'PATCH', body: JSON.stringify(data), token }),
+        updateRoleCreditPolicy: (role: Role, monthlyCredits: number, token: string) =>
+            request<AIOrgSettingsResponse>('/ai/org/role-credit-policy', { method: 'PATCH', body: JSON.stringify({ role, monthlyCredits }), token }),
+        getOrgUsage: (token: string) =>
+            request<AIOrgUsageResponse>('/ai/org/usage', { token }),
+        getPersonalSubscription: (token: string) =>
+            request<AIPersonalSettingsResponse>('/ai/personal/subscription', { token }),
+        updatePersonalSubscription: (plan: AISubscriptionPlan, token: string) =>
+            request<AIPersonalSettingsResponse>('/ai/personal/subscription', { method: 'PATCH', body: JSON.stringify({ plan }), token }),
+        createPersonalBillingCheckout: (plan: AISubscriptionPlan, token: string) =>
+            request<{ checkoutUrl: string | null; sessionId: string }>('/ai/personal/billing/checkout', { method: 'POST', body: JSON.stringify({ plan }), token }),
+        createBillingPortal: (ownerType: AISubscriptionOwnerType, token: string, returnPath = '/ai') =>
+            request<{ portalUrl: string }>('/ai/billing/portal', { method: 'POST', body: JSON.stringify({ ownerType, returnPath }), token }),
+        getPersonalUsage: (token: string) =>
+            request<AIPersonalUsageResponse>('/ai/personal/usage', { token }),
+        searchDocs: (query: string, token: string, limit = 5) =>
+            request<{ results: AIDocsSearchResult[] }>(`/ai/docs/search${buildQueryString({ q: query, limit })}`, { token }),
+        searchRoutes: (query: string, token: string, limit = 5) =>
+            request<{ results: AIRouteSearchResult[] }>(`/ai/routes/search${buildQueryString({ q: query, limit })}`, { token }),
     },
 
     org: {
