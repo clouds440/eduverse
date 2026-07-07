@@ -1201,8 +1201,6 @@ export class ImportsService {
   }
 
   private parseScheduleDays(value?: string, field = 'day') {
-    const normalized = value?.trim().toLowerCase().replace(/\s+/g, '');
-    if (!normalized) return undefined;
     const dayMap: Record<string, number[]> = {
       sun: [0],
       sunday: [0],
@@ -1233,11 +1231,21 @@ export class ImportsService {
       weekend: [0, 6],
       weekends: [0, 6],
     };
-    const days = dayMap[normalized];
-    if (!days) {
-      throw new BadRequestException({ field, message: 'Use Sun, Mon, Tue, Wed, Thu, Fri, Sat, weekdays, or weekends' });
+    const tokens = (value || '')
+      .split(/[;,]/)
+      .map((part) => part.trim().toLowerCase().replace(/\s+/g, ''))
+      .filter(Boolean);
+    if (tokens.length === 0) return undefined;
+
+    const days = new Set<number>();
+    for (const token of tokens) {
+      const tokenDays = dayMap[token];
+      if (!tokenDays) {
+        throw new BadRequestException({ field, message: 'Use Sun, Mon, Tue, Wed, Thu, Fri, Sat, weekdays, weekends, or comma-separated day values' });
+      }
+      tokenDays.forEach((day) => days.add(day));
     }
-    return days;
+    return Array.from(days).sort((a, b) => a - b);
   }
 
   private async resolveSectionForSchedule(orgId: string, sectionCode?: string) {

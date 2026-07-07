@@ -492,6 +492,28 @@ describe('ImportsService schedule validation', () => {
     });
   });
 
+  it('resolves comma-separated day values for schedules', async () => {
+    const { service } = createService({
+      prisma: {
+        section: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'section-1',
+            teachers: [{ id: 'teacher-1', user: { email: 'sara.ahmed@teacher.example' } }],
+          }),
+        },
+      },
+    });
+    const csv = [
+      scheduleHeaders.join(','),
+      'GRADE-9-A,"Mon, Tue",,09:00,10:00,,,OFFICIAL',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
+
+    expect(result.summary.valid).toBe(1);
+    expect(result.validRows[0].data.scheduleDays).toEqual([1, 2]);
+  });
+
   it('requires teacherEmail when the section has multiple assigned teachers', async () => {
     const { service } = createService({
       prisma: {
