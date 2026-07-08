@@ -44,7 +44,7 @@ export class AIEntityResolverService implements OnModuleInit {
     this.toolRegistry.register({
       name: 'resolveEduVerseEntities',
       description:
-        'Fuzzy-search visible EduVerse entities by keyword before using a domain tool. Supports courses, sections, academic cycles/semesters, students, teachers/managers/staff, departments, and mail threads. Returns IDs, labels, confidence, and ambiguity hints.',
+        'Fuzzy-search visible EduVerse entities by keyword before using a domain tool. Supports courses, sections, academic cycles/semesters, students, teachers/managers/staff, departments, and mail threads. Returns user-safe labels, confidence, and ambiguity hints so Copilot can distinguish unknown entities from known entities with missing related records.',
       run: (input, context) => this.resolveEntities(context, parseInput(input)),
     });
   }
