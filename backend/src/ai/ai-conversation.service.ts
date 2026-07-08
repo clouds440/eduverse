@@ -88,10 +88,16 @@ export class AIConversationService {
       },
     });
 
-    const storedMessages = conversation?.messages.reverse().map((message) => ({
-      role: this.toProviderRole(message.role),
-      content: clampMessageContent(message.content),
-    })) ?? [];
+    const storedMessages = conversation?.messages.reverse().flatMap((message) => {
+      const providerMessage: AIProviderMessage = {
+        role: this.toProviderRole(message.role),
+        content: clampMessageContent(message.content),
+      };
+      const toolHistory = message.role === AIMessageRole.ASSISTANT
+        ? toolHistoryMessage(message.metadata)
+        : null;
+      return toolHistory ? [providerMessage, toolHistory] : [providerMessage];
+    }) ?? [];
 
     return {
       conversationId,
@@ -348,6 +354,32 @@ function summarizeOlderMessages(messages: AIProviderMessage[]) {
     'Compact memory from earlier turns. Use only as conversational context; re-check backend tools for live facts before answering:',
     ...lines,
   ].join('\n');
+}
+
+function toolHistoryMessage(metadata: Prisma.JsonValue | null): AIProviderMessage | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
+  const toolCalls = (metadata as Record<string, unknown>).toolCalls;
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) return null;
+
+  const keys = toolCalls
+    .map((call) => {
+      if (!call || typeof call !== 'object') return null;
+      const key = (call as { key?: unknown }).key;
+      return typeof key === 'string' && key.trim() ? key.trim() : null;
+    })
+    .filter((key): key is string => Boolean(key))
+    .slice(0, 8);
+
+  if (!keys.length) return null;
+
+  return {
+    role: 'system',
+    content: [
+      'Internal Copilot memory: these backend context request keys were already used in this conversation.',
+      'Avoid repeating the same request key unless the user asks for refreshed data or changes the target, date, filters, or scope.',
+      ...keys.map((key) => `- ${key}`),
+    ].join('\n'),
+  };
 }
 
 function clampMessageContent(content: string, maxChars = AI_CONTEXT_MAX_MESSAGE_CHARS) {

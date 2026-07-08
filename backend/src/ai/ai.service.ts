@@ -48,7 +48,7 @@ export class AIService {
   }
 
   async *streamChat(user: User, dto: AIChatRequestDto): AsyncIterable<AIStreamEvent> {
-    yield { type: 'status', label: 'Opening EduVerse context' };
+    yield { type: 'status', label: 'Getting context' };
     const prepared = await this.prepareChat(user, dto);
     let shouldPersistAssistantError = prepared.reusedLastUserMessage;
     if (!prepared.reusedLastUserMessage) {
@@ -64,7 +64,7 @@ export class AIService {
       conversationId: prepared.conversation.id,
       title: prepared.conversation.title,
     };
-    yield { type: 'status', label: 'Writing inside EduVerse' };
+    yield { type: 'status', label: 'Generating response' };
 
     let lastOutput: AIProviderChatOutput | null = null;
     let content = '';
@@ -224,7 +224,7 @@ export class AIService {
       dto.prompt,
       dto.retryLastUserMessage,
     );
-    const toolMessages = await this.collectRelevantToolContext(
+    const toolContextResult = await this.collectRelevantToolContext(
       user,
       dto,
       context.messages,
@@ -234,7 +234,7 @@ export class AIService {
       user,
       dto,
       context.messages,
-      toolMessages,
+      toolContextResult.messages,
       reusedLastUserMessage,
     );
     const finalCredits = this.providerService.estimateCredits(providerInput);
@@ -261,6 +261,7 @@ export class AIService {
       providerInput,
       entitlementSource: finalEntitlement.source,
       reusedLastUserMessage,
+      toolCalls: toolContextResult.toolCalls,
     };
   }
 
@@ -321,7 +322,10 @@ export class AIService {
     dto: AIChatRequestDto,
     contextMessages: AIProviderMessage[],
     entitlementSource: AIEntitlementSource,
-  ): Promise<AIProviderMessage[]> {
+  ): Promise<{
+    messages: AIProviderMessage[];
+    toolCalls: Array<{ name: string; key: string; input?: Record<string, unknown> }>;
+  }> {
     const toolContext = {
       userId: user.id,
       orgId: user.organizationId ?? '',
@@ -340,16 +344,25 @@ export class AIService {
     );
     const results = await this.toolRegistry.runTools(toolRequests, toolContext);
 
-    if (!results.length) return [];
+    const toolCalls = toolRequests.map((request) => ({
+      name: request.name,
+      key: toolRequestKey(request),
+      input: compactToolInput(request.input ?? {}),
+    }));
 
-    return [{
+    if (!results.length) return { messages: [], toolCalls };
+
+    return {
+      toolCalls,
+      messages: [{
       role: 'tool',
       name: 'eduverseToolResults',
       content: JSON.stringify({
-        instruction: 'EduVerse tool results. IDs/links removed. Use successful data first; if ambiguous, ask one concise clarifying question.',
+        instruction: 'Backend context for EduVerse Copilot. Internal source names and IDs are removed. Do not mention tools, tool names, backend functions, or retrieval steps. Use the data to answer naturally.',
         results: compactToolResultsForModel(results),
       }),
-    }];
+    }],
+    };
   }
 
   private async finalizeProviderOutput(
@@ -358,6 +371,7 @@ export class AIService {
       conversation: { id: string; title?: string | null };
       prompt: string;
       entitlementSource: AIEntitlementSource;
+      toolCalls?: Array<{ name: string; key: string; input?: Record<string, unknown> }>;
     },
     output: AIProviderChatOutput,
   ) {
@@ -379,7 +393,7 @@ export class AIService {
         model: output.model,
         creditEstimate: output.creditEstimate,
         providerTokenEstimate: output.providerTokenEstimate,
-        toolCalls: output.toolCalls ?? [],
+        toolCalls: prepared.toolCalls ?? [],
       },
     );
 
@@ -406,7 +420,7 @@ export class AIService {
         sourceType: prepared.entitlementSource.sourceType,
         remainingCreditsBeforeRequest: prepared.entitlementSource.balance.remainingCredits,
       },
-      toolCalls: output.toolCalls ?? [],
+      toolCalls: [],
     };
   }
 
@@ -495,13 +509,13 @@ function sanitizeToolResultsForModel(value: unknown): unknown {
 function compactToolResultsForModel(
   results: Array<{ tool: string; input?: Record<string, unknown>; result: unknown }>,
 ) {
-  return results.map((entry) => {
+  return results.map((entry, index) => {
     const result = entry.result && typeof entry.result === 'object'
       ? entry.result as Record<string, unknown>
       : {};
     const ok = result.ok === true;
     const compact: Record<string, unknown> = {
-      tool: entry.tool,
+      source: `context_${index + 1}`,
       ok,
     };
     if (typeof result.code === 'string') compact.code = result.code;
@@ -564,6 +578,10 @@ function isInternalIdentifierKey(key: string) {
 interface SelectedToolRequest {
   name: string;
   input: Record<string, unknown>;
+}
+
+function toolRequestKey(request: SelectedToolRequest) {
+  return `${request.name}:${JSON.stringify(compactToolInput(request.input ?? {}))}`;
 }
 
 function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest[] {
@@ -673,8 +691,8 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
     add('searchRoutes', { search: prompt, limit: 5 });
   }
 
-  if (mentionsAny(text, ['how do i', 'help', 'docs', 'guide'])) {
-    add('searchDocs', { search: prompt, limit: 5 });
+  if (mentionsAny(text, ['how do i', 'help', 'docs', 'guide', 'what is', 'what are', 'explain', 'meaning', 'what does'])) {
+    add('searchDocs', { search: prompt, limit: 8 });
   }
 
   return requests.slice(0, 8);
@@ -820,8 +838,10 @@ function buildSystemPrompt(user: User) {
   const role = user.role ?? 'USER';
   return [
     'You are EduVerse Copilot. Use "I". Be concise, practical, and markdown-friendly.',
-    'Use only EduVerse tool data, conversation context, and visible user info. Never reveal internal IDs, UUIDs, database fields, or raw route IDs.',
-    'For EduVerse facts, rely on tool results. If data is missing, partial, denied, or ambiguous: say what is known, name what is missing, or ask one concise clarifying question. Do not invent records.',
+    'Use only EduVerse backend context, conversation context, and visible user info. Never reveal internal IDs, UUIDs, database fields, raw route IDs, tool names, backend function names, or retrieval steps.',
+    'For EduVerse facts, rely on backend context. Answer directly when the user intent is clear and context is sufficient, even if some optional fields are unavailable.',
+    'Ask a short, natural follow-up only when the first prompt is unclear, multiple possible records match, or a required target/date/scope is missing. Avoid routine sections titled "Missing Information" or "Clarifying Question".',
+    'If data is partial but enough to help, state the useful answer and add a brief inline caveat. Do not invent records.',
     'For compound requests, combine relevant tool results into one answer. For code, use fenced blocks with language labels.',
     `Role: ${role}. Focus: ${roleFocus(role)}.`,
     `User: ${JSON.stringify({

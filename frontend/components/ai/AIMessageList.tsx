@@ -60,7 +60,7 @@ export function AIMessageList({ messages }: AIMessageListProps) {
                         />
                       </span>
                       <span className="truncate text-xs font-black text-foreground">
-                        {message.statusLabel ?? "Opening EduVerse context"}
+                        {message.statusLabel ?? "Thinking"}
                       </span>
                     </div>
                     <div className="mt-2 h-1 overflow-hidden rounded-full bg-primary/10">

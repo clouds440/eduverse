@@ -201,6 +201,124 @@ export const aiDocsPages: AIDocPage[] = [
     ],
   },
   {
+    slug: 'gpa-policies',
+    title: 'GPA Policies',
+    description: 'Define organization GPA scales, grade boundaries, rounding, defaults, and transcript rules.',
+    category: 'Academic Settings',
+    tags: ['gpa', 'cgpa', 'grade rules', 'credit hours', 'academic settings', 'transcripts'],
+    sections: [
+      {
+        id: 'policy-basics',
+        title: 'Policy basics',
+        summary: 'A GPA policy is the school rulebook for turning marks into letter grades, grade points, GPA, and CGPA.',
+        tags: ['gpa policy', 'scale', 'rounding', 'method', 'grade rules'],
+        blocks: [
+          { type: 'paragraph', text: 'A GPA policy is the school rulebook for turning marks into letter grades, grade points, GPA, and CGPA. Org admins can create multiple policies, select one default policy, and preview calculations before saving.' },
+          { type: 'list', items: [
+            'Scale defines the maximum grade point value, such as 4.0 or 10.0.',
+            'Method decides whether GPA averages all courses equally or weights courses by credit hours.',
+            'Rounding controls how many decimals appear in GPA and CGPA results.',
+            'Grade rules map mark ranges from 0 to 100 to letter grades and grade points.',
+          ] },
+          { type: 'note', title: 'Multiple policies', text: 'Schools can keep more than one GPA policy when grading rules change over time. The default policy is used when a cycle does not have a specific policy selected.' },
+        ],
+      },
+      {
+        id: 'grade-rule-validation',
+        title: 'Grade rule validation',
+        summary: 'GPA policy grade rules must be complete, ordered, non-overlapping, and within scale.',
+        tags: ['validation', 'grade boundaries', 'overlap', 'missing ranges'],
+        blocks: [
+          { type: 'list', items: [
+            'Rules must cover the full 0-100 mark range without gaps.',
+            'Ranges cannot overlap.',
+            'Grade points cannot go down as marks go up.',
+            'Rule points must stay between 0 and the policy scale.',
+            'A policy can have up to 20 grade rules.',
+            'Custom formulas are not supported; use clear mark ranges and grade points instead.',
+          ] },
+        ],
+      },
+      {
+        id: 'policy-preview',
+        title: 'Preview calculator',
+        summary: 'Admins can test marks and credit hours before relying on a GPA policy.',
+        tags: ['preview', 'calculator', 'test marks'],
+        blocks: [
+          { type: 'paragraph', text: 'The preview calculator lets admins test sample marks and credit hours before saving a policy. Use it to confirm that letters, grade points, simple GPA, and weighted GPA behave as expected.' },
+          { type: 'list', items: [
+            'Try marks near each boundary, such as 84.9 and 85, to confirm the correct letter appears.',
+            'Try different credit hours when the policy is weighted by credit hours.',
+            'Fix validation errors before relying on preview results.',
+          ] },
+        ],
+      },
+      {
+        id: 'policy-locking',
+        title: 'Policy locking on cycles',
+        summary: 'Once finalized grades exist for a cycle, that cycle GPA policy cannot be changed.',
+        tags: ['locked', 'finalized grades', 'history', 'cycle policy'],
+        blocks: [
+          { type: 'paragraph', text: 'Academic cycles store the GPA policy selected for that cycle. Once finalized grades are pushed by any teacher for that cycle, the selected policy cannot be changed.' },
+          { type: 'note', title: 'Historical accuracy', text: 'The lock preserves transcript history so old results do not silently recalculate under a newer policy.' },
+          { type: 'steps', items: ['Create policy', 'Preview boundaries', 'Save policy', 'Assign to cycle', 'Teachers finalize grades', 'Policy locks for that cycle'] },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'academic-cycles',
+    title: 'Academic Cycles',
+    description: 'Manage terms, cohorts, active cycles, copy-forward behavior, and GPA policy selection.',
+    category: 'Academics',
+    tags: ['academic cycle', 'semester', 'term', 'gpa policy', 'finalized grades'],
+    sections: [
+      {
+        id: 'gpa-policy-selection',
+        title: 'GPA policy selection',
+        summary: 'Each cycle can use a selected GPA policy, or fall back to the organization default.',
+        tags: ['gpa policy', 'cycle policy', 'default policy'],
+        blocks: [
+          { type: 'paragraph', text: 'Each academic cycle can use a selected GPA policy. When no specific policy is selected at creation time, the organization default policy is used.' },
+          { type: 'list', items: [
+            'Select the policy that should apply to grades finalized in this cycle.',
+            'Use the default only when it matches the institute rules for this cycle.',
+            'Changing the default policy later does not mean old cycles should silently follow the new policy.',
+          ] },
+          { type: 'table', headers: ['Cycle state', 'Can policy change?', 'Recommended action'], rows: [
+            ['No finalized grades yet', 'Yes', 'Review and change the selected policy before teachers finalize grades.'],
+            ['Some grades finalized', 'No', 'Keep the policy as-is and correct future cycles with a new policy if needed.'],
+            ['Past cycle', 'No, if grades were finalized', 'Archive old policies instead of deleting them when they explain historical transcripts.'],
+          ] },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'transcripts',
+    title: 'Transcripts',
+    description: 'Generate academic records with marks, percentages, letter grades, credit hours, GPA, and CGPA.',
+    category: 'Academics',
+    tags: ['transcript', 'gpa', 'cgpa', 'credit hours', 'finalized grades'],
+    sections: [
+      {
+        id: 'transcript-calculation',
+        title: 'Transcript calculation',
+        summary: 'Transcripts use finalized grades, assessment weights, course credit hours, and the cycle GPA policy.',
+        tags: ['gpa policy', 'finalized grades', 'credit hours', 'cgpa'],
+        blocks: [
+          { type: 'paragraph', text: 'A transcript is the student academic record for a cycle or set of cycles. It uses finalized grades, assessment weights, course credit hours, and the GPA policy assigned to each academic cycle.' },
+          { type: 'list', items: [
+            'Letter grade and grade points come from the cycle GPA policy.',
+            'Quality points equal grade points multiplied by credit hours.',
+            'Total credit hours should sum the displayed course credit hours for the transcript scope.',
+            'CGPA is calculated cumulatively across returned transcript cycles.',
+          ] },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'finance',
     title: 'Finance',
     description: 'Manage finance structures, entries, payment claims, transactions, and payroll.',

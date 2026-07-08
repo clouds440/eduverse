@@ -9,6 +9,7 @@ export interface AIDocsSearchResult {
   title: string;
   section: string;
   snippet: string;
+  details: string[];
   href: string;
   tags: string[];
 }
@@ -77,21 +78,22 @@ export class AIKnowledgeService implements OnModuleInit {
     const tokens = tokenize(query);
     if (!tokens.length) return [];
 
-    return this.docsEntries
+    const scored = this.docsEntries
       .map((entry) => ({
         entry,
         score: scoreDocsEntry(entry, tokens),
       }))
       .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score || a.entry.pageTitle.localeCompare(b.entry.pageTitle))
-      .slice(0, clampLimit(limit))
-      .map(({ entry }) => ({
-        title: entry.pageTitle,
-        section: entry.sectionTitle,
-        snippet: buildSnippet(entry.bodyText, entry.fallbackSnippet, tokens),
-        href: entry.href,
-        tags: entry.tags.slice(0, 5),
-      }));
+      .sort((a, b) => b.score - a.score || a.entry.pageTitle.localeCompare(b.entry.pageTitle));
+
+    return expandDocsResults(scored, clampLimit(limit), tokens).map((entry) => ({
+      title: entry.pageTitle,
+      section: entry.sectionTitle,
+      snippet: buildSnippet(entry.bodyText, entry.fallbackSnippet, tokens),
+      details: buildDetails(entry.bodyText, tokens),
+      href: entry.href,
+      tags: entry.tags.slice(0, 5),
+    }));
   }
 
   searchRoutes(
@@ -125,7 +127,7 @@ export class AIKnowledgeService implements OnModuleInit {
 
 function parseSearchInput(input: unknown) {
   const value = input && typeof input === 'object' ? input as Record<string, unknown> : {};
-  const query = typeof value.query === 'string' ? value.query.trim() : '';
+  const query = firstString(value.query, value.search, value.q).trim();
   const limit = typeof value.limit === 'number'
     ? value.limit
     : typeof value.limit === 'string'
@@ -135,10 +137,14 @@ function parseSearchInput(input: unknown) {
   return { query, limit };
 }
 
+function firstString(...values: unknown[]) {
+  return values.find((value): value is string => typeof value === 'string') ?? '';
+}
+
 function clampLimit(limit?: number) {
   const parsed = Number(limit);
   if (!Number.isFinite(parsed)) return 5;
-  return Math.min(10, Math.max(1, Math.round(parsed)));
+  return Math.min(12, Math.max(1, Math.round(parsed)));
 }
 
 function normalize(value: string) {
@@ -151,8 +157,30 @@ function normalize(value: string) {
 }
 
 function tokenize(query: string) {
-  return normalize(query).split(/\s+/).filter((token) => token.length >= 2);
+  return normalize(query)
+    .split(/\s+/)
+    .filter((token) => token.length >= 2 && !DOC_SEARCH_STOP_WORDS.has(token));
 }
+
+const DOC_SEARCH_STOP_WORDS = new Set([
+  'an',
+  'and',
+  'are',
+  'can',
+  'does',
+  'for',
+  'how',
+  'is',
+  'it',
+  'of',
+  'on',
+  'the',
+  'to',
+  'what',
+  'when',
+  'where',
+  'why',
+]);
 
 function includesToken(value: string, token: string) {
   return normalize(value).includes(token);
@@ -167,6 +195,46 @@ function scoreDocsEntry(entry: AIDocsSearchEntry, tokens: string[]) {
 
     return score + (title ? 10 : 0) + (tags ? 6 : 0) + (category ? 4 : 0) + (body ? 1 : 0);
   }, 0);
+}
+
+function expandDocsResults(
+  scored: Array<{ entry: AIDocsSearchEntry; score: number }>,
+  limit: number,
+  tokens: string[],
+) {
+  const selected: AIDocsSearchEntry[] = [];
+  const seen = new Set<string>();
+  const add = (entry: AIDocsSearchEntry) => {
+    if (seen.has(entry.href) || selected.length >= limit) return;
+    seen.add(entry.href);
+    selected.push(entry);
+  };
+
+  for (const item of scored) {
+    add(item.entry);
+    if (selected.length >= limit) break;
+
+    if (isStrongDocsMatch(item.entry, tokens)) {
+      const pagePrefix = item.entry.href.split('#')[0];
+      const siblingEntries = scored
+        .map((candidate) => candidate.entry)
+        .filter((candidate) => candidate.href.split('#')[0] === pagePrefix);
+      for (const sibling of siblingEntries) {
+        add(sibling);
+        if (selected.length >= limit) break;
+      }
+    }
+  }
+
+  return selected;
+}
+
+function isStrongDocsMatch(entry: AIDocsSearchEntry, tokens: string[]) {
+  return tokens.some((token) =>
+    includesToken(entry.pageTitle, token) ||
+    includesToken(entry.titleText, token) ||
+    includesToken(entry.tagText, token),
+  );
 }
 
 function scoreRouteEntry(entry: AIRouteEntry, tokens: string[]) {
@@ -199,6 +267,18 @@ function buildSnippet(body: string, fallback: string, tokens: string[]) {
   const prefix = start > 0 ? '...' : '';
   const suffix = end < source.length ? '...' : '';
   return `${prefix}${source.slice(start, end).trim()}${suffix}`;
+}
+
+function buildDetails(body: string, tokens: string[]) {
+  const sentences = body
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.replace(/\s+/g, ' ').trim())
+    .filter((sentence) => sentence.length > 24);
+  const matching = sentences.filter((sentence) =>
+    tokens.some((token) => includesToken(sentence, token)),
+  );
+  const selected = matching.length ? matching : sentences;
+  return selected.slice(0, 6).map((sentence) => sentence.slice(0, 360));
 }
 
 function resolveRouteHref(entry: AIRouteEntry, userId?: string | null): AIRouteEntry | null {

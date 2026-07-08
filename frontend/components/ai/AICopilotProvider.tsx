@@ -396,7 +396,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
 
       try {
         waitingTimer = window.setTimeout(() => {
-          updatePendingStatus("Checking records");
+          updatePendingStatus("Getting context");
         }, 10000);
         await api.ai.streamChat(
           {
@@ -413,7 +413,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
               }
 
               if (event.type === "conversation") {
-                updatePendingStatus("Checking your workspace");
+                updatePendingStatus("Processing");
                 setConversationId(event.conversationId);
                 setActiveConversationTitle(event.title);
                 return;

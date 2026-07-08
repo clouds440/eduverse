@@ -132,8 +132,9 @@ describe('AIService', () => {
     }));
     const providerInput = providerService.chat.mock.calls[0][0];
     const toolMessage = providerInput.messages.find((message: any) => message.role === 'tool');
-    expect(toolMessage.content).toContain('"tool":"getScheduleContext"');
+    expect(toolMessage.content).toContain('"source":"context_');
     expect(toolMessage.content).toContain('"courseName":"Algebra"');
+    expect(toolMessage.content).not.toContain('getScheduleContext');
     expect(toolMessage.content).not.toContain('schedule-1');
     expect(toolMessage.content).not.toContain('/sections/section-1');
     expect(toolRegistry.runTools).toHaveBeenCalledWith(

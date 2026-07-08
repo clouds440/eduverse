@@ -57,6 +57,7 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
       'Resolve named/ambiguous entities first. For compound requests, choose all independent context tools needed.',
       'Prefer generic tools: resolveEduVerseEntities, getAcademicPerformanceProfile, getScheduleContext, getOperationsContext, searchDocs, searchRoutes, AI usage tools.',
       'Use structured inputs when useful: search, targetType, date, startDate, endDate, include, includeLoad, includeBottlenecks, limit.',
+      'If recent context lists an internal request key already used, do not request the same tool with the same effective input again unless the user asks for refreshed data or changes the target/date/scope.',
       '',
       'Available tools:',
       ...input.tools.map((tool) => `- ${tool.name}: ${trimForPlanner(tool.description, 180)}`),
@@ -182,7 +183,7 @@ function buildOpenRouterPrompt(input: AIProviderChatInput) {
     .map((message) => {
       if (message.role === 'tool') {
         return [
-          `Backend tool result${message.name ? ` from ${message.name}` : ''}:`,
+          'EduVerse backend context:',
           normalizeMessageContent(message.content),
         ].join('\n');
       }
@@ -194,7 +195,7 @@ function buildOpenRouterPrompt(input: AIProviderChatInput) {
   return [
     input.systemPrompt,
     '',
-    'Tool results are authoritative. If missing/denied/ambiguous, answer what is known and ask one concise follow-up.',
+    'EduVerse backend context is authoritative. Do not mention tools, tool names, backend functions, or retrieval steps. Answer directly when intent and data are sufficient. Ask a brief natural follow-up only when ambiguity blocks a useful answer.',
     '',
     'Context:',
     transcript || 'USER: Please answer using the available EduVerse context.',

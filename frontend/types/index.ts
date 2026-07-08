@@ -932,6 +932,7 @@ export interface AIDocsSearchResult {
     title: string;
     section: string;
     snippet: string;
+    details?: string[];
     href: string;
     tags: string[];
 }
