@@ -804,6 +804,18 @@ html.pwa-standalone.virtual-keyboard-open .app-shell-main {
     animation: shimmer 1.5s infinite;
   }
 
+  @keyframes ai-progress {
+    0% {
+      transform: translateX(-120%);
+    }
+    50% {
+      transform: translateX(40%);
+    }
+    100% {
+      transform: translateX(220%);
+    }
+  }
+
   .markdown-content {
     --markdown-edge-offset: 0.5rem;
     color: inherit;

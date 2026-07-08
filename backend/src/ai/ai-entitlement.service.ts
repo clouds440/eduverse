@@ -30,7 +30,7 @@ export class AIEntitlementService {
       return {
         allowed: false,
         code: 'UNSUPPORTED_ACCOUNT_STATUS',
-        message: 'This account is not eligible to use EduVerse AI Copilot.',
+        message: 'This account is not eligible to use EduVerse Copilot.',
       };
     }
 
@@ -61,7 +61,7 @@ export class AIEntitlementService {
       message:
         personalSource?.message ??
         orgSource?.message ??
-        'EduVerse AI Copilot requires an organization or personal AI subscription.',
+        'EduVerse Copilot requires an organization or personal AI subscription.',
       orgSubscriptionStatus: orgSubscription?.status ?? null,
       orgLimitMode: orgSubscription?.limitMode ?? null,
       personalSubscriptionStatus: personalSubscription?.status ?? null,
@@ -81,7 +81,7 @@ export class AIEntitlementService {
       return {
         allowed: false,
         code: 'NO_SUBSCRIPTION',
-        message: 'This organization does not have an active AI Copilot subscription.',
+        message: 'This organization does not have an active EduVerse Copilot subscription.',
       };
     }
 
@@ -105,7 +105,7 @@ export class AIEntitlementService {
       return {
         allowed: false,
         code: 'ORG_ROLE_DISABLED',
-        message: 'Your organization has not enabled AI Copilot for your role.',
+        message: 'Your organization has not enabled EduVerse Copilot for your role.',
       };
     }
 
@@ -164,7 +164,7 @@ export class AIEntitlementService {
       return {
         allowed: false,
         code: 'NO_SUBSCRIPTION',
-        message: 'You do not have an active personal AI Copilot subscription.',
+        message: 'You do not have an active personal EduVerse Copilot subscription.',
       };
     }
 

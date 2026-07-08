@@ -48,15 +48,15 @@ export function AISuggestedPrompts({
             disabled={disabled}
             onClick={() => onSelect(suggestion.prompt)}
             className={cn(
-              "shrink-0 max-w-[min(78vw,320px)] rounded-full cursor-pointer border border-border/70 bg-background/80 px-3 py-1.5 text-left text-xs font-bold leading-5 text-foreground shadow-xs transition-colors",
+              "shrink-0 max-w-fit rounded-full cursor-pointer border border-border/70 bg-background/80 px-3 py-1.5 text-left text-xs font-bold leading-5 text-foreground shadow-xs transition-colors",
               "hover:border-primary/30 hover:bg-primary/5 active:scale-[0.99]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               "disabled:pointer-events-none disabled:opacity-50",
               i === 0
-                ? "bg-success/10 text-success"
+                ? "bg-success/5 text-success"
                 : i === 1
-                  ? "bg-warning/10 text-warning"
-                  : "bg-danger/10 text-danger",
+                  ? "bg-warning/5 text-warning"
+                  : "bg-danger/5 text-danger",
             )}
           >
             <span className="block truncate min-w-fit">

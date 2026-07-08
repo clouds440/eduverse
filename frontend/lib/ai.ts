@@ -85,7 +85,7 @@ export function getAIRoleHomeConfig(role?: Role | string | null): AIRoleHomeConf
     }
 
     return {
-        eyebrow: 'EduVerse AI Copilot',
+        eyebrow: 'EduVerse Copilot',
         title: 'Ask with your role context.',
         description: 'Use Copilot for focused help across the EduVerse areas you already have permission to access.',
         suggestions: [

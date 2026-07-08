@@ -12,6 +12,7 @@ import {
   studentDepartmentScopeWhere,
   teacherDepartmentScopeWhere,
 } from '../common/department-scope';
+import { fuzzySearchScore, normalizeSearchText } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { AIToolRegistryService } from './ai-tool-registry.service';
 import type { AIToolContext, AIToolResult } from './ai.types';
@@ -49,7 +50,7 @@ export class AIPerformanceToolsService implements OnModuleInit {
   onModuleInit() {
     this.register(
       'getAcademicPerformanceProfile',
-      'Generic academic performance context tool. Accepts targetType student, teacher, course, department, or organization plus optional search/id fields. Returns the most complete permission-scoped performance, workload, attendance, evaluation, deadline, and recommendation profile available for that target.',
+      'Generic academic context tool. targetType student/teacher/course/department/organization. Includes student enrolled sections/current courses, teacher taught sections/current courses, workload, attendance, grades, evaluations, deadlines, and recommendations.',
       (input, context) => this.getAcademicPerformanceProfile(context, parseInput(input)),
     );
     this.register(
@@ -59,7 +60,7 @@ export class AIPerformanceToolsService implements OnModuleInit {
     );
     this.register(
       'getTeacherPerformanceProfile',
-      'Return a compact, permission-scoped teacher/manager/staff performance profile with workload, grades, attendance, evaluations, risks, schedules, and recommendations. Use this directly for teacher or manager review questions.',
+      'Return teacher/manager/staff profile with taught sections/current courses, workload, grades, attendance, evaluations, risks, schedules, and recommendations.',
       (input, context) => this.getTeacherPerformanceProfile(context, parseInput(input)),
     );
     this.register(
@@ -69,7 +70,7 @@ export class AIPerformanceToolsService implements OnModuleInit {
     );
     this.register(
       'getStudentPerformanceProfile',
-      'Return a compact, permission-scoped student performance profile with weak courses, attendance, deadlines, schedule signals, and recommendations.',
+      'Return student profile with enrolled sections/current courses, course load, weak courses, attendance, deadlines, schedule signals, and recommendations.',
       (input, context) => this.getStudentPerformanceProfile(context, parseInput(input)),
     );
     this.register(
@@ -248,6 +249,7 @@ export class AIPerformanceToolsService implements OnModuleInit {
       workload: {
         courses: uniqueCourses.length,
         sections: sections.length,
+        meaning: 'These sections are the current courses this teacher is teaching.',
         enrolledSeatsAcrossSections: totalStudents,
         weeklyScheduleSlots: scheduleCount,
         loadLevel: scheduleCount >= 15 || sections.length >= 6 ? 'high' : scheduleCount >= 10 || sections.length >= 4 ? 'moderate' : 'normal',
@@ -260,12 +262,12 @@ export class AIPerformanceToolsService implements OnModuleInit {
         evaluationCount: evaluation.totalRatings,
         pendingGrades: pendingGrading.missingGrades,
       },
-      courses: uniqueCourses.slice(0, 8).map((course) => ({
+      taughtCourses: uniqueCourses.slice(0, 8).map((course) => ({
         courseId: course.id,
         name: course.name,
         code: course.code,
       })),
-      sections: sections.slice(0, 8).map((section) => ({
+      taughtSections: sections.slice(0, 8).map((section) => ({
         sectionId: section.id,
         name: section.name,
         courseName: section.course.name,
@@ -387,7 +389,7 @@ export class AIPerformanceToolsService implements OnModuleInit {
     const student = await this.resolveStudent(context, input);
     if (!student) return notFound('Student not found or not visible to this user.');
 
-    const [grades, attendanceRecords, upcomingAssessments, scheduleCount] = await Promise.all([
+    const [grades, attendanceRecords, upcomingAssessments, scheduleCount, enrollments] = await Promise.all([
       this.prisma.grade.findMany({
         where: { studentId: student.id },
         take: 250,
@@ -431,9 +433,47 @@ export class AIPerformanceToolsService implements OnModuleInit {
       this.prisma.sectionSchedule.count({
         where: { section: { enrollments: { some: { studentId: student.id } } } },
       }),
+      this.prisma.enrollment.findMany({
+        where: { studentId: student.id },
+        take: clampLimit(input.limit, 20),
+        include: {
+          academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+          section: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+              course: { select: { id: true, name: true, code: true, creditHours: true, department: { select: { name: true } } } },
+              teachers: { include: { user: { select: { name: true, email: true } } } },
+              _count: { select: { schedules: true, assessments: true, enrollments: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
     ]);
 
     const courseSummaries = summarizeStudentCourses(grades, attendanceRecords);
+    const currentEnrollments = enrollments.map((enrollment) => {
+      const section = enrollment.section;
+      const cycle = enrollment.academicCycle ?? section.academicCycle;
+      return {
+        courseName: section.course.name,
+        courseCode: section.course.code,
+        creditHours: section.course.creditHours,
+        department: section.course.department?.name ?? null,
+        sectionName: section.name,
+        sectionCode: section.code,
+        academicCycle: cycle?.name ?? null,
+        academicCycleIsActive: cycle?.isActive ?? null,
+        teachers: section.teachers.map((teacher) => teacher.user?.name ?? teacher.user?.email).filter(Boolean),
+        weeklyScheduleSlots: section._count.schedules,
+        assessments: section._count.assessments,
+        enrolledStudents: section._count.enrollments,
+      };
+    });
+    const activeEnrollments = currentEnrollments.filter((enrollment) => enrollment.academicCycleIsActive !== false);
     const weakestCourses = courseSummaries
       .filter((course) => course.averageGradePercent !== null || course.attendanceRate !== null)
       .sort((a, b) => riskScore(b) - riskScore(a))
@@ -455,8 +495,20 @@ export class AIPerformanceToolsService implements OnModuleInit {
           averageGradePercent: roundOrNull(overallAverage),
           attendanceRate: overallAttendance,
           gradedItems: grades.length,
+          enrolledCourses: currentEnrollments.length,
+          activeEnrolledCourses: activeEnrollments.length,
           upcomingMissingDeadlines: upcomingAssessments.length,
           weeklyScheduleSlots: scheduleCount,
+          loadLevel: scheduleCount >= 18 || activeEnrollments.length >= 7 ? 'high' : scheduleCount >= 12 || activeEnrollments.length >= 5 ? 'moderate' : 'normal',
+        },
+        currentCourses: currentEnrollments.slice(0, 12),
+        enrollmentMeaning: 'A student enrollment links the student to a section; each section represents a course the student is currently taking.',
+        courseLoad: {
+          enrolledCourses: currentEnrollments.length,
+          activeEnrolledCourses: activeEnrollments.length,
+          weeklyScheduleSlots: scheduleCount,
+          loadLevel: scheduleCount >= 18 || activeEnrollments.length >= 7 ? 'high' : scheduleCount >= 12 || activeEnrollments.length >= 5 ? 'moderate' : 'normal',
+          decisionHint: 'Use currentCourses, weeklyScheduleSlots, grades, attendance, and deadlines to judge whether adding another course may be too much.',
         },
         weakestCourses,
         upcomingMissingDeadlines: upcomingAssessments.map((assessment) => ({
@@ -694,40 +746,107 @@ export class AIPerformanceToolsService implements OnModuleInit {
   }
 
   private async resolveTeacher(context: AIToolContext, input: PerformanceToolInput) {
-    return this.prisma.teacher.findFirst({
-      where: await this.teacherWhereForActor(context, input),
+    if (input.teacherId || !input.search) {
+      return this.prisma.teacher.findFirst({
+        where: await this.teacherWhereForActor(context, input),
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          teacherDepartments: { include: { department: { select: { id: true, name: true } } } },
+        },
+        orderBy: { user: { name: 'asc' } },
+      });
+    }
+
+    const teachers = await this.prisma.teacher.findMany({
+      where: await this.teacherWhereForActor(context, { ...input, search: undefined }),
+      take: 80,
       include: {
         user: { select: { id: true, name: true, email: true } },
         teacherDepartments: { include: { department: { select: { id: true, name: true } } } },
       },
       orderBy: { user: { name: 'asc' } },
     });
+    return bestFuzzyMatch(teachers, input.search, (teacher) => [
+      teacher.user?.name,
+      teacher.user?.email,
+      teacher.subject,
+      teacher.designation,
+      ...teacher.teacherDepartments.map((entry) => entry.department.name),
+    ]);
   }
 
   private async resolveCourse(context: AIToolContext, input: PerformanceToolInput) {
-    return this.prisma.course.findFirst({
-      where: await this.courseWhereForActor(context, input),
-      include: { department: { select: { id: true, name: true } } },
+    if (input.courseId || !input.search) {
+      return this.prisma.course.findFirst({
+        where: await this.courseWhereForActor(context, input),
+        include: { department: { select: { id: true, name: true } } },
+        orderBy: { name: 'asc' },
+      });
+    }
+
+    const courses = await this.prisma.course.findMany({
+      where: await this.courseWhereForActor(context, { ...input, search: undefined }),
+      take: 100,
+      include: { department: { select: { id: true, name: true, code: true } } },
       orderBy: { name: 'asc' },
     });
+    return bestFuzzyMatch(courses, input.search, (course) => [
+      course.name,
+      course.code,
+      course.department?.name,
+      course.department?.code,
+    ]);
   }
 
   private async resolveStudent(context: AIToolContext, input: PerformanceToolInput) {
-    return this.prisma.student.findFirst({
-      where: await this.studentWhereForActor(context, input),
+    if (input.studentId || !input.search) {
+      return this.prisma.student.findFirst({
+        where: await this.studentWhereForActor(context, input),
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          primaryDepartment: { select: { id: true, name: true, code: true } },
+        },
+        orderBy: { user: { name: 'asc' } },
+      });
+    }
+
+    const students = await this.prisma.student.findMany({
+      where: await this.studentWhereForActor(context, { ...input, search: undefined }),
+      take: 100,
       include: {
         user: { select: { id: true, name: true, email: true } },
-        primaryDepartment: { select: { id: true, name: true } },
+        primaryDepartment: { select: { id: true, name: true, code: true } },
       },
       orderBy: { user: { name: 'asc' } },
     });
+    return bestFuzzyMatch(students, input.search, (student) => [
+      student.user?.name,
+      student.user?.email,
+      student.registrationNumber,
+      student.rollNumber,
+      student.primaryDepartment?.name,
+      student.primaryDepartment?.code,
+      student.department,
+    ]);
   }
 
   private async resolveDepartment(context: AIToolContext, input: PerformanceToolInput) {
-    return this.prisma.department.findFirst({
-      where: await this.departmentWhereForActor(context, input),
+    if (input.departmentId || !input.search) {
+      return this.prisma.department.findFirst({
+        where: await this.departmentWhereForActor(context, input),
+        orderBy: { name: 'asc' },
+      });
+    }
+
+    const departments = await this.prisma.department.findMany({
+      where: await this.departmentWhereForActor(context, { ...input, search: undefined }),
+      take: 80,
       orderBy: { name: 'asc' },
     });
+    return bestFuzzyMatch(departments, input.search, (department) => [
+      department.name,
+      department.code,
+    ]);
   }
 
   private async teacherWhereForActor(context: AIToolContext, input: PerformanceToolInput): Promise<Prisma.TeacherWhereInput> {
@@ -1184,6 +1303,43 @@ function uniqueBy<T>(values: T[], key: (value: T) => string) {
     seen.add(id);
     return true;
   });
+}
+
+function bestFuzzyMatch<T>(
+  items: T[],
+  search: string | undefined,
+  getValues: (item: T) => Array<string | number | null | undefined>,
+) {
+  if (!items.length) return null;
+  const candidates = searchCandidates(search);
+  if (!candidates.length) return items[0];
+  const ranked = items
+    .map((item) => ({
+      item,
+      score: Math.max(...candidates.map((candidate) => fuzzySearchScore(candidate, getValues(item)))),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.item ?? null;
+}
+
+function searchCandidates(search?: string) {
+  const normalized = normalizeSearchText(search);
+  if (!normalized) return [];
+  const stopWords = new Set([
+    'a', 'an', 'and', 'as', 'do', 'does', 'for', 'from', 'him', 'her', 'his', 'i', 'in', 'is', 'it',
+    'me', 'of', 'or', 'per', 'request', 'should', 'student', 'teacher', 'the', 'think', 'to', 'too',
+    'with', 'would', 'you',
+  ]);
+  const tokens = normalized.split(/\s+/).filter((token) => token.length > 1 && !stopWords.has(token));
+  const candidates = new Set<string>();
+  for (let size = Math.min(4, tokens.length); size >= 1; size -= 1) {
+    for (let index = 0; index <= tokens.length - size; index += 1) {
+      const phrase = tokens.slice(index, index + size).join(' ');
+      if (phrase.length >= 2) candidates.add(phrase);
+    }
+  }
+  return Array.from(candidates).slice(0, 30);
 }
 
 function groupBy<T>(values: T[], key: (value: T) => string) {

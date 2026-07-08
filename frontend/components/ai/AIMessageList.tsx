@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, Copy, Sparkles } from "lucide-react";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 import { AICopilotMessage } from "./AICopilotProvider";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,7 @@ export function AIMessageList({ messages }: AIMessageListProps) {
               )}
               <div
                 className={cn(
-                  "min-w-0 max-w-[82%] rounded-lg border px-3 py-2.5 shadow-sm",
+                  "group/message relative min-w-0 max-w-[82%] rounded-lg border px-3 py-2.5 shadow-sm",
                   isUser
                     ? "border-primary/20 bg-primary text-primary-foreground"
                     : message.status === "error"
@@ -51,21 +51,41 @@ export function AIMessageList({ messages }: AIMessageListProps) {
                 )}
               >
                 {message.status === "sending" && !message.content ? (
-                  <div className="flex min-w-0 items-center gap-2 py-1.5">
-                    <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
-                    <span className="truncate text-xs font-black text-muted-foreground">
-                      {message.statusLabel ?? "Thinking..."}
-                    </span>
+                  <div className="min-w-55 overflow-hidden rounded-md border border-primary/15 bg-primary/5 px-3 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Sparkles
+                          className="h-3.5 w-3.5 animate-pulse"
+                          aria-hidden="true"
+                        />
+                      </span>
+                      <span className="truncate text-xs font-black text-foreground">
+                        {message.statusLabel ?? "Opening EduVerse context"}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1 overflow-hidden rounded-full bg-primary/10">
+                      <div className="h-full w-1/2 animate-[ai-progress_1.4s_ease-in-out_infinite] rounded-full bg-primary/70" />
+                    </div>
                   </div>
                 ) : isUser ? (
-                  <p className="whitespace-pre-wrap text-sm font-semibold leading-6">
-                    {message.content}
-                  </p>
+                  <>
+                    <MessageCopyButton
+                      content={message.content}
+                      isUser={isUser}
+                    />
+                    <p className="whitespace-pre-wrap pr-5 text-sm font-semibold leading-6">
+                      {message.content}
+                    </p>
+                  </>
                 ) : (
                   <div className="relative">
+                    <MessageCopyButton
+                      content={message.content}
+                      isUser={isUser}
+                    />
                     <MarkdownRenderer
                       content={message.content}
-                      className="prose-sm max-w-none text-sm leading-6"
+                      className="prose-sm max-w-none pr-5 text-sm leading-6 [&>*:first-child]:mt-0! [&>*:last-child]:mb-0! [&>p:first-child]:mt-0!"
                     />
                     {message.status === "streaming" && (
                       <span
@@ -82,5 +102,44 @@ export function AIMessageList({ messages }: AIMessageListProps) {
         <div ref={endRef} />
       </div>
     </div>
+  );
+}
+
+function MessageCopyButton({
+  content,
+  isUser,
+}: {
+  content: string;
+  isUser: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  if (!content.trim()) return null;
+  const Icon = copied ? Check : Copy;
+
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copyMessage}
+      aria-label={copied ? "Message copied" : "Copy message"}
+      title={copied ? "Copied" : "Copy"}
+      className={cn(
+        "absolute right-0.5 bottom-0.5 z-10 flex h-7 w-7 items-center justify-center rounded-md border text-xs shadow-xs opacity-70 transition-all hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 sm:opacity-0 sm:group-hover/message:opacity-100",
+        isUser
+          ? "border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
+          : "border-border/60 bg-background/80 text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+    </button>
   );
 }

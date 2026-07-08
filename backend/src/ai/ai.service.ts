@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import type { User } from '@/prisma/prisma-client';
-import { AIConversationService } from './ai-conversation.service';
+import { AIConversationService, shouldReuseLastUserMessage } from './ai-conversation.service';
 import { AICreditService } from './ai-credit.service';
 import { AIEntitlementService } from './ai-entitlement.service';
 import { AIProviderService } from './ai-provider.service';
@@ -27,28 +27,32 @@ export class AIService {
 
   async chat(user: User, dto: AIChatRequestDto) {
     const prepared = await this.prepareChat(user, dto);
-    await this.conversationService.appendUserMessage(
-      prepared.conversation.id,
-      dto.prompt,
-    );
+    if (!prepared.reusedLastUserMessage) {
+      await this.conversationService.appendUserMessage(
+        prepared.conversation.id,
+        dto.prompt,
+      );
+    }
     const output = await this.providerService.chat(prepared.providerInput);
     return this.finalizeProviderOutput(user, prepared, output);
   }
 
   async *streamChat(user: User, dto: AIChatRequestDto): AsyncIterable<AIStreamEvent> {
-    yield { type: 'status', label: 'Thinking...' };
+    yield { type: 'status', label: 'Opening EduVerse context' };
     const prepared = await this.prepareChat(user, dto);
-    await this.conversationService.appendUserMessage(
-      prepared.conversation.id,
-      dto.prompt,
-    );
+    if (!prepared.reusedLastUserMessage) {
+      await this.conversationService.appendUserMessage(
+        prepared.conversation.id,
+        dto.prompt,
+      );
+    }
 
     yield {
       type: 'conversation',
       conversationId: prepared.conversation.id,
       title: prepared.conversation.title,
     };
-    yield { type: 'status', label: 'Generating response...' };
+    yield { type: 'status', label: 'Writing inside EduVerse' };
 
     let lastOutput: AIProviderChatOutput | null = null;
     let content = '';
@@ -106,6 +110,16 @@ export class AIService {
       },
       conversationId,
       title,
+    );
+  }
+
+  deleteConversation(user: User, conversationId: string) {
+    return this.conversationService.deleteConversation(
+      {
+        id: user.id,
+        organizationId: user.organizationId,
+      },
+      conversationId,
     );
   }
 
@@ -186,13 +200,24 @@ export class AIService {
     const context = await this.conversationService.getContextMessages(
       conversation.id,
     );
+    const reusedLastUserMessage = shouldReuseLastUserMessage(
+      context.messages,
+      dto.prompt,
+      dto.retryLastUserMessage,
+    );
     const toolMessages = await this.collectRelevantToolContext(
       user,
       dto,
       context.messages,
       entitlement.source,
     );
-    const providerInput = this.buildProviderInput(user, dto, context.messages, toolMessages);
+    const providerInput = this.buildProviderInput(
+      user,
+      dto,
+      context.messages,
+      toolMessages,
+      reusedLastUserMessage,
+    );
     const finalCredits = this.providerService.estimateCredits(providerInput);
     const finalEntitlement = await this.entitlementService.resolveEntitlement(
       {
@@ -216,6 +241,7 @@ export class AIService {
       prompt: dto.prompt,
       providerInput,
       entitlementSource: finalEntitlement.source,
+      reusedLastUserMessage,
     };
   }
 
@@ -224,12 +250,13 @@ export class AIService {
     dto: AIChatRequestDto,
     contextMessages: AIProviderMessage[] = [],
     toolMessages: AIProviderMessage[] = [],
+    omitCurrentPrompt = false,
   ): AIProviderChatInput {
     return {
       systemPrompt: buildSystemPrompt(user),
       messages: [
         ...contextMessages,
-        { role: 'user', content: dto.prompt },
+        ...(omitCurrentPrompt ? [] : [{ role: 'user' as const, content: dto.prompt }]),
         ...toolMessages,
       ],
       tools: this.toolRegistry.listTools(),
@@ -249,17 +276,13 @@ export class AIService {
       systemPrompt: [
         buildSystemPrompt(user),
         '',
-        'Generate suggested questions for this user before they start a Copilot conversation.',
-        'Return only valid JSON. No markdown. No commentary.',
-        'JSON shape: [{"label":"2 to 4 words","prompt":"a natural question the user can ask"}]',
-        'Create exactly 3 useful, role-aware questions.',
-        'Only suggest questions answerable from available EduVerse backend tools: schedules, courses, sections, enrollment, academic cycles, calendar events, holidays, campus rooms/buildings, announcements, preference windows, attendance, grades, deadlines, evaluations, finance summaries, organization health, AI usage, docs, routes, mail/entity search, and visible performance profiles.',
-        'Do not suggest actions that mutate data, send messages, create records, approve payments, edit settings, or require data outside the user permissions.',
+        'Return exactly 3 role-aware suggested questions as JSON only: [{"label":"2-4 words","prompt":"question"}].',
+        'Questions must be answerable by EduVerse read-only tools: schedules, courses, attendance, grades, deadlines, performance, operations, finance, usage, docs, routes, mail/entity search. No mutation actions.',
       ].join('\n'),
       messages: [
         {
           role: 'user',
-          content: 'Generate my EduVerse AI Copilot suggested questions.',
+          content: 'Generate my EduVerse Copilot suggested questions.',
         },
       ],
       tools: [],
@@ -304,8 +327,8 @@ export class AIService {
       role: 'tool',
       name: 'eduverseToolResults',
       content: JSON.stringify({
-        instruction: 'Each item below is a separate EduVerse tool result. Use the most specific successful result first. If an entity or tool result is ambiguous, ask one concise clarifying question.',
-        results,
+        instruction: 'EduVerse tool results. IDs/links removed. Use successful data first; if ambiguous, ask one concise clarifying question.',
+        results: compactToolResultsForModel(results),
       }),
     }];
   }
@@ -385,6 +408,88 @@ function chunkStreamContent(content: string) {
   return chunks;
 }
 
+function sanitizeToolResultsForModel(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeToolResultsForModel);
+  if (!value || typeof value !== 'object') return value;
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (isInternalIdentifierKey(key)) continue;
+    if (key === 'href' || key === 'url' || key === 'actionUrl') continue;
+    sanitized[key] = sanitizeToolResultsForModel(child);
+  }
+  return sanitized;
+}
+
+function compactToolResultsForModel(
+  results: Array<{ tool: string; input?: Record<string, unknown>; result: unknown }>,
+) {
+  return results.map((entry) => {
+    const result = entry.result && typeof entry.result === 'object'
+      ? entry.result as Record<string, unknown>
+      : {};
+    const ok = result.ok === true;
+    const compact: Record<string, unknown> = {
+      tool: entry.tool,
+      ok,
+    };
+    if (typeof result.code === 'string') compact.code = result.code;
+    if (typeof result.message === 'string') compact.message = trimForModel(result.message, 220);
+    const input = compactToolInput(entry.input ?? {});
+    if (Object.keys(input).length) compact.input = input;
+    if (ok && 'data' in result) compact.data = compactModelValue(result.data, 0);
+    return compact;
+  });
+}
+
+function compactToolInput(input: Record<string, unknown>) {
+  const allowed = ['search', 'targetType', 'date', 'startDate', 'endDate', 'include', 'limit', 'days', 'range', 'includeLoad', 'includeBottlenecks'];
+  return Object.fromEntries(
+    allowed
+      .filter((key) => key in input && !isInternalIdentifierKey(key))
+      .map((key) => [key, compactModelValue(input[key], 1)]),
+  );
+}
+
+function compactModelValue(value: unknown, depth: number): unknown {
+  const sanitized = sanitizeToolResultsForModel(value);
+  return compactSanitizedValue(sanitized, depth);
+}
+
+function compactSanitizedValue(value: unknown, depth: number): unknown {
+  if (typeof value === 'string') return trimForModel(value, depth > 2 ? 180 : 420);
+  if (typeof value !== 'object' || value === null) return value;
+  if (Array.isArray(value)) {
+    const limit = depth === 0 ? 10 : depth === 1 ? 8 : 5;
+    return value.slice(0, limit).map((item) => compactSanitizedValue(item, depth + 1));
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, child]) => child !== undefined && child !== null)
+    .filter(([, child]) => !(Array.isArray(child) && child.length === 0));
+  const objectLimit = depth > 2 ? 18 : 32;
+  return Object.fromEntries(
+    entries
+      .slice(0, objectLimit)
+      .map(([key, child]) => [key, compactSanitizedValue(child, depth + 1)]),
+  );
+}
+
+function trimForModel(value: string, maxChars: number) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
+function isInternalIdentifierKey(key: string) {
+  const normalized = key.toLowerCase();
+  return normalized === 'id'
+    || normalized === 'ids'
+    || normalized === 'tool_call_id'
+    || /(^|_)(id|ids)$/i.test(key)
+    || /(Id|Ids|ID|IDs)$/.test(key);
+}
+
 interface SelectedToolRequest {
   name: string;
   input: Record<string, unknown>;
@@ -429,8 +534,14 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
     else add('getPendingGrading', input);
   }
 
-  if (mentionsAny(text, ['enrollment', 'enrolled', 'highest enrollment', 'most enrolled', 'largest courses', 'popular courses'])) {
-    add('getCourseEnrollmentRanking', { search: prompt, limit: 10 });
+  if (mentionsAny(text, ['enrollment', 'enrolled', 'enroll ', 'enroll a', 'enroll this', 'course load', 'too much', 'overload'])) {
+    if (mentionsAny(text, ['highest enrollment', 'most enrolled', 'largest courses', 'popular courses'])) {
+      add('getCourseEnrollmentRanking', { search: prompt, limit: 10 });
+    } else {
+      add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
+      add('getAcademicPerformanceProfile', { ...input, targetType: 'course' });
+      add('getScheduleContext', { ...input, includeLoad: true });
+    }
   }
 
   if (mentionsAny(text, ['attendance', 'absent', 'late', 'risk'])) {
@@ -525,7 +636,7 @@ function entityKindsFromPrompt(prompt: string) {
   };
 
   if (mentionsAny(text, ['semester', 'term', 'academic cycle', 'cycle'])) add('academicCycle');
-  if (mentionsAny(text, ['course', 'subject', 'class'])) add('course');
+  if (mentionsAny(text, ['course', 'subject', 'class', 'enroll', 'enrollment', 'course load', 'too much'])) add('course');
   if (mentionsAny(text, ['section', 'class'])) add('section');
   if (mentionsAny(text, ['student', 'learner', 'roll number', 'registration'])) add('student');
   if (mentionsAny(text, ['teacher', 'faculty', 'instructor', 'manager', 'staff'])) add('teacher');
@@ -637,42 +748,33 @@ function estimateProviderCost(output: AIProviderChatOutput) {
 function buildSystemPrompt(user: User) {
   const role = user.role ?? 'USER';
   return [
-    'You are EduVerse AI Copilot, a role-aware productivity assistant for a school management system.',
-    'You are not a generic chatbot. Help users act inside EduVerse with concise, practical, markdown responses.',
-    'Never claim access to data that was not provided by backend tools or conversation context.',
-    'Respect existing EduVerse permissions. Personal AI subscriptions never expand data access.',
-    'Prefer backend tools for facts about schedules, courses, sections, attendance, grades, finance, evaluations, docs, routes, AI credits, organization usage, calendar events, announcements, preference windows, rooms, buildings, and campus locations.',
-    'For compound requests, synthesize all relevant tool results into one coherent answer. Example: weak courses plus a dated study plan should combine performance data, deadlines, exact-day schedule, free slots, and course-specific improvement actions.',
-    'When a prompt names or implies an EduVerse entity, use entity resolver results to identify the exact record before relying on other tools.',
-    'If entity resolver results are ambiguous, ask one concise clarifying question instead of guessing.',
-    'When tool results indicate failure, explain the failure plainly using the tool result code and message.',
-    `Current user role: ${role}.`,
-    `Current user general info: ${JSON.stringify({
-      id: user.id,
+    'You are EduVerse Copilot. Use "I". Be concise, practical, and markdown-friendly.',
+    'Use only EduVerse tool data, conversation context, and visible user info. Never reveal internal IDs, UUIDs, database fields, or raw route IDs.',
+    'For EduVerse facts, rely on tool results. If data is missing, partial, denied, or ambiguous: say what is known, name what is missing, or ask one concise clarifying question. Do not invent records.',
+    'For compound requests, combine relevant tool results into one answer. For code, use fenced blocks with language labels.',
+    `Role: ${role}. Focus: ${roleFocus(role)}.`,
+    `User: ${JSON.stringify({
       name: user.name ?? null,
       email: user.email,
-      role: user.role,
       status: user.status,
-      organizationId: user.organizationId ?? null,
     })}.`,
-    roleGuidance(role),
   ].join('\n');
 }
 
-function roleGuidance(role: string) {
+function roleFocus(role: string) {
   if (role === 'STUDENT') {
-    return 'Student mode: act as a study coach, schedule-aware planner, deadline assistant, attendance advisor, and course guide.';
+    return 'study planning, schedule, deadlines, attendance, courses, grades';
   }
   if (role === 'TEACHER') {
-    return 'Teacher mode: help with morning briefings, next class preparation, weekly schedule overview, grading workload, and attendance reminders.';
+    return 'classes, schedule, grading, attendance, prep, workload';
   }
   if (role === 'ORG_MANAGER') {
-    return 'Manager mode: summarize academic activity, workload, staffing concerns, attendance trends, evaluation trends, and schedule bottlenecks.';
+    return 'academic activity, workload, staffing, attendance, evaluations, bottlenecks';
   }
   if (role === 'ORG_ADMIN') {
-    return 'Org admin mode: help with organization health, AI usage, AI costs, subscription management, and feature configuration.';
+    return 'organization health, AI usage, costs, subscriptions, role access, configuration';
   }
-  return 'Use the user role to keep answers scoped, operational, and permission-aware.';
+  return 'role-scoped EduVerse help';
 }
 
 function parseSuggestedQuestions(content: string) {

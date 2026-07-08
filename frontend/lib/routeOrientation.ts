@@ -14,7 +14,7 @@ export interface RouteOrientation {
 
 const SEGMENT_LABELS: Record<string, string> = {
     admin: 'Admin',
-    ai: 'AI Copilot',
+    ai: 'EduVerse Copilot',
     overview: 'Overview',
     organizations: 'Organizations',
     'platform-admins': 'Platform Admins',
@@ -62,7 +62,7 @@ const SEGMENT_LABELS: Record<string, string> = {
 
 const ROOT_SECTIONS: Record<string, string> = {
     admin: 'Platform',
-    ai: 'AI Copilot',
+    ai: 'EduVerse Copilot',
     finance: 'Finance',
     overview: 'Organization',
     users: 'People',

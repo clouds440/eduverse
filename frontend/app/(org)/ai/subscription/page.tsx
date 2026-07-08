@@ -159,7 +159,7 @@ export default function AISubscriptionPage() {
         <PageShell className="gap-6 overflow-y-auto pb-8 custom-scrollbar">
             <PageHeader
                 title="AI Subscription"
-                description="Choose and manage EduVerse AI Copilot plans. Usage and org settings are separate."
+                description="Choose and manage EduVerse Copilot plans. Usage and org settings are separate."
                 icon={Sparkles}
                 meta={<Badge variant="purple" size="sm" icon={Sparkles}>Premium addon</Badge>}
                 actions={(
@@ -178,7 +178,7 @@ export default function AISubscriptionPage() {
                 )}
                 breadcrumbs={[
                     { label: 'Organization' },
-                    { label: 'AI Copilot', href: '/ai' },
+                    { label: 'EduVerse Copilot', href: '/ai' },
                     { label: 'Subscription' },
                 ]}
             />

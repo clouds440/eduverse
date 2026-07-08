@@ -1497,8 +1497,8 @@ export const docsPages: DocPage[] = [
   },
   {
     slug: 'ai-copilot',
-    title: 'AI Copilot',
-    description: 'Use EduVerse AI Copilot as a role-aware academic and operations assistant.',
+    title: 'EduVerse Copilot',
+    description: 'Use EduVerse Copilot as a role-aware academic and operations assistant.',
     category: 'Operations',
     tags: ['ai', 'copilot', 'credits', 'subscription', 'study assistant'],
     related: ['payments-billing', 'settings', 'roles-permissions', 'timetable', 'dashboard-insights'],
@@ -1510,7 +1510,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'EduVerse AI Copilot is a premium assistant that helps users understand their work, plan next steps, and find useful information inside EduVerse. It is role-aware, schedule-aware, and permission-aware.',
+            text: 'EduVerse Copilot is a premium assistant that helps users understand their work, plan next steps, and find useful information inside EduVerse. It is role-aware, schedule-aware, and permission-aware.',
           },
           {
             type: 'list',
@@ -1634,7 +1634,7 @@ export const docsPages: DocPage[] = [
             headers: ['Flow', 'Used for', 'How it works'],
             rows: [
               ['School finance payments', 'Student fees, staff payroll, and organization finance records.', 'Users submit payment claims or staff record verified payments. Finance staff review proof, confirm or reject claims, and maintain transactions and audit logs.'],
-              ['AI subscription billing', 'Premium EduVerse AI Copilot packages for an organization or individual user.', 'The user opens the AI subscription page, chooses a package, completes the hosted checkout, and EduVerse updates access after the subscription is confirmed.'],
+              ['AI subscription billing', 'Premium EduVerse Copilot packages for an organization or individual user.', 'The user opens the AI subscription page, chooses a package, completes the hosted checkout, and EduVerse updates access after the subscription is confirmed.'],
             ],
           },
         ],

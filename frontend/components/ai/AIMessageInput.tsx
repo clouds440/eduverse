@@ -74,11 +74,11 @@ export function AIMessageInput({
               rows={1}
               placeholder={
                 disabled
-                  ? "AI Copilot is not available."
-                  : "Ask EduVerse AI Copilot..."
+                  ? "EduVerse Copilot is not available."
+                  : "Ask EduVerse Copilot..."
               }
               className="max-h-45 min-h-12 w-full resize-none border-none bg-transparent px-2 py-3 text-[14px] font-semibold leading-relaxed text-foreground outline-none transition-[height] duration-300 placeholder:text-muted-foreground focus:outline-none focus:ring-0 sm:text-[15px]"
-              aria-label="Message EduVerse AI Copilot"
+              aria-label="Message EduVerse Copilot"
             />
           </div>
         </div>

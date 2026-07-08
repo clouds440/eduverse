@@ -57,7 +57,7 @@ const SETTINGS_TABS = [
     { key: 'profile', label: 'Profile', icon: Building2 },
     { key: 'appearance', label: 'Appearance', icon: Palette },
     { key: 'finance', label: 'Finance', icon: Coins },
-    { key: 'ai', label: 'AI Copilot', icon: Sparkles },
+    { key: 'ai', label: 'EduVerse Copilot', icon: Sparkles },
     { key: 'branding', label: 'Branding', icon: School },
     { key: 'security', label: 'Security', icon: ShieldCheck },
 ] as const;
@@ -239,8 +239,8 @@ export default function SettingsPage() {
                 settings.roleCreditPolicies.map((policy) => [policy.role, String(policy.monthlyCredits)]),
             ) as Partial<Record<Role, string>>);
         } catch (error) {
-            console.error('Failed to load AI Copilot settings', error);
-            const message = error instanceof Error ? error.message : 'Failed to load AI Copilot settings';
+            console.error('Failed to load EduVerse Copilot settings', error);
+            const message = error instanceof Error ? error.message : 'Failed to load EduVerse Copilot settings';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
             setAiLoading(false);
@@ -515,9 +515,9 @@ export default function SettingsPage() {
                 settings.roleCreditPolicies.map((policy) => [policy.role, String(policy.monthlyCredits)]),
             ) as Partial<Record<Role, string>>);
             await refreshAIUsage();
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'AI Copilot subscription updated.', type: 'success' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'EduVerse Copilot subscription updated.', type: 'success' } });
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to update AI Copilot subscription';
+            const message = error instanceof Error ? error.message : 'Failed to update EduVerse Copilot subscription';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'ai-plan-update' });
@@ -544,9 +544,9 @@ export default function SettingsPage() {
         try {
             const settings = await api.ai.updateOrgAccessPolicy({ [field]: enabled } as Partial<AIOrgSettingsResponse['accessPolicy']>, token);
             setAiSettings(settings);
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'AI Copilot role access updated.', type: 'success' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'EduVerse Copilot role access updated.', type: 'success' } });
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to update AI Copilot role access';
+            const message = error instanceof Error ? error.message : 'Failed to update EduVerse Copilot role access';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: `ai-access-${field}` });
@@ -842,7 +842,7 @@ export default function SettingsPage() {
                             ) : !aiSettings || activeAIPlan === AISubscriptionPlan.NONE || aiSettings.subscription.status !== 'ACTIVE' ? (
                                 <SettingsSection
                                     icon={Sparkles}
-                                    title="AI Copilot Settings"
+                                    title="EduVerse Copilot Settings"
                                     description="Organization AI settings are available after an active organization AI subscription is started."
                                     action={(
                                         <Button
@@ -861,7 +861,7 @@ export default function SettingsPage() {
                                     <div className="rounded-lg border border-border/70 bg-background/60 p-4">
                                         <p className="text-sm font-black text-foreground">No active organization AI subscription</p>
                                         <p className="mt-1 text-sm font-semibold leading-6 text-muted-foreground">
-                                            Use the dedicated subscription page to start or change the organization package. Usage dashboards live under AI Copilot, separate from configuration.
+                                            Use the dedicated subscription page to start or change the organization package. Usage dashboards live under EduVerse Copilot, separate from configuration.
                                         </p>
                                         <div className="mt-4 flex flex-wrap gap-2">
                                             <Link
@@ -885,7 +885,7 @@ export default function SettingsPage() {
                                 <>
                                     <SettingsSection
                                         icon={Sparkles}
-                                        title="AI Copilot Settings"
+                                        title="EduVerse Copilot Settings"
                                         description="Configure who can use the active organization AI package and how monthly credits are allocated."
                                         action={(
                                             <div className="flex flex-wrap items-center gap-2">
@@ -940,7 +940,7 @@ export default function SettingsPage() {
                                         <SettingsSection
                                             icon={Users}
                                             title="Role Access"
-                                            description="Choose which organization roles can use organization-funded AI Copilot."
+                                            description="Choose which organization roles can use organization-funded EduVerse Copilot."
                                         >
                                             <div className="space-y-3">
                                                 {aiSettings?.warning && (

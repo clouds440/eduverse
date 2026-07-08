@@ -5,9 +5,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { AIProviderMessage } from './ai.types';
 
 const AI_CONVERSATION_TTL_DAYS = 30;
-const AI_CONTEXT_RECENT_MESSAGE_LIMIT = 12;
-const AI_CONTEXT_SUMMARY_MESSAGE_LIMIT = 16;
-const AI_CONTEXT_MAX_MESSAGE_CHARS = 4000;
+const AI_CONTEXT_RECENT_MESSAGE_LIMIT = 10;
+const AI_CONTEXT_SUMMARY_MESSAGE_LIMIT = 10;
+const AI_CONTEXT_MAX_MESSAGE_CHARS = 2400;
 const AI_TITLE_MAX_CHARS = 80;
 const AI_CONVERSATION_LIST_LIMIT = 30;
 
@@ -222,6 +222,29 @@ export class AIConversationService {
     };
   }
 
+  async deleteConversation(actor: AIConversationActor, conversationId: string) {
+    const conversation = await this.prisma.aIConversation.findFirst({
+      where: {
+        id: conversationId,
+        userId: actor.id,
+      },
+      select: { id: true },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException({
+        code: 'CONVERSATION_NOT_FOUND',
+        message: 'This Copilot conversation is no longer available.',
+      });
+    }
+
+    await this.prisma.aIConversation.delete({
+      where: { id: conversation.id },
+    });
+
+    return { deleted: true };
+  }
+
   async appendUserMessage(conversationId: string, content: string) {
     return this.appendMessage(conversationId, AIMessageRole.USER, content);
   }
@@ -318,7 +341,7 @@ function summarizeOlderMessages(messages: AIProviderMessage[]) {
 
   const lines = messages.map((message) => {
     const label = message.role === 'assistant' ? 'Copilot' : 'User';
-    return `${label}: ${message.content.replace(/\s+/g, ' ').slice(0, 220)}`;
+    return `${label}: ${message.content.replace(/\s+/g, ' ').slice(0, 180)}`;
   });
 
   return [
@@ -331,6 +354,23 @@ function clampMessageContent(content: string, maxChars = AI_CONTEXT_MAX_MESSAGE_
   const normalized = content.replace(/\s+\n/g, '\n').trim();
   if (normalized.length <= maxChars) return normalized;
   return `${normalized.slice(0, maxChars - 24).trimEnd()}\n[Content truncated]`;
+}
+
+export function shouldReuseLastUserMessage(
+  messages: AIProviderMessage[],
+  prompt: string,
+  retryLastUserMessage?: boolean,
+) {
+  if (!retryLastUserMessage) return false;
+  const lastMessage = [...messages].reverse().find((message) => message.content.trim());
+  return Boolean(
+    lastMessage?.role === 'user'
+    && normalizeMessageForRetry(lastMessage.content) === normalizeMessageForRetry(prompt),
+  );
+}
+
+function normalizeMessageForRetry(content: string) {
+  return content.replace(/\s+/g, ' ').trim();
 }
 
 function createConversationTitle(prompt: string) {

@@ -8,7 +8,7 @@ export const AI_PLAN_CONFIG: Record<
     label: 'No AI',
     monthlyCredits: 0,
     limitMode: AILimitMode.HARD,
-    description: 'EduVerse AI Copilot disabled.',
+    description: 'EduVerse Copilot disabled.',
   },
   [AISubscriptionPlan.STARTER]: {
     label: 'Starter',

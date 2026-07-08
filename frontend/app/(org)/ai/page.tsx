@@ -33,7 +33,7 @@ export default function AIDashboardPage() {
     return (
         <PageShell className="gap-0 overflow-y-auto pb-8 custom-scrollbar">
             <PageHeader
-                title="AI Copilot"
+                title="EduVerse Copilot"
                 description="Track AI Credits, usage trends, feature activity, and estimated provider cost."
                 icon={Sparkles}
                 meta={<Badge variant="purple" size="sm" icon={Sparkles}>Premium addon</Badge>}
@@ -45,7 +45,7 @@ export default function AIDashboardPage() {
                 )}
                 breadcrumbs={[
                     { label: 'Organization' },
-                    { label: 'AI Copilot' },
+                    { label: 'EduVerse Copilot' },
                 ]}
                 className="mb-2"
             />
@@ -74,9 +74,9 @@ export default function AIDashboardPage() {
                                 <AlertCircle className="h-5 w-5" aria-hidden="true" />
                             </div>
                             <div className="min-w-0">
-                                <h2 className="text-base font-black text-warning">AI Copilot is ready to unlock</h2>
+                                <h2 className="text-base font-black text-warning">EduVerse Copilot is ready to unlock</h2>
                                 <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">
-                                    {entitlement?.message ?? 'Choose an AI Copilot plan to activate role-aware assistance and usage insights.'}
+                                    {entitlement?.message ?? 'Choose an EduVerse Copilot plan to activate role-aware assistance and usage insights.'}
                                 </p>
                             </div>
                         </div>

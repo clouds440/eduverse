@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class AIChatRequestDto {
   @IsString()
@@ -8,6 +8,10 @@ export class AIChatRequestDto {
   @IsString()
   @IsOptional()
   conversationId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  retryLastUserMessage?: boolean;
 }
 
 export class UpdateAIConversationDto {

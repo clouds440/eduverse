@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HumanMessage } from '@langchain/core/messages';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatOpenAI } from '@langchain/openai';
 import type {
   AIProviderAdapter,
   AIProviderChatInput,
@@ -52,26 +52,22 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
     const model = this.createModel({ temperature: 0 });
     const knownTools = new Set(input.tools.map((tool) => tool.name));
     const prompt = [
-      'You are the EduVerse Copilot backend tool planner.',
-      'Choose up to 8 backend tools that should run before answering the user.',
-      'Return only valid JSON. No markdown. No commentary.',
-      'JSON shape: [{"name":"toolName","input":{"search":"original user question","limit":8}}]',
-      'Use only available tool names. Use an empty array if no tool is needed.',
-      'Prefer generic tools over narrow aliases: getAcademicPerformanceProfile, getScheduleContext, getOperationsContext, resolveEduVerseEntities, searchDocs, searchRoutes, and AI usage tools.',
-      'For compound requests, choose every independent read-only context tool needed. Example: weak courses plus a dated study plan needs getAcademicPerformanceProfile and getScheduleContext.',
-      'When the user names a date, include it as ISO YYYY-MM-DD in the relevant tool input.',
-      'When using generic tools, set structured input fields such as targetType, date, startDate, endDate, include, includeLoad, and includeBottlenecks instead of inventing new tool names.',
+      'Plan EduVerse read-only tools. JSON only: [{"name":"tool","input":{...}}].',
+      'Use [] if no EduVerse facts are needed. Use only listed tool names.',
+      'Resolve named/ambiguous entities first. For compound requests, choose all independent context tools needed.',
+      'Prefer generic tools: resolveEduVerseEntities, getAcademicPerformanceProfile, getScheduleContext, getOperationsContext, searchDocs, searchRoutes, AI usage tools.',
+      'Use structured inputs when useful: search, targetType, date, startDate, endDate, include, includeLoad, includeBottlenecks, limit.',
       '',
       'Available tools:',
-      ...input.tools.map((tool) => `- ${tool.name}: ${tool.description}`),
+      ...input.tools.map((tool) => `- ${tool.name}: ${trimForPlanner(tool.description, 180)}`),
       '',
-      `Current role: ${String(input.metadata?.role ?? 'unknown')}`,
+      `Role: ${String(input.metadata?.role ?? 'unknown')}`,
       '',
-      'Recent conversation and user request:',
+      'Recent:',
       ...input.messages
         .filter((message) => message.role !== 'tool')
-        .slice(-8)
-        .map((message) => `${message.role}: ${message.content}`),
+        .slice(-5)
+        .map((message) => `${message.role}: ${trimForPlanner(message.content, 700)}`),
     ].join('\n');
     const response = await model.invoke([new HumanMessage(prompt)]);
     const parsed = parseToolPlanJson(stringifyModelContent(response.content));
@@ -83,13 +79,7 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
     const text =
       typeof input === 'string'
         ? input
-        : [
-            input.systemPrompt,
-            ...input.messages.map(
-              (message) => `${message.role}: ${message.content}`,
-            ),
-            ...input.tools.map((tool) => `${tool.name}: ${tool.description}`),
-          ].join('\n');
+        : buildOpenRouterPrompt(input);
 
     return Math.ceil(text.length / 4);
   }
@@ -99,29 +89,33 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
   }
 
   getProviderName() {
-    return 'gemini';
+    return 'openrouter';
   }
 
   private createModel(options: { temperature?: number } = {}) {
     const apiKey = process.env.AI_API_KEY;
     if (!apiKey) {
-      throw new Error('AI_API_KEY is required for EduVerse AI Copilot.');
+      throw new Error('AI_API_KEY is required for EduVerse Copilot.');
     }
     const model = this.modelName();
 
-    return new ChatGoogleGenerativeAI({
+    return new ChatOpenAI({
       apiKey,
       model,
       temperature:
         options.temperature ?? Number(process.env.AI_TEMPERATURE ?? 0.2),
       maxRetries: Number(process.env.AI_MAX_RETRIES ?? 2),
+      configuration: {
+        baseURL: process.env.AI_API_BASE_URL?.trim() || 'https://openrouter.ai/api/v1',
+        defaultHeaders: openRouterHeaders(),
+      },
     });
   }
 
   private modelName(): string {
     const model = process.env.AI_MODEL?.trim();
     if (!model) {
-      throw new Error('AI_MODEL is required for EduVerse AI Copilot.');
+      throw new Error('AI_MODEL is required for EduVerse Copilot.');
     }
     return model;
   }
@@ -180,10 +174,10 @@ function errorMessage(error: unknown) {
 }
 
 function toLangChainMessages(input: AIProviderChatInput) {
-  return [new HumanMessage(buildGeminiPrompt(input))];
+  return [new HumanMessage(buildOpenRouterPrompt(input))];
 }
 
-function buildGeminiPrompt(input: AIProviderChatInput) {
+function buildOpenRouterPrompt(input: AIProviderChatInput) {
   const transcript = input.messages
     .map((message) => {
       if (message.role === 'tool') {
@@ -200,13 +194,17 @@ function buildGeminiPrompt(input: AIProviderChatInput) {
   return [
     input.systemPrompt,
     '',
-    'Use backend tool result sections as authoritative EduVerse context.',
-    'If a needed tool result is missing or denied, explain exactly what is missing instead of inventing data.',
-    'Do not invent EduVerse records, prices, grades, schedules, enrollments, or permissions.',
+    'Tool results are authoritative. If missing/denied/ambiguous, answer what is known and ask one concise follow-up.',
     '',
-    'Conversation and backend context:',
+    'Context:',
     transcript || 'USER: Please answer using the available EduVerse context.',
   ].join('\n');
+}
+
+function trimForPlanner(value: string, maxChars: number) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
 }
 
 function normalizeMessageContent(content: unknown) {
@@ -267,6 +265,15 @@ function tokenUsageFromResponse(response: unknown) {
 function sumOptional(a?: number, b?: number) {
   if (typeof a !== 'number' && typeof b !== 'number') return undefined;
   return (a ?? 0) + (b ?? 0);
+}
+
+function openRouterHeaders() {
+  const headers: Record<string, string> = {};
+  const appUrl = process.env.AI_APP_URL?.trim() || process.env.FRONTEND_URL?.split(',')[0]?.trim();
+  const appName = process.env.AI_APP_NAME?.trim() || 'EduVerse';
+  if (appUrl) headers['HTTP-Referer'] = appUrl;
+  if (appName) headers['X-OpenRouter-Title'] = appName;
+  return headers;
 }
 
 function parseToolPlanJson(content: string): AIProviderToolRequest[] {

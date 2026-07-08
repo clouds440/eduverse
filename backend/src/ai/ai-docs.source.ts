@@ -103,7 +103,7 @@ export const aiDocsPages: AIDocPage[] = [
   {
     slug: 'settings',
     title: 'Settings',
-    description: 'Manage organization identity, contact details, branding, finance defaults, security, and AI Copilot settings.',
+    description: 'Manage organization identity, contact details, branding, finance defaults, security, and EduVerse Copilot settings.',
     category: 'Administration',
     tags: ['settings', 'branding', 'security', 'ai copilot'],
     sections: [
@@ -118,8 +118,8 @@ export const aiDocsPages: AIDocPage[] = [
       },
       {
         id: 'ai-copilot-settings',
-        title: 'AI Copilot settings',
-        summary: 'Org admins can manage the AI Copilot plan, role access, and monthly AI Credits.',
+        title: 'EduVerse Copilot settings',
+        summary: 'Org admins can manage the EduVerse Copilot plan, role access, and monthly AI Credits.',
         tags: ['ai', 'copilot', 'subscription', 'credits'],
         blocks: [
           { type: 'note', title: 'Student usage warning', text: 'Allowing students or guardians to use Copilot can increase monthly AI Credit usage and subscription costs.' },

@@ -23,7 +23,7 @@ describe('AIConversationService context compaction', () => {
       role: 'system',
     });
     expect(compacted[0].content).toContain('Compact memory from earlier turns');
-    expect(compacted.slice(1)).toEqual(messages.slice(-12));
+    expect(compacted.slice(1)).toEqual(messages.slice(-10));
   });
 
   it('drops blank messages and truncates very large content', () => {
@@ -33,7 +33,7 @@ describe('AIConversationService context compaction', () => {
     ]);
 
     expect(compacted).toHaveLength(1);
-    expect(compacted[0].content.length).toBeLessThan(4100);
+    expect(compacted[0].content.length).toBeLessThan(2500);
     expect(compacted[0].content).toContain('[Content truncated]');
   });
 });

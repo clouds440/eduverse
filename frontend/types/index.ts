@@ -843,6 +843,7 @@ export interface AIChatMessagePayload {
 export interface AIChatRequest {
     prompt: string;
     conversationId?: string;
+    retryLastUserMessage?: boolean;
 }
 
 export interface AIChatResponse {

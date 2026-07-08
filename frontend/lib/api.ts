@@ -376,7 +376,7 @@ async function streamAiChat(
     }
 
     if (!response.body) {
-        throw new ApiNetworkError('AI Copilot stream did not return a response body.');
+        throw new ApiNetworkError('EduVerse Copilot stream did not return a response body.');
     }
 
     const reader = response.body.getReader();
@@ -425,7 +425,7 @@ function consumeSseBlock(block: string, handlers: AIChatStreamHandlers) {
 
     if (eventName === 'error' || parsed.type === 'error') {
         throw new ApiRequestError(
-            parsed.type === 'error' ? parsed.message : 'AI Copilot stream failed.',
+            parsed.type === 'error' ? parsed.message : 'EduVerse Copilot stream failed.',
             200,
             { code: parsed.type === 'error' ? parsed.code : undefined },
         );
@@ -546,6 +546,8 @@ export const api = {
             request<AIConversationDetail>(`/ai/copilot/conversations/${id}`, { token }),
         updateConversationTitle: (id: string, title: string, token: string) =>
             request<AIConversationSummary>(`/ai/copilot/conversations/${id}`, { method: 'PATCH', body: JSON.stringify({ title }), token }),
+        deleteConversation: (id: string, token: string) =>
+            request<{ deleted: boolean }>(`/ai/copilot/conversations/${id}`, { method: 'DELETE', token }),
         getOrgSettings: (token: string) =>
             request<AIOrgSettingsResponse>('/ai/org/settings', { token }),
         updateOrgSubscription: (plan: AISubscriptionPlan, token: string) =>

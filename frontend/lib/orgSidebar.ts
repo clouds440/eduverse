@@ -114,7 +114,7 @@ const COMMON_ITEMS: SidebarItemConfig[] = [
   },
   {
     id: "AI_COPILOT",
-    label: "AI Copilot",
+    label: "EduVerse Copilot",
     href: "/ai",
     icon: Sparkles,
     roles: "all",

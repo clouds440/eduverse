@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Headers, Param, Patch, Post, Query, Request, Res } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Patch, Post, Query, Request, Res } from '@nestjs/common';
 import { AISubscriptionOwnerType, Role } from '@/prisma/prisma-client';
 import type { Response } from 'express';
 import { Roles } from '../auth/roles.decorator';
@@ -115,6 +115,16 @@ export class AIController {
     @Body() dto: UpdateAIConversationDto,
   ) {
     return this.aiService.updateConversationTitle(req.user, conversationId, dto.title);
+  }
+
+  @Delete('copilot/conversations/:id')
+  @Roles(...COPILOT_USER_ROLES)
+  @Access(AccessLevel.WRITE)
+  deleteConversation(
+    @Request() req: AuthenticatedRequest,
+    @Param('id') conversationId: string,
+  ) {
+    return this.aiService.deleteConversation(req.user, conversationId);
   }
 
   @Get('docs/search')
@@ -285,6 +295,6 @@ function normalizeStreamError(error: unknown) {
   return {
     type: 'error',
     code: 'UNAVAILABLE',
-    message: 'AI Copilot could not respond right now.',
+    message: 'EduVerse Copilot could not respond right now.',
   };
 }

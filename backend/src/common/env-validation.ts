@@ -39,6 +39,9 @@ export function validateEnv() {
     'GOOGLE_CLIENT_SECRET',
     'GOOGLE_REDIRECT_URI',
     'AI_API_KEY',
+    'AI_API_BASE_URL',
+    'AI_APP_URL',
+    'AI_APP_NAME',
     'AI_MODEL',
     'AI_TEMPERATURE',
     'AI_MAX_RETRIES',
@@ -62,7 +65,7 @@ export function validateEnv() {
   }
 
   if (!process.env.AI_API_KEY) {
-    logger.warn('AI_API_KEY is required for EduVerse AI Copilot responses.');
+    logger.warn('AI_API_KEY is required for EduVerse AI Copilot responses. Use an OpenRouter API key when AI_API_BASE_URL points to OpenRouter.');
   }
 
   if (!process.env.AI_MODEL) {

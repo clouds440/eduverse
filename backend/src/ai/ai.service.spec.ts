@@ -58,8 +58,8 @@ describe('AIService', () => {
       planTools: jest.fn().mockResolvedValue([]),
       chat: jest.fn().mockResolvedValue({
         content: 'Study Algebra first.',
-        providerName: 'gemini',
-        model: 'gemini-1.5-flash',
+        providerName: 'openrouter',
+        model: 'qwen/qwen3-8b',
         providerTokenEstimate: 20,
         creditEstimate: 1,
         toolCalls: [],
@@ -74,7 +74,15 @@ describe('AIService', () => {
           input: { date: '2026-07-07' },
           result: {
             ok: true,
-            data: { schedules: [{ courseName: 'Algebra', startTime: '09:00' }] },
+            data: {
+              schedules: [{
+                scheduleId: 'schedule-1',
+                sectionId: 'section-1',
+                courseName: 'Algebra',
+                startTime: '09:00',
+                href: '/sections/section-1',
+              }],
+            },
           },
         },
       ]),
@@ -117,6 +125,12 @@ describe('AIService', () => {
         expect.objectContaining({ role: 'tool', name: 'eduverseToolResults' }),
       ]),
     }));
+    const providerInput = providerService.chat.mock.calls[0][0];
+    const toolMessage = providerInput.messages.find((message: any) => message.role === 'tool');
+    expect(toolMessage.content).toContain('"tool":"getScheduleContext"');
+    expect(toolMessage.content).toContain('"courseName":"Algebra"');
+    expect(toolMessage.content).not.toContain('schedule-1');
+    expect(toolMessage.content).not.toContain('/sections/section-1');
     expect(toolRegistry.runTools).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ name: 'getScheduleContext' }),
@@ -131,7 +145,7 @@ describe('AIService', () => {
     expect(conversationService.appendAssistantMessage).toHaveBeenCalledWith(
       'conversation-1',
       'Study Algebra first.',
-      expect.objectContaining({ providerName: 'gemini', creditEstimate: 1 }),
+      expect.objectContaining({ providerName: 'openrouter', creditEstimate: 1 }),
     );
     expect(creditService.recordUsage).toHaveBeenCalledWith(expect.objectContaining({
       credits: 1,
@@ -146,7 +160,7 @@ describe('AIService', () => {
       entitlement: {
         allowed: false,
         code: 'NO_SUBSCRIPTION',
-        message: 'EduVerse AI Copilot requires a subscription.',
+        message: 'EduVerse Copilot requires a subscription.',
       },
     });
 

@@ -18,13 +18,15 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useBackStackEntry } from "@/context/BackNavigationContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
-import { AIUsageSourceType, Role } from "@/types";
+import { AIUsageSourceType, Role, type AIConversationSummary } from "@/types";
 import { cn } from "@/lib/utils";
 import { useAICopilot } from "./AICopilotProvider";
 import { AICopilotHome } from "./AICopilotHome";
@@ -36,9 +38,12 @@ export function AICopilotPanel() {
   const { user } = useAuth();
   const { isDesktop, mounted } = useUI();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [actionsCollapsed, setActionsCollapsed] = useState(false);
+  const [actionsCollapsed, setActionsCollapsed] = useState(true);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<AIConversationSummary | null>(
+    null,
+  );
   const {
     isOpen,
     close,
@@ -65,11 +70,12 @@ export function AICopilotPanel() {
     refreshConversations,
     loadConversation,
     renameConversation,
+    deleteConversation,
   } = useAICopilot();
 
   useBackStackEntry({
     enabled: isOpen,
-    label: "AI Copilot",
+    label: "EduVerse Copilot",
     priority: 75,
     onBack: close,
   });
@@ -116,6 +122,17 @@ export function AICopilotPanel() {
     setEditingTitleId(null);
   };
 
+  const confirmDeleteConversation = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteConversation(deleteTarget.id);
+    } catch (error) {
+      console.warn("Unable to delete Copilot conversation", error);
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const pointerId = event.pointerId;
@@ -140,7 +157,7 @@ export function AICopilotPanel() {
       {!isDesktop && (
         <button
           type="button"
-          aria-label="Close AI Copilot overlay"
+          aria-label="Close EduVerse Copilot overlay"
           className="fixed inset-0 z-90 bg-background/55 backdrop-blur-sm"
           onClick={close}
         />
@@ -148,7 +165,7 @@ export function AICopilotPanel() {
       <aside
         role="dialog"
         aria-modal={!isDesktop}
-        aria-label="EduVerse AI Copilot"
+        aria-label="EduVerse Copilot"
         style={dockedActive ? { width: dockedWidth } : undefined}
         className={cn(
           "z-100 flex min-w-0 flex-col overflow-hidden border border-border/70 bg-background shadow-2xl",
@@ -166,7 +183,7 @@ export function AICopilotPanel() {
           <div
             role="separator"
             aria-orientation="vertical"
-            title="Resize AI Copilot"
+            title="Resize EduVerse Copilot"
             onPointerDown={startResize}
             className="group absolute left-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none bg-transparent transition-colors hover:bg-primary/10"
           >
@@ -181,7 +198,7 @@ export function AICopilotPanel() {
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
                 <h1 className="truncate text-sm font-black text-foreground">
-                  EduVerse AI Copilot
+                  EduVerse Copilot
                 </h1>
               </div>
               <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
@@ -236,8 +253,8 @@ export function AICopilotPanel() {
                   variant="ghost"
                   icon={RefreshCw}
                   onClick={refreshEntitlement}
-                  aria-label="Refresh AI access"
-                  title="Refresh AI access"
+                  aria-label="Refresh Copilot access"
+                  title="Refresh Copilot access"
                   disabled={entitlementLoading}
                 />
                 <Button
@@ -258,8 +275,16 @@ export function AICopilotPanel() {
               variant="ghost"
               icon={MoreHorizontal}
               onClick={() => setActionsCollapsed((current) => !current)}
-              title={actionsCollapsed ? "Show Copilot actions" : "Collapse Copilot actions"}
-              aria-label={actionsCollapsed ? "Show Copilot actions" : "Collapse Copilot actions"}
+              title={
+                actionsCollapsed
+                  ? "Show Copilot actions"
+                  : "Collapse Copilot actions"
+              }
+              aria-label={
+                actionsCollapsed
+                  ? "Show Copilot actions"
+                  : "Collapse Copilot actions"
+              }
             />
             <Button
               type="button"
@@ -267,8 +292,8 @@ export function AICopilotPanel() {
               variant="ghost"
               icon={X}
               onClick={close}
-              title="Close AI Copilot"
-              aria-label="Close AI Copilot"
+              title="Close EduVerse Copilot"
+              aria-label="Close EduVerse Copilot"
             />
           </div>
         </header>
@@ -366,6 +391,15 @@ export function AICopilotPanel() {
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                         )}
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(conversation)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                        aria-label="Delete Copilot chat"
+                        title="Delete chat"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </button>
                     </div>
                   );
                 })
@@ -401,7 +435,9 @@ export function AICopilotPanel() {
                   </Link>
                   <Link
                     href={
-                      user?.role === Role.ORG_ADMIN ? "/settings?tab=ai" : "/ai/subscription"
+                      user?.role === Role.ORG_ADMIN
+                        ? "/settings?tab=ai"
+                        : "/ai/subscription"
                     }
                     onClick={close}
                     className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-black text-foreground shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/60"
@@ -434,6 +470,19 @@ export function AICopilotPanel() {
           onRetry={retryLast}
         />
       </aside>
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDeleteConversation()}
+        title="Delete Copilot chat?"
+        description={
+          deleteTarget
+            ? `This permanently deletes "${deleteTarget.title}" and its messages. This cannot be undone.`
+            : "This permanently deletes the selected Copilot chat and its messages. This cannot be undone."
+        }
+        confirmText="Delete"
+        isDestructive
+      />
     </>
   );
 }

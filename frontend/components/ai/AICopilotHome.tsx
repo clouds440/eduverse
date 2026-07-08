@@ -45,7 +45,7 @@ export function AICopilotHome({
                         </div>
                         <div className="min-w-0">
                             <p className="text-sm font-black text-warning">Copilot is not available</p>
-                            <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">{denialMessage ?? 'AI Copilot needs an active organization or personal subscription.'}</p>
+                            <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">{denialMessage ?? 'EduVerse Copilot needs an active organization or personal subscription.'}</p>
                         </div>
                     </div>
                 </div>
@@ -55,7 +55,7 @@ export function AICopilotHome({
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary px-4 py-2.5 text-sm font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                     >
                         <Sparkles className="h-4 w-4" aria-hidden="true" />
-                        Unlock AI Copilot
+                        Unlock EduVerse Copilot
                     </Link>
                 </div>
             </div>
