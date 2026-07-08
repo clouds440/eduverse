@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
+  AISubscription,
   AISubscriptionOwnerType,
   AISubscriptionPlan,
   AISubscriptionStatus,
@@ -89,6 +90,13 @@ export class AIBillingService {
     }
 
     const subscription = await this.subscriptionService.getOrCreateOrgSubscription(organizationId);
+    if (isActivePaidSubscription(subscription) && subscription.plan === plan) {
+      throw new BadRequestException('This organization is already on that EduVerse Copilot plan. Choose a larger package or manage billing from the subscription page.');
+    }
+    if (isActivePaidSubscription(subscription) && subscription.lemonSqueezySubscriptionId) {
+      return this.createPortalRedirect(actor, AISubscriptionOwnerType.ORGANIZATION, subscription.lemonSqueezySubscriptionId);
+    }
+
     const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: { id: true, name: true, contactEmail: true },
@@ -115,6 +123,12 @@ export class AIBillingService {
       user.id,
       user.organizationId,
     );
+    if (isActivePaidSubscription(subscription) && subscription.plan === plan) {
+      throw new BadRequestException('You are already on that EduVerse Copilot plan. Choose a larger package or manage billing from the subscription page.');
+    }
+    if (isActivePaidSubscription(subscription) && subscription.lemonSqueezySubscriptionId) {
+      return this.createPortalRedirect(user, AISubscriptionOwnerType.USER, subscription.lemonSqueezySubscriptionId);
+    }
 
     return this.createCheckout({
       ownerType: AISubscriptionOwnerType.USER,
@@ -150,6 +164,15 @@ export class AIBillingService {
     }
 
     throw new BadRequestException('No Lemon Squeezy subscription portal is available for this AI subscription yet.');
+  }
+
+  private async createPortalRedirect(user: User, ownerType: AISubscriptionOwnerType, lemonSubscriptionId: string) {
+    const portal = await this.createPortalSession(user, ownerType, '/ai/subscription');
+    return {
+      checkoutUrl: portal.portalUrl,
+      sessionId: lemonSubscriptionId,
+      mode: 'portal',
+    };
   }
 
   async handleWebhook(rawBody: Buffer, signature?: string) {
@@ -262,24 +285,26 @@ export class AIBillingService {
     const attributes = resource.attributes ?? {};
     const metadata = normalizeCustomData(customData);
     const ownerType = metadata.ownerType as AISubscriptionOwnerType | undefined;
+    const existing = await this.findExistingSubscription(resource.id, metadata, ownerType);
     const plan = this.planFromLemonSqueezy(attributes, metadata.plan);
-    const currentPeriodEnd = parseDate(attributes.renews_at ?? attributes.ends_at);
+    const period = resolveLemonSqueezyPeriod(attributes, existing);
     const data = {
       plan,
       status: lemonStatusToAIStatus(attributes.status, attributes.ends_at),
       monthlyCredits: AI_PLAN_CONFIG[plan].monthlyCredits,
       limitMode: AI_PLAN_CONFIG[plan].limitMode,
-      currentPeriodStart: parseDate(attributes.created_at) ?? new Date(),
-      currentPeriodEnd,
+      currentPeriodStart: period.currentPeriodStart,
+      currentPeriodEnd: period.currentPeriodEnd,
       lemonSqueezyCustomerId: valueToString(attributes.customer_id),
       lemonSqueezySubscriptionId: resource.id,
       lemonSqueezyVariantId: valueToString(attributes.variant_id ?? attributes.first_subscription_item?.variant_id),
       lemonSqueezyPortalUrl: attributes.urls?.customer_portal ?? null,
     };
 
-    if (metadata.subscriptionId) {
+    const subscriptionId = metadata.subscriptionId ?? existing?.id;
+    if (subscriptionId) {
       await this.prisma.aISubscription.update({
-        where: { id: metadata.subscriptionId },
+        where: { id: subscriptionId },
         data,
       });
       return;
@@ -325,6 +350,47 @@ export class AIBillingService {
     }
   }
 
+  private async findExistingSubscription(
+    lemonSqueezySubscriptionId: string,
+    metadata: ReturnType<typeof normalizeCustomData>,
+    ownerType?: AISubscriptionOwnerType,
+  ) {
+    if (metadata.subscriptionId) {
+      const byId = await this.prisma.aISubscription.findUnique({
+        where: { id: metadata.subscriptionId },
+      });
+      if (byId) return byId;
+    }
+
+    if (ownerType === AISubscriptionOwnerType.ORGANIZATION && metadata.organizationId) {
+      const byOrg = await this.prisma.aISubscription.findUnique({
+        where: {
+          ownerType_organizationId: {
+            ownerType,
+            organizationId: metadata.organizationId,
+          },
+        },
+      });
+      if (byOrg) return byOrg;
+    }
+
+    if (ownerType === AISubscriptionOwnerType.USER && metadata.userId) {
+      const byUser = await this.prisma.aISubscription.findUnique({
+        where: {
+          ownerType_userId: {
+            ownerType,
+            userId: metadata.userId,
+          },
+        },
+      });
+      if (byUser) return byUser;
+    }
+
+    return this.prisma.aISubscription.findFirst({
+      where: { lemonSqueezySubscriptionId },
+    });
+  }
+
   private variantId(ownerType: AISubscriptionOwnerType, plan: AISubscriptionPlan) {
     const prefix = ownerType === AISubscriptionOwnerType.ORGANIZATION ? 'ORG' : 'PERSONAL';
     const specific = process.env[`LEMON_SQUEEZY_AI_${prefix}_${plan}_VARIANT_ID`];
@@ -337,22 +403,24 @@ export class AIBillingService {
   }
 
   private planFromLemonSqueezy(attributes: LemonSqueezySubscriptionAttributes, metadataPlan?: string) {
+    const variantId = valueToString(attributes.variant_id ?? attributes.first_subscription_item?.variant_id);
+    if (variantId) {
+      const matched = Object.values(AISubscriptionPlan).find((plan) =>
+        plan !== AISubscriptionPlan.NONE
+        && [
+          process.env[`LEMON_SQUEEZY_AI_ORG_${plan}_VARIANT_ID`],
+          process.env[`LEMON_SQUEEZY_AI_PERSONAL_${plan}_VARIANT_ID`],
+          process.env[`LEMON_SQUEEZY_AI_${plan}_VARIANT_ID`],
+        ].includes(variantId),
+      );
+      if (matched) return matched;
+    }
+
     if (metadataPlan && metadataPlan in AISubscriptionPlan) {
       return metadataPlan as AISubscriptionPlan;
     }
 
-    const variantId = valueToString(attributes.variant_id ?? attributes.first_subscription_item?.variant_id);
-    if (!variantId) return AISubscriptionPlan.NONE;
-    const matched = Object.values(AISubscriptionPlan).find((plan) =>
-      plan !== AISubscriptionPlan.NONE
-      && [
-        process.env[`LEMON_SQUEEZY_AI_ORG_${plan}_VARIANT_ID`],
-        process.env[`LEMON_SQUEEZY_AI_PERSONAL_${plan}_VARIANT_ID`],
-        process.env[`LEMON_SQUEEZY_AI_${plan}_VARIANT_ID`],
-      ].includes(variantId),
-    );
-
-    return matched ?? AISubscriptionPlan.NONE;
+    return AISubscriptionPlan.NONE;
   }
 
   private async lemonRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -386,6 +454,75 @@ function lemonStatusToAIStatus(status?: LemonSqueezySubscriptionStatus, endsAt?:
   if (status === 'past_due' || status === 'unpaid' || status === 'paused') return AISubscriptionStatus.PAST_DUE;
   if (status === 'expired') return AISubscriptionStatus.CANCELED;
   return AISubscriptionStatus.INACTIVE;
+}
+
+function isActivePaidSubscription(subscription: Pick<AISubscription, 'plan' | 'status'>) {
+  return subscription.status === AISubscriptionStatus.ACTIVE && subscription.plan !== AISubscriptionPlan.NONE;
+}
+
+function resolveLemonSqueezyPeriod(
+  attributes: LemonSqueezySubscriptionAttributes,
+  existing?: Pick<AISubscription, 'currentPeriodStart' | 'currentPeriodEnd'> | null,
+) {
+  const currentPeriodEnd = parseDate(attributes.renews_at ?? attributes.ends_at)
+    ?? existing?.currentPeriodEnd
+    ?? null;
+  const createdAt = parseDate(attributes.created_at);
+  const now = new Date();
+
+  if (existing?.currentPeriodStart && existing.currentPeriodEnd && currentPeriodEnd) {
+    if (sameInstant(existing.currentPeriodEnd, currentPeriodEnd)) {
+      return {
+        currentPeriodStart: existing.currentPeriodStart,
+        currentPeriodEnd,
+      };
+    }
+
+    if (existing.currentPeriodEnd <= now && existing.currentPeriodEnd < currentPeriodEnd) {
+      return {
+        currentPeriodStart: existing.currentPeriodEnd,
+        currentPeriodEnd,
+      };
+    }
+
+    if (existing.currentPeriodStart <= now && existing.currentPeriodEnd > now && currentPeriodEnd > now) {
+      return {
+        currentPeriodStart: existing.currentPeriodStart,
+        currentPeriodEnd,
+      };
+    }
+  }
+
+  if (!currentPeriodEnd) {
+    return {
+      currentPeriodStart: createdAt ?? existing?.currentPeriodStart ?? now,
+      currentPeriodEnd,
+    };
+  }
+
+  const inferredPeriodStart = addMonths(currentPeriodEnd, -1);
+  const currentPeriodStart = createdAt && createdAt > inferredPeriodStart
+    ? createdAt
+    : inferredPeriodStart;
+
+  return {
+    currentPeriodStart,
+    currentPeriodEnd,
+  };
+}
+
+function sameInstant(left: Date, right: Date) {
+  return left.getTime() === right.getTime();
+}
+
+function addMonths(value: Date, amount: number) {
+  const next = new Date(value);
+  const day = next.getUTCDate();
+  next.setUTCDate(1);
+  next.setUTCMonth(next.getUTCMonth() + amount);
+  const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+  next.setUTCDate(Math.min(day, lastDay));
+  return next;
 }
 
 function verifyLemonSqueezySignature(rawBody: Buffer, signature: string, secret: string) {

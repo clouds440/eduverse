@@ -675,7 +675,7 @@ function creditLimitReachedResponse(code: string | undefined, role?: string | nu
       : "your personal subscription has";
 
   return [
-    `I can't run that request because ${scope} reached the AI Credit limit for this billing period.`,
+    `I can't run that request because ${scope} used all AI Credits included in the current plan.`,
     "",
     "You can [top up or change the Copilot subscription](/ai/subscription) to continue using EduVerse Copilot right away.",
   ].join("\n");

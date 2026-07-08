@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { Building2, Coins, ExternalLink, Sparkles, UserRound } from 'lucide-react';
+import { AlertTriangle, Building2, Coins, ExternalLink, Sparkles, UserRound } from 'lucide-react';
 import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +14,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import {
     AISubscriptionOwnerType,
     AISubscriptionPlan,
+    AISubscriptionStatus,
     Role,
     type AIOrgSettingsResponse,
     type AIPersonalSettingsResponse,
@@ -24,11 +25,31 @@ function formatCredits(value: number) {
     return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
 }
 
+function planRank(plan?: AISubscriptionPlan) {
+    if (plan === AISubscriptionPlan.STARTER) return 1;
+    if (plan === AISubscriptionPlan.GROWTH) return 2;
+    if (plan === AISubscriptionPlan.SCALE) return 3;
+    return 0;
+}
+
+function planActionLabel(plan: AISubscriptionPlan, activePlan?: AISubscriptionPlan, activeStatus?: AISubscriptionStatus) {
+    const isCurrentActive = activeStatus === AISubscriptionStatus.ACTIVE && activePlan === plan;
+    if (isCurrentActive) return 'Current plan';
+    const currentRank = planRank(activePlan);
+    const targetRank = planRank(plan);
+    if (currentRank === 0) return 'Choose plan';
+    if (targetRank > currentRank) return 'Upgrade';
+    if (targetRank < currentRank) return 'Downgrade';
+    return 'Reactivate plan';
+}
+
 function PlanGrid({
     title,
     subtitle,
     plans,
     activePlan,
+    activeStatus,
+    usedCredits = 0,
     loadingPrefix,
     onSelect,
 }: {
@@ -36,6 +57,8 @@ function PlanGrid({
     subtitle: string;
     plans: AIPlanOption[];
     activePlan?: AISubscriptionPlan;
+    activeStatus?: AISubscriptionStatus;
+    usedCredits?: number;
     loadingPrefix: string;
     onSelect: (plan: AISubscriptionPlan) => void;
 }) {
@@ -56,31 +79,43 @@ function PlanGrid({
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-                {paidPlans.map((plan) => (
-                    <div key={plan.plan} className="flex min-h-52 flex-col rounded-lg border border-border/70 bg-background/65 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <p className="text-sm font-black text-foreground">{plan.label}</p>
-                                <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{plan.limitMode} limit</p>
+                {paidPlans.map((plan) => {
+                    const isCurrentActive = activeStatus === AISubscriptionStatus.ACTIVE && activePlan === plan.plan;
+                    const isDowngrade = planRank(activePlan) > planRank(plan.plan);
+                    const downgradeExhaustsCredits = isDowngrade && usedCredits >= plan.monthlyCredits;
+                    return (
+                        <div key={plan.plan} className="flex min-h-52 flex-col rounded-lg border border-border/70 bg-background/65 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-sm font-black text-foreground">{plan.label}</p>
+                                    <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{plan.limitMode} limit</p>
+                                </div>
+                                <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
                             </div>
-                            <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+                            <p className="mt-4 text-3xl font-black text-foreground">{formatCredits(plan.monthlyCredits)}</p>
+                            <p className="mt-1 text-xs font-black uppercase tracking-widest text-muted-foreground">monthly AI Credits</p>
+                            <p className="mt-3 flex-1 text-sm font-semibold leading-6 text-muted-foreground">{plan.description}</p>
+                            {downgradeExhaustsCredits && (
+                                <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs font-semibold leading-5 text-warning">
+                                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                                    <span>You have already used {formatCredits(usedCredits)} credits, so this downgrade may leave no credits available until renewal.</span>
+                                </div>
+                            )}
+                            <Button
+                                type="button"
+                                variant={isCurrentActive ? 'secondary' : isDowngrade ? 'outline' : 'primary'}
+                                loadingId={`${loadingPrefix}-${plan.plan}`}
+                                onClick={() => onSelect(plan.plan)}
+                                disabled={isCurrentActive}
+                                className="mt-4 w-full text-xs"
+                                px="px-3"
+                                py="py-2.5"
+                            >
+                                {planActionLabel(plan.plan, activePlan, activeStatus)}
+                            </Button>
                         </div>
-                        <p className="mt-4 text-3xl font-black text-foreground">{formatCredits(plan.monthlyCredits)}</p>
-                        <p className="mt-1 text-xs font-black uppercase tracking-widest text-muted-foreground">monthly AI Credits</p>
-                        <p className="mt-3 flex-1 text-sm font-semibold leading-6 text-muted-foreground">{plan.description}</p>
-                        <Button
-                            type="button"
-                            variant={activePlan === plan.plan ? 'secondary' : 'primary'}
-                            loadingId={`${loadingPrefix}-${plan.plan}`}
-                            onClick={() => onSelect(plan.plan)}
-                            className="mt-4 w-full text-xs"
-                            px="px-3"
-                            py="py-2.5"
-                        >
-                            {activePlan === plan.plan ? 'Current plan' : 'Choose plan'}
-                        </Button>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </section>
     );
@@ -202,6 +237,8 @@ export default function AISubscriptionPage() {
                             subtitle="Org plans fund Copilot for enabled roles and use organization credits first."
                             plans={orgSettings.plans}
                             activePlan={orgSettings.subscription.plan}
+                            activeStatus={orgSettings.subscription.status}
+                            usedCredits={orgSettings.usage.usedCredits}
                             loadingPrefix="ai-org-checkout"
                             onSelect={startOrgCheckout}
                         />
@@ -226,6 +263,8 @@ export default function AISubscriptionPage() {
                             subtitle="Personal credits unlock Copilot for you only. They do not change what data you are allowed to access."
                             plans={plans}
                             activePlan={personalSettings.subscription.plan}
+                            activeStatus={personalSettings.subscription.status}
+                            usedCredits={personalSettings.usage.usedCredits}
                             loadingPrefix="ai-personal-checkout"
                             onSelect={startPersonalCheckout}
                         />

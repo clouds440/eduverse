@@ -397,7 +397,7 @@ export function AICopilotPanel() {
                   AI Credit limit reached
                 </p>
                 <p className="mt-1 text-xs font-semibold leading-5 text-warning/90">
-                  EduVerse Copilot is still unlocked, but this billing period has no credits left.
+                  You have used all AI Credits included in your current plan.
                 </p>
               </div>
               <Link
