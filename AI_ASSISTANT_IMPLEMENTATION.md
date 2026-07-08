@@ -347,7 +347,7 @@ Current provider implementation:
 - Lemon Squeezy hosted checkout.
 - Lemon Squeezy customer portal links when available.
 - Signed webhook validation with `X-Signature` over the raw request body.
-- Supported events include subscription created, updated, cancelled, resumed, expired, paused, and unpaused.
+- Supported events include subscription created, updated, cancelled, resumed, expired, paused, unpaused, payment success/failure/recovered/refunded, plan changed, order created, and order refunded.
 
 Required env:
 
@@ -356,9 +356,10 @@ Required env:
 - `LEMON_SQUEEZY_WEBHOOK_SECRET`
 - `LEMON_SQUEEZY_AI_ORG_STARTER_VARIANT_ID`
 - `LEMON_SQUEEZY_AI_ORG_GROWTH_VARIANT_ID`
-- `LEMON_SQUEEZY_AI_ORG_ENTERPRISE_VARIANT_ID`
+- `LEMON_SQUEEZY_AI_ORG_SCALE_VARIANT_ID`
 - `LEMON_SQUEEZY_AI_PERSONAL_STARTER_VARIANT_ID`
-- `LEMON_SQUEEZY_AI_PERSONAL_PRO_VARIANT_ID`
+- `LEMON_SQUEEZY_AI_PERSONAL_GROWTH_VARIANT_ID`
+- `LEMON_SQUEEZY_AI_PERSONAL_SCALE_VARIANT_ID`
 
 ## Data Model Plan
 

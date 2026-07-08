@@ -36,7 +36,7 @@ interface LemonSqueezyWebhookPayload {
     event_name?: string;
     custom_data?: Record<string, unknown>;
   };
-  data?: LemonSqueezyResource<LemonSqueezySubscriptionAttributes | Record<string, unknown>>;
+  data?: LemonSqueezyResource<LemonSqueezyWebhookAttributes>;
 }
 
 interface LemonSqueezySubscriptionAttributes {
@@ -54,6 +54,16 @@ interface LemonSqueezySubscriptionAttributes {
     variant_id?: number | string | null;
   };
 }
+
+type LemonSqueezyWebhookAttributes = LemonSqueezySubscriptionAttributes & {
+  subscription_id?: number | string | null;
+  subscription?: number | string | null;
+  variant_id?: number | string | null;
+  first_order_item?: {
+    variant_id?: number | string | null;
+    subscription_id?: number | string | null;
+  };
+};
 
 interface LemonSqueezyCheckoutInput {
   ownerType: AISubscriptionOwnerType;
@@ -149,16 +159,33 @@ export class AIBillingService {
 
     verifyLemonSqueezySignature(rawBody, signature, secret);
     const payload = JSON.parse(rawBody.toString('utf8')) as LemonSqueezyWebhookPayload;
-    const eventName = payload.meta?.event_name ?? '';
+    const result = await this.processWebhookEvent(payload);
 
-    if (eventName.startsWith('subscription_') && payload.data?.type === 'subscriptions') {
+    return { received: true, ...result };
+  }
+
+  private async processWebhookEvent(payload: LemonSqueezyWebhookPayload) {
+    const eventName = payload.meta?.event_name ?? '';
+    const data = payload.data;
+
+    if (eventName.startsWith('subscription_') && data?.type === 'subscriptions') {
       await this.syncLemonSqueezySubscription(
-        payload.data as LemonSqueezyResource<LemonSqueezySubscriptionAttributes>,
+        data as LemonSqueezyResource<LemonSqueezySubscriptionAttributes>,
         payload.meta?.custom_data,
       );
+      return { handled: true, eventName, source: 'subscription' };
     }
 
-    return { received: true };
+    if (shouldSyncRelatedSubscription(eventName)) {
+      const subscriptionId = relatedSubscriptionId(payload);
+      if (subscriptionId) {
+        const subscription = await this.retrieveSubscription(subscriptionId);
+        await this.syncLemonSqueezySubscription(subscription, payload.meta?.custom_data);
+        return { handled: true, eventName, source: 'related-subscription' };
+      }
+    }
+
+    return { handled: false, eventName };
   }
 
   private async createCheckout(input: LemonSqueezyCheckoutInput) {
@@ -378,6 +405,40 @@ function normalizeCustomData(value?: Record<string, unknown>) {
     plan: stringValue(custom.plan),
     subscriptionId: stringValue(custom.subscriptionId),
   };
+}
+
+function shouldSyncRelatedSubscription(eventName: string) {
+  return [
+    'order_created',
+    'order_refunded',
+    'subscription_payment_failed',
+    'subscription_payment_success',
+    'subscription_payment_recovered',
+    'subscription_payment_refunded',
+    'subscription_plan_changed',
+  ].includes(eventName);
+}
+
+function relatedSubscriptionId(payload: LemonSqueezyWebhookPayload) {
+  const data = payload.data;
+  const attributes = data?.attributes;
+  if (!attributes || typeof attributes !== 'object') return undefined;
+
+  return valueToString(
+    attributes.subscription_id
+    ?? attributes.subscription
+    ?? attributes.first_order_item?.subscription_id
+    ?? relationshipId(data),
+  ) ?? undefined;
+}
+
+function relationshipId(resource: unknown) {
+  const relationships = (resource as { relationships?: Record<string, unknown> } | undefined)?.relationships;
+  const relationship = relationships?.subscription;
+  if (!relationship || typeof relationship !== 'object') return undefined;
+  const data = (relationship as { data?: unknown }).data;
+  if (!data || typeof data !== 'object') return undefined;
+  return (data as { id?: unknown }).id;
 }
 
 function stringValue(value: unknown) {

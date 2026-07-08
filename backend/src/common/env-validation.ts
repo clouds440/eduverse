@@ -49,19 +49,20 @@ export function validateEnv() {
     'LEMON_SQUEEZY_API_KEY',
     'LEMON_SQUEEZY_STORE_ID',
     'LEMON_SQUEEZY_WEBHOOK_SECRET',
-    'LEMON_SQUEEZY_AI_ORG_STARTER_VARIANT_ID',
-    'LEMON_SQUEEZY_AI_ORG_GROWTH_VARIANT_ID',
-    'LEMON_SQUEEZY_AI_ORG_SCALE_VARIANT_ID',
-    'LEMON_SQUEEZY_AI_PERSONAL_STARTER_VARIANT_ID',
-    'LEMON_SQUEEZY_AI_PERSONAL_GROWTH_VARIANT_ID',
-    'LEMON_SQUEEZY_AI_PERSONAL_SCALE_VARIANT_ID',
   ];
   const missingRecommended = recommendedEnvs.filter((env) => !process.env[env]);
+  const missingBillingVariants = lemonSqueezyVariantEnvGroups()
+    .filter((group) => !group.some((env) => process.env[env]))
+    .map((group) => group[0]);
   if (missingRecommended.length > 0) {
     logger.warn(
       'Recommended environment variables are missing. Related features may use defaults or stay unavailable:',
     );
     missingRecommended.forEach((env) => logger.warn(` - ${env}`));
+  }
+  if (missingBillingVariants.length > 0) {
+    logger.warn('Lemon Squeezy AI billing variant envs are missing. Set the Lemon Squeezy variant IDs:');
+    missingBillingVariants.forEach((env) => logger.warn(` - ${env}`));
   }
 
   if (!process.env.AI_API_KEY) {
@@ -77,6 +78,15 @@ export function validateEnv() {
   }
 
   warnAboutAuthCookieConfig(logger);
+}
+
+function lemonSqueezyVariantEnvGroups() {
+  const plans = ['STARTER', 'GROWTH', 'SCALE'];
+  const owners = ['ORG', 'PERSONAL'];
+  return owners.flatMap((owner) => plans.map((plan) => [
+    `LEMON_SQUEEZY_AI_${owner}_${plan}_VARIANT_ID`,
+    `LEMON_SQUEEZY_AI_${plan}_VARIANT_ID`,
+  ]));
 }
 
 function warnAboutAuthCookieConfig(logger: Logger) {
