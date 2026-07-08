@@ -279,8 +279,15 @@ function writeSseEvent(res: Response, event: string, data: unknown) {
 function normalizeStreamError(error: unknown) {
   if (typeof error === 'object' && error && 'response' in error) {
     const response = (error as { response?: unknown }).response;
-    if (typeof response === 'object' && response && 'message' in response) {
-      return response;
+    if (typeof response === 'object' && response) {
+      const body = response as { code?: unknown; message?: unknown };
+      if (typeof body.message === 'string') {
+        return {
+          type: 'error',
+          code: typeof body.code === 'string' ? body.code : 'UNAVAILABLE',
+          message: body.message,
+        };
+      }
     }
   }
 

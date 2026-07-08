@@ -55,12 +55,13 @@ export class AIEntitlementService {
       return { allowed: true, source: personalSource.source };
     }
 
+    const denial = bestDeniedEntitlement(orgSource, personalSource);
+
     return {
       allowed: false,
-      code: personalSource?.code ?? orgSource?.code ?? 'NO_SUBSCRIPTION',
+      code: denial?.code ?? 'NO_SUBSCRIPTION',
       message:
-        personalSource?.message ??
-        orgSource?.message ??
+        denial?.message ??
         'EduVerse Copilot requires an organization or personal AI subscription.',
       orgSubscriptionStatus: orgSubscription?.status ?? null,
       orgLimitMode: orgSubscription?.limitMode ?? null,
@@ -196,4 +197,25 @@ export class AIEntitlementService {
   private isActive(subscription: AISubscription) {
     return subscription.status === AISubscriptionStatus.ACTIVE && subscription.monthlyCredits > 0;
   }
+}
+
+function bestDeniedEntitlement(
+  orgSource: AIEntitlementResult | null,
+  personalSource: AIEntitlementResult | null,
+) {
+  const denied = [orgSource, personalSource].filter(
+    (source): source is Extract<AIEntitlementResult, { allowed: false }> =>
+      Boolean(source && !source.allowed),
+  );
+
+  return denied.find((source) => isCreditLimitReachedCode(source.code))
+    ?? denied.find((source) => source.code === 'ORG_ROLE_DISABLED')
+    ?? denied[0]
+    ?? null;
+}
+
+function isCreditLimitReachedCode(code: string) {
+  return code === 'ORG_CREDITS_EXHAUSTED'
+    || code === 'ROLE_CREDITS_EXHAUSTED'
+    || code === 'PERSONAL_CREDITS_EXHAUSTED';
 }

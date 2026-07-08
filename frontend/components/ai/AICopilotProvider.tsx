@@ -11,7 +11,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
-import { api } from "@/lib/api";
+import { ApiRequestError, api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
 import {
@@ -51,6 +51,8 @@ interface AICopilotContextValue {
   conversationsLoading: boolean;
   suggestedQuestions: AISuggestedQuestion[];
   suggestedQuestionsLoading: boolean;
+  suggestedQuestionsLoaded: boolean;
+  loadSuggestedQuestions: () => Promise<void>;
   isDocked: boolean;
   dockedWidth: number;
   dockHostAvailable: boolean;
@@ -224,16 +226,6 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     user,
   ]);
 
-  useEffect(() => {
-    if (!isOpen || entitlement?.allowed !== true || suggestionsLoaded) return;
-    void refreshSuggestedQuestions();
-  }, [
-    entitlement?.allowed,
-    isOpen,
-    refreshSuggestedQuestions,
-    suggestionsLoaded,
-  ]);
-
   const close = useCallback(() => setIsOpen(false), []);
   const open = useCallback(() => {
     setIsOpen(true);
@@ -337,8 +329,33 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     async (prompt: string, options?: { retryLastUserMessage?: boolean }) => {
       const trimmed = prompt.trim();
       if (!trimmed || !token || !user || isSending) return;
-      if (entitlement && !entitlement.allowed) {
+      if (entitlement && !entitlement.allowed && !isCreditLimitReachedCode(entitlement.code)) {
         setIsOpen(true);
+        return;
+      }
+
+      const userMessage: AICopilotMessage = {
+        id: makeMessageId("user"),
+        role: "user",
+        content: trimmed,
+        status: "complete",
+        createdAt: Date.now(),
+      };
+      if (entitlement && !entitlement.allowed && isCreditLimitReachedCode(entitlement.code)) {
+        const assistantMessage: AICopilotMessage = {
+          id: makeMessageId("assistant"),
+          role: "assistant",
+          content: creditLimitReachedResponse(entitlement.code, user.role),
+          status: "complete",
+          createdAt: Date.now(),
+        };
+        setMessages((current) => {
+          const next = [...current, userMessage, assistantMessage];
+          messagesRef.current = next;
+          return next;
+        });
+        setError(null);
+        void refreshEntitlement();
         return;
       }
 
@@ -348,13 +365,6 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
       setIsSending(true);
       setError(null);
       lastPromptRef.current = trimmed;
-      const userMessage: AICopilotMessage = {
-        id: makeMessageId("user"),
-        role: "user",
-        content: trimmed,
-        status: "complete",
-        createdAt: Date.now(),
-      };
       const pendingAssistantId = makeMessageId("assistant");
       const pendingAssistantMessage: AICopilotMessage = {
         id: pendingAssistantId,
@@ -470,6 +480,22 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
           });
           return;
         }
+        const code = err instanceof ApiRequestError ? err.code : undefined;
+        if (isCreditLimitReachedCode(code)) {
+          const message = creditLimitReachedResponse(code, user.role);
+          setError(null);
+          setMessages((current) => {
+            const next = current.map((item) =>
+              item.id === pendingAssistantId
+                ? { ...item, content: message, status: "complete" as const }
+                : item,
+            );
+            messagesRef.current = next;
+            return next;
+          });
+          void refreshEntitlement();
+          return;
+        }
         const message =
           err instanceof Error
             ? err.message
@@ -551,6 +577,8 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
       conversationsLoading,
       suggestedQuestions,
       suggestedQuestionsLoading,
+      suggestedQuestionsLoaded: suggestionsLoaded,
+      loadSuggestedQuestions: refreshSuggestedQuestions,
       isDocked,
       dockedWidth,
       dockHostAvailable,
@@ -585,6 +613,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
       loadConversation,
       messages,
       open,
+      refreshSuggestedQuestions,
       refreshConversations,
       refreshEntitlement,
       renameConversation,
@@ -592,6 +621,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
       retryLast,
       sendPrompt,
       suggestedQuestions,
+      suggestionsLoaded,
       suggestedQuestionsLoading,
       toggle,
     ],
@@ -629,4 +659,24 @@ export function useAICopilot() {
 
 function makeMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function isCreditLimitReachedCode(code?: string | null) {
+  return code === "ORG_CREDITS_EXHAUSTED"
+    || code === "ROLE_CREDITS_EXHAUSTED"
+    || code === "PERSONAL_CREDITS_EXHAUSTED";
+}
+
+function creditLimitReachedResponse(code: string | undefined, role?: string | null) {
+  const scope = code === "ORG_CREDITS_EXHAUSTED"
+    ? "your organization has"
+    : code === "ROLE_CREDITS_EXHAUSTED"
+      ? "your role allowance has"
+      : "your personal subscription has";
+
+  return [
+    `I can't run that request because ${scope} reached the AI Credit limit for this billing period.`,
+    "",
+    "You can [top up or change the Copilot subscription](/ai/subscription) to continue using EduVerse Copilot right away.",
+  ].join("\n");
 }

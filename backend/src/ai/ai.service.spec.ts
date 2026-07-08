@@ -34,6 +34,7 @@ describe('AIService', () => {
 
   function createService(overrides: Partial<{
     entitlement: { allowed: true; source: AIEntitlementSource } | { allowed: false; code: string; message: string };
+    providerChatError: Error;
   }> = {}) {
     const conversationService = {
       getOrCreateConversation: jest.fn().mockResolvedValue({ id: 'conversation-1', title: null }),
@@ -65,7 +66,11 @@ describe('AIService', () => {
         toolCalls: [],
       }),
       stream: jest.fn(),
+      getProviderName: jest.fn().mockReturnValue('openrouter'),
     };
+    if (overrides.providerChatError) {
+      providerService.chat.mockRejectedValue(overrides.providerChatError);
+    }
     const toolRegistry = {
       listTools: jest.fn().mockReturnValue([{ name: 'getScheduleContext', description: 'Generic schedule context' }]),
       runTools: jest.fn().mockResolvedValue([
@@ -166,5 +171,30 @@ describe('AIService', () => {
 
     await expect(service.chat(user, { prompt: 'Help me.' })).rejects.toBeInstanceOf(ForbiddenException);
     expect(conversationService.getOrCreateConversation).not.toHaveBeenCalled();
+  });
+
+  it('persists an assistant error when provider generation fails after the user message is stored', async () => {
+    const { service, conversationService } = createService({
+      providerChatError: new Error('Provider is unavailable.'),
+    });
+
+    await expect(service.chat(user, {
+      prompt: 'What should I study today?',
+      conversationId: 'conversation-1',
+    })).rejects.toThrow('Provider is unavailable.');
+
+    expect(conversationService.appendUserMessage).toHaveBeenCalledWith(
+      'conversation-1',
+      'What should I study today?',
+    );
+    expect(conversationService.appendAssistantMessage).toHaveBeenCalledWith(
+      'conversation-1',
+      expect.stringContaining('I could not complete that request.'),
+      expect.objectContaining({
+        error: true,
+        providerName: 'openrouter',
+        errorCode: 'AI_RESPONSE_ERROR',
+      }),
+    );
   });
 });

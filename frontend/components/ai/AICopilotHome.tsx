@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LockKeyhole, Sparkles } from 'lucide-react';
+import { AlertTriangle, LockKeyhole, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Loading } from '@/components/ui/Loading';
 import { getAIRoleHomeConfig } from '@/lib/ai';
@@ -11,20 +11,31 @@ interface AICopilotHomeProps {
     role?: Role | string | null;
     entitlementLoading: boolean;
     entitlementAllowed?: boolean;
+    denialCode?: string;
     denialMessage?: string;
     sourceLabel?: string;
     remainingCredits?: number;
+    monthlyCredits?: number;
 }
 
 export function AICopilotHome({
     role,
     entitlementLoading,
     entitlementAllowed,
+    denialCode,
     denialMessage,
     sourceLabel,
     remainingCredits,
+    monthlyCredits,
 }: AICopilotHomeProps) {
     const config = getAIRoleHomeConfig(role);
+    const creditLimitReached = isCreditLimitReachedCode(denialCode);
+    const lowCreditWarning = entitlementAllowed === true
+        && typeof remainingCredits === 'number'
+        && typeof monthlyCredits === 'number'
+        && monthlyCredits > 0
+        && remainingCredits > 0
+        && remainingCredits <= Math.max(25, Math.ceil(monthlyCredits * 0.1));
 
     if (entitlementLoading) {
         return (
@@ -35,7 +46,7 @@ export function AICopilotHome({
         );
     }
 
-    if (entitlementAllowed === false) {
+    if (entitlementAllowed === false && !creditLimitReached) {
         return (
             <div className="grid gap-4">
                 <div className="rounded-lg border border-warning/30 bg-warning/10 p-4">
@@ -64,6 +75,37 @@ export function AICopilotHome({
 
     return (
         <div className="grid gap-4">
+            {creditLimitReached && (
+                <div className="rounded-lg border border-warning/35 bg-warning/10 p-4">
+                    <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-warning/25 bg-background text-warning">
+                            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-black text-warning">Credit limit reached</p>
+                            <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">
+                                EduVerse Copilot is unlocked, but this billing period has no AI Credits left.
+                            </p>
+                            <Link
+                                href="/ai/subscription"
+                                className="mt-3 inline-flex min-h-9 items-center justify-center rounded-md bg-warning px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-warning/90"
+                            >
+                                Top up credits
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {lowCreditWarning && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                        <p className="text-sm font-semibold leading-6 text-warning/90">
+                            AI Credits are running low. You have {remainingCredits.toLocaleString()} of {monthlyCredits.toLocaleString()} credits left this period.
+                        </p>
+                    </div>
+                </div>
+            )}
             <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
                 <div className="border-b border-border/60 bg-primary/5 p-4">
                     <div className="flex items-start justify-between gap-4">
@@ -71,6 +113,7 @@ export function AICopilotHome({
                             <div className="flex flex-wrap items-center gap-2">
                                 <Badge variant="purple" size="sm" icon={Sparkles}>{config.eyebrow}</Badge>
                                 {sourceLabel && <Badge variant="secondary" size="sm">{sourceLabel}</Badge>}
+                                {creditLimitReached && <Badge variant="warning" size="sm">Zero credits</Badge>}
                             </div>
                             <h2 className="mt-4 text-2xl font-black leading-tight text-foreground">{config.title}</h2>
                             <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{config.description}</p>
@@ -95,4 +138,10 @@ export function AICopilotHome({
             </div>
         </div>
     );
+}
+
+function isCreditLimitReachedCode(code?: string | null) {
+    return code === 'ORG_CREDITS_EXHAUSTED'
+        || code === 'ROLE_CREDITS_EXHAUSTED'
+        || code === 'PERSONAL_CREDITS_EXHAUSTED';
 }

@@ -27,24 +27,36 @@ export class AIService {
 
   async chat(user: User, dto: AIChatRequestDto) {
     const prepared = await this.prepareChat(user, dto);
+    let shouldPersistAssistantError = prepared.reusedLastUserMessage;
     if (!prepared.reusedLastUserMessage) {
       await this.conversationService.appendUserMessage(
         prepared.conversation.id,
         dto.prompt,
       );
+      shouldPersistAssistantError = true;
     }
-    const output = await this.providerService.chat(prepared.providerInput);
-    return this.finalizeProviderOutput(user, prepared, output);
+
+    try {
+      const output = await this.providerService.chat(prepared.providerInput);
+      return this.finalizeProviderOutput(user, prepared, output);
+    } catch (error) {
+      if (shouldPersistAssistantError) {
+        await this.persistAssistantError(prepared.conversation.id, error);
+      }
+      throw error;
+    }
   }
 
   async *streamChat(user: User, dto: AIChatRequestDto): AsyncIterable<AIStreamEvent> {
     yield { type: 'status', label: 'Opening EduVerse context' };
     const prepared = await this.prepareChat(user, dto);
+    let shouldPersistAssistantError = prepared.reusedLastUserMessage;
     if (!prepared.reusedLastUserMessage) {
       await this.conversationService.appendUserMessage(
         prepared.conversation.id,
         dto.prompt,
       );
+      shouldPersistAssistantError = true;
     }
 
     yield {
@@ -57,32 +69,39 @@ export class AIService {
     let lastOutput: AIProviderChatOutput | null = null;
     let content = '';
 
-    for await (const output of this.providerService.stream(prepared.providerInput)) {
-      lastOutput = output;
-      const chunks = chunkStreamContent(output.content);
-      for (const chunk of chunks) {
-        content += chunk;
-        yield { type: 'delta', content: chunk };
+    try {
+      for await (const output of this.providerService.stream(prepared.providerInput)) {
+        lastOutput = output;
+        const chunks = chunkStreamContent(output.content);
+        for (const chunk of chunks) {
+          content += chunk;
+          yield { type: 'delta', content: chunk };
+        }
       }
-    }
 
-    if (!lastOutput) {
-      lastOutput = await this.providerService.chat(prepared.providerInput);
-      for (const chunk of chunkStreamContent(lastOutput.content)) {
-        content += chunk;
-        yield { type: 'delta', content: chunk };
+      if (!lastOutput) {
+        lastOutput = await this.providerService.chat(prepared.providerInput);
+        for (const chunk of chunkStreamContent(lastOutput.content)) {
+          content += chunk;
+          yield { type: 'delta', content: chunk };
+        }
       }
+
+      const response = await this.finalizeProviderOutput(user, prepared, {
+        ...lastOutput,
+        content: content || lastOutput.content,
+      });
+
+      yield {
+        type: 'complete',
+        response,
+      };
+    } catch (error) {
+      if (shouldPersistAssistantError) {
+        await this.persistAssistantError(prepared.conversation.id, error);
+      }
+      throw error;
     }
-
-    const response = await this.finalizeProviderOutput(user, prepared, {
-      ...lastOutput,
-      content: content || lastOutput.content,
-    });
-
-    yield {
-      type: 'complete',
-      response,
-    };
   }
 
   listConversations(user: User) {
@@ -390,6 +409,58 @@ export class AIService {
       toolCalls: output.toolCalls ?? [],
     };
   }
+
+  private async persistAssistantError(conversationId: string, error: unknown) {
+    const message = assistantErrorMessage(error);
+    await this.conversationService.appendAssistantMessage(
+      conversationId,
+      message,
+      {
+        error: true,
+        providerName: this.providerService.getProviderName(),
+        errorCode: errorCode(error),
+      },
+    );
+  }
+}
+
+function assistantErrorMessage(error: unknown) {
+  const message = errorMessage(error);
+  return [
+    'I could not complete that request.',
+    '',
+    message,
+  ].join('\n');
+}
+
+function errorMessage(error: unknown) {
+  if (typeof error === 'object' && error && 'response' in error) {
+    const response = (error as { response?: unknown }).response;
+    if (typeof response === 'object' && response && 'message' in response) {
+      const message = (response as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim()) return message.trim();
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  return 'EduVerse Copilot hit an unexpected issue while generating the reply.';
+}
+
+function errorCode(error: unknown) {
+  if (typeof error === 'object' && error && 'response' in error) {
+    const response = (error as { response?: unknown }).response;
+    if (typeof response === 'object' && response && 'code' in response) {
+      const code = (response as { code?: unknown }).code;
+      if (typeof code === 'string') return code;
+    }
+  }
+
+  if (typeof error === 'object' && error && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === 'string') return code;
+  }
+
+  return 'AI_RESPONSE_ERROR';
 }
 
 function chunkStreamContent(content: string) {

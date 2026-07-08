@@ -11,6 +11,7 @@ import {
   CreditCard,
   Gauge,
   History,
+  Lightbulb,
   MoreHorizontal,
   Pencil,
   PanelRightClose,
@@ -53,6 +54,8 @@ export function AICopilotPanel() {
     conversations,
     conversationsLoading,
     suggestedQuestions,
+    suggestedQuestionsLoading,
+    suggestedQuestionsLoaded,
     isDocked,
     dockedWidth,
     dockHostAvailable,
@@ -68,6 +71,7 @@ export function AICopilotPanel() {
     resetConversation,
     refreshEntitlement,
     refreshConversations,
+    loadSuggestedQuestions,
     loadConversation,
     renameConversation,
     deleteConversation,
@@ -90,6 +94,9 @@ export function AICopilotPanel() {
   }, [close, isOpen]);
 
   const allowed = entitlement?.allowed;
+  const denialCode = entitlement && entitlement.allowed === false ? entitlement.code : undefined;
+  const creditLimitReached = isCreditLimitReachedCode(denialCode);
+  const canUseAccountActions = allowed === true || creditLimitReached;
   const sourceLabel = allowed
     ? entitlement.source.sourceType === AIUsageSourceType.ORGANIZATION
       ? "Org funded"
@@ -97,12 +104,22 @@ export function AICopilotPanel() {
     : undefined;
   const remainingCredits = allowed
     ? entitlement.source.balance.remainingCredits
+    : creditLimitReached
+      ? 0
     : undefined;
+  const monthlyCredits = allowed ? entitlement.source.balance.monthlyCredits : undefined;
   const hasMessages = messages.length > 0;
-  const disabled = entitlementLoading || allowed === false || isSending;
+  const disabled = entitlementLoading || (allowed === false && !creditLimitReached) || isSending;
   const showSuggestions =
-    allowed === true && !hasMessages && suggestedQuestions.length > 0;
+    allowed === true && !creditLimitReached && !hasMessages && suggestedQuestions.length > 0;
+  const showSuggestionPrompt =
+    allowed === true
+    && !creditLimitReached
+    && !hasMessages
+    && suggestedQuestions.length === 0
+    && !suggestedQuestionsLoaded;
   const dockedActive = isDesktop && isDocked && dockHostAvailable;
+  const subscriptionHref = "/ai/subscription";
 
   if (!mounted || !isOpen) return null;
 
@@ -168,7 +185,7 @@ export function AICopilotPanel() {
         aria-label="EduVerse Copilot"
         style={dockedActive ? { width: dockedWidth } : undefined}
         className={cn(
-          "z-100 flex min-w-0 flex-col overflow-hidden border border-border/70 bg-background shadow-2xl",
+          "z-100 relative flex min-w-0 flex-col overflow-hidden border border-border/70 bg-background shadow-2xl",
           dockedActive
             ? "relative h-full rounded-none border-y-0 border-r-0 animate-in fade-in slide-in-from-right-3 duration-200"
             : "animate-in fade-in slide-in-from-bottom-4 duration-200",
@@ -206,6 +223,8 @@ export function AICopilotPanel() {
                   ? activeConversationTitle
                   : allowed
                     ? `${(remainingCredits ?? 0).toLocaleString()} credits remaining`
+                    : creditLimitReached
+                      ? "Credit limit reached"
                     : entitlementLoading
                       ? "Checking access"
                       : "Premium addon"}
@@ -298,116 +317,6 @@ export function AICopilotPanel() {
           </div>
         </header>
 
-        {historyOpen && (
-          <div className="shrink-0 border-b border-border/70 bg-card/70 p-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                Previous Chats
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  resetConversation();
-                  setHistoryOpen(false);
-                }}
-                className="text-xs font-black text-primary hover:underline"
-              >
-                New chat
-              </button>
-            </div>
-            <div className="grid max-h-52 gap-2 overflow-y-auto custom-scrollbar">
-              {conversationsLoading ? (
-                <div className="rounded-lg border border-border/70 bg-background/70 p-3 text-sm font-semibold text-muted-foreground">
-                  Loading conversations...
-                </div>
-              ) : conversations.length === 0 ? (
-                <div className="rounded-lg border border-border/70 bg-background/70 p-3 text-sm font-semibold text-muted-foreground">
-                  No previous Copilot chats yet.
-                </div>
-              ) : (
-                conversations.map((conversation) => {
-                  const isActive = conversation.id === conversationId;
-                  const isEditing = editingTitleId === conversation.id;
-                  return (
-                    <div
-                      key={conversation.id}
-                      className={cn(
-                        "flex min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-background/70 p-2",
-                        isActive && "border-primary/35 bg-primary/5",
-                      )}
-                    >
-                      {isEditing ? (
-                        <input
-                          value={editingTitle}
-                          onChange={(event) =>
-                            setEditingTitle(event.target.value)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") void saveTitle();
-                            if (event.key === "Escape") setEditingTitleId(null);
-                          }}
-                          onBlur={() => void saveTitle()}
-                          className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm font-semibold text-foreground outline-none focus:border-primary/40"
-                          autoFocus
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void loadConversation(conversation.id);
-                            setHistoryOpen(false);
-                          }}
-                          className="min-w-0 flex-1 text-left"
-                        >
-                          <p className="truncate text-sm font-black text-foreground">
-                            {conversation.title}
-                          </p>
-                          <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-                            {conversation.messageCount} messages
-                            {conversation.creditTotal > 0
-                              ? ` - ${conversation.creditTotal.toLocaleString()} credits`
-                              : ""}
-                          </p>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          isEditing
-                            ? void saveTitle()
-                            : startEditTitle(
-                                conversation.id,
-                                conversation.title,
-                              )
-                        }
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        aria-label={
-                          isEditing ? "Save chat title" : "Edit chat title"
-                        }
-                      >
-                        {isEditing ? (
-                          <Check className="h-4 w-4" aria-hidden="true" />
-                        ) : (
-                          <Pencil className="h-4 w-4" aria-hidden="true" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(conversation)}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
-                        aria-label="Delete Copilot chat"
-                        title="Delete chat"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="min-h-0 flex-1 bg-background">
           {hasMessages ? (
             <AIMessageList messages={messages} />
@@ -416,14 +325,16 @@ export function AICopilotPanel() {
               <AICopilotHome
                 role={user?.role}
                 entitlementLoading={entitlementLoading}
-                entitlementAllowed={entitlement?.allowed}
+                entitlementAllowed={creditLimitReached ? true : entitlement?.allowed}
+                denialCode={denialCode}
                 denialMessage={
                   !entitlement?.allowed ? entitlement?.message : undefined
                 }
                 sourceLabel={sourceLabel}
                 remainingCredits={remainingCredits}
+                monthlyCredits={monthlyCredits}
               />
-              {allowed === true && (
+              {canUseAccountActions && (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <Link
                     href="/ai"
@@ -434,16 +345,12 @@ export function AICopilotPanel() {
                     Usage
                   </Link>
                   <Link
-                    href={
-                      user?.role === Role.ORG_ADMIN
-                        ? "/settings?tab=ai"
-                        : "/ai/subscription"
-                    }
+                    href={subscriptionHref}
                     onClick={close}
                     className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-black text-foreground shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/60"
                   >
                     <CreditCard className="h-4 w-4" aria-hidden="true" />
-                    Subscription
+                    {creditLimitReached ? "Top up" : "Subscription"}
                   </Link>
                 </div>
               )}
@@ -461,6 +368,49 @@ export function AICopilotPanel() {
           </div>
         )}
 
+        {showSuggestionPrompt && (
+          <div className="shrink-0 px-3 pb-2 sm:px-4">
+            <div className="flex items-center justify-between gap-3 rounded-full border border-border/70 bg-card/90 px-3 py-2 shadow-sm">
+              <div className="flex min-w-0 items-center gap-2">
+                <Lightbulb className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                <span className="truncate text-xs font-black text-foreground">
+                  Need ideas?
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadSuggestedQuestions()}
+                disabled={suggestedQuestionsLoading || disabled}
+                className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {suggestedQuestionsLoading ? "Finding ideas" : "Show suggested prompts"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {hasMessages && creditLimitReached && (
+          <div className="shrink-0 px-3 pb-2 sm:px-4">
+            <div className="flex flex-col gap-3 rounded-lg border border-warning/35 bg-warning/10 px-3 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-warning">
+                  AI Credit limit reached
+                </p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-warning/90">
+                  EduVerse Copilot is still unlocked, but this billing period has no credits left.
+                </p>
+              </div>
+              <Link
+                href={subscriptionHref}
+                onClick={close}
+                className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-md bg-warning px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-warning/90"
+              >
+                Top up credits
+              </Link>
+            </div>
+          </div>
+        )}
+
         <AIMessageInput
           disabled={disabled}
           isSending={isSending}
@@ -469,6 +419,153 @@ export function AICopilotPanel() {
           onCancel={cancel}
           onRetry={retryLast}
         />
+
+        {historyOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="Close chat history"
+              onClick={() => setHistoryOpen(false)}
+              className="absolute inset-0 z-30 bg-background/45 backdrop-blur-[2px]"
+            />
+            <section className="absolute inset-y-0 left-0 z-40 flex w-[min(390px,calc(100%-1.5rem))] max-w-full flex-col border-r border-border/70 bg-background shadow-2xl animate-in slide-in-from-left-4 duration-200">
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-card px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-foreground">
+                    Chat history
+                  </p>
+                  <p className="mt-0.5 truncate text-xs font-semibold text-muted-foreground">
+                    Resume, rename, or delete Copilot chats
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  icon={X}
+                  onClick={() => setHistoryOpen(false)}
+                  title="Close chat history"
+                  aria-label="Close chat history"
+                />
+              </div>
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetConversation();
+                    setHistoryOpen(false);
+                  }}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 py-1.5 text-xs font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  New chat
+                </button>
+                <button
+                  type="button"
+                  onClick={refreshConversations}
+                  disabled={conversationsLoading}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-60"
+                  aria-label="Refresh chat history"
+                  title="Refresh chat history"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar">
+                {conversationsLoading ? (
+                  <div className="rounded-lg border border-border/70 bg-card p-4 text-sm font-semibold text-muted-foreground">
+                    Loading conversations...
+                  </div>
+                ) : conversations.length === 0 ? (
+                  <div className="rounded-lg border border-border/70 bg-card p-4 text-sm font-semibold text-muted-foreground">
+                    No previous Copilot chats yet.
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    {conversations.map((conversation) => {
+                      const isActive = conversation.id === conversationId;
+                      const isEditing = editingTitleId === conversation.id;
+                      return (
+                        <div
+                          key={conversation.id}
+                          className={cn(
+                            "flex min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card p-2 shadow-sm transition-colors",
+                            isActive && "border-primary/35 bg-primary/5",
+                          )}
+                        >
+                          {isEditing ? (
+                            <input
+                              value={editingTitle}
+                              onChange={(event) =>
+                                setEditingTitle(event.target.value)
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") void saveTitle();
+                                if (event.key === "Escape") setEditingTitleId(null);
+                              }}
+                              onBlur={() => void saveTitle()}
+                              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm font-semibold text-foreground outline-none focus:border-primary/40"
+                              autoFocus
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void loadConversation(conversation.id);
+                                setHistoryOpen(false);
+                              }}
+                              className="min-w-0 flex-1 py-1 text-left"
+                            >
+                              <p className="truncate text-sm font-black text-foreground">
+                                {conversation.title}
+                              </p>
+                              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                                {conversation.messageCount} messages
+                                {conversation.creditTotal > 0
+                                  ? ` - ${conversation.creditTotal.toLocaleString()} credits`
+                                  : ""}
+                              </p>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              isEditing
+                                ? void saveTitle()
+                                : startEditTitle(
+                                    conversation.id,
+                                    conversation.title,
+                                  )
+                            }
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            aria-label={
+                              isEditing ? "Save chat title" : "Edit chat title"
+                            }
+                          >
+                            {isEditing ? (
+                              <Check className="h-4 w-4" aria-hidden="true" />
+                            ) : (
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(conversation)}
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                            aria-label="Delete Copilot chat"
+                            title="Delete chat"
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        )}
       </aside>
       <ConfirmDialog
         isOpen={Boolean(deleteTarget)}
@@ -485,4 +582,10 @@ export function AICopilotPanel() {
       />
     </>
   );
+}
+
+function isCreditLimitReachedCode(code?: string | null) {
+  return code === "ORG_CREDITS_EXHAUSTED"
+    || code === "ROLE_CREDITS_EXHAUSTED"
+    || code === "PERSONAL_CREDITS_EXHAUSTED";
 }
