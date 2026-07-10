@@ -275,6 +275,18 @@ export class AIConversationService {
     return title;
   }
 
+  async setConversationTitle(conversationId: string, title: string) {
+    const nextTitle = clampTitle(title);
+    await this.prisma.aIConversation.update({
+      where: { id: conversationId },
+      data: {
+        title: nextTitle,
+        expiresAt: this.getExpiryDate(),
+      },
+    });
+    return nextTitle;
+  }
+
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async deleteExpiredConversations() {
     const result = await this.prisma.aIConversation.deleteMany({

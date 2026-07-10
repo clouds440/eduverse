@@ -109,6 +109,11 @@ export interface AIProviderToolRequest {
   input?: Record<string, unknown>;
 }
 
+export interface AIProviderToolPlan {
+  title?: string | null;
+  requests: AIProviderToolRequest[];
+}
+
 export interface AIProviderChatInput {
   systemPrompt: string;
   messages: AIProviderMessage[];
@@ -176,7 +181,7 @@ export type AIStreamEvent =
 export interface AIProviderAdapter {
   chat(input: AIProviderChatInput): Promise<AIProviderChatOutput>;
   stream(input: AIProviderChatInput): AsyncIterable<AIProviderChatOutput>;
-  planTools?(input: AIProviderChatInput): Promise<AIProviderToolRequest[]>;
+  planTools?(input: AIProviderChatInput): Promise<AIProviderToolPlan>;
   estimateProviderTokens(input: AIProviderChatInput | string): number;
   estimateCredits(input: AIProviderChatInput | string): number;
   getProviderName(): string;

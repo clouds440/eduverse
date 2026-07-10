@@ -35,16 +35,19 @@ describe('AIService', () => {
   function createService(overrides: Partial<{
     entitlement: { allowed: true; source: AIEntitlementSource } | { allowed: false; code: string; message: string };
     providerChatError: Error;
+    plannerResult: unknown;
+    contextMessages: Array<{ role: 'user' | 'assistant' | 'system' | 'tool'; content: string }>;
   }> = {}) {
     const conversationService = {
       getOrCreateConversation: jest.fn().mockResolvedValue({ id: 'conversation-1', title: null }),
       getContextMessages: jest.fn().mockResolvedValue({
         conversationId: 'conversation-1',
-        messages: [{ role: 'assistant', content: 'Earlier context' }],
+        messages: overrides.contextMessages ?? [{ role: 'assistant', content: 'Earlier context' }],
       }),
       appendUserMessage: jest.fn().mockResolvedValue(undefined),
       appendAssistantMessage: jest.fn().mockResolvedValue(undefined),
       touchConversationTitle: jest.fn().mockResolvedValue('What should I study today?'),
+      setConversationTitle: jest.fn().mockResolvedValue('Study Plan'),
     };
     const creditService = {
       recordUsage: jest.fn().mockResolvedValue(undefined),
@@ -56,7 +59,7 @@ describe('AIService', () => {
     };
     const providerService = {
       estimateCredits: jest.fn().mockReturnValue(1),
-      planTools: jest.fn().mockResolvedValue([]),
+      planTools: jest.fn().mockResolvedValue(overrides.plannerResult ?? []),
       chat: jest.fn().mockResolvedValue({
         content: 'Study Algebra first.',
         providerName: 'openrouter',
@@ -172,6 +175,27 @@ describe('AIService', () => {
 
     await expect(service.chat(user, { prompt: 'Help me.' })).rejects.toBeInstanceOf(ForbiddenException);
     expect(conversationService.getOrCreateConversation).not.toHaveBeenCalled();
+  });
+
+  it('uses the planner title for a new conversation when provided', async () => {
+    const { service, conversationService } = createService({
+      plannerResult: {
+        title: 'Study Plan',
+        requests: [],
+      },
+      contextMessages: [],
+    });
+
+    const response = await service.chat(user, {
+      prompt: 'Make me a study plan.',
+    });
+
+    expect(conversationService.setConversationTitle).toHaveBeenCalledWith(
+      'conversation-1',
+      'Study Plan',
+    );
+    expect(conversationService.touchConversationTitle).not.toHaveBeenCalled();
+    expect(response.title).toBe('Study Plan');
   });
 
   it('persists an assistant error when provider generation fails after the user message is stored', async () => {

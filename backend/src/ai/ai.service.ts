@@ -224,18 +224,41 @@ export class AIService {
       dto.prompt,
       dto.retryLastUserMessage,
     );
+    const isChatStart = !context.title && !hasUserVisibleMessages(context.messages);
     const toolContextResult = await this.collectRelevantToolContext(
       user,
       dto,
       context.messages,
       entitlement.source,
+      isChatStart,
+    );
+    const conversationTitle = !conversation.title && toolContextResult.title
+      ? await this.conversationService.setConversationTitle(conversation.id, toolContextResult.title)
+      : conversation.title;
+    const preparedConversation = {
+      ...conversation,
+      title: conversationTitle,
+    };
+    const providerContextMessages = conversationTitle && context.title !== conversationTitle
+      ? [
+          {
+            role: 'system' as const,
+            content: `Conversation title: ${conversationTitle}`,
+          },
+          ...context.messages,
+        ]
+      : context.messages;
+    const reusedPrompt = shouldReuseLastUserMessage(
+      providerContextMessages,
+      dto.prompt,
+      dto.retryLastUserMessage,
     );
     const providerInput = this.buildProviderInput(
       user,
       dto,
-      context.messages,
+      providerContextMessages,
       toolContextResult.messages,
-      reusedLastUserMessage,
+      reusedPrompt,
     );
     const finalCredits = this.providerService.estimateCredits(providerInput);
     const finalEntitlement = await this.entitlementService.resolveEntitlement(
@@ -256,7 +279,7 @@ export class AIService {
     }
 
     return {
-      conversation,
+      conversation: preparedConversation,
       prompt: dto.prompt,
       providerInput,
       entitlementSource: finalEntitlement.source,
@@ -271,6 +294,7 @@ export class AIService {
     contextMessages: AIProviderMessage[] = [],
     toolMessages: AIProviderMessage[] = [],
     omitCurrentPrompt = false,
+    extraMetadata: Record<string, unknown> = {},
   ): AIProviderChatInput {
     return {
       systemPrompt: buildSystemPrompt(user),
@@ -287,6 +311,7 @@ export class AIService {
         name: user.name,
         email: user.email,
         status: user.status,
+        ...extraMetadata,
       },
     };
   }
@@ -322,9 +347,11 @@ export class AIService {
     dto: AIChatRequestDto,
     contextMessages: AIProviderMessage[],
     entitlementSource: AIEntitlementSource,
+    isChatStart = false,
   ): Promise<{
     messages: AIProviderMessage[];
     toolCalls: Array<{ name: string; key: string; input?: Record<string, unknown> }>;
+    title?: string | null;
   }> {
     const toolContext = {
       userId: user.id,
@@ -333,8 +360,13 @@ export class AIService {
       subscriptionId: entitlementSource.subscription.id,
       sourceType: entitlementSource.sourceType,
     };
-    const planningInput = this.buildProviderInput(user, dto, contextMessages);
-    const plannedToolRequests = await this.providerService.planTools(planningInput).catch(() => []);
+    const planningInput = this.buildProviderInput(user, dto, contextMessages, [], false, {
+      isChatStart,
+    });
+    const plannedToolPlan = normalizeToolPlan(
+      await this.providerService.planTools(planningInput).catch(() => ({ requests: [] })),
+    );
+    const plannedToolRequests = plannedToolPlan.requests;
     const toolRequests = withEntityResolution(
       mergeToolRequests([
         ...selectRelevantTools(dto.prompt, user.role ?? undefined),
@@ -350,9 +382,10 @@ export class AIService {
       input: compactToolInput(request.input ?? {}),
     }));
 
-    if (!results.length) return { messages: [], toolCalls };
+    if (!results.length) return { messages: [], toolCalls, title: plannedToolPlan.title };
 
     return {
+      title: plannedToolPlan.title,
       toolCalls,
       messages: [{
       role: 'tool',
@@ -739,6 +772,10 @@ function mentionsAny(value: string, terms: string[]) {
   return terms.some((term) => value.includes(term));
 }
 
+function hasUserVisibleMessages(messages: AIProviderMessage[]) {
+  return messages.some((message) => message.role === 'user' || message.role === 'assistant');
+}
+
 function mergeToolRequests(requests: SelectedToolRequest[]): SelectedToolRequest[] {
   const merged: SelectedToolRequest[] = [];
   for (const request of requests) {
@@ -764,6 +801,25 @@ function normalizePlannedTools(
       ...(request.input ?? {}),
     },
   }));
+}
+
+function normalizeToolPlan(value: unknown) {
+  if (Array.isArray(value)) return { requests: value as AIProviderToolRequest[] };
+  if (!value || typeof value !== 'object') return { requests: [] as AIProviderToolRequest[] };
+  const record = value as {
+    title?: unknown;
+    requests?: unknown;
+    tools?: unknown;
+  };
+  const requests = Array.isArray(record.requests)
+    ? record.requests
+    : Array.isArray(record.tools)
+      ? record.tools
+      : [];
+  return {
+    title: typeof record.title === 'string' && record.title.trim() ? record.title.trim() : null,
+    requests: requests as AIProviderToolRequest[],
+  };
 }
 
 function relativeIsoDate(offsetDays: number, now = new Date()) {

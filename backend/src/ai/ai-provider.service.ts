@@ -6,6 +6,7 @@ import type {
   AIProviderChatInput,
   AIProviderChatOutput,
   AIProviderMessage,
+  AIProviderToolPlan,
   AIProviderToolRequest,
 } from './ai.types';
 
@@ -46,14 +47,18 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
 
   async planTools(
     input: AIProviderChatInput,
-  ): Promise<AIProviderToolRequest[]> {
-    if (!input.tools.length) return [];
+  ): Promise<AIProviderToolPlan> {
+    if (!input.tools.length) return { requests: [] };
 
     const model = this.createModel({ temperature: 0 });
     const knownTools = new Set(input.tools.map((tool) => tool.name));
+    const isChatStart = input.metadata?.isChatStart === true;
     const prompt = [
-      'Plan EduVerse read-only tools. JSON only: [{"name":"tool","input":{...}}].',
-      'Use [] if no EduVerse facts are needed. Use only listed tool names.',
+      'Plan EduVerse read-only tools. JSON only.',
+      isChatStart
+        ? 'Return {"title":"2-6 word chat title","tools":[{"name":"tool","input":{...}}]}.'
+        : 'Return {"tools":[{"name":"tool","input":{...}}]}.',
+      'Use {"tools":[]} if no EduVerse facts are needed. Use only listed tool names.',
       'Resolve named/ambiguous entities first. For compound requests, choose all independent context tools needed.',
       'Prefer generic tools: resolveEduVerseEntities, getAcademicPerformanceProfile, getScheduleContext, getOperationsContext, searchDocs, searchRoutes, AI usage tools.',
       'Use structured inputs when useful: search, targetType, date, startDate, endDate, include, includeLoad, includeBottlenecks, limit.',
@@ -73,7 +78,10 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
     const response = await model.invoke([new HumanMessage(prompt)]);
     const parsed = parseToolPlanJson(stringifyModelContent(response.content));
 
-    return parsed.filter((request) => knownTools.has(request.name)).slice(0, 8);
+    return {
+      title: isChatStart ? sanitizePlannerTitle(parsed.title) : null,
+      requests: parsed.requests.filter((request) => knownTools.has(request.name)).slice(0, 8),
+    };
   }
 
   estimateProviderTokens(input: AIProviderChatInput | string) {
@@ -148,12 +156,12 @@ export class AIProviderService implements AIProviderAdapter {
 
   async planTools(input: AIProviderChatInput) {
     try {
-      return await (this.adapter.planTools?.(input) ?? Promise.resolve([]));
+      return await (this.adapter.planTools?.(input) ?? Promise.resolve({ requests: [] }));
     } catch (error) {
       this.logger.warn(
         `AI tool planner failed; using deterministic tool routing: ${errorMessage(error)}`,
       );
-      return [];
+      return { requests: [] };
     }
   }
 
@@ -277,7 +285,7 @@ function openRouterHeaders() {
   return headers;
 }
 
-function parseToolPlanJson(content: string): AIProviderToolRequest[] {
+function parseToolPlanJson(content: string): AIProviderToolPlan {
   const normalized = content
     .trim()
     .replace(/^```(?:json)?/i, '')
@@ -286,9 +294,15 @@ function parseToolPlanJson(content: string): AIProviderToolRequest[] {
 
   try {
     const parsed = JSON.parse(normalized);
-    if (!Array.isArray(parsed)) return [];
+    const rawRequests = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.tools)
+        ? parsed.tools
+        : Array.isArray(parsed?.requests)
+          ? parsed.requests
+          : [];
     const requests: AIProviderToolRequest[] = [];
-    for (const entry of parsed) {
+    for (const entry of rawRequests) {
       if (!entry || typeof entry !== 'object') continue;
       const name = typeof entry.name === 'string' ? entry.name : null;
       if (!name) continue;
@@ -300,10 +314,22 @@ function parseToolPlanJson(content: string): AIProviderToolRequest[] {
           : {};
       requests.push({ name, input });
     }
-    return requests;
+    return {
+      title: typeof parsed?.title === 'string' ? parsed.title : null,
+      requests,
+    };
   } catch {
-    return [];
+    return { requests: [] };
   }
+}
+
+function sanitizePlannerTitle(title?: string | null) {
+  const cleaned = String(title ?? '')
+    .replace(/\s+/g, ' ')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+  if (!cleaned) return null;
+  return cleaned.length > 80 ? cleaned.slice(0, 80).trimEnd() : cleaned;
 }
 
 function parseToolEnvelope(content: string): any | null {
