@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { docsNavGroups, flattenDocSections, getDocPagesForGroup } from '../_data/docs';
+import { docsNavGroups, flattenDocSections, getDocPagesForGroup } from '@/lib/docs';
 
 type DocsLinkGroupsProps = {
   activeSlug?: string;

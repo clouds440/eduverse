@@ -6,8 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
 import { fuzzySearchScore, normalizeFuzzyText } from '@/lib/fuzzySearch';
-import { buildDocsSearchEntries } from '../_data/docs';
-import type { DocsSearchEntry } from '../_data/docs';
+import { buildDocsSearchEntries } from '@/lib/docs';
+import type { DocsSearchEntry } from '@/lib/docs';
 
 type DocsSearchProps = {
   compact?: boolean;

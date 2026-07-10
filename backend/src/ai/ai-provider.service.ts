@@ -60,7 +60,8 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
         : 'Return {"tools":[{"name":"tool","input":{...}}]}.',
       'Use {"tools":[]} if no EduVerse facts are needed. Use only listed tool names.',
       'Resolve named/ambiguous entities first. For compound requests, choose all independent context tools needed.',
-      'Prefer generic tools: resolveEduVerseEntities, getAcademicPerformanceProfile, getScheduleContext, getOperationsContext, searchDocs, searchRoutes, AI usage tools.',
+      'Prefer generic tools: resolveEduVerseEntities, getAcademicPerformanceProfile, getScheduleContext, getOperationsContext, searchFlows, searchDocs, searchRoutes, AI usage tools.',
+      'For how-to/process questions, request searchFlows and searchDocs together; add searchRoutes for navigation and DB tools when live org data affects the answer.',
       'Use structured inputs when useful: search, targetType, date, startDate, endDate, include, includeLoad, includeBottlenecks, limit.',
       'If recent context lists an internal request key already used, do not request the same tool with the same effective input again unless the user asks for refreshed data or changes the target/date/scope.',
       '',
@@ -80,7 +81,7 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
 
     return {
       title: isChatStart ? sanitizePlannerTitle(parsed.title) : null,
-      requests: parsed.requests.filter((request) => knownTools.has(request.name)).slice(0, 8),
+      requests: parsed.requests.filter((request) => knownTools.has(request.name)).slice(0, 10),
     };
   }
 

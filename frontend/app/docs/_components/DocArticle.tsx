@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { AlertTriangle, ArrowRight, CheckCircle2, Lightbulb, ListChecks, Square } from 'lucide-react';
-import type { DocBlock, DocPage, DocSection } from '../_data/docs';
-import { docsPages, flattenDocSections, getDocPage } from '../_data/docs';
+import type { DocBlock, DocPage, DocSection } from '@/lib/docs';
+import { docsPages, flattenDocSections, getDocPage } from '@/lib/docs';
 
 type DocArticleProps = {
   page: DocPage;

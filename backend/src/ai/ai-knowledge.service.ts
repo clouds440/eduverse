@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Role } from '@/prisma/prisma-client';
-import { buildAIDocsSearchEntries, type AIDocsSearchEntry } from './ai-docs.source';
+import { buildDocsSearchEntries, type DocsSearchEntry } from '@eduverse/docs';
+import { fuzzySearchScore } from '../common/utils';
+import { buildAIFlowSearchEntries, type AIFlowSearchEntry } from './ai-flows.source';
 import { aiRouteEntries, type AIRouteEntry } from './ai-routes.source';
 import { AIToolRegistryService } from './ai-tool-registry.service';
 import type { AIToolContext } from './ai.types';
@@ -22,16 +24,30 @@ export interface AIRouteSearchResult {
   module: string;
 }
 
+export interface AIFlowSearchResult {
+  title: string;
+  category: string;
+  summary: string;
+  roles: string[];
+  routes: Array<{ label: string; href: string }>;
+  prerequisites: string[];
+  steps: Array<{ label: string; detail: string }>;
+  warnings: string[];
+  relatedDocs: string[];
+  tags: string[];
+}
+
 @Injectable()
 export class AIKnowledgeService implements OnModuleInit {
-  private readonly docsEntries = buildAIDocsSearchEntries();
+  private readonly docsEntries = buildDocsSearchEntries();
+  private readonly flowEntries = buildAIFlowSearchEntries();
 
   constructor(private readonly toolRegistry: AIToolRegistryService) {}
 
   onModuleInit() {
     this.toolRegistry.register({
       name: 'searchDocs',
-      description: 'Search EduVerse product documentation and return compact docs links.',
+      description: 'Search EduVerse product documentation, including operational workflow steps, navigation paths, buttons, prerequisites, required fields, and compact docs links.',
       run: async (input: unknown) => {
         const searchInput = parseSearchInput(input);
         const query = searchInput.query;
@@ -72,6 +88,27 @@ export class AIKnowledgeService implements OnModuleInit {
         };
       },
     });
+
+    this.toolRegistry.register({
+      name: 'searchFlows',
+      description: 'Search compact EduVerse workflow flows: prerequisites, navigation, exact actions, required records/fields, warnings, and related docs. Use with searchDocs and live DB tools for complete how-to answers.',
+      run: async (input: unknown) => {
+        const searchInput = parseSearchInput(input);
+        const query = searchInput.query;
+        if (query.length < 2) {
+          return {
+            ok: true,
+            data: { results: [] },
+            message: 'Search query is too short.',
+          };
+        }
+
+        return {
+          ok: true,
+          data: { results: this.searchFlows(query, searchInput.limit) },
+        };
+      },
+    });
   }
 
   searchDocs(query: string, limit = 5): AIDocsSearchResult[] {
@@ -90,7 +127,7 @@ export class AIKnowledgeService implements OnModuleInit {
       title: entry.pageTitle,
       section: entry.sectionTitle,
       snippet: buildSnippet(entry.bodyText, entry.fallbackSnippet, tokens),
-      details: buildDetails(entry.bodyText, tokens),
+      details: buildDetails(entry.bodyText, tokens, query),
       href: entry.href,
       tags: entry.tags.slice(0, 5),
     }));
@@ -121,6 +158,32 @@ export class AIKnowledgeService implements OnModuleInit {
         roles: entry.roles,
         description: entry.description,
         module: entry.module,
+      }));
+  }
+
+  searchFlows(query: string, limit = 5): AIFlowSearchResult[] {
+    const tokens = tokenize(query);
+    if (!tokens.length) return [];
+
+    return this.flowEntries
+      .map((entry) => ({
+        entry,
+        score: scoreFlowEntry(entry, tokens),
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title))
+      .slice(0, clampLimit(limit))
+      .map(({ entry }) => ({
+        title: entry.title,
+        category: entry.category,
+        summary: entry.summary,
+        roles: entry.roles,
+        routes: entry.routes,
+        prerequisites: entry.prerequisites,
+        steps: entry.steps,
+        warnings: entry.warnings,
+        relatedDocs: entry.relatedDocs,
+        tags: entry.tags.slice(0, 8),
       }));
   }
 }
@@ -159,52 +222,93 @@ function normalize(value: string) {
 function tokenize(query: string) {
   return normalize(query)
     .split(/\s+/)
-    .filter((token) => token.length >= 2 && !DOC_SEARCH_STOP_WORDS.has(token));
+    .filter((token) => token.length >= 2 && !KNOWLEDGE_SEARCH_STOP_WORDS.has(token));
 }
 
-const DOC_SEARCH_STOP_WORDS = new Set([
+const KNOWLEDGE_SEARCH_STOP_WORDS = new Set([
+  'about',
+  'after',
+  'all',
+  'also',
   'an',
   'and',
+  'any',
   'are',
+  'as',
+  'at',
+  'be',
   'can',
+  'could',
+  'do',
   'does',
   'for',
+  'from',
+  'have',
+  'help',
   'how',
+  'i',
+  'in',
   'is',
   'it',
+  'me',
+  'new',
   'of',
+  'ok',
   'on',
+  'or',
+  'please',
+  'should',
+  'tell',
+  'that',
   'the',
+  'them',
+  'this',
   'to',
   'what',
   'when',
   'where',
-  'why',
+  'which',
+  'with',
+  'would',
 ]);
 
 function includesToken(value: string, token: string) {
   return normalize(value).includes(token);
 }
 
-function scoreDocsEntry(entry: AIDocsSearchEntry, tokens: string[]) {
-  return tokens.reduce((score, token) => {
+function scoreDocsEntry(entry: DocsSearchEntry, tokens: string[]) {
+  const tokenScore = tokens.reduce((score, token) => {
     const title = includesToken(entry.titleText, token) || includesToken(entry.pageTitle, token);
-    const tags = includesToken(entry.tagText, token);
+    const tags = includesToken(entry.tagText, token) || entry.pageTags.some((tag) => includesToken(tag, token));
     const category = includesToken(entry.categoryText, token);
     const body = includesToken(entry.bodyText, token);
+    const pageTitle = includesToken(entry.pageTitle, token);
 
-    return score + (title ? 10 : 0) + (tags ? 6 : 0) + (category ? 4 : 0) + (body ? 1 : 0);
+    return score
+      + (title ? 10 : 0)
+      + (tags ? 6 : 0)
+      + (category ? 4 : 0)
+      + (body ? 1 : 0)
+      + (pageTitle && (title || tags || body) ? 2 : 0);
   }, 0);
+  const fuzzyScore = fuzzySearchScore(tokens.join(' '), [
+    entry.titleText,
+    entry.tagText,
+    entry.categoryText,
+    entry.pageTitle,
+    entry.bodyText,
+  ]);
+  return tokenScore + fuzzyScore / 20;
 }
 
 function expandDocsResults(
-  scored: Array<{ entry: AIDocsSearchEntry; score: number }>,
+  scored: Array<{ entry: DocsSearchEntry; score: number }>,
   limit: number,
   tokens: string[],
 ) {
-  const selected: AIDocsSearchEntry[] = [];
+  const selected: DocsSearchEntry[] = [];
   const seen = new Set<string>();
-  const add = (entry: AIDocsSearchEntry) => {
+  const add = (entry: DocsSearchEntry) => {
     if (seen.has(entry.href) || selected.length >= limit) return;
     seen.add(entry.href);
     selected.push(entry);
@@ -229,7 +333,7 @@ function expandDocsResults(
   return selected;
 }
 
-function isStrongDocsMatch(entry: AIDocsSearchEntry, tokens: string[]) {
+function isStrongDocsMatch(entry: DocsSearchEntry, tokens: string[]) {
   return tokens.some((token) =>
     includesToken(entry.pageTitle, token) ||
     includesToken(entry.titleText, token) ||
@@ -255,6 +359,32 @@ function scoreRouteEntry(entry: AIRouteEntry, tokens: string[]) {
   }, 0);
 }
 
+function scoreFlowEntry(entry: AIFlowSearchEntry, tokens: string[]) {
+  const tokenScore = tokens.reduce((score, token) => {
+    const title = includesToken(entry.title, token);
+    const tags = includesToken(entry.tagText, token);
+    const category = includesToken(entry.category, token);
+    const route = includesToken(entry.routeText, token);
+    const body = includesToken(entry.bodyText, token);
+
+    return score
+      + (title ? 12 : 0)
+      + (tags ? 7 : 0)
+      + (category ? 4 : 0)
+      + (route ? 3 : 0)
+      + (body ? 1 : 0);
+  }, 0);
+  const fuzzyScore = fuzzySearchScore(tokens.join(' '), [
+    entry.title,
+    entry.summary,
+    entry.category,
+    entry.tagText,
+    entry.routeText,
+    entry.bodyText,
+  ]);
+  return tokenScore + fuzzyScore / 20;
+}
+
 function buildSnippet(body: string, fallback: string, tokens: string[]) {
   const source = body || fallback;
   const normalized = normalize(source);
@@ -269,7 +399,7 @@ function buildSnippet(body: string, fallback: string, tokens: string[]) {
   return `${prefix}${source.slice(start, end).trim()}${suffix}`;
 }
 
-function buildDetails(body: string, tokens: string[]) {
+function buildDetails(body: string, tokens: string[], query: string) {
   const sentences = body
     .split(/(?<=[.!?])\s+/)
     .map((sentence) => sentence.replace(/\s+/g, ' ').trim())
@@ -278,7 +408,23 @@ function buildDetails(body: string, tokens: string[]) {
     tokens.some((token) => includesToken(sentence, token)),
   );
   const selected = matching.length ? matching : sentences;
-  return selected.slice(0, 6).map((sentence) => sentence.slice(0, 360));
+  const prioritized = isWorkflowQuery(query)
+    ? [...selected].sort((a, b) => detailPriority(b) - detailPriority(a))
+    : selected;
+  return prioritized.slice(0, 10).map((sentence) => sentence.slice(0, 420));
+}
+
+function isWorkflowQuery(query: string) {
+  const tokens = normalize(query).split(/\s+/).filter(Boolean);
+  return ['how', 'step', 'steps', 'flow', 'workflow', 'process', 'click', 'button', 'add', 'create', 'enroll', 'manage', 'where'].some((token) => tokens.includes(token));
+}
+
+function detailPriority(value: string) {
+  const normalized = normalize(value);
+  const actionScore = ['open', 'click', 'fill', 'save', 'find', 'choose', 'select', 'use', 'search', 'review', 'confirm', 'return'].some((token) => normalized.includes(token)) ? 3 : 0;
+  const prerequisiteScore = ['prerequisite', 'permission', 'before'].some((token) => normalized.includes(token)) ? 2 : 0;
+  const warningScore = ['warning', 'do not', 'cannot'].some((token) => normalized.includes(token)) ? 1 : 0;
+  return actionScore + prerequisiteScore + warningScore;
 }
 
 function resolveRouteHref(entry: AIRouteEntry, userId?: string | null): AIRouteEntry | null {

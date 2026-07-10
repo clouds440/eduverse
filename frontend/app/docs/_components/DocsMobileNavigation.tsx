@@ -6,7 +6,7 @@ import { BookOpen, ChevronDown, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
-import { flattenDocSections, getDocPage } from '../_data/docs';
+import { flattenDocSections, getDocPage } from '@/lib/docs';
 import { DocsLinkGroups } from './DocsLinkGroups';
 import { DocsSearch } from './DocsSearch';
 

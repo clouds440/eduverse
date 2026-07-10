@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, BookOpen, ClipboardList, GraduationCap, Route, ShieldCheck, UserRound } from 'lucide-react';
 import { PLATFORM_NAME } from '@/lib/constants';
-import { docsNavGroups, getDocPagesForGroup } from '../_data/docs';
+import { docsNavGroups, getDocPagesForGroup } from '@/lib/docs';
 
 const startHereLinks = [
   {

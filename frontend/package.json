@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "prepare:docs": "tsc -p ../packages/docs/tsconfig.esm.json && node ../packages/docs/scripts/copy-built-docs.cjs . ../packages/docs/dist-esm",
+    "dev": "npm run prepare:docs && next dev",
+    "build": "npm run prepare:docs && next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@eduverse/docs": "file:../packages/docs",
     "@floating-ui/react": "^0.27.19",
     "@hookform/resolvers": "^5.2.2",
     "@types/he": "^1.2.3",

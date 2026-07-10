@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "prisma generate && nest build && tsc-alias -p tsconfig.build.json",
+    "build": "tsc -p ../packages/docs/tsconfig.json && prisma generate && nest build && tsc-alias -p tsconfig.build.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -26,6 +26,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@eduverse/docs": "file:../packages/docs",
     "@langchain/core": "^1.2.1",
     "@langchain/openai": "^1.5.3",
     "@nestjs/common": "^11.0.1",

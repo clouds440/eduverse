@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { getSiteUrl } from '@/lib/site';
 import { publicSeoRoutes } from '@/lib/seo';
-import { docsPages } from './docs/_data/docs';
+import { docsPages } from '@/lib/docs';
 
 export default function sitemap(): MetadataRoute.Sitemap {
     const siteUrl = getSiteUrl();

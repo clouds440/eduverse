@@ -1,0 +1,6 @@
+packages/docs/dist/
+packages/docs/dist-esm/
+backend/*.tsbuildinfo
+backend/prisma.config.d.ts
+backend/prisma.config.js
+backend/prisma.config.js.map

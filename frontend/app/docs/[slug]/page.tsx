@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DocArticle } from '../_components/DocArticle';
 import { DocsShell } from '../_components/DocsShell';
-import { docsPages, getDocPage } from '../_data/docs';
+import { docsPages, getDocPage } from '@/lib/docs';
 import { SEO_KEYWORDS, SITE_NAME } from '@/lib/seo';
 import { getSiteUrl } from '@/lib/site';
 

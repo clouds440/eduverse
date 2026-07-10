@@ -322,7 +322,7 @@ export class AIService {
         buildSystemPrompt(user),
         '',
         'Return exactly 3 role-aware suggested questions as JSON only: [{"label":"2-4 words","prompt":"question"}].',
-        'Questions must be answerable by EduVerse read-only tools: schedules, courses, attendance, grades, deadlines, performance, operations, finance, usage, docs, routes, mail/entity search. No mutation actions.',
+        'Questions must be answerable by EduVerse read-only tools: schedules, courses, attendance, grades, deadlines, performance, operations, finance, usage, flows, docs, routes, mail/entity search. No mutation actions.',
       ].join('\n'),
       messages: [
         {
@@ -613,6 +613,8 @@ interface SelectedToolRequest {
   input: Record<string, unknown>;
 }
 
+const MAX_TOOL_REQUESTS = 10;
+
 function toolRequestKey(request: SelectedToolRequest) {
   return `${request.name}:${JSON.stringify(compactToolInput(request.input ?? {}))}`;
 }
@@ -623,10 +625,15 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
   const explicitDate = extractExplicitDate(prompt);
   const requests: SelectedToolRequest[] = [];
   const add = (name: string, toolInput: Record<string, unknown> = input) => {
-    if (!requests.some((request) => request.name === name)) {
-      requests.push({ name, input: toolInput });
-    }
+    const request = { name, input: toolInput };
+    if (!requests.some((candidate) => toolRequestKey(candidate) === toolRequestKey(request))) requests.push(request);
   };
+
+  if (isWorkflowInstructionQuery(text)) {
+    add('searchFlows', { search: prompt, limit: 6 });
+    add('searchDocs', { search: prompt, limit: 8 });
+    add('searchRoutes', { search: prompt, limit: 5 });
+  }
 
   if (mentionsAny(text, ['credit', 'quota', 'usage', 'cost', 'subscription', 'plan'])) {
     add('getAICreditStatus', {});
@@ -724,11 +731,11 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
     add('searchRoutes', { search: prompt, limit: 5 });
   }
 
-  if (mentionsAny(text, ['how do i', 'help', 'docs', 'guide', 'what is', 'what are', 'explain', 'meaning', 'what does'])) {
+  if (mentionsAny(text, ['how do i', 'how to', 'help', 'docs', 'guide', 'what is', 'what are', 'explain', 'meaning', 'what does'])) {
     add('searchDocs', { search: prompt, limit: 8 });
   }
 
-  return requests.slice(0, 8);
+  return requests.slice(0, MAX_TOOL_REQUESTS);
 }
 
 function withEntityResolution(
@@ -736,9 +743,9 @@ function withEntityResolution(
   prompt: string,
 ): SelectedToolRequest[] {
   const entities = entityKindsFromPrompt(prompt);
-  if (!entities.length) return requests.slice(0, 8);
+  if (!entities.length) return requests.slice(0, MAX_TOOL_REQUESTS);
   if (requests.some((request) => request.name === 'resolveEduVerseEntities')) {
-    return requests.slice(0, 8);
+    return requests.slice(0, MAX_TOOL_REQUESTS);
   }
 
   return [
@@ -747,7 +754,7 @@ function withEntityResolution(
       input: { search: prompt, entities, limit: 6 },
     },
     ...requests,
-  ].slice(0, 8);
+  ].slice(0, MAX_TOOL_REQUESTS);
 }
 
 function entityKindsFromPrompt(prompt: string) {
@@ -772,6 +779,43 @@ function mentionsAny(value: string, terms: string[]) {
   return terms.some((term) => value.includes(term));
 }
 
+function isWorkflowInstructionQuery(value: string) {
+  return mentionsAny(value, [
+    'how do i',
+    'how to',
+    'steps',
+    'step by step',
+    'flow',
+    'workflow',
+    'process',
+    'click',
+    'button',
+    'add ',
+    'create',
+    'edit',
+    'update',
+    'delete',
+    'remove',
+    'enroll',
+    'withdraw',
+    'transfer',
+    'assign',
+    'setup',
+    'set up',
+    'configure',
+    'manage',
+    'import',
+    'export',
+    'publish',
+    'send',
+    'finalize',
+    'record attendance',
+    'mark attendance',
+    'grade',
+    'pay ',
+  ]);
+}
+
 function hasUserVisibleMessages(messages: AIProviderMessage[]) {
   return messages.some((message) => message.role === 'user' || message.role === 'assistant');
 }
@@ -786,14 +830,14 @@ function mergeToolRequests(requests: SelectedToolRequest[]): SelectedToolRequest
     if (merged.some((candidate) => `${candidate.name}:${JSON.stringify(candidate.input ?? {})}` === key)) continue;
     merged.push({ name: request.name, input });
   }
-  return merged.slice(0, 8);
+  return merged.slice(0, MAX_TOOL_REQUESTS);
 }
 
 function normalizePlannedTools(
   requests: AIProviderToolRequest[],
   prompt: string,
 ): SelectedToolRequest[] {
-  return requests.slice(0, 8).map((request) => ({
+  return requests.slice(0, MAX_TOOL_REQUESTS).map((request) => ({
     name: request.name,
     input: {
       search: prompt,
@@ -899,6 +943,7 @@ function buildSystemPrompt(user: User) {
     'Ask a short, natural follow-up only when the first prompt is unclear, multiple possible records match, or a required target/date/scope is missing. Avoid routine sections titled "Missing Information" or "Clarifying Question".',
     'If data is partial but enough to help, state the useful answer and add a brief inline caveat. Do not invent records.',
     'For compound requests, combine relevant tool results into one answer. For code, use fenced blocks with language labels.',
+    'For how-to or process questions, combine workflow flows, docs, routes, and live records when available. Give ordered steps with prerequisites, exact navigation/actions, and important warnings. Do not invent UI locations.',
     `Role: ${role}. Focus: ${roleFocus(role)}.`,
     `User: ${JSON.stringify({
       name: user.name ?? null,

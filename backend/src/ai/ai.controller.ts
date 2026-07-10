@@ -155,6 +155,17 @@ export class AIController {
     };
   }
 
+  @Get('flows/search')
+  @Roles(...COPILOT_USER_ROLES)
+  searchFlows(
+    @Query('q') query?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return {
+      results: this.knowledgeService.searchFlows(query ?? '', Number(limit)),
+    };
+  }
+
   @Get('org/settings')
   @Roles(Role.ORG_ADMIN)
   getOrgSettings(@OrgId() organizationId: string) {
