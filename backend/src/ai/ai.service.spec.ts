@@ -76,24 +76,26 @@ describe('AIService', () => {
     }
     const toolRegistry = {
       listTools: jest.fn().mockReturnValue([{ name: 'getScheduleContext', description: 'Generic schedule context' }]),
-      runTools: jest.fn().mockResolvedValue([
-        {
-          tool: 'getScheduleContext',
-          input: { date: '2026-07-07' },
-          result: {
-            ok: true,
-            data: {
-              schedules: [{
-                scheduleId: 'schedule-1',
-                sectionId: 'section-1',
-                courseName: 'Algebra',
-                startTime: '09:00',
-                href: '/sections/section-1',
-              }],
+      runTools: jest.fn().mockImplementation((requests: Array<{ name: string; input?: Record<string, unknown> }>) => (
+        Promise.resolve(requests.length ? [
+          {
+            tool: 'getScheduleContext',
+            input: { date: '2026-07-07' },
+            result: {
+              ok: true,
+              data: {
+                schedules: [{
+                  scheduleId: 'schedule-1',
+                  sectionId: 'section-1',
+                  courseName: 'Algebra',
+                  startTime: '09:00',
+                  href: '/sections/section-1',
+                }],
+              },
             },
           },
-        },
-      ]),
+        ] : [])
+      )),
     };
 
     return {
@@ -196,6 +198,58 @@ describe('AIService', () => {
     );
     expect(conversationService.touchConversationTitle).not.toHaveBeenCalled();
     expect(response.title).toBe('Study Plan');
+  });
+
+  it('instructs the model not to ask for facts already present in backend context', async () => {
+    const { service, providerService } = createService();
+
+    await service.chat(user, {
+      prompt: 'How do I enroll a student in summer semester 2026?',
+    });
+
+    const providerInput = providerService.chat.mock.calls[0][0];
+    const toolMessage = providerInput.messages.find((message: any) => message.role === 'tool');
+
+    expect(providerInput.systemPrompt).toContain(
+      'Do not ask the user to confirm facts already present in backend context',
+    );
+    expect(providerInput.systemPrompt).toContain(
+      'Do not add closing engagement questions after a complete answer',
+    );
+    expect(toolMessage.content).toContain(
+      'Facts present here are already known; do not ask the user to confirm them.',
+    );
+  });
+
+  it('grounds Copilot capability answers from the authenticated role only', async () => {
+    const { service, providerService, toolRegistry } = createService();
+
+    await service.chat(user, {
+      prompt: 'What can you do?',
+    });
+
+    const providerInput = providerService.chat.mock.calls[0][0];
+    const capabilityMessage = providerInput.messages.find((message: any) => (
+      message.role === 'system'
+      && message.content.includes('Role-scoped EduVerse Copilot capability context')
+    ));
+    expect(providerInput.systemPrompt).toContain(
+      'If asked what you can do, describe user-facing EduVerse help by role.',
+    );
+    expect(providerInput.systemPrompt).toContain('Do not list internal tools.');
+    expect(providerInput.systemPrompt).toContain('Capability areas:');
+    expect(providerInput.systemPrompt).toContain('study planning around timetable and deadlines');
+    expect(providerInput.systemPrompt).toContain(
+      'politely redirect to EduVerse-focused help',
+    );
+    expect(capabilityMessage?.content).toContain('authenticated role STUDENT');
+    expect(capabilityMessage?.content).toContain('study planning around timetable and deadlines');
+    expect(capabilityMessage?.content).not.toContain('teaching schedule briefings');
+    expect(capabilityMessage?.content).not.toContain('organization setup and operating workflows');
+    expect(toolRegistry.runTools).toHaveBeenCalledWith(
+      [],
+      expect.any(Object),
+    );
   });
 
   it('persists an assistant error when provider generation fails after the user message is stored', async () => {

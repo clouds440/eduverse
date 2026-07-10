@@ -204,7 +204,14 @@ function buildOpenRouterPrompt(input: AIProviderChatInput) {
   return [
     input.systemPrompt,
     '',
-    'EduVerse backend context is authoritative. Do not mention tools, tool names, backend functions, or retrieval steps. Answer directly when intent and data are sufficient. Ask a brief natural follow-up only when ambiguity blocks a useful answer.',
+    [
+      'EduVerse backend context is authoritative.',
+      'Do not mention tools, tool names, backend functions, or retrieval steps.',
+      'Answer directly when intent and data are sufficient.',
+      'Never ask the user to confirm a fact that appears in backend context or conversation context.',
+      'Only ask a brief natural follow-up when ambiguity or missing required input blocks a useful answer.',
+      'Do not append a question just to continue the conversation after a complete answer.',
+    ].join(' '),
     '',
     'Context:',
     transcript || 'USER: Please answer using the available EduVerse context.',

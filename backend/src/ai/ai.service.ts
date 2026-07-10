@@ -366,6 +366,7 @@ export class AIService {
     const plannedToolPlan = normalizeToolPlan(
       await this.providerService.planTools(planningInput).catch(() => ({ requests: [] })),
     );
+    const isCapabilityQuestion = isCopilotCapabilityQuery(dto.prompt.toLowerCase());
     const plannedToolRequests = plannedToolPlan.requests;
     const toolRequests = withEntityResolution(
       mergeToolRequests([
@@ -373,7 +374,7 @@ export class AIService {
         ...normalizePlannedTools(plannedToolRequests, dto.prompt),
       ]),
       dto.prompt,
-    );
+    ).filter((request) => !isCapabilityQuestion || request.name !== 'searchDocs');
     const results = await this.toolRegistry.runTools(toolRequests, toolContext);
 
     const toolCalls = toolRequests.map((request) => ({
@@ -382,19 +383,33 @@ export class AIService {
       input: compactToolInput(request.input ?? {}),
     }));
 
-    if (!results.length) return { messages: [], toolCalls, title: plannedToolPlan.title };
+    const capabilityMessage = isCapabilityQuestion
+      ? buildCapabilityContextMessage(user.role ?? 'USER')
+      : null;
+
+    if (!results.length && !capabilityMessage) {
+      return { messages: [], toolCalls, title: plannedToolPlan.title };
+    }
 
     return {
       title: plannedToolPlan.title,
       toolCalls,
-      messages: [{
-      role: 'tool',
-      name: 'eduverseToolResults',
-      content: JSON.stringify({
-        instruction: 'Backend context for EduVerse Copilot. Internal source names and IDs are removed. Do not mention tools, tool names, backend functions, or retrieval steps. Use the data to answer naturally.',
-        results: compactToolResultsForModel(results),
-      }),
-    }],
+      messages: [
+        ...(capabilityMessage ? [capabilityMessage] : []),
+        ...(results.length ? [{
+          role: 'tool' as const,
+          name: 'eduverseToolResults',
+          content: JSON.stringify({
+            instruction: [
+              'Backend context for EduVerse Copilot. Internal source names and IDs are removed.',
+              'Facts present here are already known; do not ask the user to confirm them.',
+              'Do not mention tools, tool names, backend functions, or retrieval steps.',
+              'Use the data to answer naturally.',
+            ].join(' '),
+            results: compactToolResultsForModel(results),
+          }),
+        }] : []),
+      ],
     };
   }
 
@@ -816,6 +831,20 @@ function isWorkflowInstructionQuery(value: string) {
   ]);
 }
 
+function isCopilotCapabilityQuery(value: string) {
+  return mentionsAny(value, [
+    'what can you do',
+    'what do you do',
+    'how can you help',
+    'what can copilot do',
+    'copilot capabilities',
+    'ai capabilities',
+    'what can ai do',
+    'what are your features',
+    'your capabilities',
+  ]);
+}
+
 function hasUserVisibleMessages(messages: AIProviderMessage[]) {
   return messages.some((message) => message.role === 'user' || message.role === 'assistant');
 }
@@ -934,13 +963,33 @@ function estimateProviderCost(output: AIProviderChatOutput) {
   return (output.providerTokenEstimate / 1000) * costPerThousandTokens;
 }
 
+function buildCapabilityContextMessage(role: string): AIProviderMessage {
+  return {
+    role: 'system',
+    content: [
+      `Role-scoped EduVerse Copilot capability context for authenticated role ${role}.`,
+      'Answer "what can you do" using only these user-facing capabilities.',
+      'Do not mention capabilities for other roles.',
+      'Do not mention internal tools, backend functions, retrieval, or raw permission names.',
+      'Do not lead with credits, subscription, or organization health unless that is central to this role or the user asks about billing/admin controls.',
+      `Capabilities: ${roleCapabilities(role)}.`,
+    ].join('\n'),
+  };
+}
+
 function buildSystemPrompt(user: User) {
   const role = user.role ?? 'USER';
   return [
     'You are EduVerse Copilot. Use "I". Be concise, practical, and markdown-friendly.',
     'Use only EduVerse backend context, conversation context, and visible user info. Never reveal internal IDs, UUIDs, database fields, raw route IDs, tool names, backend function names, or retrieval steps.',
     'For EduVerse facts, rely on backend context. Answer directly when the user intent is clear and context is sufficient, even if some optional fields are unavailable.',
-    'Ask a short, natural follow-up only when the first prompt is unclear, multiple possible records match, or a required target/date/scope is missing. Avoid routine sections titled "Missing Information" or "Clarifying Question".',
+    'If asked what you can do, describe user-facing EduVerse help by role. Do not list internal tools. Do not lead with AI credits, subscriptions, or organization health unless the user asks about billing/admin controls.',
+    `Capability areas: ${roleCapabilities(role)}.`,
+    'For questions unrelated to EduVerse, school operations, study, teaching, administration, or using this product, politely redirect to EduVerse-focused help instead of guessing.',
+    'Do not ask the user to confirm facts already present in backend context or conversation context.',
+    'Ask a short, natural follow-up only when the missing answer blocks the next required action, such as unclear intent, multiple plausible records, or a required target/date/scope that is absent.',
+    'Do not add closing engagement questions after a complete answer. If the request is answered, stop after the useful guidance.',
+    'Avoid routine sections titled "Missing Information" or "Clarifying Question". If a question is genuinely required, ask it conversationally in one sentence.',
     'If data is partial but enough to help, state the useful answer and add a brief inline caveat. Do not invent records.',
     'For compound requests, combine relevant tool results into one answer. For code, use fenced blocks with language labels.',
     'For how-to or process questions, combine workflow flows, docs, routes, and live records when available. Give ordered steps with prerequisites, exact navigation/actions, and important warnings. Do not invent UI locations.',
@@ -967,6 +1016,55 @@ function roleFocus(role: string) {
     return 'organization health, AI usage, costs, subscriptions, role access, configuration';
   }
   return 'role-scoped EduVerse help';
+}
+
+function roleCapabilities(role: string) {
+  const common = [
+    'explain EduVerse workflows and where to go',
+    'find relevant docs and navigation',
+    'summarize schedules, academic cycles, courses, sections, rooms, events, announcements, and deadlines',
+    'interpret visible attendance, grading, evaluation, enrollment, finance, and communication context',
+  ];
+
+  if (role === 'STUDENT') {
+    return [
+      'study planning around timetable and deadlines',
+      'course, attendance, grade, transcript, material, fee, and announcement guidance',
+      'weak-course explanations and practical improvement plans',
+      ...common.slice(0, 2),
+    ].join('; ');
+  }
+
+  if (role === 'TEACHER') {
+    return [
+      'teaching schedule briefings',
+      'next-class preparation',
+      'pending grading and attendance reminders',
+      'students needing attention',
+      'section workload and course material guidance',
+      ...common.slice(0, 2),
+    ].join('; ');
+  }
+
+  if (role === 'ORG_MANAGER') {
+    return [
+      'department and academic activity summaries',
+      'teacher workload, schedule bottleneck, attendance, evaluation, and course performance analysis',
+      'staffing or operational concerns visible to the manager',
+      ...common,
+    ].join('; ');
+  }
+
+  if (role === 'ORG_ADMIN') {
+    return [
+      'organization setup and operating workflows',
+      'academic health, enrollment, attendance, grading, evaluations, schedules, rooms, events, announcements, finance, users, and permissions',
+      'Copilot usage, credits, subscription, and role-access configuration when asked',
+      ...common,
+    ].join('; ');
+  }
+
+  return common.join('; ');
 }
 
 function parseSuggestedQuestions(content: string) {
