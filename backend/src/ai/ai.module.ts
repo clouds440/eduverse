@@ -5,6 +5,7 @@ import { InsightsModule } from '../insights/insights.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AIAcademicToolsService } from './ai-academic-tools.service';
 import { AIBillingService } from './ai-billing.service';
+import { AIContextToolsService } from './ai-context-tools.service';
 import { AIController } from './ai.controller';
 import { AIConversationService } from './ai-conversation.service';
 import { AIAuditService } from './ai-audit.service';
@@ -31,6 +32,7 @@ import { AIUsageService } from './ai-usage.service';
   providers: [
     AIAcademicToolsService,
     AIBillingService,
+    AIContextToolsService,
     AIConversationService,
     AIAuditService,
     AICreditService,
@@ -51,6 +53,7 @@ import { AIUsageService } from './ai-usage.service';
   exports: [
     AIAcademicToolsService,
     AIBillingService,
+    AIContextToolsService,
     AIConversationService,
     AIAuditService,
     AICreditService,

@@ -32,6 +32,9 @@ export interface AICopilotMessage {
   createdAt: number;
   provider?: AIChatResponse["provider"];
   usage?: AIChatResponse["usage"];
+  sources?: AIChatResponse["sources"];
+  relatedActions?: AIChatResponse["relatedActions"];
+  requestKind?: string;
   statusLabel?: string;
 }
 
@@ -114,6 +117,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
   const abortRef = useRef<AbortController | null>(null);
   const lastPromptRef = useRef<string | null>(null);
   const messagesRef = useRef<AICopilotMessage[]>([]);
+  const hydratingConversationRef = useRef<string | null>(null);
   const conversationStorageKey = user
     ? `eduverse-ai-copilot-conversation:${user.id}`
     : null;
@@ -258,12 +262,11 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     lastPromptRef.current = null;
   }, [cancel, conversationStorageKey]);
 
-  const loadConversation = useCallback(
-    async (nextConversationId: string) => {
-      if (!token || !user) return;
-      cancel();
-      setError(null);
-      const detail = await api.ai.getConversation(nextConversationId, token);
+  const applyConversationDetail = useCallback(
+    (
+      detail: Awaited<ReturnType<typeof api.ai.getConversation>>,
+      options: { openPanel: boolean },
+    ) => {
       const nextMessages: AICopilotMessage[] = detail.messages
         .filter(
           (
@@ -295,15 +298,69 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
                   remainingCreditsBeforeRequest: 0,
                 }
               : undefined,
+          sources: Array.isArray(message.metadata?.sources)
+            ? message.metadata.sources
+            : undefined,
+          relatedActions: Array.isArray(message.metadata?.relatedActions)
+            ? message.metadata.relatedActions
+            : undefined,
+          requestKind:
+            typeof message.metadata?.requestKind === "string"
+              ? message.metadata.requestKind
+              : undefined,
         }));
       messagesRef.current = nextMessages;
       setMessages(nextMessages);
       setConversationId(detail.id);
       setActiveConversationTitle(detail.title);
-      setIsOpen(true);
+      if (options.openPanel) setIsOpen(true);
     },
-    [cancel, entitlement, token, user],
+    [entitlement],
   );
+
+  const loadConversation = useCallback(
+    async (nextConversationId: string) => {
+      if (!token || !user) return;
+      cancel();
+      setError(null);
+      const detail = await api.ai.getConversation(nextConversationId, token);
+      applyConversationDetail(detail, { openPanel: true });
+    },
+    [applyConversationDetail, cancel, token, user],
+  );
+
+  useEffect(() => {
+    if (!token || !user || !conversationId || messages.length > 0 || isSending)
+      return;
+    if (hydratingConversationRef.current === conversationId) return;
+
+    hydratingConversationRef.current = conversationId;
+    api.ai
+      .getConversation(conversationId, token)
+      .then((detail) => {
+        applyConversationDetail(detail, { openPanel: false });
+      })
+      .catch((err) => {
+        console.warn("Unable to restore EduVerse Copilot conversation", err);
+        if (conversationStorageKey)
+          sessionStorage.removeItem(conversationStorageKey);
+        setConversationId(undefined);
+        setActiveConversationTitle(undefined);
+      })
+      .finally(() => {
+        if (hydratingConversationRef.current === conversationId) {
+          hydratingConversationRef.current = null;
+        }
+      });
+  }, [
+    applyConversationDetail,
+    conversationId,
+    conversationStorageKey,
+    isSending,
+    messages.length,
+    token,
+    user,
+  ]);
 
   const renameConversation = useCallback(
     async (targetConversationId: string, title: string) => {
@@ -451,6 +508,9 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
                           status: "complete" as const,
                           provider: response.provider,
                           usage: response.usage,
+                          sources: response.sources,
+                          relatedActions: response.relatedActions,
+                          requestKind: response.requestKind,
                         }
                       : message,
                   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Check, Copy, Sparkles } from "lucide-react";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 import { AICopilotMessage } from "./AICopilotProvider";
@@ -87,6 +88,7 @@ export function AIMessageList({ messages }: AIMessageListProps) {
                       content={message.content}
                       className="prose-sm max-w-none pr-5 text-sm leading-6 [&>*:first-child]:mt-0! [&>*:last-child]:mb-0! [&>p:first-child]:mt-0!"
                     />
+                    <MessageContextRow message={message} />
                     {message.status === "streaming" && (
                       <span
                         className="ml-1 inline-block h-4 w-1.5 animate-pulse rounded-full bg-primary align-middle"
@@ -103,6 +105,51 @@ export function AIMessageList({ messages }: AIMessageListProps) {
       </div>
     </div>
   );
+}
+
+function MessageContextRow({ message }: { message: AICopilotMessage }) {
+  const sources = dedupeLabels(message.sources ?? []).slice(0, 5);
+  const actions = (message.relatedActions ?? [])
+    .filter((action) => isSafeInternalHref(action.href))
+    .slice(0, 4);
+
+  if (!sources.length && !actions.length) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-2">
+      {sources.map((source) => (
+        <span
+          key={`${source.kind}:${source.label}`}
+          className="rounded-md border border-border/70 bg-background/70 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-muted-foreground"
+        >
+          {source.label}
+        </span>
+      ))}
+      {actions.map((action) => (
+        <Link
+          key={`${action.href}:${action.label}`}
+          href={action.href}
+          className="rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+        >
+          {action.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function dedupeLabels(items: Array<{ label: string; kind: string }>) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.label.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return Boolean(item.label.trim());
+  });
+}
+
+function isSafeInternalHref(href: string) {
+  return href.startsWith("/") && !href.startsWith("//");
 }
 
 function MessageCopyButton({

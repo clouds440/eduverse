@@ -864,6 +864,15 @@ export interface AIChatResponse {
         name: string;
         input?: unknown;
     }>;
+    sources?: Array<{
+        label: string;
+        kind: string;
+    }>;
+    relatedActions?: Array<{
+        label: string;
+        href: string;
+    }>;
+    requestKind?: string;
 }
 
 export type AIChatStreamEvent =
@@ -921,11 +930,53 @@ export interface AIStoredConversationMessage {
         model?: string;
         creditEstimate?: number;
         providerTokenEstimate?: number;
+        sources?: AIChatResponse['sources'];
+        relatedActions?: AIChatResponse['relatedActions'];
+        requestKind?: string;
+        error?: boolean;
     } | null;
 }
 
 export interface AIConversationDetail extends Omit<AIConversationSummary, 'messageCount'> {
     messages: AIStoredConversationMessage[];
+}
+
+export interface AIPlatformQualityResponse {
+    range: {
+        start: string;
+        end: string;
+        days: number;
+    };
+    totals: {
+        toolCalls: number;
+        failedToolCalls: number;
+        deniedToolCalls: number;
+        providerFailures: number;
+        averageLatencyMs: number;
+        creditsUsed: number;
+    };
+    creditUsageByAnswerType: Array<{
+        requestKind: string;
+        creditsUsed: number;
+        responses: number;
+    }>;
+    mostCommonUserIntents: Array<{
+        requestKind: string;
+        responses: number;
+    }>;
+    toolHealth: Array<{
+        toolName: string;
+        calls: number;
+        allowed: number;
+        denied: number;
+        averageLatencyMs: number;
+        creditsUsed: number;
+    }>;
+    providerFailuresByDay: Array<{
+        date: string;
+        failures: number;
+    }>;
+    note: string;
 }
 
 export interface AIDocsSearchResult {

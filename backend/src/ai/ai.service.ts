@@ -12,6 +12,8 @@ import type {
   AIProviderChatOutput,
   AIProviderMessage,
   AIProviderToolRequest,
+  AIResponseAction,
+  AIResponseSource,
   AIStreamEvent,
 } from './ai.types';
 
@@ -189,7 +191,10 @@ export class AIService {
   }
 
   private async prepareChat(user: User, dto: AIChatRequestDto) {
-    const estimatedInput = this.buildProviderInput(user, dto);
+    const requestPolicy = classifyCopilotRequest(dto.prompt, user.role ?? undefined);
+    const estimatedInput = this.buildProviderInput(user, dto, [], [], false, {
+      requestKind: requestPolicy.kind,
+    });
     const estimatedCredits = this.providerService.estimateCredits(estimatedInput);
     const entitlement = await this.entitlementService.resolveEntitlement(
       {
@@ -231,6 +236,7 @@ export class AIService {
       context.messages,
       entitlement.source,
       isChatStart,
+      requestPolicy,
     );
     const conversationTitle = !conversation.title && toolContextResult.title
       ? await this.conversationService.setConversationTitle(conversation.id, toolContextResult.title)
@@ -285,6 +291,7 @@ export class AIService {
       entitlementSource: finalEntitlement.source,
       reusedLastUserMessage,
       toolCalls: toolContextResult.toolCalls,
+      requestPolicy,
     };
   }
 
@@ -296,8 +303,11 @@ export class AIService {
     omitCurrentPrompt = false,
     extraMetadata: Record<string, unknown> = {},
   ): AIProviderChatInput {
+    const requestKind = typeof extraMetadata.requestKind === 'string'
+      ? extraMetadata.requestKind
+      : classifyCopilotRequest(dto.prompt, user.role ?? undefined).kind;
     return {
-      systemPrompt: buildSystemPrompt(user),
+      systemPrompt: buildSystemPrompt(user, requestKind),
       messages: [
         ...contextMessages,
         ...(omitCurrentPrompt ? [] : [{ role: 'user' as const, content: dto.prompt }]),
@@ -311,6 +321,7 @@ export class AIService {
         name: user.name,
         email: user.email,
         status: user.status,
+        requestKind,
         ...extraMetadata,
       },
     };
@@ -319,7 +330,7 @@ export class AIService {
   private buildSuggestionInput(user: User): AIProviderChatInput {
     return {
       systemPrompt: [
-        buildSystemPrompt(user),
+        buildSystemPrompt(user, 'general'),
         '',
         'Return exactly 3 role-aware suggested questions as JSON only: [{"label":"2-4 words","prompt":"question"}].',
         'Questions must be answerable by EduVerse read-only tools: schedules, courses, attendance, grades, deadlines, performance, operations, finance, usage, flows, docs, routes, mail/entity search. No mutation actions.',
@@ -348,6 +359,7 @@ export class AIService {
     contextMessages: AIProviderMessage[],
     entitlementSource: AIEntitlementSource,
     isChatStart = false,
+    requestPolicy = classifyCopilotRequest(dto.prompt, user.role ?? undefined),
   ): Promise<{
     messages: AIProviderMessage[];
     toolCalls: Array<{ name: string; key: string; input?: Record<string, unknown> }>;
@@ -362,15 +374,21 @@ export class AIService {
     };
     const planningInput = this.buildProviderInput(user, dto, contextMessages, [], false, {
       isChatStart,
+      requestKind: requestPolicy.kind,
     });
-    const plannedToolPlan = normalizeToolPlan(
-      await this.providerService.planTools(planningInput).catch(() => ({ requests: [] })),
-    );
+    const plannedToolPlan = shouldSkipPlanner(requestPolicy)
+      ? { requests: [] as AIProviderToolRequest[], title: null }
+      : normalizeToolPlan(
+        await this.providerService.planTools({
+          ...planningInput,
+          tools: filterPlannerTools(planningInput.tools, requestPolicy, user.role ?? undefined),
+        }).catch(() => ({ requests: [] })),
+      );
     const isCapabilityQuestion = isCopilotCapabilityQuery(dto.prompt.toLowerCase());
     const plannedToolRequests = plannedToolPlan.requests;
     const toolRequests = withEntityResolution(
       mergeToolRequests([
-        ...selectRelevantTools(dto.prompt, user.role ?? undefined),
+        ...selectRelevantTools(dto.prompt, user.role ?? undefined, requestPolicy),
         ...normalizePlannedTools(plannedToolRequests, dto.prompt),
       ]),
       dto.prompt,
@@ -403,9 +421,12 @@ export class AIService {
             instruction: [
               'Backend context for EduVerse Copilot. Internal source names and IDs are removed.',
               'Facts present here are already known; do not ask the user to confirm them.',
+              'Known facts are summarized in each context section. Missing facts are explicit; do not invent missing records.',
               'Do not mention tools, tool names, backend functions, or retrieval steps.',
               'Use the data to answer naturally.',
             ].join(' '),
+            requestKind: requestPolicy.kind,
+            responseContract: requestPolicy.responseContract,
             results: compactToolResultsForModel(results),
           }),
         }] : []),
@@ -420,9 +441,19 @@ export class AIService {
       prompt: string;
       entitlementSource: AIEntitlementSource;
       toolCalls?: Array<{ name: string; key: string; input?: Record<string, unknown> }>;
+      requestPolicy?: CopilotRequestPolicy;
     },
     output: AIProviderChatOutput,
   ) {
+    const requestPolicy = prepared.requestPolicy ?? classifyCopilotRequest(prepared.prompt, user.role ?? undefined);
+    const content = validateAssistantContent(
+      output.content,
+      prepared.toolCalls ?? [],
+      requestPolicy,
+    );
+    const sources = responseSourcesForToolCalls(prepared.toolCalls ?? [], requestPolicy);
+    const relatedActions = relatedActionsForToolCalls(prepared.toolCalls ?? [], requestPolicy);
+
     await this.creditService.recordUsage({
       source: prepared.entitlementSource,
       userId: user.id,
@@ -435,13 +466,16 @@ export class AIService {
 
     await this.conversationService.appendAssistantMessage(
       prepared.conversation.id,
-      output.content,
+      content,
       {
         providerName: output.providerName,
         model: output.model,
         creditEstimate: output.creditEstimate,
         providerTokenEstimate: output.providerTokenEstimate,
         toolCalls: prepared.toolCalls ?? [],
+        requestKind: requestPolicy.kind,
+        sources,
+        relatedActions,
       },
     );
 
@@ -456,7 +490,7 @@ export class AIService {
       title,
       message: {
         role: 'assistant' as const,
-        content: output.content,
+        content,
       },
       provider: {
         name: output.providerName,
@@ -468,6 +502,9 @@ export class AIService {
         sourceType: prepared.entitlementSource.sourceType,
         remainingCreditsBeforeRequest: prepared.entitlementSource.balance.remainingCredits,
       },
+      sources,
+      relatedActions,
+      requestKind: requestPolicy.kind,
       toolCalls: [],
     };
   }
@@ -525,6 +562,123 @@ function errorCode(error: unknown) {
   return 'AI_RESPONSE_ERROR';
 }
 
+function validateAssistantContent(
+  content: string,
+  toolCalls: Array<{ name: string; key: string; input?: Record<string, unknown> }>,
+  policy: CopilotRequestPolicy,
+) {
+  let next = sanitizeInternalLeaks(content);
+  const hadSuccessfulContext = toolCalls.length > 0;
+  if (hadSuccessfulContext && impliesNoContext(next)) {
+    next = [
+      'I found EduVerse context for this request, but I could not turn it into a confident answer.',
+      '',
+      'Here is the safest next step: ask me to narrow the result by name, course, section, date, or department, and I will use the available EduVerse records again.',
+    ].join('\n');
+  }
+
+  if (policy.kind !== 'capability') {
+    next = removeUnneededFinalQuestion(next, policy);
+  }
+
+  return next.trim() || 'I could not produce a useful EduVerse Copilot response for that request.';
+}
+
+function sanitizeInternalLeaks(content: string) {
+  let next = content;
+  for (const internal of [
+    'resolveEduVerseEntities',
+    'getEduVerseContext',
+    'getAcademicPerformanceProfile',
+    'getScheduleContext',
+    'getOperationsContext',
+    'getCommunicationContext',
+    'getPolicyContext',
+    'getEntityRelationshipContext',
+    'getAcademicPlanningContext',
+    'getEnrollmentFeasibilityContext',
+    'searchDocs',
+    'searchFlows',
+    'searchRoutes',
+    'backend context',
+    'tool call',
+    'tool result',
+  ]) {
+    next = next.replace(new RegExp(internal, 'gi'), 'EduVerse context');
+  }
+  next = next.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, '[record]');
+  return next;
+}
+
+function impliesNoContext(content: string) {
+  const normalized = content.toLowerCase();
+  return [
+    "i don't have access",
+    'i do not have access',
+    "i don't have enough information",
+    'i do not have enough information',
+    "i couldn't find any information",
+    'i could not find any information',
+    'no information available',
+  ].some((phrase) => normalized.includes(phrase));
+}
+
+function removeUnneededFinalQuestion(content: string, policy: CopilotRequestPolicy) {
+  if (['mixed', 'live-data', 'workflow'].includes(policy.kind)) return content;
+  const lines = content.trimEnd().split('\n');
+  const last = lines[lines.length - 1]?.trim() ?? '';
+  if (!last.endsWith('?')) return content;
+  if (/^(quick question|question|just to be clear|to clarify)/i.test(last)) return content;
+  return lines.slice(0, -1).join('\n').trimEnd();
+}
+
+function responseSourcesForToolCalls(
+  toolCalls: Array<{ name: string }>,
+  policy: CopilotRequestPolicy,
+): AIResponseSource[] {
+  const sources = new Map<string, AIResponseSource>();
+  const add = (label: string, kind: string) => sources.set(kind, { label, kind });
+  if (policy.kind === 'capability') add('Role access', 'role');
+  for (const call of toolCalls) {
+    if (call.name.includes('Docs') || call.name === 'searchDocs' || call.name === 'getPolicyContext') add('Docs', 'docs');
+    if (call.name.includes('Flows') || call.name === 'searchFlows') add('Workflow guide', 'flows');
+    if (call.name.includes('Routes') || call.name === 'searchRoutes') add('Navigation', 'routes');
+    if (call.name.includes('Schedule') || call.name.includes('Class')) add('Schedule', 'schedule');
+    if (call.name.includes('Academic') || call.name.includes('Performance') || call.name.includes('Student') || call.name.includes('Teacher') || call.name.includes('Course') || call.name.includes('Section') || call.name.includes('Relationship')) add('Academic records', 'academic');
+    if (call.name.includes('Enrollment')) add('Enrollment', 'enrollment');
+    if (call.name.includes('Attendance')) add('Attendance', 'attendance');
+    if (call.name.includes('Evaluation')) add('Evaluations', 'evaluations');
+    if (call.name.includes('Finance')) add('Finance', 'finance');
+    if (call.name.includes('Operation') || call.name.includes('Calendar') || call.name.includes('Campus') || call.name.includes('Announcement') || call.name.includes('Preference')) add('Operations', 'operations');
+    if (call.name.includes('Communication') || call.name.includes('Mail')) add('Communication', 'communication');
+    if (call.name.includes('AI') || call.name.includes('Credit')) add('AI Credits', 'credits');
+    if (call.name === 'getEduVerseContext') add('EduVerse context', 'eduverse-context');
+  }
+  return Array.from(sources.values()).slice(0, 5);
+}
+
+function relatedActionsForToolCalls(
+  toolCalls: Array<{ name: string }>,
+  policy: CopilotRequestPolicy,
+): AIResponseAction[] {
+  const actions = new Map<string, AIResponseAction>();
+  const add = (label: string, href: string) => actions.set(href, { label, href });
+  for (const call of toolCalls) {
+    if (call.name.includes('Docs') || call.name === 'searchDocs' || call.name === 'getPolicyContext') add('Open Docs', '/docs');
+    if (call.name.includes('Routes') || call.name === 'searchRoutes') add('Open Overview', '/overview');
+    if (call.name.includes('Schedule')) add('Open Timetable', '/timetable');
+    if (call.name.includes('Student')) add('Open Students', '/users/students');
+    if (call.name.includes('Teacher')) add('Open Teachers', '/users/teachers');
+    if (call.name.includes('Course')) add('Open Courses', '/courses');
+    if (call.name.includes('Section')) add('Open Sections', '/sections');
+    if (call.name.includes('Enrollment')) add('Open Students', '/users/students');
+    if (call.name.includes('Mail') || call.name.includes('Communication')) add('Open Mail', '/mail');
+    if (call.name.includes('Credit') || call.name.includes('AI')) add('Open AI Usage', '/ai');
+  }
+  if (policy.kind === 'credit-status') add('Manage Subscription', '/ai/subscription');
+  return Array.from(actions.values()).slice(0, 4);
+}
+
 function chunkStreamContent(content: string) {
   const normalized = content || '';
   if (normalized.length <= 120) return normalized ? [normalized] : [];
@@ -576,7 +730,7 @@ function compactToolResultsForModel(
 }
 
 function compactToolInput(input: Record<string, unknown>) {
-  const allowed = ['search', 'targetType', 'date', 'startDate', 'endDate', 'include', 'limit', 'days', 'range', 'includeLoad', 'includeBottlenecks'];
+  const allowed = ['intent', 'search', 'targetType', 'date', 'startDate', 'endDate', 'include', 'entities', 'limit', 'days', 'range', 'includeLoad', 'includeBottlenecks'];
   return Object.fromEntries(
     allowed
       .filter((key) => key in input && !isInternalIdentifierKey(key))
@@ -630,11 +784,31 @@ interface SelectedToolRequest {
 
 const MAX_TOOL_REQUESTS = 10;
 
+type CopilotRequestKind =
+  | 'capability'
+  | 'workflow'
+  | 'live-data'
+  | 'mixed'
+  | 'credit-status'
+  | 'off-topic'
+  | 'general';
+
+interface CopilotRequestPolicy {
+  kind: CopilotRequestKind;
+  responseContract: string;
+  skipPlanner: boolean;
+  preferredTools: string[];
+}
+
 function toolRequestKey(request: SelectedToolRequest) {
   return `${request.name}:${JSON.stringify(compactToolInput(request.input ?? {}))}`;
 }
 
-function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest[] {
+function selectRelevantTools(
+  prompt: string,
+  role?: string,
+  policy = classifyCopilotRequest(prompt, role),
+): SelectedToolRequest[] {
   const text = prompt.toLowerCase();
   const input = { search: prompt, limit: 8 };
   const explicitDate = extractExplicitDate(prompt);
@@ -648,6 +822,16 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
     add('searchFlows', { search: prompt, limit: 6 });
     add('searchDocs', { search: prompt, limit: 8 });
     add('searchRoutes', { search: prompt, limit: 5 });
+  }
+
+  if (policy.kind === 'mixed' || isComplexAcademicPlanningQuery(text)) {
+    add('getEduVerseContext', {
+      intent: policy.kind,
+      search: prompt,
+      include: inferEduVerseContextIncludes(text, role),
+      limit: 8,
+      ...(explicitDate ? { date: explicitDate } : {}),
+    });
   }
 
   if (mentionsAny(text, ['credit', 'quota', 'usage', 'cost', 'subscription', 'plan'])) {
@@ -682,6 +866,7 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
     if (mentionsAny(text, ['highest enrollment', 'most enrolled', 'largest courses', 'popular courses'])) {
       add('getCourseEnrollmentRanking', { search: prompt, limit: 10 });
     } else {
+      add('getEnrollmentFeasibilityContext', { search: prompt, limit: 8 });
       add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
       add('getAcademicPerformanceProfile', { ...input, targetType: 'course' });
       add('getScheduleContext', { ...input, includeLoad: true });
@@ -694,6 +879,7 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
   }
 
   if (mentionsAny(text, ['weakest', 'weak course', 'study plan', 'performing', 'performance', 'improve', 'improvement', 'need attention', 'struggling', 'review'])) {
+    add('getAcademicPlanningContext', { search: prompt, limit: 8, ...(explicitDate ? { date: explicitDate } : {}) });
     if (role === 'STUDENT' || role === 'GUARDIAN') add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
     if (role === 'TEACHER') {
       add('getAcademicPerformanceProfile', { ...input, targetType: 'teacher' });
@@ -717,6 +903,7 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
   }
 
   if (mentionsAny(text, ['workload', 'overloaded', 'bottleneck', 'staffing'])) {
+    add('getEntityRelationshipContext', { search: prompt, limit: 8 });
     add('getScheduleContext', { ...input, includeLoad: true, includeBottlenecks: true });
     if (role === 'ORG_ADMIN' || role === 'SUB_ADMIN' || role === 'ORG_MANAGER') add('getAcademicPerformanceProfile', { ...input, targetType: 'organization' });
   }
@@ -739,6 +926,7 @@ function selectRelevantTools(prompt: string, role?: string): SelectedToolRequest
   }
 
   if (mentionsAny(text, ['organization health', 'org health', 'academic activity', 'summary', 'trend', 'departments need attention'])) {
+    add('getAcademicPlanningContext', { search: prompt, limit: 8 });
     add('getAcademicPerformanceProfile', { ...input, targetType: 'organization' });
   }
 
@@ -792,6 +980,185 @@ function entityKindsFromPrompt(prompt: string) {
 
 function mentionsAny(value: string, terms: string[]) {
   return terms.some((term) => value.includes(term));
+}
+
+function classifyCopilotRequest(prompt: string, role?: string): CopilotRequestPolicy {
+  const text = prompt.toLowerCase();
+  const workflow = isWorkflowInstructionQuery(text);
+  const capability = isCopilotCapabilityQuery(text);
+  const credit = mentionsAny(text, ['credit', 'quota', 'usage', 'cost', 'subscription', 'plan', 'top up']);
+  const liveData = isLiveDataQuery(text);
+  const offTopic = isClearlyOffTopic(text);
+  const mixed = !capability && !offTopic && (
+    (workflow && liveData)
+    || isComplexAcademicPlanningQuery(text)
+    || mentionsAny(text, ['should i', 'should we', 'what should', 'how to improve', 'recommend', 'compare'])
+  );
+
+  if (capability) {
+    return {
+      kind: 'capability',
+      skipPlanner: true,
+      preferredTools: [],
+      responseContract: 'Explain what EduVerse Copilot can do for the authenticated role only. Keep it user-facing and do not mention tools, credits, or subscriptions unless asked.',
+    };
+  }
+  if (offTopic) {
+    return {
+      kind: 'off-topic',
+      skipPlanner: true,
+      preferredTools: [],
+      responseContract: 'Briefly redirect to EduVerse-focused help. Do not answer unrelated factual, entertainment, medical, legal, political, or generic web questions.',
+    };
+  }
+  if (credit && !liveData && !workflow) {
+    return {
+      kind: 'credit-status',
+      skipPlanner: true,
+      preferredTools: ['getAICreditStatus', role === 'ORG_ADMIN' ? 'getAIUsageSummary' : ''],
+      responseContract: 'Summarize AI Credits, subscription availability, and next action. Do not discuss academic records unless asked.',
+    };
+  }
+  if (mixed) {
+    return {
+      kind: 'mixed',
+      skipPlanner: false,
+      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'resolveEduVerseEntities', 'getAcademicPerformanceProfile', 'getScheduleContext', 'searchFlows', 'searchDocs', 'searchRoutes'],
+      responseContract: 'Combine workflow guidance and live EduVerse data. Separate known facts, recommendation, and next steps. Ask at most one question only if a required choice is missing.',
+    };
+  }
+  if (workflow) {
+    return {
+      kind: 'workflow',
+      skipPlanner: true,
+      preferredTools: ['searchFlows', 'searchDocs', 'searchRoutes', 'getPolicyContext'],
+      responseContract: 'Give ordered steps with prerequisites, exact navigation, required fields, warnings, and safe links when available. Do not ask a closing question after the flow is complete.',
+    };
+  }
+  if (liveData) {
+    return {
+      kind: 'live-data',
+      skipPlanner: false,
+      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'resolveEduVerseEntities', 'getAcademicPerformanceProfile', 'getScheduleContext', 'getOperationsContext', 'getCommunicationContext'],
+      responseContract: 'Use live backend context. Explain empty results precisely: target missing, target found with no child records, permission denied, or partial data.',
+    };
+  }
+  return {
+    kind: 'general',
+    skipPlanner: false,
+    preferredTools: ['searchDocs', 'searchFlows', 'searchRoutes', 'getEduVerseContext'],
+    responseContract: 'Answer as EduVerse Copilot using available EduVerse context. If unrelated to EduVerse, redirect briefly.',
+  };
+}
+
+function shouldSkipPlanner(policy: CopilotRequestPolicy) {
+  void policy;
+  return false;
+}
+
+function filterPlannerTools(
+  tools: AIProviderChatInput['tools'],
+  policy: CopilotRequestPolicy,
+  role?: string,
+) {
+  if (!policy.preferredTools.length) return tools;
+  const preferred = new Set(policy.preferredTools.filter(Boolean));
+  const roleAllowsAdmin = role === 'ORG_ADMIN';
+  return tools.filter((tool) => {
+    if (!preferred.has(tool.name)) return false;
+    if (!roleAllowsAdmin && ['getAIUsageSummary', 'getAIRoleAccessPolicy'].includes(tool.name)) return false;
+    return true;
+  });
+}
+
+function isLiveDataQuery(value: string) {
+  return mentionsAny(value, [
+    'today',
+    'tomorrow',
+    'week',
+    'schedule',
+    'timetable',
+    'class',
+    'course',
+    'section',
+    'student',
+    'teacher',
+    'manager',
+    'department',
+    'attendance',
+    'grade',
+    'grading',
+    'deadline',
+    'assignment',
+    'exam',
+    'quiz',
+    'enrollment',
+    'enrolled',
+    'performance',
+    'weak',
+    'risk',
+    'room',
+    'building',
+    'announcement',
+    'mail',
+    'message',
+    'finance',
+    'fee',
+    'evaluation',
+    'cohort',
+    'semester',
+    'academic cycle',
+  ]);
+}
+
+function isComplexAcademicPlanningQuery(value: string) {
+  return mentionsAny(value, [
+    'study plan',
+    'improve them',
+    'weak courses',
+    'course load',
+    'too much',
+    'free time',
+    'around my schedule',
+    'according to my schedule',
+    'what should i study',
+    'should i enroll',
+    'should we enroll',
+    'students need attention',
+    'how to improve',
+  ]);
+}
+
+function inferEduVerseContextIncludes(value: string, role?: string) {
+  const include = new Set<string>(['entities']);
+  if (mentionsAny(value, ['how do i', 'how to', 'workflow', 'process', 'steps', 'where', 'open', 'click'])) include.add('knowledge');
+  if (mentionsAny(value, ['policy', 'rule', 'gpa', 'attendance rule', 'grading rule', 'restriction'])) include.add('policy');
+  if (mentionsAny(value, ['schedule', 'timetable', 'today', 'tomorrow', 'week', 'free time', 'class'])) include.add('schedule');
+  if (mentionsAny(value, ['course', 'section', 'student', 'teacher', 'grade', 'attendance', 'deadline', 'performance', 'weak', 'enroll'])) include.add('academic');
+  if (mentionsAny(value, ['connected', 'relationship', 'assigned', 'taking', 'teaching', 'belongs to'])) include.add('relationships');
+  if (mentionsAny(value, ['study plan', 'plan', 'priority', 'workload', 'weak', 'improve', 'need attention'])) include.add('planning');
+  if (mentionsAny(value, ['enroll', 'enrollment', 'course load', 'too much', 'feasible', 'fit'])) include.add('enrollment');
+  if (mentionsAny(value, ['room', 'building', 'announcement', 'calendar', 'event', 'holiday', 'poll', 'preference'])) include.add('operations');
+  if (mentionsAny(value, ['mail', 'message', 'communication'])) include.add('communication');
+  if (mentionsAny(value, ['finance', 'fee', 'payment', 'salary']) || role === 'FINANCE_MANAGER') include.add('finance');
+  return Array.from(include);
+}
+
+function isClearlyOffTopic(value: string) {
+  if (isLiveDataQuery(value) || isWorkflowInstructionQuery(value) || isCopilotCapabilityQuery(value)) return false;
+  return mentionsAny(value, [
+    'write a poem',
+    'movie recommendation',
+    'weather',
+    'stock price',
+    'crypto',
+    'medical advice',
+    'legal advice',
+    'politics',
+    'recipe',
+    'dating advice',
+    'tell me a joke',
+  ]);
 }
 
 function isWorkflowInstructionQuery(value: string) {
@@ -977,8 +1344,9 @@ function buildCapabilityContextMessage(role: string): AIProviderMessage {
   };
 }
 
-function buildSystemPrompt(user: User) {
+function buildSystemPrompt(user: User, requestKind: string) {
   const role = user.role ?? 'USER';
+  const policy = classifyCopilotRequest('', role);
   return [
     'You are EduVerse Copilot. Use "I". Be concise, practical, and markdown-friendly.',
     'Use only EduVerse backend context, conversation context, and visible user info. Never reveal internal IDs, UUIDs, database fields, raw route IDs, tool names, backend function names, or retrieval steps.',
@@ -993,6 +1361,7 @@ function buildSystemPrompt(user: User) {
     'If data is partial but enough to help, state the useful answer and add a brief inline caveat. Do not invent records.',
     'For compound requests, combine relevant tool results into one answer. For code, use fenced blocks with language labels.',
     'For how-to or process questions, combine workflow flows, docs, routes, and live records when available. Give ordered steps with prerequisites, exact navigation/actions, and important warnings. Do not invent UI locations.',
+    `Request kind: ${requestKind}. Response contract: ${responseContractForKind(requestKind, policy.responseContract)}.`,
     `Role: ${role}. Focus: ${roleFocus(role)}.`,
     `User: ${JSON.stringify({
       name: user.name ?? null,
@@ -1016,6 +1385,16 @@ function roleFocus(role: string) {
     return 'organization health, AI usage, costs, subscriptions, role access, configuration';
   }
   return 'role-scoped EduVerse help';
+}
+
+function responseContractForKind(kind: string, fallback: string) {
+  if (kind === 'capability') return 'Explain role-specific Copilot capabilities only. No internal tools, no other roles, no billing focus unless asked.';
+  if (kind === 'workflow') return 'Give exact steps, prerequisites, required fields, warnings, and safe navigation. Stop when complete.';
+  if (kind === 'live-data') return 'Use backend context, distinguish missing targets from empty child records, and explain evidence briefly.';
+  if (kind === 'mixed') return 'Combine live facts, workflow steps, analysis, recommendation, and next actions in one coherent answer.';
+  if (kind === 'credit-status') return 'Summarize credits, subscription source, limits, and the next billing or top-up action.';
+  if (kind === 'off-topic') return 'Politely redirect to EduVerse, school operations, study, teaching, or administration help.';
+  return fallback;
 }
 
 function roleCapabilities(role: string) {

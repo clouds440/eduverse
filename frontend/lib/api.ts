@@ -36,6 +36,7 @@ import type {
     AIConversationDetail,
     AIConversationSummary,
     AIEntitlementResponse,
+    AIPlatformQualityResponse,
     AISuggestedQuestionsResponse,
     AIDocsSearchResult,
     AIRouteSearchResult,
@@ -570,6 +571,8 @@ export const api = {
             request<{ portalUrl: string }>('/ai/billing/portal', { method: 'POST', body: JSON.stringify({ ownerType, returnPath }), token }),
         getPersonalUsage: (token: string) =>
             request<AIPersonalUsageResponse>('/ai/personal/usage', { token }),
+        getPlatformQuality: (token: string, days = 30) =>
+            request<AIPlatformQualityResponse>(`/ai/platform/quality${buildQueryString({ days })}`, { token }),
         searchDocs: (query: string, token: string, limit = 5) =>
             request<{ results: AIDocsSearchResult[] }>(`/ai/docs/search${buildQueryString({ q: query, limit })}`, { token }),
         searchRoutes: (query: string, token: string, limit = 5) =>

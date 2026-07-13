@@ -129,8 +129,18 @@ export interface AIProviderChatOutput {
   creditEstimate: number;
   toolCalls?: Array<{
     name: string;
-    input?: unknown;
+      input?: unknown;
   }>;
+}
+
+export interface AIResponseSource {
+  label: string;
+  kind: string;
+}
+
+export interface AIResponseAction {
+  label: string;
+  href: string;
 }
 
 export type AIStreamEvent =
@@ -166,6 +176,9 @@ export type AIStreamEvent =
           sourceType: AIUsageSourceType;
           remainingCreditsBeforeRequest: number;
         };
+        sources?: AIResponseSource[];
+        relatedActions?: AIResponseAction[];
+        requestKind?: string;
         toolCalls: Array<{
           name: string;
           input?: unknown;

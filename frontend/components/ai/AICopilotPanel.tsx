@@ -3,6 +3,7 @@
 import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import Link from "next/link";
@@ -120,6 +121,10 @@ export function AICopilotPanel() {
     && !suggestedQuestionsLoaded;
   const dockedActive = isDesktop && isDocked && dockHostAvailable;
   const subscriptionHref = "/ai/subscription";
+  const groupedConversations = useMemo(
+    () => groupConversationsByDate(conversations),
+    [conversations],
+  );
 
   if (!mounted || !isOpen) return null;
 
@@ -333,6 +338,8 @@ export function AICopilotPanel() {
                 sourceLabel={sourceLabel}
                 remainingCredits={remainingCredits}
                 monthlyCredits={monthlyCredits}
+                disabled={disabled}
+                onPrompt={sendPrompt}
               />
               {canUseAccountActions && (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -481,8 +488,13 @@ export function AICopilotPanel() {
                     No previous Copilot chats yet.
                   </div>
                 ) : (
-                  <div className="grid gap-2">
-                    {conversations.map((conversation) => {
+                  <div className="grid gap-3">
+                    {groupedConversations.map((group) => (
+                      <div key={group.label} className="grid gap-2">
+                        <p className="px-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          {group.label}
+                        </p>
+                        {group.items.map((conversation) => {
                       const isActive = conversation.id === conversationId;
                       const isEditing = editingTitleId === conversation.id;
                       return (
@@ -559,7 +571,9 @@ export function AICopilotPanel() {
                           </button>
                         </div>
                       );
-                    })}
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -588,4 +602,29 @@ function isCreditLimitReachedCode(code?: string | null) {
   return code === "ORG_CREDITS_EXHAUSTED"
     || code === "ROLE_CREDITS_EXHAUSTED"
     || code === "PERSONAL_CREDITS_EXHAUSTED";
+}
+
+function groupConversationsByDate(conversations: AIConversationSummary[]) {
+  const today = startOfLocalDay(new Date()).getTime();
+  const groups = new Map<string, AIConversationSummary[]>();
+
+  for (const conversation of conversations) {
+    const date = new Date(conversation.updatedAt);
+    const start = startOfLocalDay(date).getTime();
+    const diffDays = Math.round((today - start) / 86_400_000);
+    const label = diffDays === 0
+      ? "Today"
+      : diffDays === 1
+        ? "Yesterday"
+        : diffDays < 7
+          ? "This week"
+          : date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+    groups.set(label, [...(groups.get(label) ?? []), conversation]);
+  }
+
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }

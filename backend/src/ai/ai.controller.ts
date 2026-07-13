@@ -280,6 +280,12 @@ export class AIController {
   getPersonalUsage(@Request() req: AuthenticatedRequest) {
     return this.settingsService.getPersonalUsage(req.user.id, req.user.organizationId);
   }
+
+  @Get('platform/quality')
+  @Roles(Role.SUPER_ADMIN)
+  getPlatformQuality(@Query('days') days?: string) {
+    return this.settingsService.getPlatformQuality(Number(days) || 30);
+  }
 }
 
 function writeSseEvent(res: Response, event: string, data: unknown) {

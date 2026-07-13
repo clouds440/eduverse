@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useMemo } from 'react';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
-import { Building, Mail, MessageSquare, ScrollText, Settings, Users } from 'lucide-react';
+import { Building, Mail, MessageSquare, ScrollText, Settings, Sparkles, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import statsStore from '@/lib/statsStore';
 import { Role } from '@/types';
@@ -95,6 +95,12 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 label: 'Audit Logs',
                 href: '/admin/logs',
                 icon: ScrollText,
+            });
+            adminLinks.push({
+                id: 'COPILOT_QUALITY',
+                label: 'Copilot Quality',
+                href: '/admin/copilot-quality',
+                icon: Sparkles,
             });
         }
 

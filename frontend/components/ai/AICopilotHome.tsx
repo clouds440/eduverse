@@ -16,6 +16,8 @@ interface AICopilotHomeProps {
     sourceLabel?: string;
     remainingCredits?: number;
     monthlyCredits?: number;
+    disabled?: boolean;
+    onPrompt?: (prompt: string) => void;
 }
 
 export function AICopilotHome({
@@ -27,6 +29,8 @@ export function AICopilotHome({
     sourceLabel,
     remainingCredits,
     monthlyCredits,
+    disabled,
+    onPrompt,
 }: AICopilotHomeProps) {
     const config = getAIRoleHomeConfig(role);
     const creditLimitReached = isCreditLimitReachedCode(denialCode);
@@ -136,6 +140,28 @@ export function AICopilotHome({
                     </div>
                 </div>
             </div>
+            {onPrompt && !creditLimitReached && (
+                <div className="grid gap-2 sm:grid-cols-3">
+                    {config.suggestions.slice(0, 3).map((suggestion) => {
+                        const Icon = suggestion.icon;
+                        return (
+                            <button
+                                key={suggestion.id}
+                                type="button"
+                                onClick={() => onPrompt(suggestion.prompt)}
+                                disabled={disabled}
+                                className="group min-h-28 rounded-lg border border-border/70 bg-card p-3 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border/70 bg-background text-primary transition-colors group-hover:border-primary/25">
+                                    <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                                </div>
+                                <p className="mt-3 text-sm font-black text-foreground">{suggestion.label}</p>
+                                <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted-foreground">{suggestion.prompt}</p>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
