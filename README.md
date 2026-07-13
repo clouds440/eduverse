@@ -1,7 +1,7 @@
 # EduVerse - Technical Design Document
 
-**Version:** 2.2.0  
-**Date:** June 2026  
+**Version:** 2.2.1  
+**Date:** July 2026  
 **Repository:** `clouds440/eduverse`  
 **Document Type:** Technical Design Document (TDD)
 
@@ -214,6 +214,29 @@ This section lists the important product models and recent fields. Refer to `bac
 - Sub Admin and Finance Manager accounts are role accounts managed through shared account-management services.
 - Guardian profiles link guardian users to student records. Guardian reads are checked against those student links.
 - Audit logs record security-sensitive and administrative activity.
+
+### Communication Blocks
+
+`UserCommunicationBlock` stores user-controlled communication blocks outside chat records so the behavior can grow beyond a single conversation later.
+
+Important fields:
+
+- `userId`: the user who created the block.
+- `targetUserId`: the user whose direct messages are blocked by `userId`.
+- `chatId`: optional direct-chat reference used as a fast lookup path when a DM already exists.
+- `organizationId`: the organization context for organization users.
+- `channel`: currently `DIRECT_MESSAGE`.
+- `createdAt`: when the block was created.
+
+Rules:
+
+- The unique key is `userId`, `targetUserId`, and `channel`, so one user cannot create duplicate active blocks for the same target/channel.
+- Blocking uses an upsert; repeated block attempts may fill in `chatId` when available but preserve the original `createdAt`.
+- When a direct chat already exists, blocking stores `chatId`. If a block was created before a DM exists, `chatId` can remain null.
+- Runtime checks include `chatId` when available and fall back to the directed `userId`/`targetUserId` pair.
+- Unblocking deletes the active row. A later block creates a new row with a new `createdAt`.
+- Direct chats read both directions to know whether the current user blocked the other participant or the other participant blocked the current user.
+- `chatId` is not the source of truth. The directed user pair and channel remain canonical so users can block DMs before a chat exists.
 
 ### Courses
 
@@ -493,6 +516,13 @@ Chat rules:
 - Teacher can direct-message assigned students and academic leadership, and can create section chats for assigned sections.
 - Manager can message assigned academic scope and create academic groups for assigned sections.
 - Admin/Sub Admin can perform organization-level chat management.
+- Direct-message blocking is user-controlled and applies to one-to-one DMs only. Any user can block DMs from any other user they can otherwise contact, including Org Admins.
+- DM blocks do not block the user globally and do not affect shared group chats.
+- The backend enforces DM blocks before direct messages are created, so the frontend composer state is not the security boundary.
+- When either side blocks a DM, both participants see a blocked-DM banner and the direct-message composer is hidden.
+- Chat mention targets are centralized. Individual mentions, everyone mentions, role mentions, and related-scope mentions all resolve through shared mention utilities before notification dispatch.
+- Mention notification recipients are deduped by user ID before notifications are created, so a user mentioned individually and through a role or related group receives one notification.
+- Related-scope mentions are selected as audience first, then scope type, then scope: for example all students, all teachers, or everyone in a section, department, or cohort represented by active group participants.
 
 Mail rules:
 
@@ -825,6 +855,13 @@ Important assessment notification rules:
 - Overdue grading reminders: assessment creator.
 - All students submitted: assessment creator.
 - Student notifications remain unchanged by teacher creator routing.
+
+Chat mention notification rules:
+
+- Group-chat mentions carry `chatId` and `messageId` in the notification action URL.
+- Mention targets can be individual users, everyone in the active group, active users by role when a group has more than one role, or active users in a related section, department, or cohort.
+- Related-scope mention options are derived from active group participants and are fetched on demand with frontend SWR caching.
+- The backend expands all mention targets and dedupes recipients with a set before notification creation.
 
 ---
 

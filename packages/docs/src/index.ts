@@ -2079,7 +2079,12 @@ export const docsPages: DocPage[] = [
           {
             type: 'note',
             title: 'Backend enforced',
-            text: 'Hidden buttons are not the only protection. Chat and mail recipients are checked by the backend before conversations or mail threads are created.',
+            text: 'Hidden buttons are not the only protection. Chat and mail recipients are checked by the backend before conversations or mail threads are created. Direct-message blocks are also enforced by the backend before a DM message is sent.',
+          },
+          {
+            type: 'note',
+            title: 'DM blocking',
+            text: 'DM blocking only blocks one-to-one direct messages. It does not block a user globally and does not stop either person from participating normally in shared group chats.',
           },
         ],
       },
@@ -2129,7 +2134,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Chat can include attachments and message formatting where available. Keep shared files relevant to the class or school task.',
+            text: 'Chat can include attachments, message formatting, and group mentions where available. Keep shared files and broad mentions relevant to the class or school task.',
           },
           {
             type: 'checklist',
@@ -2138,6 +2143,37 @@ export const docsPages: DocPage[] = [
               'The recipients are allowed to see it',
               'Private student details are only shared when needed',
               'The file name or message gives enough context',
+            ],
+          },
+          {
+            type: 'list',
+            items: [
+              'Typing @ opens a mention picker for people, everyone, roles, and related groups.',
+              'Role mentions appear when a group contains more than one role.',
+              'Related group mentions are selected by audience first, then by section, department, or cohort.',
+              'A person mentioned more than once through different mention choices receives only one notification.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'dm-blocking',
+        title: 'Direct message blocking',
+        tags: ['blocking', 'safety', 'direct messages'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Users can block direct messages from another person in a one-to-one chat. This is a DM safety control, not a full user block.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Use the chat-list menu to block or unblock DMs for a direct chat.',
+              'Use the blocked-users menu near the new-chat button to review who you blocked, when the block was created, and unblock people later.',
+              'Blocking DMs hides the composer and shows a banner for both people in the direct chat.',
+              'DM blocks apply to every role, including Org Admins.',
+              'DM blocks are tied to the person for direct messages, not just the current chat view.',
+              'Group chats continue normally even when two group members have blocked DMs between each other.',
             ],
           },
         ],

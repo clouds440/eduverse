@@ -1862,6 +1862,7 @@ export interface CommunicationBlock {
     id: string;
     userId: string;
     targetUserId: string;
+    chatId?: string | null;
     organizationId?: string | null;
     channel: CommunicationChannel;
     createdAt: string;

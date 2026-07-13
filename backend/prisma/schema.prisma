@@ -966,6 +966,7 @@ model Chat {
   creator      User              @relation("CreatedChats", fields: [creatorId], references: [id])
   participants ChatParticipant[]
   messages     ChatMessage[]
+  communicationBlocks UserCommunicationBlock[] @relation("CommunicationBlockChat")
 
   @@index([organizationId])
 }
@@ -1033,17 +1034,20 @@ model UserCommunicationBlock {
   id             String               @id @default(uuid())
   userId         String
   targetUserId   String
+  chatId         String?
   organizationId String?
   channel        CommunicationChannel @default(DIRECT_MESSAGE)
   createdAt      DateTime             @default(now())
 
   user         User          @relation("CommunicationBlockOwners", fields: [userId], references: [id], onDelete: Cascade)
   targetUser   User          @relation("CommunicationBlockTargets", fields: [targetUserId], references: [id], onDelete: Cascade)
+  chat         Chat?         @relation("CommunicationBlockChat", fields: [chatId], references: [id], onDelete: SetNull)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, targetUserId, channel])
   @@index([userId])
   @@index([targetUserId])
+  @@index([chatId, channel])
   @@index([organizationId])
   @@index([channel])
 }

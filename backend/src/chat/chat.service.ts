@@ -22,7 +22,6 @@ import {
 } from '@/prisma/prisma-client';
 import { fuzzyFilterAndRank } from '../common/utils';
 import {
-  canUseDirectMessageBlock,
   DIRECT_MESSAGE_BLOCK_CHANNEL,
   getDirectChatOtherParticipant,
   getDirectMessageBlockState,
@@ -119,6 +118,7 @@ export class ChatService {
 
   private async withDirectMessageBlockStates<
     T extends {
+      id: string;
       type: ChatType;
       participants?: Array<{
         userId: string;
@@ -130,20 +130,29 @@ export class ChatService {
       .map((chat) => getDirectChatOtherParticipant(chat, user.id))
       .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant?.userId));
     const targetIds = Array.from(new Set(directTargets.map((participant) => participant.userId)));
+    const directChatIds = chats
+      .filter((chat) => chat.type === ChatType.DIRECT)
+      .map((chat) => chat.id);
 
-    const blocks = targetIds.length
+    const blocks = targetIds.length || directChatIds.length
       ? await this.prisma.userCommunicationBlock.findMany({
         where: {
           channel: DIRECT_MESSAGE_BLOCK_CHANNEL,
           OR: [
-            { userId: user.id, targetUserId: { in: targetIds } },
-            { userId: { in: targetIds }, targetUserId: user.id },
+            ...(directChatIds.length ? [{ chatId: { in: directChatIds } }] : []),
+            ...(targetIds.length
+              ? [
+                { userId: user.id, targetUserId: { in: targetIds } },
+                { userId: { in: targetIds }, targetUserId: user.id },
+              ]
+              : []),
           ],
         },
         select: {
           id: true,
           userId: true,
           targetUserId: true,
+          chatId: true,
           channel: true,
         },
       })
@@ -155,25 +164,25 @@ export class ChatService {
         return { ...chat, directMessageBlock: null };
       }
 
-      const state = getDirectMessageBlockState(blocks, user.id, otherParticipant.userId);
-      const canBlock = canUseDirectMessageBlock(user.role, otherParticipant.user.role);
+      const state = getDirectMessageBlockState(blocks, user.id, otherParticipant.userId, chat.id);
 
       return {
         ...chat,
         directMessageBlock: {
           ...state,
-          canBlock,
-          reason: canBlock ? null : 'Organization admins cannot use DM blocking.',
+          canBlock: true,
+          reason: null,
         },
       };
     });
   }
 
-  private async assertDirectMessagesAvailable(userId: string, targetUserId: string) {
+  private async assertDirectMessagesAvailable(userId: string, targetUserId: string, chatId?: string | null) {
     const block = await this.prisma.userCommunicationBlock.findFirst({
       where: {
         channel: DIRECT_MESSAGE_BLOCK_CHANNEL,
         OR: [
+          ...(chatId ? [{ chatId }] : []),
           { userId, targetUserId },
           { userId: targetUserId, targetUserId: userId },
         ],
@@ -186,7 +195,7 @@ export class ChatService {
     }
   }
 
-  private async emitCommunicationBlockUpdate(userId: string, targetUserId: string) {
+  private async getDirectChatId(userId: string, targetUserId: string) {
     const chat = await this.prisma.chat.findFirst({
       where: {
         type: ChatType.DIRECT,
@@ -198,7 +207,11 @@ export class ChatService {
       select: { id: true },
     });
 
-    const payload = { chatId: chat?.id ?? null, userId, targetUserId };
+    return chat?.id ?? null;
+  }
+
+  private async emitCommunicationBlockUpdate(userId: string, targetUserId: string, chatId?: string | null) {
+    const payload = { chatId: chatId ?? await this.getDirectChatId(userId, targetUserId), userId, targetUserId };
     this.events.emitToRoom(`user:${userId}`, 'chat:communication-block:update', payload);
     this.events.emitToRoom(`user:${targetUserId}`, 'chat:communication-block:update', payload);
   }
@@ -1064,10 +1077,6 @@ export class ChatService {
     });
     if (!targetUser) throw new NotFoundException('User not found.');
 
-    if (!canUseDirectMessageBlock(user.role, targetUser.role as Role)) {
-      throw new BadRequestException('Organization admins cannot use DM blocking.');
-    }
-
     const userCanContactTarget = await this.canCreateDirectChatWith(user, {
       id: targetUser.id,
       role: targetUser.role as Role,
@@ -1090,6 +1099,8 @@ export class ChatService {
       throw new ForbiddenException('You cannot block DMs from this user.');
     }
 
+    const chatId = await this.getDirectChatId(user.id, targetUserId);
+
     const block = await this.prisma.userCommunicationBlock.upsert({
       where: {
         userId_targetUserId_channel: {
@@ -1101,10 +1112,11 @@ export class ChatService {
       create: {
         userId: user.id,
         targetUserId,
+        chatId,
         organizationId: user.organizationId,
         channel,
       },
-      update: {},
+      update: chatId ? { chatId } : {},
       include: {
         targetUser: {
           select: this.getCommunicationBlockTargetSelect(),
@@ -1112,7 +1124,7 @@ export class ChatService {
       },
     });
 
-    await this.emitCommunicationBlockUpdate(user.id, targetUserId);
+    await this.emitCommunicationBlockUpdate(user.id, targetUserId, chatId);
     return block;
   }
 
@@ -2417,7 +2429,7 @@ export class ChatService {
     if (chat?.type === ChatType.DIRECT) {
       const targetParticipant = chat.participants.find((p) => p.userId !== user.id);
       if (targetParticipant) {
-        await this.assertDirectMessagesAvailable(user.id, targetParticipant.userId);
+        await this.assertDirectMessagesAvailable(user.id, targetParticipant.userId, chatId);
       }
     }
 

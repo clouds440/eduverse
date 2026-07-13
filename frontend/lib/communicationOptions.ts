@@ -1,12 +1,7 @@
-import { Chat, ChatType, Role, User } from '@/types';
-
-export function isDirectMessageBlockExemptRole(role?: Role | null) {
-    return role === Role.ORG_ADMIN;
-}
+import { Chat, ChatType, User } from '@/types';
 
 export function canUseDirectMessageBlock(currentUser?: User | null, targetUser?: User | null) {
-    if (!currentUser?.role || !targetUser?.role) return false;
-    return !isDirectMessageBlockExemptRole(currentUser.role) && !isDirectMessageBlockExemptRole(targetUser.role);
+    return Boolean(currentUser?.id && targetUser?.id);
 }
 
 export function getDirectChatTarget(chat?: Chat | null, currentUserId?: string | null) {

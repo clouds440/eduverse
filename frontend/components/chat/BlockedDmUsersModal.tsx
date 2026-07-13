@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
 import { Loader2, ShieldCheck, Unlock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { unblockDirectMessages } from '@/lib/communicationBlocks';
@@ -94,6 +95,9 @@ export function BlockedDmUsersModal({ isOpen, onClose, token, onChanged }: Block
                                 </p>
                                 <p className="truncate text-xs font-medium text-muted-foreground">
                                     {getRoleLabel(block.targetUser.role, 'User')}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                    Blocked {formatDistanceToNow(new Date(block.createdAt), { addSuffix: true })}
                                 </p>
                             </div>
                             <Button
