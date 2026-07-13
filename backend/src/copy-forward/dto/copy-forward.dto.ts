@@ -8,10 +8,6 @@ export class CopyForwardOptionsDto {
 
   @IsBoolean()
   @IsOptional()
-  copyAssessments?: boolean;
-
-  @IsBoolean()
-  @IsOptional()
   copyMaterials?: boolean;
 }
 
@@ -27,10 +23,6 @@ export class CopyForwardDto {
   @IsBoolean()
   @IsOptional()
   copySchedules?: boolean;
-
-  @IsBoolean()
-  @IsOptional()
-  copyAssessments?: boolean;
 
   @IsBoolean()
   @IsOptional()

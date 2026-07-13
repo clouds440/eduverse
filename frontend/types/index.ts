@@ -2754,22 +2754,25 @@ export interface UpdateCohortDto {
     sectionIds?: string[];
 }
 
-export interface PromoteStudentsDto {
-    studentIds: string[];
-    fromCycleId: string;
+export interface ReassignStudentsDto {
+    sourceType?: 'cohort' | 'section';
+    studentIds?: string[];
+    excludedStudentIds?: string[];
+    fromCycleId?: string;
     toCycleId: string;
-    toCohortId: string;
+    fromCohortId?: string;
+    fromSectionId?: string;
+    toCohortId?: string;
+    toSectionId?: string;
 }
 
 export interface CopyForwardDto {
     fromCycleId: string;
     toCycleId: string;
     copySchedules?: boolean;
-    copyAssessments?: boolean;
     copyMaterials?: boolean;
     options?: {
         copySchedules: boolean;
-        copyAssessments: boolean;
         copyMaterials: boolean;
     };
 }

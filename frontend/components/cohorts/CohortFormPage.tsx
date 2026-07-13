@@ -170,7 +170,7 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
         <div className="mx-auto flex w-full max-w-6xl flex-col py-10 animate-in fade-in duration-700">
             <PageHeader
                 title={isEdit ? 'Edit Cohort' : 'Create New Cohort'}
-                description={<>Group students for enrollment and promotions. <DocsLink href="/docs/cohorts-promotions#cohorts">Read cohort docs</DocsLink></>}
+                description={<>Group students for enrollment and reassignment. <DocsLink href="/docs/cohorts-reassignment#cohorts">Read cohort docs</DocsLink></>}
                 icon={Users}
                 className="mb-8"
                 breadcrumbs={[
@@ -186,7 +186,7 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
                         <div className="absolute right-0 top-0 -mr-8 -mt-8 h-32 w-32 rounded-full bg-primary/10 blur-3xl transition-all duration-700 group-hover:bg-primary/20" />
                         <h3 className="relative z-10 mb-4 text-lg font-black tracking-tight">Cohort Organization</h3>
                         <p className="relative z-10 mb-6 text-sm leading-relaxed text-muted-foreground">
-                            Cohorts are student groups inside an academic cycle. They help with bulk enrollment and promotions. <DocsLink href="/docs/cohorts-promotions#cohorts">Learn more</DocsLink>
+                            Cohorts are student groups inside an academic cycle. They help with bulk enrollment and reassignment. <DocsLink href="/docs/cohorts-reassignment#cohorts">Learn more</DocsLink>
                         </p>
                         <div className="relative z-10 space-y-4">
                             <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/50 p-3">

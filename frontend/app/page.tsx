@@ -49,7 +49,7 @@ const PLATFORM_POINTS = [
     {
         icon: FileText,
         title: 'Records that survive semesters',
-        text: 'Cycles, transcripts, GPA policies, promotions, and history stay structured.',
+        text: 'Cycles, transcripts, GPA policies, reassignment, and history stay structured.',
     },
 ];
 

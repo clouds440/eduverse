@@ -14,15 +14,24 @@ export class CopyForwardService {
   private getOptions(dto: CopyForwardDto) {
     return {
       copySchedules: dto.options?.copySchedules ?? dto.copySchedules ?? false,
-      copyAssessments: dto.options?.copyAssessments ?? dto.copyAssessments ?? false,
       copyMaterials: dto.options?.copyMaterials ?? dto.copyMaterials ?? false,
     };
   }
 
-  private copyCodeBase(sourceCode: string, targetCycleId: string) {
-    const suffix = targetCycleId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'COPY';
+  private cycleSuffix(cycle: { code?: string | null; id: string }) {
+    return (cycle.code || cycle.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase() || 'COPY';
+  }
+
+  private copyCodeBase(sourceCode: string, targetCycle: { code?: string | null; id: string }) {
+    const suffix = this.cycleSuffix(targetCycle);
     const base = `${sourceCode}-${suffix}`.toUpperCase().replace(/[^A-Z0-9_-]/g, '-');
     return base.slice(0, 32);
+  }
+
+  private copyName(sourceName: string, targetCycle: { name: string; code?: string | null }) {
+    const suffix = targetCycle.code || targetCycle.name;
+    const name = `${sourceName} (${suffix})`;
+    return name.length > 120 ? name.slice(0, 120) : name;
   }
 
   private codeWithSuffix(base: string, index: number) {
@@ -63,9 +72,7 @@ export class CopyForwardService {
       options.copySchedules
         ? this.prisma.sectionSchedule.count({ where: { section: sectionWhere, type: ScheduleType.OFFICIAL, date: null } })
         : Promise.resolve(0),
-      options.copyAssessments
-        ? this.prisma.assessment.count({ where: { section: sectionWhere } })
-        : Promise.resolve(0),
+      Promise.resolve(0),
       options.copyMaterials
         ? this.prisma.courseMaterial.count({ where: { section: sectionWhere } })
         : Promise.resolve(0),
@@ -82,12 +89,14 @@ export class CopyForwardService {
   /**
    * Copy academic data from one cycle to another.
    * Duplicates sections (under same courses) with new academicCycleId.
-   * Optionally duplicates schedules, assessments, and materials.
-   * No link back to old records — all new IDs.
+   * Optionally duplicates weekly schedules and course materials.
+   * Teacher assignments are copied so schedule rows remain valid, but schedules
+   * with target-cycle teacher or room conflicts are skipped.
+   * Assessments, grades, submissions, and attendance sessions are not copied.
    */
   async copyForward(orgId: string, dto: CopyForwardDto) {
     const options = this.getOptions(dto);
-    await this.validateCycles(orgId, dto);
+    const { toCycle } = await this.validateCycles(orgId, dto);
 
     // Get all sections from the source cycle
     const sourceSections = await this.prisma.section.findMany({
@@ -105,24 +114,6 @@ export class CopyForwardService {
                   room: true,
                   roomId: true,
                   teacherId: true,
-                },
-              },
-            }
-          : {}),
-        ...(options.copyAssessments
-          ? {
-              assessments: {
-                select: {
-                  courseId: true,
-                  title: true,
-                  type: true,
-                  totalMarks: true,
-                  weightage: true,
-                  dueDate: true,
-                  allowSubmissions: true,
-                  externalLink: true,
-                  isVideoLink: true,
-                  organizationId: true,
                 },
               },
             }
@@ -153,7 +144,7 @@ export class CopyForwardService {
     await this.prisma.$transaction(async (tx) => {
       for (const sourceSection of sourceSections) {
         // Create new section with same data but new cycle
-        const codeBase = this.copyCodeBase(sourceSection.code, dto.toCycleId);
+        const codeBase = this.copyCodeBase(sourceSection.code, toCycle);
         let code = codeBase;
         for (let index = 0; index < 100; index += 1) {
           const candidate = this.codeWithSuffix(codeBase, index);
@@ -171,14 +162,15 @@ export class CopyForwardService {
         const newSection = await tx.section.create({
           data: {
             organizationId: orgId,
-            name: sourceSection.name,
+            name: this.copyName(sourceSection.name, toCycle),
             code,
             color: sourceSection.color,
             room: sourceSection.room,
+            defaultRoomId: sourceSection.defaultRoomId,
             courseId: sourceSection.courseId,
             academicCycleId: dto.toCycleId,
             teachers: {
-              connect: sourceSection.teachers.map((t) => ({ id: t.id })),
+              connect: sourceSection.teachers.map((teacher) => ({ id: teacher.id })),
             },
           },
         });
@@ -196,6 +188,23 @@ export class CopyForwardService {
           }>;
 
           for (const schedule of schedules) {
+            const conflict = await tx.sectionSchedule.findFirst({
+              where: {
+                academicCycleId: dto.toCycleId,
+                type: ScheduleType.OFFICIAL,
+                date: null,
+                day: schedule.day,
+                startTime: { lt: schedule.endTime },
+                endTime: { gt: schedule.startTime },
+                OR: [
+                  { teacherId: schedule.teacherId },
+                  ...(schedule.roomId ? [{ roomId: schedule.roomId }] : []),
+                ],
+              },
+              select: { id: true },
+            });
+            if (conflict) continue;
+
             await tx.sectionSchedule.create({
               data: {
                 sectionId: newSection.id,
@@ -210,41 +219,6 @@ export class CopyForwardService {
               },
             });
             results.schedulesCopied++;
-          }
-        }
-
-        // Copy assessments
-        if (options.copyAssessments && 'assessments' in sourceSection) {
-          const assessments = sourceSection.assessments as Array<{
-            courseId: string;
-            title: string;
-            type: string;
-            totalMarks: number;
-            weightage: number;
-            dueDate: Date | null;
-            allowSubmissions: boolean;
-            externalLink: string | null;
-            isVideoLink: boolean;
-            organizationId: string;
-          }>;
-
-          for (const assessment of assessments) {
-            await tx.assessment.create({
-              data: {
-                sectionId: newSection.id,
-                courseId: assessment.courseId,
-                title: assessment.title,
-                type: assessment.type as any,
-                totalMarks: assessment.totalMarks,
-                weightage: assessment.weightage,
-                allowSubmissions: assessment.allowSubmissions,
-                externalLink: assessment.externalLink,
-                isVideoLink: assessment.isVideoLink,
-                organizationId: assessment.organizationId,
-                academicCycleId: dto.toCycleId,
-              },
-            });
-            results.assessmentsCopied++;
           }
         }
 

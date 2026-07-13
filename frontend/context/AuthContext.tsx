@@ -164,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'attendance',
                             'schedules',
                             'transcripts',
-                            'promotions',
+                            'reassignment',
                             'preference-windows',
                             'grade-finalization',
                             'finance',
@@ -209,7 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const isStudentManagementPage = pathSegments[1] === 'users' && pathSegments[2] === 'students' && pathSegments[3];
                         const isSectionManagementPage = pathSegments[1] === 'sections' && (pathSegments[2] === 'create' || pathSegments[2] === 'edit');
                         const isOtherUserManagementPage = pathSegments[1] === 'users' && pathSegments[2] !== 'students';
-                        const isOrgManagementPage = ['courses', 'academic-cycles', 'cohorts', 'promotions', 'schedules'].includes(pathSegments[1]) || isOtherUserManagementPage;
+                        const isOrgManagementPage = ['courses', 'academic-cycles', 'cohorts', 'reassignment', 'schedules'].includes(pathSegments[1]) || isOtherUserManagementPage;
                         if (isSettingsPage) {
                             // Settings page handles its own redirect, no toast needed
                             router.replace(`/teacher/${user.id}/profile`);

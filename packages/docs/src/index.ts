@@ -118,7 +118,7 @@ export const docsPages: DocPage[] = [
             headers: ['Role', 'Main job', 'Can manage', 'Cannot access'],
             rows: [
               ['Org Admin', 'Owns the organization workspace.', 'All organization users, academic setup, settings, finance, grade finalization, and records.', 'Platform administration outside the organization.'],
-              ['Sub Admin', 'Runs delegated operational administration.', 'Users, academic setup, schedules, cycles, cohorts, promotions, grade review, and operational records.', 'Main admin account management and platform administration.'],
+              ['Sub Admin', 'Runs delegated operational administration.', 'Users, academic setup, schedules, cycles, cohorts, reassignment, grade review, and operational records.', 'Main admin account management and platform administration.'],
               ['Manager', 'Monitors academic work for assigned sections.', 'Assigned students, assigned sections, attendance, assessments, grades, and finalization review where allowed.', 'Finance management, settings, broad user administration, and unrestricted student data.'],
               ['Finance Manager', 'Handles fee and payment operations.', 'Finance structures, entries, payment claims, transactions, and finance communication.', 'Academic setup, teaching workflows, settings, and grade management.'],
               ['Teacher', 'Runs assigned classes.', 'Assigned sections, materials, assessments, submissions, attendance, and grading.', 'Finance management, school settings, and unassigned student records.'],
@@ -267,7 +267,7 @@ export const docsPages: DocPage[] = [
     description: 'Manage student profiles, enrollment, cohorts, academic history, and portal visibility.',
     category: 'People',
     tags: ['students', 'enrollment', 'cohort', 'portal'],
-    related: ['courses-sections', 'academic-cycles', 'cohorts-promotions', 'gradebook', 'fees', 'transcripts', 'csv-imports'],
+    related: ['courses-sections', 'academic-cycles', 'cohorts-reassignment', 'gradebook', 'fees', 'transcripts', 'csv-imports'],
     sections: [
       {
         id: 'student-records',
@@ -315,7 +315,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Enrollment history allows transcripts and academic reports to show where a student studied during each academic cycle, even after promotions or section changes.',
+            text: 'Enrollment history allows transcripts and academic reports to show where a student studied during each academic cycle, even after reassignment or section changes.',
           },
           {
             type: 'list',
@@ -762,8 +762,8 @@ export const docsPages: DocPage[] = [
     title: 'Academic Cycles',
     description: 'Manage terms, cohorts, active cycles, copy-forward behavior, and GPA policy selection.',
     category: 'Academic Settings',
-    tags: ['academic cycle', 'cohort', 'promotion', 'copy-forward'],
-    related: ['gpa-policies', 'students', 'cohorts-promotions', 'transcripts', 'academic-calendar'],
+    tags: ['academic cycle', 'cohort', 'reassignment', 'copy-forward'],
+    related: ['gpa-policies', 'students', 'cohorts-reassignment', 'transcripts', 'academic-calendar'],
     sections: [
       {
         id: 'cycle-purpose',
@@ -785,7 +785,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'flow',
             title: 'Cycle lifecycle',
-            steps: ['Create cycle', 'Choose GPA policy', 'Create cohorts and sections', 'Run classes', 'Finalize grades', 'Generate transcripts', 'Promote students'],
+            steps: ['Create cycle', 'Choose GPA policy', 'Create cohorts and sections', 'Run classes', 'Finalize grades', 'Generate transcripts', 'Reassign students'],
           },
           {
             type: 'table',
@@ -1339,7 +1339,7 @@ export const docsPages: DocPage[] = [
       description: 'Let students rank course or section options while final enrollment stays controlled by staff.',
       category: 'Academics',
       tags: ['preferences', 'section choice', 'course choice', 'voting', 'ranked choice', 'announcements'],
-      related: ['students', 'courses-sections', 'cohorts-promotions', 'announcements', 'student-guide'],
+      related: ['students', 'courses-sections', 'cohorts-reassignment', 'announcements', 'student-guide'],
       sections: [
         {
           id: 'purpose',
@@ -2398,11 +2398,11 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
-    slug: 'cohorts-promotions',
-    title: 'Cohorts and Promotions',
-    description: 'Group students, assign sections, move students between cycles, and copy academic setup forward.',
+    slug: 'cohorts-reassignment',
+    title: 'Cohorts and Reassignment',
+    description: 'Group students, assign sections, move students between cohorts or sections, and copy academic setup forward.',
     category: 'Academic Settings',
-    tags: ['cohorts', 'promotions', 'copy-forward', 'students'],
+    tags: ['cohorts', 'reassignment', 'copy-forward', 'students'],
     related: ['academic-cycles', 'students', 'courses-sections'],
     sections: [
       {
@@ -2435,18 +2435,18 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
-        id: 'promotions',
-        title: 'Promotions',
-        tags: ['move students', 'new cycle'],
+        id: 'reassignment',
+        title: 'Cohort reassignment',
+        tags: ['move students', 'new cycle', 'sections'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'Promotions move selected students from one academic cycle or cohort into another. This is useful at the end of a term, semester, grade level, or school year.',
+            text: 'Cohort reassignment moves selected students from one cohort or section into another. It can move students to a later academic cycle, move them within the same cycle, or demote them when needed.',
           },
           {
             type: 'note',
-            title: 'Review before promoting',
-            text: 'Promotion changes student placement and enrollment history. Review the source cycle, target cycle, target cohort, and selected students before confirming.',
+            title: 'Review before reassigning',
+            text: 'Reassignment changes current placement while preserving historical academic data. Review the source, destination, and excluded students before confirming.',
           },
         ],
       },
@@ -2463,8 +2463,10 @@ export const docsPages: DocPage[] = [
             type: 'list',
             items: [
               'Admins choose the source cycle and target cycle.',
-              'Admins choose what to copy, such as schedules, assessments, or materials.',
-              'Copied records should be reviewed after creation because dates, teachers, rooms, and instructions may need changes.',
+              'Sections and teacher assignments are copied so the new cycle has usable class shells.',
+              'Official weekly schedules can be copied with teacher and room conflict checks.',
+              'Course materials can be copied when they are still appropriate for the new class.',
+              'Assessments, grades, submissions, and attendance sessions are not copied forward.',
             ],
           },
         ],
@@ -2963,7 +2965,7 @@ export const docsPages: DocPage[] = [
             headers: ['Area', 'Sub Admin can do', 'Boundary'],
             rows: [
               ['People', 'Create and update teachers, managers, students, guardians, and finance managers.', 'Sub admins do not create or manage main admin accounts.'],
-              ['Academic setup', 'Manage cycles, cohorts, sections, schedules, promotions, and operational academic records.', 'Changes should follow the school academic plan.'],
+              ['Academic setup', 'Manage cycles, cohorts, sections, schedules, reassignment, and operational academic records.', 'Changes should follow the school academic plan.'],
               ['Grades', 'Review grade-finalization status and finalize where allowed.', 'Finalized grades become official transcript data.'],
               ['Evaluations', 'Create windows and review teacher/course feedback where delegated.', 'Feedback review follows department scope where applicable.'],
               ['Finance', 'View/audit finance where available.', 'Finance operations belong to Admin and Finance Manager roles.'],
@@ -3290,7 +3292,7 @@ export const docsPages: DocPage[] = [
     description: 'End-to-end guide for configuring a new school workspace from registration to first day of class.',
     category: 'Workflows',
     tags: ['setup', 'new school', 'workflow', 'configuration'],
-    related: ['quick-start', 'settings', 'academic-cycles', 'courses-sections', 'cohorts-promotions'],
+    related: ['quick-start', 'settings', 'academic-cycles', 'courses-sections', 'cohorts-reassignment'],
     sections: [
       {
         id: 'workflow-overview',
@@ -3437,10 +3439,10 @@ export const docsPages: DocPage[] = [
   {
     slug: 'end-of-term-workflow',
     title: 'End-of-Term Process',
-    description: 'Step-by-step guide for finalizing grades, locking GPA policies, generating transcripts, and promoting students.',
+    description: 'Step-by-step guide for finalizing grades, locking GPA policies, generating transcripts, and reassigning students.',
     category: 'Workflows',
-    tags: ['end of term', 'finalize', 'transcripts', 'promotion', 'workflow'],
-    related: ['academic-cycles', 'transcripts', 'gradebook', 'cohorts-promotions', 'gpa-policies'],
+    tags: ['end of term', 'finalize', 'transcripts', 'reassignment', 'workflow'],
+    related: ['academic-cycles', 'transcripts', 'gradebook', 'cohorts-reassignment', 'gpa-policies'],
     sections: [
       {
         id: 'end-of-term-overview',
@@ -3454,7 +3456,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'flow',
             title: 'End-of-term sequence',
-            steps: ['Complete Grading', 'Review Grades', 'Finalize Grades', 'GPA Policy Locks', 'Generate Transcripts', 'Promote Students', 'Create New Cycle'],
+            steps: ['Complete Grading', 'Review Grades', 'Finalize Grades', 'GPA Policy Locks', 'Generate Transcripts', 'Reassign Students', 'Create New Cycle'],
           },
         ],
       },
@@ -3528,21 +3530,21 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
-        id: 'promote-students',
-        title: 'Step 4: Promote students',
-        tags: ['promotion', 'new cycle'],
+        id: 'reassign-students',
+        title: 'Step 4: Reassign students',
+        tags: ['reassignment', 'new cycle'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'After transcripts are generated, promote students to the next cycle or cohort. Promotion moves student placement while preserving enrollment history.',
+            text: 'After transcripts are generated, reassign students to the next cycle, a different cohort, or another section as needed. Reassignment changes current placement while preserving enrollment history.',
           },
           {
             type: 'steps',
             items: [
               'Create the new academic cycle if it does not exist yet.',
               'Create target cohorts in the new cycle.',
-              'Use the promotion tool to select students and move them to the target cycle and cohort.',
-              'Review promoted students to confirm correct placement.',
+              'Use the reassignment tool to select a source cohort or section, optionally exclude students, and move the remaining students to the destination.',
+              'Review reassigned students to confirm correct placement.',
               'Use copy-forward to carry sections, schedules, or materials into the new cycle if needed.',
             ],
           },
@@ -3698,7 +3700,7 @@ export const docsPages: DocPage[] = [
     description: 'Use stable, human-readable codes for CSV imports and linked setup records.',
     category: 'Setup',
     tags: ['codes', 'csv', 'imports', 'setup', 'departments', 'rooms', 'sections'],
-    related: ['csv-imports', 'departments-buildings-rooms', 'academic-cycles', 'cohorts-promotions', 'courses-sections'],
+    related: ['csv-imports', 'departments-buildings-rooms', 'academic-cycles', 'cohorts-reassignment', 'courses-sections'],
     sections: [
       {
         id: 'what-codes-are',
@@ -4052,7 +4054,7 @@ export const docsNavGroups: DocNavGroup[] = [
     pages: [
       'academic-cycles',
       'academic-calendar',
-      'cohorts-promotions',
+      'cohorts-reassignment',
       'courses-sections',
       'materials',
       'assessments-grading',

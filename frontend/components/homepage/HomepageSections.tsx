@@ -79,7 +79,7 @@ const HIGHLIGHTS = [
     {
         icon: FileText,
         title: 'Academic records stay clean over time',
-        desc: 'Cycles, transcripts, GPA policies, promotions, and history are built for long-term institutional records.',
+        desc: 'Cycles, transcripts, GPA policies, reassignment, and history are built for long-term institutional records.',
     },
     {
         icon: WalletCards,
@@ -227,7 +227,7 @@ const SHOWCASE_ITEMS = [
     {
         icon: ClipboardList,
         title: 'Academic lifecycle',
-        desc: 'From admissions to promotions to transcripts, every step stays connected.',
+        desc: 'From admissions to reassignment to transcripts, every step stays connected.',
     },
     {
         icon: MessageSquare,

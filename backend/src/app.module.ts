@@ -22,7 +22,7 @@ import { RolesGuard } from './auth/roles.guard';
 import { AcademicCyclesModule } from './academic-cycles/academic-cycles.module';
 import { CohortsModule } from './cohorts/cohorts.module';
 import { TranscriptsModule } from './transcripts/transcripts.module';
-import { PromotionsModule } from './promotions/promotions.module';
+import { ReassignmentModule } from './reassignment/reassignment.module';
 import { CopyForwardModule } from './copy-forward/copy-forward.module';
 import { FinanceModule } from './finance/finance.module';
 import { GpaModule } from './gpa/gpa.module';
@@ -65,7 +65,7 @@ import { AIModule } from './ai/ai.module';
     AcademicCyclesModule,
     CohortsModule,
     TranscriptsModule,
-    PromotionsModule,
+    ReassignmentModule,
     CopyForwardModule,
     FinanceModule,
     GpaModule,

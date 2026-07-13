@@ -100,7 +100,7 @@ const ACTIVITY = [
     {
         avatar: 'AD',
         name: 'Admin',
-        action: 'promoted 34 students',
+        action: 'reassigned 34 students',
         meta: 'Spring 2026',
         time: '15m ago',
         color: 'bg-warning',

@@ -10,7 +10,7 @@ import type {
     Chat, ChatMessage, ChatSearchUser, Notification, Announcement, TargetType, AnnouncementPriority, User,
     ThemeMode, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
-    AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, PromoteStudentsDto, CopyForwardDto, CopyForwardPreview,
+    AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, ReassignStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
     CampusNavigationBuildingRoomsResponse,
     CampusNavigationResponse,
@@ -1130,9 +1130,9 @@ export const api = {
             request<Transcript[]>(`/org/transcripts/cycles/${cycleId}/report`, { token }),
     },
 
-    promotions: {
-        promoteStudents: (data: PromoteStudentsDto, token: string) =>
-            request<{ message: string; promoted: number; skipped: number }>(`/org/promotions`, { method: 'POST', body: JSON.stringify(data), token }),
+    reassignment: {
+        reassignStudents: (data: ReassignStudentsDto, token: string) =>
+            request<{ message: string; reassigned: number; skipped: number; excluded: number }>(`/org/reassignment`, { method: 'POST', body: JSON.stringify(data), token }),
     },
 
     copyForward: {

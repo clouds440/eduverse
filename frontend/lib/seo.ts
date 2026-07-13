@@ -121,7 +121,7 @@ export const privateSeoPaths = [
   '/mail',
   '/offline',
   '/overview',
-  '/promotions',
+  '/reassignment',
   '/register',
   '/reset-password',
   '/schedules',

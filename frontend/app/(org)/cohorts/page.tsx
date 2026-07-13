@@ -202,7 +202,7 @@ export default function CohortsPage() {
         <PageShell>
             <PageHeader
                 title="Cohorts"
-                description={<>Group students and sections by academic cycle for cleaner enrollment workflows. <DocsLink href="/docs/cohorts-promotions#cohorts">Read cohort docs</DocsLink></>}
+                description={<>Group students and sections by academic cycle for cleaner enrollment workflows. <DocsLink href="/docs/cohorts-reassignment#cohorts">Read cohort docs</DocsLink></>}
                 icon={Users}
                 breadcrumbs={[
                     { label: 'Organization' },

@@ -4,8 +4,8 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
-import { PromotionsService } from './promotions.service';
-import { PromoteStudentsDto } from './dto/promote-students.dto';
+import { ReassignmentService } from './reassignment.service';
+import { ReassignStudentsDto } from './dto/reassign-students.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -16,14 +16,14 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
-@Controller('org/promotions')
-export class PromotionsController {
-  constructor(private readonly promotionsService: PromotionsService) {}
+@Controller('org/reassignment')
+export class ReassignmentController {
+  constructor(private readonly reassignmentService: ReassignmentService) {}
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
-  promote(@OrgId() orgId: string, @Body() dto: PromoteStudentsDto) {
-    return this.promotionsService.promoteStudents(orgId, dto);
+  reassign(@OrgId() orgId: string, @Body() dto: ReassignStudentsDto) {
+    return this.reassignmentService.reassignStudents(orgId, dto);
   }
 }

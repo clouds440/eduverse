@@ -214,9 +214,9 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     roles: ADMIN_ROLES,
   },
   {
-    id: "PROMOTIONS",
-    label: "Promotions",
-    href: "/promotions",
+    id: "REASSIGNMENT",
+    label: "Reassignment",
+    href: "/reassignment",
     icon: ArrowRightCircle,
     roles: ADMIN_ROLES,
   },
