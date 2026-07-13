@@ -13,6 +13,7 @@ import { getFileTypeInfo } from '@/lib/attachmentUtils';
 import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { getRoleLabel } from '@/lib/roles';
 import { getUserColor, downloadFile, formatBytes } from '@/lib/utils';
+import { GENERIC_UPLOAD_ACCEPT } from '@/lib/uploadPolicy';
 import {
     getUserChatsCached,
     insertOrUpdateChatFromMessage,
@@ -2266,7 +2267,7 @@ export function ChatLayout() {
                                             id="chat-file-upload"
                                             className="hidden"
                                             onChange={handleFileUpload}
-                                            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,.docx,.xlsx,.pptx,.zip"
+                                            accept={GENERIC_UPLOAD_ACCEPT}
                                             multiple
                                         />
 

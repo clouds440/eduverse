@@ -14,6 +14,7 @@ import { ADMIN_REPLY_TEMPLATES } from './MailTemplates';
 import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
 import { getRoleLabel } from '@/lib/roles';
+import { GENERIC_UPLOAD_ACCEPT, isGenericUploadAllowed } from '@/lib/uploadPolicy';
 
 interface NewMailModalProps {
     isOpen: boolean;
@@ -403,10 +404,10 @@ export function NewMailModal({
 
     const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
         const filesArray = event.target.files ? Array.from(event.target.files) : [];
-        const validFiles = filesArray.filter((file) => file.type.startsWith('image/') || file.type === 'application/pdf');
+        const validFiles = filesArray.filter(isGenericUploadAllowed);
 
         if (validFiles.length < filesArray.length) {
-            setError('Only images and PDF files are allowed.');
+            setError('Some selected files are not allowed.');
         }
 
         setSelectedFiles((current) => [...current, ...validFiles].slice(0, 5));
@@ -686,7 +687,7 @@ export function NewMailModal({
                                     <div className="flex flex-wrap gap-2">
                                         {selectedFiles.map((file, index) => (
                                             <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border/70 bg-background/80 px-3 py-2">
-                                                {file.type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0 text-primary" /> : <FileText className="h-4 w-4 shrink-0 text-primary" />}
+                                                {file.type.startsWith('image/') && file.type !== 'image/svg+xml' ? <ImageIcon className="h-4 w-4 shrink-0 text-primary" /> : <FileText className="h-4 w-4 shrink-0 text-primary" />}
                                                 <span className="max-w-44 truncate text-xs font-bold text-foreground">{file.name}</span>
                                                 <button
                                                     type="button"
@@ -718,7 +719,7 @@ export function NewMailModal({
                                 ref={fileInputRef}
                                 onChange={handleFileChange}
                                 className="hidden"
-                                accept="image/*,.pdf"
+                                accept={GENERIC_UPLOAD_ACCEPT}
                                 multiple
                             />
                         </div>

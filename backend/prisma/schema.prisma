@@ -786,19 +786,26 @@ model MailActionLog {
 // ────────────────────────────────────────────────────────────────────────────────
 
 model File {
-  id         String   @id @default(uuid())
-  orgId      String
-  entityType String
-  entityId   String
-  path       String
-  publicId   String?
-  filename   String
-  mimeType   String
-  size       Int
-  uploadedBy String
-  createdAt  DateTime @default(now())
+  id           String   @id @default(uuid())
+  orgId        String
+  entityType   String
+  entityId     String
+  path         String
+  publicId     String?
+  filename     String
+  mimeType     String
+  size         Int
+  uploadedBy   String
+  resourceType String   @default("raw")
+  deliveryType String   @default("authenticated")
+  fileKind     String   @default("document")
+  extension    String?
+  sha256       String?
+  scanStatus   String   @default("PASSED")
+  createdAt    DateTime @default(now())
 
   @@index([entityType, entityId])
+  @@index([sha256])
 }
 
 enum Role {

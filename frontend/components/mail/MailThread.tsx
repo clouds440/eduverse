@@ -30,6 +30,7 @@ import { ADMIN_REPLY_TEMPLATES } from './MailTemplates';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleLabel } from '@/lib/roles';
+import { GENERIC_UPLOAD_ACCEPT, isGenericUploadAllowed } from '@/lib/uploadPolicy';
 
 interface MailThreadProps {
     mail: MailDetail;
@@ -89,7 +90,7 @@ function getRecipientLabel(mail: MailDetail) {
 }
 
 const AttachmentPreview = memo(function AttachmentPreview({ file }: { file: Attachment }) {
-    const isImage = file.mimeType.startsWith('image/');
+    const isImage = file.mimeType.startsWith('image/') && !file.path.startsWith('/files/');
     const url = getPublicUrl(file.path);
 
     const handleDownload = async (event: React.MouseEvent) => {
@@ -288,7 +289,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
 
     const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files ? Array.from(event.target.files) : [];
-        const validFiles = files.filter((file) => file.type.startsWith('image/') || file.type === 'application/pdf');
+        const validFiles = files.filter(isGenericUploadAllowed);
         setSelectedFiles((current) => [...current, ...validFiles].slice(0, 3));
         event.target.value = '';
     }, []);
@@ -302,7 +303,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
             <div className="mb-2 flex items-center justify-between gap-2 sm:mb-3">
                 <div className="min-w-0">
                     <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Reply</h3>
-                    <p className="hidden text-[11px] font-semibold text-muted-foreground sm:block">Images and PDFs, up to 3 files.</p>
+                    <p className="hidden text-[11px] font-semibold text-muted-foreground sm:block">Up to 3 attachments.</p>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
@@ -330,7 +331,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
                     ref={fileInputRef}
                     onChange={handleFileChange}
                     className="hidden"
-                    accept="image/*,.pdf"
+                    accept={GENERIC_UPLOAD_ACCEPT}
                     multiple
                 />
             </div>
@@ -339,7 +340,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
                 <div className="mb-3 flex flex-wrap gap-2">
                     {selectedFiles.map((file, index) => (
                         <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-border/70 bg-card/80 px-3 py-2">
-                            {file.type.startsWith('image/') ? <ImageIcon className="h-4 w-4 shrink-0 text-primary" /> : <FileText className="h-4 w-4 shrink-0 text-primary" />}
+                            {file.type.startsWith('image/') && file.type !== 'image/svg+xml' ? <ImageIcon className="h-4 w-4 shrink-0 text-primary" /> : <FileText className="h-4 w-4 shrink-0 text-primary" />}
                             <span className="max-w-48 truncate text-xs font-bold text-foreground">{file.name}</span>
                             <button
                                 type="button"

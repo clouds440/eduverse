@@ -157,9 +157,10 @@ export class CourseMaterialsService {
         entityId: { in: materialIds },
       },
     });
+    const publicFiles = this.filesService.toPublicFiles(files);
 
     // Group files by material ID
-    const filesByMaterial = files.reduce((acc, file) => {
+    const filesByMaterial = publicFiles.reduce((acc, file) => {
       if (!acc[file.entityId]) {
         acc[file.entityId] = [];
       }
@@ -230,7 +231,7 @@ export class CourseMaterialsService {
       throw new ForbiddenException('Only teachers and admins can delete materials');
     }
 
-    // Delete associated files
+    // Delete associated files from Cloudinary and the database.
     const files = await this.prisma.file.findMany({
       where: {
         entityType: 'COURSE_MATERIAL',
@@ -238,14 +239,13 @@ export class CourseMaterialsService {
       },
     });
 
-    // Note: Files are deleted from Cloudinary by the FilesService when we call deleteFile
-    // For now, we'll just delete the database records
-    await this.prisma.file.deleteMany({
-      where: {
-        entityType: 'COURSE_MATERIAL',
-        entityId: materialId,
-      },
-    });
+    for (const file of files) {
+      await this.filesService.deleteFile(file.id, {
+        id: userId,
+        role: userRole,
+        organizationId,
+      });
+    }
 
     // Delete the material
     await this.prisma.courseMaterial.delete({

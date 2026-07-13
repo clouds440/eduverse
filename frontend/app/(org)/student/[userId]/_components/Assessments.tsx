@@ -21,6 +21,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import type { ActiveFilter } from '@/components/ui/PageShell';
 import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
+import { GENERIC_UPLOAD_ACCEPT } from '@/lib/uploadPolicy';
 
 function getGradeTone(marks: number, total: number) {
     const percentage = total > 0 ? (marks / total) * 100 : 0;
@@ -443,7 +444,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                             id="student-file-upload"
                                             className="hidden"
                                             onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
-                                            accept=".txt,.pdf,image/*,.docx,.xlsx,.pptx,.zip"
+                                            accept={GENERIC_UPLOAD_ACCEPT}
                                         />
                                         <label
                                             htmlFor="student-file-upload"
@@ -453,7 +454,7 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                             <span className="text-sm font-bold text-foreground">
                                                 {selectedFile ? selectedFile.name : 'Choose a file to upload'}
                                             </span>
-                                            <span className="mt-1 text-xs font-medium">PDF, DOCX, ZIP, or images up to the configured upload limit</span>
+                                            <span className="mt-1 text-xs font-medium">Documents, images, ZIP, or source files</span>
                                         </label>
                                     </div>
                                 )}

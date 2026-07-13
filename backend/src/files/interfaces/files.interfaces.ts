@@ -8,6 +8,12 @@ export interface UploadedFileInfo {
   entityId: string;
   orgId: string;
   publicId?: string;
+  resourceType?: string;
+  deliveryType?: string;
+  fileKind?: string;
+  extension?: string | null;
+  sha256?: string | null;
+  scanStatus?: string;
   uploadedBy: string;
   createdAt: Date;
 }

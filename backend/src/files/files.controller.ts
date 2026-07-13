@@ -1,17 +1,20 @@
 import {
-  Controller,
-  Post,
-  Delete,
-  Param,
+  BadRequestException,
   Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Request,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
-  Request,
-  ForbiddenException,
-  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Role } from '../common/enums';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
@@ -24,42 +27,14 @@ import type {
   DeleteFileResult,
 } from './interfaces/files.interfaces';
 
-/** MIME types that are permitted for upload */
-const ALLOWED_MIME_TYPES = new Set<string>([
-  // Images
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/svg+xml',
-  // Documents
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-  'application/zip',
-  'application/x-zip-compressed',
-  'application/x-rar-compressed',
-  'application/vnd.rar',
-  'text/plain',
-]);
-
-const IMAGE_MIME_PREFIX = 'image/';
-const IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
-const DEFAULT_MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
-
-@Access(AccessLevel.WRITE)
+@Access(AccessLevel.READ)
 @Controller('files')
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
-  /**
-   * POST /files
-   * Generic file upload endpoint.
-   * Accepts multipart/form-data with fields: orgId, entityType, entityId, file.
-   */
   @UseGuards(JwtAuthGuard)
   @Post()
+  @Access(AccessLevel.WRITE)
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
@@ -70,29 +45,6 @@ export class FilesController {
       throw new BadRequestException('No file provided');
     }
 
-    // Validate MIME type
-    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException(
-        `File type "${file.mimetype}" is not allowed. Allowed types: images, PDF, DOCX, XLSX, PPTX, ZIP.`,
-      );
-    }
-
-    // Validate file size per type
-    const isImageOrText =
-      file.mimetype.startsWith(IMAGE_MIME_PREFIX) ||
-      file.mimetype === 'text/plain';
-    const sizeLimit = isImageOrText
-      ? IMAGE_MAX_SIZE_BYTES
-      : DEFAULT_MAX_SIZE_BYTES;
-
-    if (file.size > sizeLimit) {
-      const limitMb = sizeLimit / (1024 * 1024);
-      throw new BadRequestException(
-        `File too large. Maximum allowed size for this file type is ${limitMb} MB.`,
-      );
-    }
-
-    // Org-ownership enforcement: skip for global admins
     const isGlobalAdmin =
       req.user.role === Role.SUPER_ADMIN ||
       req.user.role === Role.PLATFORM_ADMIN;
@@ -106,12 +58,31 @@ export class FilesController {
     return this.filesService.saveFile(dto, file, req.user.id);
   }
 
-  /**
-   * DELETE /files/:id
-   * Removes a file from disk and the database.
-   */
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/download')
+  async downloadFile(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    const payload = await this.filesService.getDownloadPayload(id, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId ?? null,
+    });
+
+    res.setHeader('Content-Type', payload.mimeType);
+    res.setHeader('Content-Length', String(payload.buffer.length));
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${sanitizeHeaderFilename(payload.filename)}"; filename*=UTF-8''${encodeURIComponent(payload.filename)}`,
+    );
+    res.send(payload.buffer);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
+  @Access(AccessLevel.WRITE)
   async deleteFile(
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
@@ -122,4 +93,8 @@ export class FilesController {
       organizationId: req.user.organizationId ?? null,
     });
   }
+}
+
+function sanitizeHeaderFilename(filename: string) {
+  return (filename || 'download').replace(/["\r\n\\]/g, '_');
 }

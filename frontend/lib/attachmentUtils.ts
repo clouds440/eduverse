@@ -25,8 +25,33 @@ export const PRESENTATION_FILE_TYPES = new Set([
 export const ARCHIVE_FILE_TYPES = new Set([
     'application/zip',
     'application/x-zip-compressed',
-    'application/x-rar-compressed',
-    'application/vnd.rar',
+]);
+
+export const CODE_FILE_TYPES = new Set([
+    'application/json',
+    'application/javascript',
+    'application/sql',
+    'application/typescript',
+    'application/xml',
+    'application/x-javascript',
+    'application/x-python-code',
+    'image/svg+xml',
+    'text/css',
+    'text/html',
+    'text/javascript',
+    'text/jsx',
+    'text/markdown',
+    'text/plain',
+    'text/tsx',
+    'text/typescript',
+    'text/x-c',
+    'text/x-c++src',
+    'text/x-csrc',
+    'text/x-java-source',
+    'text/x-python',
+    'text/x-typescript',
+    'text/xml',
+    'video/mp2t',
 ]);
 
 export const ALLOWED_UPLOAD_TYPES = new Set([
@@ -37,7 +62,7 @@ export const ALLOWED_UPLOAD_TYPES = new Set([
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/zip', 'application/x-zip-compressed',
-    'application/x-rar-compressed', 'application/vnd.rar',
+    ...CODE_FILE_TYPES,
 ]);
 
 export function getFileTypeInfo(fileType: string) {
@@ -46,6 +71,7 @@ export function getFileTypeInfo(fileType: string) {
     const isSpreadsheet = SPREADSHEET_FILE_TYPES.has(fileType);
     const isPresentation = PRESENTATION_FILE_TYPES.has(fileType);
     const isArchive = ARCHIVE_FILE_TYPES.has(fileType);
+    const isCode = CODE_FILE_TYPES.has(fileType);
 
     if (isPdf) return {
         color: '#ef4444',
@@ -76,6 +102,12 @@ export function getFileTypeInfo(fileType: string) {
         bg: 'rgba(245, 158, 11, 0.1)',
         label: 'ARCHIVE',
         tag: 'ARCHIVE:'
+    };
+    if (isCode) return {
+        color: '#8b5cf6',
+        bg: 'rgba(139, 92, 246, 0.1)',
+        label: 'CODE',
+        tag: 'CODE:'
     };
     return {
         color: '#64748b',

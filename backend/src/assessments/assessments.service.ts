@@ -15,6 +15,7 @@ import { UpdateGradeDto } from './dto/update-grade.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { getDepartmentScope, sectionDepartmentScopeWhere } from '../common/department-scope';
 import { GpaService } from '../gpa/gpa.service';
+import { FilesService } from '../files/files.service';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -49,6 +50,7 @@ export class AssessmentsService {
     private readonly studentService: StudentService,
     private readonly sectionsService: SectionsService,
     private readonly gpaService: GpaService,
+    private readonly filesService: FilesService,
   ) {}
 
   // --- Assessments ---
@@ -298,7 +300,7 @@ export class AssessmentsService {
       where: { entityType: 'ASSESSMENT', entityId: id },
     });
 
-    return { ...assessment, files };
+    return { ...assessment, files: this.filesService.toPublicFiles(files) };
   }
 
   // --- Grades ---
@@ -1089,10 +1091,11 @@ export class AssessmentsService {
     const files = await this.prisma.file.findMany({
       where: { entityType: 'SUBMISSION', entityId: { in: submissionIds } },
     });
+    const publicFiles = this.filesService.toPublicFiles(files);
 
     return submissions.map((s) => ({
       ...s,
-      files: files.filter((f) => f.entityId === s.id),
+      files: publicFiles.filter((f) => f.entityId === s.id),
     }));
   }
 }

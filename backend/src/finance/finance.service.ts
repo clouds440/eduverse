@@ -22,6 +22,7 @@ import {
 import { Role } from '../common/enums';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { formatPaginatedResponse } from '../common/utils';
+import { FilesService } from '../files/files.service';
 
 type FinanceFilters = {
   studentId?: string;
@@ -75,7 +76,10 @@ const EXPENSE_TARGETS = [FinanceTargetType.TEACHER, FinanceTargetType.SUB_ADMIN,
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly filesService: FilesService,
+  ) {}
 
   async createStructure(dto: CreateFinancialStructureDto, reqUser: AuthenticatedRequest['user'], audit?: AuditContext) {
     const orgId = dto.organizationId || reqUser.organizationId;
@@ -1245,7 +1249,7 @@ export class FinanceService {
         claimId: input.claimId,
         transactionId: input.transactionId,
         fileId: file.id,
-        url: file.path,
+        url: this.filesService.toPublicFile(file).path,
         filename: file.filename,
         mimeType: file.mimeType,
         size: file.size,

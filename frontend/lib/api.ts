@@ -964,7 +964,7 @@ export const api = {
 
     files: {
         // FIX 3 applied: was duplicating raw fetch + 401 handling + error parsing
-        uploadFile: (orgId: string, entityType: string, entityId: string, file: File, token: string): Promise<{ id?: string; url?: string; path?: string; filename?: string; mimeType?: string; size?: number; uploadedBy?: string }> => {
+        uploadFile: (orgId: string, entityType: string, entityId: string, file: File, token: string): Promise<{ id?: string; url?: string; path?: string; filename?: string; mimeType?: string; size?: number; uploadedBy?: string; resourceType?: string; deliveryType?: string; fileKind?: string; extension?: string | null; sha256?: string | null; scanStatus?: string }> => {
             const formData = new FormData();
             formData.append('orgId', orgId);
             formData.append('entityType', entityType);

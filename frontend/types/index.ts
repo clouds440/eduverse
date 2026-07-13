@@ -543,6 +543,12 @@ export interface Attachment {
     filename: string;
     mimeType: string;
     size: number;
+    resourceType?: string | null;
+    deliveryType?: string | null;
+    fileKind?: string | null;
+    extension?: string | null;
+    sha256?: string | null;
+    scanStatus?: string | null;
     uploadedBy: string;
     createdAt: string;
 }

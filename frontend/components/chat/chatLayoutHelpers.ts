@@ -11,6 +11,7 @@ import {
     SPREADSHEET_FILE_TYPES,
     WORD_FILE_TYPES
 } from '@/lib/attachmentUtils';
+import { isGenericUploadAllowed } from '@/lib/uploadPolicy';
 
 export type ChatMessageWithMeta = ChatMessage & {
     readBy?: string[];
@@ -172,9 +173,6 @@ type FileUploadResult = {
     path?: string;
 };
 
-/** File extensions allowed as fallback when MIME type is empty */
-const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf', '.docx', '.xlsx', '.pptx', '.zip', '.rar', '.doc', '.ppt', '.xls']);
-
 /**
  * Filter an array of Files to only those matching allowed chat upload types.
  * Uses MIME type first, then falls back to extension if MIME is missing.
@@ -182,11 +180,7 @@ const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.
 export function filterValidFiles(files: File[]): File[] {
     return files.filter(file => {
         if (ALLOWED_UPLOAD_TYPES.has(file.type)) return true;
-        if (!file.type) {
-            const lowerName = file.name.toLowerCase();
-            return Array.from(ALLOWED_EXTENSIONS).some(ext => lowerName.endsWith(ext));
-        }
-        return false;
+        return isGenericUploadAllowed(file);
     });
 }
 
@@ -248,7 +242,7 @@ export function buildAttachmentMarkdown(files: File[], uploadResults: FileUpload
         const file = files[index];
         const url = result.url || result.path || '';
         const safeName = escapeFileName(file.name);
-        const isImage = file.type.startsWith('image/');
+        const isImage = file.type.startsWith('image/') && file.type !== 'image/svg+xml';
         const isPdf = file.type === 'application/pdf';
         const isArchive = ARCHIVE_FILE_TYPES.has(file.type);
         const fileInfo = getSharedFileTypeInfo(file.type);

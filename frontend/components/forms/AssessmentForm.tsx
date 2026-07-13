@@ -16,6 +16,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { assessmentSchema, AssessmentFormData } from '@/lib/schemas';
 import { Toggle } from '@/components/ui/Toggle';
+import { GENERIC_UPLOAD_ACCEPT } from '@/lib/uploadPolicy';
 
 interface AssessmentFormProps {
     sectionId: string;
@@ -240,7 +241,7 @@ export default function AssessmentForm({
                                         setSelectedFile(e.target.files[0]);
                                     }
                                 }}
-                                accept=".txt,.pdf,image/*,.docx,.xlsx,.pptx,.zip"
+                                accept={GENERIC_UPLOAD_ACCEPT}
                             />
                             <Label
                                 htmlFor="file-upload"

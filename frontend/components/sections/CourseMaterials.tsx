@@ -28,6 +28,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ExternalLinkInput } from '@/components/ui/ExternalLinkInput';
 import { downloadFile, formatBytes } from '@/lib/utils';
 import { CourseSectionLabel } from './SectionLabel';
+import { GENERIC_UPLOAD_ACCEPT } from '@/lib/uploadPolicy';
 
 function getFileIcon(mimeType: string) {
   if (mimeType.startsWith('image/')) return FileImage;
@@ -539,6 +540,7 @@ function UploadMaterialModal({
               type="file"
               multiple
               onChange={(event) => event.target.files && handleFileUpload(event.target.files)}
+              accept={GENERIC_UPLOAD_ACCEPT}
               className="hidden"
               id="file-upload"
               disabled={state.ui.processing['material-create'] || Boolean(material && state.ui.processing[`material-edit-${material.id}`])}
@@ -549,7 +551,7 @@ function UploadMaterialModal({
                 {state.ui.processing['material-create'] || Boolean(material && state.ui.processing[`material-edit-${material.id}`]) ? 'Uploading...' : 'Click to upload files'}
               </span>
               <span className="text-xs font-semibold text-muted-foreground/70">
-                PDF, DOCX, XLSX, PPTX, ZIP
+                PDF, Office files, images, ZIP, and source code
               </span>
             </label>
           </div>

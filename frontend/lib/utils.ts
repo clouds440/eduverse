@@ -238,9 +238,10 @@ export function getUserColor(userId: string | undefined | null): string {
  */
 export async function downloadFile(url: string, filename: string): Promise<void> {
     try {
-        const safeUrl = normalizeSafeUrl(url, { allowRelative: true });
+        const resolvedUrl = url.startsWith('/') ? getPublicUrl(url) : url;
+        const safeUrl = normalizeSafeUrl(resolvedUrl, { allowRelative: true });
         if (!safeUrl) throw new Error('Unsafe download URL');
-        const response = await fetch(safeUrl);
+        const response = await fetch(safeUrl, { credentials: 'include' });
         if (!response.ok) throw new Error(`Download failed with ${response.status}`);
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);

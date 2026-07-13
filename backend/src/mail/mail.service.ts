@@ -18,6 +18,7 @@ import { UpdateMailDto } from './dto/update-mail.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { MailUser } from './interfaces/mail-user.interface';
 import { formatRoleLabel } from '../common/role-labels';
+import { FilesService } from '../files/files.service';
 
 /** Maximum active (non-resolved/closed) mails per user */
 const MAX_ACTIVE_MAILS = 10;
@@ -75,6 +76,7 @@ export class MailService {
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
     private readonly notifications: NotificationsService,
+    private readonly filesService: FilesService,
   ) {}
 
   // ──────────────────────────────── Create ─────────────────────────────────
@@ -718,10 +720,11 @@ export class MailService {
         entityId: true,
       },
     });
+    const publicFiles = this.filesService.toPublicFiles(allFiles);
 
     // Group files by messageId for easy lookup
-    type FileRecord = (typeof allFiles)[number];
-    const filesMap = allFiles.reduce<Record<string, FileRecord[]>>(
+    type FileRecord = (typeof publicFiles)[number];
+    const filesMap = publicFiles.reduce<Record<string, FileRecord[]>>(
       (acc, file) => {
         if (!acc[file.entityId]) acc[file.entityId] = [];
         acc[file.entityId].push(file);
