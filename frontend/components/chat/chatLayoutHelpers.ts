@@ -1,4 +1,4 @@
-import { Chat, ChatMessage, ChatType, User } from '@/types';
+import { Chat, ChatMentionTarget, ChatMessage, ChatType, User } from '@/types';
 import { RefObject } from 'react';
 import { isToday, isYesterday, format } from 'date-fns';
 import { registerOptimisticImageFallbacks } from '@/lib/optimisticMedia';
@@ -20,7 +20,7 @@ export type ChatMessageWithMeta = ChatMessage & {
         draftText: string;
         stagedFiles: File[];
         replyToMessage: ChatMessage | null;
-        mentionedUsers: User[];
+        mentionTargets: ChatMentionTarget[];
     };
 };
 
@@ -29,7 +29,7 @@ export type ChatComposerState = {
     stagedFiles: File[];
     replyToMessage: ChatMessage | null;
     editingMessage: ChatMessage | null;
-    mentionedUsers: User[];
+    mentionTargets: ChatMentionTarget[];
 };
 
 export type ChatComposerStateMap = Record<string, ChatComposerState>;
@@ -61,7 +61,7 @@ export function createEmptyChatComposerState(): ChatComposerState {
         stagedFiles: [],
         replyToMessage: null,
         editingMessage: null,
-        mentionedUsers: [],
+        mentionTargets: [],
     };
 }
 

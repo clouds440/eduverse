@@ -177,7 +177,7 @@ function serializeComposerStates(states: ChatComposerStateMap): SerializedCompos
                     messageDraft: state.messageDraft,
                     replyToMessage: state.replyToMessage,
                     editingMessage: state.editingMessage,
-                    mentionedUsers: state.mentionedUsers,
+                    mentionTargets: state.mentionTargets,
                     stagedFileIds,
                 } satisfies SerializedComposerState];
             })
@@ -187,7 +187,7 @@ function serializeComposerStates(states: ChatComposerStateMap): SerializedCompos
                     composerState.messageDraft ||
                     composerState.replyToMessage ||
                     composerState.editingMessage ||
-                    composerState.mentionedUsers.length > 0 ||
+                    composerState.mentionTargets.length > 0 ||
                     composerState.stagedFileIds.length > 0
                 );
             })
@@ -388,7 +388,7 @@ export async function hydrateCachedComposerStates(): Promise<ChatComposerStateMa
                     stagedFiles,
                     replyToMessage: state.replyToMessage || null,
                     editingMessage: state.editingMessage || null,
-                    mentionedUsers: state.mentionedUsers || [],
+                    mentionTargets: state.mentionTargets || [],
                 } satisfies ChatComposerState] as const;
             })
         );

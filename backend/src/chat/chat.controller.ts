@@ -8,6 +8,7 @@ import {
   Request,
   Query,
   Patch,
+  Delete,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -16,7 +17,7 @@ import { CreateGroupChatDto } from './dto/create-group.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { AddParticipantsDto } from './dto/add-participants.dto';
-import { ChatParticipantRole, Role } from '@/prisma/prisma-client';
+import { ChatParticipantRole, CommunicationChannel, Role } from '@/prisma/prisma-client';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
@@ -77,6 +78,45 @@ export class ChatController {
     }, { cohortId, departmentId });
   }
 
+  @Get('communication/blocks')
+  async getCommunicationBlocks(
+    @Query('channel') channel: CommunicationChannel | undefined,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.getCommunicationBlocks({
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+    }, channel);
+  }
+
+  @Post('communication/blocks')
+  @Access(AccessLevel.WRITE)
+  async blockCommunicationTarget(
+    @Body() dto: { targetUserId?: string; channel?: CommunicationChannel },
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.blockCommunicationTarget(dto, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+    });
+  }
+
+  @Delete('communication/blocks/:targetUserId')
+  @Access(AccessLevel.WRITE)
+  async unblockCommunicationTarget(
+    @Param('targetUserId') targetUserId: string,
+    @Query('channel') channel: CommunicationChannel | undefined,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.unblockCommunicationTarget(targetUserId, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+    }, channel);
+  }
+
   @Post('direct')
   @Access(AccessLevel.WRITE)
   async createDirectChat(
@@ -118,6 +158,18 @@ export class ChatController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.chatService.getChat(id, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+    });
+  }
+
+  @Get(':id/mention-options')
+  async getMentionOptions(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.getMentionOptions(id, {
       id: req.user.id,
       role: req.user.role,
       organizationId: req.user.organizationId,

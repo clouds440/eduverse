@@ -16,6 +16,7 @@ import { getUserColor, downloadFile, formatBytes } from '@/lib/utils';
 import { GENERIC_UPLOAD_ACCEPT } from '@/lib/uploadPolicy';
 import {
     getUserChatsCached,
+    invalidateChats,
     insertOrUpdateChatFromMessage,
     markAsReadGuard,
     getCachedChats,
@@ -26,6 +27,7 @@ import {
     hydrateCachedComposerStates
 } from '@/lib/chatStore';
 import { Chat, ChatMessage, ChatParticipant, ChatType, ChatMessageType, PaginatedResponse, Role, User, ChatParticipantRole } from '@/types';
+import { getDirectMessageBlockLabel } from '@/lib/communicationOptions';
 import { formatDistanceToNow } from 'date-fns';
 import {
     Search, Paperclip, MessageSquarePlus, MessageSquareDashed, SendHorizonal as Send, MoreVertical, X, Loader2,
@@ -43,6 +45,20 @@ import { MessageContextMenu } from './MessageActionsDropdown';
 import { ChatAvatar } from './ChatAvatar';
 import { ChatMessageList } from './ChatMessageList';
 import { ImagePreviewModal } from './ImagePreviewModal';
+import { BlockedDmUsersModal } from './BlockedDmUsersModal';
+import { ChatListHeaderActions } from './ChatListHeaderActions';
+import { DirectMessageBlockMenuItem } from './DirectMessageBlockMenuItem';
+import { MentionPickerDrawer } from './MentionPickerDrawer';
+import { useChatMentionOptions } from '@/hooks/useChatMentionOptions';
+import {
+    dedupeMentionTargets,
+    getMentionTargetLabel,
+    getMentionTrigger,
+    insertMentionToken,
+    removeMentionTargetsMissingFromDraft,
+    sanitizeMentionTargetsForApi,
+    type MentionTrigger,
+} from '@/lib/chatMentions';
 import {
     type ChatTypingEvent,
     type ChatTypingStateMap,
@@ -147,6 +163,7 @@ export function ChatLayout() {
     const [isComposerStateHydrated, setIsComposerStateHydrated] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+    const [isBlockedDmUsersModalOpen, setIsBlockedDmUsersModalOpen] = useState(false);
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
     const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -155,8 +172,7 @@ export function ChatLayout() {
     const [typingByChatId, setTypingByChatId] = useState<ChatTypingStateMap>({});
     const [mentionSearchQuery, setMentionSearchQuery] = useState('');
     const [showMentionDropdown, setShowMentionDropdown] = useState(false);
-    const [mentionCursorIndex, setMentionCursorIndex] = useState(0);
-    const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
+    const [mentionTrigger, setMentionTrigger] = useState<MentionTrigger | null>(null);
 
     // Modal state for image preview
     const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
@@ -454,6 +470,11 @@ export function ChatLayout() {
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Failed to load chats', type: 'error' } });
         }
     }, [token]);
+
+    const refreshChats = useCallback(() => {
+        invalidateChats();
+        void fetchChats();
+    }, [fetchChats]);
 
     useEffect(() => {
         fetchChats();
@@ -854,6 +875,10 @@ export function ChatLayout() {
             });
         });
 
+        const unsubCommunicationBlockUpdate = subscribe('chat:communication-block:update', () => {
+            refreshChats();
+        });
+
         const unsubRoomLeft = subscribe('roomLeft', (data: unknown) => {
             const leftData = data as { roomId: string; forced?: boolean };
             if (leftData.forced && leftData.roomId === `chat:${activeChatId}`) {
@@ -872,9 +897,10 @@ export function ChatLayout() {
             unsubDelete();
             unsubEdit();
             unsubUpdate();
+            unsubCommunicationBlockUpdate();
             unsubRoomLeft();
         };
-    }, [subscribe, activeChatId, token, user, closeActiveChat, isAtBottom, scrollToBottom, updateMessagesWithReadStatus, markChatRead]);
+    }, [subscribe, activeChatId, token, user, closeActiveChat, isAtBottom, scrollToBottom, updateMessagesWithReadStatus, markChatRead, refreshChats]);
 
     // 4. Join/Leave rooms, Sync URL, and request presence
     useEffect(() => {
@@ -973,6 +999,11 @@ export function ChatLayout() {
         () => activeChat?.participants?.filter(p => p.isActive) || [],
         [activeChat?.participants]
     );
+    const { data: mentionOptions, isLoading: isLoadingMentionOptions } = useChatMentionOptions(
+        activeChatId,
+        token,
+        showMentionDropdown && activeChat?.type === ChatType.GROUP,
+    );
     const activeChatComposerState = useMemo(
         () => getChatComposerState(chatComposerStates, activeChatId),
         [chatComposerStates, activeChatId]
@@ -989,7 +1020,7 @@ export function ChatLayout() {
         () => getTypingIndicatorLabel(activeChat, typingUsers),
         [activeChat, typingUsers]
     );
-    const { messageDraft, stagedFiles, replyToMessage, editingMessage, mentionedUsers } = activeChatComposerState;
+    const { messageDraft, stagedFiles, replyToMessage, editingMessage, mentionTargets } = activeChatComposerState;
     const [stagedFilePreviewUrls, setStagedFilePreviewUrls] = useState<Array<string | null>>([]);
 
     useEffect(() => {
@@ -1008,8 +1039,13 @@ export function ChatLayout() {
         () => activeChat?.participants?.find(p => p.userId === user?.id),
         [activeChat, user?.id]
     );
+    const directMessageBlockLabel = useMemo(
+        () => getDirectMessageBlockLabel(activeChat),
+        [activeChat]
+    );
     const canSendMessage = useMemo(() => {
         if (!activeChat || !currentUserParticipant) return false;
+        if (activeChat.type === ChatType.DIRECT && activeChat.directMessageBlock?.isBlocked) return false;
         // Direct chats should never be read-only
         if (activeChat.type === ChatType.DIRECT) return true;
         if (!activeChat.readOnly) return true;
@@ -1167,100 +1203,32 @@ export function ChatLayout() {
         updateComposerStateForChat(activeChatId, patch);
     }, [activeChatId, updateComposerStateForChat]);
 
-    const filteredMembers = useMemo(() => {
-        if (!activeChat || activeChat.type !== ChatType.GROUP) return [];
-        const members = activeChat.participants?.filter(p => p.isActive && p.userId !== user?.id) || [];
-        if (!mentionSearchQuery) return members;
-        return fuzzyFilterAndRank(members, mentionSearchQuery, (member) => [
-            member.user?.name,
-            member.user?.email,
-        ]);
-    }, [activeChat, mentionSearchQuery, user?.id]);
-
-    const handleSelectMember = useCallback((member: ChatParticipant) => {
-        if (!member.user || !member.user.name) return;
-        const textBefore = messageDraft.slice(0, mentionCursorIndex);
-        const textAfter = messageDraft.slice(textareaRef.current?.selectionStart || mentionCursorIndex + 1 + mentionSearchQuery.length);
-
-        // Ensure exactly one trailing space
-        const spaceSuffix = ' ';
-        const safeName = (member.user.name || '').replace(/`/g, '\\`');
-        const newText = `${textBefore}\`@${safeName}\`${spaceSuffix}${textAfter.trimStart()}`;
+    const handleSelectMentionTarget = useCallback((target: Parameters<typeof insertMentionToken>[0]['target']) => {
+        if (!mentionTrigger) return;
+        const selectionStart = textareaRef.current?.selectionStart || mentionTrigger.start + mentionSearchQuery.length + 1;
+        const { nextDraft, cursorIndex } = insertMentionToken({
+            draft: messageDraft,
+            trigger: mentionTrigger,
+            selectionStart,
+            target,
+        });
 
         updateActiveComposerState({
-            messageDraft: newText,
-            mentionedUsers: [...mentionedUsers.filter(u => u.id !== (member.user?.id || member.userId)), member.user]
+            messageDraft: nextDraft,
+            mentionTargets: dedupeMentionTargets([...mentionTargets, target]),
         });
         setShowMentionDropdown(false);
         setMentionSearchQuery('');
+        setMentionTrigger(null);
 
-        // Focus back
         setTimeout(() => {
             const el = textareaRef.current;
             if (el) {
                 el.focus();
-                const newPos = textBefore.length + member.user!.name!.length + 3; // +2 for backticks, +1 for @
-                el.setSelectionRange(newPos + 1, newPos + 1); // +1 to put cursor AFTER the added space
+                el.setSelectionRange(cursorIndex, cursorIndex);
             }
         }, 10);
-    }, [messageDraft, mentionCursorIndex, mentionSearchQuery, mentionedUsers, updateActiveComposerState]);
-
-    useEffect(() => {
-        if (showMentionDropdown && mentionDropdownRef.current && mentionSelectedIndex >= 0) {
-            const container = mentionDropdownRef.current;
-            const children = container.querySelectorAll('.mention-item');
-            const activeItem = children[mentionSelectedIndex] as HTMLElement | null;
-            if (activeItem) {
-                activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            }
-        }
-    }, [mentionSelectedIndex, showMentionDropdown]);
-
-    const renderMentionDropdown = (placement: 'desktop' | 'mobile') => {
-        if (!showMentionDropdown || filteredMembers.length === 0) return null;
-
-        const isMobile = placement === 'mobile';
-
-        return (
-            <div
-                className={[
-                    isMobile
-                        ? 'fixed inset-x-3 mx-auto max-w-md'
-                        : 'absolute bottom-full left-0 mb-2 w-64 max-w-[calc(100vw-2rem)]',
-                    'bg-card border border-border rounded-xl shadow-2xl z-500 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200'
-                ].join(' ')}
-                style={isMobile ? { bottom: `calc(${composerHeight}px + 0.5rem)` } : undefined}
-            >
-                <div className="p-1.5 sm:p-2 border-b border-border">
-                    <p className="text-[10px] sm:text-[11px] font-bold text-muted-foreground tracking-wider px-2">
-                        Group Members
-                    </p>
-                </div>
-                <div
-                    ref={mentionDropdownRef}
-                    className="max-h-56 sm:max-h-60 overflow-y-auto py-1 custom-scrollbar"
-                >
-                    {filteredMembers.map((member, idx) => (
-                        <button
-                            key={member.userId}
-                            type="button"
-                            onPointerDown={(e) => {
-                                e.preventDefault();
-                                handleSelectMember(member);
-                            }}
-                            className={`mention-item w-full flex items-center space-x-2 sm:space-x-3 px-2.5 sm:px-3 py-2 transition-colors ${idx === mentionSelectedIndex ? 'bg-primary/10' : 'hover:bg-muted'}`}
-                        >
-                            <ChatAvatar targetUser={member.user} className="w-7 h-7" isOnline={!!onlineUsers[member.userId]} />
-                            <div className="text-left min-w-0 flex-1">
-                                <p className="text-[12px] sm:text-[13px] font-semibold text-foreground truncate">{member.user?.name}</p>
-                                <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate">{getRoleLabel(member.user?.role, '')}</p>
-                            </div>
-                        </button>
-                    ))}
-                </div>
-            </div>
-        );
-    };
+    }, [mentionSearchQuery.length, mentionTargets, mentionTrigger, messageDraft, updateActiveComposerState]);
 
     const handleSendMessage = useCallback(async (retryMessage?: ChatMessageWithMeta) => {
         const chatId = activeChatId;
@@ -1269,6 +1237,10 @@ export function ChatLayout() {
         const replyTarget = retryMessage?.retryPayload?.replyToMessage ?? replyToMessage;
 
         if (!token || !user || !chatId || (!draftText && filesToSend.length === 0)) return;
+        if (activeChat?.type === ChatType.DIRECT && activeChat.directMessageBlock?.isBlocked) {
+            dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Direct messages are blocked in this chat', type: 'info' } });
+            return;
+        }
         if (sendLockRef.current || isSending || isUploading) return;
         sendLockRef.current = true;
         emitTypingStop();
@@ -1301,7 +1273,7 @@ export function ChatLayout() {
                             draftText,
                             stagedFiles: [...filesToSend],
                             replyToMessage: replyTarget || null,
-                            mentionedUsers: [...mentionedUsers]
+                            mentionTargets: [...mentionTargets]
                         }
                     };
                     setMessages(prev => [...prev, optimisticMessage]);
@@ -1314,7 +1286,7 @@ export function ChatLayout() {
                             draftText,
                             stagedFiles: [...filesToSend],
                             replyToMessage: replyTarget || null,
-                            mentionedUsers: [...mentionedUsers]
+                            mentionTargets: [...mentionTargets]
                         }
                     } : msg));
                 }
@@ -1351,9 +1323,8 @@ export function ChatLayout() {
                 await api.chat.editMessage(chatId, editingMessage.id, finalContent, token);
                 updateComposerStateForChat(chatId, { editingMessage: null });
             } else {
-                const mentionedUserIds = mentionedUsers.map(u => u.id);
-                const sentMessage = await api.chat.sendMessage(chatId, finalContent || 'Sent an attachment', token, replyTarget?.id || undefined, mentionedUserIds);
-                updateComposerStateForChat(chatId, { mentionedUsers: [] });
+                const sentMessage = await api.chat.sendMessage(chatId, finalContent || 'Sent an attachment', token, replyTarget?.id || undefined, sanitizeMentionTargetsForApi(mentionTargets));
+                updateComposerStateForChat(chatId, { mentionTargets: [] });
                 if (tempMessageId) {
                     setMessages(prev => reconcileIncomingMessage(prev, sentMessage, user.id, tempMessageId));
                 }
@@ -1392,7 +1363,7 @@ export function ChatLayout() {
                         draftText,
                         stagedFiles: [...filesToSend],
                         replyToMessage: replyTarget || null,
-                        mentionedUsers: [...mentionedUsers]
+                        mentionTargets: [...mentionTargets]
                     }
                 } : msg));
             }
@@ -1402,7 +1373,7 @@ export function ChatLayout() {
             sendLockRef.current = false;
             setIsSending(false);
         }
-    }, [messageDraft, stagedFiles, replyToMessage, mentionedUsers, token, user, activeChatId, activeChat?.organizationId, isSending, isUploading, editingMessage, scrollToBottom, updateComposerStateForChat, emitTypingStop]);
+    }, [messageDraft, stagedFiles, replyToMessage, mentionTargets, token, user, activeChatId, activeChat, isSending, isUploading, editingMessage, scrollToBottom, updateComposerStateForChat, emitTypingStop]);
 
     const handleDeleteMessage = useCallback((messageId: string) => {
         if (!token || !activeChatId) return;
@@ -1623,16 +1594,11 @@ export function ChatLayout() {
                         <h2 className="text-[17px] sm:text-lg font-black text-foreground tracking-tight leading-tight">Messages</h2>
                         <p className="text-[11px] sm:text-[12px] text-muted-foreground font-semibold tracking-wide mt-1">{chats.length} conversation{chats.length !== 1 ? 's' : ''}</p>
                     </div>
-                    {user.role !== Role.STUDENT && (
-                        <button
-                            type="button"
-                            onClick={() => setIsNewChatModalOpen(true)}
-                            className="p-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 cursor-pointer transition-all shadow-sm hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                            title="New Chat"
-                        >
-                            <MessageSquarePlus size={18} />
-                        </button>
-                    )}
+                    <ChatListHeaderActions
+                        canCreateChat={user.role !== Role.STUDENT}
+                        onNewChat={() => setIsNewChatModalOpen(true)}
+                        onOpenBlockedDms={() => setIsBlockedDmUsersModalOpen(true)}
+                    />
                 </div>
 
                 {/* Group Filters */}
@@ -1728,6 +1694,7 @@ export function ChatLayout() {
 
                             const isActive = activeChatId === chat.id;
                             const hasUnread = chat.unreadCount !== undefined && chat.unreadCount > 0 && !isCleared;
+                            const dmBlockLabel = getDirectMessageBlockLabel(chat);
 
                             return (
                                 <div key={chat.id} className="relative group mx-2 mb-1 first:mt-1">
@@ -1782,6 +1749,9 @@ export function ChatLayout() {
                                                 <p className={`text-[11px] sm:text-[13px] truncate flex-1 ${hasUnread ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                                                     {(() => {
                                                         const chatTypingUsers = getTypingUsersForChat(typingByChatId, chat.id, user?.id);
+                                                        if (dmBlockLabel) {
+                                                            return <span className="text-warning text-[10px]">{dmBlockLabel}</span>;
+                                                        }
                                                         if (chatTypingUsers.length > 0) {
                                                             const typingLabel = chat.type === ChatType.GROUP
                                                                 ? `${(chatTypingUsers[0].name || 'Someone').replace(/[()`]/g, '\\$&')} ${chatTypingUsers.length === 1 ? 'is' : 'are'} typing...`
@@ -1844,6 +1814,15 @@ export function ChatLayout() {
                                                 <Trash2 size={14} />
                                                 Clear History
                                             </button>
+                                            {token && (
+                                                <DirectMessageBlockMenuItem
+                                                    chat={chat}
+                                                    currentUser={user as User}
+                                                    token={token}
+                                                    onCloseMenu={() => setChatMenuOpenId(null)}
+                                                    onChanged={refreshChats}
+                                                />
+                                            )}
                                             {chat.type === ChatType.GROUP && (
                                                 <button
                                                     type='button'
@@ -2184,16 +2163,16 @@ export function ChatLayout() {
                                     )}
 
                                     {/* Mention Banner */}
-                                    {mentionedUsers.length > 0 && !editingMessage && (
+                                    {mentionTargets.length > 0 && !editingMessage && (
                                         <div className="mb-1.5 sm:mb-1 px-2.5 sm:px-3 py-2 sm:py-2 mr-2 bg-muted border-l-4 border-primary rounded-lg flex items-center justify-between animate-in slide-in-from-bottom duration-200">
                                             <div className="flex-1 min-w-0 pr-2 sm:pr-3">
                                                 <p className="text-[12px] sm:text-[13px] font-semibold text-primary mb-0.5">
                                                     Mentioning
                                                 </p>
                                                 <div className="flex flex-wrap gap-1">
-                                                    {mentionedUsers.map(u => (
-                                                        <span key={u.id} className="text-[11px] sm:text-[12px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">
-                                                            @{u.name}
+                                                    {mentionTargets.map(target => (
+                                                        <span key={`${target.type}:${target.userId || target.role || `${target.audienceRole}:${target.scopeType}:${target.scopeId}`}`} className="text-[11px] sm:text-[12px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-md font-medium">
+                                                            @{getMentionTargetLabel(target)}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -2201,7 +2180,7 @@ export function ChatLayout() {
                                             <button
                                                 title='Clear Mentions'
                                                 type="button"
-                                                onClick={() => updateActiveComposerState({ mentionedUsers: [] })}
+                                                onClick={() => updateActiveComposerState({ mentionTargets: [] })}
                                                 className="p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                             >
                                                 <X size={14} className="text-primary/80 hover:text-primary" />
@@ -2301,13 +2280,12 @@ export function ChatLayout() {
                                                             const newVal = el.value;
                                                             const cursorIdx = el.selectionStart || 0;
 
-                                                            // Auto-deselect mentions if they are erased from text (check specifically for `@name`)
-                                                            const remainingMentions = mentionedUsers.filter(u => newVal.includes(`@${u.name}`));
-                                                            const wasMentionRemoved = remainingMentions.length !== mentionedUsers.length;
+                                                            const remainingMentions = removeMentionTargetsMissingFromDraft(mentionTargets, newVal);
+                                                            const wasMentionRemoved = remainingMentions.length !== mentionTargets.length;
 
                                                             updateActiveComposerState({
                                                                 messageDraft: newVal,
-                                                                ...(wasMentionRemoved ? { mentionedUsers: remainingMentions } : {})
+                                                                ...(wasMentionRemoved ? { mentionTargets: remainingMentions } : {})
                                                             });
 
                                                             // Trigger typing indicator
@@ -2321,44 +2299,23 @@ export function ChatLayout() {
                                                             el.style.height = el.scrollHeight + 'px';
                                                             el.style.height = Math.min(el.scrollHeight, 200) + 'px';
 
-                                                            // @Mention Detection
-                                                            const textBeforeCursor = newVal.slice(0, cursorIdx);
-                                                            const lastAtIdx = textBeforeCursor.lastIndexOf('@');
-                                                            if (lastAtIdx !== -1 && (lastAtIdx === 0 || textBeforeCursor[lastAtIdx - 1] === ' ')) {
-                                                                const query = textBeforeCursor.slice(lastAtIdx + 1);
-                                                                if (!query.includes(' ')) {
-                                                                    setMentionSearchQuery(query);
-                                                                    setShowMentionDropdown(true);
-                                                                    setMentionCursorIndex(lastAtIdx);
-                                                                    setMentionSelectedIndex(0); // Reset index
-                                                                } else {
-                                                                    setShowMentionDropdown(false);
-                                                                }
+                                                            const trigger = activeChat?.type === ChatType.GROUP
+                                                                ? getMentionTrigger(newVal, cursorIdx)
+                                                                : null;
+                                                            if (trigger) {
+                                                                setMentionSearchQuery(trigger.query);
+                                                                setMentionTrigger(trigger);
+                                                                setShowMentionDropdown(true);
                                                             } else {
+                                                                setMentionTrigger(null);
                                                                 setShowMentionDropdown(false);
                                                             }
                                                         }}
                                                         onKeyDown={(e) => {
-                                                            if (showMentionDropdown && filteredMembers.length > 0) {
-                                                                if (e.key === 'ArrowDown') {
-                                                                    e.preventDefault();
-                                                                    setMentionSelectedIndex(prev => (prev + 1) % filteredMembers.length);
-                                                                    return;
-                                                                }
-                                                                if (e.key === 'ArrowUp') {
-                                                                    e.preventDefault();
-                                                                    setMentionSelectedIndex(prev => (prev - 1 + filteredMembers.length) % filteredMembers.length);
-                                                                    return;
-                                                                }
-                                                                if (e.key === 'Enter' || e.key === 'Tab') {
-                                                                    e.preventDefault();
-                                                                    handleSelectMember(filteredMembers[mentionSelectedIndex]);
-                                                                    return;
-                                                                }
-                                                                if (e.key === 'Escape') {
-                                                                    setShowMentionDropdown(false);
-                                                                    return;
-                                                                }
+                                                            if (showMentionDropdown && e.key === 'Escape') {
+                                                                setMentionTrigger(null);
+                                                                setShowMentionDropdown(false);
+                                                                return;
                                                             }
                                                             handleKeyDown(e);
                                                         }}
@@ -2380,7 +2337,22 @@ export function ChatLayout() {
                                                         className={`w-full bg-transparent px-2 sm:px-3 py-2.5 translate-y-0.5 border-none text-[14px] sm:text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 resize-none max-h-70 leading-relaxed transition-[height] duration-500 ease-out`}
                                                     />
 
-                                                    {isDesktop && renderMentionDropdown('desktop')}
+                                                    {isDesktop && (
+                                                        <MentionPickerDrawer
+                                                            isOpen={showMentionDropdown}
+                                                            query={mentionSearchQuery}
+                                                            members={activeParticipants}
+                                                            options={mentionOptions}
+                                                            isLoadingOptions={isLoadingMentionOptions}
+                                                            isMobile={false}
+                                                            composerHeight={composerHeight}
+                                                            selectedTargets={mentionTargets}
+                                                            currentUserId={user?.id}
+                                                            onlineUsers={onlineUsers}
+                                                            onSelect={handleSelectMentionTarget}
+                                                            drawerRef={mentionDropdownRef}
+                                                        />
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -2423,7 +2395,7 @@ export function ChatLayout() {
                                 <div ref={readOnlyBannerRefCallback} className="absolute bottom-0 left-0 right-0 px-2 sm:px-3 py-2 sm:py-2.5 bg-warning/10 mr-2.5 mb-1 border-x-4 border-warning rounded-lg flex items-center justify-center gap-2 animate-in slide-in-from-bottom duration-200">
                                     <LockIcon size={14} className="text-warning shrink-0" />
                                     <p className="text-[11px] sm:text-[12px] md:text-[13px] font-semibold text-warning text-center">
-                                        Read-Only Mode - Only admins and moderators can send messages
+                                        {directMessageBlockLabel || 'Read-Only Mode - Only admins and moderators can send messages'}
                                     </p>
                                 </div>
                             )}
@@ -2456,6 +2428,15 @@ export function ChatLayout() {
                 onClose={() => setIsNewChatModalOpen(false)}
                 onChatCreated={handleChatCreated}
             />
+
+            {token && (
+                <BlockedDmUsersModal
+                    isOpen={isBlockedDmUsersModalOpen}
+                    onClose={() => setIsBlockedDmUsersModalOpen(false)}
+                    token={token}
+                    onChanged={refreshChats}
+                />
+            )}
 
             {activeChat && (
                 <ChatSettingsModal
@@ -2526,7 +2507,20 @@ export function ChatLayout() {
             )}
 
             {mounted && !isDesktop && createPortal(
-                renderMentionDropdown('mobile'),
+                <MentionPickerDrawer
+                    isOpen={showMentionDropdown}
+                    query={mentionSearchQuery}
+                    members={activeParticipants}
+                    options={mentionOptions}
+                    isLoadingOptions={isLoadingMentionOptions}
+                    isMobile
+                    composerHeight={composerHeight}
+                    selectedTargets={mentionTargets}
+                    currentUserId={user?.id}
+                    onlineUsers={onlineUsers}
+                    onSelect={handleSelectMentionTarget}
+                    drawerRef={mentionDropdownRef}
+                />,
                 document.body
             )}
         </div>

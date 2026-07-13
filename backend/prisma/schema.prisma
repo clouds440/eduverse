@@ -70,6 +70,7 @@ model Organization {
   aiUsages            AIUsage[]
   aiToolCallLogs      AIToolCallLog[]
   aiConversations     AIConversation[]
+  communicationBlocks UserCommunicationBlock[]
 
   @@index([status])
   @@index([type])
@@ -108,6 +109,8 @@ model User {
   chatParticipations    ChatParticipant[]  @relation("ChatParticipations")
   sentChatMessages      ChatMessage[]      @relation("SentChatMessages")
   deletedChatMessages   ChatMessage[]      @relation("DeletedChatMessages")
+  communicationBlocks   UserCommunicationBlock[] @relation("CommunicationBlockOwners")
+  communicationBlockedBy UserCommunicationBlock[] @relation("CommunicationBlockTargets")
   userNotifications     Notification[]     @relation("UserNotifications")
   createdAnnouncements  Announcement[]     @relation("CreatedAnnouncements")
   createdPreferenceWindows PreferenceWindow[] @relation("CreatedPreferenceWindows")
@@ -942,6 +945,10 @@ enum ChatMessageType {
   SYSTEM
 }
 
+enum CommunicationChannel {
+  DIRECT_MESSAGE
+}
+
 model Chat {
   id             String   @id @default(uuid())
   type           ChatType
@@ -1022,6 +1029,25 @@ model ChatMessage {
 }
 
 // ─── NOTIFICATION SYSTEM ─────────────────────────────────────────────────────
+model UserCommunicationBlock {
+  id             String               @id @default(uuid())
+  userId         String
+  targetUserId   String
+  organizationId String?
+  channel        CommunicationChannel @default(DIRECT_MESSAGE)
+  createdAt      DateTime             @default(now())
+
+  user         User          @relation("CommunicationBlockOwners", fields: [userId], references: [id], onDelete: Cascade)
+  targetUser   User          @relation("CommunicationBlockTargets", fields: [targetUserId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetUserId, channel])
+  @@index([userId])
+  @@index([targetUserId])
+  @@index([organizationId])
+  @@index([channel])
+}
+
 model Notification {
   id        String   @id @default(uuid())
   userId    String

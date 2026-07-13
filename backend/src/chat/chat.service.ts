@@ -17,9 +17,22 @@ import {
   ChatType,
   ChatParticipantRole,
   ChatMessageType,
+  CommunicationChannel,
   Prisma,
 } from '@/prisma/prisma-client';
 import { fuzzyFilterAndRank } from '../common/utils';
+import {
+  canUseDirectMessageBlock,
+  DIRECT_MESSAGE_BLOCK_CHANNEL,
+  getDirectChatOtherParticipant,
+  getDirectMessageBlockState,
+} from './chat-communication.utils';
+import {
+  addScopeCount,
+  getMentionOptionRoles,
+  getMentionRecipientIdsFromTargets,
+  type ChatMentionOptions,
+} from './chat-mentions.utils';
 
 interface CurrentUser {
   id: string;
@@ -90,6 +103,189 @@ export class ChatService {
         },
       },
     } satisfies Prisma.UserSelect;
+  }
+
+  private getCommunicationBlockTargetSelect() {
+    return {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      avatarUrl: true,
+      avatarUpdatedAt: true,
+      organizationId: true,
+    } satisfies Prisma.UserSelect;
+  }
+
+  private async withDirectMessageBlockStates<
+    T extends {
+      type: ChatType;
+      participants?: Array<{
+        userId: string;
+        user?: { id: string; role: Role } | null;
+      }> | null;
+    },
+  >(chats: T[], user: CurrentUser) {
+    const directTargets = chats
+      .map((chat) => getDirectChatOtherParticipant(chat, user.id))
+      .filter((participant): participant is NonNullable<typeof participant> => Boolean(participant?.userId));
+    const targetIds = Array.from(new Set(directTargets.map((participant) => participant.userId)));
+
+    const blocks = targetIds.length
+      ? await this.prisma.userCommunicationBlock.findMany({
+        where: {
+          channel: DIRECT_MESSAGE_BLOCK_CHANNEL,
+          OR: [
+            { userId: user.id, targetUserId: { in: targetIds } },
+            { userId: { in: targetIds }, targetUserId: user.id },
+          ],
+        },
+        select: {
+          id: true,
+          userId: true,
+          targetUserId: true,
+          channel: true,
+        },
+      })
+      : [];
+
+    return chats.map((chat) => {
+      const otherParticipant = getDirectChatOtherParticipant(chat, user.id);
+      if (!otherParticipant?.user) {
+        return { ...chat, directMessageBlock: null };
+      }
+
+      const state = getDirectMessageBlockState(blocks, user.id, otherParticipant.userId);
+      const canBlock = canUseDirectMessageBlock(user.role, otherParticipant.user.role);
+
+      return {
+        ...chat,
+        directMessageBlock: {
+          ...state,
+          canBlock,
+          reason: canBlock ? null : 'Organization admins cannot use DM blocking.',
+        },
+      };
+    });
+  }
+
+  private async assertDirectMessagesAvailable(userId: string, targetUserId: string) {
+    const block = await this.prisma.userCommunicationBlock.findFirst({
+      where: {
+        channel: DIRECT_MESSAGE_BLOCK_CHANNEL,
+        OR: [
+          { userId, targetUserId },
+          { userId: targetUserId, targetUserId: userId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (block) {
+      throw new ForbiddenException('Direct messages are blocked between these users. Unblock DMs to continue.');
+    }
+  }
+
+  private async emitCommunicationBlockUpdate(userId: string, targetUserId: string) {
+    const chat = await this.prisma.chat.findFirst({
+      where: {
+        type: ChatType.DIRECT,
+        AND: [
+          { participants: { some: { userId } } },
+          { participants: { some: { userId: targetUserId } } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    const payload = { chatId: chat?.id ?? null, userId, targetUserId };
+    this.events.emitToRoom(`user:${userId}`, 'chat:communication-block:update', payload);
+    this.events.emitToRoom(`user:${targetUserId}`, 'chat:communication-block:update', payload);
+  }
+
+  private async getMentionProfileUsers(userIds: string[]) {
+    if (userIds.length === 0) return [];
+
+    return this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: {
+        id: true,
+        role: true,
+        studentProfile: {
+          select: {
+            cohortId: true,
+            primaryDepartmentId: true,
+            enrollments: {
+              select: {
+                sectionId: true,
+                isExcludedFromCohort: true,
+                section: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                    cohort: { select: { id: true, name: true, code: true } },
+                  },
+                },
+              },
+            },
+            studentDepartments: {
+              select: {
+                departmentId: true,
+                department: { select: { id: true, name: true, code: true } },
+              },
+            },
+            primaryDepartment: { select: { id: true, name: true, code: true } },
+            cohort: { select: { id: true, name: true, code: true } },
+          },
+        },
+        teacherProfile: {
+          select: {
+            sections: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                cohortId: true,
+                cohort: { select: { id: true, name: true, code: true } },
+              },
+            },
+            teacherDepartments: {
+              select: {
+                departmentId: true,
+                department: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  private async notifyMentionRecipients(options: {
+    chatId: string;
+    messageId: string;
+    senderId: string;
+    senderName: string;
+    chatName: string;
+    content: string;
+    recipientIds: string[];
+  }) {
+    const body =
+      options.content.length > 30
+        ? options.content.substring(0, 30) + '...'
+        : options.content;
+
+    for (const userId of options.recipientIds) {
+      if (userId === options.senderId) continue;
+      await this.notifications.createNotification({
+        userId,
+        title: `${options.senderName} mentioned you in ${options.chatName}.`,
+        body,
+        type: 'CHAT_MENTION',
+        actionUrl: `/chat?id=${options.chatId}&msgId=${options.messageId}`,
+      });
+    }
   }
 
   private async getAssignedStudentUserIds(userId: string, role: Role) {
@@ -554,6 +750,396 @@ export class ChatService {
     });
   }
 
+  async getCommunicationBlocks(
+    user: CurrentUser,
+    channel: CommunicationChannel = DIRECT_MESSAGE_BLOCK_CHANNEL,
+  ) {
+    if (channel !== DIRECT_MESSAGE_BLOCK_CHANNEL) {
+      throw new BadRequestException('Unsupported communication channel.');
+    }
+
+    return this.prisma.userCommunicationBlock.findMany({
+      where: {
+        userId: user.id,
+        channel,
+      },
+      include: {
+        targetUser: {
+          select: this.getCommunicationBlockTargetSelect(),
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getMentionOptions(chatId: string, user: CurrentUser): Promise<ChatMentionOptions> {
+    const participant = await this.verifyChatAccess(chatId, user.id);
+    if (!participant.isActive) {
+      throw new ForbiddenException('You are no longer an active participant of this chat.');
+    }
+
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: {
+        type: true,
+        participants: {
+          where: { isActive: true },
+          select: {
+            userId: true,
+            isActive: true,
+            user: { select: { role: true } },
+          },
+        },
+      },
+    });
+
+    if (!chat) throw new NotFoundException('Chat not found.');
+    if (chat.type !== ChatType.GROUP) {
+      return { roles: [], scopes: [] };
+    }
+
+    const activeUserIds = chat.participants.map((p) => p.userId);
+    const users = await this.getMentionProfileUsers(activeUserIds);
+    const scopeMap = new Map<string, ChatMentionOptions['scopes'][number]>();
+    const seenScopeUsers = new Set<string>();
+
+    for (const candidate of users) {
+      if (candidate.role === Role.STUDENT && candidate.studentProfile) {
+        const student = candidate.studentProfile;
+
+        for (const enrollment of student.enrollments || []) {
+          if (enrollment.isExcludedFromCohort) continue;
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'SECTION',
+              audienceRole: Role.STUDENT,
+              id: enrollment.section.id,
+              name: enrollment.section.name,
+              code: enrollment.section.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'SECTION',
+              audienceRole: 'EVERYONE',
+              id: enrollment.section.id,
+              name: enrollment.section.name,
+              code: enrollment.section.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+
+          if (enrollment.section.cohort) {
+            addScopeCount(
+              scopeMap,
+              {
+                type: 'COHORT',
+                audienceRole: Role.STUDENT,
+                id: enrollment.section.cohort.id,
+                name: enrollment.section.cohort.name,
+                code: enrollment.section.cohort.code,
+              },
+              candidate.id,
+              seenScopeUsers,
+            );
+            addScopeCount(
+              scopeMap,
+              {
+                type: 'COHORT',
+                audienceRole: 'EVERYONE',
+                id: enrollment.section.cohort.id,
+                name: enrollment.section.cohort.name,
+                code: enrollment.section.cohort.code,
+              },
+              candidate.id,
+              seenScopeUsers,
+            );
+          }
+        }
+
+        if (student.primaryDepartment) {
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'DEPARTMENT',
+              audienceRole: Role.STUDENT,
+              id: student.primaryDepartment.id,
+              name: student.primaryDepartment.name,
+              code: student.primaryDepartment.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'DEPARTMENT',
+              audienceRole: 'EVERYONE',
+              id: student.primaryDepartment.id,
+              name: student.primaryDepartment.name,
+              code: student.primaryDepartment.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+        }
+
+        for (const departmentLink of student.studentDepartments || []) {
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'DEPARTMENT',
+              audienceRole: Role.STUDENT,
+              id: departmentLink.department.id,
+              name: departmentLink.department.name,
+              code: departmentLink.department.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'DEPARTMENT',
+              audienceRole: 'EVERYONE',
+              id: departmentLink.department.id,
+              name: departmentLink.department.name,
+              code: departmentLink.department.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+        }
+
+        if (student.cohort) {
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'COHORT',
+              audienceRole: Role.STUDENT,
+              id: student.cohort.id,
+              name: student.cohort.name,
+              code: student.cohort.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'COHORT',
+              audienceRole: 'EVERYONE',
+              id: student.cohort.id,
+              name: student.cohort.name,
+              code: student.cohort.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+        }
+      }
+
+      if (candidate.role === Role.TEACHER && candidate.teacherProfile) {
+        const teacher = candidate.teacherProfile;
+
+        for (const section of teacher.sections || []) {
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'SECTION',
+              audienceRole: Role.TEACHER,
+              id: section.id,
+              name: section.name,
+              code: section.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'SECTION',
+              audienceRole: 'EVERYONE',
+              id: section.id,
+              name: section.name,
+              code: section.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+
+          if (section.cohort) {
+            addScopeCount(
+              scopeMap,
+              {
+                type: 'COHORT',
+                audienceRole: Role.TEACHER,
+                id: section.cohort.id,
+                name: section.cohort.name,
+                code: section.cohort.code,
+              },
+              candidate.id,
+              seenScopeUsers,
+            );
+            addScopeCount(
+              scopeMap,
+              {
+                type: 'COHORT',
+                audienceRole: 'EVERYONE',
+                id: section.cohort.id,
+                name: section.cohort.name,
+                code: section.cohort.code,
+              },
+              candidate.id,
+              seenScopeUsers,
+            );
+          }
+        }
+
+        for (const departmentLink of teacher.teacherDepartments || []) {
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'DEPARTMENT',
+              audienceRole: Role.TEACHER,
+              id: departmentLink.department.id,
+              name: departmentLink.department.name,
+              code: departmentLink.department.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+          addScopeCount(
+            scopeMap,
+            {
+              type: 'DEPARTMENT',
+              audienceRole: 'EVERYONE',
+              id: departmentLink.department.id,
+              name: departmentLink.department.name,
+              code: departmentLink.department.code,
+            },
+            candidate.id,
+            seenScopeUsers,
+          );
+        }
+      }
+    }
+
+    return {
+      roles: getMentionOptionRoles(chat.participants),
+      scopes: Array.from(scopeMap.values()).sort((a, b) => {
+        const byAudience = a.audienceRole.localeCompare(b.audienceRole);
+        if (byAudience !== 0) return byAudience;
+        const byType = a.type.localeCompare(b.type);
+        if (byType !== 0) return byType;
+        return a.name.localeCompare(b.name);
+      }),
+    };
+  }
+
+  async blockCommunicationTarget(
+    dto: { targetUserId?: string; channel?: CommunicationChannel },
+    user: CurrentUser,
+  ) {
+    const targetUserId = dto.targetUserId?.trim();
+    const channel = dto.channel || DIRECT_MESSAGE_BLOCK_CHANNEL;
+    if (channel !== DIRECT_MESSAGE_BLOCK_CHANNEL) {
+      throw new BadRequestException('Unsupported communication channel.');
+    }
+    if (!targetUserId) {
+      throw new BadRequestException('Choose a user to block.');
+    }
+    if (targetUserId === user.id) {
+      throw new BadRequestException('You cannot block DMs from yourself.');
+    }
+
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: this.getCommunicationBlockTargetSelect(),
+    });
+    if (!targetUser) throw new NotFoundException('User not found.');
+
+    if (!canUseDirectMessageBlock(user.role, targetUser.role as Role)) {
+      throw new BadRequestException('Organization admins cannot use DM blocking.');
+    }
+
+    const userCanContactTarget = await this.canCreateDirectChatWith(user, {
+      id: targetUser.id,
+      role: targetUser.role as Role,
+      organizationId: targetUser.organizationId,
+    });
+    const targetCanContactUser = await this.canCreateDirectChatWith(
+      {
+        id: targetUser.id,
+        role: targetUser.role as Role,
+        organizationId: targetUser.organizationId,
+      },
+      {
+        id: user.id,
+        role: user.role,
+        organizationId: user.organizationId,
+      },
+    );
+
+    if (!userCanContactTarget && !targetCanContactUser) {
+      throw new ForbiddenException('You cannot block DMs from this user.');
+    }
+
+    const block = await this.prisma.userCommunicationBlock.upsert({
+      where: {
+        userId_targetUserId_channel: {
+          userId: user.id,
+          targetUserId,
+          channel,
+        },
+      },
+      create: {
+        userId: user.id,
+        targetUserId,
+        organizationId: user.organizationId,
+        channel,
+      },
+      update: {},
+      include: {
+        targetUser: {
+          select: this.getCommunicationBlockTargetSelect(),
+        },
+      },
+    });
+
+    await this.emitCommunicationBlockUpdate(user.id, targetUserId);
+    return block;
+  }
+
+  async unblockCommunicationTarget(
+    targetUserId: string,
+    user: CurrentUser,
+    channel: CommunicationChannel = DIRECT_MESSAGE_BLOCK_CHANNEL,
+  ) {
+    if (channel !== DIRECT_MESSAGE_BLOCK_CHANNEL) {
+      throw new BadRequestException('Unsupported communication channel.');
+    }
+    if (!targetUserId) {
+      throw new BadRequestException('Choose a user to unblock.');
+    }
+
+    await this.prisma.userCommunicationBlock.deleteMany({
+      where: {
+        userId: user.id,
+        targetUserId,
+        channel,
+      },
+    });
+
+    await this.emitCommunicationBlockUpdate(user.id, targetUserId);
+    return { message: 'DM block removed.' };
+  }
+
   async createDirectChat(dto: CreateDirectChatDto, user: CurrentUser) {
     if (user.id === dto.participantId) {
       throw new BadRequestException('Cannot chat with yourself.');
@@ -573,6 +1159,8 @@ export class ChatService {
     if (!allowed) {
       throw new ForbiddenException('You cannot start a direct chat with this user.');
     }
+
+    await this.assertDirectMessagesAvailable(user.id, targetUser.id);
 
     // Check if chat already exists
     const existingChat = await this.prisma.chat.findFirst({
@@ -1581,7 +2169,7 @@ export class ChatService {
       }),
     );
 
-    return chatsWithUnread;
+    return this.withDirectMessageBlockStates(chatsWithUnread, user);
   }
 
   async getChat(chatId: string, user: CurrentUser) {
@@ -1642,10 +2230,12 @@ export class ChatService {
       },
     });
 
-    return {
+    const [chatWithBlockState] = await this.withDirectMessageBlockStates([{
       ...chat,
       unreadCount,
-    };
+    }], user);
+
+    return chatWithBlockState;
   }
 
   async getChatMessages(
@@ -1814,8 +2404,22 @@ export class ChatService {
     // Check if chat is in readOnly mode (direct chats should never be read-only)
     const chat = await this.prisma.chat.findUnique({
       where: { id: chatId },
-      select: { readOnly: true, type: true },
+      select: {
+        readOnly: true,
+        type: true,
+        participants: {
+          where: { isActive: true },
+          select: { userId: true },
+        },
+      },
     });
+
+    if (chat?.type === ChatType.DIRECT) {
+      const targetParticipant = chat.participants.find((p) => p.userId !== user.id);
+      if (targetParticipant) {
+        await this.assertDirectMessagesAvailable(user.id, targetParticipant.userId);
+      }
+    }
 
     if (chat?.type === ChatType.GROUP && chat?.readOnly && participant.role !== ChatParticipantRole.ADMIN && participant.role !== ChatParticipantRole.MOD) {
       throw new ForbiddenException(
@@ -1873,32 +2477,32 @@ export class ChatService {
     }
 
     if (
-      dto.mentionedUserIds &&
-      dto.mentionedUserIds.length > 0 &&
-      newMessage.chat?.type === ChatType.GROUP
+      newMessage.chat?.type === ChatType.GROUP &&
+      ((dto.mentionedUserIds && dto.mentionedUserIds.length > 0) ||
+        (dto.mentionTargets && dto.mentionTargets.length > 0))
     ) {
       const senderName = newMessage.sender?.name || 'Someone';
       const chatName = newMessage.chat?.name || 'a group';
+      const mentionUsers = await this.getMentionProfileUsers(
+        activeParticipants.map((participant) => participant.userId),
+      );
+      const recipientIds = getMentionRecipientIdsFromTargets({
+        targets: dto.mentionTargets,
+        legacyUserIds: dto.mentionedUserIds,
+        senderId: user.id,
+        participants: activeParticipants,
+        users: mentionUsers,
+      });
 
-      for (const userId of dto.mentionedUserIds) {
-        if (userId === user.id) continue;
-        const isParticipant = activeParticipants.find(
-          (p) => p.userId === userId,
-        );
-        if (isParticipant) {
-          const body =
-            dto.content.length > 30
-              ? dto.content.substring(0, 30) + '...'
-              : dto.content;
-          await this.notifications.createNotification({
-            userId,
-            title: `${senderName} mentioned you in ${chatName}.`,
-            body,
-            type: 'CHAT_MENTION',
-            actionUrl: `/chat?id=${chatId}&msgId=${newMessage.id}`,
-          });
-        }
-      }
+      await this.notifyMentionRecipients({
+        chatId,
+        messageId: newMessage.id,
+        senderId: user.id,
+        senderName,
+        chatName,
+        content: dto.content,
+        recipientIds,
+      });
     }
 
     this.events.emitToRoom(`chat:${chatId}`, 'chat:typing', {

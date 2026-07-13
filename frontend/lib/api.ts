@@ -7,7 +7,7 @@ import type {
     PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload,
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
     UpdateGradeRequest, CreateSubmissionRequest, FinalGradeResponse, MailTarget,
-    Chat, ChatMessage, ChatSearchUser, Notification, Announcement, TargetType, AnnouncementPriority, User,
+    Chat, ChatMentionOptions, ChatMentionTarget, ChatMessage, ChatSearchUser, CommunicationBlock, Notification, Announcement, TargetType, AnnouncementPriority, User,
     ThemeMode, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, ReassignStudentsDto, CopyForwardDto, CopyForwardPreview,
@@ -44,6 +44,7 @@ import type {
     AISubscriptionPlan,
     Role,
 } from '@/types';
+import { CommunicationChannel } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
 import { emitProfanityWarning, PROFANITY_ERROR_CODE } from './profanityWarning';
@@ -1008,6 +1009,12 @@ export const api = {
             request<ChatSearchUser[]>(`/chat/users${buildQueryString(params)}`, { token }),
         getPresetUsers: (token: string, params: { preset: string, cohortId?: string, departmentId?: string }) =>
             request<ChatSearchUser[]>(`/chat/preset-users${buildQueryString(params)}`, { token }),
+        getCommunicationBlocks: (token: string, channel: CommunicationChannel = CommunicationChannel.DIRECT_MESSAGE) =>
+            request<CommunicationBlock[]>(`/chat/communication/blocks${buildQueryString({ channel })}`, { token }),
+        blockCommunicationTarget: (targetUserId: string, token: string, channel: CommunicationChannel = CommunicationChannel.DIRECT_MESSAGE) =>
+            request<CommunicationBlock>('/chat/communication/blocks', { method: 'POST', body: JSON.stringify({ targetUserId, channel }), token }),
+        unblockCommunicationTarget: (targetUserId: string, token: string, channel: CommunicationChannel = CommunicationChannel.DIRECT_MESSAGE) =>
+            request<void>(`/chat/communication/blocks/${targetUserId}${buildQueryString({ channel })}`, { method: 'DELETE', token }),
         createDirectChat: (participantId: string, token: string) =>
             request<Chat>('/chat/direct', { method: 'POST', body: JSON.stringify({ participantId }), token }),
         createGroupChat: (name: string, participantIds: string[], token: string) =>
@@ -1018,8 +1025,10 @@ export const api = {
             request<Chat[]>('/chat', { token }),
         getChatMessages: (chatId: string, token: string, params: { page?: number, limit?: number, aroundId?: string } = {}) =>
             request<PaginatedResponse<ChatMessage>>(`/chat/${chatId}/messages${buildQueryString(params)}`, { token }),
-        sendMessage: (chatId: string, content: string, token: string, replyToId?: string, mentionedUserIds?: string[]) =>
-            request<ChatMessage>(`/chat/${chatId}/messages`, { method: 'POST', body: JSON.stringify({ content, replyToId, mentionedUserIds }), token }),
+        getMentionOptions: (chatId: string, token: string) =>
+            request<ChatMentionOptions>(`/chat/${chatId}/mention-options`, { token }),
+        sendMessage: (chatId: string, content: string, token: string, replyToId?: string, mentionTargets?: ChatMentionTarget[], mentionedUserIds?: string[]) =>
+            request<ChatMessage>(`/chat/${chatId}/messages`, { method: 'POST', body: JSON.stringify({ content, replyToId, mentionTargets, mentionedUserIds }), token }),
         editMessage: (chatId: string, messageId: string, content: string, token: string) =>
             request<ChatMessage>(`/chat/${chatId}/messages/${messageId}`, { method: 'PATCH', body: JSON.stringify({ content }), token }),
         getUnreadCount: (token: string) =>

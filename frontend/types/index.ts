@@ -1,6 +1,8 @@
 ﻿import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
 export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
+import type { CommunicationChannel } from './enums';
+export { CommunicationChannel } from './enums';
 import type { AISubscriptionPlan, AISubscriptionOwnerType, AISubscriptionStatus, AILimitMode, AIUsageSourceType } from './enums';
 export { AISubscriptionPlan, AISubscriptionOwnerType, AISubscriptionStatus, AILimitMode, AIUsageSourceType } from './enums';
 import type { PreferenceWindowKind, PreferenceWindowStatus, PreferenceTargetType } from './enums';
@@ -1813,6 +1815,57 @@ export interface Chat {
     messages?: ChatMessage[];
     _count?: { messages: number };
     unreadCount?: number;
+    directMessageBlock?: {
+        isBlocked: boolean;
+        blockedByMe: boolean;
+        blockedByOther: boolean;
+        blockId?: string | null;
+        canBlock: boolean;
+        reason?: string | null;
+    } | null;
+}
+
+export type ChatMentionTargetType = 'USER' | 'EVERYONE' | 'ROLE' | 'RELATED_SCOPE';
+export type ChatMentionScopeType = 'SECTION' | 'DEPARTMENT' | 'COHORT';
+export type ChatMentionAudience = Role | 'EVERYONE';
+
+export interface ChatMentionTarget {
+    type: ChatMentionTargetType;
+    userId?: string;
+    role?: Role;
+    scopeType?: ChatMentionScopeType;
+    scopeId?: string;
+    audienceRole?: ChatMentionAudience;
+    label?: string;
+}
+
+export interface ChatMentionRoleOption {
+    role: Role;
+    count: number;
+}
+
+export interface ChatMentionScopeOption {
+    type: ChatMentionScopeType;
+    audienceRole: ChatMentionAudience;
+    id: string;
+    name: string;
+    code?: string | null;
+    count: number;
+}
+
+export interface ChatMentionOptions {
+    roles: ChatMentionRoleOption[];
+    scopes: ChatMentionScopeOption[];
+}
+
+export interface CommunicationBlock {
+    id: string;
+    userId: string;
+    targetUserId: string;
+    organizationId?: string | null;
+    channel: CommunicationChannel;
+    createdAt: string;
+    targetUser: User;
 }
 
 export interface Notification {

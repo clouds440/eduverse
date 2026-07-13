@@ -136,6 +136,10 @@ export enum ChatMessageType {
     SYSTEM = 'SYSTEM',
 }
 
+export enum CommunicationChannel {
+    DIRECT_MESSAGE = 'DIRECT_MESSAGE',
+}
+
 export enum TargetType {
     GLOBAL = 'GLOBAL',
     ORG = 'ORG',
