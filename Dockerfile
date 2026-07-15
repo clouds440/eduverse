@@ -33,6 +33,7 @@ RUN npm ci --omit=dev
 
 # Copy Prisma schema
 COPY backend/prisma ./prisma
+COPY backend/prisma.config.ts ./
 
 # Copy build output
 COPY --from=builder /app/backend/dist ./dist
