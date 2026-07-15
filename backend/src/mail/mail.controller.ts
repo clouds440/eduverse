@@ -14,6 +14,7 @@ import { MailService } from './mail.service';
 import { CreateMailDto } from './dto/create-mail.dto';
 import { UpdateMailDto } from './dto/update-mail.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { MailE2eeContextDto } from './dto/mail-e2ee-context.dto';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 import { Access } from '../common/access-control/access.decorator';
@@ -98,6 +99,31 @@ export class MailController {
       },
       search,
     );
+  }
+
+  @Post('e2ee-context')
+  async getComposeE2eeContext(
+    @Body() dto: MailE2eeContextDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.mailService.getComposeE2eeContext(dto, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+      name: req.user.name,
+      email: req.user.email,
+    });
+  }
+
+  @Get(':id/e2ee-context')
+  async getMailE2eeContext(@Param('id') id: string, @Request() req: AuthenticatedRequest) {
+    return this.mailService.getMailE2eeContext(id, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+      name: req.user.name,
+      email: req.user.email,
+    });
   }
 
   @Get(':id')

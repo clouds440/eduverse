@@ -4,8 +4,8 @@ import { memo, type RefObject } from 'react';
 import { Check, CheckCheck, Loader2, RotateCcw, Trash2 } from 'lucide-react';
 import { getUserColor } from '@/lib/utils';
 import { ChatMessageType } from '@/types';
-import { RichMessageRenderer } from '../ui/RichMessageRenderer';
 import { ChatAvatar } from './ChatAvatar';
+import { ProtectedChatMessageContent } from './ProtectedChatMessageContent';
 import {
     formatChatTimestamp,
     getLongPressHandlers,
@@ -36,6 +36,7 @@ interface ChatMessageRowProps {
     onOpenContextMenu: (msg: ChatMessageWithMeta, x: number, y: number) => void;
     onScrollToMessage: (messageId: string) => void;
     onRetrySend: (msg: ChatMessageWithMeta) => void;
+    onMessageDecrypted: (messageId: string, plaintext: string) => void;
 }
 
 export const ChatMessageRow = memo(function ChatMessageRow({
@@ -56,6 +57,7 @@ export const ChatMessageRow = memo(function ChatMessageRow({
     onOpenContextMenu,
     onScrollToMessage,
     onRetrySend,
+    onMessageDecrypted,
 }: ChatMessageRowProps) {
     if (msg.type === ChatMessageType.SYSTEM) {
         return (
@@ -145,8 +147,11 @@ export const ChatMessageRow = memo(function ChatMessageRow({
                                                     {msg.replyTo.sender?.id === userId ? 'You:' : msg.replyTo.sender?.name + ':' || 'Someone'}
                                                 </p>
                                                 <div className="truncate line-clamp-1 opacity-70">
-                                                    <RichMessageRenderer
-                                                        content={getTruncatedMessagePreview(msg.replyTo.deletedAt ? 'Message deleted' : msg.replyTo.content, isDesktop ? 400 : 200)}
+                                                    <ProtectedChatMessageContent
+                                                        message={{
+                                                            ...msg.replyTo,
+                                                            content: getTruncatedMessagePreview(msg.replyTo.deletedAt ? 'Message deleted' : msg.replyTo.content, isDesktop ? 400 : 200),
+                                                        }}
                                                         className={`${msg.replyTo.deletedAt ? 'text-muted-foreground!' : 'text-foreground/80!'}`}
                                                         compactAttachments
                                                     />
@@ -155,7 +160,14 @@ export const ChatMessageRow = memo(function ChatMessageRow({
                                         ))()}
 
                                         <div className={`prose prose-sm mx-2 max-w-full prose-p:mb-0 ${isMine && !isHighlighted ? 'prose-invert' : 'prose-p:text-foreground!'}`}>
-                                            <RichMessageRenderer content={msg.content} className={`${isMine ? 'text-primary-foreground!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`} attachmentAlign={isMine ? 'right' : 'left'} attachmentsFirst />
+                                            <ProtectedChatMessageContent
+                                                message={msg}
+                                                className={`${isMine ? 'text-primary-foreground!' : 'text-foreground!'} whitespace-pre-wrap wrap-break-word`}
+                                                unavailableClassName={`inline-flex items-center gap-1.5 text-xs font-semibold ${isMine ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}
+                                                attachmentAlign={isMine ? 'right' : 'left'}
+                                                attachmentsFirst
+                                                onDecrypted={onMessageDecrypted}
+                                            />
                                         </div>
 
                                         <div className="flex items-center mx-2 pl-1.5 pb-0.5 justify-end space-x-1 mt-1 -mb-0.5 text-foreground">

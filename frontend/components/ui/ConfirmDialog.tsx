@@ -8,10 +8,12 @@ import { AlertTriangle } from 'lucide-react';
 interface ConfirmDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void> | null;
     title: React.ReactNode;
     description: React.ReactNode;
     confirmText?: string;
+    cancelText?: string;
+    hideConfirm?: boolean;
     isDestructive?: boolean;
     loadingId?: string;
 }
@@ -23,6 +25,8 @@ export function ConfirmDialog({
     title,
     description,
     confirmText = 'Confirm',
+    cancelText = 'Cancel',
+    hideConfirm = false,
     isDestructive = false,
     loadingId,
     children,
@@ -55,19 +59,21 @@ export function ConfirmDialog({
                     onClick={onClose}
                     className="w-full sm:w-auto"
                 >
-                    Cancel
+                    {cancelText}
                 </Button>
-                <Button
-                    variant={isDestructive ? 'danger' : 'primary'}
-                    loadingId={loadingId}
-                    onClick={() => {
-                        onConfirm();
-                        onClose();
-                    }}
-                    className="w-full sm:w-auto"
-                >
-                    {confirmText}
-                </Button>
+                {!hideConfirm && (
+                    <Button
+                        variant={isDestructive ? 'danger' : 'primary'}
+                        loadingId={loadingId}
+                        onClick={() => {
+                            onConfirm();
+                            onClose();
+                        }}
+                        className="w-full sm:w-auto"
+                    >
+                        {confirmText}
+                    </Button>
+                )}
             </div>
         </ModalOverlay>
     );

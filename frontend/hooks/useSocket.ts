@@ -25,7 +25,20 @@ type EventCallback = (...args: unknown[]) => void;
 // Use a singleton socket so multiple components don't open duplicate connections
 let socketSingleton: Socket | null = null;
 const listenersSingleton: Map<string, Set<EventCallback>> = new Map();
+const connectionStateListeners = new Set<(isConnected: boolean) => void>();
+const joinedRoomCounts = new Map<string, number>();
 let connected = false;
+
+function updateConnectionState(isConnected: boolean) {
+    connected = isConnected;
+    connectionStateListeners.forEach(listener => listener(isConnected));
+}
+
+function rejoinRequestedRooms(socket: Socket) {
+    joinedRoomCounts.forEach((count, roomId) => {
+        if (count > 0) socket.emit('joinRoom', { roomId });
+    });
+}
 
 function attachStoredListeners(socket: Socket) {
     listenersSingleton.forEach((callbacks, event) => {
@@ -36,6 +49,14 @@ function attachStoredListeners(socket: Socket) {
 export function useSocket(options: UseSocketOptions) {
     const { token, userId, userRole, orgId, enabled = true } = options;
     const [isConnected, setIsConnected] = useState(connected);
+
+    useEffect(() => {
+        connectionStateListeners.add(setIsConnected);
+        setIsConnected(connected);
+        return () => {
+            connectionStateListeners.delete(setIsConnected);
+        };
+    }, []);
 
     useEffect(() => {
         if (!enabled || !token) return;
@@ -55,7 +76,7 @@ export function useSocket(options: UseSocketOptions) {
             if (needsUpdate) {
                 socketSingleton.disconnect();
                 socketSingleton = null;
-                connected = false;
+                updateConnectionState(false);
             }
         }
 
@@ -70,29 +91,27 @@ export function useSocket(options: UseSocketOptions) {
             });
 
             socketSingleton.on('connect', () => {
-                connected = true;
-                setIsConnected(true);
+                socketSingleton?.emit('app:visibility', {
+                    isForeground: typeof document === 'undefined' ? true : document.visibilityState === 'visible',
+                });
+            });
+            socketSingleton.on('connected', () => {
+                if (socketSingleton) rejoinRequestedRooms(socketSingleton);
+                updateConnectionState(true);
                 socketSingleton?.emit('app:visibility', {
                     isForeground: typeof document === 'undefined' ? true : document.visibilityState === 'visible',
                 });
             });
             socketSingleton.on('disconnect', () => {
-                connected = false;
-                setIsConnected(false);
+                updateConnectionState(false);
             });
             socketSingleton.on('connect_error', () => {
-                connected = false;
-                setIsConnected(false);
+                updateConnectionState(false);
             });
             attachStoredListeners(socketSingleton);
         }
 
-        // Auto-join rooms for this caller
-        if (socketSingleton) {
-            if (userId) socketSingleton.emit('joinRoom', { roomId: `user:${userId}` });
-            if (userRole) socketSingleton.emit('joinRoom', { roomId: `role:${userRole}` });
-            if (orgId) socketSingleton.emit('joinRoom', { roomId: `org:${orgId}` });
-        }
+        // Identity rooms are joined by the authenticated gateway connection.
 
         const handleVisibilityChange = () => {
             socketSingleton?.emit('app:visibility', {
@@ -120,11 +139,23 @@ export function useSocket(options: UseSocketOptions) {
     }, []);
 
     const joinRoom = useCallback((room: string) => {
-        socketSingleton?.emit('joinRoom', { roomId: room });
+        const currentCount = joinedRoomCounts.get(room) || 0;
+        joinedRoomCounts.set(room, currentCount + 1);
+        if (currentCount === 0 && socketSingleton?.connected) {
+            socketSingleton.emit('joinRoom', { roomId: room });
+        }
     }, []);
 
     const leaveRoom = useCallback((room: string) => {
-        socketSingleton?.emit('leaveRoom', { roomId: room });
+        const currentCount = joinedRoomCounts.get(room) || 0;
+        if (currentCount <= 1) {
+            joinedRoomCounts.delete(room);
+            if (socketSingleton?.connected) {
+                socketSingleton.emit('leaveRoom', { roomId: room });
+            }
+            return;
+        }
+        joinedRoomCounts.set(room, currentCount - 1);
     }, []);
 
     const emit = useCallback((event: string, payload: unknown) => {
@@ -142,7 +173,8 @@ export function disconnectSocket() {
     if (socketSingleton) {
         socketSingleton.disconnect();
         socketSingleton = null;
-        connected = false;
+        updateConnectionState(false);
         listenersSingleton.clear();
+        joinedRoomCounts.clear();
     }
 }

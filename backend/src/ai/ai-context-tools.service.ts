@@ -178,7 +178,6 @@ export class AIContextToolsService implements OnModuleInit {
       organizationId: context.orgId,
       ...(search ? {
         OR: [
-          { subject: { contains: search, mode: Prisma.QueryMode.insensitive } },
           { category: { contains: search, mode: Prisma.QueryMode.insensitive } },
         ],
       } : {}),
@@ -213,6 +212,7 @@ export class AIContextToolsService implements OnModuleInit {
         take: limit,
         select: {
           subject: true,
+          subjectEncryptedContent: { select: { id: true } },
           category: true,
           priority: true,
           status: true,
@@ -237,7 +237,7 @@ export class AIContextToolsService implements OnModuleInit {
       ok: true,
       data: {
         mails: mails.map((mail) => ({
-          subject: mail.subject,
+          subject: mail.subjectEncryptedContent ? 'Encrypted mail' : mail.subject,
           category: mail.category,
           priority: mail.priority,
           status: mail.status,

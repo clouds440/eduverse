@@ -238,6 +238,31 @@ Rules:
 - Direct chats read both directions to know whether the current user blocked the other participant or the other participant blocked the current user.
 - `chatId` is not the source of truth. The directed user pair and channel remain canonical so users can block DMs before a chat exists.
 
+### End-to-End Encryption Data Model
+
+Chat and Mail protected content uses trusted browser devices and per-recipient envelopes. The backend stores ciphertext and routing metadata, but private keys stay in the browser.
+
+Important models:
+
+- `EncryptionIdentity`: one encryption identity per user.
+- `TrustedEncryptionDevice`: browser/device public keys, trust state, key version, revocation, and approval metadata.
+- `TrustedDeviceApproval`: pending-device approval requests that must be approved from an already trusted device.
+- `EncryptedContent`: ciphertext for Chat messages, Mail messages, Mail subjects, and encrypted file metadata.
+- `E2EEKeyEnvelope`: per-recipient-device wrapped content keys.
+- `ChatHistoryKey`: scoped chat history keys used to avoid rewrapping every message key for already trusted devices.
+- `E2EEContentHistoryKeyEnvelope`: content-key wrappers against chat history keys.
+- `E2EETrustedDeviceHistoryKeyEnvelope`: history-key wrappers for trusted devices.
+
+Rules:
+
+- New protected Chat/Mail content must include envelopes for every intended recipient and every currently trusted recipient device.
+- Pending or revoked devices do not receive new envelopes.
+- A new device is not trusted just because the user signed in; approval must come from an existing trusted device.
+- Newly added chat/group participants do not receive old message history.
+- Mail and Chat notifications use generic text and do not include protected message content.
+- Mail search and AI backend tools do not search or read encrypted subject/body content.
+- Encrypted attachments store original filename, MIME type, and original size inside encrypted metadata. The stored uploaded blob uses generic server-visible metadata.
+
 ### Courses
 
 `Course` defines the subject identity used by sections and transcripts.
@@ -531,6 +556,16 @@ Mail rules:
 - Org Admin/Sub Admin can view and manage organization mail.
 - Manager bulk mail is restricted and should not behave like Admin mail.
 
+Protected communication rules:
+
+- Chat message bodies, Mail message bodies, Mail subjects, and Chat/Mail attachments are encrypted in the browser before upload.
+- Decryption happens only in protected render/download components that actively need to display or save protected content.
+- The API client, stores, notifications, sockets, unread counts, read state, timestamps, recipient resolution, and permissions do not decrypt content.
+- A compact end-to-end encryption banner appears at the bottom of the Chat list and Mail inbox panel.
+- Sending protected content requires every intended recipient to have at least one trusted encryption device.
+- If a recipient has multiple trusted devices, new content must include envelopes for all of those devices.
+- Backend validation rejects missing, stale, pending, revoked, mismatched, or non-recipient envelopes.
+
 ---
 
 ## 7. Frontend Architecture
@@ -558,7 +593,7 @@ frontend/app/
 | Section feature UI | `frontend/components/sections/*` |
 | Transcript PDF | `frontend/lib/pdf/transcript.ts` |
 | PWA prompt/runtime | `frontend/components/ui/PWAInstallPrompt.tsx` |
-| Docs content registry | `frontend/app/docs/_data/docs.ts` |
+| Docs content registry | `packages/docs/src/index.ts` |
 | Breadcrumb logic | `frontend/lib/routeOrientation.ts` |
 | Organization sidebar | `frontend/lib/orgSidebar.ts`, `frontend/components/ui/DashboardLayout.tsx` |
 
@@ -568,7 +603,7 @@ The public docs are registry-driven.
 
 Important files:
 
-- `frontend/app/docs/_data/docs.ts`
+- `packages/docs/src/index.ts`
 - `frontend/app/docs/_components/DocsIndex.tsx`
 - `frontend/app/docs/_components/DocArticle.tsx`
 - `frontend/app/docs/[slug]/page.tsx`
@@ -750,6 +785,16 @@ Legacy top-level routes such as `/teachers`, `/students`, `/sub-admins`, `/finan
 - No custom code, raw formulas, or `eval` are allowed for GPA calculation.
 - Numeric form fields avoid browser spinner controls globally.
 
+### Protected Content Boundaries
+
+- Authentication sessions and trusted encryption devices are separate concepts.
+- Private encryption keys are generated and stored in the browser; the backend stores public keys, device trust metadata, ciphertext, and key envelopes.
+- Backend services enforce recipient/device envelope coverage before storing encrypted Chat, Mail, or attachment content.
+- Notifications, sockets, unread counts, delivery/read state, timestamps, recipient resolution, and permissions remain metadata-only.
+- AI/Copilot backend tools do not decrypt or fetch Mail body content. Decrypted Mail handoff to Copilot remains an explicit future client-side action.
+- User-composed protected Mail is encrypted. Backend-generated operational Mail can remain plaintext until a separate server-side product alternative exists.
+- Search over encrypted message body/subject content is not supported on the backend. Search can use metadata such as category, status, sender, assignee, and timestamps.
+
 ---
 
 ## 10. GPA, Transcripts, and Academic Policy
@@ -863,6 +908,12 @@ Chat mention notification rules:
 - Related-scope mention options are derived from active group participants and are fetched on demand with frontend SWR caching.
 - The backend expands all mention targets and dedupes recipients with a set before notification creation.
 
+Protected-content notification rules:
+
+- Chat and Mail notifications use generic copy instead of protected message or subject text.
+- Mention notifications still carry `chatId` and `messageId`, but not decrypted message content.
+- Socket payloads can refresh UI state but must not require decrypted content for notification text or badge counts.
+
 ---
 
 ## 13. Files, PWA, and Browser Runtime
@@ -872,6 +923,10 @@ Chat mention notification rules:
 - Uploads are stored through Cloudinary.
 - File flows are used by chat, mail, materials, submissions, organization logos, and profile media.
 - File validation should happen before upload where the UI has enough information.
+- Chat and Mail attachments are encrypted in the browser before upload.
+- Encrypted attachment metadata stores the original filename, MIME type, size, and last-modified value inside encrypted metadata.
+- Server-visible encrypted attachment blobs use generic storage metadata and require per-recipient key envelopes before download can be decrypted.
+- Mail-message files use Mail participant access rules; Chat files use active chat membership access rules.
 
 ### PWA
 

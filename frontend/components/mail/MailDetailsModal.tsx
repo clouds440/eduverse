@@ -24,6 +24,9 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { useSocket } from '@/hooks/useSocket';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
+import { getMailSubjectDisplay } from '@/lib/protectedContentDisplay';
+import { ProtectedMailText } from '@/components/mail/ProtectedMailContent';
+import { prepareEncryptedFileUpload, prepareEncryptedMailReplyPayload } from '@/lib/e2ee';
 
 interface MailDetailsModalProps {
     mailId: string | null;
@@ -158,7 +161,30 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
 
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: 'reply-submit' });
-            await api.mail.addMessage(mail.id, { content }, token, files);
+            const recipientDevices = await api.mail.getE2EEContext(mail.id, token);
+            const encryptedPayload = await prepareEncryptedMailReplyPayload({
+                mailId: mail.id,
+                plaintext: content,
+                token,
+                currentUserId: user?.id || '',
+                recipientDevices,
+            });
+            const replyResult = await api.mail.addMessage(mail.id, encryptedPayload, token);
+            const newMessageId = replyResult.messages?.[replyResult.messages.length - 1]?.id;
+            if (files?.length && newMessageId) {
+                const orgId = replyResult.organizationId || mail.organizationId || 'SYSTEM';
+                const encryptedFiles = await Promise.all(files.map((file) => prepareEncryptedFileUpload({
+                    file,
+                    recipientDevices,
+                    currentUserId: user?.id || '',
+                    scope: 'MAIL_ATTACHMENT',
+                    entityType: 'MAIL_MESSAGE',
+                    entityId: newMessageId,
+                })));
+                await Promise.all(encryptedFiles.map((encrypted) =>
+                    api.files.uploadFile(orgId, 'MAIL_MESSAGE', newMessageId, encrypted.file, token, encrypted.encryptedContent),
+                ));
+            }
             const updated = await api.mail.getMail(mail.id, token);
             setMail(updated);
             onUpdate?.();
@@ -168,7 +194,7 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'reply-submit' });
         }
-    }, [dispatch, mail, onUpdate, token]);
+    }, [dispatch, mail, onUpdate, token, user?.id]);
 
     const handleToggleReplyComposer = useCallback(() => {
         setActionsOpen(false);
@@ -235,7 +261,12 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                             </div>
 
                             <h2 className="line-clamp-1 text-base font-black leading-tight tracking-tight text-foreground sm:line-clamp-2 sm:text-2xl">
-                                {mail?.subject || 'Loading mail'}
+                                <ProtectedMailText
+                                    encryptedContent={mail?.subjectEncryptedContent}
+                                    fallback={getMailSubjectDisplay(mail)}
+                                    token={token}
+                                    unavailableText="Encrypted mail"
+                                />
                             </h2>
 
                             {mail && (
@@ -273,6 +304,7 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                                 mail={mail}
                                 currentUserId={user?.id || ''}
                                 currentUserRole={user?.role}
+                                token={token}
                                 onReply={handleReply}
                                 isClosed={replyLocked}
                                 closedMessage={

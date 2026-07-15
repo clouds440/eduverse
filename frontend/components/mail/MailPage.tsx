@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { MessageSquare, ArrowUpRight, CheckCircle2, XCircle, Tag, Calendar, Filter, Clock, MailPlus, Hash, Inbox, Send, UserCheck, Users } from 'lucide-react';
+import { MessageSquare, ArrowUpRight, CheckCircle2, XCircle, Tag, Calendar, Filter, Clock, MailPlus, Hash, Inbox, Send, UserCheck, Users, Lock } from 'lucide-react';
 import useSWR, { mutate as mutateCache } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { api } from '@/lib/api';
@@ -17,6 +17,8 @@ import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/compo
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import notificationsStore from '@/lib/notificationsStore';
+import { getMailSubjectDisplay } from '@/lib/protectedContentDisplay';
+import { ProtectedMailText } from '@/components/mail/ProtectedMailContent';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { Button } from '@/components/ui/Button';
@@ -221,7 +223,14 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
             accessor: (row: MailItem) => (
                 <div className="flex items-start gap-3 min-0">
                     <div className="min-w-0 flex-1">
-                        <h4 className="text-sm font-black text-foreground leading-tight truncate">{row.subject}</h4>
+                        <h4 className="text-sm font-black text-foreground leading-tight truncate">
+                            <ProtectedMailText
+                                encryptedContent={row.subjectEncryptedContent}
+                                fallback={getMailSubjectDisplay(row)}
+                                token={token}
+                                unavailableText="Encrypted mail"
+                            />
+                        </h4>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="text-[10px] items-center gap-1 text-muted-foreground font-bold hidden sm:flex">
                                 <Hash className="w-2.5 h-2.5" />
@@ -321,7 +330,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                         {row._count?.messages || 0}
                     </div>
                     {row.unreadCount > 0 && (
-                        <span className="bg-dangertext-white px-2 py-0.5 rounded-full text-[9px] font-black animate-in fade-in zoom-in duration-300">
+                        <span className="bg-danger text-white px-2 py-0.5 rounded-full text-[9px] font-black animate-in fade-in zoom-in duration-300">
                             {row.unreadCount} new
                         </span>
                     )}
@@ -394,7 +403,7 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                         drawerLabel="Mail filters"
                         leading={(
                             <SearchBar
-                                placeholder="Search mail by subject or content..."
+                                placeholder="Search mail metadata..."
                                 value={searchQuery}
                                 onChange={(val: string) => updateFilters('search', val)}
                                 mobileMode="expandable"
@@ -442,6 +451,12 @@ export function MailPage({ localStorageKey = 'edu-mail-limit' }: MailPageProps) 
                         emptyDescription={searchQuery || activeFilters.length > 0 ? 'Adjust the search or filters to broaden the result set.' : 'Create a new mail thread to start a conversation.'}
                         mobileDetailLimit={3}
                     />
+                </div>
+                <div className="shrink-0 border-t border-border/60 bg-background/85 px-3 py-2">
+                    <div className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        <Lock className="h-3 w-3 text-primary" aria-hidden="true" />
+                        <span>Mail is end-to-end encrypted</span>
+                    </div>
                 </div>
             </ResourcePanel>
 

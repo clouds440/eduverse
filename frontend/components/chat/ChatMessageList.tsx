@@ -20,6 +20,7 @@ interface ChatMessageListProps {
     onOpenContextMenu: (msg: ChatMessageWithMeta, x: number, y: number) => void;
     onScrollToMessage: (messageId: string) => void;
     onRetrySend: (msg: ChatMessageWithMeta) => void;
+    onMessageDecrypted: (messageId: string, plaintext: string) => void;
 }
 
 export const ChatMessageList = memo(function ChatMessageList({
@@ -37,6 +38,7 @@ export const ChatMessageList = memo(function ChatMessageList({
     onOpenContextMenu,
     onScrollToMessage,
     onRetrySend,
+    onMessageDecrypted,
 }: ChatMessageListProps) {
     return useMemo(() => {
         const sections: ReactNode[] = [];
@@ -92,6 +94,7 @@ export const ChatMessageList = memo(function ChatMessageList({
                     onOpenContextMenu={onOpenContextMenu}
                     onScrollToMessage={onScrollToMessage}
                     onRetrySend={onRetrySend}
+                    onMessageDecrypted={onMessageDecrypted}
                 />
             );
         });
@@ -107,6 +110,7 @@ export const ChatMessageList = memo(function ChatMessageList({
         messages,
         onOpenContextMenu,
         onRetrySend,
+        onMessageDecrypted,
         onScrollToMessage,
         retryDisabled,
         touchHasTriggeredRef,

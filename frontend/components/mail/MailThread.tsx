@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { MailDetail, MailMessage as MailMessageType, MailActionLog, Attachment, Role } from '@/types';
-import { RichMessageRenderer } from '@/components/ui/RichMessageRenderer';
 import { MarkdownEditor, MarkdownEditorHandle } from '@/components/ui/MarkdownEditor';
 import { getPublicUrl, downloadFile, formatBytes } from '@/lib/utils';
 import { BrandIcon } from '@/components/ui/Brand';
@@ -31,11 +30,15 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { getRoleLabel } from '@/lib/roles';
 import { GENERIC_UPLOAD_ACCEPT, isGenericUploadAllowed } from '@/lib/uploadPolicy';
+import { ProtectedMailMessage } from './ProtectedMailContent';
+import { useAuth } from '@/context/AuthContext';
+import { downloadEncryptedAttachment } from '@/lib/e2ee';
 
 interface MailThreadProps {
     mail: MailDetail;
     currentUserId: string;
     currentUserRole?: string;
+    token?: string | null;
     onReply: (content: string, files?: File[]) => Promise<void>;
     isClosed?: boolean;
     closedMessage?: string;
@@ -90,12 +93,18 @@ function getRecipientLabel(mail: MailDetail) {
 }
 
 const AttachmentPreview = memo(function AttachmentPreview({ file }: { file: Attachment }) {
-    const isImage = file.mimeType.startsWith('image/') && !file.path.startsWith('/files/');
+    const { token } = useAuth();
+    const isEncrypted = Boolean(file.encryptedContent?.ciphertext);
+    const isImage = !isEncrypted && file.mimeType.startsWith('image/') && !file.path.startsWith('/files/');
     const url = getPublicUrl(file.path);
 
     const handleDownload = async (event: React.MouseEvent) => {
         event.preventDefault();
         try {
+            if (isEncrypted && token) {
+                await downloadEncryptedAttachment(file.id, token);
+                return;
+            }
             await downloadFile(url, file.filename);
         } catch (error) {
             console.error('Failed to download file:', error);
@@ -118,7 +127,7 @@ const AttachmentPreview = memo(function AttachmentPreview({ file }: { file: Atta
                 </div>
             )}
             <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-bold text-foreground">{file.filename}</p>
+                <p className="truncate text-xs font-bold text-foreground">{isEncrypted ? 'Encrypted attachment' : file.filename}</p>
                 <p className="text-[11px] font-semibold text-muted-foreground">{formatBytes(file.size)}</p>
             </div>
             <Download className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
@@ -126,7 +135,7 @@ const AttachmentPreview = memo(function AttachmentPreview({ file }: { file: Atta
     );
 });
 
-const MessageBubble = memo(function MessageBubble({ message, isOwn }: { message: MailMessageType; isOwn: boolean }) {
+const MessageBubble = memo(function MessageBubble({ message, isOwn, token }: { message: MailMessageType; isOwn: boolean; token?: string | null }) {
     const senderName = message.sender?.name || message.sender?.email || 'Unknown sender';
 
     return (
@@ -158,11 +167,12 @@ const MessageBubble = memo(function MessageBubble({ message, isOwn }: { message:
                             : 'rounded-tl-md border-border/70 bg-card/90'
                     }`}
                 >
-                    <RichMessageRenderer
-                        content={message.content}
+                    <ProtectedMailMessage
+                        encryptedContent={message.encryptedContent}
+                        fallback={message.content}
+                        token={token}
                         className="text-sm font-medium text-foreground"
                         attachmentAlign={isOwn ? 'right' : 'left'}
-                        compactAttachments
                     />
 
                     {message.files && message.files.length > 0 && (
@@ -221,9 +231,11 @@ const ActionLogItem = memo(function ActionLogItem({ log }: { log: MailActionLog 
 const ThreadTimeline = memo(function ThreadTimeline({
     timeline,
     currentUserId,
+    token,
 }: {
     timeline: TimelineItem[];
     currentUserId: string;
+    token?: string | null;
 }) {
     if (timeline.length === 0) {
         return (
@@ -242,6 +254,7 @@ const ThreadTimeline = memo(function ThreadTimeline({
                         key={`msg-${item.data.id}`}
                         message={item.data}
                         isOwn={item.data.senderId === currentUserId}
+                        token={token}
                     />
                 ) : (
                     <ActionLogItem key={`log-${item.data.id}`} log={item.data} />
@@ -387,7 +400,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
 ReplyComposer.displayName = 'ReplyComposer';
 
 export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
-    ({ mail, currentUserId, currentUserRole, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.', onComposerOpenChange }, ref) => {
+    ({ mail, currentUserId, currentUserRole, token, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.', onComposerOpenChange }, ref) => {
         const composerRef = useRef<ReplyComposerHandle>(null);
         const [composerOpen, setComposerOpen] = useState(false);
         const isPlatformAdmin = currentUserRole === Role.PLATFORM_ADMIN || currentUserRole === Role.SUPER_ADMIN;
@@ -481,7 +494,7 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 custom-scrollbar sm:px-5 sm:py-5">
-                    <ThreadTimeline timeline={timeline} currentUserId={currentUserId} />
+                    <ThreadTimeline timeline={timeline} currentUserId={currentUserId} token={token} />
 
                     {isClosed && (
                         <div className="mt-6 rounded-2xl border border-border/70 bg-muted/30 px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-muted-foreground">

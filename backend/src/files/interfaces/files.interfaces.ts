@@ -16,6 +16,7 @@ export interface UploadedFileInfo {
   scanStatus?: string;
   uploadedBy: string;
   createdAt: Date;
+  encryptedContent?: unknown;
 }
 
 export interface DeleteFileResult {

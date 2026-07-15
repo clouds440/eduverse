@@ -10,6 +10,7 @@ import { useSocket } from '@/hooks/useSocket';
 import Image from 'next/image';
 import { api } from '@/lib/api';
 import { getFileTypeInfo } from '@/lib/attachmentUtils';
+import { getDeviceId } from '@/lib/deviceUtils';
 import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { getRoleLabel } from '@/lib/roles';
 import { getUserColor, downloadFile, formatBytes } from '@/lib/utils';
@@ -28,6 +29,23 @@ import {
 } from '@/lib/chatStore';
 import { Chat, ChatMessage, ChatParticipant, ChatType, ChatMessageType, PaginatedResponse, Role, User, ChatParticipantRole } from '@/types';
 import { getDirectMessageBlockLabel } from '@/lib/communicationOptions';
+import { getChatListMessagePreview } from '@/lib/protectedContentDisplay';
+import {
+    findCurrentTrustedDevice,
+    cacheDecryptedChatMessageContent,
+    decryptChatMessageContent,
+    getCachedDecryptedChatMessageContent,
+    getDecryptedChatWarmupCompleted,
+    getActiveChatParticipantUserIds,
+    getUserIdsWithoutTrustedRecipientDevices,
+    isEncryptedChatMessage,
+    markDecryptedChatWarmupCompleted,
+    prepareEncryptedChatMessagePayload,
+    prepareEncryptedFileUpload,
+    requestCurrentDeviceTrust,
+    trustedDeviceSetupErrorMessage,
+} from '@/lib/e2ee';
+import { E2EEError } from '@/lib/e2ee/errors';
 import { formatDistanceToNow } from 'date-fns';
 import {
     Search, Paperclip, MessageSquarePlus, MessageSquareDashed, SendHorizonal as Send, MoreVertical, X, Loader2,
@@ -111,6 +129,45 @@ function chatDebug(event: string, payload?: Record<string, unknown>) {
     console.debug(`[chat-debug] ${event}`, payload || {});
 }
 
+type ChatEncryptionSendGate = {
+    participantKey: string;
+    status: 'checking' | 'ready' | 'blocked';
+    reason?: 'recipient-no-trusted-device' | 'current-device-untrusted';
+    message?: string;
+};
+
+type ChatSyncProgress = {
+    status: 'idle' | 'syncing';
+    done: number;
+    total: number;
+};
+
+function getChatPreviewDecryptionSignature(chats: Chat[]) {
+    return chats
+        .map((chat) => {
+            const message = chat.messages?.[0];
+            if (!message?.encryptedContent) return `${chat.id}:plain:${message?.id || 'none'}`;
+            return [
+                chat.id,
+                message.id,
+                message.updatedAt || message.createdAt,
+                message.encryptedContent.id || message.encryptedContent.ciphertext,
+            ].join(':');
+        })
+        .join('|');
+}
+
+function getMessageDecryptionSignature(messages: ChatMessageWithMeta[]) {
+    return messages
+        .filter((message) => isEncryptedChatMessage(message))
+        .map((message) => [
+            message.id,
+            message.updatedAt || message.createdAt,
+            message.encryptedContent?.id || message.encryptedContent?.ciphertext,
+        ].join(':'))
+        .join('|');
+}
+
 export function ChatLayout() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
@@ -119,7 +176,7 @@ export function ChatLayout() {
     const { isDesktop, mounted } = useUI();
     const { goBack } = useBackNavigation();
     const router = useRouter();
-    const { subscribe, joinRoom, leaveRoom, emit } = useSocket({ token, userId: user?.id, enabled: !!token });
+    const { subscribe, joinRoom, leaveRoom, emit, isConnected } = useSocket({ token, userId: user?.id, enabled: !!token });
     const searchParams = useSearchParams();
     const initialChatId = searchParams.get('id');
     const msgIdParam = searchParams.get('msgId');
@@ -157,9 +214,11 @@ export function ChatLayout() {
         return [];
     });
     const [isLoadingChats, setIsLoadingChats] = useState(true);
+    const [chatSyncProgress, setChatSyncProgress] = useState<ChatSyncProgress>({ status: 'idle', done: 0, total: 0 });
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [chatComposerStates, setChatComposerStates] = useState<ChatComposerStateMap>(() => getCachedComposerStates());
+    const [chatEncryptionSendGates, setChatEncryptionSendGates] = useState<Record<string, ChatEncryptionSendGate>>({});
     const [isComposerStateHydrated, setIsComposerStateHydrated] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
@@ -189,19 +248,70 @@ export function ChatLayout() {
     const touchChatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const touchChatStartPosRef = useRef<{ x: number; y: number } | null>(null);
     const touchChatHasTriggeredRef = useRef<boolean>(false);
+    const shownEncryptionGateDialogKeysRef = useRef<Set<string>>(new Set());
 
     const [confirmConfig, setConfirmConfig] = useState<{
         isOpen: boolean;
         title: string;
         description: string;
-        onConfirm: () => void;
+        onConfirm: () => void | Promise<void> | null;
         isDestructive?: boolean;
+        confirmText?: string;
+        cancelText?: string;
+        hideConfirm?: boolean;
+        loadingId?: string;
     }>({
         isOpen: false,
         title: '',
         description: '',
         onConfirm: () => { },
     });
+
+    const showUntrustedDeviceDialog = useCallback((reason?: string) => {
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Trust this browser to send messages',
+            description: reason || 'This browser is not approved for secure Chat yet. Send an approval notification to a browser you already trust, then approve this browser from there.',
+            cancelText: 'OK',
+            confirmText: 'Send Notification Again',
+            loadingId: 'e2ee-chat-device-approval',
+            onConfirm: async () => {
+                if (!token) return;
+                try {
+                    dispatchRef.current({ type: 'UI_START_PROCESSING', payload: 'e2ee-chat-device-approval' });
+                    const response = await requestCurrentDeviceTrust(token, { sendApprovalNotification: true });
+                    dispatchRef.current({
+                        type: 'TOAST_ADD',
+                        payload: {
+                            message: response.status === 'PENDING'
+                                ? 'Approval request sent to your trusted browsers.'
+                                : 'This browser is ready for secure Chat and Mail.',
+                            type: 'success',
+                        },
+                    });
+                } catch (error) {
+                    console.error('Failed to request browser approval', error);
+                    dispatchRef.current({
+                        type: 'TOAST_ADD',
+                        payload: { message: trustedDeviceSetupErrorMessage(error), type: 'error' },
+                    });
+                } finally {
+                    dispatchRef.current({ type: 'UI_STOP_PROCESSING', payload: 'e2ee-chat-device-approval' });
+                }
+            },
+        });
+    }, [token]);
+
+    const showRecipientNeedsTrustedDeviceDialog = useCallback((description?: string) => {
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Recipient needs to trust a browser',
+            description: description || 'This message cannot be sent yet because at least one recipient has not trusted any browser. Ask them to sign in and approve a browser, then try again.',
+            cancelText: 'OK',
+            hideConfirm: true,
+            onConfirm: () => { },
+        });
+    }, []);
 
     // Pagination & Smart Scroll States
     const [messagesPage, setMessagesPage] = useState(1);
@@ -237,6 +347,8 @@ export function ChatLayout() {
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const typingChatIdRef = useRef<string | null>(null);
     const activeChatHistoryRef = useRef<string | null>(null);
+    const chatPreviewDecryptSignatureRef = useRef<string>('');
+    const activeMessageDecryptSignatureRef = useRef<string>('');
     const mobileBottomInset = 'env(safe-area-inset-bottom, 0px)';
 
     const closeActiveChat = useCallback((options?: { fromHistory?: boolean }) => {
@@ -479,6 +591,104 @@ export function ChatLayout() {
     useEffect(() => {
         fetchChats();
     }, [token, fetchChats]);
+
+    const applyDecryptedChatPreview = useCallback((chatId: string, messageId: string, plaintext: string) => {
+        setChats(prev => prev.map(chat => {
+            const preview = chat.messages?.[0];
+            const previewWithMeta = preview as ChatMessageWithMeta | undefined;
+            if (chat.id !== chatId || !previewWithMeta || previewWithMeta.id !== messageId || previewWithMeta.decryptedContent === plaintext) {
+                return chat;
+            }
+
+            return {
+                ...chat,
+                messages: [{ ...previewWithMeta, decryptedContent: plaintext }, ...(chat.messages || []).slice(1)],
+            };
+        }));
+    }, []);
+
+    useEffect(() => {
+        if (!token || chats.length === 0) {
+            setChatSyncProgress({ status: 'idle', done: 0, total: 0 });
+            return;
+        }
+
+        const signature = getChatPreviewDecryptionSignature(chats);
+        if (chatPreviewDecryptSignatureRef.current === signature) return;
+        chatPreviewDecryptSignatureRef.current = signature;
+
+        const previewMessages = chats
+            .map((chat) => ({ chatId: chat.id, message: chat.messages?.[0] }))
+            .filter((item): item is { chatId: string; message: ChatMessage } => (
+                Boolean(item.message && isEncryptedChatMessage(item.message))
+            ));
+
+        if (previewMessages.length === 0) {
+            setChatSyncProgress({ status: 'idle', done: 0, total: 0 });
+            return;
+        }
+
+        let cancelled = false;
+
+        const run = async () => {
+            const cached = await Promise.all(previewMessages.map(async ({ chatId, message }) => ({
+                chatId,
+                message,
+                plaintext: await getCachedDecryptedChatMessageContent(message, token),
+            })));
+
+            if (cancelled) return;
+            cached.forEach(({ chatId, message, plaintext }) => {
+                if (plaintext) applyDecryptedChatPreview(chatId, message.id, plaintext);
+            });
+
+            const warmupCompleted = await getDecryptedChatWarmupCompleted(token);
+            const cachedCount = cached.filter((entry) => Boolean(entry.plaintext)).length;
+            const shouldShowProgress = !warmupCompleted && cachedCount === 0;
+            if (cancelled) return;
+
+            if (shouldShowProgress) {
+                setChatSyncProgress({ status: 'syncing', done: 0, total: previewMessages.length });
+            } else {
+                setChatSyncProgress({ status: 'idle', done: 0, total: 0 });
+            }
+
+            let done = 0;
+            let openedCount = cachedCount;
+            for (const { chatId, message } of previewMessages) {
+                if (cancelled) return;
+                try {
+                    const plaintext = await decryptChatMessageContent(message, token);
+                    if (!cancelled) {
+                        openedCount += 1;
+                        applyDecryptedChatPreview(chatId, message.id, plaintext);
+                    }
+                } catch (error) {
+                    console.warn('Chat preview could not be opened on this browser', error);
+                } finally {
+                    done += 1;
+                    if (!cancelled && shouldShowProgress) {
+                        setChatSyncProgress({ status: 'syncing', done, total: previewMessages.length });
+                    }
+                }
+
+                await new Promise(resolve => window.setTimeout(resolve, 0));
+            }
+
+            if (!cancelled) {
+                if (openedCount > 0) {
+                    await markDecryptedChatWarmupCompleted(token);
+                }
+                setChatSyncProgress({ status: 'idle', done: previewMessages.length, total: previewMessages.length });
+            }
+        };
+
+        void run();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [applyDecryptedChatPreview, chats, token]);
 
     useEffect(() => {
         activeChatPreviewRef.current = activeChatId
@@ -768,10 +978,14 @@ export function ChatLayout() {
             setChats(prevChats => {
                 const chatIndex = prevChats.findIndex(c => c.id === message.chatId);
                 if (chatIndex > -1) {
+                    const previousPreview = prevChats[chatIndex].messages?.[0] as ChatMessageWithMeta | undefined;
+                    const previewMessage = previousPreview?.id === message.id && previousPreview.decryptedContent
+                        ? { ...message, decryptedContent: previousPreview.decryptedContent }
+                        : message;
                     const updatedChat = {
                         ...prevChats[chatIndex],
                         updatedAt: new Date().toISOString(),
-                        messages: [message],
+                        messages: [previewMessage],
                         unreadCount: (message.chatId !== activeChatId && message.senderId !== user.id)
                             ? (prevChats[chatIndex].unreadCount || 0) + 1
                             : 0
@@ -902,36 +1116,12 @@ export function ChatLayout() {
         };
     }, [subscribe, activeChatId, token, user, closeActiveChat, isAtBottom, scrollToBottom, updateMessagesWithReadStatus, markChatRead, refreshChats]);
 
-    // 4. Join/Leave rooms, Sync URL, and request presence
+    // 4. Join/Leave rooms and sync URL. The socket utility replays room membership after reconnects.
     useEffect(() => {
         if (!activeChatId) return;
 
-        // Join the room
         if (joinRoom && leaveRoom) {
             joinRoom(`chat:${activeChatId}`);
-
-            // Request online presence AFTER joining the room
-            if (emit) {
-                // Small delay to ensure join is processed server-side first
-                const presenceTimer = setTimeout(() => {
-                    emit('presence:request', { chatId: activeChatId });
-                }, 300);
-                // Update URL without full page reload, clear msgId
-                const url = new URL(window.location.href);
-                url.searchParams.set('id', activeChatId);
-                url.searchParams.delete('msgId');
-                if (!isDesktop && activeChatHistoryRef.current !== activeChatId) {
-                    window.history.pushState({ eduverseChatId: activeChatId }, '', url.toString());
-                    activeChatHistoryRef.current = activeChatId;
-                } else {
-                    window.history.replaceState({ eduverseChatId: activeChatId }, '', url.toString());
-                }
-
-                return () => {
-                    clearTimeout(presenceTimer);
-                    leaveRoom(`chat:${activeChatId}`);
-                };
-            }
 
             // Update URL without full page reload, clear msgId
             const url = new URL(window.location.href);
@@ -946,7 +1136,19 @@ export function ChatLayout() {
 
             return () => leaveRoom(`chat:${activeChatId}`);
         }
-    }, [activeChatId, isDesktop, joinRoom, leaveRoom, emit]);
+    }, [activeChatId, isDesktop, joinRoom, leaveRoom]);
+
+    useEffect(() => {
+        if (!activeChatId || !emit || !isConnected) return;
+
+        // Room replay happens before the connected state is published. Give the server a moment
+        // to process the join, then refresh the authoritative presence snapshot.
+        const presenceTimer = window.setTimeout(() => {
+            emit('presence:request', { chatId: activeChatId });
+        }, 150);
+
+        return () => window.clearTimeout(presenceTimer);
+    }, [activeChatId, emit, isConnected]);
 
     useBackStackEntry({
         enabled: mounted && !isDesktop && !!activeChatId,
@@ -1043,7 +1245,7 @@ export function ChatLayout() {
         () => getDirectMessageBlockLabel(activeChat),
         [activeChat]
     );
-    const canSendMessage = useMemo(() => {
+    const baseCanSendMessage = useMemo(() => {
         if (!activeChat || !currentUserParticipant) return false;
         if (activeChat.type === ChatType.DIRECT && activeChat.directMessageBlock?.isBlocked) return false;
         // Direct chats should never be read-only
@@ -1052,6 +1254,141 @@ export function ChatLayout() {
         // In read-only mode, only ADMIN and MOD can send messages
         return currentUserParticipant.role === ChatParticipantRole.ADMIN || currentUserParticipant.role === ChatParticipantRole.MOD;
     }, [activeChat, currentUserParticipant]);
+    const activeParticipantUserIds = useMemo(
+        () => activeChat ? getActiveChatParticipantUserIds(activeChat) : [],
+        [activeChat]
+    );
+    const activeParticipantKey = useMemo(
+        () => activeParticipantUserIds.slice().sort().join('|'),
+        [activeParticipantUserIds]
+    );
+    const activeChatType = activeChat?.type;
+    const activeChatEncryptionGate = useMemo(() => {
+        if (!activeChatId) return undefined;
+        const gate = chatEncryptionSendGates[activeChatId];
+        return gate?.participantKey === activeParticipantKey ? gate : undefined;
+    }, [activeChatId, activeParticipantKey, chatEncryptionSendGates]);
+    const effectiveChatEncryptionGate: ChatEncryptionSendGate | undefined = useMemo(() => {
+        if (!activeChat || !baseCanSendMessage) return undefined;
+        return activeChatEncryptionGate || {
+            participantKey: activeParticipantKey,
+            status: 'checking',
+        };
+    }, [activeChat, activeChatEncryptionGate, activeParticipantKey, baseCanSendMessage]);
+    const encryptionSendBlockLabel = effectiveChatEncryptionGate?.status === 'blocked'
+        ? effectiveChatEncryptionGate.message
+        : null;
+    const canSendMessage = baseCanSendMessage && effectiveChatEncryptionGate?.status !== 'blocked';
+
+    useEffect(() => {
+        const participantUserIds = activeParticipantKey ? activeParticipantKey.split('|') : [];
+        if (!token || !user?.id || !activeChatId || !activeChatType || !baseCanSendMessage || participantUserIds.length === 0) {
+            return;
+        }
+
+        let cancelled = false;
+        setChatEncryptionSendGates(prev => {
+            const existingGate = prev[activeChatId];
+            if (existingGate?.participantKey === activeParticipantKey) return prev;
+
+            return {
+                ...prev,
+                [activeChatId]: {
+                    participantKey: activeParticipantKey,
+                    status: 'checking',
+                },
+            };
+        });
+
+        const run = async () => {
+            try {
+                const recipientDevices = await api.e2ee.getRecipientDevices(participantUserIds, token);
+                if (cancelled) return;
+
+                const missingUserIds = getUserIdsWithoutTrustedRecipientDevices(recipientDevices, participantUserIds);
+                const missingRecipientIds = missingUserIds.filter((userId) => userId !== user.id);
+                const clientDeviceId = getDeviceId();
+                const currentTrustedDevice = clientDeviceId
+                    ? findCurrentTrustedDevice(recipientDevices, user.id, clientDeviceId)
+                    : undefined;
+
+                if (activeChatType === ChatType.DIRECT && missingRecipientIds.length > 0) {
+                    const message = 'The recipient needs to trust a browser before messages can be sent.';
+                    const description = 'This chat cannot accept new secure messages yet because the recipient has not trusted any browser. Ask them to sign in and approve a browser, then come back to this chat.';
+
+                    setChatEncryptionSendGates(prev => ({
+                        ...prev,
+                        [activeChatId]: {
+                            participantKey: activeParticipantKey,
+                            status: 'blocked',
+                            reason: 'recipient-no-trusted-device',
+                            message,
+                        },
+                    }));
+
+                    const dialogKey = `${activeChatId}:${activeParticipantKey}:recipient-no-trusted-device`;
+                    if (!shownEncryptionGateDialogKeysRef.current.has(dialogKey)) {
+                        shownEncryptionGateDialogKeysRef.current.add(dialogKey);
+                        showRecipientNeedsTrustedDeviceDialog(description);
+                    }
+                    return;
+                }
+
+                if (!currentTrustedDevice) {
+                    const message = 'Trust this browser before sending secure messages.';
+                    setChatEncryptionSendGates(prev => ({
+                        ...prev,
+                        [activeChatId]: {
+                            participantKey: activeParticipantKey,
+                            status: 'blocked',
+                            reason: 'current-device-untrusted',
+                            message,
+                        },
+                    }));
+
+                    const dialogKey = `${activeChatId}:${activeParticipantKey}:current-device-untrusted`;
+                    if (!shownEncryptionGateDialogKeysRef.current.has(dialogKey)) {
+                        shownEncryptionGateDialogKeysRef.current.add(dialogKey);
+                        showUntrustedDeviceDialog();
+                    }
+                    return;
+                }
+
+                setChatEncryptionSendGates(prev => ({
+                    ...prev,
+                    [activeChatId]: {
+                        participantKey: activeParticipantKey,
+                        status: 'ready',
+                    },
+                }));
+            } catch (error) {
+                console.error('Failed to check chat encryption readiness', error);
+                if (cancelled) return;
+                setChatEncryptionSendGates(prev => ({
+                    ...prev,
+                    [activeChatId]: {
+                        participantKey: activeParticipantKey,
+                        status: 'ready',
+                    },
+                }));
+            }
+        };
+
+        void run();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        activeChatId,
+        activeChatType,
+        activeParticipantKey,
+        baseCanSendMessage,
+        showRecipientNeedsTrustedDeviceDialog,
+        showUntrustedDeviceDialog,
+        token,
+        user?.id,
+    ]);
 
     // Typing: emit typing status with debounce
     const emitTypingStart = useCallback(() => {
@@ -1235,8 +1572,9 @@ export function ChatLayout() {
         const draftText = retryMessage?.retryPayload?.draftText ?? messageDraft.trim();
         const filesToSend = retryMessage?.retryPayload?.stagedFiles ?? stagedFiles;
         const replyTarget = retryMessage?.retryPayload?.replyToMessage ?? replyToMessage;
+        const targetsForSend = retryMessage?.retryPayload?.mentionTargets ?? mentionTargets;
 
-        if (!token || !user || !chatId || (!draftText && filesToSend.length === 0)) return;
+        if (!token || !user || !chatId || !activeChat || (!draftText && filesToSend.length === 0)) return;
         if (activeChat?.type === ChatType.DIRECT && activeChat.directMessageBlock?.isBlocked) {
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Direct messages are blocked in this chat', type: 'info' } });
             return;
@@ -1273,7 +1611,7 @@ export function ChatLayout() {
                             draftText,
                             stagedFiles: [...filesToSend],
                             replyToMessage: replyTarget || null,
-                            mentionTargets: [...mentionTargets]
+                            mentionTargets: [...targetsForSend]
                         }
                     };
                     setMessages(prev => [...prev, optimisticMessage]);
@@ -1286,7 +1624,7 @@ export function ChatLayout() {
                             draftText,
                             stagedFiles: [...filesToSend],
                             replyToMessage: replyTarget || null,
-                            mentionTargets: [...mentionTargets]
+                            mentionTargets: [...targetsForSend]
                         }
                     } : msg));
                 }
@@ -1302,6 +1640,7 @@ export function ChatLayout() {
             }
 
             let finalContent = draftText;
+            let recipientDevicesForSend: Awaited<ReturnType<typeof api.e2ee.getRecipientDevices>> | undefined;
 
             if (filesToSend.length > 0) {
                 setIsUploading(true);
@@ -1309,8 +1648,19 @@ export function ChatLayout() {
                 // Fallback to active chat's orgId or 'platform' literal for global/system chats.
                 const orgId = user?.organizationId ?? user?.orgId ?? activeChat?.organizationId ?? 'platform';
 
+                const recipientDevices = await api.e2ee.getRecipientDevices(getActiveChatParticipantUserIds(activeChat), token);
+                recipientDevicesForSend = recipientDevices;
+                const encryptedFiles = await Promise.all(filesToSend.map((file) => prepareEncryptedFileUpload({
+                    file,
+                    recipientDevices,
+                    currentUserId: user.id,
+                    scope: 'CHAT_ATTACHMENT',
+                    entityType: 'chat',
+                    entityId: chatId,
+                    allowPartialRecipients: activeChat.type === ChatType.GROUP,
+                })));
                 const uploadResults = await Promise.all(
-                    filesToSend.map(file => api.files.uploadFile(orgId, 'chat', chatId, file, token))
+                    encryptedFiles.map((encrypted) => api.files.uploadFile(orgId, 'chat', chatId, encrypted.file, token, encrypted.encryptedContent))
                 );
 
                 const attachmentLinks = buildAttachmentMarkdown(filesToSend, uploadResults);
@@ -1320,19 +1670,46 @@ export function ChatLayout() {
             }
 
             if (editingMessage) {
-                await api.chat.editMessage(chatId, editingMessage.id, finalContent, token);
+                const payload = await prepareEncryptedChatMessagePayload({
+                    chat: activeChat,
+                    plaintext: finalContent,
+                    token,
+                    currentUserId: user.id,
+                    recipientDevices: recipientDevicesForSend,
+                    purpose: 'EDIT',
+                    messageId: editingMessage.id,
+                    replyToId: editingMessage.replyToId || undefined,
+                });
+                await api.chat.editMessage(chatId, editingMessage.id, {
+                    content: payload.content,
+                    encryptedContent: payload.encryptedContent,
+                }, token);
                 updateComposerStateForChat(chatId, { editingMessage: null });
             } else {
-                const sentMessage = await api.chat.sendMessage(chatId, finalContent || 'Sent an attachment', token, replyTarget?.id || undefined, sanitizeMentionTargetsForApi(mentionTargets));
+                const payload = await prepareEncryptedChatMessagePayload({
+                    chat: activeChat,
+                    plaintext: finalContent || 'Sent an attachment',
+                    token,
+                    currentUserId: user.id,
+                    recipientDevices: recipientDevicesForSend,
+                    replyToId: replyTarget?.id || undefined,
+                    mentionTargets: sanitizeMentionTargetsForApi(targetsForSend),
+                });
+                const sentMessage = await api.chat.sendMessage(chatId, payload, token);
+                const sentMessageWithPlaintext = {
+                    ...sentMessage,
+                    decryptedContent: finalContent || 'Sent an attachment',
+                };
+                void cacheDecryptedChatMessageContent(sentMessage, token, sentMessageWithPlaintext.decryptedContent);
                 updateComposerStateForChat(chatId, { mentionTargets: [] });
                 if (tempMessageId) {
-                    setMessages(prev => reconcileIncomingMessage(prev, sentMessage, user.id, tempMessageId));
+                    setMessages(prev => reconcileIncomingMessage(prev, sentMessageWithPlaintext, user.id, tempMessageId));
                 }
                 pendingMessageIdRef.current = null;
                 setChats(prev => prev.map(chat => chat.id === chatId ? {
                     ...chat,
                     updatedAt: sentMessage.createdAt,
-                    messages: [sentMessage]
+                    messages: [sentMessageWithPlaintext]
                 } : chat));
             }
 
@@ -1363,17 +1740,23 @@ export function ChatLayout() {
                         draftText,
                         stagedFiles: [...filesToSend],
                         replyToMessage: replyTarget || null,
-                        mentionTargets: [...mentionTargets]
+                        mentionTargets: [...targetsForSend]
                     }
                 } : msg));
             }
             setIsUploading(false);
-            dispatchRef.current({ type: 'TOAST_ADD', payload: { message: error.message || 'Failed to send message', type: 'error' } });
+            if (err instanceof E2EEError && err.code === 'RECIPIENT_NO_TRUSTED_DEVICE') {
+                showRecipientNeedsTrustedDeviceDialog();
+            } else if (err instanceof E2EEError && err.code === 'NO_TRUSTED_DEVICE') {
+                showUntrustedDeviceDialog();
+            } else {
+                dispatchRef.current({ type: 'TOAST_ADD', payload: { message: error.message || 'Failed to send message', type: 'error' } });
+            }
         } finally {
             sendLockRef.current = false;
             setIsSending(false);
         }
-    }, [messageDraft, stagedFiles, replyToMessage, mentionTargets, token, user, activeChatId, activeChat, isSending, isUploading, editingMessage, scrollToBottom, updateComposerStateForChat, emitTypingStop]);
+    }, [messageDraft, stagedFiles, replyToMessage, mentionTargets, token, user, activeChatId, activeChat, isSending, isUploading, editingMessage, scrollToBottom, updateComposerStateForChat, emitTypingStop, showUntrustedDeviceDialog, showRecipientNeedsTrustedDeviceDialog]);
 
     const handleDeleteMessage = useCallback((messageId: string) => {
         if (!token || !activeChatId) return;
@@ -1485,10 +1868,15 @@ export function ChatLayout() {
 
     const handleEditMessage = useCallback((msg: ChatMessageWithMeta) => {
         if (msg.clientStatus === 'failed') return;
+        const editableContent = isEncryptedChatMessage(msg) ? msg.decryptedContent : msg.content;
+        if (!editableContent) {
+            dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'This message is not available to edit on this device', type: 'info' } });
+            return;
+        }
         updateActiveComposerState({
             editingMessage: msg,
             replyToMessage: null,
-            messageDraft: msg.content
+            messageDraft: editableContent
         });
         requestAnimationFrame(() => {
             const el = document.querySelector('textarea');
@@ -1503,14 +1891,81 @@ export function ChatLayout() {
     }, [updateActiveComposerState]);
 
 
-    const handleCopyText = useCallback((msg: ChatMessage) => {
-        navigator.clipboard.writeText(msg.content).then(() => {
+    const handleCopyText = useCallback((msg: ChatMessageWithMeta) => {
+        const copyContent = isEncryptedChatMessage(msg) ? msg.decryptedContent : msg.content;
+        if (!copyContent) {
+            dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'This message is not available to copy on this device', type: 'info' } });
+            return;
+        }
+        navigator.clipboard.writeText(copyContent).then(() => {
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Message text copied to clipboard', type: 'success' } });
         }).catch(err => {
             console.error('Failed to copy text', err);
             dispatchRef.current({ type: 'TOAST_ADD', payload: { message: 'Failed to copy text', type: 'error' } });
         });
     }, []);
+
+    const handleMessageDecrypted = useCallback((messageId: string, plaintext: string) => {
+        setMessages(prev => prev.map(message => (
+            message.id === messageId && message.decryptedContent !== plaintext
+                ? { ...message, decryptedContent: plaintext }
+                : message
+        )));
+    }, []);
+
+    useEffect(() => {
+        if (!token || !activeChatId || messages.length === 0) return;
+
+        const signature = `${activeChatId}:${getMessageDecryptionSignature(messages)}`;
+        if (activeMessageDecryptSignatureRef.current === signature) return;
+        activeMessageDecryptSignatureRef.current = signature;
+
+        const encryptedMessages = messages.filter((message) => isEncryptedChatMessage(message));
+        if (encryptedMessages.length === 0) return;
+
+        let cancelled = false;
+
+        const run = async () => {
+            const cached = await Promise.all(encryptedMessages.map(async (message) => ({
+                message,
+                plaintext: await getCachedDecryptedChatMessageContent(message, token),
+            })));
+
+            if (cancelled) return;
+            const cachedById = new Map(
+                cached
+                    .filter((entry): entry is { message: ChatMessageWithMeta; plaintext: string } => Boolean(entry.plaintext))
+                    .map((entry) => [entry.message.id, entry.plaintext]),
+            );
+
+            if (cachedById.size > 0) {
+                setMessages(prev => prev.map((message) => {
+                    const plaintext = cachedById.get(message.id);
+                    return plaintext && message.decryptedContent !== plaintext
+                        ? { ...message, decryptedContent: plaintext }
+                        : message;
+                }));
+            }
+
+            for (const message of encryptedMessages) {
+                if (cancelled) return;
+                try {
+                    const plaintext = await decryptChatMessageContent(message, token);
+                    if (!cancelled) handleMessageDecrypted(message.id, plaintext);
+                } catch (error) {
+                    console.warn('Chat message could not be opened on this browser', error);
+                }
+
+                await new Promise(resolve => window.setTimeout(resolve, 0));
+            }
+        };
+
+        void run();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeChatId, handleMessageDecrypted, messages, token]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (isDesktop && e.key === 'Enter' && !e.shiftKey) {
@@ -1761,18 +2216,7 @@ export function ChatLayout() {
                                                         return lastMsg ? (
                                                             <>
                                                                 <span className="text-muted-foreground">{lastMsg.senderId === user.id ? 'You: ' : <span>{lastMsg.sender?.name}: </span>}</span>
-                                                                {lastMsg.deletedAt ? (
-                                                                    <span className="text-muted-foreground">Message deleted</span>
-                                                                ) : (
-                                                                    (() => {
-                                                                        const content = lastMsg.content || '';
-                                                                        if (content.includes('![')) {
-                                                                            const textPart = content.replace(/!\[.*?\]\(.*?\)/g, '').trim();
-                                                                            return textPart ? `${textPart} 📷` : '📷 Photo';
-                                                                        }
-                                                                        return content;
-                                                                    })()
-                                                                )}
+                                                                <span>{getChatListMessagePreview(lastMsg)}</span>
                                                             </>
                                                         ) : (
                                                             <span className="text-muted-foreground">Tap to start chatting</span>
@@ -1861,6 +2305,20 @@ export function ChatLayout() {
                             );
                         })
                     )}
+                </div>
+                <div className="shrink-0 border-t border-border/60 bg-background/85 px-3 py-2">
+                    {chatSyncProgress.status === 'syncing' && chatSyncProgress.total > 0 && (
+                        <div className="mb-1.5 flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary">
+                            <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                            <span>
+                                Syncing messages... {Math.round((chatSyncProgress.done / chatSyncProgress.total) * 100)}%
+                            </span>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        <LockIcon size={12} className="text-primary" aria-hidden="true" />
+                        <span>Chats are end-to-end encrypted</span>
+                    </div>
                 </div>
             </div>
             {/* ===== CHAT PANEL ===== */}
@@ -2006,6 +2464,7 @@ export function ChatLayout() {
                                             onOpenContextMenu={openMessageContextMenu}
                                             onScrollToMessage={scrollToMessageFromRow}
                                             onRetrySend={retrySendMessage}
+                                            onMessageDecrypted={handleMessageDecrypted}
                                         />
 
                                         <div ref={messagesEndRef} />
@@ -2392,11 +2851,17 @@ export function ChatLayout() {
 
                                 </div>
                             ) : (
-                                <div ref={readOnlyBannerRefCallback} className="absolute bottom-0 left-0 right-0 px-2 sm:px-3 py-2 sm:py-2.5 bg-warning/10 mr-2.5 mb-1 border-x-4 border-warning rounded-lg flex items-center justify-center gap-2 animate-in slide-in-from-bottom duration-200">
-                                    <LockIcon size={14} className="text-warning shrink-0" />
-                                    <p className="text-[11px] sm:text-[12px] md:text-[13px] font-semibold text-warning text-center">
-                                        {directMessageBlockLabel || 'Read-Only Mode - Only admins and moderators can send messages'}
-                                    </p>
+                                <div
+                                    ref={readOnlyBannerRefCallback}
+                                    className="absolute bottom-0 left-0 right-0 z-50 px-2 pb-3 pt-0.5 sm:px-5"
+                                    style={!isDesktop ? { paddingBottom: mobileBottomInset } : undefined}
+                                >
+                                    <div className="flex min-h-13 items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/70 px-4 py-3 text-muted-foreground shadow-sm opacity-80 cursor-not-allowed">
+                                        <LockIcon size={15} className="shrink-0" />
+                                        <p className="text-center text-[11px] font-semibold sm:text-[12px] md:text-[13px]">
+                                            {directMessageBlockLabel || encryptionSendBlockLabel || 'Read-Only Mode - Only admins and moderators can send messages'}
+                                        </p>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -2472,7 +2937,10 @@ export function ChatLayout() {
                 title={confirmConfig.title}
                 description={confirmConfig.description}
                 isDestructive={confirmConfig.isDestructive}
-                confirmText={confirmConfig.isDestructive ? 'Delete' : 'Confirm'}
+                confirmText={confirmConfig.confirmText || (confirmConfig.isDestructive ? 'Delete' : 'Confirm')}
+                cancelText={confirmConfig.cancelText}
+                hideConfirm={confirmConfig.hideConfirm}
+                loadingId={confirmConfig.loadingId}
             />
 
             <ConfirmDialog

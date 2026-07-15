@@ -59,6 +59,19 @@ export class FilesController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get(':id/metadata')
+  async getFileMetadata(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ): Promise<UploadedFileInfo> {
+    return this.filesService.getFileMetadata(id, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId ?? null,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get(':id/download')
   async downloadFile(
     @Param('id') id: string,

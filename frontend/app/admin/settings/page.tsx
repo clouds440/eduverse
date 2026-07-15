@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Settings, Shield } from 'lucide-react';
 import { Role } from '@/types';
-import SessionManagement from '@/components/SessionManagement';
+import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
 import { Loading } from '@/components/ui/Loading';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 
@@ -56,13 +56,13 @@ export default function AdminSettingsPage() {
                         <Shield className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                        <h2 className="text-lg md:text-xl font-black text-foreground">Device Session Management</h2>
-                        <p className="text-xs md:text-sm text-muted-foreground font-medium opacity-70">Manage active login sessions across all devices</p>
+                        <h2 className="text-lg md:text-xl font-black text-foreground">Account Devices</h2>
+                        <p className="text-xs md:text-sm text-muted-foreground font-medium opacity-70">Manage active sessions and trusted browsers</p>
                     </div>
                 </div>
 
                 <div id="sessions">
-                    <SessionManagement userId={user.id} />
+                    <TrustedEncryptionDevicesPanel />
                 </div>
             </ResourcePanel>
         </PageShell>

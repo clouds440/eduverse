@@ -224,6 +224,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     client.emit('presence:state', {
       chatId: data.chatId,
+      participantUserIds: participants.map((chatParticipant) => chatParticipant.userId),
       userIds: onlineUserIds,
     });
   }

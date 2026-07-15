@@ -2,7 +2,7 @@
 
 import { Student } from '@/types';
 import StudentForm from '@/components/forms/StudentForm';
-import SessionManagement from '@/components/SessionManagement';
+import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
 import { UserCircle } from 'lucide-react';
 
 export default function Profile({ profile }: { profile: Student | null }) {
@@ -25,7 +25,7 @@ export default function Profile({ profile }: { profile: Student | null }) {
             {/* Session Management */}
             {profile && (
                 <div id="sessions">
-                    <SessionManagement userId={profile.id} />
+                    <TrustedEncryptionDevicesPanel />
                 </div>
             )}
         </div>

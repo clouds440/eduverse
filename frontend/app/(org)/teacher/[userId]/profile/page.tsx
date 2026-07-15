@@ -4,33 +4,37 @@ import { Role, Teacher } from '@/types';
 import { useGlobal } from '@/context/GlobalContext';
 import { useAuth } from '@/context/AuthContext';
 import TeacherForm from '@/components/forms/TeacherForm';
-import SessionManagement from '@/components/SessionManagement';
+import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
 import { UserCircle } from 'lucide-react';
 import { Loading } from '@/components/ui/Loading';
 import { useEffect } from 'react';
 import useSWR from 'swr';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { FormPageHeader, FormPageShell } from '@/components/ui/FormLayout';
+import { api } from '@/lib/api';
 
 export default function TeacherProfilePage() {
     const { state } = useGlobal();
     const { user, token } = useAuth();
     const params = useParams();
+    const router = useRouter();
     const userId = params.userId as string;
 
     const teacherDataFromState = state.auth.userProfile as Teacher | null;
     const loading = state.auth.loading;
 
-    // SWR: Validation fetch
-    const validationKey = token && userId ? ['validate-teacher', userId] as const : null;
-    const { data: validatedTeacher, isLoading: validationLoading, error: validationError } = useSWR<Teacher>(validationKey);
-
-    // Fetch teacher profile if not already in state
-    const profileKey = token && validatedTeacher?.id && (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER) ? ['teacher', validatedTeacher.id] as const : null;
-    const { data: fetchedProfile, isLoading: profileLoading, error: profileError, mutate } = useSWR<Teacher>(profileKey);
-    const isProfileLoading = loading || validationLoading || profileLoading || (Boolean(validationKey) && !validatedTeacher && !validationError);
-    const profileIssue = validationError || profileError;
+    const canLoadProfile = Boolean(
+        token &&
+        user?.id === userId &&
+        (user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER),
+    );
+    const { data: fetchedProfile, isLoading: profileLoading, error: profileError, mutate } = useSWR<Teacher>(
+        canLoadProfile ? ['teacher-profile', userId] as const : null,
+        () => api.org.getProfile<Teacher>(token!),
+    );
+    const isProfileLoading = loading || profileLoading || (canLoadProfile && !fetchedProfile && !profileError);
+    const profileIssue = profileError;
 
     // Use fetched profile if available, otherwise use state. The profile endpoint
     // may return the teacher row without a nested user, so merge auth user data for
@@ -53,6 +57,10 @@ export default function TeacherProfilePage() {
 
     // Scroll to section if hash is present
     useEffect(() => {
+        if (loading || !user) return;
+        if (user.id !== userId || (user.role !== Role.TEACHER && user.role !== Role.ORG_MANAGER)) {
+            router.replace(user.role === Role.ORG_MANAGER || user.role === Role.TEACHER ? `/teacher/${user.id}/profile` : '/overview');
+        }
         const hash = window.location.hash;
         if (hash) {
             const elementId = hash.substring(1); // Remove the # symbol
@@ -61,7 +69,7 @@ export default function TeacherProfilePage() {
                 element.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
-    }, []);
+    }, [loading, router, user, userId]);
 
     return (
         <FormPageShell>
@@ -93,7 +101,7 @@ export default function TeacherProfilePage() {
             {/* Session Management */}
             {!isProfileLoading && effectiveTeacherData && (
                 <div id="sessions">
-                    <SessionManagement userId={effectiveTeacherData.id} />
+                    <TrustedEncryptionDevicesPanel />
                 </div>
             )}
         </FormPageShell>

@@ -387,7 +387,15 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
     // Check if the current route is allowed for non-approved organizations
     const allowedSubPaths = ['settings', 'change-password', 'mail', 'contact'];
-    const isAllowedRoute = allowedSubPaths.some(sub => pathname.startsWith(`/${sub}`));
+    const isOwnTeacherProfile = Boolean(user?.id && pathname === `/teacher/${user.id}/profile`);
+    const isOwnFinanceManagerProfile = Boolean(user?.id && pathname === `/finance-manager/${user.id}/profile`);
+    const isOwnSubAdminProfile = Boolean(user?.id && pathname === `/sub-admin/${user.id}/profile`);
+    const isOwnStudentProfile = Boolean(user?.id && pathname === `/student/${user.id}`);
+    const isAllowedRoute = allowedSubPaths.some(sub => pathname.startsWith(`/${sub}`))
+        || isOwnTeacherProfile
+        || isOwnFinanceManagerProfile
+        || isOwnSubAdminProfile
+        || isOwnStudentProfile;
     const contactEmailUnverified = user?.role === Role.ORG_ADMIN && orgData && !orgData.contactEmailVerifiedAt;
     const refreshOrgData = async () => {
         if (!token) return;

@@ -40,7 +40,7 @@ import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { useTheme } from '@/context/ThemeContext';
-import SessionManagement from '@/components/SessionManagement';
+import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
 import { Loading } from '@/components/ui/Loading';
 import { ThemeDropdown } from '@/components/ui/ThemeDropdown';
 import { getSafePrimaryColor } from '@/lib/themeColor';
@@ -1215,8 +1215,8 @@ export default function SettingsPage() {
             </form>
 
             {activeTab === 'security' && (
-                <div id="sessions" className="scroll-mt-24">
-                    <SessionManagement userId={user?.id} />
+                <div id="sessions" className="scroll-mt-24 space-y-5">
+                    <TrustedEncryptionDevicesPanel />
                 </div>
             )}
         </PageShell>

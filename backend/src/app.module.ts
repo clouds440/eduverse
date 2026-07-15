@@ -39,6 +39,7 @@ import { CampusNavigationModule } from './campus-navigation/campus-navigation.mo
 import { PreferenceWindowsModule } from './preference-windows/preference-windows.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { AIModule } from './ai/ai.module';
+import { E2eeModule } from './e2ee/e2ee.module';
 
 @Module({
   imports: [
@@ -82,6 +83,7 @@ import { AIModule } from './ai/ai.module';
     PreferenceWindowsModule,
     EnrollmentsModule,
     AIModule,
+    E2eeModule,
   ],
   providers: [
     {

@@ -294,6 +294,7 @@ export class OrgController {
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
+  @Access(AccessLevel.NONE)
   @Get('profile')
   async getProfile(@OrgId() orgId: string, @Request() req: AuthenticatedRequest) {
     if (req.user.role === Role.SUB_ADMIN) {
@@ -316,7 +317,7 @@ export class OrgController {
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT)
-  @Access(AccessLevel.WRITE)
+  @Access(AccessLevel.NONE)
   @Patch('profile')
   async updateProfile(
     @OrgId() orgId: string,
@@ -413,7 +414,7 @@ export class OrgController {
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.FINANCE_MANAGER)
-  @Access(AccessLevel.WRITE)
+  @Access(AccessLevel.NONE)
   @Patch('users/:id/avatar')
   @UseInterceptors(
     FileInterceptor('file', {

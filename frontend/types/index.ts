@@ -553,6 +553,7 @@ export interface Attachment {
     scanStatus?: string | null;
     uploadedBy: string;
     createdAt: string;
+    encryptedContent?: EncryptedMailContent | null;
 }
 
 export interface StatusHistoryEntry {
@@ -1157,6 +1158,9 @@ export interface MailMessage {
     mailId: string;
     senderId: string;
     content: string;
+    encryptionVersion?: number | null;
+    ciphertext?: string | null;
+    encryptedContent?: EncryptedMailContent | null;
     createdAt: string;
     updatedAt: string;
     sender: MailUser;
@@ -1184,6 +1188,10 @@ export interface MailUserView {
 export interface MailItem {
     id: string;
     subject: string;
+    encryptionVersion?: number | null;
+    ciphertext?: string | null;
+    subjectEncryptedContent?: EncryptedMailContent | null;
+    encryptedContent?: EncryptedMailContent | null;
     category: MailCategory;
     priority: string;
     status: MailStatus;
@@ -1219,6 +1227,18 @@ export interface CreateMailPayload {
     assigneeIds?: string[];
     metadata?: Record<string, unknown>;
     noReply?: boolean;
+    encryptedSubject?: EncryptedMailContent;
+    encryptedMessage?: EncryptedMailContent;
+}
+
+export type EncryptedMailContent = Omit<EncryptedChatContent, 'contentType'> & {
+    contentType?: 'MAIL_MESSAGE' | 'MAIL_SUBJECT' | 'FILE_ATTACHMENT';
+};
+
+export interface MailE2EEContextRequest {
+    category?: string;
+    targetRole?: string;
+    assigneeIds?: string[];
 }
 
 export interface UpdateMailPayload {
@@ -1787,6 +1807,9 @@ export interface ChatMessage {
     senderId: string;
     organizationId?: string | null;
     content: string;
+    encryptionVersion?: number | null;
+    ciphertext?: string | null;
+    encryptedContent?: EncryptedChatContent | null;
     type: ChatMessageType;
     createdAt: string;
     updatedAt: string;
@@ -1798,6 +1821,129 @@ export interface ChatMessage {
     replyToId?: string | null;
     replyTo?: ChatMessage | null;
     readBy?: string[];
+}
+
+export interface ChatKeyEnvelope {
+    id?: string;
+    recipientUserId: string;
+    trustedDeviceId: string;
+    senderDeviceId?: string | null;
+    deviceKeyVersion: number;
+    algorithm: string;
+    wrappedKey: string;
+    nonce?: string | null;
+    associatedData?: Record<string, unknown> | null;
+    senderDevice?: {
+        id: string;
+        userId: string;
+        keyAgreementPublicKey: string;
+        keyAgreementPublicKeyFingerprint?: string | null;
+        keyVersion: number;
+        trustStatus?: 'PENDING' | 'TRUSTED' | 'REVOKED';
+        revokedAt?: string | null;
+    } | null;
+    trustedDevice?: {
+        id: string;
+        userId: string;
+        clientDeviceId: string;
+        keyVersion: number;
+        trustStatus?: 'PENDING' | 'TRUSTED' | 'REVOKED';
+        revokedAt?: string | null;
+    } | null;
+}
+
+export interface ChatContentHistoryKeyEnvelope {
+    id?: string;
+    encryptedContentId?: string;
+    historyKeyId: string;
+    recipientUserId: string;
+    algorithm: string;
+    wrappedKey: string;
+    nonce?: string | null;
+    associatedData?: Record<string, unknown> | null;
+    historyKey?: ChatHistoryKeyContext;
+}
+
+export interface ChatHistoryKeyDeviceEnvelope {
+    id?: string;
+    historyKeyId?: string;
+    recipientUserId: string;
+    trustedDeviceId: string;
+    senderDeviceId?: string | null;
+    deviceKeyVersion: number;
+    algorithm: string;
+    wrappedKey: string;
+    nonce?: string | null;
+    associatedData?: Record<string, unknown> | null;
+    senderDevice?: {
+        id: string;
+        userId: string;
+        keyAgreementPublicKey: string;
+        keyAgreementPublicKeyFingerprint?: string | null;
+        keyVersion: number;
+        trustStatus?: 'PENDING' | 'TRUSTED' | 'REVOKED';
+        revokedAt?: string | null;
+    } | null;
+    trustedDevice?: {
+        id: string;
+        userId: string;
+        clientDeviceId: string;
+        keyVersion: number;
+        trustStatus?: 'PENDING' | 'TRUSTED' | 'REVOKED';
+        revokedAt?: string | null;
+    } | null;
+}
+
+export interface ChatHistoryKeyContext {
+    id: string;
+    chatId: string;
+    userId?: string;
+    scope?: 'CHAT_USER';
+    epoch: number;
+    keyVersion: number;
+    algorithm: string;
+    createdAt?: string;
+    rotatedAt?: string | null;
+    revokedAt?: string | null;
+    deviceEnvelopes?: ChatHistoryKeyDeviceEnvelope[];
+}
+
+export interface ChatE2EEContext {
+    chatId: string;
+    activeParticipantIds: string[];
+    historyKeys: ChatHistoryKeyContext[];
+}
+
+export interface RegisterChatHistoryKeyPayload {
+    algorithm: string;
+    deviceEnvelopes: ChatHistoryKeyDeviceEnvelope[];
+}
+
+export interface ApproveTrustedDevicePayload {
+    approverDeviceId: string;
+    historyKeyEnvelopes?: ChatHistoryKeyDeviceEnvelope[];
+}
+
+export interface EncryptedChatContent {
+    id?: string;
+    contentType?: 'CHAT_MESSAGE';
+    encryptionVersion: number;
+    algorithm: string;
+    ciphertext: string;
+    nonce: string;
+    authTag?: string | null;
+    associatedData?: Record<string, unknown> | null;
+    contentKeyVersion?: number;
+    keyEnvelopes?: ChatKeyEnvelope[];
+    historyKeyEnvelopes?: ChatContentHistoryKeyEnvelope[];
+}
+
+export interface SendChatMessagePayload {
+    content?: string;
+    encryptedContent?: EncryptedChatContent;
+    replyToId?: string;
+    mentionTargets?: ChatMentionTarget[];
+    mentionedUserIds?: string[];
 }
 
 export interface Chat {
@@ -1823,6 +1969,84 @@ export interface Chat {
         canBlock: boolean;
         reason?: string | null;
     } | null;
+}
+
+export interface EncryptionIdentity {
+    id: string;
+    userId: string;
+    keyVersion: number;
+    identityPublicKey: string;
+    publicKeyFingerprint?: string | null;
+    signingPublicKey?: string | null;
+    signingPublicKeyFingerprint?: string | null;
+    algorithm: string;
+    createdAt: string;
+    rotatedAt?: string | null;
+    disabledAt?: string | null;
+}
+
+export interface TrustedEncryptionDevice {
+    id: string;
+    userId: string;
+    clientDeviceId: string;
+    displayName?: string | null;
+    deviceType?: string | null;
+    browser?: string | null;
+    os?: string | null;
+    keyVersion: number;
+    keyAgreementPublicKey: string;
+    keyAgreementPublicKeyFingerprint?: string | null;
+    signingPublicKey?: string | null;
+    signingPublicKeyFingerprint?: string | null;
+    algorithm: string;
+    trustStatus: 'PENDING' | 'TRUSTED' | 'REVOKED';
+    approvalRequestedAt?: string | null;
+    trustedAt?: string | null;
+    approvedByDeviceId?: string | null;
+    lastSeenAt?: string | null;
+    revokedAt?: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface RegisterTrustedDevicePayload {
+    clientDeviceId: string;
+    displayName?: string;
+    deviceType?: string;
+    browser?: string;
+    os?: string;
+    identityPublicKey: string;
+    identityPublicKeyFingerprint?: string;
+    identitySigningPublicKey?: string;
+    identitySigningPublicKeyFingerprint?: string;
+    keyAgreementPublicKey: string;
+    keyAgreementPublicKeyFingerprint?: string;
+    signingPublicKey?: string;
+    signingPublicKeyFingerprint?: string;
+    algorithm?: string;
+    requestApprovalNotification?: boolean;
+}
+
+export interface TrustedDeviceRegistrationResponse {
+    identity: EncryptionIdentity;
+    device: TrustedEncryptionDevice;
+}
+
+export interface TrustedDevicesResponse {
+    identity: EncryptionIdentity | null;
+    devices: TrustedEncryptionDevice[];
+}
+
+export interface RecipientEncryptionDevicesResponse {
+    userId: string;
+    identity: EncryptionIdentity | null;
+    devices: TrustedEncryptionDevice[];
+}
+
+export interface PendingDeviceApprovalContext {
+    pendingDevice: TrustedEncryptionDevice;
+    approverDevice: TrustedEncryptionDevice;
+    historyKeys: ChatHistoryKeyContext[];
 }
 
 export type ChatMentionTargetType = 'USER' | 'EVERYONE' | 'ROLE' | 'RELATED_SCOPE';

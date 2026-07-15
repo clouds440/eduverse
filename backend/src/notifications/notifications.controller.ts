@@ -42,6 +42,7 @@ export class NotificationsController {
       req.user.id,
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
+      this.getClientDeviceId(req),
     );
   }
 
@@ -55,6 +56,7 @@ export class NotificationsController {
       req.user.id,
       readPage ? parseInt(readPage, 10) : 1,
       readLimit ? parseInt(readLimit, 10) : 10,
+      this.getClientDeviceId(req),
     );
   }
 
@@ -63,12 +65,12 @@ export class NotificationsController {
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.notificationsService.deleteNotification(id, req.user.id);
+    return this.notificationsService.deleteNotification(id, req.user.id, this.getClientDeviceId(req));
   }
 
   @Patch('read-all')
   async markAllAsRead(@Request() req: AuthenticatedRequest) {
-    return this.notificationsService.markAllAsRead(req.user.id);
+    return this.notificationsService.markAllAsRead(req.user.id, this.getClientDeviceId(req));
   }
 
   @Patch('clear-category/:category')
@@ -76,7 +78,7 @@ export class NotificationsController {
     @Param('category') category: 'CHAT' | 'MAIL',
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.notificationsService.markCategoryAsRead(req.user.id, category);
+    return this.notificationsService.markCategoryAsRead(req.user.id, category, this.getClientDeviceId(req));
   }
 
   @Patch(':id/read')
@@ -84,7 +86,7 @@ export class NotificationsController {
     @Param('id') id: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.notificationsService.markAsRead(id, req.user.id);
+    return this.notificationsService.markAsRead(id, req.user.id, this.getClientDeviceId(req));
   }
 
   @Get('push/config')
@@ -126,5 +128,11 @@ export class NotificationsController {
       body?.endpoint,
     );
     return { success: true, message: 'Test notification dispatched' };
+  }
+
+  private getClientDeviceId(req: AuthenticatedRequest) {
+    const headers = req.headers as Record<string, string | string[] | undefined>;
+    const value = headers['x-client-device-id'];
+    return Array.isArray(value) ? value[0] : value;
   }
 }

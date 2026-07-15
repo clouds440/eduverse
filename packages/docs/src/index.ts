@@ -2086,6 +2086,11 @@ export const docsPages: DocPage[] = [
             title: 'DM blocking',
             text: 'DM blocking only blocks one-to-one direct messages. It does not block a user globally and does not stop either person from participating normally in shared group chats.',
           },
+          {
+            type: 'note',
+            title: 'Encrypted communication',
+            text: 'Chat and Mail show an end-to-end encryption note where conversations are listed. Message content and supported attachments are protected for trusted recipient devices; notifications and badges use general text instead of private message text.',
+          },
         ],
       },
     ],
@@ -2135,6 +2140,11 @@ export const docsPages: DocPage[] = [
           {
             type: 'paragraph',
             text: 'Chat can include attachments, message formatting, and group mentions where available. Keep shared files and broad mentions relevant to the class or school task.',
+          },
+          {
+            type: 'note',
+            title: 'End-to-end encrypted',
+            text: 'Chat messages and supported Chat attachments are end-to-end encrypted. If a message is not available on a new or untrusted device, use an already trusted device to approve it and continue with new messages.',
           },
           {
             type: 'checklist',
@@ -2585,6 +2595,11 @@ export const docsPages: DocPage[] = [
             type: 'paragraph',
             text: 'Mail can include attachments where supported. Users should only attach files that are relevant to the school workflow and safe to share with the recipients.',
           },
+          {
+            type: 'note',
+            title: 'End-to-end encrypted',
+            text: 'User-composed Mail subjects, messages, and supported Mail attachments are end-to-end encrypted for trusted recipient devices. Mail search uses metadata and routing details, not private encrypted subject or message text.',
+          },
         ],
       },
     ],
@@ -2614,6 +2629,11 @@ export const docsPages: DocPage[] = [
               'Receipts and finance attachments should be clear enough for staff to verify.',
               'Profile and branding images should be appropriate for school use.',
             ],
+          },
+          {
+            type: 'note',
+            title: 'Chat and Mail attachments',
+            text: 'Supported Chat and Mail attachments are encrypted before upload. The original file name and type are protected with the attachment, and download happens from a trusted device.',
           },
         ],
       },

@@ -10,6 +10,8 @@ import { TeacherService } from '../teacher/teacher.service';
 import { CreateDirectChatDto } from './dto/create-direct-chat.dto';
 import { CreateGroupChatDto } from './dto/create-group.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { EditMessageDto } from './dto/edit-message.dto';
+import { RegisterChatHistoryKeyDto } from './dto/register-chat-history-key.dto';
 import { AddParticipantsDto } from './dto/add-participants.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -18,6 +20,8 @@ import {
   ChatParticipantRole,
   ChatMessageType,
   CommunicationChannel,
+  E2EEContentType,
+  E2EEDeviceTrustStatus,
   Prisma,
 } from '@/prisma/prisma-client';
 import { fuzzyFilterAndRank } from '../common/utils';
@@ -32,6 +36,11 @@ import {
   getMentionRecipientIdsFromTargets,
   type ChatMentionOptions,
 } from './chat-mentions.utils';
+import {
+  CHAT_MENTION_NOTIFICATION_BODY,
+  CHAT_MESSAGE_NOTIFICATION_BODY,
+  getChatPushTitle,
+} from './chat-notification.utils';
 
 interface CurrentUser {
   id: string;
@@ -44,6 +53,8 @@ type ChatPresetFilters = {
   cohortId?: string;
   departmentId?: string;
 };
+
+const ENCRYPTED_CHAT_MESSAGE_PLACEHOLDER = '[Encrypted message]';
 
 @Injectable()
 export class ChatService {
@@ -195,6 +206,352 @@ export class ChatService {
     }
   }
 
+  private async getActiveChatParticipantIds(chatId: string) {
+    const participants = await this.prisma.chatParticipant.findMany({
+      where: { chatId, isActive: true },
+      select: { userId: true },
+    });
+
+    return participants.map((participant) => participant.userId);
+  }
+
+  private getEncryptedContentInclude(recipientUserId?: string) {
+    return {
+      keyEnvelopes: {
+        ...(recipientUserId ? { where: { recipientUserId } } : {}),
+        include: {
+          senderDevice: {
+            select: {
+              id: true,
+              userId: true,
+              keyAgreementPublicKey: true,
+              keyAgreementPublicKeyFingerprint: true,
+              keyVersion: true,
+              trustStatus: true,
+              revokedAt: true,
+            },
+          },
+          trustedDevice: {
+            select: {
+              id: true,
+              userId: true,
+              clientDeviceId: true,
+              keyVersion: true,
+              trustStatus: true,
+              revokedAt: true,
+            },
+          },
+        },
+      },
+      historyKeyEnvelopes: {
+        include: {
+          historyKey: {
+            select: {
+              id: true,
+              chatId: true,
+              epoch: true,
+              keyVersion: true,
+              revokedAt: true,
+              deviceEnvelopes: {
+                ...(recipientUserId ? { where: { recipientUserId } } : {}),
+                include: {
+                  senderDevice: {
+                    select: {
+                      id: true,
+                      userId: true,
+                      keyAgreementPublicKey: true,
+                      keyAgreementPublicKeyFingerprint: true,
+                      keyVersion: true,
+                      trustStatus: true,
+                      revokedAt: true,
+                    },
+                  },
+                  trustedDevice: {
+                    select: {
+                      id: true,
+                      userId: true,
+                      clientDeviceId: true,
+                      keyVersion: true,
+                      trustStatus: true,
+                      revokedAt: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } satisfies Prisma.EncryptedContentInclude;
+  }
+
+  private getChatMessageInclude(recipientUserId?: string) {
+    return {
+      sender: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true,
+          role: true,
+        },
+      },
+      deletedBy: { select: { id: true, name: true } },
+      chat: { select: { id: true, name: true, type: true } },
+      encryptedContent: {
+        include: this.getEncryptedContentInclude(recipientUserId),
+      },
+      replyTo: {
+        include: {
+          sender: { select: { id: true, name: true } },
+          encryptedContent: {
+            include: this.getEncryptedContentInclude(recipientUserId),
+          },
+        },
+      },
+    } satisfies Prisma.ChatMessageInclude;
+  }
+
+  private async validateEncryptedChatContent(options: {
+    chatId: string;
+    chatType?: ChatType;
+    senderId: string;
+    activeParticipantIds: string[];
+    encryptedContent?: SendMessageDto['encryptedContent'];
+  }) {
+    const encryptedContent = options.encryptedContent;
+    if (!encryptedContent) {
+      throw new BadRequestException('Encrypted chat content is required.');
+    }
+
+    if (!encryptedContent.keyEnvelopes?.length) {
+      throw new BadRequestException('Encrypted chat messages require at least one key envelope.');
+    }
+
+    const activeParticipantIds = new Set(options.activeParticipantIds);
+    const trustedDeviceIds = Array.from(new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.trustedDeviceId)));
+    const senderDeviceIds = Array.from(new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.senderDeviceId).filter(Boolean) as string[]));
+    const historyKeyIds = Array.from(new Set((encryptedContent.historyKeyEnvelopes || []).map((envelope) => envelope.historyKeyId)));
+    const directEnvelopeRecipientIds = new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.recipientUserId));
+    const missingParticipantIds = options.activeParticipantIds.filter((participantId) => !directEnvelopeRecipientIds.has(participantId));
+    if (options.chatType !== ChatType.GROUP && missingParticipantIds.length > 0) {
+      throw new BadRequestException('Encrypted message is missing key envelopes for one or more active chat participants.');
+    }
+
+    const [trustedDevices, expectedTrustedDevices] = await Promise.all([
+      this.prisma.trustedEncryptionDevice.findMany({
+        where: { id: { in: trustedDeviceIds } },
+        select: { id: true, userId: true, keyVersion: true, trustStatus: true, revokedAt: true, trustedAt: true },
+      }),
+      this.prisma.trustedEncryptionDevice.findMany({
+        where: {
+          userId: { in: options.activeParticipantIds },
+          trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+          revokedAt: null,
+          trustedAt: { not: null },
+        },
+        select: { id: true },
+      }),
+    ]);
+    const missingTrustedDeviceIds = expectedTrustedDevices.filter((device) => !trustedDeviceIds.includes(device.id));
+    if (missingTrustedDeviceIds.length > 0) {
+      throw new BadRequestException('Encrypted message is missing key envelopes for one or more trusted participant devices. Refresh and try again.');
+    }
+    const senderDevices = senderDeviceIds.length
+      ? await this.prisma.trustedEncryptionDevice.findMany({
+        where: { id: { in: senderDeviceIds } },
+        select: { id: true, userId: true, trustStatus: true, revokedAt: true, trustedAt: true },
+      })
+      : [];
+    const historyKeys = historyKeyIds.length
+      ? await this.prisma.chatHistoryKey.findMany({
+        where: { id: { in: historyKeyIds } },
+        select: { id: true, chatId: true, userId: true, revokedAt: true },
+      })
+      : [];
+
+    const trustedDeviceById = new Map(trustedDevices.map((device) => [device.id, device]));
+    for (const envelope of encryptedContent.keyEnvelopes) {
+      if (!activeParticipantIds.has(envelope.recipientUserId)) {
+        throw new BadRequestException('Encrypted message envelope recipient is not an active chat participant.');
+      }
+
+      const device = trustedDeviceById.get(envelope.trustedDeviceId);
+      if (!device || device.userId !== envelope.recipientUserId) {
+        throw new BadRequestException('Encrypted message envelope target device does not belong to the recipient.');
+      }
+
+      if (device.trustStatus !== E2EEDeviceTrustStatus.TRUSTED || device.revokedAt || !device.trustedAt) {
+        throw new BadRequestException('Encrypted message envelope targets a pending or revoked device.');
+      }
+
+      if (envelope.deviceKeyVersion !== device.keyVersion) {
+        throw new BadRequestException('Encrypted message envelope device key version is stale.');
+      }
+    }
+
+    const senderDeviceById = new Map(senderDevices.map((device) => [device.id, device]));
+    for (const senderDeviceId of senderDeviceIds) {
+      const device = senderDeviceById.get(senderDeviceId);
+      if (!device || device.userId !== options.senderId) {
+        throw new BadRequestException('Encrypted message sender device does not belong to the sender.');
+      }
+      if (device.trustStatus !== E2EEDeviceTrustStatus.TRUSTED || device.revokedAt || !device.trustedAt) {
+        throw new BadRequestException('Encrypted message sender device is not trusted.');
+      }
+    }
+
+    const historyKeyById = new Map(historyKeys.map((historyKey) => [historyKey.id, historyKey]));
+    for (const envelope of encryptedContent.historyKeyEnvelopes || []) {
+      if (!activeParticipantIds.has(envelope.recipientUserId)) {
+        throw new BadRequestException('Encrypted history-key envelope recipient is not an active chat participant.');
+      }
+
+      const historyKey = historyKeyById.get(envelope.historyKeyId);
+      if (!historyKey || historyKey.chatId !== options.chatId || historyKey.revokedAt) {
+        throw new BadRequestException('Encrypted history-key envelope target is invalid for this chat.');
+      }
+    }
+  }
+
+  private buildEncryptedContentCreate(encryptedContent: NonNullable<SendMessageDto['encryptedContent']>) {
+    return {
+      contentType: E2EEContentType.CHAT_MESSAGE,
+      encryptionVersion: encryptedContent.encryptionVersion,
+      algorithm: encryptedContent.algorithm,
+      ciphertext: encryptedContent.ciphertext,
+      nonce: encryptedContent.nonce,
+      authTag: encryptedContent.authTag,
+      associatedData: encryptedContent.associatedData === undefined
+        ? undefined
+        : encryptedContent.associatedData as Prisma.InputJsonValue,
+      contentKeyVersion: encryptedContent.contentKeyVersion ?? 1,
+      keyEnvelopes: {
+        create: encryptedContent.keyEnvelopes.map((envelope) => ({
+          recipientUserId: envelope.recipientUserId,
+          trustedDeviceId: envelope.trustedDeviceId,
+          senderDeviceId: envelope.senderDeviceId,
+          deviceKeyVersion: envelope.deviceKeyVersion,
+          algorithm: envelope.algorithm,
+          wrappedKey: envelope.wrappedKey,
+          nonce: envelope.nonce,
+          associatedData: envelope.associatedData === undefined
+            ? undefined
+            : envelope.associatedData as Prisma.InputJsonValue,
+        })),
+      },
+      historyKeyEnvelopes: encryptedContent.historyKeyEnvelopes?.length
+        ? {
+          create: encryptedContent.historyKeyEnvelopes.map((envelope) => ({
+            historyKeyId: envelope.historyKeyId,
+            recipientUserId: envelope.recipientUserId,
+            algorithm: envelope.algorithm,
+            wrappedKey: envelope.wrappedKey,
+            nonce: envelope.nonce,
+            associatedData: envelope.associatedData === undefined
+              ? undefined
+              : envelope.associatedData as Prisma.InputJsonValue,
+          })),
+        }
+        : undefined,
+    } satisfies Prisma.EncryptedContentCreateWithoutChatMessageInput;
+  }
+
+  private async validateChatHistoryKeyDeviceEnvelopes(options: {
+    chatId: string;
+    senderId: string;
+    activeParticipantIds: string[];
+    deviceEnvelopes: RegisterChatHistoryKeyDto['deviceEnvelopes'];
+  }) {
+    if (!options.deviceEnvelopes.length) {
+      throw new BadRequestException('Chat history keys require at least one device envelope.');
+    }
+
+    const activeParticipantIds = new Set(options.activeParticipantIds);
+    const trustedDeviceIds = Array.from(new Set(options.deviceEnvelopes.map((envelope) => envelope.trustedDeviceId)));
+    const senderDeviceIds = Array.from(new Set(options.deviceEnvelopes.map((envelope) => envelope.senderDeviceId).filter(Boolean) as string[]));
+
+    const trustedDevices = await this.prisma.trustedEncryptionDevice.findMany({
+      where: { id: { in: trustedDeviceIds } },
+      select: { id: true, userId: true, keyVersion: true, trustStatus: true, revokedAt: true, trustedAt: true },
+    });
+    const senderDevices = senderDeviceIds.length
+      ? await this.prisma.trustedEncryptionDevice.findMany({
+        where: { id: { in: senderDeviceIds } },
+        select: { id: true, userId: true, trustStatus: true, revokedAt: true, trustedAt: true },
+      })
+      : [];
+
+    const trustedDeviceById = new Map(trustedDevices.map((device) => [device.id, device]));
+    for (const envelope of options.deviceEnvelopes) {
+      if (!activeParticipantIds.has(envelope.recipientUserId)) {
+        throw new BadRequestException('Chat history-key envelope recipient is not an active chat participant.');
+      }
+
+      const device = trustedDeviceById.get(envelope.trustedDeviceId);
+      if (!device || device.userId !== envelope.recipientUserId) {
+        throw new BadRequestException('Chat history-key envelope target device does not belong to the recipient.');
+      }
+      if (device.trustStatus !== E2EEDeviceTrustStatus.TRUSTED || device.revokedAt || !device.trustedAt) {
+        throw new BadRequestException('Chat history-key envelope targets a pending or revoked device.');
+      }
+      if (envelope.deviceKeyVersion !== device.keyVersion) {
+        throw new BadRequestException('Chat history-key envelope device key version is stale.');
+      }
+    }
+
+    const senderDeviceById = new Map(senderDevices.map((device) => [device.id, device]));
+    for (const senderDeviceId of senderDeviceIds) {
+      const device = senderDeviceById.get(senderDeviceId);
+      if (!device || device.userId !== options.senderId) {
+        throw new BadRequestException('Chat history-key sender device does not belong to the sender.');
+      }
+      if (device.trustStatus !== E2EEDeviceTrustStatus.TRUSTED || device.revokedAt || !device.trustedAt) {
+        throw new BadRequestException('Chat history-key sender device is not trusted.');
+      }
+    }
+  }
+
+  private serializeHistoryKey(historyKey: Prisma.ChatHistoryKeyGetPayload<{
+    include: {
+      deviceEnvelopes: {
+        include: {
+          senderDevice: {
+            select: {
+              id: true;
+              userId: true;
+              keyAgreementPublicKey: true;
+              keyAgreementPublicKeyFingerprint: true;
+              keyVersion: true;
+              trustStatus: true;
+              revokedAt: true;
+            };
+          };
+          trustedDevice: {
+            select: {
+              id: true;
+              userId: true;
+              clientDeviceId: true;
+              keyVersion: true;
+              trustStatus: true;
+              revokedAt: true;
+            };
+          };
+        };
+      };
+    };
+  }>) {
+    return historyKey;
+  }
+
+  private async retireChatHistoryKeysForMembershipChange(chatId: string) {
+    const now = new Date();
+    await this.prisma.chatHistoryKey.updateMany({
+      where: { chatId, revokedAt: null },
+      data: { rotatedAt: now, revokedAt: now },
+    });
+  }
+
   private async getDirectChatId(userId: string, targetUserId: string) {
     const chat = await this.prisma.chat.findFirst({
       where: {
@@ -281,20 +638,14 @@ export class ChatService {
     senderId: string;
     senderName: string;
     chatName: string;
-    content: string;
     recipientIds: string[];
   }) {
-    const body =
-      options.content.length > 30
-        ? options.content.substring(0, 30) + '...'
-        : options.content;
-
     for (const userId of options.recipientIds) {
       if (userId === options.senderId) continue;
       await this.notifications.createNotification({
         userId,
         title: `${options.senderName} mentioned you in ${options.chatName}.`,
-        body,
+        body: CHAT_MENTION_NOTIFICATION_BODY,
         type: 'CHAT_MENTION',
         actionUrl: `/chat?id=${options.chatId}&msgId=${options.messageId}`,
       });
@@ -1551,6 +1902,10 @@ export class ChatService {
       );
     }
 
+    if (systemMessages.length > 0) {
+      await this.retireChatHistoryKeysForMembershipChange(chatId);
+    }
+
     // Log system messages
     for (const content of systemMessages) {
       const msg = await this.prisma.chatMessage.create({
@@ -1637,6 +1992,132 @@ export class ChatService {
     });
 
     return { message: 'Chat local state updated successfully.' };
+  }
+
+  async getChatE2eeContext(chatId: string, user: CurrentUser) {
+    const participant = await this.verifyChatAccess(chatId, user.id);
+    if (!participant.isActive) {
+      throw new ForbiddenException('You are no longer an active participant of this chat.');
+    }
+
+    const activeParticipantIds = await this.getActiveChatParticipantIds(chatId);
+    const historyKeys = await this.prisma.chatHistoryKey.findMany({
+      where: { chatId, revokedAt: null },
+      orderBy: [{ epoch: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        deviceEnvelopes: {
+          where: { recipientUserId: user.id },
+          include: {
+            senderDevice: {
+              select: {
+                id: true,
+                userId: true,
+                keyAgreementPublicKey: true,
+                keyAgreementPublicKeyFingerprint: true,
+                keyVersion: true,
+                trustStatus: true,
+                revokedAt: true,
+              },
+            },
+            trustedDevice: {
+              select: {
+                id: true,
+                userId: true,
+                clientDeviceId: true,
+                keyVersion: true,
+                trustStatus: true,
+                revokedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      chatId,
+      activeParticipantIds,
+      historyKeys,
+    };
+  }
+
+  async registerChatHistoryKey(
+    chatId: string,
+    dto: RegisterChatHistoryKeyDto,
+    user: CurrentUser,
+  ) {
+    const participant = await this.verifyChatAccess(chatId, user.id);
+    if (!participant.isActive) {
+      throw new ForbiddenException('You are no longer an active participant of this chat.');
+    }
+
+    const activeParticipantIds = await this.getActiveChatParticipantIds(chatId);
+    await this.validateChatHistoryKeyDeviceEnvelopes({
+      chatId,
+      senderId: user.id,
+      activeParticipantIds,
+      deviceEnvelopes: dto.deviceEnvelopes,
+    });
+
+    const latest = await this.prisma.chatHistoryKey.findFirst({
+      where: { chatId },
+      orderBy: { epoch: 'desc' },
+      select: { epoch: true },
+    });
+    const epoch = (latest?.epoch ?? 0) + 1;
+
+    const historyKey = await this.prisma.chatHistoryKey.create({
+      data: {
+        chatId,
+        userId: user.id,
+        epoch,
+        algorithm: dto.algorithm,
+        deviceEnvelopes: {
+          create: dto.deviceEnvelopes.map((envelope) => ({
+            recipientUserId: envelope.recipientUserId,
+            trustedDeviceId: envelope.trustedDeviceId,
+            senderDeviceId: envelope.senderDeviceId,
+            deviceKeyVersion: envelope.deviceKeyVersion,
+            algorithm: envelope.algorithm,
+            wrappedKey: envelope.wrappedKey,
+            nonce: envelope.nonce,
+            associatedData: envelope.associatedData === undefined
+              ? undefined
+              : envelope.associatedData as Prisma.InputJsonValue,
+          })),
+        },
+      },
+      include: {
+        deviceEnvelopes: {
+          where: { recipientUserId: user.id },
+          include: {
+            senderDevice: {
+              select: {
+                id: true,
+                userId: true,
+                keyAgreementPublicKey: true,
+                keyAgreementPublicKeyFingerprint: true,
+                keyVersion: true,
+                trustStatus: true,
+                revokedAt: true,
+              },
+            },
+            trustedDevice: {
+              select: {
+                id: true,
+                userId: true,
+                clientDeviceId: true,
+                keyVersion: true,
+                trustStatus: true,
+                revokedAt: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return this.serializeHistoryKey(historyKey);
   }
 
   async removeParticipant(
@@ -1731,6 +2212,7 @@ export class ChatService {
         ]
         : []),
     ]);
+    await this.retireChatHistoryKeysForMembershipChange(chatId);
 
     // Terminate WebSocket subscription immediately
     await this.events.forceLeaveRoom(targetUserId, `chat:${chatId}`);
@@ -1970,6 +2452,13 @@ export class ChatService {
 
     const message = await this.prisma.chatMessage.findUnique({
       where: { id: messageId },
+      include: {
+        encryptedContent: {
+          include: {
+            keyEnvelopes: { select: { recipientUserId: true } },
+          },
+        },
+      },
     });
 
     if (!message || message.chatId !== chatId)
@@ -2022,13 +2511,20 @@ export class ChatService {
   async editMessage(
     chatId: string,
     messageId: string,
-    content: string,
+    dto: EditMessageDto,
     user: CurrentUser,
   ) {
     await this.verifyChatAccess(chatId, user.id, true);
 
     const message = await this.prisma.chatMessage.findUnique({
       where: { id: messageId },
+      include: {
+        encryptedContent: {
+          include: {
+            keyEnvelopes: { select: { recipientUserId: true } },
+          },
+        },
+      },
     });
 
     if (!message || message.chatId !== chatId)
@@ -2044,31 +2540,91 @@ export class ChatService {
     if (message.type === ChatMessageType.SYSTEM)
       throw new BadRequestException('Cannot edit system messages.');
 
-    const updated = await this.prisma.chatMessage.update({
-      where: { id: messageId },
-      data: { content },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarUrl: true,
-            role: true,
-          },
-        },
-        replyTo: { include: { sender: { select: { id: true, name: true } } } },
-        deletedBy: { select: { id: true, name: true } },
-      },
-    });
-
-    // Use same event pattern 'chat:message:edit'
-    this.events.emitToRoom(`chat:${chatId}`, 'chat:message:edit', updated);
     const participants = await this.prisma.chatParticipant.findMany({
       where: { chatId, isActive: true },
+      select: { userId: true },
     });
+    const originalRecipientIds = Array.from(
+      new Set(message.encryptedContent?.keyEnvelopes.map((envelope) => envelope.recipientUserId) || []),
+    );
+
+    await this.validateEncryptedChatContent({
+      chatId,
+      senderId: user.id,
+      activeParticipantIds: originalRecipientIds.length
+        ? originalRecipientIds
+        : participants.map((participant) => participant.userId),
+      encryptedContent: dto.encryptedContent,
+    });
+
+    const fallbackContent = dto.encryptedContent
+      ? ENCRYPTED_CHAT_MESSAGE_PLACEHOLDER
+      : dto.content?.trim();
+
+    if (!fallbackContent) {
+      throw new BadRequestException('Message content is required.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (dto.encryptedContent) {
+        const encryptedContentData = this.buildEncryptedContentCreate(dto.encryptedContent);
+        const existingEncryptedContent = await tx.encryptedContent.findUnique({
+          where: { chatMessageId: messageId },
+          select: { id: true },
+        });
+
+        if (existingEncryptedContent) {
+          await tx.e2EEKeyEnvelope.deleteMany({
+            where: { encryptedContentId: existingEncryptedContent.id },
+          });
+          await tx.e2EEContentHistoryKeyEnvelope.deleteMany({
+            where: { encryptedContentId: existingEncryptedContent.id },
+          });
+          await tx.encryptedContent.update({
+            where: { id: existingEncryptedContent.id },
+            data: {
+              encryptionVersion: encryptedContentData.encryptionVersion,
+              algorithm: encryptedContentData.algorithm,
+              ciphertext: encryptedContentData.ciphertext,
+              nonce: encryptedContentData.nonce,
+              authTag: encryptedContentData.authTag,
+              associatedData: encryptedContentData.associatedData,
+              contentKeyVersion: encryptedContentData.contentKeyVersion,
+              keyEnvelopes: encryptedContentData.keyEnvelopes,
+              historyKeyEnvelopes: encryptedContentData.historyKeyEnvelopes,
+            },
+          });
+        } else {
+          await tx.encryptedContent.create({
+            data: {
+              ...encryptedContentData,
+              chatMessageId: messageId,
+            },
+          });
+        }
+      }
+
+      return tx.chatMessage.update({
+        where: { id: messageId },
+        data: { content: fallbackContent },
+        include: this.getChatMessageInclude(user.id),
+      });
+    });
+
     for (const p of participants) {
-      this.events.emitToRoom(`user:${p.userId}`, 'chat:message:edit', updated);
+      if (p.userId === user.id) {
+        this.events.emitToRoom(`user:${p.userId}`, 'chat:message:edit', updated);
+        continue;
+      }
+
+      const participantMessage = dto.encryptedContent
+        ? await this.prisma.chatMessage.findUnique({
+          where: { id: updated.id },
+          include: this.getChatMessageInclude(p.userId),
+        })
+        : updated;
+
+      this.events.emitToRoom(`user:${p.userId}`, 'chat:message:edit', participantMessage || updated);
     }
 
     return updated;
@@ -2097,6 +2653,7 @@ export class ChatService {
           take: 1,
           include: {
             sender: { select: { id: true, name: true, email: true } },
+            encryptedContent: { select: { id: true, encryptionVersion: true, algorithm: true } },
           },
         },
       },
@@ -2153,6 +2710,7 @@ export class ChatService {
           orderBy: { createdAt: 'desc' },
           include: {
             sender: { select: { id: true, name: true, email: true } },
+            encryptedContent: { select: { id: true, encryptionVersion: true, algorithm: true } },
           },
         });
 
@@ -2206,6 +2764,7 @@ export class ChatService {
           take: 1,
           include: {
             sender: { select: { id: true, name: true, email: true } },
+            encryptedContent: { select: { id: true, encryptionVersion: true, algorithm: true } },
           },
         },
       },
@@ -2281,23 +2840,7 @@ export class ChatService {
       ...(participant.clearedAt ? { createdAt: clearedAtFilter } : {}),
     };
 
-    const include = {
-      sender: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          avatarUrl: true,
-          role: true,
-        },
-      },
-      deletedBy: { select: { id: true, name: true } },
-      replyTo: {
-        include: {
-          sender: { select: { id: true, name: true } },
-        },
-      },
-    } as const satisfies Prisma.ChatMessageInclude;
+    const include = this.getChatMessageInclude(user.id);
 
     type MessageWithRelations = Prisma.ChatMessageGetPayload<{
       include: typeof include;
@@ -2419,6 +2962,7 @@ export class ChatService {
       select: {
         readOnly: true,
         type: true,
+        name: true,
         participants: {
           where: { isActive: true },
           select: { userId: true },
@@ -2439,32 +2983,36 @@ export class ChatService {
       );
     }
 
+    const activeParticipantIds = chat?.participants.map((p) => p.userId) || [];
+    await this.validateEncryptedChatContent({
+      chatId,
+      chatType: chat?.type,
+      senderId: user.id,
+      activeParticipantIds,
+      encryptedContent: dto.encryptedContent,
+    });
+
+    const fallbackContent = dto.encryptedContent
+      ? ENCRYPTED_CHAT_MESSAGE_PLACEHOLDER
+      : dto.content?.trim();
+
+    if (!fallbackContent) {
+      throw new BadRequestException('Message content is required.');
+    }
+
     const newMessage = await this.prisma.chatMessage.create({
       data: {
         chatId,
         senderId: user.id,
         organizationId: user.organizationId,
-        content: dto.content,
+        content: fallbackContent,
         type: ChatMessageType.TEXT,
         replyToId: dto.replyToId,
+        encryptedContent: dto.encryptedContent
+          ? { create: this.buildEncryptedContentCreate(dto.encryptedContent) }
+          : undefined,
       },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarUrl: true,
-            role: true,
-          },
-        },
-        chat: { select: { id: true, name: true, type: true } },
-        replyTo: {
-          include: {
-            sender: { select: { id: true, name: true } },
-          },
-        },
-      },
+      include: this.getChatMessageInclude(user.id),
     });
 
     // Update chat's updatedAt field
@@ -2478,14 +3026,24 @@ export class ChatService {
       where: { chatId, isActive: true },
     });
 
-    this.events.emitToRoom(`chat:${chatId}`, 'chat:message', newMessage);
-
     // Mark as read for the sender automatically
     await this.markAsRead(chatId, newMessage.id, user);
 
     // Notify all participants via WebSocket for real-time UI/badge updates
     for (const p of activeParticipants) {
-      this.events.emitToRoom(`user:${p.userId}`, 'chat:message', newMessage);
+      if (p.userId === user.id) {
+        this.events.emitToRoom(`user:${p.userId}`, 'chat:message', newMessage);
+        continue;
+      }
+
+      const participantMessage = dto.encryptedContent
+        ? await this.prisma.chatMessage.findUnique({
+          where: { id: newMessage.id },
+          include: this.getChatMessageInclude(p.userId),
+        })
+        : newMessage;
+
+      this.events.emitToRoom(`user:${p.userId}`, 'chat:message', participantMessage || newMessage);
     }
 
     if (
@@ -2512,7 +3070,6 @@ export class ChatService {
         senderId: user.id,
         senderName,
         chatName,
-        content: dto.content,
         recipientIds,
       });
     }
@@ -2527,19 +3084,17 @@ export class ChatService {
     // Send push-only notifications to offline participants (no DB Notification record).
     // Chat messages are real-time via WebSocket; push is just a fallback for background/offline users.
     const senderName = newMessage.sender?.name || 'Someone';
-    const chatName = newMessage.chat?.name;
-    const pushTitle = newMessage.chat?.type === 'GROUP'
-      ? `${senderName} in ${chatName || 'a group'}`
-      : senderName;
-    const pushBody = dto.content.length > 80
-      ? dto.content.substring(0, 80) + '...'
-      : dto.content;
+    const pushTitle = getChatPushTitle({
+      senderName,
+      chatName: newMessage.chat?.name,
+      chatType: newMessage.chat?.type,
+    });
 
     for (const p of activeParticipants) {
       if (p.userId === user.id) continue; // Don't push to sender
       this.notifications.sendPushOnly(p.userId, {
         title: pushTitle,
-        body: pushBody,
+        body: CHAT_MESSAGE_NOTIFICATION_BODY,
         url: `/chat?id=${chatId}`,
       }).catch(e => console.error('Chat push failed:', e));
     }

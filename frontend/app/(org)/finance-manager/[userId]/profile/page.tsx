@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { Role, User, UserStatus } from '@/types';
-import SessionManagement from '@/components/SessionManagement';
+import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { FormActions, FormField, FormGrid, FormPageHeader, FormPageShell, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
@@ -201,7 +201,7 @@ export default function FinanceManagerProfilePage() {
             </form>
 
             <div id="sessions" className="scroll-mt-24">
-                <SessionManagement userId={profile.id} />
+                <TrustedEncryptionDevicesPanel />
             </div>
         </FormPageShell>
     );

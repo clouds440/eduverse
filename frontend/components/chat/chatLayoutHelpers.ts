@@ -16,6 +16,7 @@ import { isGenericUploadAllowed } from '@/lib/uploadPolicy';
 export type ChatMessageWithMeta = ChatMessage & {
     readBy?: string[];
     clientStatus?: 'sending' | 'failed' | 'sent';
+    decryptedContent?: string;
     retryPayload?: {
         draftText: string;
         stagedFiles: File[];
@@ -41,6 +42,7 @@ export type TypingUser = {
 export type ChatTypingStateMap = Record<string, TypingUser[]>;
 export type PresenceStateEvent = {
     chatId: string;
+    participantUserIds?: string[];
     userIds: string[];
 };
 export type PresenceUpdateEvent = {
@@ -104,7 +106,7 @@ export function mergeUniqueMessages<T extends { id: string }>(
 
 export function reconcileIncomingMessage(
     prev: ChatMessageWithMeta[],
-    incoming: ChatMessage,
+    incoming: ChatMessage | ChatMessageWithMeta,
     currentUserId?: string,
     pendingId: string | null = null
 ): ChatMessageWithMeta[] {
@@ -116,12 +118,23 @@ export function reconcileIncomingMessage(
         const pendingIndex = next.findIndex(message => message.id === pendingId);
         if (pendingIndex > -1) {
             registerOptimisticImageFallbacks(next[pendingIndex].content, incoming.content);
+            const existingDecryptedContent = next[pendingIndex].decryptedContent;
             next = [...next];
-            next[pendingIndex] = normalizedIncoming;
+            next[pendingIndex] = existingDecryptedContent && !normalizedIncoming.decryptedContent
+                ? { ...normalizedIncoming, decryptedContent: existingDecryptedContent }
+                : normalizedIncoming;
         }
     }
 
-    if (!next.some(message => message.id === incoming.id)) {
+    const existingIndex = next.findIndex(message => message.id === incoming.id);
+    if (existingIndex > -1) {
+        const existing = next[existingIndex];
+        const merged = existing.decryptedContent && !normalizedIncoming.decryptedContent
+            ? { ...normalizedIncoming, decryptedContent: existing.decryptedContent }
+            : { ...existing, ...normalizedIncoming };
+        next = [...next];
+        next[existingIndex] = merged;
+    } else {
         next = [...next, normalizedIncoming];
     }
 
@@ -260,6 +273,10 @@ export function updateOnlineUsersFromPresenceState(
     event: PresenceStateEvent
 ): OnlineUserState {
     const next = { ...onlineUsers };
+
+    for (const userId of event.participantUserIds || []) {
+        next[userId] = false;
+    }
 
     for (const userId of event.userIds) {
         next[userId] = true;

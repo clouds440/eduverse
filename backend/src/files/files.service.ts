@@ -8,6 +8,7 @@ import {
 import { createHash } from 'crypto';
 import { extname } from 'path';
 import { v2 as cloudinary } from 'cloudinary';
+import { ChatType, E2EEContentType, E2EEDeviceTrustStatus, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FileUploadDto } from './files.dto';
 import { Role } from '../common/enums';
@@ -44,6 +45,32 @@ type StoredFileRecord = {
   sha256?: string | null;
   scanStatus?: string;
   createdAt: Date;
+  encryptedContent?: unknown;
+};
+
+type FileEncryptedContentInput = {
+  encryptionVersion: number;
+  algorithm: string;
+  ciphertext: string;
+  nonce: string;
+  authTag?: string | null;
+  associatedData?: Record<string, unknown> | null;
+  contentKeyVersion?: number;
+  keyEnvelopes?: Array<{
+    recipientUserId: string;
+    trustedDeviceId: string;
+    senderDeviceId?: string | null;
+    deviceKeyVersion: number;
+    algorithm: string;
+    wrappedKey: string;
+    nonce?: string | null;
+    associatedData?: Record<string, unknown> | null;
+  }>;
+};
+
+type EncryptedFileRecipientScope = {
+  userIds: string[];
+  allowPartialRecipients: boolean;
 };
 
 interface DownloadPayload {
@@ -74,6 +101,13 @@ export class FilesService {
       throw new BadRequestException('File upload could not be read.');
     }
 
+    const encryptedContent = dto.encryptedContent
+      ? await this.parseAndValidateEncryptedFileContent(
+        dto.encryptedContent,
+        uploadedBy,
+        await this.getEncryptedFileRecipientScope(dto.entityType, dto.entityId),
+      )
+      : undefined;
     const sha256 = createHash('sha256').update(file.buffer).digest('hex');
     const policy = classifyAndValidateUpload(file, dto.entityType, sha256);
     const uploadResult = await this.uploadToCloudinary(dto, file, policy);
@@ -100,9 +134,63 @@ export class FilesService {
 
     record = await this.prisma.file.update({
       where: { id: record.id },
-      data: { path: this.downloadPath(record.id) },
+      data: {
+        path: this.downloadPath(record.id),
+        encryptedContent: dto.encryptedContent
+          ? {
+            create: this.buildEncryptedFileContentCreate(
+              encryptedContent!,
+            ),
+          }
+          : undefined,
+      },
+      include: { encryptedContent: { include: { keyEnvelopes: true } } },
     });
 
+    return this.toUploadedFileInfo(record);
+  }
+
+  async getFileMetadata(fileId: string, requestingUser: RequestingUser) {
+    const record = await this.prisma.file.findUnique({
+      where: { id: fileId },
+      include: {
+        encryptedContent: {
+          include: {
+            keyEnvelopes: {
+              where: { recipientUserId: requestingUser.id },
+              include: {
+                senderDevice: {
+                  select: {
+                    id: true,
+                    userId: true,
+                    keyAgreementPublicKey: true,
+                    keyAgreementPublicKeyFingerprint: true,
+                    keyVersion: true,
+                    trustStatus: true,
+                    revokedAt: true,
+                  },
+                },
+                trustedDevice: {
+                  select: {
+                    id: true,
+                    userId: true,
+                    clientDeviceId: true,
+                    keyVersion: true,
+                    trustStatus: true,
+                    revokedAt: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!record) {
+      throw new NotFoundException(`File with id "${fileId}" not found`);
+    }
+
+    await this.assertCanAccessFile(record, requestingUser);
     return this.toUploadedFileInfo(record);
   }
 
@@ -189,7 +277,142 @@ export class FilesService {
       scanStatus: record.scanStatus,
       uploadedBy: record.uploadedBy,
       createdAt: record.createdAt,
+      encryptedContent: record.encryptedContent,
     };
+  }
+
+  private async parseAndValidateEncryptedFileContent(
+    rawEncryptedContent: string,
+    senderId: string,
+    recipientScope: EncryptedFileRecipientScope,
+  ) {
+    let encryptedContent: FileEncryptedContentInput;
+    try {
+      encryptedContent = JSON.parse(rawEncryptedContent) as FileEncryptedContentInput;
+    } catch {
+      throw new BadRequestException('Encrypted file metadata is invalid JSON.');
+    }
+
+    if (!encryptedContent.keyEnvelopes?.length) {
+      throw new BadRequestException('Encrypted file metadata requires key envelopes.');
+    }
+    if (
+      typeof encryptedContent.encryptionVersion !== 'number' ||
+      typeof encryptedContent.algorithm !== 'string' ||
+      typeof encryptedContent.ciphertext !== 'string' ||
+      typeof encryptedContent.nonce !== 'string'
+    ) {
+      throw new BadRequestException('Encrypted file metadata is missing required encryption fields.');
+    }
+    const expectedRecipientUserIds = recipientScope.userIds;
+    if (expectedRecipientUserIds.length === 0) {
+      throw new BadRequestException('Encrypted files require at least one intended recipient.');
+    }
+
+    const expectedRecipientIds = new Set(expectedRecipientUserIds);
+    const envelopeRecipientIds = new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.recipientUserId));
+    const missingRecipientIds = expectedRecipientUserIds.filter((recipientId) => !envelopeRecipientIds.has(recipientId));
+    if (!recipientScope.allowPartialRecipients && missingRecipientIds.length > 0) {
+      throw new BadRequestException('Encrypted file metadata is missing key envelopes for one or more intended recipients.');
+    }
+    const trustedDeviceIds = Array.from(new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.trustedDeviceId)));
+    const senderDeviceIds = Array.from(new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.senderDeviceId).filter(Boolean) as string[]));
+    type EncryptionDeviceValidationRecord = {
+      id: string;
+      userId: string;
+      keyVersion?: number;
+      trustStatus: E2EEDeviceTrustStatus;
+      revokedAt: Date | null;
+      trustedAt: Date | null;
+    };
+    const senderDevicesPromise: Promise<EncryptionDeviceValidationRecord[]> = senderDeviceIds.length
+      ? this.prisma.trustedEncryptionDevice.findMany({
+        where: { id: { in: senderDeviceIds } },
+        select: { id: true, userId: true, trustStatus: true, revokedAt: true, trustedAt: true },
+      })
+      : Promise.resolve([]);
+    const [trustedDevices, expectedTrustedDevices, senderDevices] = await Promise.all([
+      this.prisma.trustedEncryptionDevice.findMany({
+        where: { id: { in: trustedDeviceIds } },
+        select: { id: true, userId: true, keyVersion: true, trustStatus: true, revokedAt: true, trustedAt: true },
+      }),
+      this.prisma.trustedEncryptionDevice.findMany({
+        where: {
+          userId: { in: expectedRecipientUserIds },
+          trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+          revokedAt: null,
+          trustedAt: { not: null },
+        },
+        select: { id: true, userId: true },
+      }),
+      senderDevicesPromise,
+    ]);
+    const requiredTrustedDevices = recipientScope.allowPartialRecipients
+      ? expectedTrustedDevices.filter((device) => envelopeRecipientIds.has(device.userId))
+      : expectedTrustedDevices;
+    const missingTrustedDeviceIds = requiredTrustedDevices.filter((device) => !trustedDeviceIds.includes(device.id));
+    if (missingTrustedDeviceIds.length > 0) {
+      throw new BadRequestException('Encrypted file metadata is missing key envelopes for one or more trusted recipient devices. Refresh and try again.');
+    }
+
+    const trustedDeviceById = new Map(trustedDevices.map((device) => [device.id, device]));
+    for (const envelope of encryptedContent.keyEnvelopes) {
+      if (!expectedRecipientIds.has(envelope.recipientUserId)) {
+        throw new BadRequestException('Encrypted file envelope recipient is not allowed for this file.');
+      }
+      const device = trustedDeviceById.get(envelope.trustedDeviceId);
+      if (!device || device.userId !== envelope.recipientUserId) {
+        throw new BadRequestException('Encrypted file envelope target device does not belong to the recipient.');
+      }
+      if (device.trustStatus !== E2EEDeviceTrustStatus.TRUSTED || device.revokedAt || !device.trustedAt) {
+        throw new BadRequestException('Encrypted file envelope targets a pending or revoked device.');
+      }
+      if (envelope.deviceKeyVersion !== device.keyVersion) {
+        throw new BadRequestException('Encrypted file envelope device key version is stale.');
+      }
+    }
+
+    const senderDeviceById = new Map(senderDevices.map((device) => [device.id, device]));
+    for (const senderDeviceId of senderDeviceIds) {
+      const device = senderDeviceById.get(senderDeviceId);
+      if (!device || device.userId !== senderId) {
+        throw new BadRequestException('Encrypted file sender device does not belong to the uploader.');
+      }
+      if (device.trustStatus !== E2EEDeviceTrustStatus.TRUSTED || device.revokedAt || !device.trustedAt) {
+        throw new BadRequestException('Encrypted file sender device is not trusted.');
+      }
+    }
+
+    return encryptedContent;
+  }
+
+  private buildEncryptedFileContentCreate(encryptedContent: FileEncryptedContentInput) {
+    return {
+      contentType: E2EEContentType.FILE_ATTACHMENT,
+      encryptionVersion: encryptedContent.encryptionVersion,
+      algorithm: encryptedContent.algorithm,
+      ciphertext: encryptedContent.ciphertext,
+      nonce: encryptedContent.nonce,
+      authTag: encryptedContent.authTag,
+      associatedData: encryptedContent.associatedData === undefined
+        ? undefined
+        : encryptedContent.associatedData as Prisma.InputJsonValue,
+      contentKeyVersion: encryptedContent.contentKeyVersion ?? 1,
+      keyEnvelopes: {
+        create: (encryptedContent.keyEnvelopes || []).map((envelope) => ({
+          recipientUserId: envelope.recipientUserId,
+          trustedDeviceId: envelope.trustedDeviceId,
+          senderDeviceId: envelope.senderDeviceId,
+          deviceKeyVersion: envelope.deviceKeyVersion,
+          algorithm: envelope.algorithm,
+          wrappedKey: envelope.wrappedKey,
+          nonce: envelope.nonce,
+          associatedData: envelope.associatedData === undefined
+            ? undefined
+            : envelope.associatedData as Prisma.InputJsonValue,
+        })),
+      },
+    } satisfies Prisma.EncryptedContentCreateWithoutFileInput;
   }
 
   toPublicFile<T extends { id: string; path: string }>(record: T): T {
@@ -285,13 +508,23 @@ export class FilesService {
       requestingUser.role === Role.PLATFORM_ADMIN;
     if (isGlobalAdmin) return;
 
+    const entityType = record.entityType.toUpperCase();
+    if (entityType === 'MAIL_MESSAGE') {
+      await this.assertMailMessageAccess(record.entityId, requestingUser);
+      return;
+    }
+
+    if (entityType === 'CHAT' || entityType === 'CHAT_AVATAR') {
+      await this.assertChatAccess(record.entityId, requestingUser);
+      return;
+    }
+
     if (!requestingUser.organizationId || requestingUser.organizationId !== record.orgId) {
       throw new ForbiddenException('You do not have permission to access this file');
     }
 
     if (this.isOrgStaffRole(requestingUser.role)) return;
 
-    const entityType = record.entityType.toUpperCase();
     if (entityType.startsWith('FINANCE_')) {
       if (
         requestingUser.role === Role.FINANCE_MANAGER ||
@@ -313,11 +546,6 @@ export class FilesService {
 
     if (entityType === 'SUBMISSION') {
       await this.assertSubmissionAccess(record.entityId, requestingUser);
-      return;
-    }
-
-    if (entityType === 'CHAT' || entityType === 'CHAT_AVATAR') {
-      await this.assertChatAccess(record.entityId, requestingUser);
       return;
     }
 
@@ -412,13 +640,144 @@ export class FilesService {
 
   private async assertChatAccess(chatId: string, requestingUser: RequestingUser) {
     const participant = await this.prisma.chatParticipant.findFirst({
-      where: { chatId, userId: requestingUser.id },
+      where: { chatId, userId: requestingUser.id, isActive: true },
       select: { id: true },
     });
 
     if (!participant) {
       throw new ForbiddenException('You do not have permission to access this file');
     }
+  }
+
+  private async getEncryptedFileRecipientScope(entityType: string, entityId: string): Promise<EncryptedFileRecipientScope> {
+    const normalizedEntityType = entityType.toUpperCase();
+
+    if (normalizedEntityType === 'CHAT') {
+      const chat = await this.prisma.chat.findUnique({
+        where: { id: entityId },
+        select: {
+          type: true,
+          participants: {
+            where: { isActive: true },
+            select: { userId: true },
+          },
+        },
+      });
+      if (!chat || chat.participants.length === 0) throw new NotFoundException('Chat not found');
+      return {
+        userIds: chat.participants.map((participant) => participant.userId),
+        allowPartialRecipients: chat.type === ChatType.GROUP,
+      };
+    }
+
+    if (normalizedEntityType === 'MAIL_MESSAGE') {
+      const message = await this.prisma.mailMessage.findUnique({
+        where: { id: entityId },
+        select: {
+          mail: {
+            select: {
+              id: true,
+              creatorId: true,
+              organizationId: true,
+              targetRole: true,
+              assigneeId: true,
+              assignees: { select: { id: true } },
+            },
+          },
+        },
+      });
+      if (!message) throw new NotFoundException('Mail message not found');
+      return {
+        userIds: await this.getMailFileAccessUserIds(message.mail),
+        allowPartialRecipients: false,
+      };
+    }
+
+    throw new BadRequestException('Encrypted attachments are only supported for Chat and Mail messages.');
+  }
+
+  private async assertMailMessageAccess(messageId: string, requestingUser: RequestingUser) {
+    const message = await this.prisma.mailMessage.findUnique({
+      where: { id: messageId },
+      select: {
+        mail: {
+          select: {
+            id: true,
+            creatorId: true,
+            organizationId: true,
+            targetRole: true,
+            assigneeId: true,
+            assignees: { select: { id: true } },
+          },
+        },
+      },
+    });
+    if (!message) throw new NotFoundException('Mail message not found');
+
+    const allowedUserIds = new Set(await this.getMailFileAccessUserIds(message.mail));
+    if (!allowedUserIds.has(requestingUser.id)) {
+      throw new ForbiddenException('You do not have permission to access this file');
+    }
+  }
+
+  private async getMailFileAccessUserIds(mail: {
+    id: string;
+    creatorId: string;
+    organizationId?: string | null;
+    targetRole?: string | null;
+    assigneeId?: string | null;
+    assignees?: Array<{ id: string }>;
+  }) {
+    const userIds = new Set<string>([mail.creatorId]);
+    if (mail.assigneeId) userIds.add(mail.assigneeId);
+    mail.assignees?.forEach((assignee) => userIds.add(assignee.id));
+
+    const [roleUserIds, orgAdminIds, platformAdminIds] = await Promise.all([
+      this.resolveMailTargetRoleUserIds(mail.targetRole, mail.organizationId),
+      mail.organizationId
+        ? this.prisma.user.findMany({
+          where: {
+            organizationId: mail.organizationId,
+            role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN] },
+          },
+          select: { id: true },
+        }).then((users) => users.map((user) => user.id))
+        : Promise.resolve([]),
+      this.prisma.user.findMany({
+        where: { role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] } },
+        select: { id: true },
+      }).then((users) => users.map((user) => user.id)),
+    ]);
+
+    roleUserIds.forEach((id) => userIds.add(id));
+    orgAdminIds.forEach((id) => userIds.add(id));
+    platformAdminIds.forEach((id) => userIds.add(id));
+    return Array.from(userIds);
+  }
+
+  private async resolveMailTargetRoleUserIds(targetRole: string | null | undefined, organizationId?: string | null) {
+    if (!targetRole) return [];
+    const where: Prisma.UserWhereInput = targetRole === 'ORG_STAFF'
+      ? {
+        role: { in: [Role.TEACHER, Role.ORG_MANAGER] },
+        ...(organizationId ? { organizationId } : {}),
+      }
+      : {
+        role: targetRole as Role,
+        ...(
+          organizationId &&
+          targetRole !== Role.PLATFORM_ADMIN &&
+          targetRole !== Role.SUPER_ADMIN
+            ? { organizationId }
+            : {}
+        ),
+      };
+
+    const users = await this.prisma.user.findMany({
+      where,
+      select: { id: true },
+    });
+    return users.map((user) => user.id);
   }
 
   private isOrgStaffRole(role: string) {

@@ -16,6 +16,8 @@ import { CreateDirectChatDto } from './dto/create-direct-chat.dto';
 import { CreateGroupChatDto } from './dto/create-group.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { EditMessageDto } from './dto/edit-message.dto';
+import { RegisterChatHistoryKeyDto } from './dto/register-chat-history-key.dto';
 import { AddParticipantsDto } from './dto/add-participants.dto';
 import { ChatParticipantRole, CommunicationChannel, Role } from '@/prisma/prisma-client';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
@@ -176,6 +178,32 @@ export class ChatController {
     });
   }
 
+  @Get(':id/e2ee-context')
+  async getChatE2eeContext(
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.getChatE2eeContext(id, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+    });
+  }
+
+  @Post(':id/e2ee/history-keys')
+  @Access(AccessLevel.WRITE)
+  async registerChatHistoryKey(
+    @Param('id') id: string,
+    @Body() dto: RegisterChatHistoryKeyDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.chatService.registerChatHistoryKey(id, dto, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+    });
+  }
+
   @Get(':id/messages')
   async getChatMessages(
     @Param('id') id: string,
@@ -299,10 +327,10 @@ export class ChatController {
   async editMessage(
     @Param('id') id: string,
     @Param('messageId') messageId: string,
-    @Body('content') content: string,
+    @Body() dto: EditMessageDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.chatService.editMessage(id, messageId, content, {
+    return this.chatService.editMessage(id, messageId, dto, {
       id: req.user.id,
       role: req.user.role,
       organizationId: req.user.organizationId,

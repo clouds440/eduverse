@@ -22,6 +22,7 @@ import {
   Organization,
   Teacher,
   ThemeMode,
+  E2EEDeviceTrustStatus,
 } from '@/prisma/prisma-client';
 import { Role, OrgStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -287,20 +288,24 @@ export class AuthService {
 
         // Send notification if this is a new device (but not on first ever login)
         if (isNewDevice && !isFirstLogin) {
-          await this.notificationsService.createNotification({
-            userId: user.id,
-            title: 'New Device Login',
-            body: `A new device (${loginDto.deviceName || 'Unknown Device'}) has logged into your account from ${location || 'Unknown Location'} (IP: ${ip}). If this wasn't you, please revoke this session in your settings.`,
-            type: 'SECURITY',
-            actionUrl: this.getAccountSecurityUrl(user),
-            metadata: {
-              deviceId: loginDto.deviceId,
-              deviceName: loginDto.deviceName,
-              ip,
-              location,
-              loginTime: new Date().toISOString(),
-            },
-          });
+          const targetClientDeviceIds = await this.getTrustedClientDeviceIds(user.id, loginDto.deviceId);
+          if (targetClientDeviceIds.length > 0) {
+            await this.notificationsService.createNotification({
+              userId: user.id,
+              title: 'New Device Login',
+              body: `A new device (${loginDto.deviceName || 'Unknown Device'}) has logged into your account from ${location || 'Unknown Location'} (IP: ${ip}). If this wasn't you, please revoke this session in your settings.`,
+              type: 'SECURITY',
+              actionUrl: this.getAccountSecurityUrl(user),
+              metadata: {
+                deviceId: loginDto.deviceId,
+                deviceName: loginDto.deviceName,
+                ip,
+                location,
+                loginTime: new Date().toISOString(),
+                targetClientDeviceIds,
+              },
+            });
+          }
         }
       }
     }
@@ -904,6 +909,8 @@ export class AuthService {
     sessionId: string,
     currentToken?: string,
   ) {
+    await this.ensureCurrentSessionCanManageSessions(userId, currentToken);
+
     const session = await this.prisma.session.findFirst({
       where: { id: sessionId, userId },
     });
@@ -930,6 +937,8 @@ export class AuthService {
   }
 
   async revokeAllSessions(userId: string, excludeToken?: string) {
+    await this.ensureCurrentSessionCanManageSessions(userId, excludeToken);
+
     await this.prisma.session.updateMany({
       where: {
         userId,
@@ -940,6 +949,55 @@ export class AuthService {
     });
 
     return { message: 'All sessions revoked successfully' };
+  }
+
+  private async ensureCurrentSessionCanManageSessions(userId: string, currentToken?: string) {
+    if (!currentToken) {
+      throw new ForbiddenException('Use a trusted browser to manage account sessions.');
+    }
+
+    const currentSession = await this.prisma.session.findFirst({
+      where: {
+        userId,
+        token: currentToken,
+        isActive: true,
+      },
+      select: { deviceId: true },
+    });
+
+    if (!currentSession?.deviceId) {
+      throw new ForbiddenException('Use a trusted browser to manage account sessions.');
+    }
+
+    const trustedDevice = await this.prisma.trustedEncryptionDevice.findFirst({
+      where: {
+        userId,
+        clientDeviceId: currentSession.deviceId,
+        trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+        revokedAt: null,
+        trustedAt: { not: null },
+      },
+      select: { id: true },
+    });
+
+    if (!trustedDevice) {
+      throw new ForbiddenException('Use a trusted browser to manage account sessions.');
+    }
+  }
+
+  private async getTrustedClientDeviceIds(userId: string, excludeClientDeviceId?: string | null) {
+    const trustedDevices = await this.prisma.trustedEncryptionDevice.findMany({
+      where: {
+        userId,
+        trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+        revokedAt: null,
+        trustedAt: { not: null },
+        ...(excludeClientDeviceId ? { clientDeviceId: { not: excludeClientDeviceId } } : {}),
+      },
+      select: { clientDeviceId: true },
+    });
+
+    return trustedDevices.map((device) => device.clientDeviceId);
   }
 
   async resendContactEmailVerification(

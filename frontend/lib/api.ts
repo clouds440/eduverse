@@ -4,10 +4,10 @@ import type {
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
     CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
     CreateSectionRequest, UpdateSectionRequest, CreateCourseRequest, UpdateCourseRequest,
-    PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload,
+    PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload, MailE2EEContextRequest, EncryptedMailContent,
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
     UpdateGradeRequest, CreateSubmissionRequest, FinalGradeResponse, MailTarget,
-    Chat, ChatMentionOptions, ChatMentionTarget, ChatMessage, ChatSearchUser, CommunicationBlock, Notification, Announcement, TargetType, AnnouncementPriority, User,
+    Chat, ChatE2EEContext, ChatMentionOptions, ChatMentionTarget, ChatMessage, ChatSearchUser, CommunicationBlock, Notification, Announcement, TargetType, AnnouncementPriority, User, Attachment,
     ThemeMode, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, ReassignStudentsDto, CopyForwardDto, CopyForwardPreview,
@@ -23,7 +23,9 @@ import type {
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
     PreferenceWindow, PreferenceWindowRequest, PreferenceResults, PreferenceSubmission, Enrollment, EnrollmentMutationResponse,
-    LinkedAccount, PasswordResetLinkResponse, PublicProfile
+    LinkedAccount, PasswordResetLinkResponse, PublicProfile,
+    ApproveTrustedDevicePayload, PendingDeviceApprovalContext, RecipientEncryptionDevicesResponse, RegisterChatHistoryKeyPayload, RegisterTrustedDevicePayload, SendChatMessagePayload,
+    TrustedDeviceRegistrationResponse, TrustedDevicesResponse,
 } from '@/types';
 import type {
     AIOrgSettingsResponse,
@@ -48,6 +50,7 @@ import { CommunicationChannel } from '@/types';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { enqueueMutation } from './offlineQueue';
 import { emitProfanityWarning, PROFANITY_ERROR_CODE } from './profanityWarning';
+import { getDeviceId } from './deviceUtils';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? '';
 
@@ -116,6 +119,7 @@ interface QueryParams {
 }
 
 export interface WebPushSubscriptionPayload {
+    deviceId?: string;
     endpoint: string;
     expirationTime?: number | null;
     keys: {
@@ -190,10 +194,12 @@ function maybeEmitProfanityWarning(error: { code?: string; field?: string; messa
 
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { token, signal, ...rest } = options;
+    const clientDeviceId = getDeviceId();
 
     const headers: HeadersInit = {
         ...(rest.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(clientDeviceId ? { 'X-Client-Device-Id': clientDeviceId } : {}),
         ...(rest.headers as Record<string, string> ?? {}),
     };
 
@@ -503,6 +509,47 @@ export const api = {
             request<{ message: string; shouldLogout?: boolean }>(`/auth/sessions/${sessionId}`, { method: 'DELETE', token }),
         revokeAllSessions: (token: string) =>
             request<{ message: string }>('/auth/sessions', { method: 'DELETE', token }),
+    },
+
+    e2ee: {
+        registerCurrentDevice: (data: RegisterTrustedDevicePayload, token: string) =>
+            request<TrustedDeviceRegistrationResponse>('/e2ee/devices/current', {
+                method: 'POST',
+                body: JSON.stringify(data),
+                token,
+            }),
+        getMyDevices: (token: string) =>
+            request<TrustedDevicesResponse>('/e2ee/devices/me', { token }),
+        updateDevice: (deviceId: string, data: { displayName?: string }, token: string) =>
+            request<TrustedDeviceRegistrationResponse['device']>(`/e2ee/devices/${deviceId}`, {
+                method: 'PATCH',
+                body: JSON.stringify(data),
+                token,
+            }),
+        revokeDevice: (deviceId: string, token: string) =>
+            request<TrustedDeviceRegistrationResponse['device']>(`/e2ee/devices/${deviceId}`, {
+                method: 'DELETE',
+                token,
+            }),
+        getDeviceApprovalContext: (deviceId: string, approverDeviceId: string, token: string) =>
+            request<PendingDeviceApprovalContext>(`/e2ee/devices/${deviceId}/approval-context${buildQueryString({ approverDeviceId })}`, { token }),
+        approveDevice: (deviceId: string, data: ApproveTrustedDevicePayload, token: string) =>
+            request<TrustedDeviceRegistrationResponse['device']>(`/e2ee/devices/${deviceId}/approve`, {
+                method: 'POST',
+                body: JSON.stringify(data),
+                token,
+            }),
+        requestDeviceApproval: (deviceId: string, token: string) =>
+            request<TrustedDeviceRegistrationResponse['device']>(`/e2ee/devices/${deviceId}/request-approval`, {
+                method: 'POST',
+                token,
+            }),
+        getRecipientDevices: (userIds: string[], token: string) =>
+            request<RecipientEncryptionDevicesResponse[]>('/e2ee/recipient-devices', {
+                method: 'POST',
+                body: JSON.stringify({ userIds }),
+                token,
+            }),
     },
 
     user: {
@@ -965,14 +1012,17 @@ export const api = {
 
     files: {
         // FIX 3 applied: was duplicating raw fetch + 401 handling + error parsing
-        uploadFile: (orgId: string, entityType: string, entityId: string, file: File, token: string): Promise<{ id?: string; url?: string; path?: string; filename?: string; mimeType?: string; size?: number; uploadedBy?: string; resourceType?: string; deliveryType?: string; fileKind?: string; extension?: string | null; sha256?: string | null; scanStatus?: string }> => {
+        uploadFile: (orgId: string, entityType: string, entityId: string, file: File, token: string, encryptedContent?: EncryptedMailContent): Promise<{ id?: string; url?: string; path?: string; filename?: string; mimeType?: string; size?: number; uploadedBy?: string; resourceType?: string; deliveryType?: string; fileKind?: string; extension?: string | null; sha256?: string | null; scanStatus?: string; encryptedContent?: EncryptedMailContent | null }> => {
             const formData = new FormData();
             formData.append('orgId', orgId);
             formData.append('entityType', entityType);
             formData.append('entityId', entityId);
+            if (encryptedContent) formData.append('encryptedContent', JSON.stringify(encryptedContent));
             formData.append('file', file);
             return uploadFormData('/files', formData, token, 'POST');
         },
+        getMetadata: (id: string, token: string) =>
+            request<Attachment>(`/files/${id}/metadata`, { token }),
         deleteFile: (id: string, token: string) =>
             request<void>(`/files/${id}`, { method: 'DELETE', token }),
     },
@@ -984,17 +1034,15 @@ export const api = {
             request<MailDetail>(`/mail/${id}`, { token }),
         createMail: (data: CreateMailPayload, token: string) =>
             request<MailDetail>('/mail', { method: 'POST', body: JSON.stringify(data), token }),
+        getComposeE2EEContext: (data: MailE2EEContextRequest, token: string) =>
+            request<RecipientEncryptionDevicesResponse[]>('/mail/e2ee-context', { method: 'POST', body: JSON.stringify(data), token }),
+        getE2EEContext: (id: string, token: string) =>
+            request<RecipientEncryptionDevicesResponse[]>(`/mail/${id}/e2ee-context`, { token }),
         updateMail: (id: string, data: UpdateMailPayload, token: string) =>
             request<MailDetail>(`/mail/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
 
         // FIX 3 applied: was duplicating raw fetch + 401 handling in the files branch
-        addMessage: (mailId: string, data: { content: string }, token: string, files?: File[]) => {
-            if (files && files.length > 0) {
-                const formData = new FormData();
-                formData.append('content', data.content);
-                files.forEach(file => formData.append('files', file));
-                return uploadFormData<MailDetail>(`/mail/${mailId}/messages`, formData, token, 'POST');
-            }
+        addMessage: (mailId: string, data: { content: string; encryptedContent?: EncryptedMailContent }, token: string, _files?: File[]) => {
             return request<MailDetail>(`/mail/${mailId}/messages`, { method: 'POST', body: JSON.stringify(data), token });
         },
 
@@ -1027,10 +1075,24 @@ export const api = {
             request<PaginatedResponse<ChatMessage>>(`/chat/${chatId}/messages${buildQueryString(params)}`, { token }),
         getMentionOptions: (chatId: string, token: string) =>
             request<ChatMentionOptions>(`/chat/${chatId}/mention-options`, { token }),
-        sendMessage: (chatId: string, content: string, token: string, replyToId?: string, mentionTargets?: ChatMentionTarget[], mentionedUserIds?: string[]) =>
-            request<ChatMessage>(`/chat/${chatId}/messages`, { method: 'POST', body: JSON.stringify({ content, replyToId, mentionTargets, mentionedUserIds }), token }),
-        editMessage: (chatId: string, messageId: string, content: string, token: string) =>
-            request<ChatMessage>(`/chat/${chatId}/messages/${messageId}`, { method: 'PATCH', body: JSON.stringify({ content }), token }),
+        getE2EEContext: (chatId: string, token: string) =>
+            request<ChatE2EEContext>(`/chat/${chatId}/e2ee-context`, { token }),
+        registerHistoryKey: (chatId: string, data: RegisterChatHistoryKeyPayload, token: string) =>
+            request<ChatE2EEContext['historyKeys'][number]>(`/chat/${chatId}/e2ee/history-keys`, {
+                method: 'POST',
+                body: JSON.stringify(data),
+                token,
+            }),
+        sendMessage: (chatId: string, payload: SendChatMessagePayload | string, token: string, replyToId?: string, mentionTargets?: ChatMentionTarget[], mentionedUserIds?: string[]) => {
+            const body = typeof payload === 'string'
+                ? { content: payload, replyToId, mentionTargets, mentionedUserIds }
+                : payload;
+            return request<ChatMessage>(`/chat/${chatId}/messages`, { method: 'POST', body: JSON.stringify(body), token });
+        },
+        editMessage: (chatId: string, messageId: string, payload: Pick<SendChatMessagePayload, 'content' | 'encryptedContent'> | string, token: string) => {
+            const body = typeof payload === 'string' ? { content: payload } : payload;
+            return request<ChatMessage>(`/chat/${chatId}/messages/${messageId}`, { method: 'PATCH', body: JSON.stringify(body), token });
+        },
         getUnreadCount: (token: string) =>
             request<{ unread: number }>('/chat/unread-count', { token }),
         markAsRead: (chatId: string, messageId: string | undefined, token: string) =>

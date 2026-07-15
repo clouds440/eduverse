@@ -5,8 +5,11 @@ import {
   MaxLength,
   IsIn,
   IsEnum,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { MailStatus } from '../../common/enums';
+import { MailEncryptedContentDto } from './mail-encrypted-content.dto';
 
 export class CreateMailDto {
   @IsString()
@@ -46,4 +49,14 @@ export class CreateMailDto {
 
   @IsOptional()
   noReply?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MailEncryptedContentDto)
+  encryptedSubject?: MailEncryptedContentDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MailEncryptedContentDto)
+  encryptedMessage?: MailEncryptedContentDto;
 }

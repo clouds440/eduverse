@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma } from '@/prisma/prisma-client';
+import { E2EEContentType, E2EEDeviceTrustStatus, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { MailStatus, Role, OrgStatus } from '../common/enums';
@@ -16,6 +16,8 @@ import {
 import { CreateMailDto } from './dto/create-mail.dto';
 import { UpdateMailDto } from './dto/update-mail.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { MailEncryptedContentDto } from './dto/mail-encrypted-content.dto';
+import { MailE2eeContextDto } from './dto/mail-e2ee-context.dto';
 import { MailUser } from './interfaces/mail-user.interface';
 import { formatRoleLabel } from '../common/role-labels';
 import { FilesService } from '../files/files.service';
@@ -37,6 +39,8 @@ const FINANCE_MAIL_CATEGORIES = new Set([
 ]);
 const MAIL_DIRECTIONS = ['sent', 'received', 'assigned', 'team'] as const;
 type MailDirection = (typeof MAIL_DIRECTIONS)[number];
+const ENCRYPTED_MAIL_SUBJECT_PLACEHOLDER = 'Encrypted mail';
+const ENCRYPTED_MAIL_MESSAGE_PLACEHOLDER = '[Encrypted mail message]';
 
 export interface ContactTarget {
   id: string;
@@ -69,6 +73,7 @@ type TransformableMail = {
 } & Record<string, unknown>;
 
 import { NotificationsService } from '../notifications/notifications.service';
+import { MAIL_NOTIFICATION_COPY } from './mail-notification.utils';
 
 @Injectable()
 export class MailService {
@@ -78,6 +83,344 @@ export class MailService {
     private readonly notifications: NotificationsService,
     private readonly filesService: FilesService,
   ) {}
+
+  private getEncryptedContentInclude(recipientUserId?: string) {
+    return {
+      keyEnvelopes: {
+        ...(recipientUserId ? { where: { recipientUserId } } : {}),
+        include: {
+          senderDevice: {
+            select: {
+              id: true,
+              userId: true,
+              keyAgreementPublicKey: true,
+              keyAgreementPublicKeyFingerprint: true,
+              keyVersion: true,
+              trustStatus: true,
+              revokedAt: true,
+            },
+          },
+          trustedDevice: {
+            select: {
+              id: true,
+              userId: true,
+              clientDeviceId: true,
+              keyVersion: true,
+              trustStatus: true,
+              revokedAt: true,
+            },
+          },
+        },
+      },
+    } satisfies Prisma.EncryptedContentInclude;
+  }
+
+  private buildEncryptedContentCreate(
+    contentType: E2EEContentType,
+    encryptedContent: MailEncryptedContentDto,
+  ) {
+    return {
+      contentType,
+      encryptionVersion: encryptedContent.encryptionVersion,
+      algorithm: encryptedContent.algorithm,
+      ciphertext: encryptedContent.ciphertext,
+      nonce: encryptedContent.nonce,
+      authTag: encryptedContent.authTag,
+      associatedData: encryptedContent.associatedData === undefined
+        ? undefined
+        : encryptedContent.associatedData as Prisma.InputJsonValue,
+      contentKeyVersion: encryptedContent.contentKeyVersion ?? 1,
+      keyEnvelopes: {
+        create: encryptedContent.keyEnvelopes.map((envelope) => ({
+          recipientUserId: envelope.recipientUserId,
+          trustedDeviceId: envelope.trustedDeviceId,
+          senderDeviceId: envelope.senderDeviceId,
+          deviceKeyVersion: envelope.deviceKeyVersion,
+          algorithm: envelope.algorithm,
+          wrappedKey: envelope.wrappedKey,
+          nonce: envelope.nonce,
+          associatedData: envelope.associatedData === undefined
+            ? undefined
+            : envelope.associatedData as Prisma.InputJsonValue,
+        })),
+      },
+    } satisfies Prisma.EncryptedContentCreateWithoutMailMessageInput | Prisma.EncryptedContentCreateWithoutMailSubjectInput;
+  }
+
+  private async validateMailEncryptedContent(options: {
+    senderId: string;
+    recipientUserIds: string[];
+    encryptedContent?: MailEncryptedContentDto;
+    label: string;
+  }) {
+    const encryptedContent = options.encryptedContent;
+    if (!encryptedContent) {
+      throw new BadRequestException(`Encrypted ${options.label} content is required.`);
+    }
+    if (!encryptedContent.keyEnvelopes?.length) {
+      throw new BadRequestException(`Encrypted ${options.label} content requires at least one key envelope.`);
+    }
+
+    const recipientUserIds = new Set(options.recipientUserIds);
+    const trustedDeviceIds = Array.from(new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.trustedDeviceId)));
+    const senderDeviceIds = Array.from(new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.senderDeviceId).filter(Boolean) as string[]));
+    const directEnvelopeRecipientIds = new Set(encryptedContent.keyEnvelopes.map((envelope) => envelope.recipientUserId));
+    const missingRecipientIds = options.recipientUserIds.filter((recipientId) => !directEnvelopeRecipientIds.has(recipientId));
+    if (missingRecipientIds.length > 0) {
+      throw new BadRequestException(`Encrypted ${options.label} content is missing key envelopes for one or more mail recipients.`);
+    }
+
+    const senderDevicesPromise = senderDeviceIds.length
+      ? this.prisma.trustedEncryptionDevice.findMany({
+        where: { id: { in: senderDeviceIds } },
+        select: { id: true, userId: true, trustStatus: true, revokedAt: true, trustedAt: true },
+      })
+      : Promise.resolve([] as Array<{
+        id: string;
+        userId: string;
+        trustStatus: E2EEDeviceTrustStatus;
+        revokedAt: Date | null;
+        trustedAt: Date | null;
+      }>);
+
+    const [trustedDevices, expectedTrustedDevices, senderDevices] = await Promise.all([
+      this.prisma.trustedEncryptionDevice.findMany({
+        where: { id: { in: trustedDeviceIds } },
+        select: { id: true, userId: true, keyVersion: true, trustStatus: true, revokedAt: true, trustedAt: true },
+      }),
+      this.prisma.trustedEncryptionDevice.findMany({
+        where: {
+          userId: { in: options.recipientUserIds },
+          trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+          revokedAt: null,
+          trustedAt: { not: null },
+        },
+        select: { id: true },
+      }),
+      senderDevicesPromise,
+    ]);
+    const missingTrustedDeviceIds = expectedTrustedDevices.filter((device) => !trustedDeviceIds.includes(device.id));
+    if (missingTrustedDeviceIds.length > 0) {
+      throw new BadRequestException(`Encrypted ${options.label} content is missing key envelopes for one or more trusted recipient devices. Refresh and try again.`);
+    }
+
+    const trustedDeviceById = new Map(trustedDevices.map((device) => [device.id, device]));
+    for (const envelope of encryptedContent.keyEnvelopes) {
+      if (!recipientUserIds.has(envelope.recipientUserId)) {
+        throw new BadRequestException(`Encrypted ${options.label} envelope recipient is not a mail participant.`);
+      }
+
+      const device = trustedDeviceById.get(envelope.trustedDeviceId);
+      if (!device || device.userId !== envelope.recipientUserId) {
+        throw new BadRequestException(`Encrypted ${options.label} envelope target device does not belong to the recipient.`);
+      }
+      if (device.trustStatus !== E2EEDeviceTrustStatus.TRUSTED || device.revokedAt || !device.trustedAt) {
+        throw new BadRequestException(`Encrypted ${options.label} envelope targets a pending or revoked device.`);
+      }
+      if (envelope.deviceKeyVersion !== device.keyVersion) {
+        throw new BadRequestException(`Encrypted ${options.label} envelope device key version is stale.`);
+      }
+    }
+
+    const senderDeviceById = new Map(senderDevices.map((device) => [device.id, device]));
+    for (const senderDeviceId of senderDeviceIds) {
+      const device = senderDeviceById.get(senderDeviceId);
+      if (!device || device.userId !== options.senderId) {
+        throw new BadRequestException(`Encrypted ${options.label} sender device does not belong to the sender.`);
+      }
+      if (device.trustStatus !== E2EEDeviceTrustStatus.TRUSTED || device.revokedAt || !device.trustedAt) {
+        throw new BadRequestException(`Encrypted ${options.label} sender device is not trusted.`);
+      }
+    }
+  }
+
+  private async resolveTargetRoleUserIds(targetRole: string | null | undefined, organizationId?: string | null) {
+    if (!targetRole) return [];
+    const where: Prisma.UserWhereInput = targetRole === 'ORG_STAFF'
+      ? {
+        role: { in: [Role.TEACHER, Role.ORG_MANAGER] },
+        ...(organizationId ? { organizationId } : {}),
+      }
+      : {
+        role: targetRole as Role,
+        ...(
+          organizationId &&
+          targetRole !== Role.PLATFORM_ADMIN &&
+          targetRole !== Role.SUPER_ADMIN
+            ? { organizationId }
+            : {}
+        ),
+      };
+
+    const users = await this.prisma.user.findMany({
+      where,
+      select: { id: true },
+    });
+    return users.map((candidate) => candidate.id);
+  }
+
+  private async getMailAccessUserIds(mail: {
+    id?: string;
+    creatorId: string;
+    organizationId?: string | null;
+    targetRole?: string | null;
+    assigneeId?: string | null;
+  }) {
+    const userIds = new Set<string>([mail.creatorId]);
+    if (mail.assigneeId) userIds.add(mail.assigneeId);
+
+    if (mail.id) {
+      const assignees = await this.prisma.user.findMany({
+        where: { assignedMails: { some: { id: mail.id } } },
+        select: { id: true },
+      });
+      assignees.forEach((assignee) => userIds.add(assignee.id));
+    }
+
+    const [roleUserIds, orgAdminIds, platformAdminIds] = await Promise.all([
+      this.resolveTargetRoleUserIds(mail.targetRole, mail.organizationId),
+      mail.organizationId
+        ? this.prisma.user.findMany({
+          where: {
+            organizationId: mail.organizationId,
+            role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN] },
+          },
+          select: { id: true },
+        }).then((users) => users.map((candidate) => candidate.id))
+        : Promise.resolve([]),
+      this.prisma.user.findMany({
+        where: { role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] } },
+        select: { id: true },
+      }).then((users) => users.map((candidate) => candidate.id)),
+    ]);
+
+    roleUserIds.forEach((id) => userIds.add(id));
+    orgAdminIds.forEach((id) => userIds.add(id));
+    platformAdminIds.forEach((id) => userIds.add(id));
+    return Array.from(userIds);
+  }
+
+  private async getComposeAccessUserIds(dto: CreateMailDto, user: MailUser) {
+    const userIds = new Set<string>([user.id]);
+    dto.assigneeIds?.forEach((id) => userIds.add(id));
+
+    const [roleUserIds, orgAdminIds, platformAdminIds] = await Promise.all([
+      this.resolveTargetRoleUserIds(dto.targetRole, user.organizationId),
+      user.organizationId
+        ? this.prisma.user.findMany({
+          where: {
+            organizationId: user.organizationId,
+            role: { in: [Role.ORG_ADMIN, Role.SUB_ADMIN] },
+          },
+          select: { id: true },
+        }).then((users) => users.map((candidate) => candidate.id))
+        : Promise.resolve([]),
+      this.prisma.user.findMany({
+        where: { role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] } },
+        select: { id: true },
+      }).then((users) => users.map((candidate) => candidate.id)),
+    ]);
+
+    roleUserIds.forEach((id) => userIds.add(id));
+    orgAdminIds.forEach((id) => userIds.add(id));
+    platformAdminIds.forEach((id) => userIds.add(id));
+    return Array.from(userIds);
+  }
+
+  async getComposeE2eeContext(dto: MailE2eeContextDto, user: MailUser) {
+    const validationDto = {
+      ...dto,
+      category: dto.category || 'GENERAL_INQUIRY',
+      subject: 'Encrypted mail',
+      message: 'Encrypted mail message',
+    } as CreateMailDto;
+    await this.validateMailRecipients(validationDto, user);
+    const recipientUserIds = await this.getComposeAccessUserIds(validationDto, user);
+    return this.getMailRecipientDevices(recipientUserIds);
+  }
+
+  async getMailE2eeContext(mailId: string, user: MailUser) {
+    const mail = await this.prisma.mail.findUnique({
+      where: { id: mailId },
+      include: { assignees: { select: { id: true } } },
+    });
+    if (!mail) throw new NotFoundException('Mail not found');
+
+    await this.assertMailAccess(mail, user);
+    const recipientUserIds = await this.getMailAccessUserIds(mail);
+    mail.assignees.forEach((assignee) => recipientUserIds.push(assignee.id));
+    return this.getMailRecipientDevices(Array.from(new Set(recipientUserIds)));
+  }
+
+  private async getMailRecipientDevices(userIds: string[]) {
+    const devices = await this.prisma.trustedEncryptionDevice.findMany({
+      where: {
+        userId: { in: Array.from(new Set(userIds)) },
+        trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+        revokedAt: null,
+        trustedAt: { not: null },
+      },
+      orderBy: [{ userId: 'asc' }, { trustedAt: 'desc' }],
+    });
+
+    return Array.from(new Set(userIds)).map((userId) => ({
+      userId,
+      devices: devices
+        .filter((device) => device.userId === userId)
+        .map((device) => ({
+          id: device.id,
+          userId: device.userId,
+          clientDeviceId: device.clientDeviceId,
+          displayName: device.displayName,
+          deviceType: device.deviceType,
+          browser: device.browser,
+          os: device.os,
+          keyVersion: device.keyVersion,
+          keyAgreementPublicKey: device.keyAgreementPublicKey,
+          keyAgreementPublicKeyFingerprint: device.keyAgreementPublicKeyFingerprint,
+          signingPublicKey: device.signingPublicKey,
+          signingPublicKeyFingerprint: device.signingPublicKeyFingerprint,
+          algorithm: device.algorithm,
+          trustStatus: device.trustStatus,
+          approvalRequestedAt: device.approvalRequestedAt,
+          trustedAt: device.trustedAt,
+          approvedByDeviceId: device.approvedByDeviceId,
+          lastSeenAt: device.lastSeenAt,
+          revokedAt: device.revokedAt,
+          createdAt: device.createdAt,
+          updatedAt: device.updatedAt,
+        })),
+    }));
+  }
+
+  private async assertMailAccess(mail: {
+    id: string;
+    creatorId: string;
+    assigneeId?: string | null;
+    targetRole?: string | null;
+    organizationId?: string | null;
+    assignees?: Array<{ id: string }>;
+  }, user: MailUser) {
+    const isAdmin =
+      ADMIN_ROLES.has(user.role as Role) ||
+      (ORG_OPERATIONAL_ROLES.has(user.role as Role) &&
+        mail.organizationId === user.organizationId);
+    const isCreator = mail.creatorId === user.id;
+    const isSingleAssignee = mail.assigneeId === user.id;
+    const isM2MAssignee =
+      mail.assignees?.some((a) => a.id === user.id) ??
+      (await this.prisma.mail.count({
+        where: { id: mail.id, assignees: { some: { id: user.id } } },
+      })) > 0;
+    const isTargetRole =
+      mail.targetRole === user.role ||
+      (mail.targetRole === 'ORG_STAFF' &&
+        (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER));
+
+    if (!isAdmin && !isCreator && !isSingleAssignee && !isM2MAssignee && !isTargetRole) {
+      throw new ForbiddenException('You do not have access to this mail');
+    }
+  }
 
   // ──────────────────────────────── Create ─────────────────────────────────
 
@@ -176,11 +519,30 @@ export class MailService {
       );
     }
 
+    const hasEncryptedPayload = Boolean(dto.encryptedSubject && dto.encryptedMessage);
+    if (hasEncryptedPayload) {
+      const recipientUserIds = await this.getComposeAccessUserIds(dto, user);
+      await Promise.all([
+        this.validateMailEncryptedContent({
+          senderId: user.id,
+          recipientUserIds,
+          encryptedContent: dto.encryptedSubject,
+          label: 'mail subject',
+        }),
+        this.validateMailEncryptedContent({
+          senderId: user.id,
+          recipientUserIds,
+          encryptedContent: dto.encryptedMessage,
+          label: 'mail message',
+        }),
+      ]);
+    }
+
     // Create mail + initial message + action log in a transaction
     const mail = await this.prisma.$transaction(async (tx) => {
       const req = await tx.mail.create({
         data: {
-          subject: dto.subject,
+          subject: hasEncryptedPayload ? ENCRYPTED_MAIL_SUBJECT_PLACEHOLDER : dto.subject,
           category: dto.category,
           priority: dto.priority || 'NORMAL',
           status: dto.noReply
@@ -197,6 +559,14 @@ export class MailService {
               }
             : undefined,
           metadata: (dto.metadata as Prisma.InputJsonValue) ?? undefined,
+          subjectEncryptedContent: hasEncryptedPayload && dto.encryptedSubject
+            ? {
+              create: this.buildEncryptedContentCreate(
+                E2EEContentType.MAIL_SUBJECT,
+                dto.encryptedSubject,
+              ) as Prisma.EncryptedContentCreateWithoutMailSubjectInput,
+            }
+            : undefined,
         },
       });
 
@@ -205,7 +575,15 @@ export class MailService {
         data: {
           mailId: req.id,
           senderId: user.id,
-          content: dto.message,
+          content: hasEncryptedPayload ? ENCRYPTED_MAIL_MESSAGE_PLACEHOLDER : dto.message,
+          encryptedContent: hasEncryptedPayload && dto.encryptedMessage
+            ? {
+              create: this.buildEncryptedContentCreate(
+                E2EEContentType.MAIL_MESSAGE,
+                dto.encryptedMessage,
+              ) as Prisma.EncryptedContentCreateWithoutMailMessageInput,
+            }
+            : undefined,
         },
       });
 
@@ -233,7 +611,7 @@ export class MailService {
     });
 
     // Fetch the full mail with relations for the response & event
-    const fullMail = await this.getMailByIdInternal(mail.id);
+    const fullMail = await this.getMailByIdInternal(mail.id, user.id);
     const transformed = this.transformMail(fullMail, user.role as Role);
 
     // Emit to targeted role, assignee, or platform admins
@@ -245,8 +623,7 @@ export class MailService {
       await this.notifyParticipants(
         mail,
         {
-          title: 'New Mail Received',
-          body: `New mail received: "${dto.subject}".`,
+          ...MAIL_NOTIFICATION_COPY.newMailReceived,
           type: 'MAIL_ASSIGNED',
         },
         user.id,
@@ -493,10 +870,15 @@ export class MailService {
                 {
                   OR: [
                     {
-                      subject: {
-                        contains: search,
-                        mode: 'insensitive' as const,
-                      },
+                      AND: [
+                        { subjectEncryptedContent: null },
+                        {
+                          subject: {
+                            contains: search,
+                            mode: 'insensitive' as const,
+                          },
+                        },
+                      ],
                     },
                     {
                       category: {
@@ -601,6 +983,9 @@ export class MailService {
           organization: {
             select: { id: true, name: true, logoUrl: true },
           },
+          subjectEncryptedContent: {
+            include: this.getEncryptedContentInclude(user.id),
+          },
           _count: {
             select: { messages: true },
           },
@@ -648,7 +1033,7 @@ export class MailService {
 
   // ──────────────────────────── Get Single ─────────────────────────────────
 
-  private async getMailByIdInternal(mailId: string) {
+  private async getMailByIdInternal(mailId: string, recipientUserId?: string) {
     const mail = await this.prisma.mail.findUnique({
       where: { id: mailId },
       include: {
@@ -676,6 +1061,9 @@ export class MailService {
         organization: {
           select: { id: true, name: true, logoUrl: true },
         },
+        subjectEncryptedContent: {
+          include: this.getEncryptedContentInclude(recipientUserId),
+        },
         messages: {
           orderBy: { createdAt: 'asc' },
           include: {
@@ -687,6 +1075,9 @@ export class MailService {
                 role: true,
                 avatarUrl: true,
               },
+            },
+            encryptedContent: {
+              include: this.getEncryptedContentInclude(recipientUserId),
             },
           },
         },
@@ -742,35 +1133,13 @@ export class MailService {
   }
 
   async getMailById(mailId: string, user: MailUser) {
-    const mail = await this.getMailByIdInternal(mailId);
+    const mail = await this.getMailByIdInternal(mailId, user.id);
 
     if (!mail) {
       throw new NotFoundException('Mail not found');
     }
 
-    // Permission check: creator, assignee (single or M2M), target role, or admin
-    const isAdmin =
-      ADMIN_ROLES.has(user.role as Role) ||
-      (ORG_OPERATIONAL_ROLES.has(user.role as Role) &&
-        mail.organizationId === user.organizationId);
-    const isCreator = mail.creatorId === user.id;
-    const isSingleAssignee = mail.assigneeId === user.id;
-    const isM2MAssignee =
-      mail.assignees?.some((a) => a.id === user.id) ?? false;
-    const isTargetRole =
-      mail.targetRole === user.role ||
-      (mail.targetRole === 'ORG_STAFF' &&
-        (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER));
-
-    if (
-      !isAdmin &&
-      !isCreator &&
-      !isSingleAssignee &&
-      !isM2MAssignee &&
-      !isTargetRole
-    ) {
-      throw new ForbiddenException('You do not have access to this mail');
-    }
+    await this.assertMailAccess(mail, user);
 
     // Mark as read when viewed
     await this.markAsRead(mailId, user.id);
@@ -845,7 +1214,7 @@ export class MailService {
 
     if (Object.keys(updateData).length === 0) {
       return this.transformMail(
-        await this.getMailByIdInternal(mailId),
+        await this.getMailByIdInternal(mailId, user.id),
         user.role as Role,
       );
     }
@@ -878,8 +1247,7 @@ export class MailService {
       await this.notifyParticipants(
         updatedMail,
         {
-          title: 'Mail Status Updated',
-          body: `The status of mail "${existing.subject}" is now ${dto.status}.`,
+          ...MAIL_NOTIFICATION_COPY.mailStatusUpdated(dto.status),
           type: 'MAIL_STATUS_CHANGE',
           metadata: { status: dto.status },
         },
@@ -891,8 +1259,7 @@ export class MailService {
       await this.notifyParticipants(
         updatedMail,
         {
-          title: 'Mail Assigned to You',
-          body: `You have been assigned to mail "${existing.subject}".`,
+          ...MAIL_NOTIFICATION_COPY.mailAssigned,
           type: 'MAIL_ASSIGNED',
         },
         user.id,
@@ -900,7 +1267,7 @@ export class MailService {
       );
     }
 
-    const fullMail = await this.getMailByIdInternal(mailId);
+    const fullMail = await this.getMailByIdInternal(mailId, user.id);
     const transformed = this.transformMail(fullMail, user.role as Role);
 
     // Emit update to appropriate rooms
@@ -977,12 +1344,26 @@ export class MailService {
       );
     }
 
+    const recipientUserIds = await this.getMailAccessUserIds(mail);
+    await this.validateMailEncryptedContent({
+      senderId: user.id,
+      recipientUserIds,
+      encryptedContent: dto.encryptedContent,
+      label: 'mail message',
+    });
+
     await this.prisma.$transaction(async (tx) => {
       const msg = await tx.mailMessage.create({
         data: {
           mailId,
           senderId: user.id,
-          content: dto.content,
+          content: ENCRYPTED_MAIL_MESSAGE_PLACEHOLDER,
+          encryptedContent: {
+            create: this.buildEncryptedContentCreate(
+              E2EEContentType.MAIL_MESSAGE,
+              dto.encryptedContent,
+            ) as Prisma.EncryptedContentCreateWithoutMailMessageInput,
+          },
         },
         include: {
           sender: {
@@ -1034,17 +1415,15 @@ export class MailService {
       return [msg];
     });
 
-    const fullMail = await this.getMailByIdInternal(mailId);
+    const fullMail = await this.getMailByIdInternal(mailId, user.id);
     const transformed = this.transformMail(fullMail, user.role as Role);
     if (!transformed) throw new NotFoundException('Mail not found');
 
     // --- Persistent Notifications for Replies ---
-    const bodyContent = `${user.name || user.email} replied to mail "${mail.subject}".`;
     await this.notifyParticipants(
       mail,
       {
-        title: 'New Reply in Mail Thread',
-        body: bodyContent,
+        ...MAIL_NOTIFICATION_COPY.mailReply,
         type: 'MAIL_MESSAGE',
       },
       user.id,
@@ -1402,7 +1781,6 @@ export class MailService {
   private async notifyParticipants(
     mail: {
       id: string;
-      subject: string;
       creatorId: string;
       assigneeId?: string | null;
       targetRole?: string | null;

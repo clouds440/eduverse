@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Archive, Download, File, FileSpreadsheet, FileText, Paperclip, Presentation, CheckCircle, Loader2 } from 'lucide-react';
 import { getFileTypeInfo } from '@/lib/attachmentUtils';
 import { downloadFile, formatBytes } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
+import { downloadEncryptedAttachment, getFileIdFromDownloadUrl } from '@/lib/e2ee';
 
 export type AttachmentPreviewKind = 'pdf' | 'doc' | 'sheet' | 'presentation' | 'archive' | 'attachment';
 
@@ -70,6 +72,7 @@ export function AttachmentPreviewCard({
     fileSize: initialFileSize,
     compact = false,
 }: AttachmentPreviewCardProps) {
+    const { token } = useAuth();
     const isBlob = href.startsWith('blob:');
     const fileInfo = getFileTypeInfo(MIME_BY_KIND[kind]);
     const Icon = ICON_BY_KIND[kind] ?? File;
@@ -119,7 +122,20 @@ export function AttachmentPreviewCard({
         if (isDownloading) return;
         setIsDownloading(true);
         try {
-            await downloadFile(href, downloadFileName);
+            const encryptedFileId = token ? getFileIdFromDownloadUrl(href) : null;
+            if (encryptedFileId && token) {
+                try {
+                    await downloadEncryptedAttachment(encryptedFileId, token);
+                } catch (error) {
+                    if (error instanceof Error && /not encrypted/i.test(error.message)) {
+                        await downloadFile(href, downloadFileName);
+                    } else {
+                        throw error;
+                    }
+                }
+            } else {
+                await downloadFile(href, downloadFileName);
+            }
             setDownloadSuccess(true);
             setTimeout(() => setDownloadSuccess(false), 2000);
         } catch (error) {

@@ -15,6 +15,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
 import { getRoleLabel } from '@/lib/roles';
 import { GENERIC_UPLOAD_ACCEPT, isGenericUploadAllowed } from '@/lib/uploadPolicy';
+import { prepareEncryptedFileUpload, prepareEncryptedMailPayload } from '@/lib/e2ee';
 
 interface NewMailModalProps {
     isOpen: boolean;
@@ -441,24 +442,46 @@ export function NewMailModal({
             const roleTarget = selectedTargets.find((target) => target.type === 'ROLE');
             const individualIds = selectedTargets.filter((target) => target.type === 'USER').map((target) => target.id);
 
-            const response = await api.mail.createMail({
-                subject,
-                category: category as MailCategory,
-                priority,
-                message,
+            const mailContext = {
+                category,
                 assigneeIds: individualIds.length > 0 ? individualIds : undefined,
                 targetRole: roleTarget?.role || undefined,
-                noReply,
-            }, token);
+            };
+            const recipientDevices = await api.mail.getComposeE2EEContext(mailContext, token);
+            const encryptedPayload = await prepareEncryptedMailPayload({
+                payload: {
+                    subject,
+                    category: category as MailCategory,
+                    priority,
+                    message,
+                    assigneeIds: individualIds.length > 0 ? individualIds : undefined,
+                    targetRole: roleTarget?.role || undefined,
+                    noReply,
+                },
+                context: mailContext,
+                token,
+                currentUserId: user?.id || '',
+                recipientDevices,
+            });
+
+            const response = await api.mail.createMail(encryptedPayload, token);
 
             if (selectedFiles.length > 0) {
                 const messageId = response.messages?.[0]?.id;
                 const orgId = response.organizationId || 'SYSTEM';
 
                 if (messageId) {
+                    const encryptedFiles = await Promise.all(selectedFiles.map((file) => prepareEncryptedFileUpload({
+                        file,
+                        recipientDevices,
+                        currentUserId: user?.id || '',
+                        scope: 'MAIL_ATTACHMENT',
+                        entityType: 'MAIL_MESSAGE',
+                        entityId: messageId,
+                    })));
                     await Promise.all(
-                        selectedFiles.map((file) =>
-                            api.files.uploadFile(orgId, 'MAIL_MESSAGE', messageId, file, token),
+                        encryptedFiles.map((encrypted) =>
+                            api.files.uploadFile(orgId, 'MAIL_MESSAGE', messageId, encrypted.file, token, encrypted.encryptedContent),
                         ),
                     );
                 }

@@ -1,4 +1,5 @@
 import { api, type WebPushSubscriptionPayload } from '@/lib/api';
+import { getDeviceId } from '@/lib/deviceUtils';
 
 const urlBase64ToUint8Array = (base64String: string) => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -36,6 +37,7 @@ export const serializeSubscription = (subscription: PushSubscription): WebPushSu
   }
 
   return {
+    deviceId: getDeviceId(),
     endpoint,
     expirationTime: json.expirationTime ?? subscription.expirationTime,
     keys: { p256dh, auth },

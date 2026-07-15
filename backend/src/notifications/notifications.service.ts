@@ -18,6 +18,10 @@ export interface CreateNotificationDto {
   metadata?: Prisma.JsonValue;
 }
 
+type NotificationWithMetadata = {
+  metadata: Prisma.JsonValue | null;
+};
+
 export type NotificationDedupeMetadata = Record<string, string | number | boolean>;
 
 export interface NotificationDedupeOptions {
@@ -25,6 +29,7 @@ export interface NotificationDedupeOptions {
 }
 
 export interface WebPushSubscriptionDto {
+  deviceId?: string;
   endpoint?: string;
   expirationTime?: number | null;
   keys?: {
@@ -51,6 +56,7 @@ export class NotificationsService {
   ) {}
 
   async createNotification(dto: CreateNotificationDto) {
+    const targetClientDeviceIds = this.getTargetClientDeviceIds(dto.metadata);
     const notification = await this.prisma.notification.create({
       data: {
         userId: dto.userId,
@@ -70,7 +76,7 @@ export class NotificationsService {
       title: dto.title,
       body: dto.body,
       url: dto.actionUrl || '/',
-    }).catch((e) => console.error('Failed to send push notification:', e));
+    }, targetClientDeviceIds).catch((e) => console.error('Failed to send push notification:', e));
 
     return notification;
   }
@@ -119,22 +125,18 @@ export class NotificationsService {
     userId: string,
     page: number = 1,
     limit: number = 20,
+    clientDeviceId?: string,
   ) {
     const skip = (page - 1) * limit;
 
-    const [data, total] = await Promise.all([
-      this.prisma.notification.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.notification.count({ where: { userId } }),
-    ]);
+    const visible = (await this.prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    })).filter((notification) => this.isVisibleForClientDevice(notification, clientDeviceId));
 
-    const unreadCount = await this.prisma.notification.count({
-      where: { userId, isRead: false },
-    });
+    const data = visible.slice(skip, skip + limit);
+    const total = visible.length;
+    const unreadCount = visible.filter((notification) => !notification.isRead).length;
 
     return {
       data,
@@ -149,25 +151,22 @@ export class NotificationsService {
     userId: string,
     readPage: number = 1,
     readLimit: number = 10,
+    clientDeviceId?: string,
   ) {
     const safeReadPage = Math.max(1, readPage || 1);
     const safeReadLimit = Math.min(50, Math.max(1, readLimit || 10));
     const readSkip = (safeReadPage - 1) * safeReadLimit;
 
-    const [unread, read, unreadCount, totalRead] = await Promise.all([
-      this.prisma.notification.findMany({
-        where: { userId, isRead: false },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.notification.findMany({
-        where: { userId, isRead: true },
-        orderBy: { createdAt: 'desc' },
-        skip: readSkip,
-        take: safeReadLimit,
-      }),
-      this.prisma.notification.count({ where: { userId, isRead: false } }),
-      this.prisma.notification.count({ where: { userId, isRead: true } }),
-    ]);
+    const allVisible = (await this.prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    })).filter((notification) => this.isVisibleForClientDevice(notification, clientDeviceId));
+
+    const unread = allVisible.filter((notification) => !notification.isRead);
+    const readAll = allVisible.filter((notification) => notification.isRead);
+    const read = readAll.slice(readSkip, readSkip + safeReadLimit);
+    const unreadCount = unread.length;
+    const totalRead = readAll.length;
 
     const data = [...unread, ...read].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -183,13 +182,16 @@ export class NotificationsService {
     };
   }
 
-  async markAsRead(notificationId: string, userId: string) {
+  async markAsRead(notificationId: string, userId: string, clientDeviceId?: string) {
     const notification = await this.prisma.notification.findUnique({
       where: { id: notificationId },
     });
 
     if (!notification) throw new NotFoundException('Notification not found');
-    if (notification.userId !== userId)
+    if (
+      notification.userId !== userId ||
+      !this.isVisibleForClientDevice(notification, clientDeviceId)
+    )
       throw new NotFoundException('Notification not found');
 
     const updated = await this.prisma.notification.update({
@@ -202,12 +204,16 @@ export class NotificationsService {
     return updated;
   }
 
-  async deleteNotification(notificationId: string, userId: string) {
+  async deleteNotification(notificationId: string, userId: string, clientDeviceId?: string) {
     const notification = await this.prisma.notification.findUnique({
       where: { id: notificationId },
     });
 
-    if (!notification || notification.userId !== userId) {
+    if (
+      !notification ||
+      notification.userId !== userId ||
+      !this.isVisibleForClientDevice(notification, clientDeviceId)
+    ) {
       throw new NotFoundException('Notification not found');
     }
 
@@ -223,9 +229,20 @@ export class NotificationsService {
     return { deleted: true };
   }
 
-  async markAllAsRead(userId: string) {
-    const result = await this.prisma.notification.updateMany({
+  async markAllAsRead(userId: string, clientDeviceId?: string) {
+    const visibleUnreadIds = (await this.prisma.notification.findMany({
       where: { userId, isRead: false },
+      select: { id: true, metadata: true },
+    }))
+      .filter((notification) => this.isVisibleForClientDevice(notification, clientDeviceId))
+      .map((notification) => notification.id);
+
+    if (visibleUnreadIds.length === 0) {
+      return { count: 0 };
+    }
+
+    const result = await this.prisma.notification.updateMany({
+      where: { userId, id: { in: visibleUnreadIds }, isRead: false },
       data: { isRead: true },
     });
 
@@ -234,11 +251,27 @@ export class NotificationsService {
     return result;
   }
 
-  async markCategoryAsRead(userId: string, category: 'CHAT' | 'MAIL') {
+  async markCategoryAsRead(userId: string, category: 'CHAT' | 'MAIL', clientDeviceId?: string) {
     const typePrefix = category === 'CHAT' ? 'CHAT_' : 'MAIL_';
+    const visibleUnreadIds = (await this.prisma.notification.findMany({
+      where: {
+        userId,
+        isRead: false,
+        type: { startsWith: typePrefix },
+      },
+      select: { id: true, metadata: true },
+    }))
+      .filter((notification) => this.isVisibleForClientDevice(notification, clientDeviceId))
+      .map((notification) => notification.id);
+
+    if (visibleUnreadIds.length === 0) {
+      return { count: 0 };
+    }
+
     const result = await this.prisma.notification.updateMany({
       where: {
         userId,
+        id: { in: visibleUnreadIds },
         isRead: false,
         type: { startsWith: typePrefix },
       },
@@ -281,6 +314,7 @@ export class NotificationsService {
         where: { id: existing.id },
         data: {
           userId,
+          deviceId: subscription.deviceId || null,
           p256dh: subscription.keys.p256dh,
           auth: subscription.keys.auth,
         },
@@ -294,6 +328,7 @@ export class NotificationsService {
     await this.prisma.webPushSubscription.create({
       data: {
         userId,
+        deviceId: subscription.deviceId || null,
         endpoint: subscription.endpoint,
         p256dh: subscription.keys.p256dh,
         auth: subscription.keys.auth,
@@ -324,11 +359,12 @@ export class NotificationsService {
   async sendPushNotification(
     userId: string,
     payload: { title: string; body?: string; url?: string },
+    targetClientDeviceIds?: string[],
   ) {
     // Skip push if user has the app open (foreground)
     if (this.events.isUserOnline(userId)) return;
 
-    await this._dispatchPush(userId, payload);
+    await this._dispatchPush(userId, payload, { targetClientDeviceIds });
   }
 
   async sendTestPushNotification(
@@ -347,17 +383,18 @@ export class NotificationsService {
   async sendPushOnly(
     userId: string,
     payload: { title: string; body?: string; url?: string },
+    targetClientDeviceIds?: string[],
   ) {
     // Only send push when user is NOT online (app not in foreground)
     if (this.events.isUserOnline(userId)) return;
 
-    await this._dispatchPush(userId, payload);
+    await this._dispatchPush(userId, payload, { targetClientDeviceIds });
   }
 
   private async _dispatchPush(
     userId: string,
     payload: { title: string; body?: string; url?: string },
-    options: { force?: boolean; endpoint?: string } = {},
+    options: { force?: boolean; endpoint?: string; targetClientDeviceIds?: string[] } = {},
   ) {
     if (
       !process.env.VAPID_PUBLIC_KEY ||
@@ -372,6 +409,9 @@ export class NotificationsService {
       where: {
         userId,
         ...(options.endpoint ? { endpoint: options.endpoint } : {}),
+        ...(options.targetClientDeviceIds
+          ? { deviceId: { in: options.targetClientDeviceIds } }
+          : {}),
       },
     });
 
@@ -420,5 +460,23 @@ export class NotificationsService {
     }
 
     await Promise.allSettled(promises);
+  }
+
+  private getTargetClientDeviceIds(metadata: Prisma.JsonValue | undefined | null) {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return undefined;
+    }
+
+    const value = (metadata as Record<string, unknown>).targetClientDeviceIds;
+    if (!Array.isArray(value)) return undefined;
+
+    return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.length > 0)));
+  }
+
+  private isVisibleForClientDevice(notification: NotificationWithMetadata, clientDeviceId?: string) {
+    const targetClientDeviceIds = this.getTargetClientDeviceIds(notification.metadata);
+    if (!targetClientDeviceIds) return true;
+    if (targetClientDeviceIds.length === 0) return false;
+    return Boolean(clientDeviceId && targetClientDeviceIds.includes(clientDeviceId));
   }
 }

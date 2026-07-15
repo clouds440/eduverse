@@ -269,12 +269,13 @@ export class AIEntityResolverService implements OnModuleInit {
       include: {
         creator: { select: { id: true, name: true, email: true, role: true } },
         assignee: { select: { id: true, name: true, email: true, role: true } },
+        subjectEncryptedContent: { select: { id: true } },
         _count: { select: { messages: true } },
       },
       orderBy: { updatedAt: 'desc' },
     });
     const ranked = rankOrDefault(mails, search, (mail) => [
-      mail.subject,
+      mail.subjectEncryptedContent ? undefined : mail.subject,
       mail.category,
       mail.priority,
       mail.status,
@@ -286,7 +287,7 @@ export class AIEntityResolverService implements OnModuleInit {
     return ranked.map(({ item: mail, confidence }) => ({
       entity: 'mail',
       mailId: mail.id,
-      label: mail.subject,
+      label: mail.subjectEncryptedContent ? 'Encrypted mail' : mail.subject,
       category: mail.category,
       priority: mail.priority,
       status: mail.status,
@@ -514,7 +515,12 @@ function mailSearch(search: string): Prisma.MailWhereInput {
   return {
     OR: [
       ...tokens.flatMap((token) => [
-      { subject: { contains: token, mode: Prisma.QueryMode.insensitive } },
+      {
+        AND: [
+          { subjectEncryptedContent: null },
+          { subject: { contains: token, mode: Prisma.QueryMode.insensitive } },
+        ],
+      },
       { category: { contains: token, mode: Prisma.QueryMode.insensitive } },
       { priority: { contains: token, mode: Prisma.QueryMode.insensitive } },
       { creator: { name: { contains: token, mode: Prisma.QueryMode.insensitive } } },

@@ -29,13 +29,14 @@ export class FinanceManagersController {
   constructor(private readonly financeManagersService: FinanceManagersService) {}
 
   @Roles(Role.FINANCE_MANAGER)
+  @Access(AccessLevel.NONE)
   @Get('me/profile')
   getOwnProfile(@OrgId() orgId: string, @Request() req: AuthenticatedRequest) {
     return this.financeManagersService.getOwnProfile(orgId, req.user.id);
   }
 
   @Roles(Role.FINANCE_MANAGER)
-  @Access(AccessLevel.WRITE)
+  @Access(AccessLevel.NONE)
   @Patch('me/profile')
   updateOwnProfile(
     @OrgId() orgId: string,

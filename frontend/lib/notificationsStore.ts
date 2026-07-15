@@ -1,5 +1,6 @@
 import { api } from './api';
 import { Notification } from '@/types';
+import { getDeviceId } from './deviceUtils';
 
 const cache: { items: Notification[]; unreadCount: number; readPage: number; hasMoreRead: boolean } = {
     items: [],
@@ -11,6 +12,22 @@ const listeners = new Set<() => void>();
 const inFlightMark = new Set<string>();
 const inFlightDelete = new Set<string>();
 let inFlightMarkAll = false;
+
+function shouldHideForCurrentDevice(notification: Notification) {
+    const targetClientDeviceIds = notification.metadata?.targetClientDeviceIds;
+    if (Array.isArray(targetClientDeviceIds)) {
+        const currentDeviceId = getDeviceId();
+        return !targetClientDeviceIds.some((deviceId) => typeof deviceId === 'string' && deviceId === currentDeviceId);
+    }
+
+    if (notification.type !== 'E2EE_DEVICE_APPROVAL') return false;
+    const pendingClientDeviceId = notification.metadata?.pendingClientDeviceId;
+    return typeof pendingClientDeviceId === 'string' && pendingClientDeviceId === getDeviceId();
+}
+
+function visibleNotifications(items: Notification[]) {
+    return items.filter((item) => !shouldHideForCurrentDevice(item));
+}
 
 function notify() {
     listeners.forEach(l => l());
@@ -26,7 +43,7 @@ export const notificationsStore = {
         try {
             const readPage = options.readPage || 1;
             const res = await api.notifications.getDropdownNotifications(token, { readPage, readLimit: 10 });
-            let items: Notification[] = res.data || [];
+            let items: Notification[] = visibleNotifications(res.data || []);
 
             // Reflect optimistic single-item marks locally
             if (inFlightMark.size > 0) {
@@ -45,7 +62,7 @@ export const notificationsStore = {
             } else {
                 cache.items = items;
             }
-            cache.unreadCount = inFlightMarkAll ? 0 : (res.unreadCount || cache.items.filter((n: Notification) => !n.isRead).length);
+            cache.unreadCount = inFlightMarkAll ? 0 : cache.items.filter((n: Notification) => !n.isRead).length;
             cache.readPage = res.readPage;
             cache.hasMoreRead = res.hasMoreRead;
             notify();
@@ -67,6 +84,8 @@ export const notificationsStore = {
 
     // Add incoming notification (socket)
     applyNew(notif: Notification) {
+        if (shouldHideForCurrentDevice(notif)) return;
+
         // Avoid duplicate insertions
         const exists = cache.items.find(n => n.id === notif.id);
         if (exists) {
