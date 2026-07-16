@@ -26,6 +26,7 @@
 15. Local Development
 16. Testing and Verification
 17. Rollout and Migration Notes
+18. License and Copyright Notice
 
 ---
 
@@ -37,17 +38,17 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 
 ### Primary Users
 
-| Role | Scope |
-| --- | --- |
-| Super Admin | Highest platform authority for the deployment. |
-| Platform Admin | Platform-level organization and admin management. |
-| Org Admin | Full administrative control inside one organization. |
-| Sub Admin | Delegated organization operations without main-admin ownership. |
-| Org Manager | Academic oversight for assigned sections and students. |
-| Finance Manager | Finance structures, entries, payment claims, and transaction review. |
-| Teacher | Assigned teaching, attendance, material, assessment, and grading workflows. |
-| Student | Enrolled learning, submissions, timetable, grades, finance, and transcript views. |
-| Guardian | Read-only linked-student overview, attendance, grades, timetable, and fees. |
+| Role            | Scope                                                                             |
+| --------------- | --------------------------------------------------------------------------------- |
+| Super Admin     | Highest platform authority for the deployment.                                    |
+| Platform Admin  | Platform-level organization and admin management.                                 |
+| Org Admin       | Full administrative control inside one organization.                              |
+| Sub Admin       | Delegated organization operations without main-admin ownership.                   |
+| Org Manager     | Academic oversight for assigned sections and students.                            |
+| Finance Manager | Finance structures, entries, payment claims, and transaction review.              |
+| Teacher         | Assigned teaching, attendance, material, assessment, and grading workflows.       |
+| Student         | Enrolled learning, submissions, timetable, grades, finance, and transcript views. |
+| Guardian        | Read-only linked-student overview, attendance, grades, timetable, and fees.       |
 
 ### Product Scope
 
@@ -96,18 +97,23 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 
 ### Stack
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
-| Backend | NestJS 11, Node.js, TypeScript |
-| Database | PostgreSQL, Prisma ORM 6 |
-| Real-time | Socket.IO |
-| Auth | JWT, Passport.js, role guards |
-| Validation | `class-validator`, DTOs, Zod on selected frontend forms |
-| Files | Cloudinary |
-| Email | Resend API |
-| Password strength | `zxcvbn` |
-| PDF | `pdf-lib` |
+| Layer                 | Technology                                                              |
+| --------------------- | ----------------------------------------------------------------------- |
+| Frontend              | Next.js 16, React 19, TypeScript, Tailwind CSS 4                        |
+| Backend               | NestJS 11, Node.js, TypeScript                                          |
+| Database              | PostgreSQL, Prisma ORM 7                                                |
+| Authentication        | JWT, Passport.js, Role Guards                                           |
+| End-to-End Encryption | libsodium, XChaCha20-Poly1305, X25519 (Curve25519), Ed25519             |
+| Trusted Devices       | Device approval, per-device key management, history-key synchronization |
+| Real-time             | Socket.IO                                                               |
+| AI                    | LangChain, RAG (Retrieval-Augmented Generation)                         |
+| Validation            | `class-validator`, DTOs, Zod (selected frontend forms)                  |
+| File Storage          | Cloudinary                                                              |
+| Email                 | Resend API                                                              |
+| Password Strength     | `zxcvbn`                                                                |
+| PDF                   | `pdf-lib`                                                               |
+| Security              | HTTP-only JWT Cookies, bcrypt, CORS, CSP, Rate Limiting                 |
+| DevOps                | Docker                                                                  |
 
 ### Runtime Shape
 
@@ -584,18 +590,18 @@ frontend/app/
 
 ### Shared Systems
 
-| Area | Key Files |
-| --- | --- |
-| API client | `frontend/lib/api.ts` |
-| Types | `frontend/types/index.ts`, `frontend/types/enums.ts` |
-| UI primitives | `frontend/components/ui/*` |
-| Forms | `frontend/components/forms/*` |
-| Section feature UI | `frontend/components/sections/*` |
-| Transcript PDF | `frontend/lib/pdf/transcript.ts` |
-| PWA prompt/runtime | `frontend/components/ui/PWAInstallPrompt.tsx` |
-| Docs content registry | `packages/docs/src/index.ts` |
-| Breadcrumb logic | `frontend/lib/routeOrientation.ts` |
-| Organization sidebar | `frontend/lib/orgSidebar.ts`, `frontend/components/ui/DashboardLayout.tsx` |
+| Area                  | Key Files                                                                  |
+| --------------------- | -------------------------------------------------------------------------- |
+| API client            | `frontend/lib/api.ts`                                                      |
+| Types                 | `frontend/types/index.ts`, `frontend/types/enums.ts`                       |
+| UI primitives         | `frontend/components/ui/*`                                                 |
+| Forms                 | `frontend/components/forms/*`                                              |
+| Section feature UI    | `frontend/components/sections/*`                                           |
+| Transcript PDF        | `frontend/lib/pdf/transcript.ts`                                           |
+| PWA prompt/runtime    | `frontend/components/ui/PWAInstallPrompt.tsx`                              |
+| Docs content registry | `packages/docs/src/index.ts`                                               |
+| Breadcrumb logic      | `frontend/lib/routeOrientation.ts`                                         |
+| Organization sidebar  | `frontend/lib/orgSidebar.ts`, `frontend/components/ui/DashboardLayout.tsx` |
 
 ### Docs Architecture
 
@@ -747,15 +753,15 @@ Legacy top-level routes such as `/teachers`, `/students`, `/sub-admins`, `/finan
 - Guardian access is scoped to students linked through guardian relationships.
 - Finance Manager access is scoped to finance workflows and finance-related communication.
 
-| Role | Backend authority summary | Frontend route summary |
-| --- | --- | --- |
-| `ORG_ADMIN` | Full organization management, settings, finance, users, academic setup, grade finalization. | `/overview`, `/users/*`, academics, finance, settings. |
-| `SUB_ADMIN` | Delegated operational management; cannot manage main admin-only areas such as Sub Admin creation. | `/overview`, `/users/*` except Sub Admin management, academics, finance audit where visible. |
-| `ORG_MANAGER` | Assigned-section academic oversight, attendance, assessments, grades, transcripts, finalization review. | Academic monitoring routes; no finance/settings/user orchestration. |
-| `FINANCE_MANAGER` | Finance structures, entries, payment claims, transactions, finance mail. | `/finance`, mail/chat support routes. |
-| `TEACHER` | Assigned sections, materials, assessments, submissions, attendance, grading. | Teaching profile, assigned courses/sections, attendance, grades, timetable. |
-| `STUDENT` | Own portal data, own finance claims, own transcript and attendance. | Student portal, fees, timetable, transcript, chat. |
-| `GUARDIAN` | Linked-student read flows only. | `/guardian`, linked-student switcher, communication support routes. |
+| Role              | Backend authority summary                                                                               | Frontend route summary                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ORG_ADMIN`       | Full organization management, settings, finance, users, academic setup, grade finalization.             | `/overview`, `/users/*`, academics, finance, settings.                                       |
+| `SUB_ADMIN`       | Delegated operational management; cannot manage main admin-only areas such as Sub Admin creation.       | `/overview`, `/users/*` except Sub Admin management, academics, finance audit where visible. |
+| `ORG_MANAGER`     | Assigned-section academic oversight, attendance, assessments, grades, transcripts, finalization review. | Academic monitoring routes; no finance/settings/user orchestration.                          |
+| `FINANCE_MANAGER` | Finance structures, entries, payment claims, transactions, finance mail.                                | `/finance`, mail/chat support routes.                                                        |
+| `TEACHER`         | Assigned sections, materials, assessments, submissions, attendance, grading.                            | Teaching profile, assigned courses/sections, attendance, grades, timetable.                  |
+| `STUDENT`         | Own portal data, own finance claims, own transcript and attendance.                                     | Student portal, fees, timetable, transcript, chat.                                           |
+| `GUARDIAN`        | Linked-student read flows only.                                                                         | `/guardian`, linked-student switcher, communication support routes.                          |
 
 ### Query-Level Scoping
 
@@ -803,17 +809,17 @@ Legacy top-level routes such as `/teachers`, `/students`, `/sub-admins`, `/finan
 
 Existing organizations are seeded/backfilled with a standard 4.0 policy:
 
-| Min | Max | Letter | Points |
-| --- | --- | --- | --- |
-| 85 | 100 | A | 4.0 |
-| 80 | 84.99 | A- | 3.7 |
-| 75 | 79.99 | B+ | 3.3 |
-| 70 | 74.99 | B | 3.0 |
-| 65 | 69.99 | B- | 2.7 |
-| 60 | 64.99 | C+ | 2.3 |
-| 55 | 59.99 | C | 2.0 |
-| 50 | 54.99 | D | 1.0 |
-| 0 | 49.99 | F | 0 |
+| Min | Max   | Letter | Points |
+| --- | ----- | ------ | ------ |
+| 85  | 100   | A      | 4.0    |
+| 80  | 84.99 | A-     | 3.7    |
+| 75  | 79.99 | B+     | 3.3    |
+| 70  | 74.99 | B      | 3.0    |
+| 65  | 69.99 | B-     | 2.7    |
+| 60  | 64.99 | C+     | 2.3    |
+| 55  | 59.99 | C      | 2.0    |
+| 50  | 54.99 | D      | 1.0    |
+| 0   | 49.99 | F      | 0      |
 
 ### GPA Methods
 
@@ -940,32 +946,32 @@ Protected-content notification rules:
 
 ### Required Backend Variables
 
-| Variable | Description |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string. |
-| `JWT_SECRET` | JWT signing secret. |
-| `FRONTEND_URL` | Frontend URL used in email links and redirects. |
-| `SUPER_ADMIN_USERNAME` | Initial super admin username. |
-| `SUPER_ADMIN_PASSWORD` | Initial super admin password. |
-| `PORT` | Backend port. |
-| `BCRYPT_ROUNDS` | Password hash cost. |
+| Variable               | Description                                     |
+| ---------------------- | ----------------------------------------------- |
+| `DATABASE_URL`         | PostgreSQL connection string.                   |
+| `JWT_SECRET`           | JWT signing secret.                             |
+| `FRONTEND_URL`         | Frontend URL used in email links and redirects. |
+| `SUPER_ADMIN_USERNAME` | Initial super admin username.                   |
+| `SUPER_ADMIN_PASSWORD` | Initial super admin password.                   |
+| `PORT`                 | Backend port.                                   |
+| `BCRYPT_ROUNDS`        | Password hash cost.                             |
 
 ### Optional / Feature Variables
 
-| Variable | Description |
-| --- | --- |
-| `CLOUDINARY_URL` | Cloudinary upload configuration. |
-| `RESEND_API_KEY` | Resend API key. |
-| `RESEND_FROM_EMAIL` | Email sender address. |
-| `AUTH_COOKIE_DOMAIN` | Cookie domain. |
-| `AUTH_COOKIE_SECURE` | Secure cookie flag. |
-| `AUTH_COOKIE_SAME_SITE` | Cookie SameSite policy. |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID for linked-account sign-in. |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret used by the backend code exchange. |
-| `GOOGLE_REDIRECT_URI` | Backend callback URL, usually `/auth/google/callback`. |
+| Variable                    | Description                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| `CLOUDINARY_URL`            | Cloudinary upload configuration.                                                  |
+| `RESEND_API_KEY`            | Resend API key.                                                                   |
+| `RESEND_FROM_EMAIL`         | Email sender address.                                                             |
+| `AUTH_COOKIE_DOMAIN`        | Cookie domain.                                                                    |
+| `AUTH_COOKIE_SECURE`        | Secure cookie flag.                                                               |
+| `AUTH_COOKIE_SAME_SITE`     | Cookie SameSite policy.                                                           |
+| `GOOGLE_CLIENT_ID`          | Google OAuth client ID for linked-account sign-in.                                |
+| `GOOGLE_CLIENT_SECRET`      | Google OAuth client secret used by the backend code exchange.                     |
+| `GOOGLE_REDIRECT_URI`       | Backend callback URL, usually `/auth/google/callback`.                            |
 | `GOOGLE_OAUTH_STATE_SECRET` | Optional separate secret for signed Google OAuth state. Defaults to `JWT_SECRET`. |
-| `THROTTLE_TTL` | Rate-limit TTL. |
-| `THROTTLE_LIMIT` | Rate-limit request count. |
+| `THROTTLE_TTL`              | Rate-limit TTL.                                                                   |
+| `THROTTLE_LIMIT`            | Rate-limit request count.                                                         |
 
 ---
 
@@ -1019,6 +1025,7 @@ On Windows, Prisma engine execution may require the environment to allow child p
 18. Departments, Buildings, and Rooms
 
 ### Departments, Buildings, and Rooms
+
 - `npm run build`
 - DTO validation checks for new endpoints.
 - Role guard and service-scope checks:
@@ -1032,6 +1039,7 @@ On Windows, Prisma engine execution may require the environment to allow child p
 - `BuildingDepartment`: join table for optional many-to-many association between buildings and departments. Key fields: `id`, `organizationId`, `buildingId`, `departmentId`.
 
 Notes:
+
 - Room names may repeat across different buildings but must be unique within a building.
 - `Section` may gain an optional `defaultRoomId` (suggestion only). `Schedule` migrates to using `roomId` as the authoritative room for conflict checks.
   - Sub Admin can manage delegated users but cannot create or edit Sub Admin accounts.
@@ -1042,23 +1050,23 @@ Notes:
   - Student self access rejects other student records.
 - GPA policy validation:
   - overlapping ranges fail
- - `GET /org/departments`
- - `POST /org/departments`
- - `PATCH /org/departments/:id`
- - `DELETE /org/departments/:id`
- - `GET /org/buildings`
- - `POST /org/buildings`
- - `PATCH /org/buildings/:id`
- - `DELETE /org/buildings/:id`
- - `GET /org/rooms`
- - `POST /org/rooms`
- - `PATCH /org/rooms/:id`
- - `DELETE /org/rooms/:id`
- - `POST /org/buildings/:id/departments` (assign/remove departments)
-  - gaps fail
-  - points above scale fail
-  - points decreasing as marks increase fail
-  - more than 20 rules fail
+- `GET /org/departments`
+- `POST /org/departments`
+- `PATCH /org/departments/:id`
+- `DELETE /org/departments/:id`
+- `GET /org/buildings`
+- `POST /org/buildings`
+- `PATCH /org/buildings/:id`
+- `DELETE /org/buildings/:id`
+- `GET /org/rooms`
+- `POST /org/rooms`
+- `PATCH /org/rooms/:id`
+- `DELETE /org/rooms/:id`
+- `POST /org/buildings/:id/departments` (assign/remove departments)
+- gaps fail
+- points above scale fail
+- points decreasing as marks increase fail
+- more than 20 rules fail
 - GPA calculation:
 
 Room and schedule behavior:
@@ -1091,9 +1099,11 @@ UI helpers:
   - course credit hours included
   - cycle policy snapshot used
   - GPA and CGPA calculated centrally
+
 * Schedule/Room migration
   - Create schedules with `roomId` and with legacy `room` string; legacy records must render fallback room text until migrated.
   - Room conflict detection uses `roomId` when present; identical room names in different buildings do not conflict.
+
 - Guardian:
   - create guardian
   - update guardian
@@ -1185,6 +1195,34 @@ UI helpers:
 
 - Materials and assessments store `createdById` for new records.
 - Existing records without creator remain valid and render with fallback text.
+
+---
+
+## License
+
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
+
+You are welcome to:
+
+- View and study the source code.
+- Fork the repository for personal, educational, and non-commercial purposes.
+- Submit issues and pull requests.
+
+You may **not** use this software, or any substantial portion of it, for commercial purposes without prior written permission.
+
+See the full license in the [LICENSE](./LICENSE) file.
+
+---
+
+## Notice
+
+Copyright © 2026 Zahid.
+
+EduVerse is an actively developed commercial project. The source code is publicly available to encourage learning, transparency, and community contributions.
+
+Any commercial use, resale, hosting as a service, redistribution as a competing product, or incorporation into a commercial offering is prohibited unless explicitly authorized by the copyright holder.
+
+Contributions are welcome and will be considered under the terms of the project's license.
 
 ---
 
