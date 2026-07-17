@@ -241,6 +241,7 @@ export function AttendanceMonthlyImportModal({
       title="Import Monthly Attendance"
       subtitle="Use name, rollNumber, and day columns with P, A, L, E values. Limit: 1k rows per CSV."
       maxWidth="max-w-5xl"
+      closeOnBackdrop={false}
       footer={
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
           <Button

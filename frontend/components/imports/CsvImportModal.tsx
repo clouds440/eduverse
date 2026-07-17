@@ -257,6 +257,7 @@ export function CsvImportModal({
       title={`Import ${title}`}
       subtitle="Download the example template or DB-filled structure, validate your CSV, then confirm valid rows. Limit: 1k rows per CSV."
       maxWidth="max-w-5xl"
+      closeOnBackdrop={false}
       footer={
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
           <div className="flex gap-2">
