@@ -6,9 +6,10 @@ import { AuthModule } from '../auth/auth.module';
 import { MailModule } from '../mail/mail.module';
 import { UserModule } from '../users/user.module';
 import { OrgModule } from '../org/org.module';
+import { SecurityModule } from '../security/security.module';
 
 @Module({
-  imports: [AuthModule, MailModule, UserModule, OrgModule],
+  imports: [AuthModule, MailModule, UserModule, OrgModule, SecurityModule],
   controllers: [AdminController, AdminAuthController],
   providers: [AdminService],
 })

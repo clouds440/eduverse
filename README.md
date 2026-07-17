@@ -101,7 +101,7 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 | --------------------- | ----------------------------------------------------------------------- |
 | Frontend              | Next.js 16, React 19, TypeScript, Tailwind CSS 4                        |
 | Backend               | NestJS 11, Node.js, TypeScript                                          |
-| Database              | PostgreSQL, Prisma ORM 7                                                |
+| Database              | PostgreSQL 18, Prisma ORM 7                                             |
 | Authentication        | JWT, Passport.js, Role Guards                                           |
 | End-to-End Encryption | libsodium, XChaCha20-Poly1305, X25519 (Curve25519), Ed25519             |
 | Trusted Devices       | Device approval, per-device key management, history-key synchronization |

@@ -21,6 +21,7 @@ import {
 } from '../common/utils';
 import { MailService } from '../mail/mail.service';
 import { MailUser } from '../mail/interfaces/mail-user.interface';
+import { EmailService } from '../security/email.service';
 
 import { CreatePlatformAdminDto } from './dto/create-platform-admin.dto';
 import { UpdatePlatformAdminDto } from './dto/update-platform-admin.dto';
@@ -31,6 +32,7 @@ export class AdminService {
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly emailService: EmailService,
     private readonly userService: UserService,
     private readonly orgService: OrgService,
   ) {}
@@ -189,6 +191,28 @@ export class AdminService {
           organizationId: null,
         },
       );
+
+      // Also send a congrats email to the organization's contact email using the Resend util
+      if (org.contactEmail) {
+        const text = message.replace(/\*\*(.+?)\*\*/g, '$1');
+        const html = message
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .split('\n')
+          .map((p) => `<p>${p}</p>`)
+          .join('');
+        try {
+          await this.emailService.send({
+            to: org.contactEmail,
+            subject,
+            text,
+            html,
+          });
+        } catch (err) {
+          // don't block approval on email failure
+          // eslint-disable-next-line no-console
+          console.error('EmailService error sending org approval notice:', err);
+        }
+      }
     }
 
     return result;
