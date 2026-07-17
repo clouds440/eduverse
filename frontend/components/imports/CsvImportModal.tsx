@@ -19,11 +19,15 @@ import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 import {
+  advanceImportProgress,
   chunkImportRows,
   downloadCsv,
   formatImportErrors,
+  initImportProgress,
+  ImportProgressState,
   mergeImportConfirmResults,
 } from "./importUtils";
+import { ImportProgress } from "./ImportProgress";
 
 interface CsvImportModalProps {
   isOpen: boolean;
@@ -50,12 +54,8 @@ export function CsvImportModal({
   const [activeAction, setActiveAction] = useState<
     "template" | "structure" | "validate" | "confirm" | "issues" | null
   >(null);
-  const [confirmProgress, setConfirmProgress] = useState<{
-    current: number;
-    total: number;
-    rowsDone: number;
-    totalRows: number;
-  } | null>(null);
+  const [confirmProgress, setConfirmProgress] =
+    useState<ImportProgressState | null>(null);
 
   const busy = activeAction !== null;
   const isConfirming = activeAction === "confirm";
@@ -161,23 +161,15 @@ export function CsvImportModal({
     const batchResults: ImportConfirmResult[] = [];
     try {
       const batches = chunkImportRows(validation.validRows);
-      const totalRows = validation.validRows.length;
-      let rowsDoneAcc = 0;
-      setConfirmProgress({
-        current: 0,
-        total: batches.length,
-        rowsDone: 0,
-        totalRows,
-      });
-      for (const [index, batch] of batches.entries()) {
+      let progress = initImportProgress(
+        validation.validRows.length,
+        batches.length,
+      );
+      setConfirmProgress(progress);
+      for (const batch of batches) {
+        progress = advanceImportProgress(progress, batch.length);
+        setConfirmProgress(progress);
         batchResults.push(await api.imports.confirm(entity, batch, token));
-        rowsDoneAcc += batch.length;
-        setConfirmProgress({
-          current: index + 1,
-          total: batches.length,
-          rowsDone: rowsDoneAcc,
-          totalRows,
-        });
       }
       const response = mergeImportConfirmResults(entity, batchResults);
       setResult(response);
@@ -315,43 +307,7 @@ export function CsvImportModal({
       }
     >
       <div className="space-y-4">
-        {confirmProgress && (
-          <div className="rounded-md border border-border/70 bg-background/60 p-3">
-            <div className="flex items-baseline justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-foreground">Importing</p>
-                <p className="mt-1 text-2xl font-extrabold text-foreground">
-                  {Math.min(
-                    100,
-                    Math.round(
-                      (confirmProgress.rowsDone /
-                        Math.max(1, confirmProgress.totalRows)) *
-                        100,
-                    ),
-                  )}
-                  %
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {confirmProgress.rowsDone} of {confirmProgress.totalRows} rows
-                </p>
-              </div>
-              <div className="flex-1" style={{ minWidth: 220 }}>
-                <div className="h-2 w-full rounded-full bg-border/30 overflow-hidden">
-                  <div
-                    className="h-2 rounded-full bg-linear-to-r from-primary to-success"
-                    style={{
-                      width: `${Math.min(100, Math.round((confirmProgress.rowsDone / Math.max(1, confirmProgress.totalRows)) * 100))}%`,
-                    }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Processing in background — this may take a moment for large
-                  files.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        {confirmProgress && <ImportProgress progress={confirmProgress} />}
         {importHint && (
           <StatusBanner
             title="Template note"
