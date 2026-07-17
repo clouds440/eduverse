@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpException,
   Param,
   Post,
   Query,
@@ -21,7 +22,14 @@ import { Role } from '../common/enums';
 import { Roles } from '../auth/roles.decorator';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { ImportsService } from './imports.service';
-import type { AttendanceImportTargetMode, ImportEntity, ImportPreviewRow, InvalidImportRow } from './imports.types';
+import type {
+  AttendanceImportTargetMode,
+  ImportConfirmResult,
+  ImportEntity,
+  ImportPreviewRow,
+  ImportProgressEvent,
+  InvalidImportRow,
+} from './imports.types';
 
 const CSV_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
 
@@ -79,6 +87,32 @@ export class ImportsController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.importsService.confirmEntityImport(orgId, entity as ImportEntity, rows, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Post(':entity/confirm/stream')
+  async confirmEntityStream(
+    @OrgId() orgId: string,
+    @Param('entity') entity: string,
+    @Body('rows') rows: ImportPreviewRow[],
+    @Body('totalRows') totalRows: number,
+    @Body('processedOffset') processedOffset: number,
+    @Request() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    await this.streamImportResponse(res, (send) =>
+      this.importsService.confirmEntityImport(
+        orgId,
+        entity as ImportEntity,
+        rows,
+        req.user,
+        send,
+        {
+          totalRows: Number(totalRows),
+          processedOffset: Number(processedOffset),
+        },
+      ),
+    );
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -159,6 +193,40 @@ export class ImportsController {
     );
   }
 
+  @Roles(Role.ORG_MANAGER, Role.TEACHER)
+  @Post('attendance/monthly/confirm/stream')
+  async confirmAttendanceStream(
+    @OrgId() orgId: string,
+    @Body('sectionId') sectionId: string,
+    @Body('year') year: number,
+    @Body('month') month: number,
+    @Body('targetMode') targetMode: string,
+    @Body('rows') rows: ImportPreviewRow[],
+    @Body('totalRows') totalRows: number,
+    @Body('processedOffset') processedOffset: number,
+    @Request() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    await this.streamImportResponse(res, (send) =>
+      this.importsService.confirmAttendanceMonthlyImport(
+        orgId,
+        {
+          sectionId,
+          year: Number(year),
+          month: Number(month),
+          targetMode: (targetMode || 'FIRST_SCHEDULE') as AttendanceImportTargetMode,
+        },
+        rows as any,
+        req.user,
+        send,
+        {
+          totalRows: Number(totalRows),
+          processedOffset: Number(processedOffset),
+        },
+      ),
+    );
+  }
+
   @Roles(Role.ORG_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Post('attendance/monthly/error-report')
   attendanceErrorReport(
@@ -182,5 +250,44 @@ export class ImportsController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
+  }
+
+  private async streamImportResponse(
+    res: Response,
+    runImport: (send: (event: ImportProgressEvent) => void) => Promise<ImportConfirmResult>,
+  ) {
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const send = (event: ImportProgressEvent) => {
+      res.write(`${JSON.stringify(event)}\n`);
+    };
+
+    try {
+      const result = await runImport(send);
+      send({ type: 'complete', result });
+    } catch (error) {
+      send({
+        type: 'error',
+        message: this.getImportStreamErrorMessage(error),
+      });
+    } finally {
+      res.end();
+    }
+  }
+
+  private getImportStreamErrorMessage(error: unknown) {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') return response;
+      if (response && typeof response === 'object') {
+        const message = (response as { message?: unknown }).message;
+        if (Array.isArray(message)) return String(message[0] || 'Import failed');
+        if (typeof message === 'string') return message;
+      }
+    }
+    return error instanceof Error ? error.message : 'Import failed';
   }
 }

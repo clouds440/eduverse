@@ -18,7 +18,7 @@ import type {
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, TeacherFinanceOverview, MessageResponse, AuditLogItem, PayrollRosterRow,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, SectionGradebookResponse, OrgUserCounts,
-    ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, InvalidImportRow, AttendanceMonthlyImportOptions,
+    ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, ImportProgressEvent, InvalidImportRow, AttendanceMonthlyImportOptions,
     Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
@@ -112,6 +112,10 @@ interface RequestOptions extends RequestInit {
 
 interface AIChatStreamHandlers {
     onEvent: (event: AIChatStreamEvent) => void;
+}
+
+interface ImportConfirmStreamHandlers {
+    onProgress: (percent: number) => void;
 }
 
 interface QueryParams {
@@ -438,6 +442,87 @@ function consumeSseBlock(block: string, handlers: AIChatStreamHandlers) {
             { code: parsed.type === 'error' ? parsed.code : undefined },
         );
     }
+}
+
+async function streamImportConfirm(
+    endpoint: string,
+    body: Record<string, unknown>,
+    token: string,
+    handlers: ImportConfirmStreamHandlers,
+): Promise<ImportConfirmResult> {
+    const clientDeviceId = getDeviceId();
+    const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            ...(clientDeviceId ? { 'X-Client-Device-Id': clientDeviceId } : {}),
+        },
+        body: JSON.stringify(body),
+    });
+
+    if (response.status === 401 && unauthorizedHandler) {
+        unauthorizedHandler(token);
+    }
+
+    if (!response.ok) {
+        let message = `Request failed with status ${response.status}`;
+        let code: string | undefined;
+        let field: string | undefined;
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+            const parsed = parseApiErrorData(await response.json(), message);
+            message = parsed.message;
+            code = parsed.code;
+            field = parsed.field;
+        } else {
+            const text = await response.text();
+            if (text && text.length < 200) message = text;
+        }
+        maybeEmitProfanityWarning({ code, field, message });
+        throw new ApiRequestError(message, response.status, { code, field });
+    }
+
+    if (!response.body) {
+        throw new ApiNetworkError('The import could not start. Please try again.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let result: ImportConfirmResult | null = null;
+
+    const consumeLine = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const event = JSON.parse(trimmed) as ImportProgressEvent;
+        if (event.type === 'progress') {
+            handlers.onProgress(event.percent);
+        } else if (event.type === 'complete') {
+            result = event.result;
+        } else if (event.type === 'error') {
+            throw new ApiRequestError(event.message, 200);
+        }
+    };
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() || '';
+        lines.forEach(consumeLine);
+    }
+
+    buffer += decoder.decode();
+    consumeLine(buffer);
+
+    if (!result) {
+        throw new ApiNetworkError('The import stopped before it finished. Please try again.');
+    }
+
+    return result;
 }
 
 // --- FIX 3: Consolidated FormData upload helper ---
@@ -979,6 +1064,19 @@ export const api = {
                 body: JSON.stringify({ rows }),
                 token,
             }),
+        confirmStream: (
+            entity: ImportEntity,
+            rows: ImportPreviewRow[],
+            token: string,
+            progress: { totalRows: number; processedOffset: number },
+            handlers: ImportConfirmStreamHandlers,
+        ) =>
+            streamImportConfirm(
+                `/org/imports/${entity}/confirm/stream`,
+                { rows, ...progress },
+                token,
+                handlers,
+            ),
         getErrorReport: (entity: ImportEntity, rows: InvalidImportRow[], token: string) =>
             requestText(`/org/imports/${entity}/error-report`, {
                 method: 'POST',
@@ -1002,6 +1100,19 @@ export const api = {
                 body: JSON.stringify({ ...options, rows }),
                 token,
             }),
+        confirmAttendanceMonthlyStream: (
+            options: AttendanceMonthlyImportOptions,
+            rows: ImportPreviewRow[],
+            token: string,
+            progress: { totalRows: number; processedOffset: number },
+            handlers: ImportConfirmStreamHandlers,
+        ) =>
+            streamImportConfirm(
+                '/org/imports/attendance/monthly/confirm/stream',
+                { ...options, rows, ...progress },
+                token,
+                handlers,
+            ),
         getAttendanceMonthlyErrorReport: (year: number, month: number, rows: InvalidImportRow[], token: string) =>
             requestText('/org/imports/attendance/monthly/error-report', {
                 method: 'POST',

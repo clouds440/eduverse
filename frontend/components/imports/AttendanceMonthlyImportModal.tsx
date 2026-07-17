@@ -20,13 +20,13 @@ import { Label } from "@/components/ui/Label";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 import {
-  advanceImportProgress,
   chunkImportRows,
   downloadCsv,
   formatImportErrors,
   initImportProgress,
   mergeImportConfirmResults,
   ImportProgressState,
+  setImportProgressPercent,
 } from "./importUtils";
 import { ImportProgress } from "./ImportProgress";
 
@@ -131,23 +131,24 @@ export function AttendanceMonthlyImportModal({
     const batchResults: ImportConfirmResult[] = [];
     try {
       const batches = chunkImportRows(validation.validRows);
-      let progress = initImportProgress(
-        validation.validRows.length,
-        batches.length,
-      );
-      setConfirmProgress(progress);
+      let processedOffset = 0;
+      setConfirmProgress(initImportProgress());
       for (const batch of batches) {
-        const batchResult = await api.imports.confirmAttendanceMonthly(
+        const batchResult = await api.imports.confirmAttendanceMonthlyStream(
           options,
           batch,
           token,
+          {
+            totalRows: validation.validRows.length,
+            processedOffset,
+          },
+          {
+            onProgress: (percent) =>
+              setConfirmProgress(setImportProgressPercent(percent)),
+          },
         );
         batchResults.push(batchResult);
-        progress = advanceImportProgress(
-          progress,
-          batchResult.rowsProcessed ?? batch.length,
-        );
-        setConfirmProgress(progress);
+        processedOffset += batch.length;
       }
       const response = mergeImportConfirmResults(
         "attendance-monthly",
@@ -173,7 +174,7 @@ export function AttendanceMonthlyImportModal({
         dispatch({
           type: "TOAST_ADD",
           payload: {
-            message: `Imported ${partial.importedCount} marks before a later batch failed`,
+            message: `Imported ${partial.importedCount} marks before the import stopped`,
             type: "info",
           },
         });

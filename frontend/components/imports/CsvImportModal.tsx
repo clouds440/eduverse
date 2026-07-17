@@ -19,13 +19,13 @@ import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 import {
-  advanceImportProgress,
   chunkImportRows,
   downloadCsv,
   formatImportErrors,
   initImportProgress,
   ImportProgressState,
   mergeImportConfirmResults,
+  setImportProgressPercent,
 } from "./importUtils";
 import { ImportProgress } from "./ImportProgress";
 
@@ -161,19 +161,24 @@ export function CsvImportModal({
     const batchResults: ImportConfirmResult[] = [];
     try {
       const batches = chunkImportRows(validation.validRows);
-      let progress = initImportProgress(
-        validation.validRows.length,
-        batches.length,
-      );
-      setConfirmProgress(progress);
+      let processedOffset = 0;
+      setConfirmProgress(initImportProgress());
       for (const batch of batches) {
-        const batchResult = await api.imports.confirm(entity, batch, token);
-        batchResults.push(batchResult);
-        progress = advanceImportProgress(
-          progress,
-          batchResult.rowsProcessed ?? batch.length,
+        const batchResult = await api.imports.confirmStream(
+          entity,
+          batch,
+          token,
+          {
+            totalRows: validation.validRows.length,
+            processedOffset,
+          },
+          {
+            onProgress: (percent) =>
+              setConfirmProgress(setImportProgressPercent(percent)),
+          },
         );
-        setConfirmProgress(progress);
+        batchResults.push(batchResult);
+        processedOffset += batch.length;
       }
       const response = mergeImportConfirmResults(entity, batchResults);
       setResult(response);
@@ -195,7 +200,7 @@ export function CsvImportModal({
         dispatch({
           type: "TOAST_ADD",
           payload: {
-            message: `Imported ${partial.importedCount} rows before a later batch failed`,
+            message: `Imported ${partial.importedCount} rows before the import stopped`,
             type: "info",
           },
         });

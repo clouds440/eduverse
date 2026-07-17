@@ -27,10 +27,7 @@ export function formatImportErrors(
 }
 
 export interface ImportProgressState {
-  batchIndex: number;
-  batchTotal: number;
-  rowsDone: number;
-  totalRows: number;
+  percent: number;
 }
 
 export function chunkImportRows<T>(
@@ -44,34 +41,14 @@ export function chunkImportRows<T>(
   return chunks;
 }
 
-export function initImportProgress(
-  totalRows: number,
-  batchTotal: number,
-): ImportProgressState {
-  return {
-    batchIndex: 0,
-    batchTotal,
-    rowsDone: 0,
-    totalRows,
-  };
+export function initImportProgress(): ImportProgressState {
+  return { percent: 0 };
 }
 
-export function advanceImportProgress(
-  progress: ImportProgressState,
-  rows: number,
-): ImportProgressState {
+export function setImportProgressPercent(percent: number): ImportProgressState {
   return {
-    ...progress,
-    batchIndex: progress.batchIndex + 1,
-    rowsDone: progress.rowsDone + rows,
+    percent: Math.max(0, Math.min(100, Math.round(percent))),
   };
-}
-
-export function getImportProgressPercent(progress: ImportProgressState) {
-  return Math.min(
-    100,
-    Math.round((progress.rowsDone / Math.max(1, progress.totalRows)) * 100),
-  );
 }
 
 export function mergeImportConfirmResults(

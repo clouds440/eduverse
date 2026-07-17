@@ -56,6 +56,7 @@ import {
   CsvRow,
   ImportConfirmResult,
   ImportEntity,
+  ImportProgressEvent,
   ImportPreviewRow,
   ImportRowError,
   ImportValidationResult,
@@ -68,6 +69,12 @@ type AuthUser = {
   name: string | null | undefined;
   email?: string;
   organizationId?: string | null;
+};
+
+type ImportProgressCallback = (event: ImportProgressEvent) => void | Promise<void>;
+type ImportProgressOptions = {
+  totalRows?: number;
+  processedOffset?: number;
 };
 
 type EntityConfig<T extends Record<string, unknown>> = {
@@ -138,6 +145,8 @@ export class ImportsService {
     entity: ImportEntity,
     rows: ImportPreviewRow[],
     actor: AuthUser,
+    onProgress?: ImportProgressCallback,
+    progressOptions?: ImportProgressOptions,
   ): Promise<ImportConfirmResult> {
     this.assertEntityPermission(entity, actor);
     const config = this.getEntityConfig(entity);
@@ -147,7 +156,21 @@ export class ImportsService {
     const errors: InvalidImportRow[] = [...validation.invalidRows];
     let importedCount = 0;
     let failedCount = 0;
-    let rowsProcessed = 0;
+    const totalProgressRows = progressOptions?.totalRows || validation.validRows.length;
+    const processedOffset = progressOptions?.processedOffset || 0;
+    let processedRows = validation.invalidRows.length;
+    let lastPercent = this.calculateImportProgressPercent(processedOffset, totalProgressRows);
+    const reportProgress = async () => {
+      const percent = this.calculateImportProgressPercent(
+        processedOffset + processedRows,
+        totalProgressRows,
+      );
+      if (percent > lastPercent) {
+        lastPercent = percent;
+        await onProgress?.({ type: 'progress', percent });
+      }
+    };
+    await reportProgress();
 
     for (const row of validation.validRows) {
       try {
@@ -161,8 +184,16 @@ export class ImportsService {
           errors: [this.exceptionToRowError(error)],
         });
       } finally {
-        rowsProcessed += 1;
+        processedRows += 1;
+        await reportProgress();
       }
+    }
+
+    if (validation.validRows.length === 0) {
+      await onProgress?.({
+        type: 'progress',
+        percent: this.calculateImportProgressPercent(processedOffset + processedRows, totalProgressRows),
+      });
     }
 
     return {
@@ -171,7 +202,6 @@ export class ImportsService {
       skippedCount: validation.invalidRows.length,
       failedCount,
       duplicateCount: validation.summary.duplicate,
-      rowsProcessed,
       errors,
     };
   }
@@ -323,6 +353,8 @@ export class ImportsService {
     options: AttendanceMonthlyValidateOptions,
     rows: ImportPreviewRow<AttendanceMonthlyConfirmRow>[],
     actor: AuthUser,
+    onProgress?: ImportProgressCallback,
+    progressOptions?: ImportProgressOptions,
   ): Promise<ImportConfirmResult> {
     this.assertAttendancePermission(actor);
     this.normalizeAttendanceOptions(options);
@@ -333,7 +365,21 @@ export class ImportsService {
     const errors: InvalidImportRow[] = [...validation.invalidRows];
     let importedCells = 0;
     let failedRows = 0;
-    let rowsProcessed = 0;
+    const totalProgressRows = progressOptions?.totalRows || validation.validRows.length;
+    const processedOffset = progressOptions?.processedOffset || 0;
+    let processedRows = validation.invalidRows.length;
+    let lastPercent = this.calculateImportProgressPercent(processedOffset, totalProgressRows);
+    const reportProgress = async () => {
+      const percent = this.calculateImportProgressPercent(
+        processedOffset + processedRows,
+        totalProgressRows,
+      );
+      if (percent > lastPercent) {
+        lastPercent = percent;
+        await onProgress?.({ type: 'progress', percent });
+      }
+    };
+    await reportProgress();
 
     for (const row of validation.validRows) {
       try {
@@ -346,8 +392,16 @@ export class ImportsService {
           errors: [this.exceptionToRowError(error)],
         });
       } finally {
-        rowsProcessed += 1;
+        processedRows += 1;
+        await reportProgress();
       }
+    }
+
+    if (validation.validRows.length === 0) {
+      await onProgress?.({
+        type: 'progress',
+        percent: this.calculateImportProgressPercent(processedOffset + processedRows, totalProgressRows),
+      });
     }
 
     return {
@@ -356,7 +410,6 @@ export class ImportsService {
       skippedCount: validation.summary.skipped + validation.invalidRows.length,
       failedCount: failedRows,
       duplicateCount: validation.summary.duplicate,
-      rowsProcessed,
       errors,
     };
   }
@@ -457,6 +510,11 @@ export class ImportsService {
         skipped: invalidRows.length,
       },
     };
+  }
+
+  private calculateImportProgressPercent(processedRows: number, totalRows: number) {
+    if (totalRows <= 0) return 100;
+    return Math.min(100, Math.floor((processedRows / totalRows) * 100));
   }
 
   private async getStructureRows(orgId: string, entity: ImportEntity): Promise<Record<string, unknown>[]> {

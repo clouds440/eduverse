@@ -59,9 +59,13 @@ export interface ImportConfirmResult {
   skippedCount: number;
   failedCount: number;
   duplicateCount: number;
-  rowsProcessed?: number;
   errors: InvalidImportRow[];
 }
+
+export type ImportProgressEvent =
+  | { type: 'progress'; percent: number }
+  | { type: 'complete'; result: ImportConfirmResult }
+  | { type: 'error'; message: string };
 
 export interface AttendanceMonthlyValidateOptions {
   sectionId: string;
