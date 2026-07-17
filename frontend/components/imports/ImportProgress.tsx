@@ -33,10 +33,6 @@ export function ImportProgress({
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        We&quo;ll update this as rows are saved. Large files may take a little
-        longer, but you can follow the progress here.
-      </p>
     </div>
   );
 }
