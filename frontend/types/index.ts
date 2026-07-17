@@ -1450,6 +1450,7 @@ export interface ImportConfirmResult {
     skippedCount: number;
     failedCount: number;
     duplicateCount: number;
+    rowsProcessed?: number;
     errors: InvalidImportRow[];
 }
 

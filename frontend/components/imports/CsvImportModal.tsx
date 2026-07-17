@@ -167,9 +167,13 @@ export function CsvImportModal({
       );
       setConfirmProgress(progress);
       for (const batch of batches) {
-        progress = advanceImportProgress(progress, batch.length);
+        const batchResult = await api.imports.confirm(entity, batch, token);
+        batchResults.push(batchResult);
+        progress = advanceImportProgress(
+          progress,
+          batchResult.rowsProcessed ?? batch.length,
+        );
         setConfirmProgress(progress);
-        batchResults.push(await api.imports.confirm(entity, batch, token));
       }
       const response = mergeImportConfirmResults(entity, batchResults);
       setResult(response);

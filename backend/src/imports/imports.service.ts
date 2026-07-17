@@ -147,6 +147,7 @@ export class ImportsService {
     const errors: InvalidImportRow[] = [...validation.invalidRows];
     let importedCount = 0;
     let failedCount = 0;
+    let rowsProcessed = 0;
 
     for (const row of validation.validRows) {
       try {
@@ -159,6 +160,8 @@ export class ImportsService {
           raw: row.raw,
           errors: [this.exceptionToRowError(error)],
         });
+      } finally {
+        rowsProcessed += 1;
       }
     }
 
@@ -168,6 +171,7 @@ export class ImportsService {
       skippedCount: validation.invalidRows.length,
       failedCount,
       duplicateCount: validation.summary.duplicate,
+      rowsProcessed,
       errors,
     };
   }
@@ -329,6 +333,7 @@ export class ImportsService {
     const errors: InvalidImportRow[] = [...validation.invalidRows];
     let importedCells = 0;
     let failedRows = 0;
+    let rowsProcessed = 0;
 
     for (const row of validation.validRows) {
       try {
@@ -340,6 +345,8 @@ export class ImportsService {
           raw: row.raw,
           errors: [this.exceptionToRowError(error)],
         });
+      } finally {
+        rowsProcessed += 1;
       }
     }
 
@@ -349,6 +356,7 @@ export class ImportsService {
       skippedCount: validation.summary.skipped + validation.invalidRows.length,
       failedCount: failedRows,
       duplicateCount: validation.summary.duplicate,
+      rowsProcessed,
       errors,
     };
   }

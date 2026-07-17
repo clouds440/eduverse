@@ -137,11 +137,17 @@ export function AttendanceMonthlyImportModal({
       );
       setConfirmProgress(progress);
       for (const batch of batches) {
-        progress = advanceImportProgress(progress, batch.length);
-        setConfirmProgress(progress);
-        batchResults.push(
-          await api.imports.confirmAttendanceMonthly(options, batch, token),
+        const batchResult = await api.imports.confirmAttendanceMonthly(
+          options,
+          batch,
+          token,
         );
+        batchResults.push(batchResult);
+        progress = advanceImportProgress(
+          progress,
+          batchResult.rowsProcessed ?? batch.length,
+        );
+        setConfirmProgress(progress);
       }
       const response = mergeImportConfirmResults(
         "attendance-monthly",
