@@ -119,7 +119,7 @@ export default memo(function CourseMaterials({ sectionId, isTeacherAssigned = fa
 
   const handleDownload = async (file: { path: string; filename: string }) => {
     try {
-      await downloadFile(file.path, file.filename);
+      await downloadFile(file.path, file.filename, token);
     } catch (error) {
       dispatch({ type: 'TOAST_ADD', payload: { message: 'Failed to download file', type: 'error' } });
       console.error(error);

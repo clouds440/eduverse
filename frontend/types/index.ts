@@ -553,7 +553,6 @@ export interface Attachment {
     scanStatus?: string | null;
     uploadedBy: string;
     createdAt: string;
-    encryptedContent?: EncryptedMailContent | null;
 }
 
 export interface StatusHistoryEntry {
@@ -1232,7 +1231,7 @@ export interface CreateMailPayload {
 }
 
 export type EncryptedMailContent = Omit<EncryptedChatContent, 'contentType'> & {
-    contentType?: 'MAIL_MESSAGE' | 'MAIL_SUBJECT' | 'FILE_ATTACHMENT';
+    contentType?: 'MAIL_MESSAGE' | 'MAIL_SUBJECT';
 };
 
 export interface MailE2EEContextRequest {

@@ -32,7 +32,6 @@ import { getRoleLabel } from '@/lib/roles';
 import { GENERIC_UPLOAD_ACCEPT, isGenericUploadAllowed } from '@/lib/uploadPolicy';
 import { ProtectedMailMessage } from './ProtectedMailContent';
 import { useAuth } from '@/context/AuthContext';
-import { downloadEncryptedAttachment } from '@/lib/e2ee';
 
 interface MailThreadProps {
     mail: MailDetail;
@@ -94,18 +93,13 @@ function getRecipientLabel(mail: MailDetail) {
 
 const AttachmentPreview = memo(function AttachmentPreview({ file }: { file: Attachment }) {
     const { token } = useAuth();
-    const isEncrypted = Boolean(file.encryptedContent?.ciphertext);
-    const isImage = !isEncrypted && file.mimeType.startsWith('image/') && !file.path.startsWith('/files/');
+    const isImage = file.mimeType.startsWith('image/') && !file.path.startsWith('/files/');
     const url = getPublicUrl(file.path);
 
     const handleDownload = async (event: React.MouseEvent) => {
         event.preventDefault();
         try {
-            if (isEncrypted && token) {
-                await downloadEncryptedAttachment(file.id, token);
-                return;
-            }
-            await downloadFile(url, file.filename);
+            await downloadFile(url, file.filename, token);
         } catch (error) {
             console.error('Failed to download file:', error);
         }
@@ -127,7 +121,7 @@ const AttachmentPreview = memo(function AttachmentPreview({ file }: { file: Atta
                 </div>
             )}
             <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-bold text-foreground">{isEncrypted ? 'Encrypted attachment' : file.filename}</p>
+                <p className="truncate text-xs font-bold text-foreground">{file.filename}</p>
                 <p className="text-[11px] font-semibold text-muted-foreground">{formatBytes(file.size)}</p>
             </div>
             <Download className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />

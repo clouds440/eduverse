@@ -51,7 +51,6 @@ import {
   isEncryptedChatMessage,
   markDecryptedChatWarmupCompleted,
   prepareEncryptedChatMessagePayload,
-  prepareEncryptedFileUpload,
   requestCurrentDeviceTrust,
   trustedDeviceSetupErrorMessage,
 } from "@/lib/e2ee";
@@ -2162,9 +2161,6 @@ export function ChatLayout() {
         }
 
         let finalContent = draftText;
-        let recipientDevicesForSend:
-          | Awaited<ReturnType<typeof api.e2ee.getRecipientDevices>>
-          | undefined;
 
         if (filesToSend.length > 0) {
           setIsUploading(true);
@@ -2176,33 +2172,14 @@ export function ChatLayout() {
             activeChat?.organizationId ??
             "platform";
 
-          const recipientDevices = await api.e2ee.getRecipientDevices(
-            getActiveChatParticipantUserIds(activeChat),
-            token,
-          );
-          recipientDevicesForSend = recipientDevices;
-          const encryptedFiles = await Promise.all(
-            filesToSend.map((file) =>
-              prepareEncryptedFileUpload({
-                file,
-                recipientDevices,
-                currentUserId: user.id,
-                scope: "CHAT_ATTACHMENT",
-                entityType: "chat",
-                entityId: chatId,
-                allowPartialRecipients: activeChat.type === ChatType.GROUP,
-              }),
-            ),
-          );
           const uploadResults = await Promise.all(
-            encryptedFiles.map((encrypted) =>
+            filesToSend.map((file) =>
               api.files.uploadFile(
                 orgId,
                 "chat",
                 chatId,
-                encrypted.file,
+                file,
                 token,
-                encrypted.encryptedContent,
               ),
             ),
           );
@@ -2210,6 +2187,7 @@ export function ChatLayout() {
           const attachmentLinks = buildAttachmentMarkdown(
             filesToSend,
             uploadResults,
+            { inlineImages: false },
           );
 
           finalContent = (
@@ -2224,7 +2202,6 @@ export function ChatLayout() {
             plaintext: finalContent,
             token,
             currentUserId: user.id,
-            recipientDevices: recipientDevicesForSend,
             purpose: "EDIT",
             messageId: editingMessage.id,
             replyToId: editingMessage.replyToId || undefined,
@@ -2245,7 +2222,6 @@ export function ChatLayout() {
             plaintext: finalContent || "Sent an attachment",
             token,
             currentUserId: user.id,
-            recipientDevices: recipientDevicesForSend,
             replyToId: replyTarget?.id || undefined,
             mentionTargets: sanitizeMentionTargetsForApi(targetsForSend),
           });
@@ -2705,12 +2681,12 @@ export function ChatLayout() {
     async (e: React.MouseEvent, url: string, name: string) => {
       e.stopPropagation();
       try {
-        await downloadFile(url, name || "download");
+        await downloadFile(url, name || "download", token);
       } catch (error) {
         console.error("Failed to download file:", error);
       }
     },
-    [],
+    [token],
   );
 
   const activeParticipantsOnline = useMemo(() => {

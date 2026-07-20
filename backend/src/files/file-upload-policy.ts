@@ -7,7 +7,8 @@ export type UploadFileKind =
   | 'document'
   | 'archive'
   | 'source'
-  | 'text';
+  | 'text'
+  | 'binary';
 
 export interface FilePolicyResult {
   extension: string;
@@ -26,6 +27,7 @@ export const GENERIC_UPLOAD_ACCEPT_EXTENSIONS = [
   '.cpp',
   '.cs',
   '.css',
+  '.bin',
   '.doc',
   '.docx',
   '.gif',
@@ -65,7 +67,6 @@ const BLOCKED_EXTENSIONS = new Set([
   '.apk',
   '.app',
   '.bat',
-  '.bin',
   '.cmd',
   '.com',
   '.command',
@@ -149,6 +150,7 @@ const SOURCE_EXTENSIONS = new Set([
   '.xml',
 ]);
 const TEXT_EXTENSIONS = new Set(['.txt']);
+const BINARY_EXTENSIONS = new Set(['.bin']);
 
 const ALLOWED_EXTENSIONS = new Set<string>([
   ...GENERIC_UPLOAD_ACCEPT_EXTENSIONS,
@@ -160,6 +162,10 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, Set<string>> = {
   '.jpg': new Set(['image/jpeg']),
   '.png': new Set(['image/png']),
   '.webp': new Set(['image/webp']),
+};
+
+const BINARY_MIME_BY_EXTENSION: Record<string, Set<string>> = {
+  '.bin': new Set(['application/octet-stream']),
 };
 
 const DOCUMENT_MIME_BY_EXTENSION: Record<string, Set<string>> = {
@@ -289,6 +295,7 @@ function resolveFileKind(extension: string): UploadFileKind {
   if (ARCHIVE_EXTENSIONS.has(extension)) return 'archive';
   if (SOURCE_EXTENSIONS.has(extension)) return 'source';
   if (TEXT_EXTENSIONS.has(extension)) return 'text';
+  if (BINARY_EXTENSIONS.has(extension)) return 'binary';
 
   throw new BadRequestException(
     `File extension "${extension}" is not supported for uploads.`,
@@ -312,7 +319,9 @@ function validateMimeType(
   }
 
   const allowedMimes =
-    IMAGE_MIME_BY_EXTENSION[extension] || DOCUMENT_MIME_BY_EXTENSION[extension];
+    IMAGE_MIME_BY_EXTENSION[extension] ||
+    DOCUMENT_MIME_BY_EXTENSION[extension] ||
+    BINARY_MIME_BY_EXTENSION[extension];
 
   if (allowedMimes && !allowedMimes.has(normalizedMime)) {
     throw new BadRequestException(
@@ -325,7 +334,9 @@ function validateTextLikeBuffer(buffer?: Buffer) {
   if (!buffer || buffer.length === 0) return;
 
   if (buffer.includes(0)) {
-    throw new BadRequestException('Code/text uploads cannot contain null bytes.');
+    throw new BadRequestException(
+      'Code/text uploads cannot contain null bytes.',
+    );
   }
 
   try {

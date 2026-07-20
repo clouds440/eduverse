@@ -51,13 +51,6 @@ export {
     prepareEncryptedMailReplyPayload,
 } from './mailMessageCrypto';
 export {
-    downloadEncryptedAttachment,
-    getFileIdFromDownloadUrl,
-    prepareEncryptedFileUpload,
-    type EncryptedFileUpload,
-    type PrepareEncryptedFileUploadOptions,
-} from './fileAttachmentCrypto';
-export {
     assertRecipientDeviceCoverage,
     findCurrentTrustedDevice,
     flattenTrustedRecipientDevices,

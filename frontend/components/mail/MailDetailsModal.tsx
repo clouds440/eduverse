@@ -26,7 +26,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
 import { getMailSubjectDisplay } from '@/lib/protectedContentDisplay';
 import { ProtectedMailText } from '@/components/mail/ProtectedMailContent';
-import { prepareEncryptedFileUpload, prepareEncryptedMailReplyPayload } from '@/lib/e2ee';
+import { prepareEncryptedMailReplyPayload } from '@/lib/e2ee';
 
 interface MailDetailsModalProps {
     mailId: string | null;
@@ -173,16 +173,8 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
             const newMessageId = replyResult.messages?.[replyResult.messages.length - 1]?.id;
             if (files?.length && newMessageId) {
                 const orgId = replyResult.organizationId || mail.organizationId || 'SYSTEM';
-                const encryptedFiles = await Promise.all(files.map((file) => prepareEncryptedFileUpload({
-                    file,
-                    recipientDevices,
-                    currentUserId: user?.id || '',
-                    scope: 'MAIL_ATTACHMENT',
-                    entityType: 'MAIL_MESSAGE',
-                    entityId: newMessageId,
-                })));
-                await Promise.all(encryptedFiles.map((encrypted) =>
-                    api.files.uploadFile(orgId, 'MAIL_MESSAGE', newMessageId, encrypted.file, token, encrypted.encryptedContent),
+                await Promise.all(files.map((file) =>
+                    api.files.uploadFile(orgId, 'MAIL_MESSAGE', newMessageId, file, token),
                 ));
             }
             const updated = await api.mail.getMail(mail.id, token);

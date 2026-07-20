@@ -15,7 +15,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
 import { getRoleLabel } from '@/lib/roles';
 import { GENERIC_UPLOAD_ACCEPT, isGenericUploadAllowed } from '@/lib/uploadPolicy';
-import { prepareEncryptedFileUpload, prepareEncryptedMailPayload } from '@/lib/e2ee';
+import { prepareEncryptedMailPayload } from '@/lib/e2ee';
 
 interface NewMailModalProps {
     isOpen: boolean;
@@ -471,17 +471,9 @@ export function NewMailModal({
                 const orgId = response.organizationId || 'SYSTEM';
 
                 if (messageId) {
-                    const encryptedFiles = await Promise.all(selectedFiles.map((file) => prepareEncryptedFileUpload({
-                        file,
-                        recipientDevices,
-                        currentUserId: user?.id || '',
-                        scope: 'MAIL_ATTACHMENT',
-                        entityType: 'MAIL_MESSAGE',
-                        entityId: messageId,
-                    })));
                     await Promise.all(
-                        encryptedFiles.map((encrypted) =>
-                            api.files.uploadFile(orgId, 'MAIL_MESSAGE', messageId, encrypted.file, token, encrypted.encryptedContent),
+                        selectedFiles.map((file) =>
+                            api.files.uploadFile(orgId, 'MAIL_MESSAGE', messageId, file, token),
                         ),
                     );
                 }

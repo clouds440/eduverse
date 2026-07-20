@@ -56,7 +56,7 @@ CREATE TYPE "ChatMessageType" AS ENUM ('TEXT', 'SYSTEM');
 CREATE TYPE "CommunicationChannel" AS ENUM ('DIRECT_MESSAGE');
 
 -- CreateEnum
-CREATE TYPE "E2EEContentType" AS ENUM ('CHAT_MESSAGE', 'MAIL_MESSAGE', 'MAIL_SUBJECT', 'FILE_ATTACHMENT');
+CREATE TYPE "E2EEContentType" AS ENUM ('CHAT_MESSAGE', 'MAIL_MESSAGE', 'MAIL_SUBJECT');
 
 -- CreateEnum
 CREATE TYPE "E2EEDeviceTrustStatus" AS ENUM ('PENDING', 'TRUSTED', 'REVOKED');
@@ -770,7 +770,6 @@ CREATE TABLE "EncryptedContent" (
     "chatMessageId" TEXT,
     "mailMessageId" TEXT,
     "mailId" TEXT,
-    "fileId" TEXT,
     "encryptionVersion" INTEGER NOT NULL,
     "algorithm" TEXT NOT NULL,
     "ciphertext" TEXT NOT NULL,
@@ -1801,8 +1800,6 @@ CREATE UNIQUE INDEX "EncryptedContent_mailMessageId_key" ON "EncryptedContent"("
 CREATE UNIQUE INDEX "EncryptedContent_mailId_key" ON "EncryptedContent"("mailId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "EncryptedContent_fileId_key" ON "EncryptedContent"("fileId");
-
 -- CreateIndex
 CREATE INDEX "EncryptedContent_contentType_idx" ON "EncryptedContent"("contentType");
 
@@ -1816,8 +1813,6 @@ CREATE INDEX "EncryptedContent_mailMessageId_idx" ON "EncryptedContent"("mailMes
 CREATE INDEX "EncryptedContent_mailId_idx" ON "EncryptedContent"("mailId");
 
 -- CreateIndex
-CREATE INDEX "EncryptedContent_fileId_idx" ON "EncryptedContent"("fileId");
-
 -- CreateIndex
 CREATE INDEX "EncryptedContent_encryptionVersion_idx" ON "EncryptedContent"("encryptionVersion");
 
@@ -2641,8 +2636,6 @@ ALTER TABLE "EncryptedContent" ADD CONSTRAINT "EncryptedContent_mailMessageId_fk
 ALTER TABLE "EncryptedContent" ADD CONSTRAINT "EncryptedContent_mailId_fkey" FOREIGN KEY ("mailId") REFERENCES "Mail"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "EncryptedContent" ADD CONSTRAINT "EncryptedContent_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "File"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
 -- AddForeignKey
 ALTER TABLE "E2EEKeyEnvelope" ADD CONSTRAINT "E2EEKeyEnvelope_encryptedContentId_fkey" FOREIGN KEY ("encryptedContentId") REFERENCES "EncryptedContent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

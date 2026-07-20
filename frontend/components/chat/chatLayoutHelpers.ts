@@ -250,7 +250,8 @@ export function getFileTypeInfo(fileType: string) {
     };
 }
 
-export function buildAttachmentMarkdown(files: File[], uploadResults: FileUploadResult[]): string {
+export function buildAttachmentMarkdown(files: File[], uploadResults: FileUploadResult[], options: { inlineImages?: boolean } = {}): string {
+    const { inlineImages = true } = options;
     return uploadResults.map((result, index) => {
         const file = files[index];
         const url = result.url || result.path || '';
@@ -260,7 +261,7 @@ export function buildAttachmentMarkdown(files: File[], uploadResults: FileUpload
         const isArchive = ARCHIVE_FILE_TYPES.has(file.type);
         const fileInfo = getSharedFileTypeInfo(file.type);
 
-        if (isImage) return `\n![${safeName}](${url})`;
+        if (isImage && inlineImages) return `\n![${safeName}](${url})`;
         if (isPdf) return `\n[📄 PDF: ${safeName}](${url})`;
         if (OFFICE_FILE_TYPES.has(file.type)) return `\n[${fileInfo.tag} ${safeName}](${url})`;
         if (isArchive) return `\n[📦 ARCHIVE: ${safeName}](${url})`;

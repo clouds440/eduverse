@@ -901,8 +901,6 @@ model File {
   sha256       String?
   scanStatus   String   @default("PASSED")
   createdAt    DateTime @default(now())
-  encryptedContent EncryptedContent? @relation("FileEncryptedContent")
-
   @@index([entityType, entityId])
   @@index([sha256])
 }
@@ -1049,7 +1047,6 @@ enum E2EEContentType {
   CHAT_MESSAGE
   MAIL_MESSAGE
   MAIL_SUBJECT
-  FILE_ATTACHMENT
 }
 
 enum E2EEDeviceTrustStatus {
@@ -1158,7 +1155,6 @@ model EncryptedContent {
   chatMessageId     String?         @unique
   mailMessageId     String?         @unique
   mailId            String?         @unique
-  fileId            String?         @unique
   encryptionVersion Int
   algorithm         String
   ciphertext        String
@@ -1172,7 +1168,6 @@ model EncryptedContent {
   chatMessage  ChatMessage?        @relation("ChatMessageEncryptedContent", fields: [chatMessageId], references: [id], onDelete: Cascade)
   mailMessage  MailMessage?        @relation("MailMessageEncryptedContent", fields: [mailMessageId], references: [id], onDelete: Cascade)
   mailSubject  Mail?               @relation("MailSubjectEncryptedContent", fields: [mailId], references: [id], onDelete: Cascade)
-  file         File?               @relation("FileEncryptedContent", fields: [fileId], references: [id], onDelete: Cascade)
   keyEnvelopes E2EEKeyEnvelope[]
   historyKeyEnvelopes E2EEContentHistoryKeyEnvelope[]
 
@@ -1180,7 +1175,6 @@ model EncryptedContent {
   @@index([chatMessageId])
   @@index([mailMessageId])
   @@index([mailId])
-  @@index([fileId])
   @@index([encryptionVersion])
   @@index([createdAt])
 }

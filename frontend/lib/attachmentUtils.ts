@@ -72,6 +72,7 @@ export function getFileTypeInfo(fileType: string) {
     const isPresentation = PRESENTATION_FILE_TYPES.has(fileType);
     const isArchive = ARCHIVE_FILE_TYPES.has(fileType);
     const isCode = CODE_FILE_TYPES.has(fileType);
+    const isImage = fileType.startsWith('image/') && fileType !== 'image/svg+xml';
 
     if (isPdf) return {
         color: '#ef4444',
@@ -108,6 +109,12 @@ export function getFileTypeInfo(fileType: string) {
         bg: 'rgba(139, 92, 246, 0.1)',
         label: 'CODE',
         tag: 'CODE:'
+    };
+    if (isImage) return {
+        color: '#8b5cf6',
+        bg: 'rgba(139, 92, 246, 0.1)',
+        label: 'IMAGE',
+        tag: 'IMAGE:'
     };
     return {
         color: '#64748b',

@@ -253,7 +253,7 @@ Important models:
 - `EncryptionIdentity`: one encryption identity per user.
 - `TrustedEncryptionDevice`: browser/device public keys, trust state, key version, revocation, and approval metadata.
 - `TrustedDeviceApproval`: pending-device approval requests that must be approved from an already trusted device.
-- `EncryptedContent`: ciphertext for Chat messages, Mail messages, Mail subjects, and encrypted file metadata.
+- `EncryptedContent`: ciphertext for Chat messages, Mail messages, and Mail subjects.
 - `E2EEKeyEnvelope`: per-recipient-device wrapped content keys.
 - `ChatHistoryKey`: scoped chat history keys used to avoid rewrapping every message key for already trusted devices.
 - `E2EEContentHistoryKeyEnvelope`: content-key wrappers against chat history keys.
@@ -267,7 +267,6 @@ Rules:
 - Newly added chat/group participants do not receive old message history.
 - Mail and Chat notifications use generic text and do not include protected message content.
 - Mail search and AI backend tools do not search or read encrypted subject/body content.
-- Encrypted attachments store original filename, MIME type, and original size inside encrypted metadata. The stored uploaded blob uses generic server-visible metadata.
 
 ### Courses
 
@@ -929,9 +928,7 @@ Protected-content notification rules:
 - Uploads are stored through Cloudinary.
 - File flows are used by chat, mail, materials, submissions, organization logos, and profile media.
 - File validation should happen before upload where the UI has enough information.
-- Chat and Mail attachments are encrypted in the browser before upload.
-- Encrypted attachment metadata stores the original filename, MIME type, size, and last-modified value inside encrypted metadata.
-- Server-visible encrypted attachment blobs use generic storage metadata and require per-recipient key envelopes before download can be decrypted.
+- Files are stored as private Cloudinary assets and are downloaded through authenticated backend endpoints.
 - Mail-message files use Mail participant access rules; Chat files use active chat membership access rules.
 
 ### PWA

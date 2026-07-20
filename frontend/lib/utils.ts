@@ -236,12 +236,15 @@ export function getUserColor(userId: string | undefined | null): string {
  * Download a file from a URL by fetching it as a blob and triggering a download
  * This forces the browser to download the file instead of opening it
  */
-export async function downloadFile(url: string, filename: string): Promise<void> {
+export async function downloadFile(url: string, filename: string, token?: string | null): Promise<void> {
     try {
         const resolvedUrl = url.startsWith('/') ? getPublicUrl(url) : url;
         const safeUrl = normalizeSafeUrl(resolvedUrl, { allowRelative: true });
         if (!safeUrl) throw new Error('Unsafe download URL');
-        const response = await fetch(safeUrl, { credentials: 'include' });
+        const response = await fetch(safeUrl, {
+            credentials: 'include',
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!response.ok) throw new Error(`Download failed with ${response.status}`);
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);

@@ -192,11 +192,7 @@ Not allowed:
 
 ### Attachments
 
-Attachment encryption is a later phase.
-
-Until then, message body E2EE and attachment E2EE are separate.
-
-Current attachment flow exposes file bytes and metadata to the backend. True attachment E2EE requires client-side file encryption before upload.
+Attachments are private Cloudinary files served only through authenticated backend endpoints. Chat and Mail message text remains E2EE.
 
 ### UI Rendering
 
@@ -207,7 +203,6 @@ Initial render boundaries:
 - Chat message row/content renderer.
 - Mail thread message renderer.
 - Protected subject renderer once Mail subject encryption is introduced.
-- Attachment preview/download renderer once attachment E2EE is introduced.
 
 Other UI should use metadata:
 
@@ -804,59 +799,16 @@ Introduce E2EE for Mail message bodies and subjects after Chat proves the envelo
 
 Mail subject/body privacy is supported with known search, new-device-history, backend-generated-mail, and explicit Copilot-handoff limitations.
 
-## Phase 10 - Attachment E2EE
+## Phase 10 - File Privacy Boundary
 
-### Goals
-
-Encrypt files before upload for Chat and Mail attachments.
-
-### Tasks
-
-- [x] Encrypt file bytes in browser before upload.
-- [x] Use libsodium XChaCha20-Poly1305 AEAD for current single-buffer attachments and encrypted attachment metadata.
-- [ ] Revisit `crypto_secretstream_xchacha20poly1305` if large/streamed attachments become a product requirement.
-- [x] Upload ciphertext blob through the existing `/files` flow, with optional encrypted metadata on upload.
-- [x] Store encrypted file metadata:
-  - encrypted filename
-  - encrypted MIME type
-  - encrypted original size/last-modified metadata
-- [x] Keep minimal server metadata:
-  - ciphertext size
-  - storage path
-  - entity type/id
-  - upload timestamp
-  - uploader
-- [x] Wrap file key for recipient trusted devices with the existing device-envelope utility.
-- [x] Validate encrypted file envelopes on the backend against trusted recipient/sender devices.
-- [x] Add `/files/:id/metadata` so the current user receives only their file key envelopes.
-- [x] Decrypt on active user download only.
-- [ ] Add decrypted image preview blob URLs later; encrypted attachments currently show a generic attachment card until download.
-- [x] Wire Chat attachment uploads through `prepareEncryptedFileUpload`.
-- [x] Wire Mail compose/reply attachment uploads through `prepareEncryptedFileUpload`.
-- [x] Wire Chat markdown attachment cards and Mail thread attachment cards through encrypted download when protected file metadata exists.
-
-### Dependencies
-
-- Phase 5 Chat or Phase 8 Mail encrypted message envelopes.
-- Product decision on filename/MIME leakage.
-
-### Migration Considerations
-
-- No legacy plaintext attachment support is required after encrypted attachment cutover.
-- Encrypted attachments may not support server-side scanning unless scanning plaintext before encryption is accepted.
-- Existing generic `/files` access checks remain the authorization boundary for ciphertext download; encrypted file metadata adds per-recipient key-envelope filtering.
-- The stored filename/MIME type for encrypted uploads is intentionally generic (`encrypted-attachment.bin`, `application/octet-stream`); original values live in encrypted metadata.
+Files use private Cloudinary storage plus authenticated backend download endpoints. Chat and Mail text encryption remains separate from file storage.
 
 ### Testing Requirements
 
-- [x] Upload encrypted Chat attachment.
-- [x] Upload encrypted Mail compose attachment.
-- [x] Upload encrypted Mail reply attachment.
-- [x] Download/decrypt on trusted device path is wired through metadata lookup and local key unwrap.
-- [x] Backend rejects stale, pending, revoked, mismatched, or non-recipient file envelopes.
-- [x] File metadata leakage matches approved policy.
-- [x] Chat attachment markdown is inside encrypted message content; Mail attachment original metadata is stored only inside encrypted file metadata.
-- [ ] Add browser-level manual QA for actual attachment open/save across two trusted devices.
+- [ ] Upload Chat attachment.
+- [ ] Upload Mail compose attachment.
+- [ ] Upload Mail reply attachment.
+- [ ] Download files through authenticated `/files/:id/download` endpoints.
 
 ### Expected Outcome
 
@@ -935,21 +887,17 @@ Harden the implemented E2EE paths against realistic failures before moving into 
 
 - [x] Client-side sends could proceed when one or more intended recipients had no trusted encryption device.
   - Added reusable recipient-device coverage utilities in the frontend E2EE boundary.
-  - Chat, Mail, and attachment encryption now fail early with a trusted-device error if any intended recipient has no trusted device.
+  - Chat and Mail text encryption now fail early with a trusted-device error if any intended recipient has no trusted device.
 - [x] Backend validation accepted encrypted Chat/Mail payloads that contained valid envelopes but skipped one or more intended recipients.
   - Chat message validation now requires direct envelopes for every active participant.
   - Mail subject/message validation now requires direct envelopes for every resolved Mail recipient.
 - [x] Backend validation accepted partial device coverage for users with multiple trusted devices.
-  - Chat, Mail, and encrypted file validation now reject payloads missing envelopes for any currently trusted recipient device.
+  - Chat and Mail validation now reject payloads missing envelopes for any currently trusted recipient device.
   - This catches stale recipient-device context and forces a refresh/retry instead of creating content that works on only one device.
-- [x] Encrypted attachment metadata was validated after Cloudinary upload.
-  - Validation now happens before upload, reducing orphan ciphertext uploads when metadata/envelopes are invalid.
 - [x] Mail attachment authorization used generic file rules.
-  - `MAIL_MESSAGE` files now use Mail participant/access resolution before returning metadata or ciphertext download.
+  - `MAIL_MESSAGE` files now use Mail participant/access resolution before returning metadata or downloads.
 - [x] Chat file authorization checked organization before chat membership.
   - Chat and chat-avatar files now use active chat membership, which also supports platform/global chats more correctly.
-- [x] Encrypted attachments for unsupported entity types could be attempted.
-  - Encrypted attachment uploads are limited to Chat and Mail-message entities.
 
 ### Verification Performed
 
@@ -993,17 +941,16 @@ Optimize the E2EE implementation before broad manual QA and rollout, reduce dupl
 - [ ] Add lightweight timing around recipient-device context fetches, local encryption, attachment encryption, and decrypt-on-render failures during development builds only.
 - [ ] Review Chat open/load-earlier behavior to confirm only fetched pages are decrypted and no background full-history unwrap happens.
 - [ ] Add a short-lived per-chat recipient-device cache invalidation strategy tied to participant/device changes instead of only time-based caching.
-- [ ] Add attachment-size thresholds and move large attachments to streaming encryption when product requirements exceed the current single-buffer approach.
 - [ ] Avoid repeated `api.e2ee.getMyDevices` calls during a single render/decrypt burst by using a small in-memory current-device helper inside the E2EE boundary.
 - [ ] Audit protected render components for repeated decrypt attempts on unchanged ciphertext and add memoized decrypted-state keys where safe.
 
 ### Code Optimization and Best Practices
 
 - [ ] Keep all crypto primitives behind `frontend/lib/e2ee/*`; feature components should call intent-level helpers only.
-- [ ] Keep backend validation helpers small and shared where possible across Chat, Mail, and encrypted attachments.
+- [ ] Keep backend validation helpers small and shared where possible across Chat and Mail.
 - [ ] Add focused unit tests for recipient-device coverage, stale key-version rejection, missing envelope rejection, and generic notification copy.
 - [ ] Add frontend unit tests for no-trusted-device error mapping and protected-content unavailable states.
-- [ ] Add integration tests for encrypted Mail/Chat attachment metadata access and download authorization.
+- [ ] Add integration tests for Mail/Chat file download authorization.
 - [ ] Ensure no protected content is written to persistent browser storage, logs, analytics, toasts, or notification payloads.
 - [ ] Review error messages so users get helpful recovery guidance without revealing recipient identities unnecessarily.
 
@@ -1013,7 +960,6 @@ Optimize the E2EE implementation before broad manual QA and rollout, reduce dupl
 - [x] Mail inbox shows `Mail is end-to-end encrypted`.
 - [ ] Add a concise no-trusted-device send error with a link to trusted-device settings.
 - [ ] Add a clearer unavailable-content state for new/untrusted devices.
-- [ ] Add encrypted attachment download failure feedback that distinguishes untrusted device, missing envelope, and corrupt ciphertext.
 - [ ] Decide whether the banner should include a tooltip or docs link after manual QA feedback.
 
 ### Bug-Hunt Notes

@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class FileUploadDto {
   @IsNotEmpty()
@@ -13,7 +13,4 @@ export class FileUploadDto {
   @IsString()
   entityId: string;
 
-  @IsOptional()
-  @IsString()
-  encryptedContent?: string;
 }

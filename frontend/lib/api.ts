@@ -1123,12 +1123,11 @@ export const api = {
 
     files: {
         // FIX 3 applied: was duplicating raw fetch + 401 handling + error parsing
-        uploadFile: (orgId: string, entityType: string, entityId: string, file: File, token: string, encryptedContent?: EncryptedMailContent): Promise<{ id?: string; url?: string; path?: string; filename?: string; mimeType?: string; size?: number; uploadedBy?: string; resourceType?: string; deliveryType?: string; fileKind?: string; extension?: string | null; sha256?: string | null; scanStatus?: string; encryptedContent?: EncryptedMailContent | null }> => {
+        uploadFile: (orgId: string, entityType: string, entityId: string, file: File, token: string): Promise<{ id?: string; url?: string; path?: string; filename?: string; mimeType?: string; size?: number; uploadedBy?: string; resourceType?: string; deliveryType?: string; fileKind?: string; extension?: string | null; sha256?: string | null; scanStatus?: string }> => {
             const formData = new FormData();
             formData.append('orgId', orgId);
             formData.append('entityType', entityType);
             formData.append('entityId', entityId);
-            if (encryptedContent) formData.append('encryptedContent', JSON.stringify(encryptedContent));
             formData.append('file', file);
             return uploadFormData('/files', formData, token, 'POST');
         },
@@ -1153,7 +1152,7 @@ export const api = {
             request<MailDetail>(`/mail/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
 
         // FIX 3 applied: was duplicating raw fetch + 401 handling in the files branch
-        addMessage: (mailId: string, data: { content: string; encryptedContent?: EncryptedMailContent }, token: string, _files?: File[]) => {
+        addMessage: (mailId: string, data: { content: string; encryptedContent?: EncryptedMailContent }, token: string) => {
             return request<MailDetail>(`/mail/${mailId}/messages`, { method: 'POST', body: JSON.stringify(data), token });
         },
 
