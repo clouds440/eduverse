@@ -506,9 +506,14 @@ export function ChatLayout() {
                     setShowParticipants(false);
                 }
             }
-            // Close chat menu when clicking outside
+            // Close chat menu when clicking outside, but ignore clicks inside any open modal/dialog
             if (chatMenuOpenId) {
                 const target = event.target as Node;
+                const activeDialog = document.querySelector('[aria-modal="true"]');
+                if (activeDialog && activeDialog.contains(target)) {
+                    return;
+                }
+
                 const menuContainer = document.querySelector(`[data-chat-menu="${chatMenuOpenId}"]`);
                 if (menuContainer && !menuContainer.contains(target)) {
                     setChatMenuOpenId(null);
