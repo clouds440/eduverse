@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Patch, Post, Query, Request, Res } from '@nestjs/common';
 import { AISubscriptionOwnerType, Role } from '@/prisma/prisma-client';
 import type { Response } from 'express';
-import { Roles } from '../auth/roles.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';

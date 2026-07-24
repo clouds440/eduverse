@@ -228,6 +228,12 @@ export enum ThemeMode {
     SYSTEM = 'SYSTEM',
 }
 
+export enum TwoFactorMethod {
+    DEVICE = 'DEVICE',
+    EMAIL = 'EMAIL',
+    BOTH = 'BOTH',
+}
+
 export enum AttendanceStatus {
     PRESENT = 'PRESENT',
     ABSENT = 'ABSENT',

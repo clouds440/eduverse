@@ -8,6 +8,12 @@ import { JwtStrategy } from './jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SecurityModule } from '../security/security.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { EmailTemplateService } from './email-template.service';
+import { EmailVerificationService } from './email-verification.service';
+import { PasswordResetService } from './password-reset.service';
+import { SecurityService as AuthSecurityService } from './security.service';
+import { SessionService } from './session.service';
+import { UserPreferencesService } from './user-preferences.service';
 
 // ...
 
@@ -26,7 +32,16 @@ import { NotificationsModule } from '../notifications/notifications.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    SessionService,
+    AuthSecurityService,
+    PasswordResetService,
+    EmailVerificationService,
+    EmailTemplateService,
+    UserPreferencesService,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

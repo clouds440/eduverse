@@ -16,7 +16,7 @@ import {
   type WebPushSubscriptionDto,
   type WebPushUnsubscribeDto,
 } from './notifications.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 import {

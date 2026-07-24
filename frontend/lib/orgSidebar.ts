@@ -17,7 +17,6 @@ import {
   MapPinned,
   MessageSquare,
   Network,
-  ScrollText,
   Settings,
   Sparkles,
   ListChecks,
@@ -254,13 +253,6 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     href: "/teacher-finance",
     icon: Wallet,
     roles: [Role.SUB_ADMIN],
-  },
-  {
-    id: "GPA_POLICIES",
-    label: "GPA Policies",
-    href: "/settings/gpa-policies",
-    icon: ScrollText,
-    roles: [Role.ORG_ADMIN],
   },
   {
     id: "SETTINGS",

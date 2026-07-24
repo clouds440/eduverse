@@ -17,7 +17,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { JwtAuthGuard } from './jwt-auth.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
@@ -26,6 +26,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyContactEmailDto } from '../org/dto/verify-contact-email.dto';
 import { AUTH_COOKIE_NAME, extractJwtFromRequest } from './jwt.strategy';
+import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 
 type AuthenticatedRequest = {
   user: { id: string; role?: string; organizationId?: string | null; sessionId?: string };
@@ -230,6 +231,23 @@ export class AuthController {
   ) {
     const userId = req.user.id;
     return this.authService.updateProfile(userId, updateDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Get('settings')
+  async getUserSettings(@Request() req: AuthenticatedRequest) {
+    return this.authService.getUserSettings(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Patch('settings')
+  async updateUserSettings(
+    @Request() req: AuthenticatedRequest,
+    @Body() updateDto: UpdateUserSettingsDto,
+  ) {
+    return this.authService.updateUserSettings(req.user.id, updateDto);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -1,28 +1,24 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
-  HttpException,
-  HttpStatus,
   Inject,
   Injectable,
   Logger,
-  NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
-import { randomBytes, randomInt, createHash } from 'crypto';
+import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import {
   LinkedAccountProvider,
-  Prisma,
   User,
   Organization,
   Teacher,
   ThemeMode,
-  E2EEDeviceTrustStatus,
+  UserSettings,
 } from '@/prisma/prisma-client';
 import { Role, OrgStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
@@ -36,22 +32,34 @@ import {
   NOTIFICATIONS_SERVICE,
   type NotificationCreator,
 } from '../notifications/notifications.tokens';
+import {
+  AuditLogInput,
+  RequestMetadata,
+  SessionDeviceInput,
+} from './auth-internal.types';
+import { hashSecret } from './auth-internal.utils';
+import { EmailTemplateService } from './email-template.service';
+import { EmailVerificationService } from './email-verification.service';
+import { PasswordResetService } from './password-reset.service';
+import { SecurityService } from './security.service';
+import { SessionService } from './session.service';
+import { UserPreferencesService } from './user-preferences.service';
 
 export type TokenUser = User & {
   organization?: Organization | null;
   teacherProfile?: Teacher | null;
   avatarUrl?: string | null;
   avatarUpdatedAt?: Date | null;
-  themeMode?: ThemeMode | null;
+  settings?: UserSettings | null;
 };
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly forgotIpAttempts = new Map<string, number[]>();
-  private readonly forgotEmailAttempts = new Map<string, number[]>();
-  private readonly genericForgotMessage =
-    'If an eligible account exists, password reset instructions will be sent.';
+  private readonly sessionManager: SessionService;
+  private readonly passwordResetManager: PasswordResetService;
+  private readonly emailVerificationManager: EmailVerificationService;
+  private readonly preferencesManager: UserPreferencesService;
 
   constructor(
     private jwtService: JwtService,
@@ -60,7 +68,47 @@ export class AuthService {
     private configService: ConfigService,
     @Inject(NOTIFICATIONS_SERVICE)
     private notificationsService: NotificationCreator,
-  ) {}
+    @Optional() sessionService?: SessionService,
+    @Optional() securityService?: SecurityService,
+    @Optional() passwordResetService?: PasswordResetService,
+    @Optional() emailVerificationService?: EmailVerificationService,
+    @Optional() userPreferencesService?: UserPreferencesService,
+    @Optional() emailTemplateService?: EmailTemplateService,
+  ) {
+    const security =
+      securityService ??
+      new SecurityService(this.prisma, this.notificationsService);
+    const templates = emailTemplateService ?? new EmailTemplateService();
+    this.sessionManager =
+      sessionService ??
+      new SessionService(
+        this.prisma,
+        this.jwtService,
+        this.configService,
+        security,
+      );
+    this.passwordResetManager =
+      passwordResetService ??
+      new PasswordResetService(
+        this.prisma,
+        this.emailService,
+        this.configService,
+        templates,
+        security,
+        this.notificationsService,
+      );
+    this.emailVerificationManager =
+      emailVerificationService ??
+      new EmailVerificationService(
+        this.prisma,
+        this.emailService,
+        this.configService,
+        templates,
+        security,
+      );
+    this.preferencesManager =
+      userPreferencesService ?? new UserPreferencesService(this.prisma);
+  }
 
   async register(registerDto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({
@@ -124,7 +172,7 @@ export class AuthService {
   async login(loginDto: LoginDto, ip: string = 'unknown') {
     const user = await this.prisma.user.findUnique({
       where: { email: loginDto.email },
-      include: { organization: true, teacherProfile: true },
+      include: { organization: true, teacherProfile: true, settings: true },
     });
 
     if (!user) {
@@ -136,28 +184,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (user.status === 'DELETED') {
-      throw new UnauthorizedException(
-        'Your account has been deleted by your organization',
-      );
-    }
-
-    // Cleanup old inactive sessions for this user (older than 90 days)
-    await this.cleanupOldSessions(user.id);
-
-    const rememberMe = loginDto.rememberMe === true;
-    const sessionLoginDto = loginDto.deviceId
-      ? loginDto
-      : {
-          ...loginDto,
-          deviceId: `fallback-${randomBytes(16).toString('hex')}`,
-          deviceName: 'Unknown device',
-          deviceType: 'unknown',
-          browser: 'Unknown',
-          os: 'Unknown',
-        };
-
-    return this.generateToken(user, rememberMe, sessionLoginDto, ip);
+    return this.completeLogin(user, loginDto, ip);
   }
 
   async generateToken(
@@ -166,6 +193,14 @@ export class AuthService {
     loginDto?: SessionDeviceInput,
     ip: string = 'unknown',
   ) {
+    const orgStatus =
+      (user.organization?.status as unknown as OrgStatus) ||
+      OrgStatus.APPROVED;
+    const userStatus = user.status as unknown as UserStatus;
+    const accessLevel = resolveAccessLevel({
+      userStatus,
+      orgStatus,
+    });
     const payload = {
       id: user.id,
       sub: user.id,
@@ -180,13 +215,10 @@ export class AuthService {
         user.organization?.contactEmailVerifiedAt?.toISOString() || null,
       avatarUrl: user.avatarUrl || null,
       avatarUpdatedAt: user.avatarUpdatedAt || null,
-      themeMode: user.themeMode ?? ThemeMode.SYSTEM,
-      status: user.organization ? user.organization.status : OrgStatus.APPROVED, // Keep SUPER_ADMIN as APPROVED
-      userStatus: user.status as unknown as UserStatus,
-      accessLevel: resolveAccessLevel({
-        userStatus: user.status as unknown as UserStatus,
-        orgStatus: (user.organization?.status as unknown as OrgStatus) || OrgStatus.APPROVED,
-      }),
+      themeMode: user.settings?.themeMode ?? ThemeMode.SYSTEM,
+      status: orgStatus,
+      userStatus,
+      accessLevel,
       isFirstLogin: user.isFirstLogin,
     };
 
@@ -194,130 +226,21 @@ export class AuthService {
       expiresIn: rememberMe ? '30d' : '1d',
     });
 
-    // Create session if deviceId is provided
     if (loginDto?.deviceId) {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + (rememberMe ? 30 : 1));
-
-      // Get location (country only) from IP (simple lookup)
-      let location: string | null = null;
-      if (ip !== 'unknown') {
-        try {
-          // Using a free IP geolocation API
-          const response = await fetch(`http://ip-api.com/json/${ip}`);
-          const data = await response.json();
-          if (data.status === 'success') {
-            location = data.country;
-          }
-        } catch (error) {
-          // Silently fail location lookup
-          console.warn('Failed to lookup location from IP:', error);
-        }
-      }
-
-      // Check if this device already has an active session
-      const existingSession = await this.prisma.session.findFirst({
-        where: {
-          userId: user.id,
-          deviceId: loginDto.deviceId,
-          isActive: true,
-        },
-      });
-
-      if (existingSession) {
-        // Check for country change (suspicious activity)
-        const countryChanged = existingSession.location && location && existingSession.location !== location;
-
-        // Update existing session (IP binding removed to support mobile users with changing IPs)
-        await this.prisma.session.update({
-          where: { id: existingSession.id },
-          data: {
-            token,
-            lastSeenAt: new Date(),
-            expiresAt,
-            deviceName: loginDto.deviceName,
-            deviceType: loginDto.deviceType,
-            ip,
-            location,
-          },
-        });
-
-        // Send notification if country changed (suspicious activity)
-        if (countryChanged) {
-          await this.notificationsService.createNotification({
-            userId: user.id,
-            title: 'Suspicious Activity Detected',
-            body: `Your account was accessed from a new location (${location}). Previous location: ${existingSession.location}. If this wasn't you, please revoke this session in your settings.`,
-            type: 'SECURITY',
-            actionUrl: this.getAccountSecurityUrl(user),
-            metadata: {
-              deviceId: loginDto.deviceId,
-              deviceName: loginDto.deviceName,
-              previousLocation: existingSession.location,
-              newLocation: location,
-              loginTime: new Date().toISOString(),
-            },
-          });
-        }
-      } else {
-        // Check if this is a new device (first time seeing this deviceId)
-        const deviceSessions = await this.prisma.session.findMany({
-          where: { userId: user.id },
-          select: { deviceId: true, ip: true, location: true },
-        });
-        const isNewDevice = !deviceSessions.some(
-          (s) => s.deviceId === loginDto.deviceId,
-        );
-        const isFirstLogin = deviceSessions.length === 0;
-
-        // Create new session
-        await this.prisma.session.create({
-          data: {
-            userId: user.id,
-            deviceId: loginDto.deviceId,
-            deviceName: loginDto.deviceName,
-            deviceType: loginDto.deviceType,
-            browser: loginDto.browser,
-            os: loginDto.os,
-            token,
-            expiresAt,
-            ip,
-            location,
-          },
-        });
-
-        // Send notification if this is a new device (but not on first ever login)
-        if (isNewDevice && !isFirstLogin) {
-          const targetClientDeviceIds = await this.getTrustedClientDeviceIds(user.id, loginDto.deviceId);
-          if (targetClientDeviceIds.length > 0) {
-            await this.notificationsService.createNotification({
-              userId: user.id,
-              title: 'New Device Login',
-              body: `A new device (${loginDto.deviceName || 'Unknown Device'}) has logged into your account from ${location || 'Unknown Location'} (IP: ${ip}). If this wasn't you, please revoke this session in your settings.`,
-              type: 'SECURITY',
-              actionUrl: this.getAccountSecurityUrl(user),
-              metadata: {
-                deviceId: loginDto.deviceId,
-                deviceName: loginDto.deviceName,
-                ip,
-                location,
-                loginTime: new Date().toISOString(),
-                targetClientDeviceIds,
-              },
-            });
-          }
-        }
-      }
+      await this.sessionManager.persistLoginSession(
+        { id: user.id, role: user.role as Role },
+        token,
+        rememberMe,
+        loginDto,
+        ip,
+      );
     }
 
     return {
       access_token: token,
       role: user.role,
-      status: user.status as unknown as UserStatus,
-      accessLevel: resolveAccessLevel({
-        userStatus: user.status as unknown as UserStatus,
-        orgStatus: (user.organization?.status as unknown as OrgStatus) || OrgStatus.APPROVED,
-      }),
+      status: userStatus,
+      accessLevel,
     };
   }
 
@@ -330,12 +253,37 @@ export class AuthService {
     } = {},
   ) {
     const config = this.getGoogleConfig();
-    const state = await this.jwtService.signAsync(
+    const signedState = await this.createGoogleOAuthState({
+      purpose,
+      userId: options.userId,
+      device: options.device,
+      returnTo: options.returnTo,
+    });
+
+    const params = new URLSearchParams({
+      client_id: config.clientId,
+      redirect_uri: config.redirectUri,
+      response_type: 'code',
+      scope: 'openid email',
+      state: signedState,
+      prompt: 'select_account',
+    });
+
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  private createGoogleOAuthState(input: {
+    purpose: GoogleOAuthPurpose;
+    userId?: string;
+    device?: SessionDeviceInput;
+    returnTo?: string;
+  }) {
+    return this.jwtService.signAsync(
       {
-        purpose,
-        userId: options.userId,
-        device: options.device,
-        returnTo: this.sanitizeFrontendPath(options.returnTo),
+        purpose: input.purpose,
+        userId: input.userId,
+        device: input.device,
+        returnTo: this.sanitizeFrontendPath(input.returnTo),
         nonce: randomBytes(16).toString('hex'),
       } satisfies GoogleOAuthState,
       {
@@ -343,17 +291,6 @@ export class AuthService {
         expiresIn: '10m',
       },
     );
-
-    const params = new URLSearchParams({
-      client_id: config.clientId,
-      redirect_uri: config.redirectUri,
-      response_type: 'code',
-      scope: 'openid email',
-      state,
-      prompt: 'select_account',
-    });
-
-    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
 
   async handleGoogleCallback(input: {
@@ -469,7 +406,11 @@ export class AuthService {
       },
       include: {
         user: {
-          include: { organization: true, teacherProfile: true },
+          include: {
+            organization: true,
+            teacherProfile: true,
+            settings: true,
+          },
         },
       },
     });
@@ -480,33 +421,41 @@ export class AuthService {
       );
     }
 
-    const user = linkedAccount.user;
+    return this.completeLogin(linkedAccount.user, device, ip);
+  }
+
+  private async completeLogin(
+    user: TokenUser,
+    device?: SessionDeviceInput,
+    ip = 'unknown',
+  ) {
     if (user.status === UserStatus.DELETED) {
       throw new UnauthorizedException(
         'Your account has been deleted by your organization',
       );
     }
 
-    await this.cleanupOldSessions(user.id);
+    await this.sessionManager.cleanupOldSessions(user.id);
 
-    const sessionDevice = device?.deviceId
-      ? device
-      : {
-          ...device,
-          deviceId: `fallback-${randomBytes(16).toString('hex')}`,
-          deviceName: device?.deviceName || 'Unknown device',
-          deviceType: device?.deviceType || 'unknown',
-          browser: device?.browser || 'Unknown',
-          os: device?.os || 'Unknown',
-          rememberMe: device?.rememberMe,
-        };
+    const sessionDevice = this.normalizeSessionDevice(device);
+    const rememberMe = device?.rememberMe === true;
 
-    return this.generateToken(
-      user,
-      device?.rememberMe === true,
-      sessionDevice,
-      ip,
-    );
+    return this.generateToken(user, rememberMe, sessionDevice, ip);
+  }
+
+  private normalizeSessionDevice(
+    device?: SessionDeviceInput,
+  ): SessionDeviceInput {
+    if (device?.deviceId) return device;
+
+    return {
+      ...device,
+      deviceId: `fallback-${randomBytes(16).toString('hex')}`,
+      deviceName: device?.deviceName || 'Unknown device',
+      deviceType: device?.deviceType || 'unknown',
+      browser: device?.browser || 'Unknown',
+      os: device?.os || 'Unknown',
+    };
   }
 
   private async linkGoogleAccount(
@@ -717,25 +666,20 @@ export class AuthService {
 
   async updateProfile(
     userId: string,
-    data: Partial<{ themeMode: 'LIGHT' | 'DARK' | 'SYSTEM'; name?: string }>,
+    data: Partial<{ themeMode: ThemeMode; name?: string }>,
   ) {
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        themeMode: data.themeMode,
-        name: data.name,
-      },
-      include: { organization: true, teacherProfile: true },
-    });
+    return this.preferencesManager.updateProfile(userId, data);
+  }
 
-    return {
-      id: updated.id,
-      email: updated.email,
-      name: updated.name,
-      organization: updated.organization,
-      teacherProfile: updated.teacherProfile,
-      themeMode: updated.themeMode,
-    };
+  async getUserSettings(userId: string) {
+    return this.preferencesManager.getSettings(userId);
+  }
+
+  async updateUserSettings(
+    userId: string,
+    data: Parameters<UserPreferencesService['updateSettings']>[1],
+  ) {
+    return this.preferencesManager.updateSettings(userId, data);
   }
 
   async changePassword(userId: string, oldPass: string, newPass: string, currentToken?: string) {
@@ -759,39 +703,18 @@ export class AuthService {
         password: hashedNew,
         isFirstLogin: false,
       },
-      include: { organization: true, teacherProfile: true },
+      include: { organization: true, teacherProfile: true, settings: true },
     });
 
     // Issue a NEW token so the isFirstLogin: false change is reflected in the JWT payload
     const { access_token: newToken } = await this.generateToken(updatedUser, true);
 
-    // Update the session in database if it exists
     if (currentToken) {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
-
-      await this.prisma.session.updateMany({
-        where: {
-          userId,
-          token: currentToken,
-          isActive: true,
-        },
-        data: {
-          token: newToken,
-          lastSeenAt: new Date(),
-          expiresAt,
-        },
-      });
-
-      // Revoke all other sessions
-      await this.prisma.session.updateMany({
-        where: {
-          userId,
-          token: { not: newToken },
-          isActive: true,
-        },
-        data: { isActive: false },
-      });
+      await this.sessionManager.replaceCurrentAndRevokeOthers(
+        userId,
+        currentToken,
+        newToken,
+      );
     }
 
     return {
@@ -806,102 +729,15 @@ export class AuthService {
   }
 
   async logout(userId: string, token?: string) {
-    if (token) {
-      // Revoke only the current session
-      const session = await this.prisma.session.findFirst({
-        where: {
-          userId,
-          token,
-          isActive: true,
-        },
-      });
-
-      if (session) {
-        await this.prisma.session.update({
-          where: { id: session.id },
-          data: { isActive: false },
-        });
-      }
-    } else {
-      // Fallback: revoke all sessions if no token provided
-      await this.prisma.session.updateMany({
-        where: { userId },
-        data: { isActive: false },
-      });
-    }
-    return { message: 'Logged out successfully' };
-  }
-
-  /**
-   * Cleanup old inactive sessions for a user
-   * Removes inactive sessions older than 90 days
-   */
-  private async cleanupOldSessions(userId: string) {
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-    await this.prisma.session.deleteMany({
-      where: {
-        userId,
-        isActive: false,
-        expiresAt: { lt: ninetyDaysAgo },
-      },
-    });
+    return this.sessionManager.logout(userId, token);
   }
 
   async getSessions(userId: string, currentToken?: string) {
-    const sessions = await this.prisma.session.findMany({
-      where: {
-        userId,
-        isActive: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    return sessions.map(({ token, ...session }) => ({
-      ...session,
-      isCurrent: !!currentToken && token === currentToken,
-    }));
+    return this.sessionManager.getSessions(userId, currentToken);
   }
 
   async validateSessionToken(token: string) {
-    try {
-      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(
-        token,
-        {
-          secret: this.configService.get<string>('JWT_SECRET') || '',
-        },
-      );
-
-      if (!payload.sub) return false;
-
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-        select: { id: true },
-      });
-      if (!user) return false;
-
-      const session = await this.prisma.session.findFirst({
-        where: {
-          userId: user.id,
-          token,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      if (!session) return false;
-
-      await this.prisma.session.update({
-        where: { id: session.id },
-        data: { lastSeenAt: new Date() },
-      });
-
-      return true;
-    } catch {
-      return false;
-    }
+    return this.sessionManager.validateSessionToken(token);
   }
 
   async revokeSession(
@@ -909,95 +745,15 @@ export class AuthService {
     sessionId: string,
     currentToken?: string,
   ) {
-    await this.ensureCurrentSessionCanManageSessions(userId, currentToken);
-
-    const session = await this.prisma.session.findFirst({
-      where: { id: sessionId, userId },
-    });
-
-    if (!session) {
-      throw new UnauthorizedException('Session not found');
-    }
-
-    // Check if trying to revoke current session
-    if (currentToken && session.token === currentToken) {
-      // Instead of revoking, return instruction to logout
-      return {
-        message: 'Cannot revoke current session. Please log out instead.',
-        shouldLogout: true,
-      };
-    }
-
-    await this.prisma.session.update({
-      where: { id: sessionId },
-      data: { isActive: false },
-    });
-
-    return { message: 'Session revoked successfully' };
+    return this.sessionManager.revokeSession(
+      userId,
+      sessionId,
+      currentToken,
+    );
   }
 
   async revokeAllSessions(userId: string, excludeToken?: string) {
-    await this.ensureCurrentSessionCanManageSessions(userId, excludeToken);
-
-    await this.prisma.session.updateMany({
-      where: {
-        userId,
-        isActive: true,
-        ...(excludeToken && { token: { not: excludeToken } }),
-      },
-      data: { isActive: false },
-    });
-
-    return { message: 'All sessions revoked successfully' };
-  }
-
-  private async ensureCurrentSessionCanManageSessions(userId: string, currentToken?: string) {
-    if (!currentToken) {
-      throw new ForbiddenException('Use a trusted browser to manage account sessions.');
-    }
-
-    const currentSession = await this.prisma.session.findFirst({
-      where: {
-        userId,
-        token: currentToken,
-        isActive: true,
-      },
-      select: { deviceId: true },
-    });
-
-    if (!currentSession?.deviceId) {
-      throw new ForbiddenException('Use a trusted browser to manage account sessions.');
-    }
-
-    const trustedDevice = await this.prisma.trustedEncryptionDevice.findFirst({
-      where: {
-        userId,
-        clientDeviceId: currentSession.deviceId,
-        trustStatus: E2EEDeviceTrustStatus.TRUSTED,
-        revokedAt: null,
-        trustedAt: { not: null },
-      },
-      select: { id: true },
-    });
-
-    if (!trustedDevice) {
-      throw new ForbiddenException('Use a trusted browser to manage account sessions.');
-    }
-  }
-
-  private async getTrustedClientDeviceIds(userId: string, excludeClientDeviceId?: string | null) {
-    const trustedDevices = await this.prisma.trustedEncryptionDevice.findMany({
-      where: {
-        userId,
-        trustStatus: E2EEDeviceTrustStatus.TRUSTED,
-        revokedAt: null,
-        trustedAt: { not: null },
-        ...(excludeClientDeviceId ? { clientDeviceId: { not: excludeClientDeviceId } } : {}),
-      },
-      select: { clientDeviceId: true },
-    });
-
-    return trustedDevices.map((device) => device.clientDeviceId);
+    return this.sessionManager.revokeAllSessions(userId, excludeToken);
   }
 
   async resendContactEmailVerification(
@@ -1009,21 +765,10 @@ export class AuthService {
     },
     meta: RequestMetadata,
   ) {
-    if (user.role !== Role.ORG_ADMIN || !user.organizationId) {
-      throw new UnauthorizedException('Only organization admins can verify contact email');
-    }
-
-    await this.issueContactEmailVerification(user.organizationId, {
-      ...meta,
-      actorUserId: user.id,
-      targetUserId: user.id,
-      organizationId: user.organizationId,
-      sessionId: user.sessionId,
-    });
-
-    return {
-      message: 'Verification code sent. Please check your contact email.',
-    };
+    return this.emailVerificationManager.resendContactEmailVerification(
+      user,
+      meta,
+    );
   }
 
   async verifyContactEmail(
@@ -1036,301 +781,15 @@ export class AuthService {
     code: string,
     meta: RequestMetadata,
   ) {
-    if (user.role !== Role.ORG_ADMIN || !user.organizationId) {
-      throw new UnauthorizedException('Only organization admins can verify contact email');
-    }
-
-    const org = await this.prisma.organization.findUnique({
-      where: { id: user.organizationId },
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        contactEmail: true,
-        contactEmailVerifiedAt: true,
-        contactEmailVerificationCodeHash: true,
-        contactEmailVerificationExpiresAt: true,
-        contactEmailVerificationAttempts: true,
-      },
-    });
-
-    if (!org) throw new BadRequestException('Organization not found');
-    if (org.contactEmailVerifiedAt) {
-      return { message: 'Contact email is already verified.' };
-    }
-
-    if (
-      !org.contactEmailVerificationCodeHash ||
-      !org.contactEmailVerificationExpiresAt ||
-      org.contactEmailVerificationExpiresAt <= new Date()
-    ) {
-      throw new BadRequestException('Verification code expired. Please request a new code.');
-    }
-
-    if (org.contactEmailVerificationAttempts >= 5) {
-      await this.writeAuditLog('contact_email_verification_failed', {
-        ...meta,
-        actorUserId: user.id,
-        targetUserId: user.id,
-        organizationId: user.organizationId,
-        sessionId: user.sessionId,
-        details: { reason: 'too_many_attempts' },
-      });
-      throw new HttpException(
-        'Too many incorrect attempts. Please resend a new code.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    if (this.hashSecret(code) !== org.contactEmailVerificationCodeHash) {
-      await this.prisma.organization.update({
-        where: { id: org.id },
-        data: { contactEmailVerificationAttempts: { increment: 1 } },
-      });
-      await this.writeAuditLog('contact_email_verification_failed', {
-        ...meta,
-        actorUserId: user.id,
-        targetUserId: user.id,
-        organizationId: user.organizationId,
-        sessionId: user.sessionId,
-        details: { reason: 'invalid_code' },
-      });
-      throw new BadRequestException('Invalid verification code.');
-    }
-
-    const verificationReason = await this.getLatestContactEmailVerificationReason(org.id);
-    const shouldNotifyPlatformAdmins =
-      org.status === OrgStatus.PENDING && verificationReason === 'first_registration';
-
-    await this.prisma.organization.update({
-      where: { id: org.id },
-      data: {
-        contactEmailVerifiedAt: new Date(),
-        contactEmailVerificationCodeHash: null,
-        contactEmailVerificationExpiresAt: null,
-        contactEmailVerificationAttempts: 0,
-      },
-    });
-
-    await this.writeAuditLog('contact_email_verified', {
-      ...meta,
-      actorUserId: user.id,
-      targetUserId: user.id,
-      organizationId: user.organizationId,
-      sessionId: user.sessionId,
-    });
-
-    if (shouldNotifyPlatformAdmins) {
-      await this.sendPendingOrganizationVerifiedEmail({
-        organizationId: org.id,
-        organizationName: org.name,
-        contactEmail: org.contactEmail,
-      }).catch((error) => {
-        this.logger.error(
-          `Failed to notify platform admins for verified pending org ${org.id}`,
-          error instanceof Error ? error.stack : undefined,
-        );
-      });
-    }
-
-    return { message: 'Contact email verified successfully.' };
+    return this.emailVerificationManager.verifyContactEmail(user, code, meta);
   }
 
   async forgotPassword(dto: ForgotPasswordDto, meta: RequestMetadata) {
-    const normalizedEmail = dto.email.trim().toLowerCase();
-    const emailHash = this.hashSecret(normalizedEmail);
-
-    if (!this.allowAttempt(this.forgotIpAttempts, meta.ip || 'unknown', 5, 15 * 60_000)) {
-      await this.writeAuditLog('excessive_reset_attempts', {
-        ...meta,
-        details: { scope: 'ip', emailHash },
-      });
-      throw new HttpException(
-        'Please wait before requesting another password reset.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    if (!this.allowAttempt(this.forgotEmailAttempts, normalizedEmail, 3, 60 * 60_000)) {
-      await this.writeAuditLog('excessive_reset_attempts', {
-        ...meta,
-        details: { scope: 'email', emailHash },
-      });
-      return { message: this.genericForgotMessage };
-    }
-
-    const users = await this.prisma.user.findMany({
-      where: {
-        role: Role.ORG_ADMIN,
-        OR: [
-          { email: { equals: normalizedEmail, mode: 'insensitive' } },
-          {
-            organization: {
-              contactEmail: { equals: normalizedEmail, mode: 'insensitive' },
-            },
-          },
-        ],
-      },
-      include: { organization: true },
-    });
-    const requestedLoginMatches = users.filter(
-      (user) => user.email.toLowerCase() === normalizedEmail,
-    );
-    const candidateUsers =
-      requestedLoginMatches.length > 0 ? requestedLoginMatches : users;
-
-    await this.writeAuditLog('password_reset_requested', {
-      ...meta,
-      targetUserId: candidateUsers.length === 1 ? candidateUsers[0].id : undefined,
-      organizationId:
-        candidateUsers.length === 1
-          ? candidateUsers[0].organizationId ?? undefined
-          : undefined,
-      details: { emailHash, matchCount: candidateUsers.length },
-    });
-
-    const eligibleUsers = candidateUsers.filter(
-      (user) =>
-        user.role === Role.ORG_ADMIN &&
-        user.organization?.contactEmailVerifiedAt &&
-        user.organization.contactEmail,
-    );
-
-    if (eligibleUsers.length === 0) {
-      await Promise.all(
-        candidateUsers.map((user) =>
-          this.writeAuditLog('password_reset_failed', {
-            ...meta,
-            targetUserId: user.id,
-            organizationId: user.organizationId ?? undefined,
-            details: {
-              reason:
-                user.role === Role.ORG_ADMIN
-                  ? 'contact_email_unverified'
-                  : 'automated_reset_not_available_for_role',
-            },
-          }),
-        ),
-      );
-      return { message: this.genericForgotMessage };
-    }
-
-    const expiresAt = new Date(Date.now() + 30 * 60_000);
-    const appUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
-    const appBaseUrl = appUrl.replace(/\/+$/, '');
-    const resetOptions = await Promise.all(
-      eligibleUsers.map(async (user) => {
-        await this.prisma.passwordResetToken.updateMany({
-          where: { userId: user.id, usedAt: null },
-          data: { usedAt: new Date() },
-        });
-
-        const rawToken = randomBytes(32).toString('hex');
-        const tokenHash = this.hashSecret(rawToken);
-
-        await this.prisma.passwordResetToken.create({
-          data: {
-            userId: user.id,
-            tokenHash,
-            expiresAt,
-            ip: meta.ip,
-            userAgent: meta.userAgent,
-          },
-        });
-
-        return {
-          adminEmail: user.email,
-          organizationName: user.organization!.name,
-          organizationLogoUrl: this.getSafeAssetUrl(
-            user.organization!.logoUrl,
-            appBaseUrl,
-          ),
-          resetUrl: `${appBaseUrl}/reset-password?token=${rawToken}`,
-        };
-      }),
-    );
-
-    const recipient =
-      requestedLoginMatches.length > 0
-        ? eligibleUsers[0].organization!.contactEmail
-        : normalizedEmail;
-    const email = this.buildPasswordResetEmail({
-      recipient,
-      appBaseUrl,
-      options: resetOptions,
-      expiresAt,
-    });
-
-    await this.emailService.send({
-      to: recipient,
-      subject:
-        resetOptions.length > 1
-          ? 'Choose an EduVerse account to recover'
-          : 'Reset your EduVerse password',
-      text: email.text,
-      html: email.html,
-    });
-
-    return { message: this.genericForgotMessage };
+    return this.passwordResetManager.forgotPassword(dto, meta);
   }
 
   async resetPassword(dto: ResetPasswordDto, meta: RequestMetadata) {
-    const tokenHash = this.hashSecret(dto.token);
-    const resetToken = await this.prisma.passwordResetToken.findUnique({
-      where: { tokenHash },
-      include: { user: { include: { organization: true } } },
-    });
-
-    if (
-      !resetToken ||
-      resetToken.usedAt ||
-      resetToken.expiresAt <= new Date()
-    ) {
-      await this.writeAuditLog('password_reset_failed', {
-        ...meta,
-        targetUserId: resetToken?.userId,
-        organizationId: resetToken?.user.organizationId ?? undefined,
-        details: { reason: 'invalid_or_expired_token' },
-      });
-      throw new BadRequestException('Password reset link is invalid or expired.');
-    }
-
-    const hashedNew = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: resetToken.userId },
-        data: { password: hashedNew, isFirstLogin: false },
-      });
-      await tx.passwordResetToken.update({
-        where: { id: resetToken.id },
-        data: { usedAt: new Date() },
-      });
-      await tx.passwordResetToken.updateMany({
-        where: { userId: resetToken.userId, usedAt: null },
-        data: { usedAt: new Date() },
-      });
-      await tx.session.updateMany({
-        where: { userId: resetToken.userId, isActive: true },
-        data: { isActive: false },
-      });
-    });
-
-    await this.writeAuditLog('password_reset_completed', {
-      ...meta,
-      targetUserId: resetToken.userId,
-      organizationId: resetToken.user.organizationId ?? undefined,
-    });
-
-    await this.notificationsService.createNotification({
-      userId: resetToken.userId,
-      title: 'Password reset completed',
-      body: 'Your EduVerse password was reset. All active sessions were signed out.',
-      type: 'SECURITY',
-      actionUrl: this.getAccountSecurityUrl(resetToken.user),
-    });
-
-    return { message: 'Password reset successful. Please sign in with your new password.' };
+    return this.passwordResetManager.resetPassword(dto, meta);
   }
 
   async generateManagedUserPasswordResetLink(
@@ -1338,621 +797,30 @@ export class AuthService {
     targetUserId: string,
     meta: RequestMetadata,
   ) {
-    if (!actor.organizationId) {
-      throw new ForbiddenException('Organization context is required.');
-    }
-
-    if (actor.role !== Role.ORG_ADMIN && actor.role !== Role.SUB_ADMIN) {
-      throw new ForbiddenException('You are not allowed to generate password reset links.');
-    }
-
-    const targetUser = await this.prisma.user.findFirst({
-      where: {
-        id: targetUserId,
-        organizationId: actor.organizationId,
-      },
-      include: { organization: true },
-    });
-
-    if (!targetUser) {
-      throw new NotFoundException('User not found.');
-    }
-
-    const targetRole = targetUser.role as Role;
-    const resettableRoles = new Set<Role>([
-      Role.TEACHER,
-      Role.ORG_MANAGER,
-      Role.STUDENT,
-      Role.FINANCE_MANAGER,
-      Role.SUB_ADMIN,
-    ]);
-
-    if (!resettableRoles.has(targetRole)) {
-      throw new ForbiddenException('Password reset links can only be generated for organization users.');
-    }
-
-    if (targetRole === Role.SUB_ADMIN && actor.role !== Role.ORG_ADMIN) {
-      throw new ForbiddenException('Only the main organization admin can reset sub-admin passwords.');
-    }
-
-    await this.prisma.passwordResetToken.updateMany({
-      where: { userId: targetUser.id, usedAt: null },
-      data: { usedAt: new Date() },
-    });
-
-    const rawToken = randomBytes(32).toString('hex');
-    const tokenHash = this.hashSecret(rawToken);
-    const expiresAt = new Date(Date.now() + 30 * 60_000);
-    const appBaseUrl = this.configService
-      .getOrThrow<string>('FRONTEND_URL')
-      .replace(/\/+$/, '');
-    const resetUrl = `${appBaseUrl}/reset-password?token=${rawToken}`;
-
-    await this.prisma.passwordResetToken.create({
-      data: {
-        userId: targetUser.id,
-        tokenHash,
-        expiresAt,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-      },
-    });
-
-    let emailSent = false;
-    let emailWarning: string | undefined;
-    const email = this.buildManagedPasswordResetEmail({
-      appBaseUrl,
-      resetUrl,
-      expiresAt,
-      userName: targetUser.name || targetUser.email,
-      organizationName: targetUser.organization?.name || 'your organization',
-      organizationLogoUrl: this.getSafeAssetUrl(
-        targetUser.organization?.logoUrl,
-        appBaseUrl,
-      ),
-    });
-
-    try {
-      const delivery = await this.emailService.send({
-        to: targetUser.email,
-        subject: 'Your EduVerse password reset link',
-        text: email.text,
-        html: email.html,
-      });
-      emailSent = !(delivery && typeof delivery === 'object' && 'skipped' in delivery);
-      if (!emailSent) {
-        emailWarning =
-          'The reset link was copied, but EduVerse could not send email right now. Share the copied link with the user directly.';
-      }
-    } catch (error) {
-      emailWarning =
-        'The reset link was copied, but EduVerse could not deliver the email. Share the copied link with the user directly.';
-      this.logger.warn(
-        `Failed to email managed reset link to ${targetUser.email}: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`,
-      );
-    }
-
-    await this.writeAuditLog('managed_password_reset_link_generated', {
-      ...meta,
-      actorUserId: actor.id,
-      targetUserId: targetUser.id,
-      organizationId: actor.organizationId,
-      details: {
-        targetRole,
-        emailSent,
-      },
-    });
-
-    return {
-      resetUrl,
-      expiresAt,
-      emailSent,
-      message: emailSent
-        ? 'Password reset link copied. EduVerse also emailed it to the user.'
-        : emailWarning,
-      warning: emailWarning,
-    };
+    return this.passwordResetManager.generateManagedUserPasswordResetLink(
+      actor,
+      targetUserId,
+      meta,
+    );
   }
 
   async issueContactEmailVerification(
     orgId: string,
     audit: AuditLogInput,
   ) {
-    const org = await this.prisma.organization.findUnique({
-      where: { id: orgId },
-      select: {
-        id: true,
-        name: true,
-        contactEmail: true,
-        contactEmailVerifiedAt: true,
-        lastVerificationSentAt: true,
-        logoUrl: true,
-      },
-    });
-
-    if (!org) throw new BadRequestException('Organization not found');
-    if (org.contactEmailVerifiedAt) {
-      return;
-    }
-
-    const cooldownMs = 60_000;
-    if (
-      org.lastVerificationSentAt &&
-      Date.now() - org.lastVerificationSentAt.getTime() < cooldownMs
-    ) {
-      throw new HttpException(
-        'Please wait before resending a verification code.',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-    const expiresAt = new Date(Date.now() + 10 * 60_000);
-
-    await this.prisma.organization.update({
-      where: { id: org.id },
-      data: {
-        contactEmailVerificationCodeHash: this.hashSecret(code),
-        contactEmailVerificationExpiresAt: expiresAt,
-        contactEmailVerificationAttempts: 0,
-        lastVerificationSentAt: new Date(),
-      },
-    });
-
-    const appBaseUrl = this.configService
-      .getOrThrow<string>('FRONTEND_URL')
-      .replace(/\/+$/, '');
-    const email = this.buildContactEmailVerificationEmail({
-      appBaseUrl,
-      code,
-      organizationName: org.name,
-      contactEmail: org.contactEmail,
-      organizationLogoUrl: this.getSafeAssetUrl(org.logoUrl, appBaseUrl),
-      reason: this.getAuditReason(audit),
-    });
-
-    await this.emailService.send({
-      to: org.contactEmail,
-      subject: email.subject,
-      text: email.text,
-      html: email.html,
-    });
-
-    await this.writeAuditLog('contact_email_verification_requested', audit);
+    return this.emailVerificationManager.issueContactEmailVerification(
+      orgId,
+      audit,
+    );
   }
 
   private hashSecret(value: string) {
-    return createHash('sha256').update(value).digest('hex');
+    return hashSecret(value);
   }
 
-  private allowAttempt(
-    bucket: Map<string, number[]>,
-    key: string,
-    limit: number,
-    windowMs: number,
-  ) {
-    const now = Date.now();
-    const attempts = (bucket.get(key) || []).filter((ts) => now - ts < windowMs);
-    if (attempts.length >= limit) {
-      bucket.set(key, attempts);
-      return false;
-    }
-    attempts.push(now);
-    bucket.set(key, attempts);
-    return true;
-  }
-
-  private async writeAuditLog(action: string, input: AuditLogInput) {
-    await this.prisma.auditLog.create({
-      data: {
-        action,
-        actorUserId: input.actorUserId,
-        targetUserId: input.targetUserId,
-        organizationId: input.organizationId,
-        ip: input.ip,
-        userAgent: input.userAgent,
-        sessionId: input.sessionId,
-        details: input.details as Prisma.InputJsonValue | undefined,
-      },
-    });
-  }
-
-  private getAuditReason(input: AuditLogInput) {
-    return typeof input.details?.reason === 'string' ? input.details.reason : null;
-  }
-
-  private async getLatestContactEmailVerificationReason(orgId: string) {
-    const auditLogs = await this.prisma.auditLog.findMany({
-      where: {
-        organizationId: orgId,
-        action: 'contact_email_verification_requested',
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { details: true },
-    });
-
-    for (const log of auditLogs) {
-      const reason = this.getDetailsReason(log.details);
-      if (reason === 'first_registration' || reason === 'contact_email_changed') {
-        return reason;
-      }
-    }
-
-    return null;
-  }
-
-  private getDetailsReason(details: unknown) {
-    if (!details || typeof details !== 'object' || Array.isArray(details)) return null;
-    const reason = (details as { reason?: unknown }).reason;
-    return typeof reason === 'string' ? reason : null;
-  }
-
-  private async sendPendingOrganizationVerifiedEmail(input: {
-    organizationId: string;
-    organizationName: string;
-    contactEmail: string;
-  }) {
-    const admins = await this.prisma.user.findMany({
-      where: {
-        role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] },
-        status: UserStatus.ACTIVE,
-      },
-      select: { email: true },
-    });
-
-    if (admins.length === 0) return;
-
-    const appBaseUrl = this.configService
-      .getOrThrow<string>('FRONTEND_URL')
-      .replace(/\/+$/, '');
-    const actionUrl = `${appBaseUrl}/admin/organizations`;
-    const email = this.buildPendingOrganizationVerifiedEmail({
-      ...input,
-      appBaseUrl,
-      actionUrl,
-    });
-
-    const results = await Promise.allSettled(
-      admins.map((admin) =>
-        this.emailService.send({
-          to: admin.email,
-          subject: email.subject,
-          text: email.text,
-          html: email.html,
-        }),
-      ),
-    );
-
-    const failedCount = results.filter((result) => result.status === 'rejected').length;
-    if (failedCount > 0) {
-      this.logger.warn(
-        `Failed to send ${failedCount} pending organization verification alert email(s) for org ${input.organizationId}`,
-      );
-    }
-  }
-
-  private buildPasswordResetEmail(input: {
-    recipient: string;
-    appBaseUrl: string;
-    options: Array<{
-      adminEmail: string;
-      organizationName: string;
-      organizationLogoUrl?: string | null;
-      resetUrl: string;
-    }>;
-    expiresAt: Date;
-  }) {
-    const isMultiple = input.options.length > 1;
-    const title = isMultiple
-      ? 'Choose an account to recover'
-      : 'Reset your EduVerse password';
-    const intro = isMultiple
-      ? `We found ${input.options.length} organization admin accounts that use this recovery email. Choose the one you want to reset.`
-      : `A password reset was requested for ${input.options[0].organizationName}.`;
-
-    const optionText = input.options
-      .map((option, index) =>
-        [
-          `${index + 1}. ${option.organizationName}`,
-          `Admin login: ${option.adminEmail}`,
-          `Reset link: ${option.resetUrl}`,
-        ].join('\n'),
-      )
-      .join('\n\n');
-
-    const optionCards = input.options
-      .map((option, index) => {
-        const escapedOrgName = this.escapeHtml(option.organizationName);
-        const escapedAdminEmail = this.escapeHtml(option.adminEmail);
-        const escapedResetUrl = this.escapeHtml(option.resetUrl);
-        const logoHtml = option.organizationLogoUrl
-          ? `<img src="${this.escapeHtml(option.organizationLogoUrl)}" width="42" height="42" alt="" style="height:42px;width:42px;border-radius:999px;object-fit:cover;border:1px solid #e5e7eb;background:#ffffff;" />`
-          : `<div style="height:42px;width:42px;border-radius:999px;background:#eef2ff;color:#4f46e5;display:inline-flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;">${this.escapeHtml(option.organizationName.charAt(0).toUpperCase() || 'E')}</div>`;
-
-        return `
-          <div style="border:1px solid #e5e7eb;border-radius:16px;background:#ffffff;padding:18px;margin-top:${index === 0 ? '0' : '14px'};">
-            <div style="display:flex;gap:12px;align-items:center;">
-              ${logoHtml}
-              <div style="min-width:0;">
-                <p style="margin:0;color:#111827;font-size:16px;font-weight:800;line-height:1.35;">${escapedOrgName}</p>
-                <p style="margin:4px 0 0;color:#6b7280;font-size:13px;font-weight:600;line-height:1.4;">Admin login: ${escapedAdminEmail}</p>
-              </div>
-            </div>
-            <a href="${escapedResetUrl}" style="display:block;margin-top:16px;text-align:center;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:10px;padding:12px 16px;font-size:14px;font-weight:800;">Reset this account</a>
-          </div>
-        `;
-      })
-      .join('');
-
-    return {
-      text: [
-        title,
-        intro,
-        optionText,
-        'Each link expires in 30 minutes.',
-        'If you did not request this, ignore this email. Your password will not change.',
-      ].join('\n\n'),
-      html: this.buildSecurityEmailHtml({
-        appBaseUrl: input.appBaseUrl,
-        eyebrow: 'Password recovery',
-        title,
-        preview: intro,
-        bodyHtml: `
-          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(intro)}</p>
-          ${optionCards}
-          <div style="margin-top:18px;border-radius:14px;background:#f8fafc;border:1px solid #e5e7eb;padding:14px;">
-            <p style="margin:0;color:#374151;font-size:13px;line-height:1.6;"><strong>Security note:</strong> each reset link expires in 30 minutes. If this mailbox handles multiple organizations, only use the card for the account you intended to recover.</p>
-          </div>
-        `,
-      }),
-    };
-  }
-
-  private buildManagedPasswordResetEmail(input: {
-    appBaseUrl: string;
-    resetUrl: string;
-    expiresAt: Date;
-    userName: string;
-    organizationName: string;
-    organizationLogoUrl?: string | null;
-  }) {
-    const intro = `An administrator from ${input.organizationName} generated a password reset link for ${input.userName}.`;
-
-    return {
-      text: [
-        intro,
-        `Reset link: ${input.resetUrl}`,
-        'This link expires in 30 minutes.',
-        'If you did not request help with your EduVerse password, contact your organization administrator.',
-      ].join('\n\n'),
-      html: this.buildSecurityEmailHtml({
-        appBaseUrl: input.appBaseUrl,
-        eyebrow: 'Password reset',
-        title: 'Reset your EduVerse password',
-        preview: intro,
-        organizationName: input.organizationName,
-        organizationLogoUrl: input.organizationLogoUrl,
-        bodyHtml: `
-          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(intro)}</p>
-          <a href="${this.escapeHtml(input.resetUrl)}" style="display:block;text-align:center;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:800;">Reset password</a>
-          <div style="margin-top:18px;border-radius:14px;background:#f8fafc;border:1px solid #e5e7eb;padding:14px;">
-            <p style="margin:0;color:#374151;font-size:13px;line-height:1.6;"><strong>Security note:</strong> this link expires in 30 minutes and can only be used once.</p>
-          </div>
-        `,
-      }),
-    };
-  }
-
-  private buildContactEmailVerificationEmail(input: {
-    appBaseUrl: string;
-    code: string;
-    organizationName: string;
-    contactEmail: string;
-    organizationLogoUrl?: string | null;
-    reason: string | null;
-  }) {
-    const isFirstRegistration = input.reason === 'first_registration';
-    const intro = input.reason === 'contact_email_changed'
-      ? `A new contact email was set for ${input.organizationName}.`
-      : isFirstRegistration
-        ? `Welcome to EduVerse, ${input.organizationName}.`
-        : `Please verify the contact email for ${input.organizationName}.`;
-    const guidance = isFirstRegistration
-      ? 'Before approval can continue, verify this contact email. It will be used for password recovery, important organization notifications, and security communication.'
-      : 'This code verifies the contact email for this organization workspace only.';
-
-    return {
-      subject: isFirstRegistration
-        ? `Welcome to EduVerse, ${input.organizationName}`
-        : `Verify ${input.organizationName}'s EduVerse contact email`,
-      text: [
-        intro,
-        guidance,
-        `Contact email: ${input.contactEmail}`,
-        `Verification code: ${input.code}`,
-        'This code expires in 10 minutes.',
-        'If this mailbox is used for multiple EduVerse organizations, use this code only in the workspace named above.',
-      ].join('\n\n'),
-      html: this.buildSecurityEmailHtml({
-        appBaseUrl: input.appBaseUrl,
-        eyebrow: isFirstRegistration ? 'Welcome to EduVerse' : 'Contact email verification',
-        title: isFirstRegistration ? 'Verify your organization contact' : 'Confirm this contact email',
-        preview: `${intro} ${guidance}`,
-        organizationName: input.organizationName,
-        organizationLogoUrl: input.organizationLogoUrl,
-        bodyHtml: `
-          <p style="margin:0 0 10px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(intro)}</p>
-          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(guidance)}</p>
-          <div style="border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;padding:14px;margin-bottom:18px;">
-            <p style="margin:0;color:#6b7280;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Contact email</p>
-            <p style="margin:5px 0 0;color:#111827;font-size:14px;font-weight:800;">${this.escapeHtml(input.contactEmail)}</p>
-          </div>
-          <div style="text-align:center;margin:22px 0;">
-            <p style="margin:0 0 10px;color:#6b7280;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Verification code</p>
-            ${this.renderVerificationCode(input.code)}
-          </div>
-          <div style="border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;padding:14px;">
-            <p style="margin:0;color:#9a3412;font-size:13px;line-height:1.6;"><strong>Shared mailbox?</strong> This code verifies only ${this.escapeHtml(input.organizationName)}. It does not verify any other EduVerse organization that may use the same contact email.</p>
-          </div>
-        `,
-      }),
-    };
-  }
-
-  private buildPendingOrganizationVerifiedEmail(input: {
-    appBaseUrl: string;
-    actionUrl: string;
-    organizationId: string;
-    organizationName: string;
-    contactEmail: string;
-  }) {
-    const title = 'Organization ready for review';
-    const intro = `${input.organizationName} verified its contact email and is pending platform approval.`;
-
-    return {
-      subject: `Pending organization verified: ${input.organizationName}`,
-      text: [
-        intro,
-        `Organization ID: ${input.organizationId}`,
-        `Contact email: ${input.contactEmail}`,
-        `Review organizations: ${input.actionUrl}`,
-      ].join('\n\n'),
-      html: this.buildSecurityEmailHtml({
-        appBaseUrl: input.appBaseUrl,
-        eyebrow: 'Platform review',
-        title,
-        preview: intro,
-        bodyHtml: `
-          <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${this.escapeHtml(intro)}</p>
-          <div style="border:1px solid #e5e7eb;border-radius:14px;background:#f8fafc;padding:14px;margin-bottom:18px;">
-            <p style="margin:0;color:#6b7280;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Organization</p>
-            <p style="margin:6px 0 0;color:#111827;font-size:16px;font-weight:900;">${this.escapeHtml(input.organizationName)}</p>
-            <p style="margin:6px 0 0;color:#4b5563;font-size:13px;font-weight:700;">${this.escapeHtml(input.contactEmail)}</p>
-            <p style="margin:6px 0 0;color:#6b7280;font-size:12px;font-family:Consolas,Menlo,monospace;">${this.escapeHtml(input.organizationId)}</p>
-          </div>
-          <a href="${this.escapeHtml(input.actionUrl)}" style="display:block;text-align:center;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:800;">Review organizations</a>
-        `,
-      }),
-    };
-  }
-
-  private buildSecurityEmailHtml(input: {
-    appBaseUrl: string;
-    eyebrow: string;
-    title: string;
-    preview: string;
-    bodyHtml: string;
-    organizationName?: string;
-    organizationLogoUrl?: string | null;
-  }) {
-    const platformLogoUrl = `${input.appBaseUrl}/assets/eduverse-icon-192.png`;
-    const orgLogoHtml = input.organizationLogoUrl
-      ? `<img src="${this.escapeHtml(input.organizationLogoUrl)}" width="34" height="34" alt="" style="height:34px;width:34px;border-radius:999px;object-fit:cover;border:1px solid #e5e7eb;background:#ffffff;" />`
-      : '';
-    const orgNameHtml = input.organizationName
-      ? `<span style="color:#6b7280;font-size:13px;font-weight:700;">${this.escapeHtml(input.organizationName)}</span>`
-      : '';
-
-    return `
-      <!doctype html>
-      <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-          <title>${this.escapeHtml(input.title)}</title>
-        </head>
-        <body style="margin:0;background:#eef2f7;padding:28px 14px;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;color:#111827;">
-          <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${this.escapeHtml(input.preview)}</div>
-          <div style="max-width:640px;margin:0 auto;">
-            <div style="text-align:center;margin-bottom:18px;">
-              <img src="${this.escapeHtml(platformLogoUrl)}" width="56" height="56" alt="EduVerse" style="height:56px;width:56px;border-radius:16px;box-shadow:0 10px 28px rgba(79,70,229,.25);" />
-            </div>
-            <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:24px;overflow:hidden;box-shadow:0 24px 70px rgba(15,23,42,.12);">
-              <div style="padding:28px 28px 20px;background:linear-gradient(135deg,#eef2ff 0%,#ffffff 58%,#ecfeff 100%);border-bottom:1px solid #e5e7eb;">
-                <p style="margin:0 0 10px;color:#4f46e5;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;">${this.escapeHtml(input.eyebrow)}</p>
-                <h1 style="margin:0;color:#111827;font-size:25px;line-height:1.2;font-weight:900;">${this.escapeHtml(input.title)}</h1>
-                ${
-                  input.organizationName
-                    ? `<div style="margin-top:16px;display:flex;align-items:center;gap:10px;">${orgLogoHtml}${orgNameHtml}</div>`
-                    : ''
-                }
-              </div>
-              <div style="padding:26px 28px 28px;">
-                ${input.bodyHtml}
-              </div>
-            </div>
-            <p style="margin:18px 0 0;text-align:center;color:#6b7280;font-size:12px;line-height:1.6;">EduVerse security email. You can safely ignore this message if you did not request it.</p>
-          </div>
-        </body>
-      </html>
-    `;
-  }
-
-  private renderVerificationCode(code: string) {
-    return `
-      <table role="presentation" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;border-collapse:separate;border-spacing:8px 0;user-select:text;-webkit-user-select:text;">
-        <tr>
-          ${code
-            .split('')
-            .map(
-              (digit) =>
-                `<td style="height:48px;width:40px;border-radius:12px;background:#111827;color:#ffffff;font-family:Consolas,Menlo,monospace;font-size:24px;font-weight:900;line-height:48px;text-align:center;vertical-align:middle;user-select:text;-webkit-user-select:text;">${this.escapeHtml(digit)}</td>`,
-            )
-            .join('')}
-        </tr>
-      </table>
-      <p style="margin:10px 0 0;color:#111827;font-family:Consolas,Menlo,monospace;font-size:14px;font-weight:800;letter-spacing:.16em;user-select:text;-webkit-user-select:text;">${this.escapeHtml(code)}</p>
-    `;
-  }
-
-  private getSafeAssetUrl(value: string | null | undefined, appBaseUrl: string) {
-    if (!value) return null;
-    try {
-      const url = value.startsWith('/')
-        ? new URL(value, appBaseUrl)
-        : new URL(value);
-      return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private escapeHtml(value: string) {
-    return value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-}
-
-interface RequestMetadata {
-  ip?: string;
-  userAgent?: string;
-}
-
-interface AuditLogInput extends RequestMetadata {
-  actorUserId?: string;
-  targetUserId?: string;
-  organizationId?: string;
-  sessionId?: string;
-  details?: Record<string, unknown>;
 }
 
 type GoogleOAuthPurpose = 'login' | 'link';
-
-interface SessionDeviceInput {
-  rememberMe?: boolean;
-  deviceId?: string;
-  deviceName?: string;
-  deviceType?: string;
-  browser?: string;
-  os?: string;
-}
 
 interface GoogleOAuthState {
   purpose: GoogleOAuthPurpose;

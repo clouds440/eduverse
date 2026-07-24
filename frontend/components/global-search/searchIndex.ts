@@ -514,7 +514,7 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
         ...(role === Role.ORG_ADMIN ? [{
             id: 'settings-gpa-policies',
             title: 'GPA Policies',
-            href: '/settings/gpa-policies',
+            href: '/settings?tab=gpa-policies',
             group: 'Settings' as const,
             description: 'Configure GPA calculations',
             icon: FileText,

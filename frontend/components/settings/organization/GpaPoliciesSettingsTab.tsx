@@ -339,7 +339,7 @@ function removeRuleAndMergeRange(rules: DraftGpaGradeRule[], targetIndex: number
         .filter((_, index) => index !== targetIndex);
 }
 
-export default function GpaPoliciesPage() {
+export function GpaPoliciesSettingsTab() {
     const { token, user } = useAuth();
     const router = useRouter();
     const { dispatch } = useGlobal();

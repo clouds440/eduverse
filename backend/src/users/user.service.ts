@@ -111,6 +111,7 @@ export class UserService {
   async getUserById(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: { settings: true },
     });
     if (!user) throw new NotFoundException('User not found');
     return user;
@@ -154,6 +155,7 @@ export class UserService {
         password: hashedNew,
         isFirstLogin: false,
       },
+      include: { settings: true },
     });
   }
 }

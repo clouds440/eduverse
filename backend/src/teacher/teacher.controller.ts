@@ -12,9 +12,9 @@ import {
 } from '@nestjs/common';
 import { Role, TeacherStatus } from '../common/enums';
 import { TeacherService } from './teacher.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { CreateTeacherDto } from '../org/dto/create-teacher.dto';
 import { UpdateTeacherDto } from '../org/dto/update-teacher.dto';

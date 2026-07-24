@@ -1,4 +1,4 @@
-import { IsOptional, IsIn } from 'class-validator';
+import { IsOptional, IsIn, IsString } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -6,5 +6,6 @@ export class UpdateUserDto {
   themeMode?: 'LIGHT' | 'DARK' | 'SYSTEM';
 
   @IsOptional()
+  @IsString()
   name?: string;
 }

@@ -11,7 +11,7 @@ import {
   Delete,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateDirectChatDto } from './dto/create-direct-chat.dto';
 import { CreateGroupChatDto } from './dto/create-group.dto';
 import { UpdateChatDto } from './dto/update-chat.dto';

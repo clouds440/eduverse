@@ -88,13 +88,13 @@ model User {
   updatedAt             DateTime           @updatedAt
   name                  String?
   phone                 String?
-  themeMode             ThemeMode          @default(SYSTEM)
   avatarUrl             String?
   avatarUpdatedAt       DateTime?
   departmentScopeType   DepartmentScopeType @default(ALL)
   studentProfile        Student?
   teacherProfile        Teacher?
   guardianProfile       GuardianProfile?
+  settings              UserSettings?
   subAdminDepartments   SubAdminDepartment[]
   organization          Organization?      @relation(fields: [organizationId], references: [id])
   sessions             Session[]
@@ -149,6 +149,21 @@ model User {
 
   @@index([organizationId])
   @@index([role])
+}
+
+model UserSettings {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  twoFactorEnabled       Boolean         @default(false)
+  twoFactorMethod        TwoFactorMethod @default(DEVICE)
+  themeMode              ThemeMode       @default(SYSTEM)
+  loginNotificationEmail Boolean         @default(true)
+  loginNotificationPush  Boolean         @default(true)
+  marketingEmails        Boolean         @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model LinkedAccount {
@@ -1006,6 +1021,12 @@ enum ThemeMode {
   LIGHT
   DARK
   SYSTEM
+}
+
+enum TwoFactorMethod {
+  DEVICE
+  EMAIL
+  BOTH
 }
 
 enum LinkedAccountProvider {

@@ -556,7 +556,9 @@ describe('AuthService Google linked accounts', () => {
     isFirstLogin: false,
     avatarUrl: null,
     avatarUpdatedAt: null,
-    themeMode: 'SYSTEM',
+    settings: {
+      themeMode: 'SYSTEM',
+    },
     organization: {
       id: 'org-1',
       name: 'Test School',
@@ -615,6 +617,7 @@ describe('AuthService Google linked accounts', () => {
       providerAccountId: 'google-sub-1',
       user: linkedUser,
     });
+    const generateTokenSpy = jest.spyOn(service, 'generateToken');
 
     const result = await (service as unknown as {
       loginWithGoogle: (
@@ -641,6 +644,16 @@ describe('AuthService Google linked accounts', () => {
       access_token: 'eduverse-jwt',
       role: Role.ORG_ADMIN,
     }));
+    expect(generateTokenSpy).toHaveBeenCalledTimes(1);
+    expect(generateTokenSpy).toHaveBeenCalledWith(
+      linkedUser,
+      true,
+      expect.objectContaining({
+        deviceId: 'device-1',
+        rememberMe: true,
+      }),
+      'unknown',
+    );
     expect(prisma.linkedAccount.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {

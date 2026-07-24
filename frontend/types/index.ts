@@ -1,6 +1,8 @@
 ﻿import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
 export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
+import type { TwoFactorMethod } from './enums';
+export { TwoFactorMethod } from './enums';
 import type { CommunicationChannel } from './enums';
 export { CommunicationChannel } from './enums';
 import type { AISubscriptionPlan, AISubscriptionOwnerType, AISubscriptionStatus, AILimitMode, AIUsageSourceType } from './enums';
@@ -1450,6 +1452,18 @@ export interface ImportConfirmResult {
     failedCount: number;
     duplicateCount: number;
     errors: InvalidImportRow[];
+}
+
+export interface UserSettings {
+    userId?: string;
+    twoFactorEnabled: boolean;
+    twoFactorMethod: TwoFactorMethod;
+    themeMode: ThemeMode;
+    loginNotificationEmail: boolean;
+    loginNotificationPush: boolean;
+    marketingEmails: boolean;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export type ImportProgressEvent =

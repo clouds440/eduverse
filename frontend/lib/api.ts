@@ -8,7 +8,7 @@ import type {
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
     UpdateGradeRequest, CreateSubmissionRequest, FinalGradeResponse, MailTarget,
     Chat, ChatE2EEContext, ChatMentionOptions, ChatMentionTarget, ChatMessage, ChatSearchUser, CommunicationBlock, Notification, Announcement, TargetType, AnnouncementPriority, User, Attachment,
-    ThemeMode, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
+    ThemeMode, UserSettings, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, ReassignStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
@@ -584,6 +584,10 @@ export const api = {
             }),
         updateProfile: (data: Partial<{ themeMode?: ThemeMode; name?: string }>, token: string) =>
             request('/auth/profile', { method: 'PATCH', body: JSON.stringify(data), token }),
+        getSettings: (token: string) =>
+            request<UserSettings>('/auth/settings', { token }),
+        updateSettings: (data: Partial<UserSettings>, token: string) =>
+            request<UserSettings>('/auth/settings', { method: 'PATCH', body: JSON.stringify(data), token }),
         getLinkedAccounts: (token: string) =>
             request<LinkedAccount[]>('/auth/linked-accounts/me', { token }),
         unlinkGoogle: (token: string) =>
