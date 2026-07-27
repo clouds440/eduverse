@@ -30,7 +30,7 @@ const MarkdownRenderer = dynamic(
 const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: JwtPayload | null }) => {
     // If we have user status but no orgData yet, we can still show a basic message
     const currentStatus = orgData?.status || user?.status;
-    const accessLevel = user?.accessLevel ?? 2;
+    const accessLevel = user?.accessLevel ?? 0;
 
     if (accessLevel > 0) return null;
     if (!orgData) return null;
@@ -289,7 +289,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
     const orgData = state.stats.orgData;
     const chatStats = state.stats.chat;
-    const accessLevel = user?.accessLevel ?? 2;
+    const accessLevel = user?.accessLevel ?? 0;
     const isApproved = accessLevel >= 1;
 
     const { subscribe } = useSocket({

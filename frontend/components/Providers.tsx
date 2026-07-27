@@ -10,7 +10,8 @@ import { SWRProvider } from "@/components/providers/SWRProvider";
 import { initOfflineQueue } from '@/lib/offlineQueue';
 import { API_BASE_URL } from '@/lib/api';
 import { PushSubscriptionSync } from '@/components/ui/PushSubscriptionSync';
-import { EncryptionDeviceLoginPrompt } from '@/components/EncryptionDeviceLoginPrompt';
+import { TrustedDevicePrompt } from '@/components/TrustedDevicePrompt';
+import { UserSettingsProvider } from '@/context/UserSettingsContext';
 
 export function Providers({ children }: { children: React.ReactNode }) {
     useEffect(() => {
@@ -20,17 +21,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return (
         <GlobalProvider>
             <AuthProvider>
+                <UserSettingsProvider>
                 <SWRProvider>
                     <ThemeProvider>
                         <BackNavigationProvider>
                             <UIProvider>
                                 <PushSubscriptionSync />
-                                <EncryptionDeviceLoginPrompt />
+                                <TrustedDevicePrompt />
                                 {children}
                             </UIProvider>
                         </BackNavigationProvider>
                     </ThemeProvider>
                 </SWRProvider>
+                </UserSettingsProvider>
             </AuthProvider>
         </GlobalProvider>
     );

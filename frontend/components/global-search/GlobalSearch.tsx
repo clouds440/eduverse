@@ -36,7 +36,7 @@ export function GlobalSearch({ onOpenChange }: GlobalSearchProps) {
     const [query, setQuery] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(0);
-    const isApproved = (user?.accessLevel ?? 2) >= 1;
+    const isApproved = (user?.accessLevel ?? 0) >= 1;
 
     const items = useMemo(() => buildRouteSearchItems({
         user,

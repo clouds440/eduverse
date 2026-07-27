@@ -15,6 +15,7 @@ type CurrentUser = {
   id: string;
   role: Role | string;
   organizationId?: string | null;
+  sessionId?: string;
 };
 
 const DEFAULT_LIBSODIUM_ALGORITHM = 'libsodium:x25519+ed25519';
@@ -59,7 +60,7 @@ export class E2eeService {
       existingDevice.signingPublicKey !== (dto.signingPublicKey || null)
     ));
 
-    const [otherTrustedDeviceCount, historicalTrustedDeviceCount] = await Promise.all([
+    const [otherTrustedDeviceCount, historicalTrustedDeviceCount, recentVerifiedLogin] = await Promise.all([
       this.prisma.trustedEncryptionDevice.count({
         where: {
           userId: user.id,
@@ -75,6 +76,15 @@ export class E2eeService {
           trustedAt: { not: null },
         },
       }),
+      this.prisma.pendingLogin.findFirst({
+        where: {
+          userId: user.id,
+          deviceId: dto.clientDeviceId,
+          status: 'CONSUMED',
+          consumedAt: { gte: new Date(Date.now() - 2 * 60_000) },
+        },
+        select: { id: true },
+      }),
     ]);
     const existingCanRemainTrusted = Boolean(
       existingDevice &&
@@ -84,7 +94,10 @@ export class E2eeService {
       existingDevice.trustedAt,
     );
     const isFirstTrustedBrowserRegistration = !existingDevice && historicalTrustedDeviceCount === 0 && otherTrustedDeviceCount === 0;
-    const shouldTrustNow = existingCanRemainTrusted || isFirstTrustedBrowserRegistration;
+    const shouldTrustNow =
+      existingCanRemainTrusted ||
+      isFirstTrustedBrowserRegistration ||
+      Boolean(recentVerifiedLogin);
     const trustStatus = shouldTrustNow
       ? E2EEDeviceTrustStatus.TRUSTED
       : E2EEDeviceTrustStatus.PENDING;

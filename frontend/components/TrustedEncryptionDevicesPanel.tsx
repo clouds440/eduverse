@@ -14,7 +14,6 @@ import {
     ShieldAlert,
     ShieldCheck,
     Smartphone,
-    Trash2,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '@/context/AuthContext';
@@ -58,6 +57,7 @@ export function TrustedEncryptionDevicesPanel() {
     const [trustedDeviceToApprove, setTrustedDeviceToApprove] = useState<TrustedEncryptionDevice | null>(null);
     const [trustedDeviceToRemove, setTrustedDeviceToRemove] = useState<TrustedEncryptionDevice | null>(null);
     const [showRevokeAllSessionsDialog, setShowRevokeAllSessionsDialog] = useState(false);
+    const [pendingLoginToApprove, setPendingLoginToApprove] = useState<string | null>(null);
     const promptedApprovalIdRef = useRef<string | null>(null);
 
     const fetchSecurityDevices = useCallback(async () => {
@@ -254,13 +254,35 @@ export function TrustedEncryptionDevicesPanel() {
         setTrustedDeviceToApprove(device);
     }, [devices, loading, searchParams]);
 
+    useEffect(() => {
+        const pendingLoginId = searchParams.get('approveLoginId');
+        if (pendingLoginId) setPendingLoginToApprove(pendingLoginId);
+    }, [searchParams]);
+
+    const handleApproveLogin = async () => {
+        if (!token || !pendingLoginToApprove || !currentClientDeviceId) return;
+        try {
+            dispatch({ type: 'UI_START_PROCESSING', payload: 'two-factor-device-approve' });
+            await api.auth.approveTwoFactorDevice(pendingLoginToApprove, currentClientDeviceId, token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Sign-in approved.', type: 'success' } });
+            setPendingLoginToApprove(null);
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete('approveLoginId');
+            router.replace(params.toString() ? `${pathname}?${params}` : pathname, { scroll: false });
+        } catch (error) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: error instanceof Error ? error.message : 'Unable to approve sign-in.', type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'two-factor-device-approve' });
+        }
+    };
+
     const closeApproveDialog = useCallback(() => {
         setTrustedDeviceToApprove(null);
         clearApprovalDeepLink();
     }, [clearApprovalDeepLink]);
 
     return (
-        <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-sm">
+        <section className="overflow-hidden rounded-lg border border-border/70 bg-card/80 shadow-sm">
             <div className="border-b border-border/60 bg-background/45 px-4 py-4 sm:px-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-3">
@@ -268,8 +290,8 @@ export function TrustedEncryptionDevicesPanel() {
                             <KeyRound className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
-                            <h2 className="text-base font-black text-foreground">Account Devices</h2>
-                            <p className="mt-1 text-xs font-semibold leading-relaxed text-muted-foreground">Manage signed-in browsers and which ones can open secure Chat and Mail.</p>
+                            <h2 className="text-base font-black text-foreground">Devices &amp; sessions</h2>
+                            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">See where you are signed in and which browsers you trust.</p>
                         </div>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
@@ -303,7 +325,21 @@ export function TrustedEncryptionDevicesPanel() {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        <div className="divide-y divide-border/60 overflow-hidden rounded-2xl border border-border/70 bg-background/45">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            <div className="rounded-lg border border-border/70 bg-background/45 p-3">
+                                <p className="text-xl font-black text-foreground">{sessions.length}</p>
+                                <p className="text-xs text-muted-foreground">Active sessions</p>
+                            </div>
+                            <div className="rounded-lg border border-border/70 bg-background/45 p-3">
+                                <p className="text-xl font-black text-foreground">{activeDevices.length}</p>
+                                <p className="text-xs text-muted-foreground">Trusted browsers</p>
+                            </div>
+                            <div className="col-span-2 rounded-lg border border-border/70 bg-background/45 p-3 sm:col-span-1">
+                                <p className="text-xl font-black text-foreground">{devices.filter((device) => device.trustStatus === 'PENDING' && !device.revokedAt).length}</p>
+                                <p className="text-xs text-muted-foreground">Waiting for approval</p>
+                            </div>
+                        </div>
+                        <div className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70 bg-background/45">
                             {rows.map(({ key, session, trustedDevice }) => {
                                 const isCurrent = session?.isCurrent || trustedDevice?.clientDeviceId === currentClientDeviceId;
                                 const deviceName = session?.deviceName || trustedDevice?.displayName || (trustedDevice?.trustStatus === 'PENDING' ? 'Pending browser' : 'Browser device');
@@ -354,62 +390,85 @@ export function TrustedEncryptionDevicesPanel() {
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-col gap-2 sm:flex-row">
-                                                {isPending && trustedDevice && (
-                                                    <Button
-                                                        onClick={() => setTrustedDeviceToApprove(trustedDevice)}
-                                                        variant="primary"
-                                                        icon={CheckCircle2}
-                                                        loadingId={`e2ee-device-approve-${trustedDevice.id}`}
-                                                        disabled={isCurrent || !currentDeviceIsTrusted}
-                                                        px="px-4"
-                                                        py="py-2.5"
-                                                        className="w-full text-xs sm:w-auto"
-                                                    >
-                                                        Trust Browser
-                                                    </Button>
-                                                )}
-                                                {isCurrent && !trustedDevice && (
-                                                    <Button
-                                                        onClick={handleSetupCurrentDevice}
-                                                        variant="primary"
-                                                        icon={ShieldCheck}
-                                                        loadingId="e2ee-device-register"
-                                                        px="px-4"
-                                                        py="py-2.5"
-                                                        className="w-full text-xs sm:w-auto"
-                                                    >
-                                                        Trust Browser
-                                                    </Button>
-                                                )}
-                                                {session && !session.isCurrent && (
-                                                    <Button
-                                                        onClick={() => handleRevokeSession(session)}
-                                                        variant="danger"
-                                                        icon={LogOut}
-                                                        loadingId={`revoke-session-${session.id}`}
-                                                        disabled={!currentDeviceIsTrusted}
-                                                        px="px-4"
-                                                        py="py-2.5"
-                                                        className="w-full text-xs sm:w-auto"
-                                                    >
-                                                        Revoke
-                                                    </Button>
-                                                )}
-                                                {trustedDevice && (
-                                                    <Button
-                                                        onClick={() => setTrustedDeviceToRemove(trustedDevice)}
-                                                        variant="danger"
-                                                        icon={Trash2}
-                                                        loadingId={`e2ee-device-revoke-${trustedDevice.id}`}
-                                                        disabled={!currentDeviceIsTrusted}
-                                                        px="px-4"
-                                                        py="py-2.5"
-                                                        className="w-full text-xs sm:w-auto"
-                                                    >
-                                                        {isTrusted ? 'Remove Trust' : 'Remove Request'}
-                                                    </Button>
-                                                )}
+                                            <div className="grid w-full gap-3 border-t border-border/60 pt-3 sm:grid-cols-2 lg:w-auto lg:min-w-72 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+                                                <div className="space-y-1.5">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Signed-in session</p>
+                                                    {session?.isCurrent ? (
+                                                        <p className="py-2 text-xs font-semibold text-muted-foreground">You are using this session</p>
+                                                    ) : session ? (
+                                                        <Button
+                                                            onClick={() => handleRevokeSession(session)}
+                                                            variant="danger"
+                                                            icon={LogOut}
+                                                            loadingId={`revoke-session-${session.id}`}
+                                                            disabled={!currentDeviceIsTrusted}
+                                                            px="px-4"
+                                                            py="py-2.5"
+                                                            className="w-full text-xs"
+                                                        >
+                                                            Sign out
+                                                        </Button>
+                                                    ) : (
+                                                        <p className="py-2 text-xs font-semibold text-muted-foreground">Not signed in</p>
+                                                    )}
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Browser trust</p>
+                                                    {isPending && trustedDevice ? (
+                                                        <div className="flex flex-col gap-2">
+                                                            <Button
+                                                                onClick={() => setTrustedDeviceToApprove(trustedDevice)}
+                                                                variant="primary"
+                                                                icon={CheckCircle2}
+                                                                loadingId={`e2ee-device-approve-${trustedDevice.id}`}
+                                                                disabled={isCurrent || !currentDeviceIsTrusted}
+                                                                px="px-4"
+                                                                py="py-2.5"
+                                                                className="w-full text-xs"
+                                                            >
+                                                                Approve browser
+                                                            </Button>
+                                                            <Button
+                                                                onClick={() => setTrustedDeviceToRemove(trustedDevice)}
+                                                                variant="ghost"
+                                                                loadingId={`e2ee-device-revoke-${trustedDevice.id}`}
+                                                                disabled={!currentDeviceIsTrusted}
+                                                                px="px-3"
+                                                                py="py-2"
+                                                                className="w-full text-xs text-muted-foreground"
+                                                            >
+                                                                Cancel request
+                                                            </Button>
+                                                        </div>
+                                                    ) : isCurrent && !trustedDevice ? (
+                                                        <Button
+                                                            onClick={handleSetupCurrentDevice}
+                                                            variant="primary"
+                                                            icon={ShieldCheck}
+                                                            loadingId="e2ee-device-register"
+                                                            px="px-4"
+                                                            py="py-2.5"
+                                                            className="w-full text-xs"
+                                                        >
+                                                            Trust browser
+                                                        </Button>
+                                                    ) : trustedDevice ? (
+                                                        <Button
+                                                            onClick={() => setTrustedDeviceToRemove(trustedDevice)}
+                                                            variant="secondary"
+                                                            icon={ShieldAlert}
+                                                            loadingId={`e2ee-device-revoke-${trustedDevice.id}`}
+                                                            disabled={!currentDeviceIsTrusted}
+                                                            px="px-4"
+                                                            py="py-2.5"
+                                                            className="w-full text-xs"
+                                                        >
+                                                            Remove trust
+                                                        </Button>
+                                                    ) : (
+                                                        <p className="py-2 text-xs font-semibold text-muted-foreground">Not trusted</p>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -417,7 +476,7 @@ export function TrustedEncryptionDevicesPanel() {
                             })}
                         </div>
 
-                        <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/45 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-background/45 p-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="text-sm font-semibold text-muted-foreground">
                                 {otherSessions.length} other session{otherSessions.length !== 1 ? 's' : ''} active
                             </div>
@@ -431,12 +490,22 @@ export function TrustedEncryptionDevicesPanel() {
                                 py="py-2.5"
                                 className="w-full text-xs sm:w-auto"
                             >
-                                Revoke All Other Sessions
+                                Sign out all other sessions
                             </Button>
                         </div>
                     </div>
                 )}
             </div>
+
+            <ConfirmDialog
+                isOpen={Boolean(pendingLoginToApprove)}
+                onClose={() => setPendingLoginToApprove(null)}
+                onConfirm={handleApproveLogin}
+                title="Approve this sign-in?"
+                description="Only approve if you just tried to sign in on another browser. That browser will immediately gain access to your account."
+                confirmText="Approve Sign-in"
+                loadingId="two-factor-device-approve"
+            />
 
             <ConfirmDialog
                 isOpen={Boolean(trustedDeviceToApprove)}
@@ -465,9 +534,9 @@ export function TrustedEncryptionDevicesPanel() {
                 isOpen={showRevokeAllSessionsDialog}
                 onClose={() => setShowRevokeAllSessionsDialog(false)}
                 onConfirm={handleConfirmRevokeAllSessions}
-                title="Revoke all other sessions?"
+                title="Sign out all other sessions?"
                 description="This signs your account out everywhere except this browser. Trusted browser access is managed separately."
-                confirmText="Revoke All"
+                confirmText="Sign Out All"
                 isDestructive
                 loadingId="revoke-all-sessions"
             />

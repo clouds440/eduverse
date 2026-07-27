@@ -27,6 +27,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyContactEmailDto } from '../org/dto/verify-contact-email.dto';
 import { AUTH_COOKIE_NAME, extractJwtFromRequest } from './jwt.strategy';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
+import { UpdateContactEmailDto } from './dto/update-contact-email.dto';
 
 type AuthenticatedRequest = {
   user: { id: string; role?: string; organizationId?: string | null; sessionId?: string };
@@ -73,8 +74,83 @@ export class AuthController {
       req.ip ||
       'unknown';
     const result = await this.authService.login(loginDto, ip);
-    this.setAuthCookie(res, result.access_token, loginDto.rememberMe === true, req);
+    if ('access_token' in result) {
+      this.setAuthCookie(res, result.access_token, loginDto.rememberMe === true, req);
+    }
     return result;
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('two-factor/challenge')
+  getTwoFactorChallenge(@Body() body: { temporaryToken: string }) {
+    return this.authService.getTwoFactorChallenge(body.temporaryToken);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('two-factor/select')
+  selectTwoFactorMethod(
+    @Body() body: { temporaryToken: string; method: string },
+  ) {
+    return this.authService.selectTwoFactorMethod(
+      body.temporaryToken,
+      body.method,
+    );
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 8, ttl: 10 * 60_000 } })
+  @Post('two-factor/email/verify')
+  verifyTwoFactorEmail(
+    @Body() body: { temporaryToken: string; code: string },
+  ) {
+    return this.authService.verifyTwoFactorEmail(
+      body.temporaryToken,
+      body.code,
+    );
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Post('two-factor/email/resend')
+  resendTwoFactorEmail(@Body() body: { temporaryToken: string }) {
+    return this.authService.resendTwoFactorEmail(body.temporaryToken);
+  }
+
+  @Public()
+  @Post('two-factor/cancel')
+  cancelTwoFactorLogin(@Body() body: { temporaryToken: string }) {
+    return this.authService.cancelTwoFactorLogin(body.temporaryToken);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('two-factor/complete')
+  async completeTwoFactorLogin(
+    @Body() body: { temporaryToken: string },
+    @Request() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.completeTwoFactorLogin(
+      body.temporaryToken,
+    );
+    this.setAuthCookie(res, result.access_token, result.rememberMe, req);
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Post('two-factor/device/approve')
+  approveTwoFactorDevice(
+    @Request() req: AuthenticatedRequest,
+    @Body() body: { pendingLoginId: string; clientDeviceId: string },
+  ) {
+    return this.authService.approveTwoFactorDevice(
+      req.user.id,
+      body.pendingLoginId,
+      body.clientDeviceId,
+    );
   }
 
   @Public()
@@ -140,7 +216,7 @@ export class AuthController {
         ip: this.getRequestMeta(req).ip,
       });
 
-      if (result.access_token) {
+      if ('access_token' in result && result.access_token) {
         this.setAuthCookie(res, result.access_token, result.rememberMe === true, req);
       }
 
@@ -297,6 +373,30 @@ export class AuthController {
     const token = this.getAuthToken(req);
     this.clearAuthCookie(res, req);
     return this.authService.logout(req.user.id, token);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Get('contact-email')
+  async getContactEmail(@Request() req: AuthenticatedRequest) {
+    return this.authService.getContactEmail(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Patch('contact-email')
+  async updateContactEmail(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: UpdateContactEmailDto,
+  ) {
+    return this.authService.updateContactEmail(req.user, dto.contactEmail);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Post('contact-email/use-linked-google')
+  async useLinkedGoogleContactEmail(@Request() req: AuthenticatedRequest) {
+    return this.authService.useLinkedGoogleContactEmail(req.user);
   }
 
   @UseGuards(JwtAuthGuard)

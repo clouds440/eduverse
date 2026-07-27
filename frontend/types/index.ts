@@ -616,6 +616,21 @@ export interface AuthResponse {
     message?: string;
     avatarUrl?: string | null;
     avatarUpdatedAt?: string | null;
+    requiresTwoFactor?: boolean;
+    temporaryToken?: string;
+    pendingLoginId?: string;
+    methods?: TwoFactorLoginMethod[];
+    expiresAt?: string;
+}
+
+export type TwoFactorLoginMethod = 'email' | 'device';
+
+export interface TwoFactorChallenge {
+    pendingLoginId: string;
+    status: 'pending' | 'verified';
+    selectedMethod: TwoFactorLoginMethod | null;
+    methods: TwoFactorLoginMethod[];
+    expiresAt: string;
 }
 
 export interface LinkedAccount {
@@ -628,6 +643,12 @@ export interface LinkedAccount {
 
 export interface MessageResponse {
     message: string;
+}
+
+export interface ContactEmailStatus {
+    contactEmail: string | null;
+    contactEmailVerifiedAt: string | null;
+    managedByOrganization: boolean;
 }
 
 export interface PasswordResetLinkResponse {
@@ -1458,6 +1479,8 @@ export interface UserSettings {
     userId?: string;
     twoFactorEnabled: boolean;
     twoFactorMethod: TwoFactorMethod;
+    emailTwoFactorEnabled: boolean;
+    deviceTwoFactorEnabled: boolean;
     themeMode: ThemeMode;
     loginNotificationEmail: boolean;
     loginNotificationPush: boolean;

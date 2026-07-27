@@ -3,6 +3,7 @@
 import { Student } from '@/types';
 import StudentForm from '@/components/forms/StudentForm';
 import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
+import { TwoFactorEmailSettings } from '@/components/settings/account/TwoFactorEmailSettings';
 import { UserCircle } from 'lucide-react';
 
 export default function Profile({ profile }: { profile: Student | null }) {
@@ -24,9 +25,12 @@ export default function Profile({ profile }: { profile: Student | null }) {
 
             {/* Session Management */}
             {profile && (
-                <div id="sessions">
-                    <TrustedEncryptionDevicesPanel />
-                </div>
+                <>
+                    <TwoFactorEmailSettings />
+                    <div id="sessions">
+                        <TrustedEncryptionDevicesPanel />
+                    </div>
+                </>
             )}
         </div>
     );

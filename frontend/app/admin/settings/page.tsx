@@ -5,9 +5,7 @@ import { Settings } from 'lucide-react';
 import {
     Role,
     ThemeMode,
-    TwoFactorMethod,
     type LinkedAccount,
-    type UserSettings,
 } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -27,15 +25,7 @@ import {
 import { isSettingsTabKey } from '@/components/settings/settings-tabs';
 import { Loading } from '@/components/ui/Loading';
 import { PageHeader, PageShell, PageTabs } from '@/components/ui/PageShell';
-
-const DEFAULT_SETTINGS: UserSettings = {
-    twoFactorEnabled: false,
-    twoFactorMethod: TwoFactorMethod.DEVICE,
-    themeMode: ThemeMode.SYSTEM,
-    loginNotificationEmail: true,
-    loginNotificationPush: true,
-    marketingEmails: false,
-};
+import { useUserSettings } from '@/context/UserSettingsContext';
 
 const HASH_TABS: Record<string, AdminSettingsTabKey> = {
     'linked-accounts': 'security',
@@ -46,8 +36,8 @@ export default function AdminSettingsPage() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
     const { themeMode, setThemeMode } = useTheme();
+    const { settings, loading: settingsLoading, update: updateUserSettings } = useUserSettings();
     const { getStringParam, searchParams, updateQueryParams } = useUrlQueryState();
-    const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
     const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
     const [loading, setLoading] = useState(true);
     const [linkedAccountsLoading, setLinkedAccountsLoading] = useState(false);
@@ -88,21 +78,18 @@ export default function AdminSettingsPage() {
         if (user.role !== Role.SUPER_ADMIN && user.role !== Role.PLATFORM_ADMIN) return;
 
         setLoading(true);
-        Promise.all([
-            api.auth.getSettings(token),
-            api.auth.getLinkedAccounts(token),
-        ])
-            .then(([nextSettings, accounts]) => {
-                setSettings(nextSettings);
-                setThemeMode(nextSettings.themeMode);
-                setLinkedAccounts(accounts);
-            })
+        api.auth.getLinkedAccounts(token)
+            .then((accounts) => setLinkedAccounts(accounts))
             .catch((error) => {
                 const message = error instanceof Error ? error.message : 'Failed to load account settings';
                 dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
             })
             .finally(() => setLoading(false));
-    }, [dispatch, setThemeMode, token, user]);
+    }, [dispatch, token, user]);
+
+    useEffect(() => {
+        if (!settingsLoading) setThemeMode(settings.themeMode);
+    }, [setThemeMode, settings.themeMode, settingsLoading]);
 
     useEffect(() => {
         const googleLink = searchParams.get('googleLink');
@@ -137,14 +124,11 @@ export default function AdminSettingsPage() {
         if (!token || savingTheme) return;
         const previousMode = settings.themeMode;
         setThemeMode(mode);
-        setSettings((current) => ({ ...current, themeMode: mode }));
         setSavingTheme(true);
         try {
-            const updated = await api.auth.updateSettings({ themeMode: mode }, token);
-            setSettings(updated);
+            await updateUserSettings({ themeMode: mode });
         } catch (error) {
             setThemeMode(previousMode);
-            setSettings((current) => ({ ...current, themeMode: previousMode }));
             const message = error instanceof Error ? error.message : 'Failed to save theme preference';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
@@ -157,14 +141,10 @@ export default function AdminSettingsPage() {
         enabled: boolean,
     ) => {
         if (!token || savingNotification) return;
-        const previousValue = settings[key];
-        setSettings((current) => ({ ...current, [key]: enabled }));
         setSavingNotification(key);
         try {
-            const updated = await api.auth.updateSettings({ [key]: enabled }, token);
-            setSettings(updated);
+            await updateUserSettings({ [key]: enabled });
         } catch (error) {
-            setSettings((current) => ({ ...current, [key]: previousValue }));
             const message = error instanceof Error ? error.message : 'Failed to save notification preference';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
         } finally {
@@ -194,7 +174,7 @@ export default function AdminSettingsPage() {
         }
     };
 
-    if (!user || loading) {
+    if (!user || loading || settingsLoading) {
         return (
             <div className="flex h-64 items-center justify-center">
                 <Loading size="md" />
@@ -207,7 +187,7 @@ export default function AdminSettingsPage() {
     }
 
     return (
-        <PageShell>
+        <PageShell className="min-h-0 gap-3 overflow-x-hidden overflow-y-auto pb-8 pr-1 custom-scrollbar">
             <PageHeader
                 title="Admin Settings"
                 description="Personal appearance, notifications, sign-in methods, and account security."

@@ -1,14 +1,14 @@
-import { TwoFactorMethod, ThemeMode } from '@/prisma/prisma-client';
+import { ThemeMode } from '@/prisma/prisma-client';
 import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 
 export class UpdateUserSettingsDto {
   @IsOptional()
   @IsBoolean()
-  twoFactorEnabled?: boolean;
+  emailTwoFactorEnabled?: boolean;
 
   @IsOptional()
-  @IsEnum(TwoFactorMethod)
-  twoFactorMethod?: TwoFactorMethod;
+  @IsBoolean()
+  deviceTwoFactorEnabled?: boolean;
 
   @IsOptional()
   @IsEnum(ThemeMode)

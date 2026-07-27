@@ -6,6 +6,8 @@ import { Socket } from 'socket.io';
 
 interface WsJwtPayload {
   sub: string;
+  tokenType?: string;
+  pendingLoginId?: string;
 }
 
 /**
@@ -41,6 +43,21 @@ export class WsJwtGuard implements CanActivate {
 
       const payload = jwt.verify(token, secret) as WsJwtPayload;
       if (!payload?.sub) return false;
+
+      if (payload.tokenType === 'two_factor' && payload.pendingLoginId) {
+        const pending = await this.prisma.pendingLogin.findFirst({
+          where: {
+            id: payload.pendingLoginId,
+            userId: payload.sub,
+            status: { in: ['PENDING', 'VERIFIED'] },
+            expiresAt: { gt: new Date() },
+          },
+          select: { id: true, userId: true },
+        });
+        if (!pending) return false;
+        client.data.pendingLogin = pending;
+        return true;
+      }
 
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },

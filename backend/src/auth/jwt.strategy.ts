@@ -6,6 +6,7 @@ import { Request } from 'express';
 
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { AccessLevel } from '../common/access-control/access-level.enum';
 
 export const AUTH_COOKIE_NAME = 'eduverse_access_token';
 
@@ -48,21 +49,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(req: Request, payload: JwtPayload) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      include: { organization: true },
-    });
-    if (!user) {
-      throw new UnauthorizedException();
+    if (
+      payload.id !== payload.sub ||
+      !Object.values(AccessLevel).includes(payload.accessLevel)
+    ) {
+      throw new UnauthorizedException('Invalid session claims.');
     }
 
-    // Check if the session exists and is active
+    // The signed token owns identity and access context. The database lookup is
+    // only for revocation/session activity, not authorization re-resolution.
     const token = extractJwtFromRequest(req);
     let activeSessionId: string | undefined;
     if (token) {
       const session = await this.prisma.session.findFirst({
         where: {
-          userId: user.id,
+          userId: payload.sub,
           token,
           isActive: true,
         },
@@ -83,13 +84,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     return {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      organizationId: user.organizationId,
-      organizationStatus: user.organization?.status,
-      name: user.name,
+      id: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      status: payload.userStatus,
+      organizationId: payload.orgId ?? null,
+      organizationStatus: payload.status,
+      accessLevel: payload.accessLevel,
+      name: payload.name ?? null,
       sessionId: activeSessionId,
     };
   }

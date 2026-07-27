@@ -6,6 +6,7 @@ import { FilesService } from '../files/files.service';
 import { UserService } from '../users/user.service';
 import { OrgService } from './org.service';
 import { ConfigService } from '@nestjs/config';
+import { EmailTemplateService } from '../common/email-templates/email-template.service';
 
 type MockPrismaService = {
   organization: {
@@ -14,6 +15,9 @@ type MockPrismaService = {
   };
   user: {
     findFirst: jest.Mock;
+  };
+  userSettings: {
+    updateMany: jest.Mock;
   };
 };
 
@@ -32,6 +36,9 @@ describe('OrgService updateSettings', () => {
       },
       user: {
         findFirst: jest.fn(),
+      },
+      userSettings: {
+        updateMany: jest.fn(),
       },
     };
 
@@ -57,6 +64,7 @@ describe('OrgService updateSettings', () => {
       authService as unknown as AuthService,
       emailService as unknown as EmailService,
       configService as unknown as ConfigService,
+      new EmailTemplateService(),
     );
   });
 
@@ -93,7 +101,10 @@ describe('OrgService updateSettings', () => {
       statusHistory: [],
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
     });
-    prisma.user.findFirst.mockResolvedValue({ id: 'admin-1' });
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'admin-1',
+      settings: { deviceTwoFactorEnabled: true },
+    });
 
     const result = await service.updateSettings('org-1', {
       name: 'Test School',
@@ -123,7 +134,18 @@ describe('OrgService updateSettings', () => {
     );
     expect(prisma.user.findFirst).toHaveBeenCalledWith({
       where: { organizationId: 'org-1', role: Role.ORG_ADMIN },
-      select: { id: true },
+      select: {
+        id: true,
+        settings: { select: { deviceTwoFactorEnabled: true } },
+      },
+    });
+    expect(prisma.userSettings.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'admin-1' },
+      data: {
+        emailTwoFactorEnabled: false,
+        twoFactorEnabled: true,
+        twoFactorMethod: 'DEVICE',
+      },
     });
     expect(authService.issueContactEmailVerification).toHaveBeenCalledWith(
       'org-1',

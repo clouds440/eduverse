@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/Button";
 import { PLATFORM_NAME } from "@/lib/constants";
 import { getDeviceId, getDeviceInfo } from "@/lib/deviceUtils";
 import Image from "next/image";
+import { TrustedDevicePrompt } from "@/components/TrustedDevicePrompt";
+import { requestCurrentDeviceTrust } from "@/lib/e2ee";
 
 export default function LoginPage() {
   const { login, loading } = useAuth();
@@ -28,8 +30,18 @@ export default function LoginPage() {
     password?: string;
     general?: string;
   }>({});
+  const [temporaryToken, setTemporaryToken] = useState<string | null>(null);
 
   useEffect(() => {
+    const hashParams = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.hash.replace(/^#/, ""))
+      : null;
+    const twoFactorToken = hashParams?.get("twoFactorToken");
+    if (twoFactorToken) {
+      setTemporaryToken(twoFactorToken);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      return;
+    }
     const googleError = searchParams.get("googleError");
     if (googleError) {
       setErrors({ general: googleError });
@@ -69,6 +81,10 @@ export default function LoginPage() {
         os: deviceInfo?.os,
       };
       const res = await api.auth.login(loginPayload);
+      if (res.requiresTwoFactor && res.temporaryToken) {
+        setTemporaryToken(res.temporaryToken);
+        return;
+      }
       await login(res.access_token);
     } catch (err: unknown) {
       const message = err instanceof Error ? err?.message : "Login failed";
@@ -113,6 +129,29 @@ export default function LoginPage() {
       returnTo: "/login",
     });
   };
+
+  const finishTwoFactorLogin = async (accessToken: string) => {
+    await requestCurrentDeviceTrust(accessToken, { sendApprovalNotification: false }).catch(() => {
+        // Trust setup is best-effort here; the completed login remains valid.
+    });
+    await login(accessToken);
+    setTemporaryToken(null);
+  };
+
+  if (temporaryToken) {
+    return (
+      <TrustedDevicePrompt
+        flow="two-factor"
+        temporaryToken={temporaryToken}
+        onComplete={finishTwoFactorLogin}
+        onCancel={() => {
+          void api.auth.cancelTwoFactorLogin(temporaryToken);
+          setTemporaryToken(null);
+          void api.auth.logout();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-fit h-screen bg-background flex items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden">

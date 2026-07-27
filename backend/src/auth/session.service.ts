@@ -10,6 +10,7 @@ import { Role } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { SessionDeviceInput } from './auth-internal.types';
 import { SecurityService } from './security.service';
+import { AccessLevel } from '../common/access-control/access-level.enum';
 
 @Injectable()
 export class SessionService {
@@ -95,17 +96,15 @@ export class SessionService {
         user.id,
         device.deviceId,
       );
-      if (targetClientDeviceIds.length > 0) {
-        await this.securityService.notifyNewDevice({
-          userId: user.id,
-          role: user.role,
-          deviceId: device.deviceId,
-          deviceName: device.deviceName,
-          ip,
-          location,
-          targetClientDeviceIds,
-        });
-      }
+      await this.securityService.notifyNewDevice({
+        userId: user.id,
+        role: user.role,
+        deviceId: device.deviceId,
+        deviceName: device.deviceName,
+        ip,
+        location,
+        targetClientDeviceIds,
+      });
     }
   }
 
@@ -171,11 +170,20 @@ export class SessionService {
 
   async validateSessionToken(token: string) {
     try {
-      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(
+      const payload = await this.jwtService.verifyAsync<{
+        sub?: string;
+        accessLevel?: AccessLevel;
+      }>(
         token,
         { secret: this.configService.get<string>('JWT_SECRET') || '' },
       );
-      if (!payload.sub) return false;
+      if (
+        !payload.sub ||
+        typeof payload.accessLevel !== 'number' ||
+        !Object.values(AccessLevel).includes(payload.accessLevel)
+      ) {
+        return false;
+      }
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
         select: { id: true },

@@ -23,7 +23,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RequestMetadata } from './auth-internal.types';
 import { hashSecret } from './auth-internal.utils';
-import { EmailTemplateService } from './email-template.service';
+import { EmailTemplateService } from '../common/email-templates/email-template.service';
 import { SecurityService } from './security.service';
 
 @Injectable()

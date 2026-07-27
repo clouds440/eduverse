@@ -20,6 +20,7 @@ import { UserService } from '../users/user.service';
 import { AuthService } from '../auth/auth.service';
 import { EmailService } from '../security/email.service';
 import { ConfigService } from '@nestjs/config';
+import { EmailTemplateService } from '../common/email-templates/email-template.service';
 
 @Injectable()
 export class OrgService {
@@ -32,6 +33,7 @@ export class OrgService {
     private readonly authService: AuthService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
+    private readonly emailTemplates: EmailTemplateService,
   ) {}
 
   private async getOrganizationById(orgId: string) {
@@ -131,8 +133,22 @@ export class OrgService {
 
       const admin = await this.prisma.user.findFirst({
         where: { organizationId: orgId, role: Role.ORG_ADMIN },
-        select: { id: true },
+        select: {
+          id: true,
+          settings: { select: { deviceTwoFactorEnabled: true } },
+        },
       });
+      if (admin) {
+        await this.prisma.userSettings.updateMany({
+          where: { userId: admin.id },
+          data: {
+            emailTwoFactorEnabled: false,
+            twoFactorEnabled:
+              admin.settings?.deviceTwoFactorEnabled || false,
+            twoFactorMethod: 'DEVICE',
+          },
+        });
+      }
       await this.authService.issueContactEmailVerification(orgId, {
         targetUserId: admin?.id,
         organizationId: orgId,
@@ -152,19 +168,14 @@ export class OrgService {
       const contactUrl = `${this.configService
         .getOrThrow<string>('FRONTEND_URL')
         .replace(/\/+$/, '')}/contact`;
+      const email = this.emailTemplates.buildContactEmailChangedEmail({
+        organizationName,
+        newContactEmail,
+        contactUrl,
+      });
       await this.emailService.send({
         to: oldContactEmail,
-        subject: 'Your EduVerse contact email was changed',
-        text: [
-          `The verified contact email for ${organizationName} was changed to ${newContactEmail}.`,
-          'Password reset links will not be sent to the new contact email until it is verified.',
-          'If you did not make this change, please contact EduVerse support immediately.',
-        ].join('\n\n'),
-        html: `
-          <p>The verified contact email for <strong>${this.escapeHtml(organizationName)}</strong> was changed to <strong>${this.escapeHtml(newContactEmail)}</strong>.</p>
-          <p>Password reset links will not be sent to the new contact email until it is verified.</p>
-          <p>If you did not make this change, please <a href="${this.escapeHtml(contactUrl)}" style="color:#4f46e5;font-weight:700;">contact</a> EduVerse support immediately.</p>
-        `,
+        ...email,
       });
     } catch (error) {
       this.logger.warn(
@@ -173,19 +184,6 @@ export class OrgService {
         }`,
       );
     }
-  }
-
-  private escapeHtml(value: string) {
-    return value.replace(/[&<>"']/g, (char) => {
-      const entities: Record<string, string> = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;',
-      };
-      return entities[char];
-    });
   }
 
   async updateLogo(

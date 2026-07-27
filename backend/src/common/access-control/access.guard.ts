@@ -7,8 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ACCESS_LEVEL_KEY, IS_ANONYMOUS_ACCESS_KEY } from './access.decorator';
 import { AccessLevel } from './access-level.enum';
-import { resolveAccessLevel } from './access.utils';
-import { Role, OrgStatus, UserStatus } from '../enums';
+import { OrgStatus, UserStatus } from '../enums';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()
@@ -39,8 +38,10 @@ export class AccessGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    // If no access level is specified, we default to WRITE
-    const effectiveRequired = requiredAccess ?? AccessLevel.WRITE;
+    // This is the route's required level, not a fallback grant for the user.
+    // Undecorated protected routes require WRITE so authorization fails closed.
+    const effectiveRequiredAccess =
+      requiredAccess ?? AccessLevel.WRITE;
 
     // NONE level explicitly bypasses status-based restrictions (e.g. for settings/logo during PENDING)
     if (requiredAccess === AccessLevel.NONE) {
@@ -53,17 +54,17 @@ export class AccessGuard implements CanActivate {
       return false;
     }
 
-    // Platform Admins (Super/Platform) are exempt from status-based restrictions
-    if (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN) {
-      return true;
+    const effectiveAccess = user.accessLevel;
+    if (
+      typeof effectiveAccess !== 'number' ||
+      !Object.values(AccessLevel).includes(effectiveAccess)
+    ) {
+      throw new ForbiddenException(
+        'This session does not contain a valid access level. Please sign in again.',
+      );
     }
 
-    const effectiveAccess = resolveAccessLevel({
-      userStatus: user.status,
-      orgStatus: user.organizationStatus || OrgStatus.APPROVED,
-    });
-
-    if (effectiveAccess < effectiveRequired) {
+    if (effectiveAccess < effectiveRequiredAccess) {
       // Detailed error messages for better UX/Debugging
       if (user.organizationStatus && user.organizationStatus !== OrgStatus.APPROVED) {
         throw new ForbiddenException(
@@ -78,7 +79,7 @@ export class AccessGuard implements CanActivate {
       }
 
       throw new ForbiddenException(
-        `Insufficient access level for this action (Required: ${effectiveRequired}, Current: ${effectiveAccess})`,
+        `Insufficient access level for this action (Required: ${effectiveRequiredAccess}, Current: ${effectiveAccess})`,
       );
     }
 

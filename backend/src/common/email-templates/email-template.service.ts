@@ -2,22 +2,32 @@ import { Injectable } from '@nestjs/common';
 import {
   ContactVerificationEmailInput,
   renderContactVerificationEmail,
-} from './email-templates/contact-verification-email.template';
+} from './contact-verification-email.template';
 import {
   PendingOrganizationVerifiedEmailInput,
   renderPendingOrganizationVerifiedEmail,
-} from './email-templates/pending-organization-verified-email.template';
+} from './pending-organization-verified-email.template';
 import {
   ManagedPasswordResetEmailInput,
   PasswordResetEmailInput,
   renderManagedPasswordResetEmail,
   renderPasswordResetEmail,
-} from './email-templates/password-reset-email.template';
+} from './password-reset-email.template';
 import {
   getSafeAssetUrl,
-  renderSecurityEmailLayout,
-  renderVerificationCode,
-} from './email-templates/security-email-layout.template';
+} from './security-email-layout.template';
+import {
+  renderTwoFactorCodeEmail,
+  type TwoFactorCodeEmailInput,
+} from './two-factor-code-email.template';
+import {
+  renderContactEmailChangedEmail,
+  type ContactEmailChangedInput,
+} from './contact-email-changed.template';
+import {
+  renderLoginSecurityAlertEmail,
+  type LoginSecurityAlertEmailInput,
+} from './login-security-alert-email.template';
 
 /**
  * Injectable facade for pure email templates. Keeping this facade means business
@@ -43,14 +53,16 @@ export class EmailTemplateService {
     return renderPendingOrganizationVerifiedEmail(input);
   }
 
-  buildSecurityEmailHtml(
-    input: Parameters<typeof renderSecurityEmailLayout>[0],
-  ) {
-    return renderSecurityEmailLayout(input);
+  buildTwoFactorCodeEmail(input: TwoFactorCodeEmailInput) {
+    return renderTwoFactorCodeEmail(input);
   }
 
-  renderVerificationCode(code: string) {
-    return renderVerificationCode(code);
+  buildContactEmailChangedEmail(input: ContactEmailChangedInput) {
+    return renderContactEmailChangedEmail(input);
+  }
+
+  buildLoginSecurityAlertEmail(input: LoginSecurityAlertEmailInput) {
+    return renderLoginSecurityAlertEmail(input);
   }
 
   getSafeAssetUrl(value: string | null | undefined, appBaseUrl: string) {

@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { useParams, useRouter } from 'next/navigation';
 import { FormPageHeader, FormPageShell } from '@/components/ui/FormLayout';
 import { api } from '@/lib/api';
+import { TwoFactorEmailSettings } from '@/components/settings/account/TwoFactorEmailSettings';
 
 export default function TeacherProfilePage() {
     const { state } = useGlobal();
@@ -100,9 +101,12 @@ export default function TeacherProfilePage() {
 
             {/* Session Management */}
             {!isProfileLoading && effectiveTeacherData && (
-                <div id="sessions">
-                    <TrustedEncryptionDevicesPanel />
-                </div>
+                <>
+                    <TwoFactorEmailSettings />
+                    <div id="sessions">
+                        <TrustedEncryptionDevicesPanel />
+                    </div>
+                </>
             )}
         </FormPageShell>
     );

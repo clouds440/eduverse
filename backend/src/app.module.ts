@@ -40,10 +40,12 @@ import { PreferenceWindowsModule } from './preference-windows/preference-windows
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { AIModule } from './ai/ai.module';
 import { E2eeModule } from './e2ee/e2ee.module';
+import { EmailTemplatesModule } from './common/email-templates/email-templates.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    EmailTemplatesModule,
     ScheduleModule.forRoot(),
     AuthModule,
     AdminModule,

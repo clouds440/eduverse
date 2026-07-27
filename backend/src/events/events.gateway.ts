@@ -109,6 +109,18 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return;
     }
 
+    const pendingLogin = client.data.pendingLogin as
+      | { id: string; userId: string }
+      | undefined;
+    if (pendingLogin) {
+      await client.join(`pending-login:${pendingLogin.id}`);
+      client.emit('connected', {
+        pendingLoginId: pendingLogin.id,
+        rooms: [`pending-login:${pendingLogin.id}`],
+      });
+      return;
+    }
+
     const user = client.data.user as SocketUser;
 
     // Auto-join identity rooms

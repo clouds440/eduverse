@@ -79,6 +79,12 @@ model Organization {
 model User {
   id                    String             @id @default(uuid())
   email                 String             @unique
+  contactEmail          String?
+  contactEmailVerifiedAt DateTime?
+  contactEmailVerificationCodeHash String?
+  contactEmailVerificationExpiresAt DateTime?
+  contactEmailVerificationAttempts Int @default(0)
+  lastContactEmailVerificationSentAt DateTime?
   password              String
   role                  Role               @default(SUPER_ADMIN)
   status                UserStatus         @default(ACTIVE)
@@ -98,6 +104,7 @@ model User {
   subAdminDepartments   SubAdminDepartment[]
   organization          Organization?      @relation(fields: [organizationId], references: [id])
   sessions             Session[]
+  pendingLogins        PendingLogin[]
   createdMails         Mail[]         @relation("CreatedMails")
   assignedMails        Mail[]         @relation("AssignedMails")
   participatingMails   Mail[]         @relation("MailParticipants")
@@ -157,6 +164,8 @@ model UserSettings {
 
   twoFactorEnabled       Boolean         @default(false)
   twoFactorMethod        TwoFactorMethod @default(DEVICE)
+  emailTwoFactorEnabled  Boolean         @default(false)
+  deviceTwoFactorEnabled Boolean         @default(false)
   themeMode              ThemeMode       @default(SYSTEM)
   loginNotificationEmail Boolean         @default(true)
   loginNotificationPush  Boolean         @default(true)
@@ -164,6 +173,34 @@ model UserSettings {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model PendingLogin {
+  id                String             @id @default(uuid())
+  userId            String
+  status            PendingLoginStatus @default(PENDING)
+  selectedMethod    TwoFactorMethod?
+  availableMethods  TwoFactorMethod[]
+  emailCodeHash     String?
+  emailCodeAttempts Int                @default(0)
+  emailCodeSentAt   DateTime?
+  deviceId          String
+  deviceName        String?
+  deviceType        String?
+  browser           String?
+  os                String?
+  ip                String?
+  rememberMe        Boolean            @default(false)
+  expiresAt         DateTime
+  verifiedAt        DateTime?
+  consumedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([expiresAt])
 }
 
 model LinkedAccount {
@@ -1027,6 +1064,13 @@ enum TwoFactorMethod {
   DEVICE
   EMAIL
   BOTH
+}
+
+enum PendingLoginStatus {
+  PENDING
+  VERIFIED
+  CONSUMED
+  CANCELLED
 }
 
 enum LinkedAccountProvider {

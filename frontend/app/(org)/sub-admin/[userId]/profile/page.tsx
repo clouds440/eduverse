@@ -10,6 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { DepartmentScopeType, Role, User, UserStatus } from '@/types';
 import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
+import { TwoFactorEmailSettings } from '@/components/settings/account/TwoFactorEmailSettings';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { FormActions, FormField, FormGrid, FormPageHeader, FormPageShell, FormSection, FORM_INPUT_CLASS, FORM_READONLY_INPUT_CLASS } from '@/components/ui/FormLayout';
@@ -311,6 +312,7 @@ export default function SubAdminProfilePage() {
                 />
             </form>
 
+            <TwoFactorEmailSettings />
             <div id="sessions" className="scroll-mt-24">
                 <TrustedEncryptionDevicesPanel />
             </div>

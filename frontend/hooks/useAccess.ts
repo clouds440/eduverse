@@ -4,7 +4,8 @@ export function useAccess() {
     const { user } = useAuth();
     
     // accessLevel: 0 (NONE), 1 (READ), 2 (WRITE)
-    const accessLevel = user?.accessLevel ?? 2;
+    // Missing or legacy claims must fail closed in the UI.
+    const accessLevel = user?.accessLevel ?? 0;
     
     return {
         accessLevel,

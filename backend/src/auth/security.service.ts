@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@/prisma/prisma-client';
 import { Role } from '../common/enums';
 import {
@@ -8,13 +9,23 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogInput } from './auth-internal.types';
 import { getDetailsReason } from './auth-internal.utils';
+import { EmailService } from '../security/email.service';
+import { EmailTemplateService } from '../common/email-templates/email-template.service';
+import { UserSettingsContextService } from './user-settings-context.service';
 
 @Injectable()
 export class SecurityService {
+  private readonly logger = new Logger(SecurityService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(NOTIFICATIONS_SERVICE)
     private readonly notificationsService: NotificationCreator,
+    @Optional() private readonly emailService?: EmailService,
+    @Optional() private readonly configService?: ConfigService,
+    @Optional() private readonly templates?: EmailTemplateService,
+    @Optional()
+    private readonly settingsContext?: UserSettingsContextService,
   ) {}
 
   async recordEvent(action: string, input: AuditLogInput) {
@@ -60,21 +71,19 @@ export class SecurityService {
     previousLocation: string;
     newLocation: string;
   }) {
-    if (!(await this.allowsLoginPushNotification(input.userId))) return;
-
-    await this.notificationsService.createNotification({
-      userId: input.userId,
-      title: 'Suspicious Activity Detected',
-      body: `Your account was accessed from a new location (${input.newLocation}). Previous location: ${input.previousLocation}. If this wasn't you, please revoke this session in your settings.`,
-      type: 'SECURITY',
-      actionUrl: this.getAccountSecurityUrl(input),
+    const title = 'Sign-in from a new location';
+    const body = `Your account was accessed from ${input.newLocation}. Your previous location was ${input.previousLocation}.`;
+    await this.deliverLoginAlert(input, {
+      title,
+      body,
+      location: input.newLocation,
       metadata: {
-        deviceId: input.deviceId,
-        deviceName: input.deviceName,
-        previousLocation: input.previousLocation,
-        newLocation: input.newLocation,
-        loginTime: new Date().toISOString(),
-      },
+          deviceId: input.deviceId ?? null,
+          deviceName: input.deviceName ?? null,
+          previousLocation: input.previousLocation,
+          newLocation: input.newLocation,
+          loginTime: new Date().toISOString(),
+        },
     });
   }
 
@@ -87,17 +96,14 @@ export class SecurityService {
     location: string | null;
     targetClientDeviceIds: string[];
   }) {
-    if (!(await this.allowsLoginPushNotification(input.userId))) return;
-
-    await this.notificationsService.createNotification({
-      userId: input.userId,
-      title: 'New Device Login',
-      body: `A new device (${input.deviceName || 'Unknown Device'}) has logged into your account from ${input.location || 'Unknown Location'} (IP: ${input.ip}). If this wasn't you, please revoke this session in your settings.`,
-      type: 'SECURITY',
-      actionUrl: this.getAccountSecurityUrl(input),
+    await this.deliverLoginAlert(input, {
+      title: 'New device sign-in',
+      body: `${input.deviceName || 'A new device'} signed in from ${input.location || 'an unknown location'}.`,
+      location: input.location,
+      ip: input.ip,
       metadata: {
-        deviceId: input.deviceId,
-        deviceName: input.deviceName,
+        deviceId: input.deviceId ?? null,
+        deviceName: input.deviceName ?? null,
         ip: input.ip,
         location: input.location,
         loginTime: new Date().toISOString(),
@@ -132,11 +138,92 @@ export class SecurityService {
     }
   }
 
-  private async allowsLoginPushNotification(userId: string) {
-    const settings = await this.prisma.userSettings.findUnique({
-      where: { userId },
-      select: { loginNotificationPush: true },
-    });
-    return settings?.loginNotificationPush ?? true;
+  private async deliverLoginAlert(
+    user: {
+      userId: string;
+      role: Role;
+      deviceName?: string;
+    },
+    alert: {
+      title: string;
+      body: string;
+      location?: string | null;
+      ip?: string | null;
+      metadata: Prisma.JsonObject;
+    },
+  ) {
+    const preferences = await this.getLoginNotificationPreferences(user.userId);
+    if (!preferences) return;
+
+    const securityPath = this.getAccountSecurityUrl(user);
+    const deliveries: Promise<unknown>[] = [];
+
+    if (preferences.push) {
+      deliveries.push(
+        this.notificationsService.createNotification({
+          userId: user.userId,
+          title: alert.title,
+          body: `${alert.body} If this wasn't you, review your sessions.`,
+          type: 'SECURITY',
+          actionUrl: securityPath,
+          metadata: alert.metadata,
+        }),
+      );
+    }
+
+    if (
+      preferences.email &&
+      preferences.emailAddress &&
+      this.emailService &&
+      this.templates
+    ) {
+      const appBaseUrl =
+        this.configService?.get<string>('FRONTEND_URL') ||
+        'http://localhost:3000';
+      const securityUrl = new URL(securityPath, appBaseUrl).toString();
+      const email = this.templates.buildLoginSecurityAlertEmail({
+        appBaseUrl,
+        title: alert.title,
+        summary: `${alert.body} If this wasn't you, review your sessions and sign out devices you do not recognize.`,
+        deviceName: user.deviceName,
+        location: alert.location,
+        ip: alert.ip,
+        securityUrl,
+      });
+      deliveries.push(
+        this.emailService.send({
+          to: preferences.emailAddress,
+          ...email,
+        }),
+      );
+    }
+
+    const results = await Promise.allSettled(deliveries);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.logger.error(
+          `Security alert delivery failed for ${user.userId}`,
+          result.reason instanceof Error
+            ? result.reason.stack
+            : String(result.reason),
+        );
+      }
+    }
+  }
+
+  /**
+   * One policy read supplies every login-alert channel. Future login security
+   * events should call deliverLoginAlert instead of querying UserSettings.
+   */
+  private async getLoginNotificationPreferences(userId: string) {
+    const context =
+      (await this.settingsContext?.get(userId)) ??
+      (await new UserSettingsContextService(this.prisma).get(userId));
+    if (!context) return null;
+    return {
+      emailAddress: context.user.email,
+      email: context.settings.loginNotificationEmail,
+      push: context.settings.loginNotificationPush,
+    };
   }
 }

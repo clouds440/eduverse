@@ -4,16 +4,16 @@ import {
   HttpStatus,
   Injectable,
   Logger,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomInt } from 'crypto';
 import { OrgStatus, Role, UserStatus } from '../common/enums';
+import { LinkedAccountProvider } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../security/email.service';
 import { AuditLogInput, RequestMetadata } from './auth-internal.types';
 import { hashSecret } from './auth-internal.utils';
-import { EmailTemplateService } from './email-template.service';
+import { EmailTemplateService } from '../common/email-templates/email-template.service';
 import { SecurityService } from './security.service';
 
 @Injectable()
@@ -28,6 +28,138 @@ export class EmailVerificationService {
     private readonly securityService: SecurityService,
   ) {}
 
+  async getContactEmail(user: {
+    id: string;
+    role: string;
+    organizationId?: string | null;
+  }) {
+    if (this.usesOrganizationContact(user)) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: user.organizationId! },
+        select: { contactEmail: true, contactEmailVerifiedAt: true },
+      });
+      if (!organization) throw new BadRequestException('Organization not found');
+      return {
+        contactEmail: organization.contactEmail,
+        contactEmailVerifiedAt:
+          organization.contactEmailVerifiedAt?.toISOString() || null,
+        managedByOrganization: true,
+      };
+    }
+    const account = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { contactEmail: true, contactEmailVerifiedAt: true },
+    });
+    if (!account) throw new BadRequestException('User not found');
+    return {
+      contactEmail: account.contactEmail,
+      contactEmailVerifiedAt:
+        account.contactEmailVerifiedAt?.toISOString() || null,
+      managedByOrganization: false,
+    };
+  }
+
+  async updateContactEmail(
+    user: {
+      id: string;
+      role: string;
+      organizationId?: string | null;
+      sessionId?: string;
+    },
+    contactEmail: string,
+  ) {
+    if (this.usesOrganizationContact(user)) {
+      throw new BadRequestException(
+        'Update the organization contact email from the Profile tab.',
+      );
+    }
+    const current = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        contactEmail: true,
+        contactEmailVerifiedAt: true,
+        settings: { select: { deviceTwoFactorEnabled: true } },
+      },
+    });
+    if (!current) throw new BadRequestException('User not found');
+    const normalized = contactEmail.trim().toLowerCase();
+    if (
+      current.contactEmail?.toLowerCase() === normalized &&
+      current.contactEmailVerifiedAt
+    ) {
+      return this.getContactEmail(user);
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        contactEmail: normalized,
+        contactEmailVerifiedAt: null,
+        contactEmailVerificationCodeHash: null,
+        contactEmailVerificationExpiresAt: null,
+        contactEmailVerificationAttempts: 0,
+        lastContactEmailVerificationSentAt: null,
+      },
+    });
+    await this.prisma.userSettings.updateMany({
+      where: { userId: user.id },
+      data: {
+        emailTwoFactorEnabled: false,
+        twoFactorEnabled: current.settings?.deviceTwoFactorEnabled || false,
+        twoFactorMethod: 'DEVICE',
+      },
+    });
+    await this.issueUserContactEmailVerification(user, normalized);
+    return this.getContactEmail(user);
+  }
+
+  async useLinkedGoogleContactEmail(user: {
+    id: string;
+    role: string;
+    organizationId?: string | null;
+  }) {
+    const linked = await this.prisma.linkedAccount.findFirst({
+      where: {
+        userId: user.id,
+        provider: LinkedAccountProvider.GOOGLE,
+        email: { not: null },
+      },
+      select: { email: true },
+    });
+    const contactEmail = linked?.email?.trim().toLowerCase();
+    if (!contactEmail) {
+      throw new BadRequestException(
+        'Link a Google account with an email address first.',
+      );
+    }
+    const verifiedAt = new Date();
+    if (this.usesOrganizationContact(user)) {
+      await this.prisma.organization.update({
+        where: { id: user.organizationId! },
+        data: {
+          contactEmail,
+          contactEmailVerifiedAt: verifiedAt,
+          contactEmailVerificationCodeHash: null,
+          contactEmailVerificationExpiresAt: null,
+          contactEmailVerificationAttempts: 0,
+          lastVerificationSentAt: null,
+        },
+      });
+    } else {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          contactEmail,
+          contactEmailVerifiedAt: verifiedAt,
+          contactEmailVerificationCodeHash: null,
+          contactEmailVerificationExpiresAt: null,
+          contactEmailVerificationAttempts: 0,
+          lastContactEmailVerificationSentAt: null,
+        },
+      });
+    }
+    return this.getContactEmail(user);
+  }
+
   async resendContactEmailVerification(
     user: {
       id: string;
@@ -37,7 +169,19 @@ export class EmailVerificationService {
     },
     meta: RequestMetadata,
   ) {
-    this.assertOrganizationAdmin(user);
+    if (!this.usesOrganizationContact(user)) {
+      const account = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: { contactEmail: true },
+      });
+      if (!account?.contactEmail) {
+        throw new BadRequestException('Add a contact email first.');
+      }
+      await this.issueUserContactEmailVerification(user, account.contactEmail);
+      return {
+        message: 'Verification code sent. Please check your contact email.',
+      };
+    }
     await this.issueContactEmailVerification(user.organizationId!, {
       ...meta,
       actorUserId: user.id,
@@ -60,7 +204,9 @@ export class EmailVerificationService {
     code: string,
     meta: RequestMetadata,
   ) {
-    this.assertOrganizationAdmin(user);
+    if (!this.usesOrganizationContact(user)) {
+      return this.verifyUserContactEmail(user, code, meta);
+    }
     const org = await this.prisma.organization.findUnique({
       where: { id: user.organizationId! },
       select: {
@@ -224,15 +370,154 @@ export class EmailVerificationService {
     );
   }
 
-  private assertOrganizationAdmin(user: {
+  private usesOrganizationContact(user: {
     role: string;
     organizationId?: string | null;
   }) {
-    if (user.role !== Role.ORG_ADMIN || !user.organizationId) {
-      throw new UnauthorizedException(
-        'Only organization admins can verify contact email',
+    return user.role === Role.ORG_ADMIN && Boolean(user.organizationId);
+  }
+
+  private async issueUserContactEmailVerification(
+    user: { id: string; organizationId?: string | null; sessionId?: string },
+    contactEmail: string,
+  ) {
+    const account = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        name: true,
+        contactEmailVerifiedAt: true,
+        lastContactEmailVerificationSentAt: true,
+        organization: { select: { name: true, logoUrl: true } },
+      },
+    });
+    if (!account) throw new BadRequestException('User not found');
+    if (account.contactEmailVerifiedAt) return;
+    if (
+      account.lastContactEmailVerificationSentAt &&
+      Date.now() - account.lastContactEmailVerificationSentAt.getTime() < 60_000
+    ) {
+      throw new HttpException(
+        'Please wait before resending a verification code.',
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    const expiresAt = new Date(Date.now() + 10 * 60_000);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        contactEmailVerificationCodeHash: hashSecret(code),
+        contactEmailVerificationExpiresAt: expiresAt,
+        contactEmailVerificationAttempts: 0,
+        lastContactEmailVerificationSentAt: new Date(),
+      },
+    });
+    const appBaseUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/+$/, '');
+    const email = this.templates.buildContactEmailVerificationEmail({
+      appBaseUrl,
+      code,
+      organizationName:
+        account.organization?.name || account.name || 'your EduVerse account',
+      contactEmail,
+      organizationLogoUrl: this.templates.getSafeAssetUrl(
+        account.organization?.logoUrl,
+        appBaseUrl,
+      ),
+      reason: 'account_contact_email',
+    });
+    await this.emailService.send({
+      to: contactEmail,
+      subject: email.subject,
+      text: email.text,
+      html: email.html,
+    });
+    await this.securityService.recordEvent(
+      'contact_email_verification_requested',
+      {
+        actorUserId: user.id,
+        targetUserId: user.id,
+        organizationId: user.organizationId || undefined,
+        sessionId: user.sessionId,
+        details: { reason: 'account_contact_email' },
+      },
+    );
+  }
+
+  private async verifyUserContactEmail(
+    user: {
+      id: string;
+      organizationId?: string | null;
+      sessionId?: string;
+    },
+    code: string,
+    meta: RequestMetadata,
+  ) {
+    const account = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        contactEmail: true,
+        contactEmailVerifiedAt: true,
+        contactEmailVerificationCodeHash: true,
+        contactEmailVerificationExpiresAt: true,
+        contactEmailVerificationAttempts: true,
+      },
+    });
+    if (!account?.contactEmail) throw new BadRequestException('Add a contact email first.');
+    if (account.contactEmailVerifiedAt) {
+      return { message: 'Contact email is already verified.' };
+    }
+    if (
+      !account.contactEmailVerificationCodeHash ||
+      !account.contactEmailVerificationExpiresAt ||
+      account.contactEmailVerificationExpiresAt <= new Date()
+    ) {
+      throw new BadRequestException(
+        'Verification code expired. Please request a new code.',
+      );
+    }
+    if (account.contactEmailVerificationAttempts >= 5) {
+      throw new HttpException(
+        'Too many incorrect attempts. Please resend a new code.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    if (hashSecret(code) !== account.contactEmailVerificationCodeHash) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { contactEmailVerificationAttempts: { increment: 1 } },
+      });
+      await this.securityService.recordEvent(
+        'contact_email_verification_failed',
+        {
+          ...meta,
+          actorUserId: user.id,
+          targetUserId: user.id,
+          organizationId: user.organizationId || undefined,
+          sessionId: user.sessionId,
+          details: { reason: 'invalid_code' },
+        },
+      );
+      throw new BadRequestException('Invalid verification code.');
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        contactEmailVerifiedAt: new Date(),
+        contactEmailVerificationCodeHash: null,
+        contactEmailVerificationExpiresAt: null,
+        contactEmailVerificationAttempts: 0,
+      },
+    });
+    await this.securityService.recordEvent('contact_email_verified', {
+      ...meta,
+      actorUserId: user.id,
+      targetUserId: user.id,
+      organizationId: user.organizationId || undefined,
+      sessionId: user.sessionId,
+    });
+    return { message: 'Contact email verified successfully.' };
   }
 
   private async sendPendingOrganizationVerifiedEmail(input: {

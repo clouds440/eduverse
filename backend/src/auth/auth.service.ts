@@ -38,12 +38,14 @@ import {
   SessionDeviceInput,
 } from './auth-internal.types';
 import { hashSecret } from './auth-internal.utils';
-import { EmailTemplateService } from './email-template.service';
+import { EmailTemplateService } from '../common/email-templates/email-template.service';
 import { EmailVerificationService } from './email-verification.service';
 import { PasswordResetService } from './password-reset.service';
 import { SecurityService } from './security.service';
+import { UserSettingsContextService } from './user-settings-context.service';
 import { SessionService } from './session.service';
 import { UserPreferencesService } from './user-preferences.service';
+import { TwoFactorService } from './two-factor.service';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -74,11 +76,19 @@ export class AuthService {
     @Optional() emailVerificationService?: EmailVerificationService,
     @Optional() userPreferencesService?: UserPreferencesService,
     @Optional() emailTemplateService?: EmailTemplateService,
+    @Optional() private readonly twoFactorService?: TwoFactorService,
   ) {
+    const templates = emailTemplateService ?? new EmailTemplateService();
     const security =
       securityService ??
-      new SecurityService(this.prisma, this.notificationsService);
-    const templates = emailTemplateService ?? new EmailTemplateService();
+      new SecurityService(
+        this.prisma,
+        this.notificationsService,
+        this.emailService,
+        this.configService,
+        templates,
+        new UserSettingsContextService(this.prisma),
+      );
     this.sessionManager =
       sessionService ??
       new SessionService(
@@ -339,6 +349,14 @@ export class AuthService {
       input.ip,
     );
 
+    if ('requiresTwoFactor' in result) {
+      return {
+        purpose: state.purpose,
+        ...result,
+        rememberMe: state.device?.rememberMe === true,
+        redirectUrl: `${this.getPrimaryFrontendUrl()}/login#twoFactorToken=${encodeURIComponent(result.temporaryToken)}`,
+      };
+    }
     return {
       purpose: state.purpose,
       access_token: result.access_token,
@@ -421,13 +439,16 @@ export class AuthService {
       );
     }
 
-    return this.completeLogin(linkedAccount.user, device, ip);
+    return this.completeLogin(linkedAccount.user, device, ip, {
+      skipTwoFactor: true,
+    });
   }
 
   private async completeLogin(
     user: TokenUser,
     device?: SessionDeviceInput,
     ip = 'unknown',
+    options: { skipTwoFactor?: boolean } = {},
   ) {
     if (user.status === UserStatus.DELETED) {
       throw new UnauthorizedException(
@@ -440,7 +461,71 @@ export class AuthService {
     const sessionDevice = this.normalizeSessionDevice(device);
     const rememberMe = device?.rememberMe === true;
 
+    if (this.twoFactorService && !options.skipTwoFactor) {
+      const challenge = await this.twoFactorService.begin(
+        {
+          id: user.id,
+          role: user.role as Role,
+          organizationId: user.organizationId,
+          settings: user.settings,
+        },
+        sessionDevice,
+        ip,
+      );
+      if (challenge) return challenge;
+    }
+
     return this.generateToken(user, rememberMe, sessionDevice, ip);
+  }
+
+  getTwoFactorChallenge(temporaryToken: string) {
+    return this.requireTwoFactorService().getChallenge(temporaryToken);
+  }
+
+  selectTwoFactorMethod(temporaryToken: string, method: string) {
+    return this.requireTwoFactorService().selectMethod(temporaryToken, method);
+  }
+
+  verifyTwoFactorEmail(temporaryToken: string, code: string) {
+    return this.requireTwoFactorService().verifyEmail(temporaryToken, code);
+  }
+
+  resendTwoFactorEmail(temporaryToken: string) {
+    return this.requireTwoFactorService().resendEmail(temporaryToken);
+  }
+
+  cancelTwoFactorLogin(temporaryToken: string) {
+    return this.requireTwoFactorService().cancel(temporaryToken);
+  }
+
+  approveTwoFactorDevice(
+    userId: string,
+    pendingLoginId: string,
+    clientDeviceId: string,
+  ) {
+    return this.requireTwoFactorService().approveDevice(
+      userId,
+      pendingLoginId,
+      clientDeviceId,
+    );
+  }
+
+  async completeTwoFactorLogin(temporaryToken: string) {
+    const verified = await this.requireTwoFactorService().consume(temporaryToken);
+    const result = await this.generateToken(
+      verified.user,
+      verified.rememberMe,
+      verified.device,
+      verified.ip,
+    );
+    return { ...result, rememberMe: verified.rememberMe };
+  }
+
+  private requireTwoFactorService() {
+    if (!this.twoFactorService) {
+      throw new BadRequestException('Two-factor authentication is unavailable.');
+    }
+    return this.twoFactorService;
   }
 
   private normalizeSessionDevice(
@@ -707,7 +792,8 @@ export class AuthService {
     });
 
     // Issue a NEW token so the isFirstLogin: false change is reflected in the JWT payload
-    const { access_token: newToken } = await this.generateToken(updatedUser, true);
+    const generated = await this.generateToken(updatedUser, true);
+    const newToken = generated.access_token;
 
     if (currentToken) {
       await this.sessionManager.replaceCurrentAndRevokeOthers(
@@ -721,10 +807,7 @@ export class AuthService {
       access_token: newToken,
       role: updatedUser.role,
       status: updatedUser.status as unknown as UserStatus,
-      accessLevel: resolveAccessLevel({
-        userStatus: updatedUser.status as unknown as UserStatus,
-        orgStatus: (updatedUser.organization?.status as unknown as OrgStatus) || OrgStatus.APPROVED,
-      }),
+      accessLevel: generated.accessLevel,
     };
   }
 
@@ -812,6 +895,43 @@ export class AuthService {
       orgId,
       audit,
     );
+  }
+
+  async getContactEmail(user: {
+    id: string;
+    role?: string;
+    organizationId?: string | null;
+  }) {
+    return this.emailVerificationManager.getContactEmail({
+      ...user,
+      role: user.role || '',
+    });
+  }
+
+  async updateContactEmail(
+    user: {
+      id: string;
+      role?: string;
+      organizationId?: string | null;
+      sessionId?: string;
+    },
+    contactEmail: string,
+  ) {
+    return this.emailVerificationManager.updateContactEmail(
+      { ...user, role: user.role || '' },
+      contactEmail,
+    );
+  }
+
+  async useLinkedGoogleContactEmail(user: {
+    id: string;
+    role?: string;
+    organizationId?: string | null;
+  }) {
+    return this.emailVerificationManager.useLinkedGoogleContactEmail({
+      ...user,
+      role: user.role || '',
+    });
   }
 
   private hashSecret(value: string) {

@@ -8,12 +8,14 @@ import { JwtStrategy } from './jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SecurityModule } from '../security/security.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { EmailTemplateService } from './email-template.service';
 import { EmailVerificationService } from './email-verification.service';
 import { PasswordResetService } from './password-reset.service';
 import { SecurityService as AuthSecurityService } from './security.service';
 import { SessionService } from './session.service';
 import { UserPreferencesService } from './user-preferences.service';
+import { TwoFactorService } from './two-factor.service';
+import { EmailTemplatesModule } from '../common/email-templates/email-templates.module';
+import { UserSettingsContextService } from './user-settings-context.service';
 
 // ...
 
@@ -21,6 +23,7 @@ import { UserPreferencesService } from './user-preferences.service';
   imports: [
     PassportModule,
     SecurityModule,
+    EmailTemplatesModule,
     forwardRef(() => NotificationsModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -39,9 +42,10 @@ import { UserPreferencesService } from './user-preferences.service';
     AuthSecurityService,
     PasswordResetService,
     EmailVerificationService,
-    EmailTemplateService,
     UserPreferencesService,
+    TwoFactorService,
+    UserSettingsContextService,
   ],
-  exports: [AuthService],
+  exports: [AuthService, UserSettingsContextService],
 })
 export class AuthModule {}

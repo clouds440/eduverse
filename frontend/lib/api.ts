@@ -1,5 +1,5 @@
 import type {
-    Teacher, Student, Organization, RegisterRequest, LoginRequest, AuthResponse,
+    Teacher, Student, Organization, RegisterRequest, LoginRequest, AuthResponse, ContactEmailStatus,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
     CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
@@ -25,7 +25,7 @@ import type {
     PreferenceWindow, PreferenceWindowRequest, PreferenceResults, PreferenceSubmission, Enrollment, EnrollmentMutationResponse,
     LinkedAccount, PasswordResetLinkResponse, PublicProfile,
     ApproveTrustedDevicePayload, PendingDeviceApprovalContext, RecipientEncryptionDevicesResponse, RegisterChatHistoryKeyPayload, RegisterTrustedDevicePayload, SendChatMessagePayload,
-    TrustedDeviceRegistrationResponse, TrustedDevicesResponse,
+    TrustedDeviceRegistrationResponse, TrustedDevicesResponse, TwoFactorChallenge, TwoFactorLoginMethod,
 } from '@/types';
 import type {
     AIOrgSettingsResponse,
@@ -550,6 +550,36 @@ export const api = {
             request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
         login: (data: LoginRequest) =>
             request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+        getTwoFactorChallenge: (temporaryToken: string) =>
+            request<TwoFactorChallenge>('/auth/two-factor/challenge', {
+                method: 'POST', body: JSON.stringify({ temporaryToken }),
+            }),
+        selectTwoFactorMethod: (temporaryToken: string, method: TwoFactorLoginMethod) =>
+            request<TwoFactorChallenge>('/auth/two-factor/select', {
+                method: 'POST', body: JSON.stringify({ temporaryToken, method }),
+            }),
+        verifyTwoFactorEmail: (temporaryToken: string, code: string) =>
+            request<{ verified: boolean }>('/auth/two-factor/email/verify', {
+                method: 'POST', body: JSON.stringify({ temporaryToken, code }),
+            }),
+        resendTwoFactorEmail: (temporaryToken: string) =>
+            request<MessageResponse>('/auth/two-factor/email/resend', {
+                method: 'POST', body: JSON.stringify({ temporaryToken }),
+            }),
+        completeTwoFactorLogin: (temporaryToken: string) =>
+            request<AuthResponse>('/auth/two-factor/complete', {
+                method: 'POST', body: JSON.stringify({ temporaryToken }),
+            }),
+        cancelTwoFactorLogin: (temporaryToken: string) =>
+            request<MessageResponse>('/auth/two-factor/cancel', {
+                method: 'POST', body: JSON.stringify({ temporaryToken }),
+            }),
+        approveTwoFactorDevice: (pendingLoginId: string, clientDeviceId: string, token: string) =>
+            request<MessageResponse>('/auth/two-factor/device/approve', {
+                method: 'POST',
+                body: JSON.stringify({ pendingLoginId, clientDeviceId }),
+                token,
+            }),
         getGoogleLoginUrl: (params: Partial<LoginRequest> & { returnTo?: string } = {}) => {
             const query = buildQueryString({
                 rememberMe: params.rememberMe,
@@ -572,6 +602,19 @@ export const api = {
             request<MessageResponse>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
         generatePasswordResetLink: (userId: string, token: string) =>
             request<PasswordResetLinkResponse>(`/auth/users/${userId}/password-reset-link`, { method: 'POST', token }),
+        getContactEmail: (token: string) =>
+            request<ContactEmailStatus>('/auth/contact-email', { token }),
+        updateContactEmail: (contactEmail: string, token: string) =>
+            request<ContactEmailStatus>('/auth/contact-email', {
+                method: 'PATCH',
+                body: JSON.stringify({ contactEmail }),
+                token,
+            }),
+        useLinkedGoogleContactEmail: (token: string) =>
+            request<ContactEmailStatus>('/auth/contact-email/use-linked-google', {
+                method: 'POST',
+                token,
+            }),
         resendContactEmailVerification: (token: string) =>
             request<MessageResponse>('/auth/contact-email/resend-verification', { method: 'POST', token }),
         verifyContactEmail: (code: string, token: string) =>

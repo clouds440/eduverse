@@ -31,6 +31,8 @@ import Grades from '@/app/(org)/student/[userId]/_components/Grades';
 import { StudentTimetableView } from '@/app/(org)/timetable/page';
 import { StudentTranscriptView } from '@/app/(org)/transcripts/page';
 import { StudentFeesView } from '@/components/student/StudentFeesView';
+import { TwoFactorEmailSettings } from '@/components/settings/account/TwoFactorEmailSettings';
+import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
 
 type GuardianView = 'overview' | 'students' | 'attendance' | 'grades' | 'timetable' | 'transcript' | 'fees' | 'announcements' | 'profile' | 'assessments';
 
@@ -381,33 +383,37 @@ function TranscriptTab({ selectedInsight, selectedStudentName }: TabProps) {
 
 function ProfileTab({ data, linkedStudents }: TabProps & { linkedStudents: GuardianOverview['linkedStudents'] }) {
     return (
-        <ResourcePanel className="overflow-visible p-0">
-            <div className="grid min-w-0 lg:grid-cols-[280px_minmax(0,1fr)]">
-                <aside className="border-b border-border/60 bg-background/35 p-5 lg:border-b-0 lg:border-r">
-                    <div className="flex min-w-0 flex-col items-center gap-4 rounded-lg border border-border/70 bg-card/80 p-4 text-center">
-                        <BrandIcon variant="user" user={data.guardian.user} size="lg" className="h-20 w-20" />
-                        <div className="min-w-0">
-                            <p className="wrap-break-word text-sm font-black text-foreground">{data.guardian.user?.name || 'Guardian'}</p>
-                            <p className="mt-1 wrap-break-word text-xs font-semibold text-muted-foreground">Guardian Portal</p>
+        <div className="space-y-5">
+            <ResourcePanel className="overflow-visible p-0">
+                <div className="grid min-w-0 lg:grid-cols-[280px_minmax(0,1fr)]">
+                    <aside className="border-b border-border/60 bg-background/35 p-5 lg:border-b-0 lg:border-r">
+                        <div className="flex min-w-0 flex-col items-center gap-4 rounded-lg border border-border/70 bg-card/80 p-4 text-center">
+                            <BrandIcon variant="user" user={data.guardian.user} size="lg" className="h-20 w-20" />
+                            <div className="min-w-0">
+                                <p className="wrap-break-word text-sm font-black text-foreground">{data.guardian.user?.name || 'Guardian'}</p>
+                                <p className="mt-1 wrap-break-word text-xs font-semibold text-muted-foreground">Guardian Portal</p>
+                            </div>
                         </div>
+                    </aside>
+                    <div className="min-w-0 space-y-4 p-4 sm:p-5">
+                        <SectionTitle icon={UserRoundCheck} title="Guardian Profile" />
+                        <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            <DetailCard label="Name" value={data.guardian.user?.name || 'Guardian'} />
+                            <DetailCard label="Email" value={data.guardian.user?.email || '-'} />
+                            <DetailCard label="Phone" value={data.guardian.phone || data.guardian.user?.phone || '-'} />
+                            <DetailCard label="Address" value={data.guardian.address || '-'} />
+                            <DetailCard label="Linked Students" value={linkedStudents.length} />
+                            <DetailCard label="Account" value={data.guardian.user?.status || 'Active'} />
+                        </div>
+                        <p className="wrap-break-word text-sm font-semibold text-muted-foreground">
+                            Contact the school office if profile details need to be updated.
+                        </p>
                     </div>
-                </aside>
-                <div className="min-w-0 space-y-4 p-4 sm:p-5">
-                    <SectionTitle icon={UserRoundCheck} title="Guardian Profile" />
-                    <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        <DetailCard label="Name" value={data.guardian.user?.name || 'Guardian'} />
-                        <DetailCard label="Email" value={data.guardian.user?.email || '-'} />
-                        <DetailCard label="Phone" value={data.guardian.phone || data.guardian.user?.phone || '-'} />
-                        <DetailCard label="Address" value={data.guardian.address || '-'} />
-                        <DetailCard label="Linked Students" value={linkedStudents.length} />
-                        <DetailCard label="Account" value={data.guardian.user?.status || 'Active'} />
-                    </div>
-                    <p className="wrap-break-word text-sm font-semibold text-muted-foreground">
-                        Contact the school office if profile details need to be updated.
-                    </p>
                 </div>
-            </div>
-        </ResourcePanel>
+            </ResourcePanel>
+            <TwoFactorEmailSettings />
+            <TrustedEncryptionDevicesPanel />
+        </div>
     );
 }
 
