@@ -719,7 +719,7 @@ export class StudentService {
         title: 'Account Status Updated',
         body: `Your account status has been changed to ${data.status.toLowerCase()}.`,
         type: 'USER_STATUS_CHANGE',
-        actionUrl: `/student/${student.userId}?tab=profile`,
+        actionUrl: `/settings/${student.userId}`,
         metadata: { oldStatus: student.status, newStatus: data.status },
       });
     }

@@ -20,7 +20,7 @@ import {
 import { Role } from '@/types';
 import type { JwtPayload } from '@/context/AuthContext';
 import { buildOrgSidebarLinks } from '@/lib/orgSidebar';
-import { financeManagerProfilePath, studentPortalPath, subAdminProfilePath, teacherProfilePath } from '@/lib/routes';
+import { settingsPath } from '@/lib/routes';
 
 export type RouteSearchGroup = 'Navigation' | 'Actions' | 'Settings' | 'Academic' | 'Finance';
 
@@ -214,7 +214,8 @@ function routeItem(
     return item;
 }
 
-function platformSearchItems(role?: Role | null): RouteSearchItem[] {
+function platformSearchItems(user: JwtPayload | null): RouteSearchItem[] {
+    const role = user?.role;
     if (role !== Role.SUPER_ADMIN && role !== Role.PLATFORM_ADMIN) return [];
 
     const items: RouteSearchItem[] = [
@@ -260,7 +261,7 @@ function platformSearchItems(role?: Role | null): RouteSearchItem[] {
         routeItem({
             id: 'admin-settings',
             title: 'Settings',
-            href: '/admin/settings',
+            href: user?.id ? settingsPath(user.id) : '/admin',
             group: 'Settings',
             description: 'Platform account settings',
             icon: Settings,
@@ -411,10 +412,7 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
     const canManagePolls = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.ORG_MANAGER;
     const canManageStudentEnrollment = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
     const canUseFinance = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.FINANCE_MANAGER;
-    const teacherProfileHref = user?.id ? teacherProfilePath(user.id) : '/settings';
-    const studentProfileHref = user?.id ? studentPortalPath(user.id, 'profile') : '/settings';
-    const subAdminProfileHref = user?.id ? subAdminProfilePath(user.id) : '/overview';
-    const financeManagerProfileHref = user?.id ? financeManagerProfilePath(user.id) : '/finance';
+    const accountSettingsHref = user?.id ? settingsPath(user.id) : '/';
 
     return [
         ...(canManageAcademic ? [
@@ -514,7 +512,7 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
         ...(role === Role.ORG_ADMIN ? [{
             id: 'settings-gpa-policies',
             title: 'GPA Policies',
-            href: '/settings?tab=gpa-policies',
+            href: user?.id ? settingsPath(user.id, 'gpa-policies') : '/',
             group: 'Settings' as const,
             description: 'Configure GPA calculations',
             icon: FileText,
@@ -542,7 +540,7 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
         ...(role === Role.TEACHER || role === Role.ORG_MANAGER ? [{
             id: 'teacher-profile',
             title: 'Profile Settings',
-            href: teacherProfileHref,
+            href: accountSettingsHref,
             group: 'Settings' as const,
             description: 'Update your profile',
             icon: Settings,
@@ -552,7 +550,7 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
         ...(role === Role.STUDENT ? [{
             id: 'student-profile',
             title: 'Profile Settings',
-            href: studentProfileHref,
+            href: accountSettingsHref,
             group: 'Settings' as const,
             description: 'View your student profile',
             icon: Settings,
@@ -562,7 +560,7 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
         ...(role === Role.SUB_ADMIN ? [{
             id: 'sub-admin-profile',
             title: 'Profile Settings',
-            href: subAdminProfileHref,
+            href: accountSettingsHref,
             group: 'Settings' as const,
             description: 'Update your profile',
             icon: Settings,
@@ -572,7 +570,7 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
         ...(role === Role.FINANCE_MANAGER ? [{
             id: 'finance-manager-profile',
             title: 'Profile Settings',
-            href: financeManagerProfileHref,
+            href: accountSettingsHref,
             group: 'Settings' as const,
             description: 'Update your profile',
             icon: Settings,
@@ -604,7 +602,7 @@ export function buildRouteSearchItems({
     if (!user?.role) return [];
 
     if (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN) {
-        return platformSearchItems(user.role);
+        return platformSearchItems(user);
     }
 
     const sidebarItems = buildOrgSidebarLinks({ user, isApproved, unreadChats }).map<RouteSearchItem>((link) => {

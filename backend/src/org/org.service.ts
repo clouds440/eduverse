@@ -470,10 +470,7 @@ export class OrgService {
     if (!this.canEditPublicProfile(actor, target)) return null;
 
     if (actor.id === target.userId) {
-      if (target.role === Role.STUDENT) return `/student/${target.userId}?tab=profile`;
-      if (target.role === Role.TEACHER || target.role === Role.ORG_MANAGER) return `/teacher/${target.userId}/profile`;
-      if (target.role === Role.SUB_ADMIN) return `/sub-admin/${target.userId}/profile`;
-      if (target.role === Role.FINANCE_MANAGER) return `/finance-manager/${target.userId}/profile`;
+      return `/settings/${target.userId}`;
     }
 
     if (!target.entityId && ([Role.STUDENT, Role.TEACHER, Role.ORG_MANAGER, Role.GUARDIAN] as string[]).includes(target.role)) {

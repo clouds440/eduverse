@@ -11,6 +11,7 @@ import { Loading } from '@/components/ui/Loading';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
+import { settingsPath } from '@/lib/routes';
 import {
     AISubscriptionOwnerType,
     AISubscriptionPlan,
@@ -204,7 +205,7 @@ export default function AISubscriptionPage() {
                             Usage
                         </Link>
                         {isOrgAdmin && (
-                            <Link className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70" href="/settings?tab=ai">
+                            <Link className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-xs font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70" href={user?.id ? settingsPath(user.id, 'ai') : '/ai'}>
                                 <Building2 className="h-4 w-4" aria-hidden="true" />
                                 AI Settings
                             </Link>

@@ -214,22 +214,22 @@ describe('OrgService updateSettings', () => {
       userId: 'student-user',
       role: Role.STUDENT,
       entityId: 'student-row',
-    })).toBe('/student/student-user?tab=profile');
+    })).toBe('/settings/student-user');
     expect(getEditHref({ id: 'teacher-user', role: Role.TEACHER }, {
       userId: 'teacher-user',
       role: Role.TEACHER,
       entityId: 'teacher-row',
-    })).toBe('/teacher/teacher-user/profile');
+    })).toBe('/settings/teacher-user');
     expect(getEditHref({ id: 'sub-admin-user', role: Role.SUB_ADMIN }, {
       userId: 'sub-admin-user',
       role: Role.SUB_ADMIN,
       entityId: 'sub-admin-user',
-    })).toBe('/sub-admin/sub-admin-user/profile');
+    })).toBe('/settings/sub-admin-user');
     expect(getEditHref({ id: 'finance-user', role: Role.FINANCE_MANAGER }, {
       userId: 'finance-user',
       role: Role.FINANCE_MANAGER,
       entityId: 'finance-user',
-    })).toBe('/finance-manager/finance-user/profile');
+    })).toBe('/settings/finance-user');
   });
 
   it('generates canonical /users edit routes for managed profiles', () => {

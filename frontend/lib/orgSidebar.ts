@@ -30,11 +30,9 @@ import type { SidebarLink } from "@/components/ui/DashboardLayout";
 import { getRoleDashboardPath } from "@/lib/roles";
 import {
   USER_ROUTES,
-  financeManagerProfilePath,
+  settingsPath,
   studentPortalPath,
-  subAdminProfilePath,
   teacherFeedbackPath,
-  teacherProfilePath,
 } from "@/lib/routes";
 
 interface OrgSidebarUser {
@@ -257,15 +255,16 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
   {
     id: "SETTINGS",
     label: "Settings",
-    href: "/settings",
+    href: (ctx) => (ctx.userId ? settingsPath(ctx.userId) : null),
     icon: Settings,
     roles: [Role.ORG_ADMIN],
     showWhenUnapproved: true,
+    hiddenWhen: requiresUserId,
   },
   {
     id: "PROFILE",
     label: "Profile Settings",
-    href: (ctx) => (ctx.userId ? subAdminProfilePath(ctx.userId) : null),
+    href: (ctx) => (ctx.userId ? settingsPath(ctx.userId) : null),
     icon: Settings,
     roles: [Role.SUB_ADMIN],
     hiddenWhen: requiresUserId,
@@ -388,7 +387,7 @@ const TEACHER_AND_MANAGER_ITEMS: SidebarItemConfig[] = [
   {
     id: "PROFILE",
     label: "Profile Settings",
-    href: (ctx) => (ctx.userId ? teacherProfilePath(ctx.userId) : null),
+    href: (ctx) => (ctx.userId ? settingsPath(ctx.userId) : null),
     icon: Settings,
     roles: TEACHER_PORTAL_ROLES,
     hiddenWhen: requiresUserId,
@@ -413,7 +412,7 @@ const FINANCE_MANAGER_ITEMS: SidebarItemConfig[] = [
   {
     id: "PROFILE",
     label: "Profile Settings",
-    href: (ctx) => (ctx.userId ? financeManagerProfilePath(ctx.userId) : null),
+    href: (ctx) => (ctx.userId ? settingsPath(ctx.userId) : null),
     icon: Settings,
     roles: [Role.FINANCE_MANAGER],
     hiddenWhen: requiresUserId,
@@ -499,8 +498,7 @@ const STUDENT_ITEMS: SidebarItemConfig[] = [
   {
     id: "PROFILE",
     label: "Profile Settings",
-    href: (ctx) =>
-      ctx.userId ? studentPortalPath(ctx.userId, "profile") : null,
+    href: (ctx) => (ctx.userId ? settingsPath(ctx.userId) : null),
     icon: Settings,
     roles: [Role.STUDENT],
     hiddenWhen: requiresUserId,
@@ -567,9 +565,10 @@ const GUARDIAN_ITEMS: SidebarItemConfig[] = [
   {
     id: "GUARDIAN_PROFILE",
     label: "Profile Settings",
-    href: "/guardian?view=profile",
+    href: (ctx) => (ctx.userId ? settingsPath(ctx.userId) : null),
     icon: Settings,
     roles: [Role.GUARDIAN],
+    hiddenWhen: requiresUserId,
   },
 ];
 

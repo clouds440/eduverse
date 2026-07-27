@@ -118,24 +118,7 @@ export class SecurityService {
     role: Role | string;
   }) {
     const id = user.userId || user.id || '';
-    switch (user.role) {
-      case Role.SUPER_ADMIN:
-      case Role.PLATFORM_ADMIN:
-        return '/admin/settings#sessions';
-      case Role.TEACHER:
-      case Role.ORG_MANAGER:
-        return `/teacher/${id}/profile#sessions`;
-      case Role.STUDENT:
-        return `/student/${id}?tab=profile#sessions`;
-      case Role.SUB_ADMIN:
-        return `/sub-admin/${id}/profile#sessions`;
-      case Role.FINANCE_MANAGER:
-        return `/finance-manager/${id}/profile#sessions`;
-      case Role.GUARDIAN:
-        return '/guardian?view=profile';
-      default:
-        return '/settings#sessions';
-    }
+    return id ? `/settings/${id}?tab=security#sessions` : '/';
   }
 
   private async deliverLoginAlert(

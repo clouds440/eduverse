@@ -8,6 +8,7 @@ import statsStore from '@/lib/statsStore';
 import { Role } from '@/types';
 import { useSocket } from '@/hooks/useSocket';
 import { useGlobal } from '@/context/GlobalContext';
+import { settingsPath } from '@/lib/routes';
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
     const { user, token } = useAuth();
@@ -122,15 +123,17 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             badge: chatStats && chatStats.unread > 0 ? `${chatStats.unread} New` : undefined
         });
 
-        adminLinks.push({
-            id: 'SETTINGS',
-            label: 'Settings',
-            href: '/admin/settings',
-            icon: Settings,
-        });
+        if (user?.id) {
+            adminLinks.push({
+                id: 'SETTINGS',
+                label: 'Settings',
+                href: settingsPath(user.id),
+                icon: Settings,
+            });
+        }
 
         return adminLinks;
-    }, [chatStats, stats, user?.role]);
+    }, [chatStats, stats, user?.id, user?.role]);
 
     const bottomLinks = useMemo<SidebarLink[]>(() => [], []);
 

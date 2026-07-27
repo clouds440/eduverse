@@ -28,6 +28,7 @@ interface TeacherFormProps {
     initialData?: Teacher;
     isProfile?: boolean;
     defaultManager?: boolean;
+    stayOnProfileSave?: boolean;
 }
 
 const TEACHER_STATUS_OPTIONS = [
@@ -92,7 +93,7 @@ function teacherStatusIcon(status?: TeacherStatus) {
     return CalendarClock;
 }
 
-export default function TeacherForm({ teacherId, initialData, isProfile, defaultManager = false }: TeacherFormProps) {
+export default function TeacherForm({ teacherId, initialData, isProfile, defaultManager = false, stayOnProfileSave = false }: TeacherFormProps) {
     const { token, user: currentUser, updateUser } = useAuth();
     const router = useRouter();
     const { dispatch } = useGlobal();
@@ -236,7 +237,7 @@ export default function TeacherForm({ teacherId, initialData, isProfile, default
             window.dispatchEvent(new Event('stats-updated'));
             dispatch({ type: 'TOAST_ADD', payload: { message: `${isProfile ? 'Profile' : 'Teacher account'} ${teacherId || isProfile ? 'updated' : 'created'} successfully`, type: 'success' } });
             if (isProfile) {
-                router.back();
+                if (!stayOnProfileSave) router.back();
             } else {
                 router.push(listHref);
             }

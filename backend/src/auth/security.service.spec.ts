@@ -88,7 +88,7 @@ describe('SecurityService login notification preferences', () => {
       expect.objectContaining({
         userId: 'admin-1',
         type: 'SECURITY',
-        actionUrl: '/admin/settings#sessions',
+        actionUrl: '/settings/admin-1?tab=security#sessions',
       }),
     );
     expect(email.send).not.toHaveBeenCalled();

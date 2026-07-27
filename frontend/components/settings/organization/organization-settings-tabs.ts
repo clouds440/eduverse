@@ -1,5 +1,6 @@
 import {
     Building2,
+    BellRing,
     Coins,
     Palette,
     School,
@@ -13,6 +14,7 @@ import type { SettingsTabDefinition } from '../settings-tabs';
 export type OrganizationSettingsTabKey =
     | 'profile'
     | 'appearance'
+    | 'preferences'
     | 'finance'
     | 'ai'
     | 'gpa-policies'
@@ -27,6 +29,7 @@ export type OrganizationSettingsTabDefinition =
 export const ORGANIZATION_SETTINGS_TABS: readonly OrganizationSettingsTabDefinition[] = [
     { key: 'profile', label: 'Profile', icon: Building2 },
     { key: 'appearance', label: 'Appearance', icon: Palette },
+    { key: 'preferences', label: 'Preferences', icon: BellRing },
     { key: 'finance', label: 'Finance', icon: Coins },
     { key: 'ai', label: 'EduVerse Copilot', icon: Sparkles },
     {

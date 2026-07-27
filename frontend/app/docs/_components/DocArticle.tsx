@@ -91,7 +91,7 @@ const appLinkPattern = new RegExp(
   "gi",
 );
 const appLinkByPhrase = new Map(
-  appLinkTerms.map((term) => [term.phrase.toLowerCase(), term.href]),
+  appLinkTerms.map((term) => [term.phrase.toLowerCase(), term]),
 );
 
 function LinkedText({
@@ -108,7 +108,8 @@ function LinkedText({
     const phrase = match[0];
     const index = match.index ?? 0;
     const phraseKey = phrase.toLowerCase();
-    const href = appLinkByPhrase.get(phraseKey);
+    const term = appLinkByPhrase.get(phraseKey);
+    const href = term?.href;
     if (!href) continue;
 
     if (index > lastIndex) {

@@ -744,34 +744,16 @@ export class AuthService {
     return url.toString();
   }
 
-  private getAccountSecurityUrl(user: Pick<User, 'id' | 'role'>) {
+  private getAccountSecurityUrl(user: Pick<User, 'id'>) {
     const target = this.getAccountSettingsTarget(user, 'sessions');
     return `${target.path}${target.hash ? `#${target.hash}` : ''}`;
   }
 
   private getAccountSettingsTarget(
-    user: Pick<User, 'id' | 'role'>,
+    user: Pick<User, 'id'>,
     hash?: string,
   ) {
-    switch (user.role) {
-      case Role.SUPER_ADMIN:
-      case Role.PLATFORM_ADMIN:
-        return { path: '/admin/settings', hash };
-      case Role.ORG_MANAGER:
-      case Role.TEACHER:
-        return { path: `/teacher/${user.id}/profile`, hash };
-      case Role.STUDENT:
-        return { path: `/student/${user.id}?tab=profile`, hash };
-      case Role.SUB_ADMIN:
-        return { path: `/sub-admin/${user.id}/profile`, hash };
-      case Role.FINANCE_MANAGER:
-        return { path: `/finance-manager/${user.id}/profile`, hash };
-      case Role.GUARDIAN:
-        return { path: '/guardian?view=profile', hash: undefined };
-      case Role.ORG_ADMIN:
-      default:
-        return { path: '/settings', hash };
-    }
+    return { path: `/settings/${user.id}?tab=security`, hash };
   }
 
   private sanitizeFrontendPath(path?: string) {

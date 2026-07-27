@@ -7,8 +7,6 @@ export const DASHBOARD_MODULES = [
     'users',
     'teacher',
     'student',
-    'sub-admin',
-    'finance-manager',
     'mail',
     'settings',
     'announcements',

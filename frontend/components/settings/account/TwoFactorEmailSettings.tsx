@@ -47,9 +47,7 @@ export function TwoFactorEmailSettings({
         Promise.all([
             api.auth.getContactEmail(token),
             api.e2ee.getMyDevices(token),
-            googleAccount === undefined
-                ? api.auth.getLinkedAccounts(token)
-                : Promise.resolve(googleAccount ? [googleAccount] : []),
+            Promise.resolve(googleAccount ? [googleAccount] : []),
         ])
             .then(([next, devices, linkedAccounts]) => {
                 setStatus(next);

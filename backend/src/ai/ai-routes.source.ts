@@ -40,7 +40,7 @@ export const aiRouteEntries: AIRouteEntry[] = [
   },
   {
     label: 'Organization Settings',
-    href: '/settings',
+    href: '/settings/{userId}',
     roles: [Role.ORG_ADMIN],
     description: 'Manage organization profile, appearance, finance defaults, branding, security, and EduVerse Copilot settings.',
     module: 'Settings',
@@ -207,8 +207,8 @@ export const aiRouteEntries: AIRouteEntry[] = [
     tags: ['guardian', 'linked students', 'family'],
   },
   {
-    label: 'Teacher Profile',
-    href: '/teacher/{userId}/profile',
+    label: 'Account Settings',
+    href: '/settings/{userId}',
     roles: [Role.TEACHER, Role.ORG_MANAGER],
     description: 'Teacher or manager profile and account settings.',
     module: 'Account',

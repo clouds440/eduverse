@@ -110,7 +110,7 @@ export class AIBillingService {
       organizationId,
       email: organization.contactEmail || actor.email,
       name: organization.name,
-      cancelPath: '/settings?ai_billing=cancelled',
+      cancelPath: `/settings/${actor.id}?ai_billing=cancelled`,
     });
   }
 

@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/Badge';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { buildOrgSidebarLinks, getOrgOverviewHref } from '@/lib/orgSidebar';
 import { AICopilotProvider } from '@/components/ai/AICopilotProvider';
+import { settingsPath } from '@/lib/routes';
 
 const MarkdownRenderer = dynamic(
     () => import('@/components/ui/MarkdownRenderer').then((module) => module.MarkdownRenderer),
@@ -65,7 +66,7 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
                     icon={ShieldOff}
                     title="Application denied"
                     description="Update your organization details using the feedback below, then submit the application again."
-                    action={user?.role === Role.ORG_ADMIN ? { label: 'Update application', href: '/settings' } : undefined}
+                    action={user?.role === Role.ORG_ADMIN && user.id ? { label: 'Update application', href: settingsPath(user.id) } : undefined}
                 >
                     <div className="rounded-md border border-danger/20 bg-background/60 p-3 text-left">
                         <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-danger">Official rejection reason</p>
@@ -154,7 +155,7 @@ const ContactEmailVerificationBanner = ({
     lastVerificationSentAt?: string | null;
     onVerified: () => Promise<void>;
 }) => {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const { state, dispatch } = useGlobal();
     const [code, setCode] = useState('');
     const [error, setError] = useState('');
@@ -229,7 +230,7 @@ const ContactEmailVerificationBanner = ({
                                 <Badge variant="warning" size="sm" icon={ShieldAlert}>Unverified</Badge>
                             </div>
                         )}
-                        <Link href="/settings#contact-email" className="inline-flex mt-2 text-xs font-black text-warning hover:underline">
+                        <Link href={user?.id ? `${settingsPath(user.id)}#contact-email` : '#'} className="inline-flex mt-2 text-xs font-black text-warning hover:underline">
                             Incorrect contact email? Change now
                         </Link>
                         {error && <p className="text-xs text-danger mt-2 font-bold">{error}</p>}
@@ -387,14 +388,8 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
 
     // Check if the current route is allowed for non-approved organizations
     const allowedSubPaths = ['settings', 'change-password', 'mail', 'contact'];
-    const isOwnTeacherProfile = Boolean(user?.id && pathname === `/teacher/${user.id}/profile`);
-    const isOwnFinanceManagerProfile = Boolean(user?.id && pathname === `/finance-manager/${user.id}/profile`);
-    const isOwnSubAdminProfile = Boolean(user?.id && pathname === `/sub-admin/${user.id}/profile`);
     const isOwnStudentProfile = Boolean(user?.id && pathname === `/student/${user.id}`);
     const isAllowedRoute = allowedSubPaths.some(sub => pathname.startsWith(`/${sub}`))
-        || isOwnTeacherProfile
-        || isOwnFinanceManagerProfile
-        || isOwnSubAdminProfile
         || isOwnStudentProfile;
     const contactEmailUnverified = user?.role === Role.ORG_ADMIN && orgData && !orgData.contactEmailVerifiedAt;
     const refreshOrgData = async () => {

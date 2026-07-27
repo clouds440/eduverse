@@ -44,7 +44,7 @@ export const aiFlows: AIFlowDefinition[] = [
     tags: ['setup', 'workspace', 'organization', 'getting started', 'quick start'],
     routes: [
       { label: 'Overview', href: '/overview' },
-      { label: 'Settings', href: '/settings' },
+      { label: 'Settings', href: '/settings/{userId}' },
     ],
     prerequisites: ['Organization account exists and the signed-in user is the Org Admin.'],
     steps: [
@@ -63,7 +63,7 @@ export const aiFlows: AIFlowDefinition[] = [
     summary: 'Update organization profile, appearance, security, finance defaults, and Copilot settings.',
     roles: ['ORG_ADMIN'],
     tags: ['settings', 'organization profile', 'branding', 'security', 'finance defaults', 'ai settings'],
-    routes: [{ label: 'Settings', href: '/settings' }],
+    routes: [{ label: 'Settings', href: '/settings/{userId}' }],
     prerequisites: ['Signed-in user is Org Admin.'],
     steps: [
       { label: 'Open settings', detail: 'Open Settings from the sidebar.' },
@@ -210,7 +210,7 @@ export const aiFlows: AIFlowDefinition[] = [
     summary: 'Create, validate, preview, and assign GPA policies before grade finalization.',
     roles: ['ORG_ADMIN'],
     tags: ['gpa policy', 'grade rules', 'transcript', 'grade points', 'cgpa'],
-    routes: [{ label: 'GPA Policies', href: '/gpa-policies' }],
+    routes: [{ label: 'GPA Policies', href: '/settings/{userId}?tab=gpa-policies' }],
     prerequisites: ['Organization grading rules are known.', 'Grade boundaries and scale are ready.'],
     steps: [
       { label: 'Open GPA policies', detail: 'Open GPA Policies from academic settings.' },
@@ -658,7 +658,7 @@ export const aiFlows: AIFlowDefinition[] = [
     routes: [
       { label: 'AI Subscription', href: '/ai/subscription' },
       { label: 'AI Usage', href: '/ai' },
-      { label: 'Settings', href: '/settings' },
+      { label: 'Settings', href: '/settings/{userId}' },
     ],
     prerequisites: ['Signed-in user is Org Admin for organization subscription and role access settings.'],
     steps: [
@@ -698,7 +698,7 @@ export const aiFlows: AIFlowDefinition[] = [
     summary: 'Manage password, sessions, linked accounts, and account security checks.',
     roles: ['ORG_ADMIN', 'SUB_ADMIN', 'ORG_MANAGER', 'FINANCE_MANAGER', 'TEACHER', 'STUDENT', 'GUARDIAN'],
     tags: ['password', 'security', 'sessions', 'linked accounts', 'login'],
-    routes: [{ label: 'Settings', href: '/settings' }],
+    routes: [{ label: 'Settings', href: '/settings/{userId}' }],
     prerequisites: ['User can access own account settings or admin account management where permitted.'],
     steps: [
       { label: 'Open account settings', detail: 'Open Settings or profile/account security area.' },

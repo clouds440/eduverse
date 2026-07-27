@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (isUserPath && (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN)) {
                     // Only redirect if they are NOT on an admin path (meaning they are on an org path)
-                    if (!isAdminPath) {
+                    if (!isAdminPath && segments[0] !== 'settings') {
                         router.replace('/admin');
                         return;
                     }
@@ -125,14 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const isStudentPortal = pathSegments[1] === 'student' && pathSegments[2] === user.id;
                         const isStudentPreferenceWindow = pathSegments[1] === 'preference-windows' && Boolean(pathSegments[2]) && pathSegments.length === 3;
                         const isSupportInOrg = pathSegments[1] === 'mail';
-                        const isAllowedShared = ['ai', 'chat', 'timetable', 'attendance', 'change-password', 'course-materials', 'transcripts', 'fees', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
-                        const isSettingsPage = pathSegments.includes('settings');
-
-                        if (isSettingsPage) {
-                            // Settings page handles its own redirect, no toast needed
-                            router.replace(`/student/${user.id}?tab=profile`);
-                            return;
-                        }
+                        const isAllowedShared = ['ai', 'chat', 'settings', 'timetable', 'attendance', 'change-password', 'course-materials', 'transcripts', 'fees', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
 
                         if (!isStudentPortal && !isStudentPreferenceWindow && !isSupportInOrg && !isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Students can only access their own student portal and shared school tools.', type: 'error' } });
@@ -140,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
                     } else if (user.role === Role.GUARDIAN) {
-                        const isAllowedShared = ['ai', 'guardian', 'chat', 'mail', 'change-password', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
+                        const isAllowedShared = ['ai', 'guardian', 'chat', 'mail', 'settings', 'change-password', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
                         if (!isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Guardians can only access linked-student information and support tools.', type: 'error' } });
                             router.replace('/guardian');
@@ -148,13 +141,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         }
                     } else if (user.role === Role.SUB_ADMIN) {
                         const usersChildRoute = pathSegments[1] === 'users' ? pathSegments[2] : pathSegments[1];
-                        const isOwnSubAdminProfile = pathSegments[1] === 'sub-admin' && pathSegments[2] === user.id && pathSegments[3] === 'profile';
-                        const isSettingsPage = pathSegments[1] === 'settings';
-                        const isMainAdminOnlyPage = (usersChildRoute === 'sub-admins' && !isOwnSubAdminProfile) || isSettingsPage;
+                        const isMainAdminOnlyPage = usersChildRoute === 'sub-admins';
                         const isAllowedShared = [
                             'overview',
                             'users',
-                            'sub-admin',
                             'buildings-and-rooms',
                             'departments',
                             'courses',
@@ -172,16 +162,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'ai',
                             'chat',
                             'mail',
+                            'settings',
                             'change-password',
                             'contact',
                             'profiles',
                             'campus-navigation',
                         ].includes(pathSegments[1]);
-
-                        if (isSettingsPage) {
-                            router.replace(`/sub-admin/${user.id}/profile`);
-                            return;
-                        }
 
                         if (isMainAdminOnlyPage || !isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: isMainAdminOnlyPage ? 'Only the main admin can access that area.' : 'Sub Admins can only access delegated organization tools.', type: 'error' } });
@@ -189,13 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
                     } else if (user.role === Role.FINANCE_MANAGER) {
-                        const isAllowedShared = ['ai', 'finance', 'teacher-finance', 'finance-manager', 'chat', 'mail', 'change-password', 'contact', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
-                        const isSettingsPage = pathSegments.includes('settings');
-
-                        if (isSettingsPage) {
-                            router.replace(`/finance-manager/${user.id}/profile`);
-                            return;
-                        }
+                        const isAllowedShared = ['ai', 'finance', 'teacher-finance', 'chat', 'mail', 'settings', 'change-password', 'contact', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
 
                         if (!isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Finance Managers can only access finance and support tools.', type: 'error' } });
@@ -203,18 +183,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
                     } else if (user.role === Role.ORG_MANAGER) {
-                        const isSettingsPage = pathSegments.includes('settings');
                         const isFinancePage = pathSegments[1] === 'finance';
                         const isTeacherManagementPage = pathSegments[1] === 'users' && pathSegments[2] === 'teachers';
                         const isStudentManagementPage = pathSegments[1] === 'users' && pathSegments[2] === 'students' && pathSegments[3];
                         const isSectionManagementPage = pathSegments[1] === 'sections' && (pathSegments[2] === 'create' || pathSegments[2] === 'edit');
                         const isOtherUserManagementPage = pathSegments[1] === 'users' && pathSegments[2] !== 'students';
                         const isOrgManagementPage = ['courses', 'academic-cycles', 'cohorts', 'reassignment', 'schedules'].includes(pathSegments[1]) || isOtherUserManagementPage;
-                        if (isSettingsPage) {
-                            // Settings page handles its own redirect, no toast needed
-                            router.replace(`/teacher/${user.id}/profile`);
-                            return;
-                        }
                         if (isFinancePage || isTeacherManagementPage || isStudentManagementPage || isSectionManagementPage || isOrgManagementPage) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Managers can only access assigned academic sections and related academic tools.', type: 'error' } });
                             router.replace(`/teacher/${user.id}`);
@@ -223,14 +197,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     } else if (user.role === Role.TEACHER) {
                         const isTeacherList = pathSegments[1] === 'users' && pathSegments[2] === 'teachers';
                         const isDisallowedUsersRoute = pathSegments[1] === 'users' && (pathSegments[2] !== 'students' || Boolean(pathSegments[3]));
-                        const isSettingsPage = pathSegments.includes('settings');
                         const isGradeFinalizationPage = pathSegments[1] === 'grade-finalization';
                         const isPreferenceWindowsPage = pathSegments[1] === 'preference-windows';
-                        if (isSettingsPage) {
-                            // Settings page handles its own redirect, no toast needed
-                            router.replace(`/teacher/${user.id}/profile`);
-                            return;
-                        }
                         if (isTeacherList || isDisallowedUsersRoute || isGradeFinalizationPage || isPreferenceWindowsPage) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Teachers can only access their assigned teaching workspace.', type: 'error' } });
                             router.replace(`/teacher/${user.id}`);

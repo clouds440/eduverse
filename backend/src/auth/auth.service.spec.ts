@@ -740,13 +740,13 @@ describe('AuthService Google linked accounts', () => {
       getAccountSecurityUrl: (user: { id: string; role: Role }) => string;
     }).getAccountSecurityUrl.bind(service);
 
-    expect(getAccountSecurityUrl({ id: 'admin-1', role: Role.ORG_ADMIN })).toBe('/settings#sessions');
-    expect(getAccountSecurityUrl({ id: 'platform-1', role: Role.PLATFORM_ADMIN })).toBe('/admin/settings#sessions');
-    expect(getAccountSecurityUrl({ id: 'teacher-1', role: Role.TEACHER })).toBe('/teacher/teacher-1/profile#sessions');
-    expect(getAccountSecurityUrl({ id: 'manager-1', role: Role.ORG_MANAGER })).toBe('/teacher/manager-1/profile#sessions');
-    expect(getAccountSecurityUrl({ id: 'student-1', role: Role.STUDENT })).toBe('/student/student-1?tab=profile#sessions');
-    expect(getAccountSecurityUrl({ id: 'sub-admin-1', role: Role.SUB_ADMIN })).toBe('/sub-admin/sub-admin-1/profile#sessions');
-    expect(getAccountSecurityUrl({ id: 'finance-1', role: Role.FINANCE_MANAGER })).toBe('/finance-manager/finance-1/profile#sessions');
-    expect(getAccountSecurityUrl({ id: 'guardian-1', role: Role.GUARDIAN })).toBe('/guardian?view=profile');
+    expect(getAccountSecurityUrl({ id: 'admin-1', role: Role.ORG_ADMIN })).toBe('/settings/admin-1?tab=security#sessions');
+    expect(getAccountSecurityUrl({ id: 'platform-1', role: Role.PLATFORM_ADMIN })).toBe('/settings/platform-1?tab=security#sessions');
+    expect(getAccountSecurityUrl({ id: 'teacher-1', role: Role.TEACHER })).toBe('/settings/teacher-1?tab=security#sessions');
+    expect(getAccountSecurityUrl({ id: 'manager-1', role: Role.ORG_MANAGER })).toBe('/settings/manager-1?tab=security#sessions');
+    expect(getAccountSecurityUrl({ id: 'student-1', role: Role.STUDENT })).toBe('/settings/student-1?tab=security#sessions');
+    expect(getAccountSecurityUrl({ id: 'sub-admin-1', role: Role.SUB_ADMIN })).toBe('/settings/sub-admin-1?tab=security#sessions');
+    expect(getAccountSecurityUrl({ id: 'finance-1', role: Role.FINANCE_MANAGER })).toBe('/settings/finance-1?tab=security#sessions');
+    expect(getAccountSecurityUrl({ id: 'guardian-1', role: Role.GUARDIAN })).toBe('/settings/guardian-1?tab=security#sessions');
   });
 });

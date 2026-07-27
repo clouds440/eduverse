@@ -450,7 +450,6 @@ export class TwoFactorService {
       body: `${pending.deviceName || 'A browser'} is waiting for your approval.`,
       type: 'TWO_FACTOR_DEVICE_APPROVAL',
       actionUrl: this.getSecurityApprovalUrl(
-        pending.user.role,
         pending.userId,
         pending.id,
       ),
@@ -508,30 +507,11 @@ export class TwoFactorService {
   }
 
   private getSecurityApprovalUrl(
-    role: Role,
     userId: string,
     pendingLoginId: string,
   ) {
     const query = `approveLoginId=${encodeURIComponent(pendingLoginId)}`;
-    switch (role) {
-      case Role.SUPER_ADMIN:
-      case Role.PLATFORM_ADMIN:
-        return `/admin/settings?tab=security&${query}`;
-      case Role.TEACHER:
-      case Role.ORG_MANAGER:
-        return `/teacher/${userId}/profile?${query}`;
-      case Role.SUB_ADMIN:
-        return `/sub-admin/${userId}/profile?${query}`;
-      case Role.FINANCE_MANAGER:
-        return `/finance-manager/${userId}/profile?${query}`;
-      case Role.STUDENT:
-        return `/student/${userId}?tab=profile&${query}`;
-      case Role.GUARDIAN:
-        return `/guardian?view=profile&${query}`;
-      case Role.ORG_ADMIN:
-      default:
-        return `/settings?tab=security&${query}`;
-    }
+    return `/settings/${userId}?tab=security&${query}`;
   }
 
   private async markVerified(pendingLoginId: string) {

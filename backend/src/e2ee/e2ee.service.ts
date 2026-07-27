@@ -994,7 +994,7 @@ export class E2eeService {
         ? 'A newly verified browser is ready for future messages. Use this browser to share its recent Chat history.'
         : 'A browser just signed in to your account. Review it before it can open secure Chat and Mail.',
       type: 'E2EE_DEVICE_APPROVAL',
-      actionUrl: `/settings?tab=security&approveDeviceId=${encodeURIComponent(pendingDeviceId)}`,
+      actionUrl: `/settings/${userId}?tab=security&approveDeviceId=${encodeURIComponent(pendingDeviceId)}`,
       metadata: {
         pendingDeviceId,
         pendingClientDeviceId,

@@ -613,7 +613,7 @@ export class TeacherService {
         title: 'Account Status Updated',
         body: `Your account status has been changed to ${data.status.toLowerCase()}.`,
         type: 'USER_STATUS_CHANGE',
-        actionUrl: `/teacher/${teacher.userId}/profile`,
+        actionUrl: `/settings/${teacher.userId}`,
         metadata: { oldStatus: teacher.status, newStatus: data.status },
       });
     }
@@ -627,7 +627,7 @@ export class TeacherService {
         title: 'Role Updated',
         body: `Your administrative role has been updated to ${data.isManager ? 'Manager' : 'Teacher'}.`,
         type: 'USER_ROLE_CHANGE',
-        actionUrl: `/teacher/${teacher.userId}/profile`,
+        actionUrl: `/settings/${teacher.userId}`,
         metadata: {
           oldRole: teacher.user.role,
           newRole: data.isManager ? Role.ORG_MANAGER : Role.TEACHER,

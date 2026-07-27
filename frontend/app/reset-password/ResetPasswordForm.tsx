@@ -13,6 +13,7 @@ import PasswordStrength from '@/components/ui/PasswordStrength';
 import { useGlobal } from '@/context/GlobalContext';
 import { PLATFORM_NAME } from '@/lib/constants';
 import { useAuth } from '@/context/AuthContext';
+import { settingsPath } from '@/lib/routes';
 
 type ResetPasswordFormProps = {
   token: string;
@@ -114,7 +115,7 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
                 <Button
                   type="button"
                   className="h-12 font-bold"
-                  onClick={() => router.push('/settings?tab=security')}
+                  onClick={() => user?.id && router.push(settingsPath(user.id, 'security'))}
                 >
                   Security Settings
                 </Button>

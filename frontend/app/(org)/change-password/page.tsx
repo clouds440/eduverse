@@ -5,6 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import ChangePasswordForm from '@/components/ChangePasswordForm';
 import { Role } from '@/types';
+import { settingsPath } from '@/lib/routes';
+import { getRoleDashboardPath } from '@/lib/roles';
 
 export default function OrganizationChangePasswordPage() {
     const router = useRouter();
@@ -42,17 +44,9 @@ export default function OrganizationChangePasswordPage() {
                                 return;
                             }
     
-                            const target = user.role === Role.ORG_ADMIN
-                                ? '/settings'
-                                : user.role === Role.SUB_ADMIN
-                                    ? '/overview'
-                                : user.role === Role.FINANCE_MANAGER
-                                    ? '/finance'
-                                : user.role === Role.STUDENT
-                                    ? `/student/${user.id}`
-                                : user.role === Role.GUARDIAN
-                                    ? '/guardian'
-                                    : `/teacher/${user.id}`;
+                            const target = user.isFirstLogin
+                                ? getRoleDashboardPath(user)
+                                : settingsPath(user.id);
                             router.push(target);
                         }, 100);
                     }}

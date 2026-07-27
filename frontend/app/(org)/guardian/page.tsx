@@ -31,8 +31,6 @@ import Grades from '@/app/(org)/student/[userId]/_components/Grades';
 import { StudentTimetableView } from '@/app/(org)/timetable/page';
 import { StudentTranscriptView } from '@/app/(org)/transcripts/page';
 import { StudentFeesView } from '@/components/student/StudentFeesView';
-import { TwoFactorEmailSettings } from '@/components/settings/account/TwoFactorEmailSettings';
-import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
 
 type GuardianView = 'overview' | 'students' | 'attendance' | 'grades' | 'timetable' | 'transcript' | 'fees' | 'announcements' | 'profile' | 'assessments';
 
@@ -411,8 +409,6 @@ function ProfileTab({ data, linkedStudents }: TabProps & { linkedStudents: Guard
                     </div>
                 </div>
             </ResourcePanel>
-            <TwoFactorEmailSettings />
-            <TrustedEncryptionDevicesPanel />
         </div>
     );
 }

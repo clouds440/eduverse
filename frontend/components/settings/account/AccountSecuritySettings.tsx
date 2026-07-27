@@ -1,6 +1,13 @@
+'use client';
+
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { KeyRound, Link as LinkIcon, Unlink } from 'lucide-react';
-import type { LinkedAccount } from '@/types';
+import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { useGlobal } from '@/context/GlobalContext';
+import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { useLinkedAccounts } from '@/hooks/useLinkedAccounts';
 import { TrustedEncryptionDevicesPanel } from '@/components/TrustedEncryptionDevicesPanel';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -13,23 +20,54 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 export interface AccountSecuritySettingsProps {
-    googleAccount?: LinkedAccount;
-    linkedAccountsLoading: boolean;
     changePasswordHref: string;
-    onStartGoogleLink: () => void;
-    onUnlinkGoogle: () => void;
 }
 
 export function AccountSecuritySettings({
-    googleAccount,
-    linkedAccountsLoading,
     changePasswordHref,
-    onStartGoogleLink,
-    onUnlinkGoogle,
 }: AccountSecuritySettingsProps) {
+    const { token } = useAuth();
+    const { dispatch } = useGlobal();
+    const { searchParams, updateQueryParams } = useUrlQueryState();
+    const { googleAccount, loading: linkedAccountsLoading, refresh: refreshLinkedAccounts } = useLinkedAccounts();
+
+    useEffect(() => {
+        const googleLink = searchParams.get('googleLink');
+        if (googleLink !== 'success') return;
+
+        dispatch({
+            type: 'TOAST_ADD',
+            payload: { message: 'Google account linked successfully.', type: 'success' },
+        });
+        updateQueryParams({ tab: 'security', googleLink: undefined });
+        void refreshLinkedAccounts();
+    }, [dispatch, refreshLinkedAccounts, searchParams, updateQueryParams]);
+
+    const handleStartGoogleLink = () => {
+        window.location.href = api.auth.getGoogleLinkUrl();
+    };
+
+    const handleUnlinkGoogle = async () => {
+        if (!token) return;
+        dispatch({ type: 'UI_START_PROCESSING', payload: 'unlink-google' });
+        try {
+            await api.auth.unlinkGoogle(token);
+            await refreshLinkedAccounts();
+            dispatch({
+                type: 'TOAST_ADD',
+                payload: { message: 'Google account unlinked successfully.', type: 'success' },
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to unlink Google account';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'unlink-google' });
+        }
+    };
+
     return (
         <div className="space-y-6">
-            <TwoFactorEmailSettings googleAccount={googleAccount ?? null} />
+            <TwoFactorEmailSettings googleAccount={googleAccount} />
             <SettingsSection
                 icon={KeyRound}
                 title="Sign-in methods"
@@ -73,7 +111,7 @@ export function AccountSecuritySettings({
                                 type="button"
                                 variant="danger"
                                 icon={Unlink}
-                                onClick={onUnlinkGoogle}
+                                onClick={handleUnlinkGoogle}
                                 loadingId="unlink-google"
                                 disabled={linkedAccountsLoading}
                                 className="w-full shrink-0 text-xs sm:w-auto"
@@ -87,7 +125,7 @@ export function AccountSecuritySettings({
                                 type="button"
                                 variant="secondary"
                                 icon={GoogleIcon}
-                                onClick={onStartGoogleLink}
+                                onClick={handleStartGoogleLink}
                                 disabled={linkedAccountsLoading}
                                 className="w-full shrink-0 text-xs sm:w-auto"
                                 px="px-4"
