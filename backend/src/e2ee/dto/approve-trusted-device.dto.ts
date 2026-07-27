@@ -1,5 +1,7 @@
+import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsInt,
   IsObject,
   IsOptional,
@@ -7,21 +9,32 @@ import {
   IsUUID,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
-export class ApproveDeviceHistoryKeyEnvelopeDto {
+export class DeviceGrantContentEnvelopeDto {
   @IsUUID()
-  historyKeyId!: string;
-
-  @IsUUID()
-  recipientUserId!: string;
+  messageId!: string;
 
   @IsUUID()
-  trustedDeviceId!: string;
+  encryptedContentId!: string;
+
+  @IsString()
+  algorithm!: string;
+
+  @IsString()
+  wrappedKey!: string;
 
   @IsOptional()
+  @IsString()
+  nonce?: string;
+
+  @IsOptional()
+  @IsObject()
+  associatedData?: Record<string, unknown>;
+}
+
+export class ChatDeviceHistoryGrantDto {
   @IsUUID()
-  senderDeviceId?: string;
+  chatId!: string;
 
   @IsInt()
   deviceKeyVersion!: number;
@@ -39,6 +52,11 @@ export class ApproveDeviceHistoryKeyEnvelopeDto {
   @IsOptional()
   @IsObject()
   associatedData?: Record<string, unknown>;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DeviceGrantContentEnvelopeDto)
+  contentEnvelopes!: DeviceGrantContentEnvelopeDto[];
 }
 
 export class ApproveTrustedDeviceDto {
@@ -48,6 +66,10 @@ export class ApproveTrustedDeviceDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ApproveDeviceHistoryKeyEnvelopeDto)
-  historyKeyEnvelopes?: ApproveDeviceHistoryKeyEnvelopeDto[];
+  @Type(() => ChatDeviceHistoryGrantDto)
+  chatGrants?: ChatDeviceHistoryGrantDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  complete?: boolean;
 }

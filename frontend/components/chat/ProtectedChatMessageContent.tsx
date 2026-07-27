@@ -95,7 +95,7 @@ export function ProtectedChatMessageContent({
         return (
             <span className={unavailableClassName || 'inline-flex items-center gap-1.5 text-xs font-semibold opacity-75'}>
                 <LockKeyhole className="h-3.5 w-3.5" />
-                This message can't be opened here
+                Older messages are not available on this device.
             </span>
         );
     }

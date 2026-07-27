@@ -12,6 +12,7 @@ import { CreateGroupChatDto } from './dto/create-group.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { RegisterChatHistoryKeyDto } from './dto/register-chat-history-key.dto';
+import { buildVisibleChatMessageWhere } from './chat-message-visibility';
 import { AddParticipantsDto } from './dto/add-participants.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -276,6 +277,38 @@ export class ChatService {
                       revokedAt: true,
                     },
                   },
+                },
+              },
+            },
+          },
+        },
+      },
+      deviceGrantEnvelopes: {
+        ...(recipientUserId
+          ? { where: { grant: { userId: recipientUserId } } }
+          : {}),
+        include: {
+          grant: {
+            include: {
+              senderDevice: {
+                select: {
+                  id: true,
+                  userId: true,
+                  keyAgreementPublicKey: true,
+                  keyAgreementPublicKeyFingerprint: true,
+                  keyVersion: true,
+                  trustStatus: true,
+                  revokedAt: true,
+                },
+              },
+              trustedDevice: {
+                select: {
+                  id: true,
+                  userId: true,
+                  clientDeviceId: true,
+                  keyVersion: true,
+                  trustStatus: true,
+                  revokedAt: true,
                 },
               },
             },
@@ -2823,22 +2856,9 @@ export class ChatService {
       where: { chatParticipantId: participant.id },
     });
 
-    const visibilityOR = history.map((h) => ({
-      createdAt: {
-        gte: h.activatedAt,
-        ...(h.deactivatedAt ? { lte: h.deactivatedAt } : {}),
-      },
-    }));
-
-    // Local history clearing logic
-    const clearedAtFilter: Prisma.DateTimeFilter<'ChatMessage'> = participant.clearedAt
-      ? { gt: participant.clearedAt }
-      : {};
-    const baseWhere: Prisma.ChatMessageWhereInput = {
-      chatId,
-      ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
-      ...(participant.clearedAt ? { createdAt: clearedAtFilter } : {}),
-    };
+    const baseWhere = buildVisibleChatMessageWhere(participant, history);
+    const clearedAtFilter: Prisma.DateTimeFilter<'ChatMessage'> =
+      participant.clearedAt ? { gt: participant.clearedAt } : {};
 
     const include = this.getChatMessageInclude(user.id);
 
@@ -2897,8 +2917,7 @@ export class ChatService {
         page * limit <
         (await this.prisma.chatMessage.count({
           where: {
-            chatId,
-            ...(visibilityOR.length > 0 ? { OR: visibilityOR } : {}),
+            ...baseWhere,
           },
         }));
       hasMoreAfter = page > 1;

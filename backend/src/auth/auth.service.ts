@@ -18,6 +18,7 @@ import {
   Organization,
   Teacher,
   ThemeMode,
+  TwoFactorMethod,
   UserSettings,
 } from '@/prisma/prisma-client';
 import { Role, OrgStatus, UserStatus } from '../common/enums';
@@ -46,6 +47,8 @@ import { UserSettingsContextService } from './user-settings-context.service';
 import { SessionService } from './session.service';
 import { UserPreferencesService } from './user-preferences.service';
 import { TwoFactorService } from './two-factor.service';
+import { RegisterTrustedDeviceDto } from '../e2ee/dto/register-trusted-device.dto';
+import { ApproveTrustedDeviceDto } from '../e2ee/dto/approve-trusted-device.dto';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -117,7 +120,8 @@ export class AuthService {
         security,
       );
     this.preferencesManager =
-      userPreferencesService ?? new UserPreferencesService(this.prisma);
+      userPreferencesService ??
+      new UserPreferencesService(this.prisma, security);
   }
 
   async register(registerDto: RegisterDto) {
@@ -467,6 +471,13 @@ export class AuthService {
           id: user.id,
           role: user.role as Role,
           organizationId: user.organizationId,
+          organization: user.organization
+            ? {
+                contactEmail: user.organization.contactEmail,
+                contactEmailVerifiedAt:
+                  user.organization.contactEmailVerifiedAt,
+              }
+            : null,
           settings: user.settings,
         },
         sessionDevice,
@@ -482,7 +493,20 @@ export class AuthService {
     return this.requireTwoFactorService().getChallenge(temporaryToken);
   }
 
-  selectTwoFactorMethod(temporaryToken: string, method: string) {
+  registerPendingTwoFactorDevice(
+    temporaryToken: string,
+    device: RegisterTrustedDeviceDto,
+  ) {
+    return this.requireTwoFactorService().registerPendingDevice(
+      temporaryToken,
+      device,
+    );
+  }
+
+  selectTwoFactorMethod(
+    temporaryToken: string,
+    method: TwoFactorMethod,
+  ) {
     return this.requireTwoFactorService().selectMethod(temporaryToken, method);
   }
 
@@ -502,11 +526,27 @@ export class AuthService {
     userId: string,
     pendingLoginId: string,
     clientDeviceId: string,
+    dto: Pick<ApproveTrustedDeviceDto, 'chatGrants' | 'complete'>,
   ) {
     return this.requireTwoFactorService().approveDevice(
       userId,
       pendingLoginId,
       clientDeviceId,
+      dto,
+    );
+  }
+
+  getTwoFactorDeviceApprovalContext(
+    userId: string,
+    pendingLoginId: string,
+    clientDeviceId: string,
+    cursor?: string,
+  ) {
+    return this.requireTwoFactorService().getDeviceApprovalContext(
+      userId,
+      pendingLoginId,
+      clientDeviceId,
+      cursor,
     );
   }
 
@@ -767,6 +807,28 @@ export class AuthService {
     return this.preferencesManager.updateSettings(userId, data);
   }
 
+  async toggleManagedUserTwoFactor(
+    actor: { id: string; role?: string; organizationId?: string | null },
+    targetUserId: string,
+    meta: RequestMetadata,
+  ) {
+    return this.preferencesManager.toggleManagedTwoFactor(
+      actor,
+      targetUserId,
+      meta,
+    );
+  }
+
+  async getManagedUserTwoFactorStatus(
+    actor: { role?: string; organizationId?: string | null },
+    targetUserId: string,
+  ) {
+    return this.preferencesManager.getManagedTwoFactorStatus(
+      actor,
+      targetUserId,
+    );
+  }
+
   async changePassword(userId: string, oldPass: string, newPass: string, currentToken?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -901,6 +963,7 @@ export class AuthService {
     id: string;
     role?: string;
     organizationId?: string | null;
+    sessionId?: string;
   }) {
     return this.emailVerificationManager.getContactEmail({
       ...user,
@@ -927,11 +990,57 @@ export class AuthService {
     id: string;
     role?: string;
     organizationId?: string | null;
+    sessionId?: string;
   }) {
     return this.emailVerificationManager.useLinkedGoogleContactEmail({
       ...user,
       role: user.role || '',
     });
+  }
+
+  async requestContactEmailChangeConfirmation(user: {
+    id: string;
+    role?: string;
+    organizationId?: string | null;
+    sessionId?: string;
+  }) {
+    return this.emailVerificationManager.requestContactEmailChangeConfirmation({
+      ...user,
+      role: user.role || '',
+    });
+  }
+
+  async confirmContactEmailChange(
+    user: {
+      id: string;
+      role?: string;
+      organizationId?: string | null;
+      sessionId?: string;
+    },
+    code: string,
+  ) {
+    return this.emailVerificationManager.confirmContactEmailChange(
+      { ...user, role: user.role || '' },
+      code,
+    );
+  }
+
+  async assertContactEmailChangeAuthorized(user: {
+    id: string;
+    sessionId?: string;
+  }) {
+    return this.emailVerificationManager.assertContactEmailChangeAuthorized(
+      user,
+    );
+  }
+
+  async consumeContactEmailChangeAuthorization(user: {
+    id: string;
+    sessionId?: string;
+  }) {
+    return this.emailVerificationManager.consumeContactEmailChangeAuthorization(
+      user,
+    );
   }
 
   private hashSecret(value: string) {

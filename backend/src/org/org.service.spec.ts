@@ -24,7 +24,11 @@ type MockPrismaService = {
 describe('OrgService updateSettings', () => {
   let service: OrgService;
   let prisma: MockPrismaService;
-  let authService: { issueContactEmailVerification: jest.Mock };
+  let authService: {
+    issueContactEmailVerification: jest.Mock;
+    assertContactEmailChangeAuthorized: jest.Mock;
+    consumeContactEmailChangeAuthorization: jest.Mock;
+  };
   let emailService: { send: jest.Mock };
   let configService: { getOrThrow: jest.Mock };
 
@@ -44,6 +48,8 @@ describe('OrgService updateSettings', () => {
 
     authService = {
       issueContactEmailVerification: jest.fn().mockResolvedValue(undefined),
+      assertContactEmailChangeAuthorized: jest.fn().mockResolvedValue(undefined),
+      consumeContactEmailChangeAuthorization: jest.fn().mockResolvedValue(undefined),
     };
 
     emailService = {
@@ -106,12 +112,17 @@ describe('OrgService updateSettings', () => {
       settings: { deviceTwoFactorEnabled: true },
     });
 
-    const result = await service.updateSettings('org-1', {
-      name: 'Test School',
-      location: 'Lahore',
-      contactEmail: 'new@school.test',
-      phone: '123',
-    });
+    const actor = { id: 'admin-1', sessionId: 'session-1' };
+    const result = await service.updateSettings(
+      'org-1',
+      {
+        name: 'Test School',
+        location: 'Lahore',
+        contactEmail: 'new@school.test',
+        phone: '123',
+      },
+      actor,
+    );
 
     expect(result.contactEmailVerifiedAt).toBeNull();
     expect(prisma.organization.update).toHaveBeenCalledWith(
@@ -155,6 +166,38 @@ describe('OrgService updateSettings', () => {
         details: { reason: 'contact_email_changed' },
       }),
     );
+    expect(
+      authService.assertContactEmailChangeAuthorized,
+    ).toHaveBeenCalledWith(actor);
+    expect(
+      authService.consumeContactEmailChangeAuthorization,
+    ).toHaveBeenCalledWith(actor);
+  });
+
+  it('blocks a verified contact email change without a session proof', async () => {
+    prisma.organization.findUnique.mockResolvedValue({
+      id: 'org-1',
+      contactEmail: 'old@school.test',
+      contactEmailVerifiedAt: new Date(),
+    });
+
+    await expect(
+      service.updateSettings('org-1', {
+        contactEmail: 'new@school.test',
+      }),
+    ).rejects.toThrow('active signed-in session');
+    expect(prisma.organization.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects organization contact recovery outside platform roles', async () => {
+    await expect(
+      service.setRecoveryContactEmail(
+        'org-1',
+        'recovery@school.test',
+        { id: 'org-admin', role: Role.ORG_ADMIN },
+      ),
+    ).rejects.toThrow('Only platform administrators');
+    expect(prisma.organization.findUnique).not.toHaveBeenCalled();
   });
 
   it('generates singular self-service profile routes', () => {

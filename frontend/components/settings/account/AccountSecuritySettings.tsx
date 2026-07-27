@@ -12,19 +12,21 @@ function GoogleIcon({ className }: { className?: string }) {
     return <Image src="/assets/svgs/google.svg" alt="" width={20} height={20} className={className} />;
 }
 
+export interface AccountSecuritySettingsProps {
+    googleAccount?: LinkedAccount;
+    linkedAccountsLoading: boolean;
+    changePasswordHref: string;
+    onStartGoogleLink: () => void;
+    onUnlinkGoogle: () => void;
+}
+
 export function AccountSecuritySettings({
     googleAccount,
     linkedAccountsLoading,
     changePasswordHref,
     onStartGoogleLink,
     onUnlinkGoogle,
-}: {
-    googleAccount?: LinkedAccount;
-    linkedAccountsLoading: boolean;
-    changePasswordHref: string;
-    onStartGoogleLink: () => void;
-    onUnlinkGoogle: () => void;
-}) {
+}: AccountSecuritySettingsProps) {
     return (
         <div className="space-y-6">
             <TwoFactorEmailSettings googleAccount={googleAccount ?? null} />

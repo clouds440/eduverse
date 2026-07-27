@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ThemeMode, TwoFactorMethod, UserSettings } from '@/prisma/prisma-client';
+import {
+  Role,
+  ThemeMode,
+  TwoFactorMethod,
+  UserSettings,
+} from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type ResolvedUserSettings = Omit<
@@ -18,13 +23,30 @@ export const DEFAULT_USER_SETTINGS: ResolvedUserSettings = {
   marketingEmails: false,
 };
 
+export interface UserSettingsContext {
+  user: {
+    id: string;
+    email: string;
+    role: Role;
+    organizationId: string | null;
+  };
+  settings: ResolvedUserSettings;
+}
+
 export function resolveUserSettings(
   settings: UserSettings | null | undefined,
 ): ResolvedUserSettings {
   if (!settings) return { ...DEFAULT_USER_SETTINGS };
-  const { userId: _userId, createdAt: _createdAt, updatedAt: _updatedAt, ...values } =
-    settings;
-  return values;
+  return {
+    twoFactorEnabled: settings.twoFactorEnabled,
+    twoFactorMethod: settings.twoFactorMethod,
+    emailTwoFactorEnabled: settings.emailTwoFactorEnabled,
+    deviceTwoFactorEnabled: settings.deviceTwoFactorEnabled,
+    themeMode: settings.themeMode,
+    loginNotificationEmail: settings.loginNotificationEmail,
+    loginNotificationPush: settings.loginNotificationPush,
+    marketingEmails: settings.marketingEmails,
+  };
 }
 
 /**
@@ -35,7 +57,7 @@ export function resolveUserSettings(
 export class UserSettingsContextService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async get(userId: string) {
+  async get(userId: string): Promise<UserSettingsContext | null> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {

@@ -27,6 +27,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { Badge } from '@/components/ui/Badge';
+import { OrganizationContactRecoveryDialog } from '@/components/admin/OrganizationContactRecoveryDialog';
 
 interface AdminOrgParams {
     page: number;
@@ -51,6 +52,7 @@ export default function OrganizationsPage() {
     const [operatingOrg, setOperatingOrg] = useState<{ id: string, name: string, email: string, adminUserId: string, statusHistory?: Organization['statusHistory'] } | null>(null);
     const [modalMode, setModalMode] = useState<'REJECT' | 'SUSPEND' | 'EDIT_MESSAGE'>('REJECT');
     const [reason, setReason] = useState('');
+    const [recoveryOrganization, setRecoveryOrganization] = useState<Organization | null>(null);
 
     const [newMailOpen, setNewMailOpen] = useState(false);
     const [initialTargetId, setInitialTargetId] = useState<string | undefined>(undefined);
@@ -313,6 +315,11 @@ export default function OrganizationsPage() {
                             title: 'Edit Status Message'
                         });
                     }
+                    actions.push({
+                        variant: 'contactRecovery',
+                        onClick: () => setRecoveryOrganization(row),
+                        title: 'Set Recovery Contact Email',
+                    });
 
                     return actions;
                 };
@@ -558,6 +565,14 @@ export default function OrganizationsPage() {
             </ResourcePanel>
 
             {/* Modals - responsive sizing */}
+            <OrganizationContactRecoveryDialog
+                organization={recoveryOrganization}
+                token={token}
+                onClose={() => setRecoveryOrganization(null)}
+                onSaved={async () => {
+                    await retryOrganizations();
+                }}
+            />
             <ModalForm
                 isOpen={isModalOpen}
                 onClose={() => {

@@ -17,6 +17,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreatePlatformAdminDto } from './dto/create-platform-admin.dto';
 import { UpdatePlatformAdminDto } from './dto/update-platform-admin.dto';
+import { SetOrganizationContactEmailDto } from './dto/set-organization-contact-email.dto';
 import { User } from '../common/decorators/user.decorator';
 import type { User as UserEntity } from '@/prisma/prisma-client';
 
@@ -79,6 +80,20 @@ export class AdminController {
   @Patch('organizations/:id/approve')
   approveOrganization(@Param('id') id: string, @User() admin: UserEntity) {
     return this.adminService.approveOrganization(id, admin);
+  }
+
+  @Roles(Role.SUPER_ADMIN, Role.PLATFORM_ADMIN)
+  @Patch('organizations/:id/contact-email/recovery')
+  setOrganizationContactEmail(
+    @Param('id') id: string,
+    @Body() dto: SetOrganizationContactEmailDto,
+    @User() admin: UserEntity,
+  ) {
+    return this.adminService.setOrganizationContactEmail(
+      id,
+      dto.contactEmail,
+      admin,
+    );
   }
 
   @Roles(Role.SUPER_ADMIN, Role.PLATFORM_ADMIN)

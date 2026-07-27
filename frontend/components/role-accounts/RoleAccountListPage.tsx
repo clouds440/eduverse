@@ -22,6 +22,7 @@ import { BrandIcon } from '@/components/ui/Brand';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
+import { ManagedTwoFactorAction } from '@/components/settings/ManagedTwoFactorAction';
 import { formatDepartmentLabel } from '@/lib/utils';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
 
@@ -86,7 +87,11 @@ export default function RoleAccountListPage({
     const [pageSize, setPageSize] = usePersistentPageSize(pageSizeKey, 10);
 
     const hasAccess = !!user?.role && allowedRoles.includes(user.role);
-    const canGenerateResetForRole = labelSingular !== 'Sub Admin' || user?.role === Role.ORG_ADMIN;
+    const canGenerateResetForRole = useCallback((targetRole: Role) =>
+        user?.role === Role.ORG_ADMIN ||
+        (user?.role === Role.SUB_ADMIN &&
+            targetRole !== Role.ORG_ADMIN &&
+            targetRole !== Role.SUB_ADMIN), [user?.role]);
     const isSubAdminList = labelSingular === 'Sub Admin';
 
     useEffect(() => {
@@ -229,7 +234,7 @@ export default function RoleAccountListPage({
                                 onClick: () => handleRestore(row.id),
                             },
                         ] : [
-                            ...(canGenerateResetForRole ? [{
+                            ...(canGenerateResetForRole(row.role) ? [{
                                 variant: 'passwordReset' as const,
                                 title: 'Copy Password Reset Link',
                                 loading: generatingResetUserId === row.id,
@@ -237,6 +242,13 @@ export default function RoleAccountListPage({
                             }] : []),
                         ]}
                     />
+                    {!isDeletedView && (
+                        <ManagedTwoFactorAction
+                            targetUserId={row.id}
+                            targetName={row.name}
+                            targetRole={row.role}
+                        />
+                    )}
                     {!isDeletedView && (
                         <UserCommsAction
                             targetUserId={row.id}

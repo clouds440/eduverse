@@ -209,13 +209,23 @@ export class AdminService {
           });
         } catch (err) {
           // don't block approval on email failure
-          // eslint-disable-next-line no-console
           console.error('EmailService error sending org approval notice:', err);
         }
       }
     }
 
     return result;
+  }
+
+  async setOrganizationContactEmail(
+    id: string,
+    contactEmail: string,
+    admin: UserEntity,
+  ) {
+    return this.orgService.setRecoveryContactEmail(id, contactEmail, {
+      id: admin.id,
+      role: admin.role,
+    });
   }
 
   async updateOrganizationStatus(

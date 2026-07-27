@@ -16,6 +16,7 @@ import { UserPreferencesService } from './user-preferences.service';
 import { TwoFactorService } from './two-factor.service';
 import { EmailTemplatesModule } from '../common/email-templates/email-templates.module';
 import { UserSettingsContextService } from './user-settings-context.service';
+import { E2eeModule } from '../e2ee/e2ee.module';
 
 // ...
 
@@ -25,6 +26,7 @@ import { UserSettingsContextService } from './user-settings-context.service';
     SecurityModule,
     EmailTemplatesModule,
     forwardRef(() => NotificationsModule),
+    forwardRef(() => E2eeModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

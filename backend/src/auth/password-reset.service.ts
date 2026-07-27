@@ -23,6 +23,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RequestMetadata } from './auth-internal.types';
 import { hashSecret } from './auth-internal.utils';
+import { assertCanManageOrganizationUserSecurity } from './managed-security-access';
 import { EmailTemplateService } from '../common/email-templates/email-template.service';
 import { SecurityService } from './security.service';
 
@@ -246,34 +247,13 @@ export class PasswordResetService {
     if (!actor.organizationId) {
       throw new ForbiddenException('Organization context is required.');
     }
-    if (actor.role !== Role.ORG_ADMIN && actor.role !== Role.SUB_ADMIN) {
-      throw new ForbiddenException(
-        'You are not allowed to generate password reset links.',
-      );
-    }
     const targetUser = await this.prisma.user.findFirst({
       where: { id: targetUserId, organizationId: actor.organizationId },
       include: { organization: true },
     });
     if (!targetUser) throw new NotFoundException('User not found.');
     const targetRole = targetUser.role as Role;
-    const resettableRoles = new Set<Role>([
-      Role.TEACHER,
-      Role.ORG_MANAGER,
-      Role.STUDENT,
-      Role.FINANCE_MANAGER,
-      Role.SUB_ADMIN,
-    ]);
-    if (!resettableRoles.has(targetRole)) {
-      throw new ForbiddenException(
-        'Password reset links can only be generated for organization users.',
-      );
-    }
-    if (targetRole === Role.SUB_ADMIN && actor.role !== Role.ORG_ADMIN) {
-      throw new ForbiddenException(
-        'Only the main organization admin can reset sub-admin passwords.',
-      );
-    }
+    assertCanManageOrganizationUserSecurity(actor.role, targetRole);
     await this.prisma.passwordResetToken.updateMany({
       where: { userId: targetUser.id, usedAt: null },
       data: { usedAt: new Date() },

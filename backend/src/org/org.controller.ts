@@ -35,7 +35,6 @@ import { CreateCourseDto } from '../courses/dto/create-course.dto';
 import { UpdateCourseDto } from '../courses/dto/update-course.dto';
 import { CreateSectionDto } from '../sections/dto/create-section.dto';
 import { UpdateSectionDto } from '../sections/dto/update-section.dto';
-import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { v2 as cloudinary } from 'cloudinary';
@@ -93,9 +92,14 @@ export class OrgController {
   @Patch('settings')
   updateSettings(
     @OrgId() orgId: string,
+    @Request() req: AuthenticatedRequest,
     @Body() updateSettingsDto: UpdateSettingsDto,
   ) {
-    return this.orgService.updateSettings(orgId, updateSettingsDto);
+    return this.orgService.updateSettings(
+      orgId,
+      updateSettingsDto,
+      req.user,
+    );
   }
 
   @Roles(Role.ORG_ADMIN)
@@ -366,7 +370,7 @@ export class OrgController {
       return this.studentService.updateStudent(orgId, student.id, filteredData, {
         role: Role.STUDENT,
         name: req.user.name,
-        email: req.user.email!,
+        email: req.user.email,
       });
     }
 

@@ -484,14 +484,11 @@ async function decryptChatMessageContentUncached(message: ChatMessage, token: st
         throw new E2EEError('NO_TRUSTED_DEVICE', 'This browser is not approved for secure Chat.');
     }
 
-    const envelope = encryptedContent.keyEnvelopes?.find((candidate) => (
-        candidate.trustedDeviceId === currentDevice.id ||
-        candidate.trustedDevice?.clientDeviceId === clientDeviceId
-    ));
-
-    const contentKey = envelope
-        ? await unwrapDirectContentKey(envelope, localKeys.keyAgreementPrivateKey)
-        : await unwrapContentKeyFromHistoryEnvelope(message, currentDevice, localKeys.keyAgreementPrivateKey);
+    const contentKey = await unwrapChatMessageContentKeyForDevice(
+        message,
+        currentDevice,
+        localKeys.keyAgreementPrivateKey,
+    );
 
     return decryptStringContent({
         encryptionVersion: encryptedContent.encryptionVersion,
@@ -502,6 +499,57 @@ async function decryptChatMessageContentUncached(message: ChatMessage, token: st
         associatedData: (encryptedContent.associatedData || undefined) as JsonValue | undefined,
         contentKeyVersion: encryptedContent.contentKeyVersion || E2EE_CONTENT_KEY_VERSION,
     }, contentKey);
+}
+
+export async function unwrapChatMessageContentKeyForDevice(
+    message: Pick<ChatMessage, 'encryptedContent'>,
+    currentDevice: TrustedEncryptionDevice,
+    recipientPrivateKey: string,
+) {
+    const encryptedContent = message.encryptedContent;
+    if (!encryptedContent) {
+        throw new E2EEError('NO_KEY_ENVELOPE', 'This message is not encrypted.');
+    }
+    const envelope = encryptedContent.keyEnvelopes?.find((candidate) => (
+        candidate.trustedDeviceId === currentDevice.id ||
+        candidate.trustedDevice?.clientDeviceId === currentDevice.clientDeviceId
+    ));
+    if (envelope) {
+        return unwrapDirectContentKey(envelope, recipientPrivateKey);
+    }
+
+    const grantEnvelope = encryptedContent.deviceGrantEnvelopes?.find(
+        (candidate) => (
+            candidate.grant?.trustedDeviceId === currentDevice.id ||
+            candidate.grant?.trustedDevice?.clientDeviceId ===
+                currentDevice.clientDeviceId
+        ),
+    );
+    if (grantEnvelope?.grant?.senderDevice?.keyAgreementPublicKey) {
+        const grantKey = await unwrapChatHistoryKeyFromDeviceEnvelope({
+            envelope: {
+                algorithm: grantEnvelope.grant.algorithm,
+                wrappedKey: grantEnvelope.grant.wrappedKey,
+                nonce: grantEnvelope.grant.nonce || '',
+                associatedData: (grantEnvelope.grant.associatedData || undefined) as JsonValue | undefined,
+                deviceKeyVersion: grantEnvelope.grant.deviceKeyVersion,
+            },
+            recipientPrivateKey,
+            senderPublicKey: grantEnvelope.grant.senderDevice.keyAgreementPublicKey,
+        });
+        return unwrapContentKeyWithChatHistoryKey({
+            algorithm: grantEnvelope.algorithm as typeof E2EE_CHAT_HISTORY_KEY_ALGORITHM,
+            wrappedKey: grantEnvelope.wrappedKey,
+            nonce: grantEnvelope.nonce || '',
+            associatedData: (grantEnvelope.associatedData || undefined) as JsonValue | undefined,
+        }, grantKey);
+    }
+
+    return unwrapContentKeyFromHistoryEnvelope(
+        message,
+        currentDevice,
+        recipientPrivateKey,
+    );
 }
 
 async function unwrapDirectContentKey(
@@ -527,7 +575,7 @@ async function unwrapDirectContentKey(
 }
 
 async function unwrapContentKeyFromHistoryEnvelope(
-    message: ChatMessage,
+    message: Pick<ChatMessage, 'encryptedContent'>,
     currentDevice: TrustedEncryptionDevice,
     recipientPrivateKey: string,
 ) {
@@ -546,5 +594,8 @@ async function unwrapContentKeyFromHistoryEnvelope(
         }, historyKey);
     }
 
-    throw new E2EEError('NO_KEY_ENVELOPE', 'This message is not available on this device.');
+    throw new E2EEError(
+        'NO_KEY_ENVELOPE',
+        'Older messages are not available on this device.',
+    );
 }

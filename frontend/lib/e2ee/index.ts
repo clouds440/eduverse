@@ -31,10 +31,12 @@ export {
     isEncryptedChatMessage,
     markDecryptedChatWarmupCompleted,
     prepareEncryptedChatMessagePayload,
+    unwrapChatMessageContentKeyForDevice,
     type PrepareEncryptedChatMessageOptions,
 } from './chatMessageCrypto';
 export {
-    prepareHistoryKeyTransferForApproval,
+    prepareRecentHistoryGrantBatch,
+    provisionRecentChatHistory,
 } from './deviceApprovalKeys';
 export {
     getCurrentDeviceTrustState,
@@ -42,6 +44,7 @@ export {
     trustedDeviceSetupErrorMessage,
     type CurrentDeviceTrustState,
 } from './currentDeviceTrust';
+export { registerPendingLoginTrustedDevice } from './trustedDeviceRegistration';
 export {
     decryptMailContent,
     getMailMessageEncryptedContent,

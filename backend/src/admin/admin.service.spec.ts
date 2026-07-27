@@ -47,6 +47,7 @@ describe('AdminService updateOrganizationStatus', () => {
       {} as never,
       prisma as never,
       mailService as never,
+      {} as never,
       userService as never,
       orgService as never,
     );

@@ -29,6 +29,8 @@ import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
+import { useContextualNavigation } from '@/hooks/useContextualNavigation';
+import { ManagedTwoFactorAction } from '@/components/settings/ManagedTwoFactorAction';
 
 interface StudentParams {
     page: number;
@@ -47,6 +49,7 @@ interface StudentParams {
 export default function StudentsPage() {
     const { token, user } = useAuth();
     const router = useRouter();
+    const contextualHref = useContextualNavigation();
     const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const { dispatch } = useGlobal();
 
@@ -270,7 +273,7 @@ export default function StudentsPage() {
                     <div className="flex items-center gap-1">
                         <TableActions
                             onEdit={isDeletedView || !canManageStudents ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
-                            onView={isDeletedView || !canViewStudentDetails ? undefined : () => router.push(`/profiles/${row.user.id}`)}
+                            onView={isDeletedView || !canViewStudentDetails ? undefined : () => router.push(contextualHref(`/profiles/${row.user.id}`))}
                             onDelete={isDeletedView || !canManageStudents ? undefined : () => handleDeleteClick(row.id)}
                             variant="user"
                             extraActions={isDeletedView ? (
@@ -294,6 +297,13 @@ export default function StudentsPage() {
                                 }] : []),
                             ]}
                         />
+                        {!isDeletedView && canManageStudents && (
+                            <ManagedTwoFactorAction
+                                targetUserId={row.user.id}
+                                targetName={row.user.name}
+                                targetRole={Role.STUDENT}
+                            />
+                        )}
                         {!isDeletedView && (
                             <UserCommsAction
                                 targetUserId={row.user.id}
@@ -573,7 +583,7 @@ export default function StudentsPage() {
                         keyExtractor={(row) => row.id}
                         isLoading={isFetching}
                         onRowClick={(row) => {
-                            if (canViewStudentDetails) router.push(`/profiles/${row.user.id}`);
+                            if (canViewStudentDetails) router.push(contextualHref(`/profiles/${row.user.id}`));
                         }}
                         currentPage={page}
                         totalPages={fetchedData?.totalPages || 1}

@@ -33,7 +33,11 @@ interface UserSettingsContextValue {
 
 const UserSettingsContext = createContext<UserSettingsContextValue | null>(null);
 
-export function UserSettingsProvider({ children }: { children: React.ReactNode }) {
+export interface UserSettingsProviderProps {
+    children: React.ReactNode;
+}
+
+export function UserSettingsProvider({ children }: UserSettingsProviderProps) {
     const { token } = useAuth();
     const [settings, setSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS);
     const [loading, setLoading] = useState(false);

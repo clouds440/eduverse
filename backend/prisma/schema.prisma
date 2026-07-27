@@ -126,6 +126,7 @@ model User {
   chatHistoryKeys         ChatHistoryKey[]   @relation("ChatHistoryKeyUsers")
   e2eeHistoryKeyEnvelopes E2EEHistoryKeyDeviceEnvelope[] @relation("E2EEHistoryKeyEnvelopeRecipients")
   e2eeContentHistoryKeyEnvelopes E2EEContentHistoryKeyEnvelope[] @relation("E2EEContentHistoryKeyEnvelopeRecipients")
+  chatDeviceHistoryGrants ChatDeviceHistoryGrant[] @relation("ChatDeviceHistoryGrantUsers")
   userNotifications     Notification[]     @relation("UserNotifications")
   createdAnnouncements  Announcement[]     @relation("CreatedAnnouncements")
   createdPreferenceWindows PreferenceWindow[] @relation("CreatedPreferenceWindows")
@@ -194,13 +195,16 @@ model PendingLogin {
   expiresAt         DateTime
   verifiedAt        DateTime?
   consumedAt        DateTime?
+  pendingDeviceId   String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pendingDevice TrustedEncryptionDevice? @relation("PendingLoginDevice", fields: [pendingDeviceId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([expiresAt])
+  @@index([pendingDeviceId])
 }
 
 model LinkedAccount {
@@ -286,6 +290,11 @@ model Session {
   lastSeenAt  DateTime @default(now())
   createdAt   DateTime @default(now())
   expiresAt   DateTime
+  contactEmailChangeCodeHash     String?
+  contactEmailChangeCodeExpiresAt DateTime?
+  contactEmailChangeCodeAttempts Int      @default(0)
+  contactEmailChangeCodeSentAt   DateTime?
+  contactEmailChangeAuthorizedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -338,6 +347,7 @@ model TrustedEncryptionDevice {
   approvedByDeviceId     String?
   revokedAt              DateTime?
   revokedById            String?
+  historyProvisioningStatus E2EEHistoryProvisioningStatus @default(READY)
 
   user             User                    @relation("TrustedEncryptionDevices", fields: [userId], references: [id], onDelete: Cascade)
   identity         UserEncryptionIdentity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
@@ -350,6 +360,9 @@ model TrustedEncryptionDevice {
   senderEnvelopes  E2EEKeyEnvelope[]       @relation("E2EEKeyEnvelopeSenderDevices")
   historyKeyEnvelopes E2EEHistoryKeyDeviceEnvelope[] @relation("E2EEHistoryKeyEnvelopeTargetDevices")
   historyKeySenderEnvelopes E2EEHistoryKeyDeviceEnvelope[] @relation("E2EEHistoryKeyEnvelopeSenderDevices")
+  pendingLogins PendingLogin[] @relation("PendingLoginDevice")
+  historyGrants ChatDeviceHistoryGrant[] @relation("ChatDeviceHistoryGrantTargetDevices")
+  historyGrantsSent ChatDeviceHistoryGrant[] @relation("ChatDeviceHistoryGrantSenderDevices")
 
   @@unique([userId, clientDeviceId])
   @@index([identityId])
@@ -1120,6 +1133,11 @@ enum E2EEDeviceTrustStatus {
   REVOKED
 }
 
+enum E2EEHistoryProvisioningStatus {
+  PENDING
+  READY
+}
+
 enum E2EEApprovalStatus {
   PENDING
   APPROVED
@@ -1151,6 +1169,7 @@ model Chat {
   messages     ChatMessage[]
   communicationBlocks UserCommunicationBlock[] @relation("CommunicationBlockChat")
   historyKeys  ChatHistoryKey[] @relation("ChatHistoryKeys")
+  deviceHistoryGrants ChatDeviceHistoryGrant[]
 
   @@index([organizationId])
 }
@@ -1235,6 +1254,7 @@ model EncryptedContent {
   mailSubject  Mail?               @relation("MailSubjectEncryptedContent", fields: [mailId], references: [id], onDelete: Cascade)
   keyEnvelopes E2EEKeyEnvelope[]
   historyKeyEnvelopes E2EEContentHistoryKeyEnvelope[]
+  deviceGrantEnvelopes E2EEContentDeviceGrantEnvelope[]
 
   @@index([contentType])
   @@index([chatMessageId])
@@ -1338,6 +1358,51 @@ model E2EEContentHistoryKeyEnvelope {
   @@index([historyKeyId])
   @@index([recipientUserId])
   @@index([createdAt])
+}
+
+model ChatDeviceHistoryGrant {
+  id               String   @id @default(uuid())
+  chatId           String
+  userId           String
+  trustedDeviceId  String
+  senderDeviceId   String?
+  deviceKeyVersion Int
+  algorithm        String
+  wrappedKey       String
+  nonce            String?
+  associatedData   Json?
+  provisionedAt    DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  chat             Chat                             @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user             User                             @relation("ChatDeviceHistoryGrantUsers", fields: [userId], references: [id], onDelete: Cascade)
+  trustedDevice    TrustedEncryptionDevice          @relation("ChatDeviceHistoryGrantTargetDevices", fields: [trustedDeviceId], references: [id], onDelete: Cascade)
+  senderDevice     TrustedEncryptionDevice?         @relation("ChatDeviceHistoryGrantSenderDevices", fields: [senderDeviceId], references: [id], onDelete: SetNull)
+  contentEnvelopes E2EEContentDeviceGrantEnvelope[]
+
+  @@unique([chatId, trustedDeviceId])
+  @@index([userId])
+  @@index([trustedDeviceId])
+  @@index([senderDeviceId])
+}
+
+model E2EEContentDeviceGrantEnvelope {
+  id                 String   @id @default(uuid())
+  encryptedContentId String
+  grantId            String
+  algorithm          String
+  wrappedKey         String
+  nonce              String?
+  associatedData     Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  encryptedContent EncryptedContent       @relation(fields: [encryptedContentId], references: [id], onDelete: Cascade)
+  grant            ChatDeviceHistoryGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@unique([encryptedContentId, grantId])
+  @@index([grantId])
 }
 
 model UserCommunicationBlock {

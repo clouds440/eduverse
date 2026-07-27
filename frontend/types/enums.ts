@@ -234,6 +234,16 @@ export enum TwoFactorMethod {
     BOTH = 'BOTH',
 }
 
+export enum TwoFactorChallengeStatus {
+    PENDING = 'PENDING',
+    VERIFIED = 'VERIFIED',
+}
+
+export enum TrustedDevicePromptFlow {
+    ENCRYPTION = 'ENCRYPTION',
+    TWO_FACTOR = 'TWO_FACTOR',
+}
+
 export enum AttendanceStatus {
     PRESENT = 'PRESENT',
     ABSENT = 'ABSENT',

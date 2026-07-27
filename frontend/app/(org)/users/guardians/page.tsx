@@ -18,12 +18,17 @@ import { BrandIcon } from '@/components/ui/Brand';
 import { TableActions } from '@/components/ui/TableActions';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
+import { useContextualNavigation } from '@/hooks/useContextualNavigation';
+import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
+import { ManagedTwoFactorAction } from '@/components/settings/ManagedTwoFactorAction';
 
 export default function GuardiansPage() {
     const { token, user } = useAuth();
     const router = useRouter();
+    const contextualHref = useContextualNavigation();
     const [importOpen, setImportOpen] = useState(false);
     const canAccess = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    const { generatePasswordResetLink, generatingResetUserId } = usePasswordResetLinkAction(token);
     const routeBase = '/users/guardians';
     const { data = [], isLoading, error, mutate } = useSWR<GuardianProfile[]>(
         token && canAccess ? ['guardians', token] as const : null,
@@ -65,7 +70,7 @@ export default function GuardiansPage() {
             accessor: (guardian) => (
                 <div className="flex items-center gap-1">
                     <TableActions
-                        onView={() => router.push(`/profiles/${guardian.user.id}`)}
+                        onView={() => router.push(contextualHref(`/profiles/${guardian.user.id}`))}
                         onEdit={() => router.push(`${routeBase}/edit/${guardian.id}`)}
                         variant="user"
                         extraActions={[
@@ -74,7 +79,18 @@ export default function GuardiansPage() {
                                 title: 'Link Students',
                                 onClick: () => router.push(`${routeBase}/link/${guardian.id}`),
                             },
+                            {
+                                variant: 'passwordReset',
+                                title: 'Copy Password Reset Link',
+                                loading: generatingResetUserId === guardian.user.id,
+                                onClick: () => generatePasswordResetLink(guardian.user.id),
+                            },
                         ]}
+                    />
+                    <ManagedTwoFactorAction
+                        targetUserId={guardian.user.id}
+                        targetName={guardian.user.name}
+                        targetRole={Role.GUARDIAN}
                     />
                     <UserCommsAction
                         targetUserId={guardian.user.id}
@@ -130,7 +146,7 @@ export default function GuardiansPage() {
                     columns={columns}
                     keyExtractor={(guardian) => guardian.id}
                     isLoading={isLoading}
-                    onRowClick={(guardian) => router.push(`/profiles/${guardian.user.id}`)}
+                    onRowClick={(guardian) => router.push(contextualHref(`/profiles/${guardian.user.id}`))}
                     currentPage={1}
                     totalPages={1}
                     totalResults={data.length}

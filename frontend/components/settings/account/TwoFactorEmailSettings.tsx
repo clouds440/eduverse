@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, Mail, MonitorCheck, Send, ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import type { ContactEmailStatus, LinkedAccount, TrustedEncryptionDevice } from '@/types';
+import {
+    TwoFactorMethod,
+    type ContactEmailStatus,
+    type LinkedAccount,
+    type TrustedEncryptionDevice,
+    type TwoFactorLoginMethod,
+} from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -12,12 +18,16 @@ import { SettingsSection } from '../SettingsSection';
 import { Toggle } from '@/components/ui/Toggle';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useUserSettings } from '@/context/UserSettingsContext';
+import { useContactEmailChangeConfirmation } from '@/hooks/useContactEmailChangeConfirmation';
+import { ContactEmailChangeDialog } from '../ContactEmailChangeDialog';
+
+export interface TwoFactorEmailSettingsProps {
+    googleAccount?: LinkedAccount | null;
+}
 
 export function TwoFactorEmailSettings({
     googleAccount,
-}: {
-    googleAccount?: LinkedAccount | null;
-} = {}) {
+}: TwoFactorEmailSettingsProps = {}) {
     const { token } = useAuth();
     const { settings, update: updateSettings } = useUserSettings();
     const [status, setStatus] = useState<ContactEmailStatus | null>(null);
@@ -28,8 +38,9 @@ export function TwoFactorEmailSettings({
     const [message, setMessage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [trustedDevices, setTrustedDevices] = useState<TrustedEncryptionDevice[]>([]);
-    const [pendingToggle, setPendingToggle] = useState<'email' | 'device' | null>(null);
+    const [pendingToggle, setPendingToggle] = useState<TwoFactorLoginMethod | null>(null);
     const [linkedGoogle, setLinkedGoogle] = useState<LinkedAccount | null>(googleAccount ?? null);
+    const emailChangeConfirmation = useContactEmailChangeConfirmation(token);
 
     useEffect(() => {
         if (!token) return;
@@ -78,31 +89,36 @@ export function TwoFactorEmailSettings({
     };
 
     const verified = Boolean(status?.contactEmailVerifiedAt);
+    const emailChangeAuthorized = Boolean(
+        !verified ||
+        (status?.changeAuthorizedUntil &&
+            new Date(status.changeAuthorizedUntil) > new Date()),
+    );
     const emailChanged = email.trim().toLowerCase() !== (status?.contactEmail || '').toLowerCase();
     const emailEnabled = settings?.emailTwoFactorEnabled || false;
     const deviceEnabled = settings?.deviceTwoFactorEnabled || false;
     const hasTrustedDevice = trustedDevices.length > 0;
     const enabledCount = Number(emailEnabled) + Number(deviceEnabled);
-    const pendingMethodIsEnabled = pendingToggle === 'email' ? emailEnabled : deviceEnabled;
-    const toggleConfirmationDescription = pendingToggle === 'email'
+    const pendingMethodIsEnabled = pendingToggle === TwoFactorMethod.EMAIL ? emailEnabled : deviceEnabled;
+    const toggleConfirmationDescription = pendingToggle === TwoFactorMethod.EMAIL
         ? pendingMethodIsEnabled
             ? `Email codes will no longer be accepted during sign-in.${deviceEnabled ? ' You can still approve sign-ins from a trusted browser.' : ' This will turn off your only extra sign-in check.'}`
             : `After password sign-in, a code will be sent to ${status?.contactEmail || 'your verified contact email'}. Keep access to this inbox${deviceEnabled ? '.' : ' or you could be locked out of your account.'}`
-        : pendingToggle === 'device'
+        : pendingToggle === TwoFactorMethod.DEVICE
             ? pendingMethodIsEnabled
                 ? `Trusted browsers will no longer be able to approve new sign-ins.${emailEnabled ? ' You can still sign in with a code sent to your contact email.' : ' This will turn off your only extra sign-in check.'}`
                 : `The trusted browsers listed here will be able to approve new sign-ins. If you lose access to all of them${emailEnabled ? ', use your email code instead.' : ', you could be locked out of your account.'}`
             : '';
 
-    const toggleMethod = async (method: 'email' | 'device') => {
+    const toggleMethod = async (method: TwoFactorLoginMethod) => {
         if (!token) return;
-        const key = method === 'email' ? 'emailTwoFactorEnabled' : 'deviceTwoFactorEnabled';
+        const key = method === TwoFactorMethod.EMAIL ? 'emailTwoFactorEnabled' : 'deviceTwoFactorEnabled';
         const enabling = !settings[key];
         setAction('save');
         setError(null);
         try {
             await updateSettings({ [key]: enabling });
-            setMessage(`${method === 'email' ? 'Email' : 'Trusted browser'} verification ${enabling ? 'enabled' : 'disabled'}.`);
+            setMessage(`${method === TwoFactorMethod.EMAIL ? 'Email' : 'Trusted browser'} verification ${enabling ? 'enabled' : 'disabled'}.`);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unable to update two-factor authentication.');
         } finally {
@@ -111,7 +127,7 @@ export function TwoFactorEmailSettings({
         }
     };
 
-    const useGoogleEmail = async () => {
+    const applyLinkedGoogleEmail = async () => {
         if (!token) return;
         setAction('google');
         setError(null);
@@ -123,13 +139,38 @@ export function TwoFactorEmailSettings({
                 setMessage('Your linked Google email is now used for email sign-in verification.');
             } else {
                 setMessage('Your linked Google email is ready for sign-in verification.');
-                setPendingToggle('email');
+                setPendingToggle(TwoFactorMethod.EMAIL);
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unable to use the linked Google email.');
         } finally {
             setAction(null);
         }
+    };
+
+    const handleUseGoogleEmail = async () => {
+        if (verified && !emailChangeAuthorized) {
+            try {
+                await emailChangeConfirmation.request(async (authorizedUntil) => {
+                    setStatus((current) => current
+                        ? { ...current, changeAuthorizedUntil: authorizedUntil }
+                        : current);
+                    await applyLinkedGoogleEmail();
+                });
+            } catch (requestError) {
+                setError(requestError instanceof Error ? requestError.message : 'Unable to confirm your current email.');
+            }
+            return;
+        }
+        await applyLinkedGoogleEmail();
+    };
+
+    const unlockEmailChange = async () => {
+        await emailChangeConfirmation.request((authorizedUntil) => {
+            setStatus((current) => current
+                ? { ...current, changeAuthorizedUntil: authorizedUntil }
+                : current);
+        });
     };
 
     return (
@@ -173,7 +214,7 @@ export function TwoFactorEmailSettings({
                             </div>
                             <Toggle
                                 checked={emailEnabled}
-                                onCheckedChange={() => setPendingToggle('email')}
+                                onCheckedChange={() => setPendingToggle(TwoFactorMethod.EMAIL)}
                                 disabled={loading || !verified}
                                 label={emailEnabled ? 'On' : 'Off'}
                                 size="sm"
@@ -196,11 +237,25 @@ export function TwoFactorEmailSettings({
                                 </p>
                                 <div className="space-y-2">
                                     <label htmlFor="two-factor-contact-email" className="block text-[10px] font-black uppercase tracking-wider text-muted-foreground">Contact email</label>
-                                    <Input id="two-factor-contact-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="security@example.com" disabled={loading || Boolean(status?.managedByOrganization)} />
+                                    <Input id="two-factor-contact-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="security@example.com" disabled={loading || Boolean(status?.managedByOrganization) || !emailChangeAuthorized} />
                                     {!status?.managedByOrganization && (
-                                        <Button type="button" onClick={() => void run('save')} disabled={!email.trim() || (!emailChanged && Boolean(status?.contactEmail))} loadingId={action === 'save' ? 'contact-email-save' : undefined} className="w-full">
-                                            {status?.contactEmail ? 'Update email' : 'Add email'}
-                                        </Button>
+                                        verified && !emailChangeAuthorized ? (
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                onClick={() => void unlockEmailChange().catch((requestError) => {
+                                                    setError(requestError instanceof Error ? requestError.message : 'Unable to confirm your current email.');
+                                                })}
+                                                loadingId={emailChangeConfirmation.isRequesting ? 'request-contact-email-change' : undefined}
+                                                className="w-full"
+                                            >
+                                                Change contact email
+                                            </Button>
+                                        ) : (
+                                            <Button type="button" onClick={() => void run('save')} disabled={!email.trim() || (!emailChanged && Boolean(status?.contactEmail))} loadingId={action === 'save' ? 'contact-email-save' : undefined} className="w-full">
+                                                {status?.contactEmail ? 'Update email' : 'Add email'}
+                                            </Button>
+                                        )
                                     )}
                                 </div>
 
@@ -208,7 +263,7 @@ export function TwoFactorEmailSettings({
                                     <div className="rounded-lg border border-border/70 bg-background/60 p-3">
                                         <p className="text-xs font-black text-foreground">Use linked Google email</p>
                                         <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">{linkedGoogle.email}</p>
-                                        <Button type="button" variant="secondary" onClick={() => void useGoogleEmail()} disabled={Boolean(action)} className="mt-2 w-full">Use this email</Button>
+                                        <Button type="button" variant="secondary" onClick={() => void handleUseGoogleEmail()} disabled={Boolean(action)} className="mt-2 w-full">Use this email</Button>
                                     </div>
                                 )}
 
@@ -244,7 +299,7 @@ export function TwoFactorEmailSettings({
                             </div>
                             <Toggle
                                 checked={deviceEnabled}
-                                onCheckedChange={() => setPendingToggle('device')}
+                                onCheckedChange={() => setPendingToggle(TwoFactorMethod.DEVICE)}
                                 disabled={loading || !hasTrustedDevice}
                                 label={deviceEnabled ? 'On' : 'Off'}
                                 size="sm"
@@ -277,11 +332,21 @@ export function TwoFactorEmailSettings({
                 isOpen={Boolean(pendingToggle)}
                 onClose={() => setPendingToggle(null)}
                 onConfirm={() => pendingToggle && toggleMethod(pendingToggle)}
-                title={`${pendingToggle && settings?.[pendingToggle === 'email' ? 'emailTwoFactorEnabled' : 'deviceTwoFactorEnabled'] ? 'Disable' : 'Enable'} ${pendingToggle === 'email' ? 'email' : 'trusted-browser'} verification?`}
+                title={`${pendingToggle && settings?.[pendingToggle === TwoFactorMethod.EMAIL ? 'emailTwoFactorEnabled' : 'deviceTwoFactorEnabled'] ? 'Disable' : 'Enable'} ${pendingToggle === TwoFactorMethod.EMAIL ? 'email' : 'trusted-browser'} verification?`}
                 description={toggleConfirmationDescription}
-                confirmText={pendingToggle && settings?.[pendingToggle === 'email' ? 'emailTwoFactorEnabled' : 'deviceTwoFactorEnabled'] ? 'Disable' : 'Enable'}
-                isDestructive={Boolean(pendingToggle && settings?.[pendingToggle === 'email' ? 'emailTwoFactorEnabled' : 'deviceTwoFactorEnabled'])}
+                confirmText={pendingToggle && settings?.[pendingToggle === TwoFactorMethod.EMAIL ? 'emailTwoFactorEnabled' : 'deviceTwoFactorEnabled'] ? 'Disable' : 'Enable'}
+                isDestructive={Boolean(pendingToggle && settings?.[pendingToggle === TwoFactorMethod.EMAIL ? 'emailTwoFactorEnabled' : 'deviceTwoFactorEnabled'])}
                 loadingId="two-factor-toggle"
+            />
+            <ContactEmailChangeDialog
+                isOpen={emailChangeConfirmation.isOpen}
+                currentEmail={status?.contactEmail || 'your current contact email'}
+                code={emailChangeConfirmation.code}
+                error={emailChangeConfirmation.error}
+                isConfirming={emailChangeConfirmation.isConfirming}
+                onCodeChange={emailChangeConfirmation.setCode}
+                onConfirm={emailChangeConfirmation.confirm}
+                onClose={emailChangeConfirmation.close}
             />
         </SettingsSection>
     );

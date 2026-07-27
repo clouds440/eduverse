@@ -38,10 +38,6 @@ export class SessionService {
     });
 
     if (existingSession) {
-      const countryChanged =
-        existingSession.location &&
-        location &&
-        existingSession.location !== location;
       await this.prisma.session.update({
         where: { id: existingSession.id },
         data: {
@@ -54,14 +50,18 @@ export class SessionService {
           location,
         },
       });
-      if (countryChanged) {
+      if (
+        existingSession.location &&
+        location &&
+        existingSession.location !== location
+      ) {
         await this.securityService.notifySuspiciousLocation({
           userId: user.id,
           role: user.role,
           deviceId: device.deviceId,
           deviceName: device.deviceName,
-          previousLocation: existingSession.location!,
-          newLocation: location!,
+          previousLocation: existingSession.location,
+          newLocation: location,
         });
       }
       return;

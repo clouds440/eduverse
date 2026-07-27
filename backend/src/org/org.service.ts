@@ -2,9 +2,15 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { EvaluationType, Prisma } from '@/prisma/prisma-client';
+import {
+  EvaluationType,
+  PendingLoginStatus,
+  Prisma,
+  TwoFactorMethod,
+} from '@/prisma/prisma-client';
 import {
   Role,
   OrgStatus,
@@ -68,7 +74,11 @@ export class OrgService {
     };
   }
 
-  async updateSettings(orgId: string, data: UpdateSettingsDto) {
+  async updateSettings(
+    orgId: string,
+    data: UpdateSettingsDto,
+    actor?: { id: string; sessionId?: string },
+  ) {
     const currentOrg = await this.getOrganizationById(orgId);
     const contactEmailChanged =
       data.contactEmail &&
@@ -80,6 +90,14 @@ export class OrgService {
     const currencyChanged = Boolean(
       data.currency && data.currency !== currentOrg.currency,
     );
+    if (contactEmailChanged && currentOrg.contactEmailVerifiedAt) {
+      if (!actor) {
+        throw new BadRequestException(
+          'An active signed-in session is required to change the contact email.',
+        );
+      }
+      await this.authService.assertContactEmailChangeAuthorized(actor);
+    }
 
     const updatedOrg = await this.prisma.organization.update({
       where: { id: orgId },
@@ -145,9 +163,12 @@ export class OrgService {
             emailTwoFactorEnabled: false,
             twoFactorEnabled:
               admin.settings?.deviceTwoFactorEnabled || false,
-            twoFactorMethod: 'DEVICE',
+            twoFactorMethod: TwoFactorMethod.DEVICE,
           },
         });
+      }
+      if (oldVerifiedContactEmail && actor) {
+        await this.authService.consumeContactEmailChangeAuthorization(actor);
       }
       await this.authService.issueContactEmailVerification(orgId, {
         targetUserId: admin?.id,
@@ -184,6 +205,77 @@ export class OrgService {
         }`,
       );
     }
+  }
+
+  async setRecoveryContactEmail(
+    orgId: string,
+    contactEmail: string,
+    actor: { id: string; role: string },
+  ) {
+    if (
+      actor.role !== Role.SUPER_ADMIN &&
+      actor.role !== Role.PLATFORM_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Only platform administrators can set a recovery contact email.',
+      );
+    }
+    const organization = await this.getOrganizationById(orgId);
+    const normalized = contactEmail.trim().toLowerCase();
+    if (
+      organization.contactEmail.toLowerCase() === normalized &&
+      organization.contactEmailVerifiedAt
+    ) {
+      return this.getSettings(orgId);
+    }
+
+    const oldVerifiedContactEmail = organization.contactEmailVerifiedAt
+      ? organization.contactEmail
+      : null;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.organization.update({
+        where: { id: orgId },
+        data: {
+          contactEmail: normalized,
+          contactEmailVerifiedAt: new Date(),
+          contactEmailVerificationCodeHash: null,
+          contactEmailVerificationExpiresAt: null,
+          contactEmailVerificationAttempts: 0,
+          lastVerificationSentAt: null,
+        },
+      });
+      await tx.pendingLogin.updateMany({
+        where: {
+          user: { organizationId: orgId, role: Role.ORG_ADMIN },
+          status: {
+            in: [
+              PendingLoginStatus.PENDING,
+              PendingLoginStatus.VERIFIED,
+            ],
+          },
+        },
+        data: { status: PendingLoginStatus.CANCELLED },
+      });
+      await tx.auditLog.create({
+        data: {
+          action: 'organization_contact_email_recovered',
+          actorUserId: actor.id,
+          organizationId: orgId,
+          details: {
+            previousContactEmail: organization.contactEmail,
+            newContactEmail: normalized,
+          },
+        },
+      });
+    });
+    if (oldVerifiedContactEmail) {
+      await this.sendContactEmailChangeNotification(
+        oldVerifiedContactEmail,
+        organization.name,
+        normalized,
+      );
+    }
+    return this.getSettings(orgId);
   }
 
   async updateLogo(

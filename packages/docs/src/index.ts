@@ -2417,6 +2417,25 @@ export const docsPages: DocPage[] = [
               'Organization actions should be handled carefully because they affect every user in that workspace.',
             ],
           },
+          {
+            type: 'paragraph',
+            text: 'If an org admin loses access to both trusted devices and the organization contact inbox, a platform admin can replace the recovery email after the request has been confirmed through support.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Confirm the recovery request through the normal support process before changing anything.',
+              'In Organizations, open the organization Actions menu and choose Set Recovery Contact Email.',
+              'Check the organization name and enter the new address.',
+              'Read the warning, then confirm. The address is marked verified immediately so the org admin can use it to recover.',
+              'Tell the org admin to start sign-in again. Any sign-in request that was already waiting is cancelled so an old code cannot finish it.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Use only for account recovery',
+            text: 'This action replaces a verified security address. Use it only after the requester has been checked through support. The previous verified address receives a change notice.',
+          },
         ],
       },
       {
@@ -2734,9 +2753,9 @@ export const docsPages: DocPage[] = [
   {
     slug: 'account-security',
     title: 'Account and Security',
-    description: 'Manage passwords, sessions, verification, account access, and common sign-in recovery flows.',
+    description: 'Manage passwords, two-step verification, linked Google sign-in, sessions, trusted devices, and security alerts.',
     category: 'Support',
-    tags: ['account', 'password', 'sessions', 'security'],
+    tags: ['account', 'password', '2FA', 'two-step verification', 'sessions', 'trusted devices', 'security'],
     related: ['settings', 'roles-permissions', 'troubleshooting', 'support-contact'],
     sections: [
       {
@@ -2759,24 +2778,208 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
-        id: 'sessions',
-        title: 'Sessions and devices',
-        tags: ['devices', 'logout'],
+        id: 'two-step-verification',
+        title: 'Two-step verification',
+        tags: ['2FA', 'email code', 'device approval', 'sign in'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'Session management helps users review active sign-ins and remove access from devices they no longer use or recognize.',
+            text: 'Two-step verification adds one check after a successful password sign-in. Email codes and approval from another signed-in device can be enabled separately or used together.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Email verification requires a verified contact email.',
+              'Device verification requires at least one trusted browser or device.',
+              'If both options are enabled, choose either one when signing in.',
+              'Google sign-in does not show an additional EduVerse verification step because Google has already authenticated the linked account.',
+              'An organization admin with device-only verification can use the verified organization contact email as a recovery option without enabling email codes for everyday sign-ins.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Avoid getting locked out',
+            text: 'Before enabling a method, make sure you can keep access to its email inbox or at least one other signed-in trusted device. Keep both methods available when possible.',
+          },
+        ],
+      },
+      {
+        id: 'email-verification-sign-in',
+        title: 'Sign in with an email code',
+        tags: ['email', 'code', 'contact email', '10 minutes'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Choose Send a code by email.',
+              'Open the inbox shown on the verification screen.',
+              'Enter the six-digit code within 10 minutes.',
+              'Choose Verify and sign in. The successful browser becomes trusted.',
+            ],
+          },
+          {
+            type: 'tip',
+            title: 'No code?',
+            text: 'Check the masked address on screen and the inbox spam folder. You can request another code after the resend wait period.',
+          },
+        ],
+      },
+      {
+        id: 'device-verification-sign-in',
+        title: 'Approve from another signed-in device',
+        tags: ['device approval', 'notification', 'trusted browser'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'You can approve from any phone, tablet, or computer where you are already signed in to the same EduVerse account and that browser or device is trusted.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Open EduVerse on another device where this account is already signed in.',
+              'Open the sign-in approval notification and choose Approve sign-in.',
+              'If the notification is not visible, open your profile or Settings, go to Security, then Devices & sessions, and approve the waiting sign-in.',
+              'Return to the new device. Its sign-in screen continues automatically.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Only approve your own attempt',
+            text: 'Do not approve a request you do not recognize. Review your sessions and change your password if an unexpected request appears.',
           },
         ],
       },
       {
         id: 'contact-verification',
-        title: 'Contact verification',
-        tags: ['email', 'verification'],
+        title: 'Contact email',
+        tags: ['email', 'verification', 'Google', 'change email'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'Schools should keep contact information accurate so important account, security, and support messages reach the right people.',
+            text: 'The verified contact email is used for email sign-in codes and other security communication. It can differ from the email used as the account name.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Organization admins use the verified organization contact email shown in Settings > Profile.',
+              'Other users can add and verify a personal contact email from Settings > Security.',
+              'A user with a linked Google account can choose its verified Google email as the contact email.',
+            ],
+          },
+          {
+            type: 'steps',
+            items: [
+              'Choose Change contact email beside the current address. EduVerse sends a six-digit code to that address.',
+              'Enter that code to unlock the email field. The field stays unlocked only in this signed-in session and for up to 15 minutes.',
+              'Enter and save the new address.',
+              'Open the new inbox and enter the new verification code. Until this is done, the new address cannot receive email sign-in codes.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Why two codes are needed',
+            text: 'The first code proves that the person changing the address still controls the current email. The second code proves that the replacement address works. If you sign out before saving the change, request a new code from the current address after signing in again.',
+          },
+          {
+            type: 'tip',
+            title: 'Using your linked Google email',
+            text: 'If choosing the linked Google email would replace an existing verified contact email, EduVerse still sends a confirmation code to the current address first. The Google address is already verified by Google, so it is ready after the change is confirmed.',
+          },
+        ],
+      },
+      {
+        id: 'account-recovery-help',
+        title: 'Getting help when you cannot complete two-step verification',
+        tags: ['recovery', 'locked out', 'admin help', 'reset 2FA'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'If you cannot use your email code or any trusted device, an organization administrator may be able to remove the extra sign-in check for your account. This does not reveal your password or sign the administrator into your account.',
+          },
+          {
+            type: 'table',
+            headers: ['Who needs help', 'Who can help', 'What they can do'],
+            rows: [
+              ['Teacher, manager, finance manager, student, or guardian', 'Org admin or sub-admin', 'Copy a password-reset link or enable/disable two-step verification.'],
+              ['Sub-admin', 'Org admin only', 'Copy a password-reset link or enable/disable two-step verification.'],
+              ['Org admin who can open the organization contact inbox', 'No staff action is needed', 'Choose the organization recovery email on the sign-in screen.'],
+              ['Org admin who also lost the organization contact inbox', 'Platform support', 'After confirming the request, replace the verified organization contact email.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'What a two-step verification reset does',
+            text: 'Turning off two-step verification removes the extra check at sign-in. It does not change the password, sign out other sessions, or remove trusted devices. After signing in, the user should review Security and turn protection back on with options they can access.',
+          },
+        ],
+      },
+      {
+        id: 'org-admin-email-recovery',
+        title: 'Organization admin email recovery',
+        tags: ['org admin', 'recovery email', 'lost device'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'An org admin who normally approves sign-ins from another device can use the verified organization contact email if those devices are unavailable. The sign-in screen labels this as the organization recovery email.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'On the sign-in check, choose Use organization recovery email.',
+              'Open the organization contact inbox and enter the six-digit code.',
+              'Complete sign-in. The email remains a recovery choice; email codes are not automatically turned on for every future sign-in.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Lost access to the recovery email too?',
+            text: 'Contact platform support. After confirming the request, a platform admin can replace the organization contact email. Start sign-in again after it is changed so the code is sent to the new address.',
+          },
+        ],
+      },
+      {
+        id: 'linked-google',
+        title: 'Linked Google sign-in',
+        tags: ['Google', 'linked account'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Linking Google adds another sign-in method. The linked Google email is shown in Security, can be unlinked there, and can be adopted as the contact email when the user chooses it.',
+          },
+        ],
+      },
+      {
+        id: 'sessions',
+        title: 'Sessions and devices',
+        tags: ['devices', 'logout', 'trust'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A session means the account is signed in. Browser trust means that browser can approve sign-ins and use protected Chat and Mail. These controls are separate.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Sign out ends the selected session but does not automatically remove browser trust.',
+              'Remove trust stops that browser from approving sign-ins or opening new protected content but may leave its session signed in.',
+              'Sign out all other sessions keeps only the session currently in use.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'security-alerts',
+        title: 'Login security alerts',
+        tags: ['notifications', 'email alert', 'push alert'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Login email alerts and login push alerts can be switched on or off independently. They cover new-device and new-location sign-in activity.',
+          },
+          {
+            type: 'note',
+            title: 'Recommended',
+            text: 'Keep at least one login alert channel enabled so unexpected account activity is easier to notice.',
           },
         ],
       },
@@ -2952,8 +3155,31 @@ export const docsPages: DocPage[] = [
               ['Academic setup', 'Create cycles, courses, cohorts, sections, and GPA policies in the right order.', 'Bad setup causes missing dropdowns, wrong enrollments, and transcript mistakes.'],
               ['Evaluation windows', 'Open and manage teacher/course feedback periods.', 'Feedback should be collected only after enough academic activity has happened.'],
               ['People', 'Create teacher and student accounts and place them correctly.', 'Portal views depend on correct assignments and placement.'],
+              ['Account recovery', 'Help organization users with password-reset links or two-step verification when they are locked out.', 'Only change security after confirming which user is asking for help.'],
               ['Finance', 'Review structures, payment claims, and confirmed transactions.', 'Fee balances should only change after staff verification.'],
             ],
+          },
+        ],
+      },
+      {
+        id: 'admin-account-recovery',
+        title: 'Help a user regain access',
+        tags: ['password reset', 'two-step verification', 'locked out'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Open the relevant user list and find the correct account.',
+              'Use Copy Password Reset Link if the user has forgotten the password, or use the shield action if the user cannot complete two-step verification.',
+              'Read the confirmation carefully. The two-step verification action tells you whether it will enable or disable the extra sign-in check.',
+              'Share password-reset links directly with the intended user. Do not post them in a group chat or shared document.',
+              'Ask the user to review Settings > Security after signing in and set up verification options they can keep access to.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Admin boundary',
+            text: 'Org admins can help every user in their organization, including sub-admins. Sub-admins cannot change the password or two-step verification of the org admin or another sub-admin.',
           },
         ],
       },
@@ -3021,6 +3247,7 @@ export const docsPages: DocPage[] = [
             headers: ['Area', 'Sub Admin can do', 'Boundary'],
             rows: [
               ['People', 'Create and update teachers, managers, students, guardians, and finance managers.', 'Sub admins do not create or manage main admin accounts.'],
+              ['Account recovery', 'Copy password-reset links and change two-step verification for ordinary users.', 'Sub admins cannot do this for the org admin or another sub-admin.'],
               ['Academic setup', 'Manage cycles, cohorts, sections, schedules, reassignment, and operational academic records.', 'Changes should follow the school academic plan.'],
               ['Grades', 'Review grade-finalization status and finalize where allowed.', 'Finalized grades become official transcript data.'],
               ['Evaluations', 'Create windows and review teacher/course feedback where delegated.', 'Feedback review follows department scope where applicable.'],

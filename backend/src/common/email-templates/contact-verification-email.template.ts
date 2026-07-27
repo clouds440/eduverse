@@ -17,17 +17,25 @@ export function renderContactVerificationEmail(
   input: ContactVerificationEmailInput,
 ) {
   const isFirstRegistration = input.reason === 'first_registration';
+  const isChangeConfirmation =
+    input.reason === 'contact_email_change_confirmation';
   const intro =
-    input.reason === 'contact_email_changed'
+    isChangeConfirmation
+      ? `A contact email change was requested for ${input.organizationName}.`
+      : input.reason === 'contact_email_changed'
       ? `A new contact email was set for ${input.organizationName}.`
       : isFirstRegistration
         ? `Welcome to EduVerse, ${input.organizationName}.`
         : `Please verify the contact email for ${input.organizationName}.`;
-  const guidance = isFirstRegistration
-    ? 'Before approval can continue, verify this contact email. It will be used for password recovery, important organization notifications, and security communication.'
-    : 'This code verifies the contact email for this organization workspace only.';
+  const guidance = isChangeConfirmation
+    ? 'Enter this code in the signed-in session that requested the change. It only unlocks contact email changes in that session for a short time.'
+    : isFirstRegistration
+      ? 'Before approval can continue, verify this contact email. It will be used for password recovery, important organization notifications, and security communication.'
+      : 'This code verifies the contact email for this organization workspace only.';
   return {
-    subject: isFirstRegistration
+    subject: isChangeConfirmation
+      ? 'Confirm your EduVerse contact email change'
+      : isFirstRegistration
       ? `Welcome to EduVerse, ${input.organizationName}`
       : `Verify ${input.organizationName}'s EduVerse contact email`,
     text: [
@@ -36,14 +44,20 @@ export function renderContactVerificationEmail(
       `Contact email: ${input.contactEmail}`,
       `Verification code: ${input.code}`,
       'This code expires in 10 minutes.',
-      'If this mailbox is used for multiple EduVerse organizations, use this code only in the workspace named above.',
+      isChangeConfirmation
+        ? 'If you did not request this change, do not share this code.'
+        : 'If this mailbox is used for multiple EduVerse organizations, use this code only in the workspace named above.',
     ].join('\n\n'),
     html: renderSecurityEmailLayout({
       appBaseUrl: input.appBaseUrl,
-      eyebrow: isFirstRegistration
+      eyebrow: isChangeConfirmation
+        ? 'Contact email change'
+        : isFirstRegistration
         ? 'Welcome to EduVerse'
         : 'Contact email verification',
-      title: isFirstRegistration
+      title: isChangeConfirmation
+        ? 'Confirm your current email'
+        : isFirstRegistration
         ? 'Verify your organization contact'
         : 'Confirm this contact email',
       preview: `${intro} ${guidance}`,
@@ -60,9 +74,15 @@ export function renderContactVerificationEmail(
             <p style="margin:0 0 10px;color:#6b7280;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">Verification code</p>
             ${renderVerificationCode(input.code)}
           </div>
-          <div style="border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;padding:14px;">
+          ${
+            isChangeConfirmation
+              ? `<div style="border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;padding:14px;">
+            <p style="margin:0;color:#9a3412;font-size:13px;line-height:1.6;"><strong>Did not request this?</strong> Do not share this code. Your contact email cannot be changed without it.</p>
+          </div>`
+              : `<div style="border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;padding:14px;">
             <p style="margin:0;color:#9a3412;font-size:13px;line-height:1.6;"><strong>Shared mailbox?</strong> This code verifies only ${escapeHtml(input.organizationName)}. It does not verify any other EduVerse organization that may use the same contact email.</p>
-          </div>
+          </div>`
+          }
         `,
     }),
   };

@@ -23,9 +23,10 @@ import type {
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
     PreferenceWindow, PreferenceWindowRequest, PreferenceResults, PreferenceSubmission, Enrollment, EnrollmentMutationResponse,
-    LinkedAccount, PasswordResetLinkResponse, PublicProfile,
+    ContactEmailChangeConfirmation, LinkedAccount, ManagedTwoFactorResult, ManagedTwoFactorStatus, PasswordResetLinkResponse, PublicProfile,
     ApproveTrustedDevicePayload, PendingDeviceApprovalContext, RecipientEncryptionDevicesResponse, RegisterChatHistoryKeyPayload, RegisterTrustedDevicePayload, SendChatMessagePayload,
     TrustedDeviceRegistrationResponse, TrustedDevicesResponse, TwoFactorChallenge, TwoFactorLoginMethod,
+    ChatDeviceHistoryGrantPayload,
 } from '@/types';
 import type {
     AIOrgSettingsResponse,
@@ -554,6 +555,14 @@ export const api = {
             request<TwoFactorChallenge>('/auth/two-factor/challenge', {
                 method: 'POST', body: JSON.stringify({ temporaryToken }),
             }),
+        registerPendingTwoFactorDevice: (
+            temporaryToken: string,
+            device: RegisterTrustedDevicePayload,
+        ) =>
+            request<TrustedDeviceRegistrationResponse>('/auth/two-factor/device/register', {
+                method: 'POST',
+                body: JSON.stringify({ temporaryToken, device }),
+            }),
         selectTwoFactorMethod: (temporaryToken: string, method: TwoFactorLoginMethod) =>
             request<TwoFactorChallenge>('/auth/two-factor/select', {
                 method: 'POST', body: JSON.stringify({ temporaryToken, method }),
@@ -574,10 +583,32 @@ export const api = {
             request<MessageResponse>('/auth/two-factor/cancel', {
                 method: 'POST', body: JSON.stringify({ temporaryToken }),
             }),
-        approveTwoFactorDevice: (pendingLoginId: string, clientDeviceId: string, token: string) =>
+        getTwoFactorDeviceApprovalContext: (
+            pendingLoginId: string,
+            clientDeviceId: string,
+            token: string,
+            cursor?: string,
+        ) =>
+            request<PendingDeviceApprovalContext>(
+                `/auth/two-factor/device/approval-context${buildQueryString({
+                    pendingLoginId,
+                    clientDeviceId,
+                    cursor,
+                })}`,
+                { token },
+            ),
+        approveTwoFactorDevice: (
+            pendingLoginId: string,
+            clientDeviceId: string,
+            token: string,
+            options: {
+                chatGrants?: ChatDeviceHistoryGrantPayload[];
+                complete?: boolean;
+            } = {},
+        ) =>
             request<MessageResponse>('/auth/two-factor/device/approve', {
                 method: 'POST',
-                body: JSON.stringify({ pendingLoginId, clientDeviceId }),
+                body: JSON.stringify({ pendingLoginId, clientDeviceId, ...options }),
                 token,
             }),
         getGoogleLoginUrl: (params: Partial<LoginRequest> & { returnTo?: string } = {}) => {
@@ -602,6 +633,10 @@ export const api = {
             request<MessageResponse>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
         generatePasswordResetLink: (userId: string, token: string) =>
             request<PasswordResetLinkResponse>(`/auth/users/${userId}/password-reset-link`, { method: 'POST', token }),
+        toggleManagedTwoFactor: (userId: string, token: string) =>
+            request<ManagedTwoFactorResult>(`/auth/users/${userId}/two-factor/toggle`, { method: 'POST', token }),
+        getManagedTwoFactorStatus: (userId: string, token: string) =>
+            request<ManagedTwoFactorStatus>(`/auth/users/${userId}/two-factor`, { token }),
         getContactEmail: (token: string) =>
             request<ContactEmailStatus>('/auth/contact-email', { token }),
         updateContactEmail: (contactEmail: string, token: string) =>
@@ -613,6 +648,17 @@ export const api = {
         useLinkedGoogleContactEmail: (token: string) =>
             request<ContactEmailStatus>('/auth/contact-email/use-linked-google', {
                 method: 'POST',
+                token,
+            }),
+        requestContactEmailChangeConfirmation: (token: string) =>
+            request<ContactEmailChangeConfirmation>('/auth/contact-email/change-confirmation/request', {
+                method: 'POST',
+                token,
+            }),
+        confirmContactEmailChange: (code: string, token: string) =>
+            request<ContactEmailChangeConfirmation>('/auth/contact-email/change-confirmation/confirm', {
+                method: 'POST',
+                body: JSON.stringify({ code }),
                 token,
             }),
         resendContactEmailVerification: (token: string) =>
@@ -663,8 +709,8 @@ export const api = {
                 method: 'DELETE',
                 token,
             }),
-        getDeviceApprovalContext: (deviceId: string, approverDeviceId: string, token: string) =>
-            request<PendingDeviceApprovalContext>(`/e2ee/devices/${deviceId}/approval-context${buildQueryString({ approverDeviceId })}`, { token }),
+        getDeviceApprovalContext: (deviceId: string, approverDeviceId: string, token: string, cursor?: string) =>
+            request<PendingDeviceApprovalContext>(`/e2ee/devices/${deviceId}/approval-context${buildQueryString({ approverDeviceId, cursor })}`, { token }),
         approveDevice: (deviceId: string, data: ApproveTrustedDevicePayload, token: string) =>
             request<TrustedDeviceRegistrationResponse['device']>(`/e2ee/devices/${deviceId}/approve`, {
                 method: 'POST',
@@ -694,6 +740,12 @@ export const api = {
             request<PaginatedResponse<Organization>>(`/admin/organizations${buildQueryString(params)}`, { token }),
         approveOrganization: (id: string, token: string) =>
             request<void>(`/admin/organizations/${id}/approve`, { method: 'PATCH', token }),
+        setOrganizationContactEmail: (id: string, contactEmail: string, token: string) =>
+            request<Organization>(`/admin/organizations/${id}/contact-email/recovery`, {
+                method: 'PATCH',
+                body: JSON.stringify({ contactEmail }),
+                token,
+            }),
         rejectOrganization: (id: string, reason: string, token: string) =>
             request<void>(`/admin/organizations/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }), token }),
         suspendOrganization: (id: string, reason: string, token: string) =>

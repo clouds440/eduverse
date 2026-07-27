@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  forwardRef,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -26,6 +27,15 @@ import { EmailService } from '../security/email.service';
 import { SessionDeviceInput } from './auth-internal.types';
 import { hashSecret } from './auth-internal.utils';
 import { EmailTemplateService } from '../common/email-templates/email-template.service';
+import type {
+  AuthMessageResponse,
+  TwoFactorChallengeResponse,
+  TwoFactorLoginMethod,
+  TwoFactorVerificationResponse,
+} from './two-factor.types';
+import { E2eeService } from '../e2ee/e2ee.service';
+import { RegisterTrustedDeviceDto } from '../e2ee/dto/register-trusted-device.dto';
+import { ApproveTrustedDeviceDto } from '../e2ee/dto/approve-trusted-device.dto';
 
 const PENDING_LOGIN_TTL_MS = 15 * 60_000;
 const EMAIL_CODE_TTL_MS = 10 * 60_000;
@@ -49,6 +59,8 @@ export class TwoFactorService {
     private readonly events: EventsGateway,
     @Inject(NOTIFICATIONS_SERVICE)
     private readonly notifications: NotificationCreator,
+    @Inject(forwardRef(() => E2eeService))
+    private readonly e2ee: E2eeService,
   ) {}
 
   async begin(
@@ -56,6 +68,10 @@ export class TwoFactorService {
       id: string;
       role: Role;
       organizationId: string | null;
+      organization?: {
+        contactEmail: string | null;
+        contactEmailVerifiedAt: Date | null;
+      } | null;
       settings?: {
         emailTwoFactorEnabled: boolean;
         deviceTwoFactorEnabled: boolean;
@@ -68,6 +84,15 @@ export class TwoFactorService {
     const methods: TwoFactorMethod[] = [];
     if (settings?.emailTwoFactorEnabled) methods.push(TwoFactorMethod.EMAIL);
     if (settings?.deviceTwoFactorEnabled) methods.push(TwoFactorMethod.DEVICE);
+    const hasOrgAdminRecoveryEmail =
+      user.role === Role.ORG_ADMIN &&
+      settings?.deviceTwoFactorEnabled === true &&
+      settings.emailTwoFactorEnabled === false &&
+      Boolean(
+        user.organization?.contactEmail &&
+          user.organization.contactEmailVerifiedAt,
+      );
+    if (hasOrgAdminRecoveryEmail) methods.push(TwoFactorMethod.EMAIL);
     if (methods.length === 0) return null;
 
     await this.prisma.pendingLogin.updateMany({
@@ -105,17 +130,36 @@ export class TwoFactorService {
       requiresTwoFactor: true as const,
       temporaryToken,
       pendingLoginId: pending.id,
-      methods: methods.map((method) => method.toLowerCase()),
+      methods,
       expiresAt: pending.expiresAt.toISOString(),
+      emailIsRecoveryFallback: hasOrgAdminRecoveryEmail,
     };
   }
 
-  async getChallenge(temporaryToken: string) {
+  async getChallenge(
+    temporaryToken: string,
+  ): Promise<TwoFactorChallengeResponse> {
     const pending = await this.getPending(temporaryToken);
     return this.serialize(pending);
   }
 
-  async selectMethod(temporaryToken: string, methodInput: string) {
+  async registerPendingDevice(
+    temporaryToken: string,
+    device: RegisterTrustedDeviceDto,
+  ) {
+    const pending = await this.getPending(temporaryToken);
+    return this.e2ee.registerPendingLoginDevice(
+      pending.userId,
+      pending.id,
+      pending.deviceId,
+      device,
+    );
+  }
+
+  async selectMethod(
+    temporaryToken: string,
+    methodInput: TwoFactorMethod,
+  ): Promise<TwoFactorChallengeResponse> {
     const pending = await this.getPending(temporaryToken);
     const method = this.parseAvailableMethod(
       methodInput,
@@ -165,7 +209,10 @@ export class TwoFactorService {
     return this.getChallenge(temporaryToken);
   }
 
-  async verifyEmail(temporaryToken: string, code: string) {
+  async verifyEmail(
+    temporaryToken: string,
+    code: string,
+  ): Promise<TwoFactorVerificationResponse> {
     const pending = await this.getPending(temporaryToken);
     if (pending.selectedMethod !== TwoFactorMethod.EMAIL) {
       throw new BadRequestException('Choose email verification first.');
@@ -189,11 +236,20 @@ export class TwoFactorService {
       });
       throw new BadRequestException('That code is not correct.');
     }
+    if (!pending.pendingDeviceId) {
+      throw new BadRequestException(
+        'Secure browser setup must finish before verification.',
+      );
+    }
+    await this.e2ee.trustPendingLoginDeviceWithoutHistory(
+      pending.userId,
+      pending.pendingDeviceId,
+    );
     await this.markVerified(pending.id);
     return { verified: true };
   }
 
-  async resendEmail(temporaryToken: string) {
+  async resendEmail(temporaryToken: string): Promise<AuthMessageResponse> {
     const pending = await this.getPending(temporaryToken);
     if (pending.selectedMethod !== TwoFactorMethod.EMAIL) {
       throw new BadRequestException('Choose email verification first.');
@@ -212,7 +268,7 @@ export class TwoFactorService {
     return { message: 'A new code was sent.' };
   }
 
-  async cancel(temporaryToken: string) {
+  async cancel(temporaryToken: string): Promise<AuthMessageResponse> {
     const pending = await this.getPending(temporaryToken);
     await this.prisma.pendingLogin.update({
       where: { id: pending.id },
@@ -225,7 +281,8 @@ export class TwoFactorService {
     approverUserId: string,
     pendingLoginId: string,
     approverClientDeviceId: string,
-  ) {
+    dto: Pick<ApproveTrustedDeviceDto, 'chatGrants' | 'complete'> = {},
+  ): Promise<AuthMessageResponse> {
     const pending = await this.prisma.pendingLogin.findUnique({
       where: { id: pendingLoginId },
     });
@@ -238,6 +295,11 @@ export class TwoFactorService {
     ) {
       throw new BadRequestException('This sign-in request is no longer active.');
     }
+    if (!pending.pendingDeviceId) {
+      throw new BadRequestException(
+        'The new browser did not finish secure device registration.',
+      );
+    }
     const trusted = await this.prisma.trustedEncryptionDevice.findFirst({
       where: {
         userId: approverUserId,
@@ -248,11 +310,48 @@ export class TwoFactorService {
     });
     if (!trusted) {
       throw new ForbiddenException(
-        'Open this request on a browser you already trust.',
+        'Approve this request from a phone, tablet, or computer where you are already signed in and the browser is trusted.',
       );
     }
+    if (trusted.id === pending.pendingDeviceId) {
+      await this.markVerified(pending.id);
+      return { message: 'Sign-in approved.' };
+    }
+
+    const result = await this.e2ee.provisionPendingLoginDevice(
+      pending.userId,
+      pending.pendingDeviceId,
+      approverClientDeviceId,
+      dto,
+    );
+    if (!result.complete) {
+      return { message: 'Recent Chat history batch saved.' };
+    }
     await this.markVerified(pending.id);
-    return { message: 'Sign-in approved.' };
+    return { message: 'Sign-in and secure browser approved.' };
+  }
+
+  async getDeviceApprovalContext(
+    approverUserId: string,
+    pendingLoginId: string,
+    approverClientDeviceId: string,
+    cursor?: string,
+  ) {
+    const pending = await this.getActiveDevicePendingLogin(
+      approverUserId,
+      pendingLoginId,
+    );
+    if (!pending.pendingDeviceId) {
+      throw new BadRequestException(
+        'The new browser did not finish secure device registration.',
+      );
+    }
+    return this.e2ee.getPendingLoginDeviceApprovalContext(
+      pending.userId,
+      pending.pendingDeviceId,
+      approverClientDeviceId,
+      cursor,
+    );
   }
 
   async consume(temporaryToken: string) {
@@ -314,6 +413,11 @@ export class TwoFactorService {
       where: { id: pendingLoginId },
       include: { user: true },
     });
+    if (!pending.pendingDeviceId) {
+      throw new BadRequestException(
+        'Secure browser setup must finish before device approval.',
+      );
+    }
     const currentTrusted = await this.prisma.trustedEncryptionDevice.findFirst({
       where: {
         userId: pending.userId,
@@ -360,7 +464,9 @@ export class TwoFactorService {
   private async sendEmailCode(pendingLoginId: string) {
     const pending = await this.prisma.pendingLogin.findUniqueOrThrow({
       where: { id: pendingLoginId },
-      include: { user: { include: { organization: true } } },
+      include: {
+        user: { include: { organization: true, settings: true } },
+      },
     });
     const isOrgAdmin =
       pending.user.role === Role.ORG_ADMIN && pending.user.organization;
@@ -446,10 +552,32 @@ export class TwoFactorService {
     });
   }
 
+  private async getActiveDevicePendingLogin(
+    userId: string,
+    pendingLoginId: string,
+  ) {
+    const pending = await this.prisma.pendingLogin.findFirst({
+      where: {
+        id: pendingLoginId,
+        userId,
+        status: PendingLoginStatus.PENDING,
+        selectedMethod: TwoFactorMethod.DEVICE,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (!pending) {
+      throw new BadRequestException('This sign-in request is no longer active.');
+    }
+    return pending;
+  }
+
   private async getPending(temporaryToken: string) {
     const payload = await this.verifyTemporaryToken(temporaryToken);
     const pending = await this.prisma.pendingLogin.findUnique({
       where: { id: payload.pendingLoginId },
+      include: {
+        user: { include: { organization: true, settings: true } },
+      },
     });
     if (
       !pending ||
@@ -485,25 +613,61 @@ export class TwoFactorService {
     selectedMethod: TwoFactorMethod | null;
     availableMethods: TwoFactorMethod[];
     expiresAt: Date;
-  }) {
+      user?: {
+        role: Role;
+        contactEmail: string | null;
+        settings: { emailTwoFactorEnabled: boolean } | null;
+        organization: { contactEmail: string | null } | null;
+      };
+  }): TwoFactorChallengeResponse {
+    const contactEmail =
+      pending.user?.role === Role.ORG_ADMIN
+        ? pending.user.organization?.contactEmail
+        : pending.user?.contactEmail;
     return {
       pendingLoginId: pending.id,
-      status: pending.status.toLowerCase(),
-      selectedMethod: pending.selectedMethod?.toLowerCase() || null,
-      methods: pending.availableMethods.map((method) => method.toLowerCase()),
+      status:
+        pending.status === PendingLoginStatus.VERIFIED
+          ? PendingLoginStatus.VERIFIED
+          : PendingLoginStatus.PENDING,
+      selectedMethod: this.isLoginMethod(pending.selectedMethod)
+        ? pending.selectedMethod
+        : null,
+      methods: pending.availableMethods.filter(
+        (method): method is TwoFactorLoginMethod => this.isLoginMethod(method),
+      ),
       expiresAt: pending.expiresAt.toISOString(),
+      emailHint: contactEmail ? this.maskEmail(contactEmail) : null,
+      emailIsRecoveryFallback:
+        pending.user?.role === Role.ORG_ADMIN &&
+        pending.availableMethods.includes(TwoFactorMethod.EMAIL) &&
+        pending.user.settings?.emailTwoFactorEnabled !== true,
     };
   }
 
+  private maskEmail(email: string) {
+    const [local, domain] = email.split('@');
+    if (!domain) return email;
+    const visible = local.slice(0, Math.min(2, local.length));
+    return `${visible}${'*'.repeat(Math.max(3, local.length - visible.length))}@${domain}`;
+  }
+
+  private isLoginMethod(
+    method: TwoFactorMethod | null,
+  ): method is TwoFactorLoginMethod {
+    return (
+      method === TwoFactorMethod.EMAIL || method === TwoFactorMethod.DEVICE
+    );
+  }
+
   private parseAvailableMethod(
-    input: string,
+    input: TwoFactorMethod,
     availableMethods: TwoFactorMethod[],
   ) {
-    const normalized = input?.trim().toUpperCase();
     const method =
-      normalized === TwoFactorMethod.EMAIL
+      input === TwoFactorMethod.EMAIL
         ? TwoFactorMethod.EMAIL
-        : normalized === TwoFactorMethod.DEVICE
+        : input === TwoFactorMethod.DEVICE
           ? TwoFactorMethod.DEVICE
           : null;
     if (!method || !availableMethods.includes(method)) {

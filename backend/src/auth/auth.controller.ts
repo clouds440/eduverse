@@ -28,6 +28,13 @@ import { VerifyContactEmailDto } from '../org/dto/verify-contact-email.dto';
 import { AUTH_COOKIE_NAME, extractJwtFromRequest } from './jwt.strategy';
 import { UpdateUserSettingsDto } from './dto/update-user-settings.dto';
 import { UpdateContactEmailDto } from './dto/update-contact-email.dto';
+import {
+  ApproveTwoFactorDeviceDto,
+  RegisterPendingTwoFactorDeviceDto,
+  SelectTwoFactorMethodDto,
+  TemporaryTwoFactorTokenDto,
+  VerifyTwoFactorEmailDto,
+} from './dto/two-factor.dto';
 
 type AuthenticatedRequest = {
   user: { id: string; role?: string; organizationId?: string | null; sessionId?: string };
@@ -83,15 +90,27 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('two-factor/challenge')
-  getTwoFactorChallenge(@Body() body: { temporaryToken: string }) {
+  getTwoFactorChallenge(@Body() body: TemporaryTwoFactorTokenDto) {
     return this.authService.getTwoFactorChallenge(body.temporaryToken);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('two-factor/device/register')
+  registerPendingTwoFactorDevice(
+    @Body() body: RegisterPendingTwoFactorDeviceDto,
+  ) {
+    return this.authService.registerPendingTwoFactorDevice(
+      body.temporaryToken,
+      body.device,
+    );
   }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('two-factor/select')
   selectTwoFactorMethod(
-    @Body() body: { temporaryToken: string; method: string },
+    @Body() body: SelectTwoFactorMethodDto,
   ) {
     return this.authService.selectTwoFactorMethod(
       body.temporaryToken,
@@ -103,7 +122,7 @@ export class AuthController {
   @Throttle({ default: { limit: 8, ttl: 10 * 60_000 } })
   @Post('two-factor/email/verify')
   verifyTwoFactorEmail(
-    @Body() body: { temporaryToken: string; code: string },
+    @Body() body: VerifyTwoFactorEmailDto,
   ) {
     return this.authService.verifyTwoFactorEmail(
       body.temporaryToken,
@@ -114,13 +133,13 @@ export class AuthController {
   @Public()
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('two-factor/email/resend')
-  resendTwoFactorEmail(@Body() body: { temporaryToken: string }) {
+  resendTwoFactorEmail(@Body() body: TemporaryTwoFactorTokenDto) {
     return this.authService.resendTwoFactorEmail(body.temporaryToken);
   }
 
   @Public()
   @Post('two-factor/cancel')
-  cancelTwoFactorLogin(@Body() body: { temporaryToken: string }) {
+  cancelTwoFactorLogin(@Body() body: TemporaryTwoFactorTokenDto) {
     return this.authService.cancelTwoFactorLogin(body.temporaryToken);
   }
 
@@ -128,7 +147,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('two-factor/complete')
   async completeTwoFactorLogin(
-    @Body() body: { temporaryToken: string },
+    @Body() body: TemporaryTwoFactorTokenDto,
     @Request() req: AuthenticatedRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
@@ -144,12 +163,33 @@ export class AuthController {
   @Post('two-factor/device/approve')
   approveTwoFactorDevice(
     @Request() req: AuthenticatedRequest,
-    @Body() body: { pendingLoginId: string; clientDeviceId: string },
+    @Body() body: ApproveTwoFactorDeviceDto,
   ) {
     return this.authService.approveTwoFactorDevice(
       req.user.id,
       body.pendingLoginId,
       body.clientDeviceId,
+      {
+        chatGrants: body.chatGrants,
+        complete: body.complete,
+      },
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Get('two-factor/device/approval-context')
+  getTwoFactorDeviceApprovalContext(
+    @Request() req: AuthenticatedRequest,
+    @Query('pendingLoginId') pendingLoginId: string,
+    @Query('clientDeviceId') clientDeviceId: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.authService.getTwoFactorDeviceApprovalContext(
+      req.user.id,
+      pendingLoginId,
+      clientDeviceId,
+      cursor,
     );
   }
 
@@ -265,6 +305,34 @@ export class AuthController {
       req.user,
       userId,
       this.getRequestMeta(req),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.WRITE)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post('users/:userId/two-factor/toggle')
+  async toggleManagedUserTwoFactor(
+    @Param('userId') userId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.authService.toggleManagedUserTwoFactor(
+      req.user,
+      userId,
+      this.getRequestMeta(req),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.WRITE)
+  @Get('users/:userId/two-factor')
+  async getManagedUserTwoFactorStatus(
+    @Param('userId') userId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.authService.getManagedUserTwoFactorStatus(
+      req.user,
+      userId,
     );
   }
 
@@ -397,6 +465,27 @@ export class AuthController {
   @Post('contact-email/use-linked-google')
   async useLinkedGoogleContactEmail(@Request() req: AuthenticatedRequest) {
     return this.authService.useLinkedGoogleContactEmail(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @Post('contact-email/change-confirmation/request')
+  async requestContactEmailChangeConfirmation(
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.authService.requestContactEmailChangeConfirmation(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Access(AccessLevel.NONE)
+  @Throttle({ default: { limit: 8, ttl: 10 * 60_000 } })
+  @Post('contact-email/change-confirmation/confirm')
+  async confirmContactEmailChange(
+    @Request() req: AuthenticatedRequest,
+    @Body() dto: VerifyContactEmailDto,
+  ) {
+    return this.authService.confirmContactEmailChange(req.user, dto.code);
   }
 
   @UseGuards(JwtAuthGuard)

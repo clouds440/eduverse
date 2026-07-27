@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyRound, Mail, MonitorSmartphone, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -8,11 +8,18 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import {
     getCurrentDeviceTrustState,
+    registerPendingLoginTrustedDevice,
     requestCurrentDeviceTrust,
     trustedDeviceSetupErrorMessage,
 } from '@/lib/e2ee';
 import { api } from '@/lib/api';
-import type { TwoFactorChallenge, TwoFactorLoginMethod } from '@/types';
+import {
+    TrustedDevicePromptFlow,
+    TwoFactorChallengeStatus,
+    TwoFactorMethod,
+    type TwoFactorChallenge,
+    type TwoFactorLoginMethod,
+} from '@/types';
 import { Input } from '@/components/ui/Input';
 import { useSocket } from '@/hooks/useSocket';
 
@@ -147,16 +154,21 @@ function EncryptionTrustPrompt() {
     );
 }
 
-export function TrustedDevicePrompt(props:
-    | { flow?: 'encryption' }
-    | {
-        flow: 'two-factor';
-        temporaryToken: string;
-        onComplete: (accessToken: string) => Promise<void>;
-        onCancel: () => void;
-    }
-) {
-    if (props.flow === 'two-factor') {
+interface EncryptionPromptProps {
+    flow?: TrustedDevicePromptFlow.ENCRYPTION;
+}
+
+interface TwoFactorPromptProps {
+    flow: TrustedDevicePromptFlow.TWO_FACTOR;
+    temporaryToken: string;
+    onComplete: (accessToken: string) => Promise<void>;
+    onCancel: () => void;
+}
+
+export type TrustedDevicePromptProps = EncryptionPromptProps | TwoFactorPromptProps;
+
+export function TrustedDevicePrompt(props: TrustedDevicePromptProps) {
+    if (props.flow === TrustedDevicePromptFlow.TWO_FACTOR) {
         return <TwoFactorPrompt {...props} />;
     }
     return <EncryptionTrustPrompt />;
@@ -175,10 +187,11 @@ function TwoFactorPrompt({
     const [code, setCode] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+    const [deviceReady, setDeviceReady] = useState(false);
     const completingRef = useRef(false);
     const { subscribe } = useSocket({ token: temporaryToken, enabled: true });
 
-    const finish = async () => {
+    const finish = useCallback(async () => {
         if (completingRef.current) return;
         completingRef.current = true;
         setBusy(true);
@@ -192,20 +205,24 @@ function TwoFactorPrompt({
             setError(err instanceof Error ? err.message : 'Unable to finish signing in.');
             setBusy(false);
         }
-    };
+    }, [onComplete, temporaryToken]);
 
     useEffect(() => {
         api.auth.getTwoFactorChallenge(temporaryToken)
-            .then((next) => {
+            .then(async (next) => {
+                if (next.status === TwoFactorChallengeStatus.VERIFIED) {
+                    setChallenge(next);
+                    await finish();
+                    return;
+                }
+                await registerPendingLoginTrustedDevice(temporaryToken);
+                setDeviceReady(true);
                 setChallenge(next);
-                if (next.status === 'verified') void finish();
             })
             .catch((err) => setError(err instanceof Error ? err.message : 'This sign-in request expired.'));
-        // The token identifies one immutable pending login.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [temporaryToken]);
+    }, [finish, temporaryToken]);
 
-    useEffect(() => subscribe('two-factor:verified', () => void finish()), [subscribe]);
+    useEffect(() => subscribe('two-factor:verified', () => void finish()), [finish, subscribe]);
 
     const choose = async (method: TwoFactorLoginMethod) => {
         setBusy(true);
@@ -213,7 +230,7 @@ function TwoFactorPrompt({
         try {
             const next = await api.auth.selectTwoFactorMethod(temporaryToken, method);
             setChallenge(next);
-            if (next.status === 'verified') await finish();
+            if (next.status === TwoFactorChallengeStatus.VERIFIED) await finish();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unable to start verification.');
         } finally {
@@ -252,28 +269,35 @@ function TwoFactorPrompt({
                 ) : !selected && methods.length > 1 ? (
                     <div className="mt-6 space-y-3">
                         <p className="text-sm font-bold text-foreground">How would you like to continue?</p>
-                        {methods.includes('email') && (
-                            <Button className="w-full justify-start" variant="secondary" icon={Mail} disabled={busy} onClick={() => void choose('email')}>
-                                Send a code by email
+                        {methods.includes(TwoFactorMethod.EMAIL) && (
+                            <Button className="w-full justify-start" variant="secondary" icon={Mail} disabled={busy || !deviceReady} onClick={() => void choose(TwoFactorMethod.EMAIL)}>
+                                {challenge.emailIsRecoveryFallback
+                                    ? 'Use organization recovery email'
+                                    : 'Send a code by email'}
                             </Button>
                         )}
-                        {methods.includes('device') && (
-                            <Button className="w-full justify-start" variant="secondary" icon={MonitorSmartphone} disabled={busy} onClick={() => void choose('device')}>
-                                Approve from a trusted browser
+                        {methods.includes(TwoFactorMethod.DEVICE) && (
+                            <Button className="w-full justify-start" variant="secondary" icon={MonitorSmartphone} disabled={busy || !deviceReady} onClick={() => void choose(TwoFactorMethod.DEVICE)}>
+                                Approve from another signed-in device
                             </Button>
                         )}
                     </div>
                 ) : !selected && methods.length === 1 ? (
                     <div className="mt-6">
-                        <Button className="w-full" disabled={busy} onClick={() => void choose(methods[0])}>
+                        <Button className="w-full" disabled={busy || !deviceReady} onClick={() => void choose(methods[0])}>
                             Continue
                         </Button>
                     </div>
-                ) : selected === 'email' ? (
+                ) : selected === TwoFactorMethod.EMAIL ? (
                     <div className="mt-6 space-y-4">
                         <p className="text-sm font-medium leading-6 text-muted-foreground">
-                            We sent a six-digit code to your verified contact email. Enter it below.
+                            We sent a six-digit code to {challenge.emailHint || 'your verified contact email'}. Open that inbox and enter the code below. The code expires in 10 minutes.
                         </p>
+                        {challenge.emailIsRecoveryFallback && (
+                            <p className="rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs font-semibold leading-relaxed text-foreground">
+                                This is your organization&apos;s verified contact email. It is available for account recovery even though email verification is not enabled for everyday sign-ins.
+                            </p>
+                        )}
                         <Input
                             aria-label="Sign-in verification code"
                             inputMode="numeric"
@@ -296,9 +320,12 @@ function TwoFactorPrompt({
                     </div>
                 ) : (
                     <div className="mt-6 rounded-xl border border-primary/20 bg-primary/5 p-4">
-                        <p className="text-sm font-black text-foreground">Check a browser you already trust</p>
+                        <p className="text-sm font-black text-foreground">Approve from another signed-in device</p>
                         <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">
-                            Open the approval notification there and choose “Approve sign-in.” This screen will continue automatically.
+                            On any phone, tablet, or computer where you are already signed in to this account, open EduVerse and select the sign-in notification, then choose “Approve sign-in.”
+                        </p>
+                        <p className="mt-2 text-sm font-medium leading-6 text-muted-foreground">
+                            If you do not see the notification, open your profile or Settings, then go to Security → Devices &amp; sessions and approve the waiting sign-in. This screen will continue automatically.
                         </p>
                     </div>
                 )}

@@ -30,6 +30,8 @@ import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
+import { useContextualNavigation } from '@/hooks/useContextualNavigation';
+import { ManagedTwoFactorAction } from '@/components/settings/ManagedTwoFactorAction';
 
 interface TeacherParams {
     page: number;
@@ -45,6 +47,7 @@ interface TeacherParams {
 export default function TeachersPage() {
     const { token, user } = useAuth();
     const router = useRouter();
+    const contextualHref = useContextualNavigation();
     const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const { dispatch } = useGlobal();
 
@@ -259,7 +262,7 @@ export default function TeachersPage() {
             accessor: (row: Teacher) => (
                 <div className="flex items-center gap-1">
                     <TableActions
-                        onView={isDeletedView ? undefined : () => router.push(`/profiles/${row.user.id}`)}
+                        onView={isDeletedView ? undefined : () => router.push(contextualHref(`/profiles/${row.user.id}`))}
                         onEdit={isDeletedView ? undefined : () => router.push(`${routeBase}/edit/${row.id}`)}
                         onDelete={isDeletedView ? undefined : () => {
                             setDeletingTeacher(row);
@@ -274,7 +277,10 @@ export default function TeachersPage() {
                                     onClick: () => handleRestore(row.id)
                                 }
                             ] : [
-                                ...(canManageTeachers ? [{
+                                ...(canManageTeachers &&
+                                (user?.role === Role.ORG_ADMIN ||
+                                    (row.user.role !== Role.ORG_ADMIN &&
+                                        row.user.role !== Role.SUB_ADMIN)) ? [{
                                     variant: 'passwordReset' as const,
                                     title: 'Copy Password Reset Link',
                                     loading: generatingResetUserId === row.user.id,
@@ -283,6 +289,13 @@ export default function TeachersPage() {
                             ])
                         ]}
                     />
+                    {!isDeletedView && canManageTeachers && (
+                        <ManagedTwoFactorAction
+                            targetUserId={row.user.id}
+                            targetName={row.user.name}
+                            targetRole={row.user.role}
+                        />
+                    )}
                     {!isDeletedView && (
                         <UserCommsAction
                             targetUserId={row.user.id}
@@ -295,7 +308,7 @@ export default function TeachersPage() {
                 </div>
             )
         }
-    ], [canManageTeachers, generatePasswordResetLink, generatingResetUserId, isDeletedView, router, routeBase, handleRestore, isManagersView]);
+    ], [canManageTeachers, contextualHref, generatePasswordResetLink, generatingResetUserId, isDeletedView, router, routeBase, handleRestore, isManagersView, user?.role]);
 
     const activeFilters: ActiveFilter[] = [
         ...(isDeletedView ? [{
@@ -457,7 +470,7 @@ export default function TeachersPage() {
                         isLoading={isFetching}
                         onRowClick={(row) => {
                             if (canManageTeachers) {
-                                router.push(`/profiles/${row.userId}`);
+                                router.push(contextualHref(`/profiles/${row.userId}`));
                             }
                         }}
                         currentPage={page}

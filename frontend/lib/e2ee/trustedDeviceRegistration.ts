@@ -1,6 +1,10 @@
 import { api } from '@/lib/api';
 import { getDeviceId, getDeviceInfo } from '@/lib/deviceUtils';
-import type { RegisterTrustedDevicePayload, TrustedDeviceRegistrationResponse } from '@/types';
+import type {
+    RegisterTrustedDevicePayload,
+    TrustedDeviceRegistrationResponse,
+    TrustedDevicesResponse,
+} from '@/types';
 import {
     getLegacyLocalTrustedDeviceKeys,
     getLocalTrustedDeviceKeys,
@@ -21,6 +25,27 @@ export async function registerCurrentTrustedDevice(
     token: string,
     options: { requestApprovalNotification?: boolean } = {},
 ): Promise<TrustedDeviceRegistrationResponse> {
+    const remoteState = await api.e2ee.getMyDevices(token).catch(() => null);
+    const payload = await prepareCurrentDeviceRegistration(token, remoteState, options);
+    return api.e2ee.registerCurrentDevice(payload, token);
+}
+
+export async function registerPendingLoginTrustedDevice(
+    temporaryToken: string,
+): Promise<TrustedDeviceRegistrationResponse> {
+    const payload = await prepareCurrentDeviceRegistration(
+        temporaryToken,
+        null,
+        { requestApprovalNotification: false },
+    );
+    return api.auth.registerPendingTwoFactorDevice(temporaryToken, payload);
+}
+
+async function prepareCurrentDeviceRegistration(
+    token: string,
+    remoteState: TrustedDevicesResponse | null,
+    options: { requestApprovalNotification?: boolean },
+): Promise<RegisterTrustedDevicePayload> {
     const clientDeviceId = getDeviceId();
     if (!clientDeviceId) throw new Error('Unable to identify this browser device.');
     const userId = getUserIdFromToken(token);
@@ -28,7 +53,6 @@ export async function registerCurrentTrustedDevice(
 
     const sodium = await loadSodium();
     const deviceInfo = getDeviceInfo();
-    const remoteState = await api.e2ee.getMyDevices(token).catch(() => null);
     const remoteDevice = remoteState?.devices.find((device) => device.clientDeviceId === clientDeviceId && !device.revokedAt);
     const scopedKeys = await getLocalTrustedDeviceKeys(userId, clientDeviceId);
     const legacyKeys = scopedKeys ? null : await getLegacyLocalTrustedDeviceKeys(clientDeviceId);
@@ -114,5 +138,5 @@ export async function registerCurrentTrustedDevice(
         requestApprovalNotification: options.requestApprovalNotification,
     };
 
-    return api.e2ee.registerCurrentDevice(payload, token);
+    return payload;
 }

@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { isSafeAppPath, RETURN_TO_PARAM } from '@/lib/returnNavigation';
 
 const BACK_SENTINEL_KEY = '__eduverseInPageBack';
 const MOBILE_BREAKPOINT = 1024;
@@ -121,8 +122,16 @@ export function BackNavigationProvider({ children }: { children: React.ReactNode
             return;
         }
 
+        const returnTo = searchParams.get(RETURN_TO_PARAM);
+        if (isSafeAppPath(returnTo) && returnTo !== routeKeyRef.current) {
+            // Contextual entity links carry their origin. Replacing avoids leaving
+            // a detail -> list -> detail loop in browser history.
+            router.replace(returnTo);
+            return;
+        }
+
         router.back();
-    }, [consumeTopEntry, isMobileBackEnabled, router]);
+    }, [consumeTopEntry, isMobileBackEnabled, router, searchParams]);
 
     useEffect(() => {
         routeKeyRef.current = routeKey;

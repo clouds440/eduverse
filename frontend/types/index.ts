@@ -1,8 +1,8 @@
 ﻿import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
 export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
-import type { TwoFactorMethod } from './enums';
-export { TwoFactorMethod } from './enums';
+import type { TwoFactorChallengeStatus, TwoFactorMethod } from './enums';
+export { TwoFactorChallengeStatus, TwoFactorMethod, TrustedDevicePromptFlow } from './enums';
 import type { CommunicationChannel } from './enums';
 export { CommunicationChannel } from './enums';
 import type { AISubscriptionPlan, AISubscriptionOwnerType, AISubscriptionStatus, AILimitMode, AIUsageSourceType } from './enums';
@@ -623,14 +623,16 @@ export interface AuthResponse {
     expiresAt?: string;
 }
 
-export type TwoFactorLoginMethod = 'email' | 'device';
+export type TwoFactorLoginMethod = TwoFactorMethod;
 
 export interface TwoFactorChallenge {
     pendingLoginId: string;
-    status: 'pending' | 'verified';
+    status: TwoFactorChallengeStatus;
     selectedMethod: TwoFactorLoginMethod | null;
     methods: TwoFactorLoginMethod[];
     expiresAt: string;
+    emailHint: string | null;
+    emailIsRecoveryFallback: boolean;
 }
 
 export interface LinkedAccount {
@@ -649,6 +651,13 @@ export interface ContactEmailStatus {
     contactEmail: string | null;
     contactEmailVerifiedAt: string | null;
     managedByOrganization: boolean;
+    changeAuthorizedUntil: string | null;
+}
+
+export interface ContactEmailChangeConfirmation {
+    message: string;
+    required?: boolean;
+    authorizedUntil?: string;
 }
 
 export interface PasswordResetLinkResponse {
@@ -1475,6 +1484,15 @@ export interface ImportConfirmResult {
     errors: InvalidImportRow[];
 }
 
+export interface ManagedTwoFactorResult {
+    enabled: boolean;
+    emailEnabled: boolean;
+    deviceEnabled: boolean;
+    message: string;
+}
+
+export type ManagedTwoFactorStatus = Omit<ManagedTwoFactorResult, 'message'>;
+
 export interface UserSettings {
     userId?: string;
     twoFactorEnabled: boolean;
@@ -1905,6 +1923,47 @@ export interface ChatContentHistoryKeyEnvelope {
     historyKey?: ChatHistoryKeyContext;
 }
 
+export interface ChatDeviceHistoryGrant {
+    id?: string;
+    chatId: string;
+    userId?: string;
+    trustedDeviceId: string;
+    senderDeviceId?: string | null;
+    deviceKeyVersion: number;
+    algorithm: string;
+    wrappedKey: string;
+    nonce?: string | null;
+    associatedData?: Record<string, unknown> | null;
+    senderDevice?: {
+        id: string;
+        userId: string;
+        keyAgreementPublicKey: string;
+        keyAgreementPublicKeyFingerprint?: string | null;
+        keyVersion: number;
+        trustStatus?: 'PENDING' | 'TRUSTED' | 'REVOKED';
+        revokedAt?: string | null;
+    } | null;
+    trustedDevice?: {
+        id: string;
+        userId: string;
+        clientDeviceId: string;
+        keyVersion: number;
+        trustStatus?: 'PENDING' | 'TRUSTED' | 'REVOKED';
+        revokedAt?: string | null;
+    } | null;
+}
+
+export interface ChatContentDeviceGrantEnvelope {
+    id?: string;
+    encryptedContentId?: string;
+    grantId?: string;
+    algorithm: string;
+    wrappedKey: string;
+    nonce?: string | null;
+    associatedData?: Record<string, unknown> | null;
+    grant?: ChatDeviceHistoryGrant;
+}
+
 export interface ChatHistoryKeyDeviceEnvelope {
     id?: string;
     historyKeyId?: string;
@@ -1962,7 +2021,8 @@ export interface RegisterChatHistoryKeyPayload {
 
 export interface ApproveTrustedDevicePayload {
     approverDeviceId: string;
-    historyKeyEnvelopes?: ChatHistoryKeyDeviceEnvelope[];
+    chatGrants?: ChatDeviceHistoryGrantPayload[];
+    complete?: boolean;
 }
 
 export interface EncryptedChatContent {
@@ -1977,6 +2037,7 @@ export interface EncryptedChatContent {
     contentKeyVersion?: number;
     keyEnvelopes?: ChatKeyEnvelope[];
     historyKeyEnvelopes?: ChatContentHistoryKeyEnvelope[];
+    deviceGrantEnvelopes?: ChatContentDeviceGrantEnvelope[];
 }
 
 export interface SendChatMessagePayload {
@@ -2041,6 +2102,7 @@ export interface TrustedEncryptionDevice {
     signingPublicKeyFingerprint?: string | null;
     algorithm: string;
     trustStatus: 'PENDING' | 'TRUSTED' | 'REVOKED';
+    historyProvisioningStatus: 'PENDING' | 'READY';
     approvalRequestedAt?: string | null;
     trustedAt?: string | null;
     approvedByDeviceId?: string | null;
@@ -2087,7 +2149,36 @@ export interface RecipientEncryptionDevicesResponse {
 export interface PendingDeviceApprovalContext {
     pendingDevice: TrustedEncryptionDevice;
     approverDevice: TrustedEncryptionDevice;
-    historyKeys: ChatHistoryKeyContext[];
+    chats: RecentHistoryProvisioningChat[];
+    nextCursor: string | null;
+    messageLimit: number;
+}
+
+export interface RecentHistoryProvisioningChat {
+    chatId: string;
+    messages: Array<{
+        id: string;
+        encryptedContent: EncryptedChatContent;
+    }>;
+}
+
+export interface DeviceGrantContentEnvelopePayload {
+    messageId: string;
+    encryptedContentId: string;
+    algorithm: string;
+    wrappedKey: string;
+    nonce?: string;
+    associatedData?: Record<string, unknown>;
+}
+
+export interface ChatDeviceHistoryGrantPayload {
+    chatId: string;
+    deviceKeyVersion: number;
+    algorithm: string;
+    wrappedKey: string;
+    nonce?: string;
+    associatedData?: Record<string, unknown>;
+    contentEnvelopes: DeviceGrantContentEnvelopePayload[];
 }
 
 export type ChatMentionTargetType = 'USER' | 'EVERYONE' | 'ROLE' | 'RELATED_SCOPE';

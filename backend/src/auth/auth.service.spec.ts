@@ -522,7 +522,9 @@ describe('AuthService forgotPassword', () => {
         'sub-admin-2',
         { ip: '127.0.0.9', userAgent: 'jest' },
       ),
-    ).rejects.toThrow('Only the main organization admin can reset sub-admin passwords.');
+    ).rejects.toThrow(
+      'You are not allowed to manage security for this account.',
+    );
     expect(prisma.passwordResetToken.create).not.toHaveBeenCalled();
   });
 });

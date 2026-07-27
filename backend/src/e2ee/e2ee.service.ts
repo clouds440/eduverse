@@ -4,21 +4,31 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { E2EEApprovalStatus, E2EEDeviceTrustStatus, Prisma, Role } from '@/prisma/prisma-client';
+import {
+  E2EEApprovalStatus,
+  E2EEDeviceTrustStatus,
+  E2EEHistoryProvisioningStatus,
+  PendingLoginStatus,
+  Prisma,
+  Role,
+} from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RegisterTrustedDeviceDto } from './dto/register-trusted-device.dto';
 import { UpdateTrustedDeviceDto } from './dto/update-trusted-device.dto';
 import { ApproveTrustedDeviceDto } from './dto/approve-trusted-device.dto';
+import { buildVisibleChatMessageWhere } from '../chat/chat-message-visibility';
 
 type CurrentUser = {
   id: string;
-  role: Role | string;
+  role: string;
   organizationId?: string | null;
   sessionId?: string;
 };
 
 const DEFAULT_LIBSODIUM_ALGORITHM = 'libsodium:x25519+ed25519';
+export const RECENT_CHAT_HISTORY_MESSAGE_LIMIT = 35;
+const PROVISIONING_CHAT_BATCH_SIZE = 10;
 
 @Injectable()
 export class E2eeService {
@@ -28,6 +38,51 @@ export class E2eeService {
   ) {}
 
   async registerCurrentDevice(user: CurrentUser, dto: RegisterTrustedDeviceDto) {
+    return this.registerDevice(user, dto);
+  }
+
+  async registerPendingLoginDevice(
+    userId: string,
+    pendingLoginId: string,
+    expectedClientDeviceId: string,
+    dto: RegisterTrustedDeviceDto,
+  ) {
+    if (dto.clientDeviceId !== expectedClientDeviceId) {
+      throw new ForbiddenException(
+        'This browser registration does not match the pending sign-in.',
+      );
+    }
+
+    const result = await this.registerDevice(
+      { id: userId, role: Role.STUDENT },
+      { ...dto, requestApprovalNotification: false },
+      { forcePending: true },
+    );
+    const linked = await this.prisma.pendingLogin.updateMany({
+      where: {
+        id: pendingLoginId,
+        userId,
+        deviceId: expectedClientDeviceId,
+        status: PendingLoginStatus.PENDING,
+        expiresAt: { gt: new Date() },
+        OR: [{ pendingDeviceId: null }, { pendingDeviceId: result.device.id }],
+      },
+      data: { pendingDeviceId: result.device.id },
+    });
+    if (linked.count !== 1) {
+      throw new ForbiddenException(
+        'This browser registration is not valid for the pending sign-in.',
+      );
+    }
+
+    return result;
+  }
+
+  private async registerDevice(
+    user: CurrentUser,
+    dto: RegisterTrustedDeviceDto,
+    options: { forcePending?: boolean } = {},
+  ) {
     const algorithm = dto.algorithm || DEFAULT_LIBSODIUM_ALGORITHM;
     const now = new Date();
 
@@ -60,7 +115,7 @@ export class E2eeService {
       existingDevice.signingPublicKey !== (dto.signingPublicKey || null)
     ));
 
-    const [otherTrustedDeviceCount, historicalTrustedDeviceCount, recentVerifiedLogin] = await Promise.all([
+    const [otherTrustedDeviceCount, historicalTrustedDeviceCount] = await Promise.all([
       this.prisma.trustedEncryptionDevice.count({
         where: {
           userId: user.id,
@@ -76,15 +131,6 @@ export class E2eeService {
           trustedAt: { not: null },
         },
       }),
-      this.prisma.pendingLogin.findFirst({
-        where: {
-          userId: user.id,
-          deviceId: dto.clientDeviceId,
-          status: 'CONSUMED',
-          consumedAt: { gte: new Date(Date.now() - 2 * 60_000) },
-        },
-        select: { id: true },
-      }),
     ]);
     const existingCanRemainTrusted = Boolean(
       existingDevice &&
@@ -96,8 +142,7 @@ export class E2eeService {
     const isFirstTrustedBrowserRegistration = !existingDevice && historicalTrustedDeviceCount === 0 && otherTrustedDeviceCount === 0;
     const shouldTrustNow =
       existingCanRemainTrusted ||
-      isFirstTrustedBrowserRegistration ||
-      Boolean(recentVerifiedLogin);
+      (!options.forcePending && isFirstTrustedBrowserRegistration);
     const trustStatus = shouldTrustNow
       ? E2EEDeviceTrustStatus.TRUSTED
       : E2EEDeviceTrustStatus.PENDING;
@@ -130,6 +175,9 @@ export class E2eeService {
             : null,
           revokedAt: null,
           revokedById: null,
+          historyProvisioningStatus: existingCanRemainTrusted
+            ? existingDevice?.historyProvisioningStatus
+            : E2EEHistoryProvisioningStatus.PENDING,
         },
       })
       : await this.prisma.trustedEncryptionDevice.create({
@@ -150,6 +198,10 @@ export class E2eeService {
           trustStatus,
           approvalRequestedAt: trustStatus === E2EEDeviceTrustStatus.PENDING ? now : null,
           trustedAt: trustStatus === E2EEDeviceTrustStatus.TRUSTED ? now : null,
+          historyProvisioningStatus:
+            trustStatus === E2EEDeviceTrustStatus.TRUSTED
+              ? E2EEHistoryProvisioningStatus.READY
+              : E2EEHistoryProvisioningStatus.PENDING,
         },
       });
 
@@ -273,8 +325,20 @@ export class E2eeService {
         where: {
           id: pendingDeviceId,
           userId: user.id,
-          trustStatus: E2EEDeviceTrustStatus.PENDING,
+          trustStatus: {
+            in: [
+              E2EEDeviceTrustStatus.PENDING,
+              E2EEDeviceTrustStatus.TRUSTED,
+            ],
+          },
           revokedAt: null,
+          OR: [
+            { trustStatus: E2EEDeviceTrustStatus.PENDING },
+            {
+              historyProvisioningStatus:
+                E2EEHistoryProvisioningStatus.PENDING,
+            },
+          ],
         },
       }),
       this.prisma.trustedEncryptionDevice.findFirst({
@@ -291,79 +355,29 @@ export class E2eeService {
     if (!pendingDevice) throw new NotFoundException('Pending browser not found.');
     if (!approverDevice) throw new ForbiddenException('Approval requires a browser you already trust.');
 
-    await this.validateApprovalHistoryKeyTransfer({
-      userId: user.id,
-      pendingDeviceId: pendingDevice.id,
-      pendingDeviceKeyVersion: pendingDevice.keyVersion,
-      approverDeviceId: approverDevice.id,
-      historyKeyEnvelopes: dto.historyKeyEnvelopes || [],
-    });
+    await this.storeRecentHistoryProvisioningBatch(
+      user.id,
+      pendingDevice,
+      approverDevice,
+      dto.chatGrants || [],
+    );
 
-    const now = new Date();
-    const updated = await this.prisma.$transaction(async (tx) => {
-      for (const envelope of dto.historyKeyEnvelopes || []) {
-        await tx.e2EEHistoryKeyDeviceEnvelope.upsert({
-          where: {
-            historyKeyId_trustedDeviceId: {
-              historyKeyId: envelope.historyKeyId,
-              trustedDeviceId: pendingDevice.id,
-            },
-          },
-          update: {
-            recipientUserId: user.id,
-            senderDeviceId: approverDevice.id,
-            deviceKeyVersion: pendingDevice.keyVersion,
-            algorithm: envelope.algorithm,
-            wrappedKey: envelope.wrappedKey,
-            nonce: envelope.nonce,
-            associatedData: envelope.associatedData === undefined
-              ? undefined
-              : envelope.associatedData as Prisma.InputJsonValue,
-          },
-          create: {
-            historyKeyId: envelope.historyKeyId,
-            recipientUserId: user.id,
-            trustedDeviceId: pendingDevice.id,
-            senderDeviceId: approverDevice.id,
-            deviceKeyVersion: pendingDevice.keyVersion,
-            algorithm: envelope.algorithm,
-            wrappedKey: envelope.wrappedKey,
-            nonce: envelope.nonce,
-            associatedData: envelope.associatedData === undefined
-              ? undefined
-              : envelope.associatedData as Prisma.InputJsonValue,
-          },
-        });
-      }
+    if (!dto.complete) return this.serializeDevice(pendingDevice);
 
-      await tx.e2EEDeviceApprovalRequest.updateMany({
-        where: {
-          userId: user.id,
-          pendingDeviceId: pendingDevice.id,
-          status: E2EEApprovalStatus.PENDING,
-        },
-        data: {
-          status: E2EEApprovalStatus.APPROVED,
-          approverDeviceId: approverDevice.id,
-          respondedAt: now,
-        },
-      });
-
-      return tx.trustedEncryptionDevice.update({
-        where: { id: pendingDevice.id },
-        data: {
-          trustStatus: E2EEDeviceTrustStatus.TRUSTED,
-          trustedAt: now,
-          approvedByDeviceId: approverDevice.id,
-          approvalRequestedAt: null,
-        },
-      });
-    });
-
-    return this.serializeDevice(updated);
+    return this.finalizeProvisionedDevice(
+      user.id,
+      pendingDevice.id,
+      approverDevice.id,
+    );
   }
 
-  async getPendingDeviceApprovalContext(user: CurrentUser, pendingDeviceId: string, approverDeviceId: string, currentToken?: string) {
+  async getPendingDeviceApprovalContext(
+    user: CurrentUser,
+    pendingDeviceId: string,
+    approverDeviceId: string,
+    currentToken?: string,
+    cursor?: string,
+  ) {
     if (pendingDeviceId === approverDeviceId) {
       throw new ForbiddenException('A browser cannot approve itself.');
     }
@@ -375,8 +389,20 @@ export class E2eeService {
         where: {
           id: pendingDeviceId,
           userId: user.id,
-          trustStatus: E2EEDeviceTrustStatus.PENDING,
+          trustStatus: {
+            in: [
+              E2EEDeviceTrustStatus.PENDING,
+              E2EEDeviceTrustStatus.TRUSTED,
+            ],
+          },
           revokedAt: null,
+          OR: [
+            { trustStatus: E2EEDeviceTrustStatus.PENDING },
+            {
+              historyProvisioningStatus:
+                E2EEHistoryProvisioningStatus.PENDING,
+            },
+          ],
         },
       }),
       this.prisma.trustedEncryptionDevice.findFirst({
@@ -393,54 +419,12 @@ export class E2eeService {
     if (!pendingDevice) throw new NotFoundException('Pending browser not found.');
     if (!approverDevice) throw new ForbiddenException('Approval requires a browser you already trust.');
 
-    const historyKeys = await this.prisma.chatHistoryKey.findMany({
-      where: {
-        deviceEnvelopes: {
-          some: {
-            recipientUserId: user.id,
-            trustedDeviceId: approverDevice.id,
-          },
-        },
-      },
-      orderBy: [{ chatId: 'asc' }, { epoch: 'asc' }, { createdAt: 'asc' }],
-      include: {
-        deviceEnvelopes: {
-          where: {
-            recipientUserId: user.id,
-            trustedDeviceId: approverDevice.id,
-          },
-          include: {
-            senderDevice: {
-              select: {
-                id: true,
-                userId: true,
-                keyAgreementPublicKey: true,
-                keyAgreementPublicKeyFingerprint: true,
-                keyVersion: true,
-                trustStatus: true,
-                revokedAt: true,
-              },
-            },
-            trustedDevice: {
-              select: {
-                id: true,
-                userId: true,
-                clientDeviceId: true,
-                keyVersion: true,
-                trustStatus: true,
-                revokedAt: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    return {
-      pendingDevice: this.serializeDevice(pendingDevice),
-      approverDevice: this.serializeDevice(approverDevice),
-      historyKeys,
-    };
+    return this.buildRecentHistoryProvisioningContext(
+      user.id,
+      pendingDevice,
+      approverDevice,
+      cursor,
+    );
   }
 
   async getRecipientDevices(user: CurrentUser, userIds: string[]) {
@@ -495,7 +479,7 @@ export class E2eeService {
     });
   }
 
-  private isPlatformUser(role: Role | string) {
+  private isPlatformUser(role: string) {
     return role === Role.SUPER_ADMIN || role === Role.PLATFORM_ADMIN;
   }
 
@@ -539,50 +523,429 @@ export class E2eeService {
     return trustedDevice;
   }
 
-  private async validateApprovalHistoryKeyTransfer(options: {
-    userId: string;
-    pendingDeviceId: string;
-    pendingDeviceKeyVersion: number;
-    approverDeviceId: string;
-    historyKeyEnvelopes: NonNullable<ApproveTrustedDeviceDto['historyKeyEnvelopes']>;
-  }) {
-    const accessibleHistoryKeys = await this.prisma.chatHistoryKey.findMany({
-      where: {
-        deviceEnvelopes: {
-          some: {
-            recipientUserId: options.userId,
-            trustedDeviceId: options.approverDeviceId,
-          },
+  async getPendingLoginDeviceApprovalContext(
+    userId: string,
+    pendingDeviceId: string,
+    approverClientDeviceId: string,
+    cursor?: string,
+  ) {
+    const [pendingDevice, approverDevice] = await Promise.all([
+      this.prisma.trustedEncryptionDevice.findFirst({
+        where: {
+          id: pendingDeviceId,
+          userId,
+          revokedAt: null,
         },
-      },
-      select: { id: true },
+      }),
+      this.prisma.trustedEncryptionDevice.findFirst({
+        where: {
+          userId,
+          clientDeviceId: approverClientDeviceId,
+          trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+          revokedAt: null,
+          trustedAt: { not: null },
+        },
+      }),
+    ]);
+    if (!pendingDevice) throw new NotFoundException('Pending browser not found.');
+    if (!approverDevice) {
+      throw new ForbiddenException(
+        'Approval requires a browser you already trust.',
+      );
+    }
+    if (pendingDevice.id === approverDevice.id) {
+      throw new ForbiddenException('A browser cannot approve itself.');
+    }
+
+    return this.buildRecentHistoryProvisioningContext(
+      userId,
+      pendingDevice,
+      approverDevice,
+      cursor,
+    );
+  }
+
+  async provisionPendingLoginDevice(
+    userId: string,
+    pendingDeviceId: string,
+    approverClientDeviceId: string,
+    dto: Pick<ApproveTrustedDeviceDto, 'chatGrants' | 'complete'>,
+  ) {
+    const [pendingDevice, approverDevice] = await Promise.all([
+      this.prisma.trustedEncryptionDevice.findFirst({
+        where: { id: pendingDeviceId, userId, revokedAt: null },
+      }),
+      this.prisma.trustedEncryptionDevice.findFirst({
+        where: {
+          userId,
+          clientDeviceId: approverClientDeviceId,
+          trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+          revokedAt: null,
+          trustedAt: { not: null },
+        },
+      }),
+    ]);
+    if (!pendingDevice) throw new NotFoundException('Pending browser not found.');
+    if (!approverDevice || approverDevice.id === pendingDevice.id) {
+      throw new ForbiddenException(
+        'Approval requires another browser you already trust.',
+      );
+    }
+
+    await this.storeRecentHistoryProvisioningBatch(
+      userId,
+      pendingDevice,
+      approverDevice,
+      dto.chatGrants || [],
+    );
+    if (!dto.complete) return { complete: false as const };
+
+    const device = await this.finalizeProvisionedDevice(
+      userId,
+      pendingDevice.id,
+      approverDevice.id,
+    );
+    return { complete: true as const, device };
+  }
+
+  async trustPendingLoginDeviceWithoutHistory(
+    userId: string,
+    pendingDeviceId: string,
+  ) {
+    const device = await this.prisma.trustedEncryptionDevice.findFirst({
+      where: { id: pendingDeviceId, userId, revokedAt: null },
     });
-    const accessibleHistoryKeyIds = new Set(accessibleHistoryKeys.map((historyKey) => historyKey.id));
-    const transferHistoryKeyIds = new Set(options.historyKeyEnvelopes.map((envelope) => envelope.historyKeyId));
+    if (!device) throw new BadRequestException('Register this browser first.');
 
-    for (const historyKeyId of accessibleHistoryKeyIds) {
-      if (!transferHistoryKeyIds.has(historyKeyId)) {
-        throw new BadRequestException('This browser could not copy all existing secure Chat history. Refresh and try again.');
+    if (
+      device.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
+      device.trustedAt
+    ) {
+      return this.serializeDevice(device);
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.trustedEncryptionDevice.update({
+      where: { id: device.id },
+      data: {
+        trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+        trustedAt: now,
+        approvalRequestedAt: null,
+        historyProvisioningStatus: E2EEHistoryProvisioningStatus.PENDING,
+      },
+    });
+
+    const approvalRequest = await this.ensurePendingDeviceApprovalRequest(
+      userId,
+      device.id,
+    );
+    await this.notifyDeviceApprovalRequest(
+      userId,
+      device.id,
+      device.clientDeviceId,
+      approvalRequest.id,
+      true,
+    );
+    return this.serializeDevice(updated);
+  }
+
+  private async buildRecentHistoryProvisioningContext(
+    userId: string,
+    pendingDevice: Parameters<E2eeService['serializeDevice']>[0],
+    approverDevice: Parameters<E2eeService['serializeDevice']>[0],
+    cursor?: string,
+  ) {
+    const participants = await this.prisma.chatParticipant.findMany({
+      where: {
+        userId,
+        ...(cursor ? { chatId: { gt: cursor } } : {}),
+      },
+      orderBy: { chatId: 'asc' },
+      take: PROVISIONING_CHAT_BATCH_SIZE + 1,
+      include: { membershipHistory: true },
+    });
+    const batch = participants.slice(0, PROVISIONING_CHAT_BATCH_SIZE);
+    const chats = await Promise.all(
+      batch.map(async (participant) => {
+        const messages = await this.prisma.chatMessage.findMany({
+          where: buildVisibleChatMessageWhere(
+            participant,
+            participant.membershipHistory,
+          ),
+          orderBy: { createdAt: 'desc' },
+          take: RECENT_CHAT_HISTORY_MESSAGE_LIMIT,
+          select: {
+            id: true,
+            encryptedContent: {
+              include: {
+                keyEnvelopes: {
+                  where: {
+                    recipientUserId: userId,
+                    trustedDeviceId: approverDevice.id,
+                  },
+                  include: {
+                    senderDevice: {
+                      select: {
+                        id: true,
+                        userId: true,
+                        keyAgreementPublicKey: true,
+                        keyVersion: true,
+                        trustStatus: true,
+                        revokedAt: true,
+                      },
+                    },
+                    trustedDevice: true,
+                  },
+                },
+                historyKeyEnvelopes: {
+                  where: { recipientUserId: userId },
+                  include: {
+                    historyKey: {
+                      include: {
+                        deviceEnvelopes: {
+                          where: {
+                            recipientUserId: userId,
+                            trustedDeviceId: approverDevice.id,
+                          },
+                          include: {
+                            senderDevice: {
+                              select: {
+                                id: true,
+                                userId: true,
+                                keyAgreementPublicKey: true,
+                                keyVersion: true,
+                                trustStatus: true,
+                                revokedAt: true,
+                              },
+                            },
+                            trustedDevice: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+        return {
+          chatId: participant.chatId,
+          messages: messages.filter(
+            (message) => message.encryptedContent !== null,
+          ),
+        };
+      }),
+    );
+    const hasMore = participants.length > PROVISIONING_CHAT_BATCH_SIZE;
+
+    return {
+      pendingDevice: this.serializeDevice(pendingDevice),
+      approverDevice: this.serializeDevice(approverDevice),
+      chats,
+      nextCursor: hasMore ? batch.at(-1)?.chatId || null : null,
+      messageLimit: RECENT_CHAT_HISTORY_MESSAGE_LIMIT,
+    };
+  }
+
+  private async storeRecentHistoryProvisioningBatch(
+    userId: string,
+    pendingDevice: Parameters<E2eeService['serializeDevice']>[0],
+    approverDevice: Parameters<E2eeService['serializeDevice']>[0],
+    chatGrants: NonNullable<ApproveTrustedDeviceDto['chatGrants']>,
+  ) {
+    if (new Set(chatGrants.map((grant) => grant.chatId)).size !== chatGrants.length) {
+      throw new BadRequestException('A Chat history grant was submitted more than once.');
+    }
+
+    for (const grant of chatGrants) {
+      if (grant.deviceKeyVersion !== pendingDevice.keyVersion) {
+        throw new BadRequestException('The new browser keys changed. Refresh and try again.');
+      }
+      const participant = await this.prisma.chatParticipant.findUnique({
+        where: { chatId_userId: { chatId: grant.chatId, userId } },
+        include: { membershipHistory: true },
+      });
+      if (!participant) {
+        throw new ForbiddenException('You cannot provision history for this Chat.');
+      }
+      const eligibleMessages = await this.prisma.chatMessage.findMany({
+        where: buildVisibleChatMessageWhere(
+          participant,
+          participant.membershipHistory,
+        ),
+        orderBy: { createdAt: 'desc' },
+        take: RECENT_CHAT_HISTORY_MESSAGE_LIMIT,
+        select: { id: true, encryptedContent: { select: { id: true } } },
+      });
+      const eligible = eligibleMessages
+        .filter((message) => message.encryptedContent)
+        .map((message) => ({
+          messageId: message.id,
+          encryptedContentId: message.encryptedContent!.id,
+        }));
+      const submitted = grant.contentEnvelopes.map((envelope) => ({
+        messageId: envelope.messageId,
+        encryptedContentId: envelope.encryptedContentId,
+      }));
+      const key = (value: typeof eligible[number]) =>
+        `${value.messageId}:${value.encryptedContentId}`;
+      if (
+        new Set(submitted.map(key)).size !== submitted.length ||
+        eligible.length !== submitted.length ||
+        eligible.some(
+          (message) => !submitted.some((candidate) => key(candidate) === key(message)),
+        )
+      ) {
+        throw new BadRequestException(
+          `History provisioning must contain exactly the latest ${RECENT_CHAT_HISTORY_MESSAGE_LIMIT} visible messages for this Chat.`,
+        );
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        const storedGrant = await tx.chatDeviceHistoryGrant.upsert({
+          where: {
+            chatId_trustedDeviceId: {
+              chatId: grant.chatId,
+              trustedDeviceId: pendingDevice.id,
+            },
+          },
+          update: {
+            userId,
+            senderDeviceId: approverDevice.id,
+            deviceKeyVersion: pendingDevice.keyVersion,
+            algorithm: grant.algorithm,
+            wrappedKey: grant.wrappedKey,
+            nonce: grant.nonce,
+            associatedData:
+              grant.associatedData as Prisma.InputJsonValue | undefined,
+            provisionedAt: new Date(),
+          },
+          create: {
+            chatId: grant.chatId,
+            userId,
+            trustedDeviceId: pendingDevice.id,
+            senderDeviceId: approverDevice.id,
+            deviceKeyVersion: pendingDevice.keyVersion,
+            algorithm: grant.algorithm,
+            wrappedKey: grant.wrappedKey,
+            nonce: grant.nonce,
+            associatedData:
+              grant.associatedData as Prisma.InputJsonValue | undefined,
+          },
+        });
+        await tx.e2EEContentDeviceGrantEnvelope.deleteMany({
+          where: {
+            grantId: storedGrant.id,
+            ...(grant.contentEnvelopes.length > 0
+              ? {
+                  encryptedContentId: {
+                    notIn: grant.contentEnvelopes.map(
+                      (envelope) => envelope.encryptedContentId,
+                    ),
+                  },
+                }
+              : {}),
+          },
+        });
+        for (const envelope of grant.contentEnvelopes) {
+          await tx.e2EEContentDeviceGrantEnvelope.upsert({
+            where: {
+              encryptedContentId_grantId: {
+                encryptedContentId: envelope.encryptedContentId,
+                grantId: storedGrant.id,
+              },
+            },
+            update: {
+              algorithm: envelope.algorithm,
+              wrappedKey: envelope.wrappedKey,
+              nonce: envelope.nonce,
+              associatedData:
+                envelope.associatedData as Prisma.InputJsonValue | undefined,
+            },
+            create: {
+              encryptedContentId: envelope.encryptedContentId,
+              grantId: storedGrant.id,
+              algorithm: envelope.algorithm,
+              wrappedKey: envelope.wrappedKey,
+              nonce: envelope.nonce,
+              associatedData:
+                envelope.associatedData as Prisma.InputJsonValue | undefined,
+            },
+          });
+        }
+      });
+    }
+  }
+
+  private async finalizeProvisionedDevice(
+    userId: string,
+    pendingDeviceId: string,
+    approverDeviceId: string,
+  ) {
+    const participants = await this.prisma.chatParticipant.findMany({
+      where: { userId },
+      include: { membershipHistory: true },
+    });
+    for (const participant of participants) {
+      const eligible = await this.prisma.chatMessage.findMany({
+        where: buildVisibleChatMessageWhere(
+          participant,
+          participant.membershipHistory,
+        ),
+        orderBy: { createdAt: 'desc' },
+        take: RECENT_CHAT_HISTORY_MESSAGE_LIMIT,
+        select: { encryptedContent: { select: { id: true } } },
+      });
+      const eligibleContentIds = eligible
+        .map((message) => message.encryptedContent?.id)
+        .filter((id): id is string => Boolean(id));
+      if (eligibleContentIds.length === 0) continue;
+
+      const provisionedCount =
+        await this.prisma.e2EEContentDeviceGrantEnvelope.count({
+          where: {
+            encryptedContentId: { in: eligibleContentIds },
+            grant: {
+              chatId: participant.chatId,
+              userId,
+              trustedDeviceId: pendingDeviceId,
+            },
+          },
+        });
+      if (provisionedCount !== eligibleContentIds.length) {
+        throw new BadRequestException(
+          'Recent Chat history is still being prepared. Continue the approval to finish.',
+        );
       }
     }
 
-    for (const envelope of options.historyKeyEnvelopes) {
-      if (envelope.recipientUserId !== options.userId) {
-        throw new BadRequestException('Transferred history-key envelope recipient is invalid.');
-      }
-      if (envelope.trustedDeviceId !== options.pendingDeviceId) {
-        throw new BadRequestException('Transferred history-key envelope target device is invalid.');
-      }
-      if (envelope.senderDeviceId && envelope.senderDeviceId !== options.approverDeviceId) {
-        throw new BadRequestException('Transferred history-key envelope sender device is invalid.');
-      }
-      if (envelope.deviceKeyVersion !== options.pendingDeviceKeyVersion) {
-        throw new BadRequestException('Transferred history-key envelope device key version is stale.');
-      }
-      if (!accessibleHistoryKeyIds.has(envelope.historyKeyId)) {
-        throw new ForbiddenException('This browser cannot copy one or more secure Chat records.');
-      }
-    }
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.e2EEDeviceApprovalRequest.updateMany({
+        where: {
+          userId,
+          pendingDeviceId,
+          status: E2EEApprovalStatus.PENDING,
+        },
+        data: {
+          status: E2EEApprovalStatus.APPROVED,
+          approverDeviceId,
+          respondedAt: now,
+        },
+      });
+      return tx.trustedEncryptionDevice.update({
+        where: { id: pendingDeviceId },
+        data: {
+          trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+          historyProvisioningStatus: E2EEHistoryProvisioningStatus.READY,
+          trustedAt: now,
+          approvedByDeviceId: approverDeviceId,
+          approvalRequestedAt: null,
+        },
+      });
+    });
+    return this.serializeDevice(updated);
   }
 
   private async ensurePendingDeviceApprovalRequest(userId: string, pendingDeviceId: string) {
@@ -604,7 +967,13 @@ export class E2eeService {
     });
   }
 
-  private async notifyDeviceApprovalRequest(userId: string, pendingDeviceId: string, pendingClientDeviceId: string, approvalRequestId: string) {
+  private async notifyDeviceApprovalRequest(
+    userId: string,
+    pendingDeviceId: string,
+    pendingClientDeviceId: string,
+    approvalRequestId: string,
+    historyOnly = false,
+  ) {
     const targetClientDeviceIds = (await this.prisma.trustedEncryptionDevice.findMany({
       where: {
         userId,
@@ -620,8 +989,10 @@ export class E2eeService {
 
     await this.notifications.createNotification({
       userId,
-      title: 'Approve this browser?',
-      body: 'A browser just signed in to your account. Review it before it can open secure Chat and Mail.',
+      title: historyOnly ? 'Share recent Chat history?' : 'Approve this browser?',
+      body: historyOnly
+        ? 'A newly verified browser is ready for future messages. Use this browser to share its recent Chat history.'
+        : 'A browser just signed in to your account. Review it before it can open secure Chat and Mail.',
       type: 'E2EE_DEVICE_APPROVAL',
       actionUrl: `/settings?tab=security&approveDeviceId=${encodeURIComponent(pendingDeviceId)}`,
       metadata: {
@@ -675,7 +1046,8 @@ export class E2eeService {
     signingPublicKey: string | null;
     signingPublicKeyFingerprint: string | null;
     algorithm: string;
-    trustStatus: E2EEDeviceTrustStatus | string;
+    trustStatus: E2EEDeviceTrustStatus;
+    historyProvisioningStatus: E2EEHistoryProvisioningStatus;
     approvalRequestedAt: Date | null;
     trustedAt: Date | null;
     approvedByDeviceId: string | null;
@@ -699,6 +1071,7 @@ export class E2eeService {
       signingPublicKeyFingerprint: device.signingPublicKeyFingerprint,
       algorithm: device.algorithm,
       trustStatus: device.trustStatus,
+      historyProvisioningStatus: device.historyProvisioningStatus,
       approvalRequestedAt: device.approvalRequestedAt,
       trustedAt: device.trustedAt,
       approvedByDeviceId: device.approvedByDeviceId,

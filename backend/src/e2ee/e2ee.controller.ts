@@ -80,8 +80,15 @@ export class E2eeController {
     @Request() req: AuthenticatedRequest,
     @Param('deviceId') deviceId: string,
     @Query('approverDeviceId') approverDeviceId: string,
+    @Query('cursor') cursor?: string,
   ) {
-    return this.e2eeService.getPendingDeviceApprovalContext(req.user, deviceId, approverDeviceId, this.getAuthToken(req));
+    return this.e2eeService.getPendingDeviceApprovalContext(
+      req.user,
+      deviceId,
+      approverDeviceId,
+      this.getAuthToken(req),
+      cursor,
+    );
   }
 
   @Post('recipient-devices')

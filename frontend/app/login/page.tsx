@@ -14,7 +14,7 @@ import { PLATFORM_NAME } from "@/lib/constants";
 import { getDeviceId, getDeviceInfo } from "@/lib/deviceUtils";
 import Image from "next/image";
 import { TrustedDevicePrompt } from "@/components/TrustedDevicePrompt";
-import { requestCurrentDeviceTrust } from "@/lib/e2ee";
+import { TrustedDevicePromptFlow } from "@/types";
 
 export default function LoginPage() {
   const { login, loading } = useAuth();
@@ -131,9 +131,6 @@ export default function LoginPage() {
   };
 
   const finishTwoFactorLogin = async (accessToken: string) => {
-    await requestCurrentDeviceTrust(accessToken, { sendApprovalNotification: false }).catch(() => {
-        // Trust setup is best-effort here; the completed login remains valid.
-    });
     await login(accessToken);
     setTemporaryToken(null);
   };
@@ -141,7 +138,7 @@ export default function LoginPage() {
   if (temporaryToken) {
     return (
       <TrustedDevicePrompt
-        flow="two-factor"
+        flow={TrustedDevicePromptFlow.TWO_FACTOR}
         temporaryToken={temporaryToken}
         onComplete={finishTwoFactorLogin}
         onCancel={() => {

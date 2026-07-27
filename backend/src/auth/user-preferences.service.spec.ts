@@ -1,16 +1,26 @@
-import { ThemeMode, TwoFactorMethod } from '@/prisma/prisma-client';
+import {
+  E2EEDeviceTrustStatus,
+  Role,
+  ThemeMode,
+  TwoFactorMethod,
+} from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SecurityService } from './security.service';
 import { UserPreferencesService } from './user-preferences.service';
 
 describe('UserPreferencesService', () => {
   const prisma = {
-    user: { update: jest.fn() },
+    user: { update: jest.fn(), findFirst: jest.fn() },
     userSettings: {
       upsert: jest.fn(),
     },
+    trustedEncryptionDevice: { findFirst: jest.fn() },
+    pendingLogin: { updateMany: jest.fn() },
   };
+  const security = { recordEvent: jest.fn() };
   const service = new UserPreferencesService(
     prisma as unknown as PrismaService,
+    security as unknown as SecurityService,
   );
 
   beforeEach(() => {
@@ -107,5 +117,69 @@ describe('UserPreferencesService', () => {
         }),
       }),
     );
+  });
+
+  it('prevents a sub-admin from changing another sub-admin security', async () => {
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'target-sub-admin',
+      role: Role.SUB_ADMIN,
+      organization: {},
+      settings: { twoFactorEnabled: true },
+    });
+
+    await expect(
+      service.toggleManagedTwoFactor(
+        {
+          id: 'actor',
+          role: Role.SUB_ADMIN,
+          organizationId: 'org-1',
+        },
+        'target-sub-admin',
+        {},
+      ),
+    ).rejects.toThrow('not allowed');
+    expect(prisma.userSettings.upsert).not.toHaveBeenCalled();
+  });
+
+  it('lets an org admin enable all verified options for an org user', async () => {
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'target-user',
+      role: Role.STUDENT,
+      contactEmailVerifiedAt: new Date(),
+      organization: {},
+      settings: { twoFactorEnabled: false },
+    });
+    prisma.trustedEncryptionDevice.findFirst.mockResolvedValue({
+      id: 'trusted-device',
+      trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+    });
+    prisma.userSettings.upsert.mockResolvedValue({
+      twoFactorEnabled: true,
+      emailTwoFactorEnabled: true,
+      deviceTwoFactorEnabled: true,
+    });
+
+    const result = await service.toggleManagedTwoFactor(
+      {
+        id: 'actor',
+        role: Role.ORG_ADMIN,
+        organizationId: 'org-1',
+      },
+      'target-user',
+      {},
+    );
+
+    expect(prisma.userSettings.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          twoFactorEnabled: true,
+          emailTwoFactorEnabled: true,
+          deviceTwoFactorEnabled: true,
+          twoFactorMethod: TwoFactorMethod.BOTH,
+        }),
+      }),
+    );
+    expect(result.enabled).toBe(true);
+    expect(security.recordEvent).toHaveBeenCalled();
   });
 });

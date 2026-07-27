@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -15,6 +16,11 @@ import { AuditLogInput, RequestMetadata } from './auth-internal.types';
 import { hashSecret } from './auth-internal.utils';
 import { EmailTemplateService } from '../common/email-templates/email-template.service';
 import { SecurityService } from './security.service';
+
+const CONTACT_EMAIL_CHANGE_CODE_TTL_MS = 10 * 60_000;
+const CONTACT_EMAIL_CHANGE_AUTH_TTL_MS = 15 * 60_000;
+const CONTACT_EMAIL_CHANGE_RESEND_COOLDOWN_MS = 60_000;
+const MAX_CONTACT_EMAIL_CHANGE_ATTEMPTS = 5;
 
 @Injectable()
 export class EmailVerificationService {
@@ -32,6 +38,7 @@ export class EmailVerificationService {
     id: string;
     role: string;
     organizationId?: string | null;
+    sessionId?: string;
   }) {
     if (this.usesOrganizationContact(user)) {
       const organization = await this.prisma.organization.findUnique({
@@ -44,6 +51,7 @@ export class EmailVerificationService {
         contactEmailVerifiedAt:
           organization.contactEmailVerifiedAt?.toISOString() || null,
         managedByOrganization: true,
+        ...(await this.getContactEmailChangeAuthorizationState(user)),
       };
     }
     const account = await this.prisma.user.findUnique({
@@ -56,6 +64,7 @@ export class EmailVerificationService {
       contactEmailVerifiedAt:
         account.contactEmailVerifiedAt?.toISOString() || null,
       managedByOrganization: false,
+      ...(await this.getContactEmailChangeAuthorizationState(user)),
     };
   }
 
@@ -89,6 +98,9 @@ export class EmailVerificationService {
     ) {
       return this.getContactEmail(user);
     }
+    if (current.contactEmailVerifiedAt) {
+      await this.assertContactEmailChangeAuthorized(user);
+    }
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -108,6 +120,9 @@ export class EmailVerificationService {
         twoFactorMethod: 'DEVICE',
       },
     });
+    if (current.contactEmailVerifiedAt) {
+      await this.consumeContactEmailChangeAuthorization(user);
+    }
     await this.issueUserContactEmailVerification(user, normalized);
     return this.getContactEmail(user);
   }
@@ -116,6 +131,7 @@ export class EmailVerificationService {
     id: string;
     role: string;
     organizationId?: string | null;
+    sessionId?: string;
   }) {
     const linked = await this.prisma.linkedAccount.findFirst({
       where: {
@@ -132,6 +148,13 @@ export class EmailVerificationService {
       );
     }
     const verifiedAt = new Date();
+    const current = await this.getCurrentContactEmail(user);
+    if (
+      current.verifiedAt &&
+      current.email.toLowerCase() !== contactEmail
+    ) {
+      await this.assertContactEmailChangeAuthorized(user);
+    }
     if (this.usesOrganizationContact(user)) {
       await this.prisma.organization.update({
         where: { id: user.organizationId! },
@@ -157,7 +180,178 @@ export class EmailVerificationService {
         },
       });
     }
+    if (
+      current.verifiedAt &&
+      current.email.toLowerCase() !== contactEmail
+    ) {
+      await this.consumeContactEmailChangeAuthorization(user);
+    }
     return this.getContactEmail(user);
+  }
+
+  async requestContactEmailChangeConfirmation(user: {
+    id: string;
+    role: string;
+    organizationId?: string | null;
+    sessionId?: string;
+  }) {
+    const current = await this.getCurrentContactEmail(user);
+    if (!current.verifiedAt) {
+      return {
+        message: 'No current verified contact email needs confirmation.',
+        required: false,
+      };
+    }
+    const session = await this.getActiveSession(user);
+    if (
+      session.contactEmailChangeCodeSentAt &&
+      Date.now() - session.contactEmailChangeCodeSentAt.getTime() <
+        CONTACT_EMAIL_CHANGE_RESEND_COOLDOWN_MS
+    ) {
+      throw new HttpException(
+        'Please wait before requesting another code.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    await this.prisma.session.update({
+      where: { id: session.id },
+      data: {
+        contactEmailChangeCodeHash: hashSecret(code),
+        contactEmailChangeCodeExpiresAt: new Date(
+          Date.now() + CONTACT_EMAIL_CHANGE_CODE_TTL_MS,
+        ),
+        contactEmailChangeCodeAttempts: 0,
+        contactEmailChangeCodeSentAt: new Date(),
+        contactEmailChangeAuthorizedAt: null,
+      },
+    });
+    const appBaseUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .split(',')[0]
+      .replace(/\/+$/, '');
+    const email = this.templates.buildContactEmailVerificationEmail({
+      appBaseUrl,
+      code,
+      organizationName: current.accountName,
+      contactEmail: current.email,
+      organizationLogoUrl: this.templates.getSafeAssetUrl(
+        current.logoUrl,
+        appBaseUrl,
+      ),
+      reason: 'contact_email_change_confirmation',
+    });
+    await this.emailService.send({ to: current.email, ...email });
+    await this.securityService.recordEvent(
+      'contact_email_change_confirmation_requested',
+      {
+        actorUserId: user.id,
+        targetUserId: user.id,
+        organizationId: user.organizationId || undefined,
+        sessionId: session.id,
+      },
+    );
+    return {
+      message: 'A confirmation code was sent to your current contact email.',
+      required: true,
+    };
+  }
+
+  async confirmContactEmailChange(
+    user: {
+      id: string;
+      role: string;
+      organizationId?: string | null;
+      sessionId?: string;
+    },
+    code: string,
+  ) {
+    const session = await this.getActiveSession(user);
+    if (
+      !session.contactEmailChangeCodeHash ||
+      !session.contactEmailChangeCodeExpiresAt ||
+      session.contactEmailChangeCodeExpiresAt <= new Date()
+    ) {
+      throw new BadRequestException(
+        'This confirmation code expired. Request a new code.',
+      );
+    }
+    if (
+      session.contactEmailChangeCodeAttempts >=
+      MAX_CONTACT_EMAIL_CHANGE_ATTEMPTS
+    ) {
+      throw new HttpException(
+        'Too many incorrect attempts. Request a new code.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    if (hashSecret(code) !== session.contactEmailChangeCodeHash) {
+      await this.prisma.session.update({
+        where: { id: session.id },
+        data: { contactEmailChangeCodeAttempts: { increment: 1 } },
+      });
+      throw new BadRequestException('That confirmation code is not correct.');
+    }
+
+    const authorizedAt = new Date();
+    await this.prisma.session.update({
+      where: { id: session.id },
+      data: {
+        contactEmailChangeAuthorizedAt: authorizedAt,
+        contactEmailChangeCodeHash: null,
+        contactEmailChangeCodeExpiresAt: null,
+        contactEmailChangeCodeAttempts: 0,
+      },
+    });
+    await this.securityService.recordEvent(
+      'contact_email_change_confirmed',
+      {
+        actorUserId: user.id,
+        targetUserId: user.id,
+        organizationId: user.organizationId || undefined,
+        sessionId: session.id,
+      },
+    );
+    return {
+      message: 'Current email confirmed. You can now change it.',
+      authorizedUntil: new Date(
+        authorizedAt.getTime() + CONTACT_EMAIL_CHANGE_AUTH_TTL_MS,
+      ).toISOString(),
+    };
+  }
+
+  async assertContactEmailChangeAuthorized(user: {
+    id: string;
+    sessionId?: string;
+  }) {
+    const session = await this.getActiveSession(user);
+    if (
+      !session.contactEmailChangeAuthorizedAt ||
+      Date.now() - session.contactEmailChangeAuthorizedAt.getTime() >
+        CONTACT_EMAIL_CHANGE_AUTH_TTL_MS
+    ) {
+      throw new ForbiddenException(
+        'Confirm the code sent to your current contact email before changing it.',
+      );
+    }
+  }
+
+  async consumeContactEmailChangeAuthorization(user: {
+    id: string;
+    sessionId?: string;
+  }) {
+    const session = await this.getActiveSession(user);
+    await this.prisma.session.update({
+      where: { id: session.id },
+      data: {
+        contactEmailChangeAuthorizedAt: null,
+        contactEmailChangeCodeHash: null,
+        contactEmailChangeCodeExpiresAt: null,
+        contactEmailChangeCodeAttempts: 0,
+        contactEmailChangeCodeSentAt: null,
+      },
+    });
   }
 
   async resendContactEmailVerification(
@@ -375,6 +569,107 @@ export class EmailVerificationService {
     organizationId?: string | null;
   }) {
     return user.role === Role.ORG_ADMIN && Boolean(user.organizationId);
+  }
+
+  private async getCurrentContactEmail(user: {
+    id: string;
+    role: string;
+    organizationId?: string | null;
+  }) {
+    if (this.usesOrganizationContact(user)) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: user.organizationId! },
+        select: {
+          contactEmail: true,
+          contactEmailVerifiedAt: true,
+          name: true,
+          logoUrl: true,
+        },
+      });
+      if (!organization) {
+        throw new BadRequestException('Organization not found.');
+      }
+      return {
+        email: organization.contactEmail,
+        verifiedAt: organization.contactEmailVerifiedAt,
+        accountName: organization.name,
+        logoUrl: organization.logoUrl,
+      };
+    }
+    const account = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        contactEmail: true,
+        contactEmailVerifiedAt: true,
+        name: true,
+        organization: { select: { name: true, logoUrl: true } },
+      },
+    });
+    if (!account) throw new BadRequestException('User not found.');
+    return {
+      email: account.contactEmail || '',
+      verifiedAt: account.contactEmailVerifiedAt,
+      accountName:
+        account.organization?.name || account.name || 'your EduVerse account',
+      logoUrl: account.organization?.logoUrl || null,
+    };
+  }
+
+  private async getActiveSession(user: { id: string; sessionId?: string }) {
+    if (!user.sessionId) {
+      throw new ForbiddenException(
+        'An active signed-in session is required to change the contact email.',
+      );
+    }
+    const session = await this.prisma.session.findFirst({
+      where: {
+        id: user.sessionId,
+        userId: user.id,
+        isActive: true,
+        expiresAt: { gt: new Date() },
+      },
+      select: {
+        id: true,
+        contactEmailChangeCodeHash: true,
+        contactEmailChangeCodeExpiresAt: true,
+        contactEmailChangeCodeAttempts: true,
+        contactEmailChangeCodeSentAt: true,
+        contactEmailChangeAuthorizedAt: true,
+      },
+    });
+    if (!session) {
+      throw new ForbiddenException(
+        'This session is no longer active. Sign in and confirm your current email again.',
+      );
+    }
+    return session;
+  }
+
+  private async getContactEmailChangeAuthorizationState(user: {
+    id: string;
+    sessionId?: string;
+  }) {
+    if (!user.sessionId) {
+      return {
+        changeAuthorizedUntil: null,
+      };
+    }
+    const session = await this.prisma.session.findFirst({
+      where: { id: user.sessionId, userId: user.id, isActive: true },
+      select: { contactEmailChangeAuthorizedAt: true },
+    });
+    const authorizedAt = session?.contactEmailChangeAuthorizedAt;
+    const authorizedUntil = authorizedAt
+      ? new Date(
+          authorizedAt.getTime() + CONTACT_EMAIL_CHANGE_AUTH_TTL_MS,
+        )
+      : null;
+    return {
+      changeAuthorizedUntil:
+        authorizedUntil && authorizedUntil > new Date()
+          ? authorizedUntil.toISOString()
+          : null,
+    };
   }
 
   private async issueUserContactEmailVerification(

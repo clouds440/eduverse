@@ -1,6 +1,6 @@
 # EduVerse - Technical Design Document
 
-**Version:** 2.2.1  
+**Version:** 2.3.0  
 **Date:** July 2026  
 **Repository:** `clouds440/eduverse`  
 **Document Type:** Technical Design Document (TDD)
@@ -67,6 +67,8 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 - Chat, mail, announcements, notifications, and real-time updates.
 - File uploads backed by Cloudinary.
 - Password strength, password reset, sessions, and audit logging.
+- Optional email-code and trusted-device two-factor authentication.
+- Linked Google sign-in, verified contact emails, and preference-aware login alerts.
 
 ---
 
@@ -268,6 +270,15 @@ Rules:
 - Mail and Chat notifications use generic text and do not include protected message content.
 - Mail search and AI backend tools do not search or read encrypted subject/body content.
 
+### Account Security Data Model
+
+- `User.contactEmail` and its verification timestamps store the multipurpose security address for non-org-admin users.
+- Org admins use `Organization.contactEmail` and its verification timestamps as their security address.
+- `UserSettings` stores independent email/device 2FA flags, the combined compatibility fields, login email/push alert preferences, theme, and marketing preference.
+- `PendingLogin` stores a 15-minute login challenge, available and selected methods, email-code state, verification status, and originating device metadata.
+- `Session` represents an authenticated login. `TrustedEncryptionDevice` separately represents a browser/device allowed to approve sign-ins and access protected Chat/Mail.
+- Linked Google accounts support direct Google login and can supply a pre-verified contact email when the user explicitly chooses it.
+
 ### Courses
 
 `Course` defines the subject identity used by sections and transcripts.
@@ -397,11 +408,27 @@ GPA policy behavior:
 
 Main responsibilities:
 
-- Login and JWT issuance.
+- Password and Google login, pending-login challenges, and JWT issuance.
 - Password strength and password reset support.
 - Session/device tracking.
-- Contact email verification.
+- Multipurpose contact email verification for recovery, security communication, and email 2FA.
+- Optional email-code and trusted-device 2FA methods that can be enabled independently.
+- Linked Google account management and use of its verified email as the contact email.
+- Login email and push alerts governed by the centralized user settings context.
 - Guards and decorators for role and organization context.
+
+The backend resolves the complete user settings context through `UserSettingsContextService`. Feature services consume that context instead of independently querying individual preference booleans. The frontend mirrors this with `UserSettingsProvider`, which loads one canonical settings object and exposes shared refresh/update operations.
+
+Selected routes:
+
+- `POST /auth/two-factor/challenge`, `/select`, `/email/verify`, `/email/resend`, `/device/approve`, `/complete`, `/cancel`
+- `GET|PATCH /auth/contact-email` plus resend, verify, and linked-Google adoption routes
+- `POST /auth/contact-email/change-confirmation/request|confirm`
+- `GET /auth/users/:userId/two-factor` and `POST /auth/users/:userId/two-factor/toggle`
+- `GET|PATCH /auth/settings`
+- `GET /auth/google/login`, `/google/link`, and `/google/callback`
+- `GET /auth/sessions` plus session revocation routes
+- `PATCH /admin/organizations/:id/contact-email/recovery`
 
 ### Org Module
 
@@ -649,6 +676,62 @@ Legacy top-level routes such as `/teachers`, `/students`, `/sub-admins`, `/finan
 
 ## 8. Core Product Flows
 
+### Password Sign-In and Two-Factor Verification
+
+1. The user submits valid password credentials.
+2. Google sign-in completes directly because Google already authenticated the account.
+3. If password sign-in requires 2FA, the backend creates a pending login that expires after 15 minutes and returns a temporary token instead of an access token.
+4. When both methods are enabled, the user chooses email or another signed-in device.
+5. Email verification sends a six-digit code to the verified contact email. Codes expire after 10 minutes and resend is rate-limited.
+6. Device verification sends a notification to the user's other trusted, signed-in devices. The user can approve from the notification or from Security > Devices & sessions.
+7. Successful verification consumes the pending login, exchanges the temporary token for a full access token, creates the session, and trusts the successful browser.
+8. Cancelling the prompt cancels the pending login and signs the user out.
+
+### Contact Email and 2FA Setup
+
+- Org admins use the verified organization contact email.
+- Other users can add and verify a personal contact email from Security.
+- A linked Google email can be adopted as the contact email before email 2FA is enabled.
+- Email 2FA requires a verified contact email.
+- Device 2FA requires at least one trusted browser/device.
+- Email and device verification can be enabled independently or together.
+- Confirmation dialogs explain the method-specific lockout risk before a method is enabled or disabled.
+
+#### Changing a Verified Contact Email
+
+1. The user chooses **Change contact email**.
+2. EduVerse sends a six-digit code to the current verified address.
+3. Entering the correct code unlocks the contact-email field for that signed-in session for 15 minutes.
+4. The user enters the replacement address and saves it. Saving uses up the temporary permission.
+5. EduVerse sends the normal verification code to the replacement address. The new address cannot be used for email sign-in codes until this second verification is complete.
+6. Signing out, losing the session, or allowing the temporary permission to expire requires another code from the old address.
+
+The linked Google email option follows the same old-address confirmation rule when it would replace an existing verified contact email.
+
+#### Organization User Recovery
+
+- Org admins can copy a password-reset link or enable/disable two-step verification for any user in their organization.
+- Sub-admins can do the same for teachers, managers, finance managers, students, and guardians.
+- Sub-admins cannot reset the password or change two-step verification for the org admin or another sub-admin. The backend enforces this even if someone calls the API directly.
+- Before changing a user's two-step verification, the interface loads its current state and clearly asks whether it will be enabled or disabled.
+- Enabling two-step verification uses the verified options the user already has. It fails safely if the user has neither a verified contact email nor a trusted device.
+- Disabling two-step verification removes the extra sign-in check but does not change the user's password, active sessions, or trusted-device records.
+
+#### Org Admin Recovery
+
+- An org admin with device-only two-step verification can choose the verified organization contact email when no trusted device is available.
+- This is a recovery choice for that sign-in. It does not silently turn on email verification for later sign-ins.
+- If the org admin has also lost access to the organization contact email, a platform admin can replace it from **Organizations > Actions** after confirming the request through the support process.
+- A platform recovery address is marked verified immediately so it can be used to regain access. Any waiting org-admin sign-in requests are cancelled, and the org admin starts sign-in again using the new address.
+- The previous verified address receives a notice that the organization contact email changed.
+
+### Sessions, Trusted Devices, and Login Alerts
+
+- Authentication sessions and trusted encryption/approval devices remain separate records and controls.
+- Users can sign out another session without removing its trust, or remove browser trust without presenting both actions as equivalent.
+- New-device and new-location security events read the full user settings context once, then independently honor login email and login push preferences.
+- Security alert email delivery uses the common email-template service; delivery failures do not invalidate an otherwise successful login.
+
 ### Course and Section Setup
 
 1. Org admin creates courses with credit hours.
@@ -735,6 +818,22 @@ Legacy top-level routes such as `/teachers`, `/students`, `/sub-admins`, `/finan
 ---
 
 ## 9. Security and Permissions
+
+### Authentication and Token Boundaries
+
+- A pending 2FA token grants access only to the 2FA challenge endpoints and related socket room.
+- Pending logins expire after 15 minutes and are consumed once.
+- Full JWTs contain the resolved access level. Guards validate and trust the signed claim instead of resolving permissions again.
+- Missing or invalid access-level claims default to `0` (no access), never full write access.
+- Google login bypasses EduVerse 2FA because Google has already authenticated the linked account.
+- Successful password-based 2FA automatically trusts the browser after the full access token is issued.
+
+### Security Preferences
+
+- `loginNotificationEmail` controls new-device and suspicious-location security email.
+- `loginNotificationPush` controls the corresponding in-app/push alert.
+- Missing settings rows receive secure product defaults through one backend settings resolver.
+- Frontend account settings use one global settings context so 2FA, appearance, and notification screens do not maintain conflicting copies.
 
 ### Tenant Isolation
 

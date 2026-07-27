@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
     CheckCircle2,
@@ -21,7 +21,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { getDeviceId } from '@/lib/deviceUtils';
 import {
-    prepareHistoryKeyTransferForApproval,
+    provisionRecentChatHistory,
     requestCurrentDeviceTrust,
     trustedDeviceSetupErrorMessage,
 } from '@/lib/e2ee';
@@ -151,9 +151,19 @@ export function TrustedEncryptionDevicesPanel() {
 
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: `e2ee-device-approve-${device.id}` });
-            const approvalContext = await api.e2ee.getDeviceApprovalContext(device.id, approverDevice.id, token);
-            const historyKeyEnvelopes = await prepareHistoryKeyTransferForApproval(approvalContext);
-            await api.e2ee.approveDevice(device.id, { approverDeviceId: approverDevice.id, historyKeyEnvelopes }, token);
+            await provisionRecentChatHistory({
+                loadContext: (cursor) => api.e2ee.getDeviceApprovalContext(
+                    device.id,
+                    approverDevice.id,
+                    token,
+                    cursor,
+                ),
+                saveBatch: (chatGrants, complete) => api.e2ee.approveDevice(
+                    device.id,
+                    { approverDeviceId: approverDevice.id, chatGrants, complete },
+                    token,
+                ),
+            });
             await fetchSecurityDevices();
             dispatch({
                 type: 'TOAST_ADD',
@@ -219,7 +229,7 @@ export function TrustedEncryptionDevicesPanel() {
         return <Monitor className="h-5 w-5" />;
     };
 
-    const devices = data?.devices ?? [];
+    const devices = useMemo(() => data?.devices ?? [], [data?.devices]);
     const activeDevices = devices.filter((device) => device.trustStatus === 'TRUSTED' && !device.revokedAt);
     const currentDeviceIsTrusted = activeDevices.some((device) => device.clientDeviceId === currentClientDeviceId);
     const otherSessions = sessions.filter((session) => !session.isCurrent);
@@ -245,7 +255,10 @@ export function TrustedEncryptionDevicesPanel() {
 
         const device = devices.find((candidate) => (
             candidate.id === approveDeviceId &&
-            candidate.trustStatus === 'PENDING' &&
+            (
+                candidate.trustStatus === 'PENDING' ||
+                candidate.historyProvisioningStatus === 'PENDING'
+            ) &&
             !candidate.revokedAt
         ));
         if (!device) return;
@@ -263,7 +276,20 @@ export function TrustedEncryptionDevicesPanel() {
         if (!token || !pendingLoginToApprove || !currentClientDeviceId) return;
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: 'two-factor-device-approve' });
-            await api.auth.approveTwoFactorDevice(pendingLoginToApprove, currentClientDeviceId, token);
+            await provisionRecentChatHistory({
+                loadContext: (cursor) => api.auth.getTwoFactorDeviceApprovalContext(
+                    pendingLoginToApprove,
+                    currentClientDeviceId,
+                    token,
+                    cursor,
+                ),
+                saveBatch: (chatGrants, complete) => api.auth.approveTwoFactorDevice(
+                    pendingLoginToApprove,
+                    currentClientDeviceId,
+                    token,
+                    { chatGrants, complete },
+                ),
+            });
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Sign-in approved.', type: 'success' } });
             setPendingLoginToApprove(null);
             const params = new URLSearchParams(searchParams.toString());
@@ -347,6 +373,7 @@ export function TrustedEncryptionDevicesPanel() {
                                 const browser = trustedDevice?.browser;
                                 const isPending = trustedDevice?.trustStatus === 'PENDING';
                                 const isTrusted = trustedDevice?.trustStatus === 'TRUSTED';
+                                const historyPending = trustedDevice?.historyProvisioningStatus === 'PENDING';
                                 const isUntrusted = !isTrusted;
 
                                 return (
@@ -367,6 +394,7 @@ export function TrustedEncryptionDevicesPanel() {
                                                         </p>
                                                         {isCurrent && <Badge variant="primary" size="sm" dot>This device</Badge>}
                                                         {isTrusted && <Badge variant="success" size="sm" dot>Trusted</Badge>}
+                                                        {historyPending && <Badge variant="warning" size="sm" dot>Recent history pending</Badge>}
                                                         {isUntrusted && <Badge variant="warning" size="sm" dot>Untrusted</Badge>}
                                                     </div>
                                                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-muted-foreground">
@@ -414,7 +442,27 @@ export function TrustedEncryptionDevicesPanel() {
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Browser trust</p>
-                                                    {isPending && trustedDevice ? (
+                                                    {historyPending && trustedDevice && isTrusted ? (
+                                                        <div className="space-y-2">
+                                                            <Button
+                                                                onClick={() => setTrustedDeviceToApprove(trustedDevice)}
+                                                                variant="primary"
+                                                                icon={CheckCircle2}
+                                                                loadingId={`e2ee-device-approve-${trustedDevice.id}`}
+                                                                disabled={isCurrent || !currentDeviceIsTrusted}
+                                                                px="px-4"
+                                                                py="py-2.5"
+                                                                className="w-full text-xs"
+                                                            >
+                                                                Share recent Chat history
+                                                            </Button>
+                                                            {isCurrent && (
+                                                                <p className="text-xs font-semibold text-muted-foreground">
+                                                                    Recent history will appear after another trusted browser shares it.
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ) : isPending && trustedDevice ? (
                                                         <div className="flex flex-col gap-2">
                                                             <Button
                                                                 onClick={() => setTrustedDeviceToApprove(trustedDevice)}
@@ -511,9 +559,15 @@ export function TrustedEncryptionDevicesPanel() {
                 isOpen={Boolean(trustedDeviceToApprove)}
                 onClose={closeApproveDialog}
                 onConfirm={() => trustedDeviceToApprove && handleApprove(trustedDeviceToApprove)}
-                title="Trust this browser?"
-                description="Only continue if you recognize this sign-in. Once trusted, this browser can open your secure Chat and Mail."
-                confirmText="Trust Browser"
+                title={trustedDeviceToApprove?.trustStatus === 'TRUSTED'
+                    ? 'Share recent Chat history?'
+                    : 'Trust this browser?'}
+                description={trustedDeviceToApprove?.trustStatus === 'TRUSTED'
+                    ? 'This securely shares only the latest 35 visible messages from each Chat. Older messages will stay unavailable on that browser.'
+                    : 'Only continue if you recognize this sign-in. Approval also securely shares only the latest 35 visible messages from each Chat.'}
+                confirmText={trustedDeviceToApprove?.trustStatus === 'TRUSTED'
+                    ? 'Share Recent History'
+                    : 'Trust Browser'}
                 loadingId={trustedDeviceToApprove ? `e2ee-device-approve-${trustedDeviceToApprove.id}` : undefined}
             />
 

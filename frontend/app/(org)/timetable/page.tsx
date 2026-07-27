@@ -23,6 +23,7 @@ import { getRoleLabel } from '@/lib/roles';
 import { cn, formatCourseSectionLabel, getPublicUrl, getSectionColor } from '@/lib/utils';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { searchFilterLookup } from '@/lib/filterLookups';
+import { useContextualNavigation } from '@/hooks/useContextualNavigation';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
@@ -664,6 +665,7 @@ export function StudentTimetableView({
 }: StudentTimetableViewProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const contextualHref = useContextualNavigation();
     const { token, user } = useAuth();
     const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -864,11 +866,11 @@ export function StudentTimetableView({
     };
 
     const openCampusRoom = (roomId: string) => {
-        router.push(`/campus-navigation?roomId=${encodeURIComponent(roomId)}`);
+        router.push(contextualHref(`/campus-navigation?roomId=${encodeURIComponent(roomId)}`));
     };
 
     const openTeacherProfile = (userId: string) => {
-        router.push(`/profiles/${userId}`);
+        router.push(contextualHref(`/profiles/${userId}`));
     };
 
     const handleDateStep = (direction: 'prev' | 'next') => {
