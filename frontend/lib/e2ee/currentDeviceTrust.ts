@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import { getDeviceId } from '@/lib/deviceUtils';
+import { E2EEDeviceTrustStatus } from '@/types';
 import type { TrustedEncryptionDevice, TrustedDevicesResponse } from '@/types';
 import { getLocalTrustedDeviceKeys, getUserIdFromToken } from './localDeviceKeys';
 import { registerCurrentTrustedDevice } from './trustedDeviceRegistration';
@@ -24,11 +25,11 @@ export async function getCurrentDeviceTrustState(token: string): Promise<Current
             ? devices.find((device) => device.clientDeviceId === clientDeviceId && !device.revokedAt)
             : undefined,
         trustedDevices: devices.filter((device) => (
-            device.trustStatus === 'TRUSTED' &&
+            device.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
             !device.revokedAt &&
             Boolean(device.trustedAt)
         )),
-        pendingDevices: devices.filter((device) => device.trustStatus === 'PENDING' && !device.revokedAt),
+        pendingDevices: devices.filter((device) => device.trustStatus === E2EEDeviceTrustStatus.PENDING && !device.revokedAt),
     };
 }
 
@@ -39,11 +40,11 @@ export async function requestCurrentDeviceTrust(
     const state = await getCurrentDeviceTrustState(token);
     if (!state.clientDeviceId) throw new Error('Unable to identify this browser device.');
 
-    if (state.currentDevice?.trustStatus === 'TRUSTED') {
+    if (state.currentDevice?.trustStatus === E2EEDeviceTrustStatus.TRUSTED) {
         const tokenUserId = getUserIdFromToken(token);
         const localKeys = await getLocalTrustedDeviceKeys(tokenUserId, state.clientDeviceId);
         if (localKeys) {
-            return { device: state.currentDevice, status: 'TRUSTED' as const };
+            return { device: state.currentDevice, status: E2EEDeviceTrustStatus.TRUSTED };
         }
 
         const response = await registerCurrentTrustedDevice(token, {
@@ -57,11 +58,11 @@ export async function requestCurrentDeviceTrust(
         return { device: response.device, status: response.device.trustStatus };
     }
 
-    if (state.currentDevice?.trustStatus === 'PENDING') {
+    if (state.currentDevice?.trustStatus === E2EEDeviceTrustStatus.PENDING) {
         if (options.sendApprovalNotification !== false) {
             await api.e2ee.requestDeviceApproval(state.currentDevice.id, token);
         }
-        return { device: state.currentDevice, status: 'PENDING' as const };
+        return { device: state.currentDevice, status: E2EEDeviceTrustStatus.PENDING };
     }
 
     const response = await registerCurrentTrustedDevice(token, {

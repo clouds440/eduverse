@@ -14,7 +14,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
 import { PageShell, PageTabs, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
 import { FinancialAmount } from '@/components/finance/FinancialAmount';
-import { FinanceTargetType, PayrollRosterRow, Role } from '@/types';
+import { FinanceTargetType, PayrollRosterRow, Role, UserStatus } from '@/types';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { PageControls } from '@/components/ui/FilterDrawerToolbar';
 import { usePageActionsHost } from '@/components/ui/PageActionsHost';
@@ -87,7 +87,7 @@ export default function FinancePayrollPage() {
         },
         {
             header: 'Status',
-            accessor: (row) => <Badge variant={row.user.status === 'ACTIVE' ? 'success' : 'neutral'}>{labelize(row.user.status)}</Badge>,
+            accessor: (row) => <Badge variant={row.user.status === UserStatus.ACTIVE ? 'success' : 'neutral'}>{labelize(row.user.status)}</Badge>,
             badge: true,
             width: 120,
         },

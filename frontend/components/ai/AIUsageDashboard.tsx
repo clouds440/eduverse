@@ -12,6 +12,7 @@ import type {
     AIUsageTrendPoint,
     Role,
 } from '@/types';
+import { AISubscriptionStatus as AISubscriptionStatusEnum } from '@/types';
 import { getRoleLabel } from '@/lib/roles';
 
 interface AIUsageDashboardProps {
@@ -68,7 +69,7 @@ export function AIUsageDashboard({
                     <h2 className="text-lg font-black text-foreground">{title}</h2>
                     {subtitle && <p className="mt-1 text-sm font-semibold text-muted-foreground">{subtitle}</p>}
                 </div>
-                <Badge variant={subscription.status === 'ACTIVE' ? 'success' : 'secondary'} size="md">
+                <Badge variant={subscription.status === AISubscriptionStatusEnum.ACTIVE ? 'success' : 'secondary'} size="md">
                     {subscription.limitMode} limit
                 </Badge>
             </div>

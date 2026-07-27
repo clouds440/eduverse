@@ -4,6 +4,7 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import { Role } from '../common/enums';
 import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
 import { DepartmentsService } from './departments.service';
@@ -54,7 +55,7 @@ export class DepartmentsController {
     @OrgId() orgId: string,
     @Param('id') id: string,
     @Body() dto: UpdateDepartmentDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.departmentsService.updateDepartment(orgId, id, dto, req.user);
   }

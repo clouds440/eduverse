@@ -244,6 +244,17 @@ export enum TrustedDevicePromptFlow {
     TWO_FACTOR = 'TWO_FACTOR',
 }
 
+export enum E2EEDeviceTrustStatus {
+    PENDING = 'PENDING',
+    TRUSTED = 'TRUSTED',
+    REVOKED = 'REVOKED',
+}
+
+export enum E2EEHistoryProvisioningStatus {
+    PENDING = 'PENDING',
+    READY = 'READY',
+}
+
 export enum AttendanceStatus {
     PRESENT = 'PRESENT',
     ABSENT = 'ABSENT',

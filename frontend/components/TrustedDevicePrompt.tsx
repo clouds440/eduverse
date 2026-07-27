@@ -14,6 +14,7 @@ import {
 } from '@/lib/e2ee';
 import { api } from '@/lib/api';
 import {
+    E2EEDeviceTrustStatus,
     TrustedDevicePromptFlow,
     TwoFactorChallengeStatus,
     TwoFactorMethod,
@@ -48,7 +49,7 @@ function EncryptionTrustPrompt() {
                 if (checkedSessionRef.current === exactStorageKey) return;
                 checkedSessionRef.current = exactStorageKey;
 
-                if (state.currentDevice?.trustStatus === 'TRUSTED') return;
+                if (state.currentDevice?.trustStatus === E2EEDeviceTrustStatus.TRUSTED) return;
 
                 if (state.trustedDevices.length === 0) {
                     await requestCurrentDeviceTrust(token, { sendApprovalNotification: false });
@@ -62,7 +63,7 @@ function EncryptionTrustPrompt() {
                 if (!cancelled) {
                     setPrompt({
                         open: true,
-                        mode: state.currentDevice?.trustStatus === 'PENDING' ? 'PENDING' : 'UNREGISTERED',
+                        mode: state.currentDevice?.trustStatus === E2EEDeviceTrustStatus.PENDING ? 'PENDING' : 'UNREGISTERED',
                         storageKey: exactStorageKey,
                     });
                 }
@@ -93,7 +94,7 @@ function EncryptionTrustPrompt() {
             dispatch({
                 type: 'TOAST_ADD',
                 payload: {
-                    message: response.status === 'PENDING'
+                    message: response.status === E2EEDeviceTrustStatus.PENDING
                         ? 'Approval request sent to your trusted browsers.'
                         : 'This browser is ready for secure Chat and Mail.',
                     type: 'success',

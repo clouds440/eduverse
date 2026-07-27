@@ -17,7 +17,9 @@ import {
   FinanceTargetType,
   PaymentClaimStatus,
   Prisma,
+  Role as PrismaRole,
   TransactionType,
+  UserStatus,
 } from '@/prisma/prisma-client';
 import { Role } from '../common/enums';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
@@ -534,7 +536,7 @@ export class FinanceService {
 
       const role = type === FinanceTargetType.SUB_ADMIN ? Role.SUB_ADMIN : Role.FINANCE_MANAGER;
       const users = await this.prisma.user.findMany({
-        where: { organizationId: finalOrgId, role, status: { not: 'DELETED' as any } },
+        where: { organizationId: finalOrgId, role, status: { not: UserStatus.DELETED } },
         select: { id: true, name: true, email: true, role: true, status: true, avatarUrl: true, avatarUpdatedAt: true },
         orderBy: { createdAt: 'desc' },
       });
@@ -1267,7 +1269,10 @@ export class FinanceService {
 
   private async resolveStaffTargetType(orgId: string, userId?: string) {
     if (!userId) throw new BadRequestException('Staff user is required');
-    const employee = await this.prisma.user.findFirst({ where: { id: userId, organizationId: orgId, role: { in: [Role.SUB_ADMIN, Role.FINANCE_MANAGER] as any } }, select: { role: true } });
+    const employee = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId: orgId, role: { in: [PrismaRole.SUB_ADMIN, PrismaRole.FINANCE_MANAGER] } },
+      select: { role: true },
+    });
     if (!employee) throw new BadRequestException('Staff user must be an active sub admin or finance manager in this organization');
     return employee.role === Role.SUB_ADMIN ? FinanceTargetType.SUB_ADMIN : FinanceTargetType.FINANCE_MANAGER;
   }
@@ -1327,7 +1332,7 @@ export class FinanceService {
   }
 
   private decimal(value: Prisma.Decimal | number | string) {
-    return new Prisma.Decimal(value as any);
+    return new Prisma.Decimal(value);
   }
 
   private decimalToNumber(value: Prisma.Decimal | number | string) {

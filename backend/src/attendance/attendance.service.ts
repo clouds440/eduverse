@@ -75,6 +75,29 @@ interface ConflictScheduleForMessage {
   };
 }
 
+interface TimetableScheduleForResponse {
+  id: string;
+  sectionId: string;
+  day: number;
+  date: Date | null;
+  type: ScheduleType;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  roomId: string | null;
+  roomRef?: { name: string; building?: { name: string } | null } | null;
+  teacherId: string | null;
+  teacher?: { user?: { id: string; name: string | null; email: string | null } | null } | null;
+  section: {
+    name: string;
+    color: string | null;
+    room: string | null;
+    defaultRoomId: string | null;
+    defaultRoom?: { name: string; building?: { name: string } | null } | null;
+    course: { id: string; name: string; departmentId: string | null };
+  };
+}
+
 @Injectable()
 export class AttendanceService {
   constructor(
@@ -467,6 +490,15 @@ export class AttendanceService {
     return capacityWarning ? { ...schedule, capacityWarning } : schedule;
   }
 
+  async validatePreparedScheduleConflict(
+    orgId: string,
+    sectionId: string,
+    dto: CreateScheduleDto,
+  ) {
+    const normalized = this.normalizeScheduleInput(dto);
+    await this.validateScheduleConflict(orgId, sectionId, normalized);
+  }
+
   async updateSchedule(orgId: string, scheduleId: string, dto: UpdateScheduleDto, user: JwtPayload) {
     const existing = await this.prisma.sectionSchedule.findUnique({
       where: { id: scheduleId },
@@ -791,7 +823,7 @@ export class AttendanceService {
     return identifier ? `${name} (${identifier})` : name;
   }
 
-  private mapSchedulesToTimetableEntries(schedules: Array<any>) {
+  private mapSchedulesToTimetableEntries(schedules: TimetableScheduleForResponse[]) {
     return schedules.map((schedule) => {
       return {
         scheduleId: schedule.id,

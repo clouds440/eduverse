@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import { getDeviceId } from '@/lib/deviceUtils';
+import { E2EEDeviceTrustStatus } from '@/types';
 import type {
     CreateMailPayload,
     EncryptedMailContent,
@@ -208,7 +209,7 @@ export async function decryptMailContent(
     ]);
     const currentDevice = devices.devices.find((device) => (
         device.clientDeviceId === clientDeviceId &&
-        device.trustStatus === 'TRUSTED' &&
+        device.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
         !device.revokedAt &&
         device.trustedAt
     ));

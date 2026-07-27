@@ -1,9 +1,10 @@
+import { E2EEDeviceTrustStatus } from '@/types';
 import type { RecipientEncryptionDevicesResponse, TrustedEncryptionDevice } from '@/types';
 import { E2EEError } from './errors';
 
 export function getTrustedRecipientDevices(response: RecipientEncryptionDevicesResponse) {
     return response.devices.filter((device) => (
-        device.trustStatus === 'TRUSTED' &&
+        device.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
         !device.revokedAt &&
         Boolean(device.trustedAt)
     ));

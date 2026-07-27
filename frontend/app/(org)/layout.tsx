@@ -6,7 +6,7 @@ import { Clock, GraduationCap, Mail, RefreshCw, Settings, ShieldAlert, ShieldOff
 import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
-import { Organization, Role, OrgStatus } from '@/types';
+import { Organization, Role, OrgStatus, UserStatus } from '@/types';
 import Link from 'next/link';
 import { useAuth, JwtPayload } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
@@ -105,20 +105,20 @@ const StatusOverlay = ({ orgData, user }: { orgData: Organization | null, user: 
         );
     }
 
-    if (user?.userStatus === 'SUSPENDED') {
+    if (user?.userStatus === UserStatus.SUSPENDED) {
         // We don't return a blocking overlay here because Level 1 users (Suspended) 
         // are supposed to have READ access. Instead, we show a banner in the layout.
         return null;
     }
 
-    if (user?.userStatus === 'ALUMNI' || user?.userStatus === 'EMERITUS') {
+    if (user?.userStatus === UserStatus.ALUMNI || user?.userStatus === UserStatus.EMERITUS) {
         return (
             <div className={panelClassName}>
                 <StatusBanner
                     variant="info"
                     icon={GraduationCap}
                     title="Account retired"
-                    description={`Your account has been marked as ${user.userStatus === 'ALUMNI' ? 'Alumni' : 'Emeritus'} by your organization. Mail and security settings remain available.`}
+                    description={`Your account has been marked as ${user.userStatus === UserStatus.ALUMNI ? 'Alumni' : 'Emeritus'} by your organization. Mail and security settings remain available.`}
                 >
                     <div className="flex flex-col gap-2 sm:flex-row">
                         <Link
@@ -405,7 +405,7 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             showPadding={showPadding}
         >
             <AICopilotProvider>
-                {user?.userStatus === 'SUSPENDED' && (
+                {user?.userStatus === UserStatus.SUSPENDED && (
                     <div className="mx-3 my-3 flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 sm:mx-6 sm:my-4 sm:flex-row sm:items-center sm:justify-between sm:p-4">
                         <div className="flex items-start gap-3">
                             <div className="p-2 bg-warning/10 rounded-md">

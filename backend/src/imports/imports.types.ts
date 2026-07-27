@@ -39,6 +39,7 @@ export interface InvalidImportRow {
 }
 
 export interface ImportValidationResult<T = Record<string, unknown>> {
+  importSessionId: string;
   entity: string;
   headers: string[];
   totalRows: number;

@@ -1157,22 +1157,21 @@ export const api = {
             formData.append('file', file);
             return uploadFormData<ImportValidationResult>(`/org/imports/${entity}/validate`, formData, token);
         },
-        confirm: (entity: ImportEntity, rows: ImportPreviewRow[], token: string) =>
+        confirm: (entity: ImportEntity, importSessionId: string, token: string) =>
             request<ImportConfirmResult>(`/org/imports/${entity}/confirm`, {
                 method: 'POST',
-                body: JSON.stringify({ rows }),
+                body: JSON.stringify({ importSessionId }),
                 token,
             }),
         confirmStream: (
             entity: ImportEntity,
-            rows: ImportPreviewRow[],
+            importSessionId: string,
             token: string,
-            progress: { totalRows: number; processedOffset: number },
             handlers: ImportConfirmStreamHandlers,
         ) =>
             streamImportConfirm(
                 `/org/imports/${entity}/confirm/stream`,
-                { rows, ...progress },
+                { importSessionId },
                 token,
                 handlers,
             ),
@@ -1193,22 +1192,21 @@ export const api = {
             formData.append('targetMode', options.targetMode);
             return uploadFormData<ImportValidationResult>('/org/imports/attendance/monthly/validate', formData, token);
         },
-        confirmAttendanceMonthly: (options: AttendanceMonthlyImportOptions, rows: ImportPreviewRow[], token: string) =>
+        confirmAttendanceMonthly: (options: AttendanceMonthlyImportOptions, importSessionId: string, token: string) =>
             request<ImportConfirmResult>('/org/imports/attendance/monthly/confirm', {
                 method: 'POST',
-                body: JSON.stringify({ ...options, rows }),
+                body: JSON.stringify({ ...options, importSessionId }),
                 token,
             }),
         confirmAttendanceMonthlyStream: (
             options: AttendanceMonthlyImportOptions,
-            rows: ImportPreviewRow[],
+            importSessionId: string,
             token: string,
-            progress: { totalRows: number; processedOffset: number },
             handlers: ImportConfirmStreamHandlers,
         ) =>
             streamImportConfirm(
                 '/org/imports/attendance/monthly/confirm/stream',
-                { ...options, rows, ...progress },
+                { ...options, importSessionId },
                 token,
                 handlers,
             ),

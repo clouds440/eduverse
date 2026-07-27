@@ -19,13 +19,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 import {
-  chunkImportRows,
   downloadCsv,
   formatImportErrors,
   initImportProgress,
   ImportProgressState,
-  mergeImportConfirmResults,
   setImportProgressPercent,
+  waitForProgressCompletion,
 } from "./importUtils";
 import { ImportProgress } from "./ImportProgress";
 
@@ -66,7 +65,10 @@ export function CsvImportModal({
       raw: row.raw,
       errors: row.warnings || [],
     }));
-  const invalidRows = result?.errors || validation?.invalidRows || [];
+  const invalidRows = [
+    ...(validation?.invalidRows || []),
+    ...(result?.errors || []),
+  ];
   const canConfirm = Boolean(validation?.validRows.length && !result);
   const cachePrefixes = useMemo(
     () => (Array.isArray(cachePrefix) ? cachePrefix : [cachePrefix]),
@@ -157,30 +159,19 @@ export function CsvImportModal({
   const handleConfirm = async () => {
     if (!token || !validation) return;
     setActiveAction("confirm");
-    setConfirmProgress(null);
-    const batchResults: ImportConfirmResult[] = [];
+    setConfirmProgress(initImportProgress());
     try {
-      const batches = chunkImportRows(validation.validRows);
-      let processedOffset = 0;
-      setConfirmProgress(initImportProgress());
-      for (const batch of batches) {
-        const batchResult = await api.imports.confirmStream(
-          entity,
-          batch,
-          token,
-          {
-            totalRows: validation.validRows.length,
-            processedOffset,
-          },
-          {
-            onProgress: (percent) =>
-              setConfirmProgress(setImportProgressPercent(percent)),
-          },
-        );
-        batchResults.push(batchResult);
-        processedOffset += batch.length;
-      }
-      const response = mergeImportConfirmResults(entity, batchResults);
+      const response = await api.imports.confirmStream(
+        entity,
+        validation.importSessionId,
+        token,
+        {
+          onProgress: (percent) =>
+            setConfirmProgress(setImportProgressPercent(percent)),
+        },
+      );
+      setConfirmProgress(setImportProgressPercent(100));
+      await waitForProgressCompletion();
       setResult(response);
       cachePrefixes.forEach((prefix) => mutate(matchesCacheKeyPrefix(prefix)));
       dispatch({
@@ -191,20 +182,6 @@ export function CsvImportModal({
         },
       });
     } catch (error) {
-      if (batchResults.length) {
-        const partial = mergeImportConfirmResults(entity, batchResults);
-        setResult(partial);
-        cachePrefixes.forEach((prefix) =>
-          mutate(matchesCacheKeyPrefix(prefix)),
-        );
-        dispatch({
-          type: "TOAST_ADD",
-          payload: {
-            message: `Imported ${partial.importedCount} rows before the import stopped`,
-            type: "info",
-          },
-        });
-      }
       dispatch({
         type: "TOAST_ADD",
         payload: {

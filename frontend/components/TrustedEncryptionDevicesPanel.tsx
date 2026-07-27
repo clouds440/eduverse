@@ -25,6 +25,7 @@ import {
     requestCurrentDeviceTrust,
     trustedDeviceSetupErrorMessage,
 } from '@/lib/e2ee';
+import { E2EEDeviceTrustStatus, E2EEHistoryProvisioningStatus } from '@/types';
 import type { TrustedEncryptionDevice, TrustedDevicesResponse } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -100,7 +101,7 @@ export function TrustedEncryptionDevicesPanel() {
             dispatch({
                 type: 'TOAST_ADD',
                 payload: {
-                    message: response.status === 'PENDING'
+                    message: response.status === E2EEDeviceTrustStatus.PENDING
                         ? 'Approval request sent to your trusted browsers'
                         : 'This browser is ready for secure Chat and Mail',
                     type: 'success',
@@ -140,7 +141,7 @@ export function TrustedEncryptionDevicesPanel() {
         if (!token) return;
         const approverDevice = data?.devices.find((candidate) => (
             candidate.clientDeviceId === currentClientDeviceId &&
-            candidate.trustStatus === 'TRUSTED' &&
+            candidate.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
             !candidate.revokedAt
         ));
 
@@ -230,7 +231,7 @@ export function TrustedEncryptionDevicesPanel() {
     };
 
     const devices = useMemo(() => data?.devices ?? [], [data?.devices]);
-    const activeDevices = devices.filter((device) => device.trustStatus === 'TRUSTED' && !device.revokedAt);
+    const activeDevices = devices.filter((device) => device.trustStatus === E2EEDeviceTrustStatus.TRUSTED && !device.revokedAt);
     const currentDeviceIsTrusted = activeDevices.some((device) => device.clientDeviceId === currentClientDeviceId);
     const otherSessions = sessions.filter((session) => !session.isCurrent);
     const sessionByDeviceId = new Map(sessions.map((session) => [session.deviceId, session]));
@@ -256,8 +257,8 @@ export function TrustedEncryptionDevicesPanel() {
         const device = devices.find((candidate) => (
             candidate.id === approveDeviceId &&
             (
-                candidate.trustStatus === 'PENDING' ||
-                candidate.historyProvisioningStatus === 'PENDING'
+                candidate.trustStatus === E2EEDeviceTrustStatus.PENDING ||
+                candidate.historyProvisioningStatus === E2EEHistoryProvisioningStatus.PENDING
             ) &&
             !candidate.revokedAt
         ));
@@ -361,19 +362,19 @@ export function TrustedEncryptionDevicesPanel() {
                                 <p className="text-xs text-muted-foreground">Trusted browsers</p>
                             </div>
                             <div className="col-span-2 rounded-lg border border-border/70 bg-background/45 p-3 sm:col-span-1">
-                                <p className="text-xl font-black text-foreground">{devices.filter((device) => device.trustStatus === 'PENDING' && !device.revokedAt).length}</p>
+                                <p className="text-xl font-black text-foreground">{devices.filter((device) => device.trustStatus === E2EEDeviceTrustStatus.PENDING && !device.revokedAt).length}</p>
                                 <p className="text-xs text-muted-foreground">Waiting for approval</p>
                             </div>
                         </div>
                         <div className="divide-y divide-border/60 overflow-hidden rounded-lg border border-border/70 bg-background/45">
                             {rows.map(({ key, session, trustedDevice }) => {
                                 const isCurrent = session?.isCurrent || trustedDevice?.clientDeviceId === currentClientDeviceId;
-                                const deviceName = session?.deviceName || trustedDevice?.displayName || (trustedDevice?.trustStatus === 'PENDING' ? 'Pending browser' : 'Browser device');
+                                const deviceName = session?.deviceName || trustedDevice?.displayName || (trustedDevice?.trustStatus === E2EEDeviceTrustStatus.PENDING ? 'Pending browser' : 'Browser device');
                                 const os = session?.os || trustedDevice?.os || 'Unknown OS';
                                 const browser = trustedDevice?.browser;
-                                const isPending = trustedDevice?.trustStatus === 'PENDING';
-                                const isTrusted = trustedDevice?.trustStatus === 'TRUSTED';
-                                const historyPending = trustedDevice?.historyProvisioningStatus === 'PENDING';
+                                const isPending = trustedDevice?.trustStatus === E2EEDeviceTrustStatus.PENDING;
+                                const isTrusted = trustedDevice?.trustStatus === E2EEDeviceTrustStatus.TRUSTED;
+                                const historyPending = trustedDevice?.historyProvisioningStatus === E2EEHistoryProvisioningStatus.PENDING;
                                 const isUntrusted = !isTrusted;
 
                                 return (
@@ -559,13 +560,13 @@ export function TrustedEncryptionDevicesPanel() {
                 isOpen={Boolean(trustedDeviceToApprove)}
                 onClose={closeApproveDialog}
                 onConfirm={() => trustedDeviceToApprove && handleApprove(trustedDeviceToApprove)}
-                title={trustedDeviceToApprove?.trustStatus === 'TRUSTED'
+                title={trustedDeviceToApprove?.trustStatus === E2EEDeviceTrustStatus.TRUSTED
                     ? 'Share recent Chat history?'
                     : 'Trust this browser?'}
-                description={trustedDeviceToApprove?.trustStatus === 'TRUSTED'
+                description={trustedDeviceToApprove?.trustStatus === E2EEDeviceTrustStatus.TRUSTED
                     ? 'This securely shares only the latest 35 visible messages from each Chat. Older messages will stay unavailable on that browser.'
                     : 'Only continue if you recognize this sign-in. Approval also securely shares only the latest 35 visible messages from each Chat.'}
-                confirmText={trustedDeviceToApprove?.trustStatus === 'TRUSTED'
+                confirmText={trustedDeviceToApprove?.trustStatus === E2EEDeviceTrustStatus.TRUSTED
                     ? 'Share Recent History'
                     : 'Trust Browser'}
                 loadingId={trustedDeviceToApprove ? `e2ee-device-approve-${trustedDeviceToApprove.id}` : undefined}
@@ -575,11 +576,11 @@ export function TrustedEncryptionDevicesPanel() {
                 isOpen={Boolean(trustedDeviceToRemove)}
                 onClose={() => setTrustedDeviceToRemove(null)}
                 onConfirm={() => trustedDeviceToRemove && handleRevoke(trustedDeviceToRemove)}
-                title={trustedDeviceToRemove?.trustStatus === 'TRUSTED' ? 'Remove trusted device?' : 'Remove trust request?'}
-                description={trustedDeviceToRemove?.trustStatus === 'TRUSTED'
+                title={trustedDeviceToRemove?.trustStatus === E2EEDeviceTrustStatus.TRUSTED ? 'Remove trusted device?' : 'Remove trust request?'}
+                description={trustedDeviceToRemove?.trustStatus === E2EEDeviceTrustStatus.TRUSTED
                     ? 'This browser will no longer be able to open new secure Chat and Mail. It may stay signed in unless you also revoke its session.'
                     : 'This browser will no longer be waiting for approval. It may stay signed in unless you also revoke its session.'}
-                confirmText={trustedDeviceToRemove?.trustStatus === 'TRUSTED' ? 'Remove Trust' : 'Remove Request'}
+                confirmText={trustedDeviceToRemove?.trustStatus === E2EEDeviceTrustStatus.TRUSTED ? 'Remove Trust' : 'Remove Request'}
                 isDestructive
                 loadingId={trustedDeviceToRemove ? `e2ee-device-revoke-${trustedDeviceToRemove.id}` : undefined}
             />

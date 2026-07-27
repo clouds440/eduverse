@@ -5,6 +5,7 @@ import { ChevronDown, Mail, MonitorCheck, Send, ShieldCheck } from 'lucide-react
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import {
+    E2EEDeviceTrustStatus,
     TwoFactorMethod,
     type ContactEmailStatus,
     type LinkedAccount,
@@ -52,7 +53,7 @@ export function TwoFactorEmailSettings({
             .then(([next, devices, linkedAccounts]) => {
                 setStatus(next);
                 setEmail(next.contactEmail || '');
-                setTrustedDevices(devices.devices.filter((device) => device.trustStatus === 'TRUSTED' && !device.revokedAt));
+                setTrustedDevices(devices.devices.filter((device) => device.trustStatus === E2EEDeviceTrustStatus.TRUSTED && !device.revokedAt));
                 setLinkedGoogle(linkedAccounts.find((account) => account.provider === 'google') || null);
             })
             .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load contact email.'))

@@ -1,8 +1,6 @@
 "use client";
 
-import { ImportConfirmResult, ImportPreviewRow } from "@/types";
-
-export const IMPORT_CONFIRM_BATCH_SIZE = 100;
+import { ImportConfirmResult } from "@/types";
 
 export function downloadCsv(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
@@ -27,28 +25,23 @@ export function formatImportErrors(
 }
 
 export interface ImportProgressState {
-  percent: number;
-}
-
-export function chunkImportRows<T>(
-  rows: ImportPreviewRow<T>[],
-  batchSize = IMPORT_CONFIRM_BATCH_SIZE,
-) {
-  const chunks: ImportPreviewRow<T>[][] = [];
-  for (let index = 0; index < rows.length; index += batchSize) {
-    chunks.push(rows.slice(index, index + batchSize));
-  }
-  return chunks;
+  percent: number | null;
+  label: string;
 }
 
 export function initImportProgress(): ImportProgressState {
-  return { percent: 0 };
+  return { percent: null, label: "Preparing..." };
 }
 
 export function setImportProgressPercent(percent: number): ImportProgressState {
   return {
     percent: Math.max(0, Math.min(100, Math.round(percent))),
+    label: percent >= 100 ? "Finishing..." : "Importing your file",
   };
+}
+
+export function waitForProgressCompletion() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 350));
 }
 
 export function mergeImportConfirmResults(

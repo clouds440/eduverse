@@ -6,7 +6,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@/prisma/prisma-client';
+import { AttendanceStatus, EntryStatus, GradeStatus, Prisma, TargetType } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums';
 import { fuzzyFilterAndRank } from '../common/utils';
@@ -20,6 +20,41 @@ function moneyNumber(value: unknown): number {
   }
   return Number(value || 0);
 }
+
+type GuardianStudentForInsight = {
+  id: string;
+  registrationNumber: string | null;
+  rollNumber: string | null;
+  status?: string | null;
+  guardianRelationship?: string | null;
+  cohort?: { name: string | null } | null;
+  user?: {
+    name: string | null;
+    avatarUrl?: string | null;
+    avatarUpdatedAt?: Date | string | null;
+  } | null;
+};
+
+type GuardianStudentInsightSummary = {
+  attendance: { rate: number | null };
+  sections: unknown[];
+  assessments: { upcomingCount: number };
+  timetable: { todayCount: number };
+  finance: { balance: number; overdueAmount: number; overdueCount: number };
+};
+
+type GuardianWithStudentLinks = {
+  id?: string;
+  studentLinks?: Array<{
+    relationshipLabel: string | null;
+    student: GuardianStudentForInsight & Record<string, unknown>;
+  }>;
+};
+
+type NormalizedGuardian<T extends GuardianWithStudentLinks> = Omit<T, 'studentLinks'> & {
+  studentLinks: NonNullable<T['studentLinks']>;
+  students: GuardianStudentForInsight[];
+};
 
 @Injectable()
 export class GuardiansService {
@@ -266,7 +301,7 @@ export class GuardiansService {
       this.prisma.grade.findMany({
         where: {
           studentId: selectedStudent.id,
-          status: { in: ['PUBLISHED', 'FINALIZED'] },
+          status: { in: [GradeStatus.PUBLISHED, GradeStatus.FINALIZED] },
         },
         include: {
           assessment: {
@@ -316,12 +351,12 @@ export class GuardiansService {
         where: {
           organizationId: orgId,
           OR: [
-            { targetType: 'GLOBAL' },
-            { targetType: 'ORG' },
-            { targetType: 'ROLE', targetId: Role.GUARDIAN },
-            { targetType: 'ROLE', targetId: Role.STUDENT },
+            { targetType: TargetType.GLOBAL },
+            { targetType: TargetType.ORG },
+            { targetType: TargetType.ROLE, targetId: Role.GUARDIAN },
+            { targetType: TargetType.ROLE, targetId: Role.STUDENT },
             ...(sectionIds.length
-              ? [{ targetType: 'SECTION' as const, targetId: { in: sectionIds } }]
+              ? [{ targetType: TargetType.SECTION, targetId: { in: sectionIds } }]
               : []),
           ],
         },
@@ -333,10 +368,10 @@ export class GuardiansService {
     const attendanceSummary = attendanceRecords.reduce(
       (summary, record) => ({
         total: summary.total + 1,
-        present: summary.present + (record.status === 'PRESENT' ? 1 : 0),
-        absent: summary.absent + (record.status === 'ABSENT' ? 1 : 0),
-        late: summary.late + (record.status === 'LATE' ? 1 : 0),
-        excused: summary.excused + (record.status === 'EXCUSED' ? 1 : 0),
+        present: summary.present + (record.status === AttendanceStatus.PRESENT ? 1 : 0),
+        absent: summary.absent + (record.status === AttendanceStatus.ABSENT ? 1 : 0),
+        late: summary.late + (record.status === AttendanceStatus.LATE ? 1 : 0),
+        excused: summary.excused + (record.status === AttendanceStatus.EXCUSED ? 1 : 0),
       }),
       { total: 0, present: 0, absent: 0, late: 0, excused: 0 },
     );
@@ -366,7 +401,7 @@ export class GuardiansService {
     };
   }
 
-  private async buildStudentInsight(orgId: string, student: any, now: Date) {
+  private async buildStudentInsight(orgId: string, student: GuardianStudentForInsight, now: Date) {
     const enrollments = await this.prisma.enrollment.findMany({
       where: {
         studentId: student.id,
@@ -411,7 +446,7 @@ export class GuardiansService {
       this.prisma.grade.findMany({
         where: {
           studentId: student.id,
-          status: { in: ['PUBLISHED', 'FINALIZED'] },
+          status: { in: [GradeStatus.PUBLISHED, GradeStatus.FINALIZED] },
         },
         include: {
           assessment: {
@@ -458,12 +493,12 @@ export class GuardiansService {
         where: {
           organizationId: orgId,
           OR: [
-            { targetType: 'GLOBAL' },
-            { targetType: 'ORG' },
-            { targetType: 'ROLE', targetId: Role.GUARDIAN },
-            { targetType: 'ROLE', targetId: Role.STUDENT },
+            { targetType: TargetType.GLOBAL },
+            { targetType: TargetType.ORG },
+            { targetType: TargetType.ROLE, targetId: Role.GUARDIAN },
+            { targetType: TargetType.ROLE, targetId: Role.STUDENT },
             ...(sectionIds.length
-              ? [{ targetType: 'SECTION' as const, targetId: { in: sectionIds } }]
+              ? [{ targetType: TargetType.SECTION, targetId: { in: sectionIds } }]
               : []),
           ],
         },
@@ -473,10 +508,10 @@ export class GuardiansService {
     const attendance = attendanceRecords.reduce(
       (summary, record) => ({
         total: summary.total + 1,
-        present: summary.present + (record.status === 'PRESENT' ? 1 : 0),
-        absent: summary.absent + (record.status === 'ABSENT' ? 1 : 0),
-        late: summary.late + (record.status === 'LATE' ? 1 : 0),
-        excused: summary.excused + (record.status === 'EXCUSED' ? 1 : 0),
+        present: summary.present + (record.status === AttendanceStatus.PRESENT ? 1 : 0),
+        absent: summary.absent + (record.status === AttendanceStatus.ABSENT ? 1 : 0),
+        late: summary.late + (record.status === AttendanceStatus.LATE ? 1 : 0),
+        excused: summary.excused + (record.status === AttendanceStatus.EXCUSED ? 1 : 0),
       }),
       { total: 0, present: 0, absent: 0, late: 0, excused: 0 },
     );
@@ -499,13 +534,13 @@ export class GuardiansService {
       ? Math.round((latestGrade.marksObtained / latestGrade.assessment.totalMarks) * 100)
       : null;
 
-    const activeFinanceEntries = financeEntries.filter((entry) => entry.status !== 'CANCELLED');
+    const activeFinanceEntries = financeEntries.filter((entry) => entry.status !== EntryStatus.CANCELLED);
     const totalDue = activeFinanceEntries.reduce((sum, entry) => sum + moneyNumber(entry.amount), 0);
     const totalPaid = activeFinanceEntries.reduce((sum, entry) => sum + moneyNumber(entry.paidAmount), 0);
     const balance = Math.max(totalDue - totalPaid, 0);
     const overdueEntries = activeFinanceEntries.filter((entry) => {
       const dueDate = new Date(entry.dueDate);
-      return entry.status === 'OVERDUE' || (dueDate < now && entry.status !== 'PAID');
+      return entry.status === EntryStatus.OVERDUE || (dueDate < now && entry.status !== EntryStatus.PAID);
     });
 
     const scheduleList = schedules as Array<{
@@ -579,14 +614,18 @@ export class GuardiansService {
         balance,
         overdueAmount: overdueEntries.reduce((sum, entry) => sum + Math.max(moneyNumber(entry.amount) - moneyNumber(entry.paidAmount), 0), 0),
         overdueCount: overdueEntries.length,
-        pendingCount: activeFinanceEntries.filter((entry) => ['PENDING', 'PARTIAL', 'UNVERIFIED'].includes(entry.status)).length,
+        pendingCount: activeFinanceEntries.filter((entry) => (
+          [EntryStatus.PENDING, EntryStatus.PARTIAL, EntryStatus.UNVERIFIED] as EntryStatus[]
+        ).includes(entry.status)).length,
       },
       announcementsCount,
     };
   }
 
-  private buildOverviewTotals(insights: any[]) {
-    const insightsWithAttendance = insights.filter((insight) => insight.attendance.rate !== null);
+  private buildOverviewTotals(insights: GuardianStudentInsightSummary[]) {
+    const insightsWithAttendance = insights.filter(
+      (insight): insight is GuardianStudentInsightSummary & { attendance: { rate: number } } => insight.attendance.rate !== null,
+    );
     return {
       linkedStudents: insights.length,
       totalSections: insights.reduce((sum, insight) => sum + insight.sections.length, 0),
@@ -628,17 +667,20 @@ export class GuardiansService {
     return uniqueIds;
   }
 
-  private normalizeGuardian(guardian: any) {
+  private normalizeGuardian<T extends GuardianWithStudentLinks>(guardian: T): NormalizedGuardian<T>;
+  private normalizeGuardian<T extends GuardianWithStudentLinks>(guardian: T | null): NormalizedGuardian<T> | null;
+  private normalizeGuardian(guardian: null | undefined): null | undefined;
+  private normalizeGuardian<T extends GuardianWithStudentLinks>(guardian: T | null | undefined): NormalizedGuardian<T> | null | undefined {
     if (!guardian) return guardian;
     const { studentLinks, ...rest } = guardian;
     return {
       ...rest,
-      studentLinks,
+      studentLinks: studentLinks || [],
       students: (studentLinks || []).map((link) => ({
         ...link.student,
         guardianId: (rest as { id?: string }).id,
         guardianRelationship: link.relationshipLabel,
-      })),
+      })) as GuardianStudentForInsight[],
     };
   }
 

@@ -20,13 +20,12 @@ import { Label } from "@/components/ui/Label";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 import { StatusBanner } from "@/components/ui/StatusBanner";
 import {
-  chunkImportRows,
   downloadCsv,
   formatImportErrors,
   initImportProgress,
-  mergeImportConfirmResults,
   ImportProgressState,
   setImportProgressPercent,
+  waitForProgressCompletion,
 } from "./importUtils";
 import { ImportProgress } from "./ImportProgress";
 
@@ -66,7 +65,10 @@ export function AttendanceMonthlyImportModal({
     useState<ImportProgressState | null>(null);
   const busy = activeAction !== null;
   const isConfirming = activeAction === "confirm";
-  const invalidRows = result?.errors || validation?.invalidRows || [];
+  const invalidRows = [
+    ...(validation?.invalidRows || []),
+    ...(result?.errors || []),
+  ];
   const options = useMemo(
     () => ({ sectionId, year, month, targetMode }),
     [month, sectionId, targetMode, year],
@@ -127,33 +129,19 @@ export function AttendanceMonthlyImportModal({
   const handleConfirm = async () => {
     if (!token || !validation) return;
     setActiveAction("confirm");
-    setConfirmProgress(null);
-    const batchResults: ImportConfirmResult[] = [];
+    setConfirmProgress(initImportProgress());
     try {
-      const batches = chunkImportRows(validation.validRows);
-      let processedOffset = 0;
-      setConfirmProgress(initImportProgress());
-      for (const batch of batches) {
-        const batchResult = await api.imports.confirmAttendanceMonthlyStream(
-          options,
-          batch,
-          token,
-          {
-            totalRows: validation.validRows.length,
-            processedOffset,
-          },
-          {
-            onProgress: (percent) =>
-              setConfirmProgress(setImportProgressPercent(percent)),
-          },
-        );
-        batchResults.push(batchResult);
-        processedOffset += batch.length;
-      }
-      const response = mergeImportConfirmResults(
-        "attendance-monthly",
-        batchResults,
+      const response = await api.imports.confirmAttendanceMonthlyStream(
+        options,
+        validation.importSessionId,
+        token,
+        {
+          onProgress: (percent) =>
+            setConfirmProgress(setImportProgressPercent(percent)),
+        },
       );
+      setConfirmProgress(setImportProgressPercent(100));
+      await waitForProgressCompletion();
       setResult(response);
       mutate(matchesCacheKeyPrefixStartsWith("attendance-"));
       dispatch({
@@ -164,21 +152,6 @@ export function AttendanceMonthlyImportModal({
         },
       });
     } catch (error) {
-      if (batchResults.length) {
-        const partial = mergeImportConfirmResults(
-          "attendance-monthly",
-          batchResults,
-        );
-        setResult(partial);
-        mutate(matchesCacheKeyPrefixStartsWith("attendance-"));
-        dispatch({
-          type: "TOAST_ADD",
-          payload: {
-            message: `Imported ${partial.importedCount} marks before the import stopped`,
-            type: "info",
-          },
-        });
-      }
       dispatch({
         type: "TOAST_ADD",
         payload: {

@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
 import { getDeviceId } from '@/lib/deviceUtils';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
-import { ChatType } from '@/types';
+import { ChatType, E2EEDeviceTrustStatus } from '@/types';
 import type {
     Chat,
     ChatE2EEContext,
@@ -433,7 +433,7 @@ async function getCurrentTrustedDevice(token: string, clientDeviceId: string) {
     const devices = await api.e2ee.getMyDevices(token);
     const device = devices.devices.find((device) => (
         device.clientDeviceId === clientDeviceId &&
-        device.trustStatus === 'TRUSTED' &&
+        device.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
         !device.revokedAt &&
         device.trustedAt
     ));

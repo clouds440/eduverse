@@ -26,7 +26,6 @@ import type {
   AttendanceImportTargetMode,
   ImportConfirmResult,
   ImportEntity,
-  ImportPreviewRow,
   ImportProgressEvent,
   InvalidImportRow,
 } from './imports.types';
@@ -83,10 +82,10 @@ export class ImportsController {
   confirmEntity(
     @OrgId() orgId: string,
     @Param('entity') entity: string,
-    @Body('rows') rows: ImportPreviewRow[],
+    @Body('importSessionId') importSessionId: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.importsService.confirmEntityImport(orgId, entity as ImportEntity, rows, req.user);
+    return this.importsService.confirmEntityImport(orgId, entity as ImportEntity, importSessionId, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -94,9 +93,7 @@ export class ImportsController {
   async confirmEntityStream(
     @OrgId() orgId: string,
     @Param('entity') entity: string,
-    @Body('rows') rows: ImportPreviewRow[],
-    @Body('totalRows') totalRows: number,
-    @Body('processedOffset') processedOffset: number,
+    @Body('importSessionId') importSessionId: string,
     @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
@@ -104,13 +101,9 @@ export class ImportsController {
       this.importsService.confirmEntityImport(
         orgId,
         entity as ImportEntity,
-        rows,
+        importSessionId,
         req.user,
         send,
-        {
-          totalRows: Number(totalRows),
-          processedOffset: Number(processedOffset),
-        },
       ),
     );
   }
@@ -177,7 +170,7 @@ export class ImportsController {
     @Body('year') year: number,
     @Body('month') month: number,
     @Body('targetMode') targetMode: string,
-    @Body('rows') rows: ImportPreviewRow[],
+    @Body('importSessionId') importSessionId: string,
     @Request() req: AuthenticatedRequest,
   ) {
     return this.importsService.confirmAttendanceMonthlyImport(
@@ -188,7 +181,7 @@ export class ImportsController {
         month: Number(month),
         targetMode: (targetMode || 'FIRST_SCHEDULE') as AttendanceImportTargetMode,
       },
-      rows as any,
+      importSessionId,
       req.user,
     );
   }
@@ -201,9 +194,7 @@ export class ImportsController {
     @Body('year') year: number,
     @Body('month') month: number,
     @Body('targetMode') targetMode: string,
-    @Body('rows') rows: ImportPreviewRow[],
-    @Body('totalRows') totalRows: number,
-    @Body('processedOffset') processedOffset: number,
+    @Body('importSessionId') importSessionId: string,
     @Request() req: AuthenticatedRequest,
     @Res() res: Response,
   ) {
@@ -216,13 +207,9 @@ export class ImportsController {
           month: Number(month),
           targetMode: (targetMode || 'FIRST_SCHEDULE') as AttendanceImportTargetMode,
         },
-        rows as any,
+        importSessionId,
         req.user,
         send,
-        {
-          totalRows: Number(totalRows),
-          processedOffset: Number(processedOffset),
-        },
       ),
     );
   }

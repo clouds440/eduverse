@@ -79,7 +79,7 @@ export class BuildingsController {
     FileInterceptor('file', {
       storage: new CloudinaryStorage({
         cloudinary,
-        params: (req: any, file: any) => {
+        params: (req: { params: { id: string } }, file: Express.Multer.File) => {
           const buildingId = req.params.id as string;
           const fileName = file.originalname.replace(/\s+/g, '-').split('.').slice(0, -1).join('.');
           return {

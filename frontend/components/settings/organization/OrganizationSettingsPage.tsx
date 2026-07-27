@@ -28,7 +28,7 @@ import {
 } from "@/components/settings/organization/organization-settings-tabs";
 import { useOrganizationSettingsForm } from "@/components/settings/organization/hooks/useOrganizationSettingsForm";
 import { useOrganizationAISettings } from "@/components/settings/organization/hooks/useOrganizationAISettings";
-import { ThemeMode } from "@/types";
+import { OrgStatus, ThemeMode } from "@/types";
 
 const HASH_TAB_MAP: Record<string, OrganizationSettingsTabKey> = {
   "contact-email": "profile",
@@ -144,9 +144,9 @@ export function OrganizationSettingsPage() {
           {orgSettings.orgData?.status && (
             <Badge
               variant={
-                orgSettings.orgData.status === "APPROVED"
+                orgSettings.orgData.status === OrgStatus.APPROVED
                   ? "success"
-                  : orgSettings.orgData.status === "REJECTED"
+                  : orgSettings.orgData.status === OrgStatus.REJECTED
                     ? "error"
                     : "warning"
               }
@@ -170,7 +170,7 @@ export function OrganizationSettingsPage() {
         </div>
       }
       beforeTabs={
-        orgSettings.orgData?.status === "REJECTED" ? (
+        orgSettings.orgData?.status === OrgStatus.REJECTED ? (
           <div className="mb-0.5 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-danger sm:p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 items-start gap-3">

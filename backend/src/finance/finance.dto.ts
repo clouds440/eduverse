@@ -1,5 +1,7 @@
 import { IsString, IsEnum, IsNumber, IsOptional, IsDateString, IsBoolean, IsObject, Min, IsArray, IsIn } from 'class-validator';
-import { FinanceCategory, BillingCycle, FinanceTargetType, FinanceAssignmentSource } from '@/prisma/prisma-client';
+import { FinanceCategory, BillingCycle, FinanceTargetType, FinanceAssignmentSource, Prisma } from '@/prisma/prisma-client';
+
+export type FinanceMetadata = Prisma.InputJsonObject;
 
 export enum StructureEntryUpdateScope {
   OUTSTANDING = 'OUTSTANDING',
@@ -59,7 +61,7 @@ export class CreateFinancialStructureDto {
 
   @IsObject()
   @IsOptional()
-  metadata?: any;
+  metadata?: FinanceMetadata;
 
   @IsEnum(FinanceAssignmentSource)
   @IsOptional()
@@ -138,7 +140,7 @@ export class UpdateFinancialStructureDto {
 
   @IsObject()
   @IsOptional()
-  metadata?: any;
+  metadata?: FinanceMetadata;
 
   @IsBoolean()
   @IsOptional()
@@ -193,7 +195,7 @@ export class CreateManualEntryDto {
 
   @IsObject()
   @IsOptional()
-  metadata?: any;
+  metadata?: FinanceMetadata;
 }
 
 export class MarkPaidDto {

@@ -2174,13 +2174,7 @@ export function ChatLayout() {
 
           const uploadResults = await Promise.all(
             filesToSend.map((file) =>
-              api.files.uploadFile(
-                orgId,
-                "chat",
-                chatId,
-                file,
-                token,
-              ),
+              api.files.uploadFile(orgId, "chat", chatId, file, token),
             ),
           );
 
@@ -3107,8 +3101,8 @@ export function ChatLayout() {
                 </span>
               </div>
             )}
-          <div className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            <LockIcon size={12} className="text-primary" aria-hidden="true" />
+          <div className="flex items-center justify-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+            <LockIcon size={10} className="text-primary" aria-hidden="true" />
             <span>Chats are end-to-end encrypted</span>
           </div>
         </div>

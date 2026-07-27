@@ -17,9 +17,11 @@ export function ImportProgress({
             Import progress
           </p>
           <div className="mt-2 flex items-end gap-3">
-            <p className="text-3xl font-black text-foreground">{percent}%</p>
+            <p className="text-3xl font-black text-foreground">
+              {percent === null ? "Preparing..." : `${percent}%`}
+            </p>
             <p className="text-sm leading-5 text-muted-foreground">
-              Importing your file
+              {progress.label}
             </p>
           </div>
         </div>
@@ -30,7 +32,7 @@ export function ImportProgress({
       <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-foreground/40">
         <div
           className="h-full rounded-full bg-linear-to-r/srgb from-info/90 to-success/90 transition-all duration-300 ease-out"
-          style={{ width: `${percent}%` }}
+          style={{ width: `${percent ?? 0}%` }}
         />
       </div>
     </div>

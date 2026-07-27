@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { Prisma, RoomType, ScheduleType } from '@/prisma/prisma-client';
@@ -72,11 +73,6 @@ type AuthUser = {
 };
 
 type ImportProgressCallback = (event: ImportProgressEvent) => void | Promise<void>;
-type ImportProgressOptions = {
-  totalRows?: number;
-  processedOffset?: number;
-};
-
 type EntityConfig<T extends Record<string, unknown>> = {
   entity: ImportEntity;
   headers: string[];
@@ -96,9 +92,31 @@ type EntityConfig<T extends Record<string, unknown>> = {
 };
 
 const MAX_IMPORT_ROWS = 1000;
+const IMPORT_SESSION_TTL_MS = 15 * 60 * 1000;
+const PROGRESS_PERCENT_INTERVAL = 2;
+
+type PreparedImportSession =
+  | {
+      kind: 'entity';
+      orgId: string;
+      actorId: string;
+      entity: ImportEntity;
+      expiresAt: number;
+      validation: ImportValidationResult;
+    }
+  | {
+      kind: 'attendance-monthly';
+      orgId: string;
+      actorId: string;
+      expiresAt: number;
+      options: AttendanceMonthlyValidateOptions;
+      validation: ImportValidationResult<AttendanceMonthlyConfirmRow>;
+    };
 
 @Injectable()
 export class ImportsService {
+  private readonly preparedImports = new Map<string, PreparedImportSession>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly students: StudentService,
@@ -137,40 +155,26 @@ export class ImportsService {
     const parsed = parseCsv(csvContent);
     this.assertImportRowLimit(parsed.rows.length);
     validateStrictHeaders(parsed.headers, config.headers);
-    return this.validateEntityRows(orgId, config, parsed.rows, actor);
+    const validation = await this.validateEntityRows(orgId, config, parsed.rows, actor);
+    return this.cacheEntityValidation(orgId, entity, actor.id, validation);
   }
 
   async confirmEntityImport(
     orgId: string,
     entity: ImportEntity,
-    rows: ImportPreviewRow[],
+    importSessionId: string,
     actor: AuthUser,
     onProgress?: ImportProgressCallback,
-    progressOptions?: ImportProgressOptions,
   ): Promise<ImportConfirmResult> {
     this.assertEntityPermission(entity, actor);
     const config = this.getEntityConfig(entity);
-    this.assertImportRowLimit(rows?.length || 0);
-    const rawRows = this.previewRowsToCsvRows(rows);
-    const validation = await this.validateEntityRows(orgId, config, rawRows, actor);
-    const errors: InvalidImportRow[] = [...validation.invalidRows];
+    const validation = this.consumeEntitySession(importSessionId, orgId, actor.id, entity);
+    const errors: InvalidImportRow[] = [];
     let importedCount = 0;
     let failedCount = 0;
-    const totalProgressRows = progressOptions?.totalRows || validation.validRows.length;
-    const processedOffset = progressOptions?.processedOffset || 0;
-    let processedRows = validation.invalidRows.length;
-    let lastPercent = this.calculateImportProgressPercent(processedOffset, totalProgressRows);
-    const reportProgress = async () => {
-      const percent = this.calculateImportProgressPercent(
-        processedOffset + processedRows,
-        totalProgressRows,
-      );
-      if (percent > lastPercent) {
-        lastPercent = percent;
-        await onProgress?.({ type: 'progress', percent });
-      }
-    };
-    await reportProgress();
+    const totalProgressRows = validation.validRows.length;
+    let processedRows = 0;
+    const reportProgress = this.createProgressReporter(totalProgressRows, onProgress);
 
     for (const row of validation.validRows) {
       try {
@@ -185,18 +189,13 @@ export class ImportsService {
         });
       } finally {
         processedRows += 1;
-        await reportProgress();
+        reportProgress(processedRows);
       }
     }
 
-    if (validation.validRows.length === 0) {
-      await onProgress?.({
-        type: 'progress',
-        percent: this.calculateImportProgressPercent(processedOffset + processedRows, totalProgressRows),
-      });
-    }
+    reportProgress(totalProgressRows, true);
 
-    return {
+    const result = {
       entity,
       importedCount,
       skippedCount: validation.invalidRows.length,
@@ -204,6 +203,7 @@ export class ImportsService {
       duplicateCount: validation.summary.duplicate,
       errors,
     };
+    return result;
   }
 
   buildEntityErrorReport(entity: ImportEntity, rows: InvalidImportRow[]) {
@@ -331,7 +331,8 @@ export class ImportsService {
       });
     }
 
-    return {
+    const validation: ImportValidationResult<AttendanceMonthlyConfirmRow> = {
+      importSessionId: '',
       entity: 'attendance-monthly',
       headers,
       totalRows: parsed.rows.length,
@@ -344,42 +345,26 @@ export class ImportsService {
         duplicate: duplicateCount,
         skipped: skippedBlankCells,
       },
-      options,
     };
+    return this.cacheAttendanceValidation(orgId, actor.id, options, validation);
   }
 
   async confirmAttendanceMonthlyImport(
     orgId: string,
     options: AttendanceMonthlyValidateOptions,
-    rows: ImportPreviewRow<AttendanceMonthlyConfirmRow>[],
+    importSessionId: string,
     actor: AuthUser,
     onProgress?: ImportProgressCallback,
-    progressOptions?: ImportProgressOptions,
   ): Promise<ImportConfirmResult> {
     this.assertAttendancePermission(actor);
     this.normalizeAttendanceOptions(options);
-    this.assertImportRowLimit(rows?.length || 0);
-    const rawRows = this.previewRowsToCsvRows(rows);
-    const csv = this.rowsToCsv(rawRows, ['name', 'rollNumber', ...this.daysInMonth(options.year, options.month).map(String)]);
-    const validation = await this.validateAttendanceMonthlyCsv(orgId, csv, options, actor);
-    const errors: InvalidImportRow[] = [...validation.invalidRows];
+    const validation = this.consumeAttendanceSession(importSessionId, orgId, actor.id, options);
+    const errors: InvalidImportRow[] = [];
     let importedCells = 0;
     let failedRows = 0;
-    const totalProgressRows = progressOptions?.totalRows || validation.validRows.length;
-    const processedOffset = progressOptions?.processedOffset || 0;
-    let processedRows = validation.invalidRows.length;
-    let lastPercent = this.calculateImportProgressPercent(processedOffset, totalProgressRows);
-    const reportProgress = async () => {
-      const percent = this.calculateImportProgressPercent(
-        processedOffset + processedRows,
-        totalProgressRows,
-      );
-      if (percent > lastPercent) {
-        lastPercent = percent;
-        await onProgress?.({ type: 'progress', percent });
-      }
-    };
-    await reportProgress();
+    const totalProgressRows = validation.validRows.length;
+    let processedRows = 0;
+    const reportProgress = this.createProgressReporter(totalProgressRows, onProgress);
 
     for (const row of validation.validRows) {
       try {
@@ -393,18 +378,13 @@ export class ImportsService {
         });
       } finally {
         processedRows += 1;
-        await reportProgress();
+        reportProgress(processedRows);
       }
     }
 
-    if (validation.validRows.length === 0) {
-      await onProgress?.({
-        type: 'progress',
-        percent: this.calculateImportProgressPercent(processedOffset + processedRows, totalProgressRows),
-      });
-    }
+    reportProgress(totalProgressRows, true);
 
-    return {
+    const result = {
       entity: 'attendance-monthly',
       importedCount: importedCells,
       skippedCount: validation.summary.skipped + validation.invalidRows.length,
@@ -412,6 +392,7 @@ export class ImportsService {
       duplicateCount: validation.summary.duplicate,
       errors,
     };
+    return result;
   }
 
   buildAttendanceErrorReport(rows: InvalidImportRow[], year: number, month: number) {
@@ -497,6 +478,7 @@ export class ImportsService {
     }
 
     return {
+      importSessionId: '',
       entity: config.entity,
       headers: config.headers,
       totalRows: rows.length,
@@ -515,6 +497,102 @@ export class ImportsService {
   private calculateImportProgressPercent(processedRows: number, totalRows: number) {
     if (totalRows <= 0) return 100;
     return Math.min(100, Math.floor((processedRows / totalRows) * 100));
+  }
+
+  private createProgressReporter(totalRows: number, onProgress?: ImportProgressCallback) {
+    let lastPercent = 0;
+    return (processedRows: number, force = false) => {
+      const percent = this.calculateImportProgressPercent(processedRows, totalRows);
+      if (percent > lastPercent && (force || percent === 100 || percent - lastPercent >= PROGRESS_PERCENT_INTERVAL)) {
+        lastPercent = percent;
+        void onProgress?.({ type: 'progress', percent });
+      }
+    };
+  }
+
+  private cacheEntityValidation<T extends Record<string, unknown>>(
+    orgId: string,
+    entity: ImportEntity,
+    actorId: string,
+    validation: ImportValidationResult<T>,
+  ) {
+    this.pruneExpiredImportSessions();
+    const importSessionId = randomUUID();
+    validation.importSessionId = importSessionId;
+    this.preparedImports.set(importSessionId, {
+      kind: 'entity',
+      orgId,
+      actorId,
+      entity,
+      expiresAt: Date.now() + IMPORT_SESSION_TTL_MS,
+      validation,
+    });
+    return validation;
+  }
+
+  private cacheAttendanceValidation(
+    orgId: string,
+    actorId: string,
+    options: AttendanceMonthlyValidateOptions,
+    validation: ImportValidationResult<AttendanceMonthlyConfirmRow>,
+  ) {
+    this.pruneExpiredImportSessions();
+    const importSessionId = randomUUID();
+    validation.importSessionId = importSessionId;
+    this.preparedImports.set(importSessionId, {
+      kind: 'attendance-monthly',
+      orgId,
+      actorId,
+      options: { ...options },
+      expiresAt: Date.now() + IMPORT_SESSION_TTL_MS,
+      validation,
+    });
+    return validation;
+  }
+
+  private consumeEntitySession(importSessionId: string, orgId: string, actorId: string, entity: ImportEntity) {
+    const session = this.getPreparedImportSession(importSessionId);
+    if (session.kind !== 'entity' || session.orgId !== orgId || session.actorId !== actorId || session.entity !== entity) {
+      throw new BadRequestException('Import session does not match this import');
+    }
+    this.preparedImports.delete(importSessionId);
+    return session.validation;
+  }
+
+  private consumeAttendanceSession(
+    importSessionId: string,
+    orgId: string,
+    actorId: string,
+    options: AttendanceMonthlyValidateOptions,
+  ) {
+    const session = this.getPreparedImportSession(importSessionId);
+    const matchesOptions = session.kind === 'attendance-monthly'
+      && session.options.sectionId === options.sectionId
+      && session.options.year === options.year
+      && session.options.month === options.month
+      && session.options.targetMode === options.targetMode;
+    if (session.kind !== 'attendance-monthly' || session.orgId !== orgId || session.actorId !== actorId || !matchesOptions) {
+      throw new BadRequestException('Import session does not match this attendance import');
+    }
+    this.preparedImports.delete(importSessionId);
+    return session.validation;
+  }
+
+  private getPreparedImportSession(importSessionId: string) {
+    if (!importSessionId) throw new BadRequestException('Validate the CSV again before importing');
+    const session = this.preparedImports.get(importSessionId);
+    if (!session || session.expiresAt <= Date.now()) {
+      this.preparedImports.delete(importSessionId);
+      throw new BadRequestException('Import session expired. Validate the CSV again');
+    }
+    return session;
+  }
+
+  private pruneExpiredImportSessions() {
+    const now = Date.now();
+    for (const [id, session] of this.preparedImports) {
+      if (session.expiresAt <= now) this.preparedImports.delete(id);
+    }
   }
 
   private async getStructureRows(orgId: string, entity: ImportEntity): Promise<Record<string, unknown>[]> {
@@ -1039,19 +1117,43 @@ export class ImportsService {
           }
           await this.attendance.createSchedule(orgId, sectionId, base as CreateScheduleDto, actor);
         },
-        validateRelations: async (_orgId, data) => {
+        validateRelations: async (orgId, data) => {
           if (!data.date && !(data.scheduleDays as number[] | undefined)?.length) {
             throw new BadRequestException({ field: 'day', message: 'Provide day, weekdays, weekends, or a date' });
           }
           if (data.date && (data.scheduleDays as number[] | undefined)?.length) {
             throw new BadRequestException({ field: 'day', message: 'Leave day blank when date is provided' });
           }
+          const sectionId = data.sectionId as string;
+          const scheduleDays = data.scheduleDays as number[] | undefined;
+          const base = {
+            date: data.date as string | undefined,
+            startTime: data.startTime as string,
+            endTime: data.endTime as string,
+            roomId: data.roomId as string | undefined,
+            teacherId: data.teacherId as string | undefined,
+            type: data.type as ScheduleType | undefined,
+          };
+          if (scheduleDays?.length) {
+            for (const day of scheduleDays) {
+              await this.attendance.validatePreparedScheduleConflict(
+                orgId,
+                sectionId,
+                { ...base, date: undefined, day } as CreateScheduleDto,
+              );
+            }
+          } else {
+            await this.attendance.validatePreparedScheduleConflict(
+              orgId,
+              sectionId,
+              base as CreateScheduleDto,
+            );
+          }
         },
         duplicateKeys: [
           {
             label: 'Schedule slot',
             value: (data) => this.scheduleImportKey(data),
-            existing: (orgId, _value, data) => this.scheduleSlotExists(orgId, data),
           },
         ],
       },
@@ -1221,22 +1323,6 @@ export class ImportsService {
       ? trimmed.slice(field.length + 1)
       : trimmed;
     return withoutField.charAt(0).toUpperCase() + withoutField.slice(1);
-  }
-
-  private previewRowsToCsvRows(rows: Array<{ rowNumber: number; raw: Record<string, unknown> }> = []): CsvRow[] {
-    if (!Array.isArray(rows) || rows.length === 0) {
-      throw new BadRequestException('No validated rows were provided for import');
-    }
-    return rows.map((row) => ({
-      rowNumber: row.rowNumber,
-      values: Object.fromEntries(
-        Object.entries(row.raw || {}).map(([key, value]) => [key, value === undefined || value === null ? '' : String(value)]),
-      ),
-    }));
-  }
-
-  private rowsToCsv(rows: CsvRow[], headers: string[]) {
-    return makeTemplateCsv(headers, rows.map((row) => row.values));
   }
 
   private exceptionToRowError(error: unknown, rowNumber = 0): ImportRowError {
@@ -1573,31 +1659,6 @@ export class ImportsService {
     const days = data.scheduleDays as number[] | undefined;
     const dayKey = date ? `date:${date}` : `days:${(days || []).join('|')}`;
     return [sectionId, dayKey, data.startTime, data.endTime, data.type].filter(Boolean).join('|');
-  }
-
-  private async scheduleSlotExists(orgId: string, data: Record<string, unknown>) {
-    const sectionId = data.sectionId as string | undefined;
-    const startTime = data.startTime as string | undefined;
-    const endTime = data.endTime as string | undefined;
-    if (!sectionId || !startTime || !endTime) return false;
-
-    const date = data.date as string | undefined;
-    const days = data.scheduleDays as number[] | undefined;
-    const type = data.type as ScheduleType | undefined;
-    const schedule = await this.prisma.sectionSchedule.findFirst({
-      where: {
-        section: { organizationId: orgId },
-        sectionId,
-        type,
-        startTime,
-        endTime,
-        ...(date
-          ? { date: new Date(date) }
-          : { date: null, day: { in: days || [] } }),
-      },
-      select: { id: true },
-    });
-    return Boolean(schedule);
   }
 
   private async resolveAcademicCycleId(orgId: string, codeOrId?: string, field = 'academicCycleCode') {

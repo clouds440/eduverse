@@ -109,7 +109,7 @@ export class OrgController {
     FileInterceptor('file', {
       storage: new CloudinaryStorage({
         cloudinary: cloudinary,
-        params: (req: AuthenticatedRequest, _file: any) => {
+        params: (req: AuthenticatedRequest, _file: Express.Multer.File) => {
           const orgId = req.user?.organizationId ?? 'unknown';
           const fileName = _file.originalname
             .replace(/\s+/g, '-')
@@ -424,7 +424,7 @@ export class OrgController {
     FileInterceptor('file', {
       storage: new CloudinaryStorage({
         cloudinary: cloudinary,
-        params: (req: any, _file: any) => {
+        params: (req: AuthenticatedRequest & { params: { id: string } }, _file: Express.Multer.File) => {
           const userId = req.params.id as string;
           const fileName = _file.originalname
             .replace(/\s+/g, '-')

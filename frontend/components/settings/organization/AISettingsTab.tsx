@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { BarChart3, ExternalLink, Gauge, RefreshCw, Sparkles, TrendingUp, TriangleAlert, Users } from 'lucide-react';
 import {
     AISubscriptionPlan,
+    AISubscriptionStatus,
     Role,
     type AIOrgSettingsResponse,
     type AIOrgUsageResponse,
@@ -89,7 +90,7 @@ export function AISettingsTab({
                                 <div className="flex min-h-56 items-center justify-center rounded-lg border border-border/70 bg-card">
                                     <Loading size="md" />
                                 </div>
-                            ) : !aiSettings || activeAIPlan === AISubscriptionPlan.NONE || aiSettings.subscription.status !== 'ACTIVE' ? (
+                            ) : !aiSettings || activeAIPlan === AISubscriptionPlan.NONE || aiSettings.subscription.status !== AISubscriptionStatus.ACTIVE ? (
                                 <SettingsSection
                                     icon={Sparkles}
                                     title="EduVerse Copilot Settings"

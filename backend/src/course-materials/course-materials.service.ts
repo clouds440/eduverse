@@ -158,6 +158,7 @@ export class CourseMaterialsService {
       },
     });
     const publicFiles = this.filesService.toPublicFiles(files);
+    type PublicCourseMaterialFile = (typeof publicFiles)[number];
 
     // Group files by material ID
     const filesByMaterial = publicFiles.reduce((acc, file) => {
@@ -166,7 +167,7 @@ export class CourseMaterialsService {
       }
       acc[file.entityId].push(file);
       return acc;
-    }, {} as Record<string, any[]>);
+    }, {} as Record<string, PublicCourseMaterialFile[]>);
 
     // Fetch creator info
     const creatorIds = materials.map((m) => m.createdBy);
@@ -177,11 +178,12 @@ export class CourseMaterialsService {
         name: true,
       },
     });
+    type MaterialCreator = (typeof creators)[number];
 
     const creatorsById = creators.reduce((acc, user) => {
       acc[user.id] = user;
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, MaterialCreator>);
 
     // Combine data
     return materials.map((material) => ({

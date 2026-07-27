@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
-import { Section, FinalGradeResponse, Student, Role, Assessment, DashboardInsights, PaginatedResponse, type InsightTimeRange } from '@/types';
+import { Section, FinalGradeResponse, Student, Role, Assessment, DashboardInsights, PaginatedResponse, StudentStatus, type InsightTimeRange } from '@/types';
 import { ShieldOff, GraduationCap, LayoutDashboard, Book, BookOpen, Trophy, CheckCircle, ClipboardList, UserCircle, ListChecks, type LucideIcon } from 'lucide-react';
 import { Skeleton, DashboardSkeleton, SkeletonTable } from '@/components/ui/Skeleton';
 import { NotFound } from '@/components/NotFound';
@@ -179,7 +179,7 @@ function StudentPortalContent() {
         return <NotFound page="Student" />;
     }
 
-    if (user?.status === 'SUSPENDED') {
+    if (user?.status === StudentStatus.SUSPENDED) {
         return (
             <div className="mx-auto mt-10 flex max-w-2xl flex-col items-center justify-center rounded-lg border border-warning bg-card/70 p-8 text-center shadow-xl backdrop-blur-md sm:p-12">
                 <ShieldOff className="mb-6 h-16 w-16 text-warning sm:h-20 sm:w-20" />
@@ -288,7 +288,7 @@ function StudentPortalContent() {
                 actions={headerActions}
             />
 
-            {user?.status === 'ALUMNI' && (
+            {user?.status === StudentStatus.ALUMNI && (
                 <div className="shrink-0 rounded-lg border border-info/20 bg-info/10 p-4 shadow-sm">
                     <div className="flex items-start gap-3">
                         <GraduationCap className="mt-0.5 h-5 w-5 shrink-0 text-info" />

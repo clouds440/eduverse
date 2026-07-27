@@ -28,6 +28,7 @@ function createService(overrides: Partial<Record<string, any>> = {}) {
     }),
     markAttendance: jest.fn(),
     createSchedule: jest.fn().mockResolvedValue({ id: 'schedule-1' }),
+    validatePreparedScheduleConflict: jest.fn(),
     ...overrides.attendance,
   };
 
@@ -620,14 +621,13 @@ describe('ImportsService schedule validation', () => {
   });
 
   it('expands weekdays into one schedule create per weekday during confirm', async () => {
+    const findSection = jest.fn().mockResolvedValue({
+      id: 'section-1',
+      teachers: [{ id: 'teacher-1', user: { email: 'sara.ahmed@teacher.example' } }],
+    });
     const { service, attendance } = createService({
       prisma: {
-        section: {
-          findFirst: jest.fn().mockResolvedValue({
-            id: 'section-1',
-            teachers: [{ id: 'teacher-1', user: { email: 'sara.ahmed@teacher.example' } }],
-          }),
-        },
+        section: { findFirst: findSection },
       },
     });
     const csv = [
@@ -636,11 +636,38 @@ describe('ImportsService schedule validation', () => {
     ].join('\n');
     const validation = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
 
-    const result = await service.confirmEntityImport('org-1', 'schedules', validation.validRows, admin);
+    const result = await service.confirmEntityImport('org-1', 'schedules', validation.importSessionId, admin);
 
     expect(result.importedCount).toBe(1);
+    expect(findSection).toHaveBeenCalledTimes(1);
+    expect(attendance.validatePreparedScheduleConflict).toHaveBeenCalledTimes(5);
     expect(attendance.createSchedule).toHaveBeenCalledTimes(5);
     expect(attendance.createSchedule.mock.calls.map((call: any[]) => call[2].day)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('reports database schedule conflicts during validation', async () => {
+    const { service } = createService({
+      prisma: {
+        section: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'section-1',
+            teachers: [{ id: 'teacher-1', user: { email: 'sara.ahmed@teacher.example' } }],
+          }),
+        },
+      },
+      attendance: {
+        validatePreparedScheduleConflict: jest.fn().mockRejectedValue(new Error('Schedule conflict: room is occupied')),
+      },
+    });
+    const csv = [
+      scheduleHeaders.join(','),
+      'GRADE-9-A,Mon,,09:00,10:00,,,OFFICIAL',
+    ].join('\n');
+
+    const result = await service.validateEntityCsv('org-1', 'schedules', csv, admin);
+
+    expect(result.summary.valid).toBe(0);
+    expect(result.invalidRows[0].errors[0].message).toContain('Schedule conflict');
   });
 });
 
