@@ -15,6 +15,9 @@ describe('AuthService register', () => {
     user: {
       findUnique: jest.Mock;
     };
+    auditLog: {
+      create: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
 
@@ -22,6 +25,9 @@ describe('AuthService register', () => {
     prisma = {
       user: {
         findUnique: jest.fn().mockResolvedValue(null),
+      },
+      auditLog: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
       },
       $transaction: jest.fn(async (callback) =>
         callback({
@@ -37,15 +43,23 @@ describe('AuthService register', () => {
               email: 'admin@school.test',
             }),
           },
+          aISubscription: {
+            create: jest.fn().mockResolvedValue({ id: 'ai-sub-1' }),
+          },
         }),
       ),
     };
 
     service = new AuthService(
-      {} as JwtService,
+      {
+        verifyAsync: jest.fn().mockResolvedValue({
+          purpose: 'registration_intent',
+          ip: '127.0.0.1',
+        }),
+      } as unknown as JwtService,
       prisma as unknown as PrismaService,
       { send: jest.fn() } as unknown as EmailService,
-      {} as ConfigService,
+      { get: jest.fn((key: string) => (key === 'JWT_SECRET' ? 'secret' : undefined)) } as unknown as ConfigService,
       { createNotification: jest.fn() } as NotificationCreator,
     );
     jest
@@ -67,21 +81,28 @@ describe('AuthService register', () => {
           email: 'admin@school.test',
         }),
       },
+      aISubscription: {
+        create: jest.fn().mockResolvedValue({ id: 'ai-sub-1' }),
+      },
     };
     prisma.$transaction.mockImplementationOnce(async (callback) =>
       callback(tx),
     );
 
-    await service.register({
-      name: 'Test School',
-      adminName: 'Admin User',
-      location: 'Lahore',
-      type: OrganizationType.HIGH_SCHOOL,
-      email: 'admin@school.test',
-      contactEmail: 'contact@school.test',
-      phone: '123456789',
-      password: 'StrongPass1',
-    });
+    await service.register(
+      {
+        name: 'Test School',
+        adminName: 'Admin User',
+        location: 'Lahore',
+        type: OrganizationType.HIGH_SCHOOL,
+        email: 'admin@school.test',
+        contactEmail: 'contact@school.test',
+        phone: '123456789',
+        password: 'StrongPass1',
+      },
+      { ip: '127.0.0.1', userAgent: 'jest' },
+      'registration-intent',
+    );
 
     expect(tx.user.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -171,7 +192,11 @@ describe('AuthService forgotPassword', () => {
     };
 
     const configService = {
-      get: jest.fn((key: string) => (key === 'FRONTEND_URL' ? 'https://app.test' : undefined)),
+      get: jest.fn((key: string) => {
+        if (key === 'FRONTEND_URL') return 'https://app.test';
+        if (key === 'SUPER_ADMIN_EMAIL') return 'super-admin-env@eduverse.test';
+        return undefined;
+      }),
       getOrThrow: jest.fn((key: string) => {
         if (key === 'FRONTEND_URL') return 'https://app.test';
         throw new Error(`Missing config ${key}`);
@@ -368,10 +393,6 @@ describe('AuthService forgotPassword', () => {
     prisma.auditLog.findMany.mockResolvedValue([
       { details: { reason: 'first_registration' } },
     ]);
-    prisma.user.findMany.mockResolvedValue([
-      { email: 'super@eduverse.test' },
-      { email: 'platform@eduverse.test' },
-    ]);
 
     await service.verifyContactEmail(
       { id: 'admin-1', role: Role.ORG_ADMIN, organizationId: 'org-1' },
@@ -379,27 +400,15 @@ describe('AuthService forgotPassword', () => {
       { ip: '127.0.0.8', userAgent: 'jest' },
     );
 
-    expect(prisma.user.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] },
-          status: 'ACTIVE',
-        }),
-      }),
-    );
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
     expect(emailService.send).toHaveBeenCalledWith(
       expect.objectContaining({
-        to: 'super@eduverse.test',
+        to: 'super-admin-env@eduverse.test',
         subject: 'Pending organization verified: Test School',
         text: expect.stringContaining('https://app.test/admin/organizations'),
       }),
     );
-    expect(emailService.send).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'platform@eduverse.test',
-        html: expect.stringContaining('Review organizations'),
-      }),
-    );
+    expect(emailService.send).toHaveBeenCalledTimes(1);
   });
 
   it('does not email platform admins for contact email change reverification', async () => {

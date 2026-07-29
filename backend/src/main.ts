@@ -16,6 +16,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   const logger = new Logger('Bootstrap');
+  app.set('trust proxy', 1);
 
   app.useBodyParser('json', {
     limit: '25mb',
@@ -38,10 +39,7 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
-      const isAllowed =
-        allowedOrigins.some((allowed) => origin === allowed) ||
-        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
-        /\.vercel\.app$/.test(origin);
+      const isAllowed = allowedOrigins.some((allowed) => origin === allowed);
 
       if (isAllowed) {
         callback(null, true);

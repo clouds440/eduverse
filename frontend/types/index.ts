@@ -597,6 +597,10 @@ export interface RegisterRequest {
     password: string;
 }
 
+export interface RegisterIntentResponse {
+    token: string;
+}
+
 export interface LoginRequest {
     email: string;
     password: string;
@@ -686,8 +690,29 @@ export interface AuditLogItem {
     ip: string | null;
     userAgent: string | null;
     sessionId: string | null;
+    device?: { name: string | null; type: string | null; browser: string | null; os: string | null } | null;
+    location?: string | null;
     details: Record<string, unknown> | null;
     createdAt: string;
+}
+
+export interface OrganizationOverview {
+    organization: Pick<Organization, 'id' | 'name' | 'status' | 'type' | 'location' | 'contactEmailVerifiedAt' | 'createdAt'>;
+    counts: {
+        users: number;
+        students: number;
+        teachers: number;
+        courses: number;
+        sections: number;
+        departments: number;
+        activeSessions: number;
+        recentCriticalEvents: number;
+    };
+    finance: {
+        income: string;
+        expenses: string;
+        netCashflow: string;
+    };
 }
 
 export interface UpdateOrgSettingsRequest {

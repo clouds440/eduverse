@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
-import { ShieldOff, ShieldAlert, ShieldCheck, Building2, MapPin, Mail, Calendar, LucideIcon, Tag, Phone, Info, Hash, Clock, GraduationCap, BookOpen, School, Library, MonitorPlay, Pencil, Send } from 'lucide-react';
+import { ShieldOff, ShieldAlert, ShieldCheck, Building2, MapPin, Mail, Calendar, LucideIcon, Tag, Phone, Info, Hash, Clock, GraduationCap, BookOpen, School, Library, MonitorPlay, Pencil, Send, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import statsStore from '@/lib/statsStore';
-import { MailTarget, Organization, OrgStatus, Role } from '@/types';
+import { MailTarget, Organization, OrganizationOverview, OrgStatus, Role } from '@/types';
 import { getPublicUrl } from '@/lib/utils';
 import { TableActions, AdminAction } from '@/components/ui/TableActions';
 import { ModalForm } from '@/components/ui/ModalForm';
@@ -28,6 +29,8 @@ import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { Badge } from '@/components/ui/Badge';
 import { OrganizationContactRecoveryDialog } from '@/components/admin/OrganizationContactRecoveryDialog';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Button } from '@/components/ui/Button';
 
 interface AdminOrgParams {
     page: number;
@@ -37,10 +40,12 @@ interface AdminOrgParams {
     sortOrder: 'asc' | 'desc';
     status: OrgStatus | 'ALL';
     type: string;
+    contactEmailStatus: 'verified' | 'unverified';
 }
 
 export default function OrganizationsPage() {
     const { user, token, loading } = useAuth();
+    const router = useRouter();
     const { state, dispatch } = useGlobal();
     const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
 
@@ -53,6 +58,7 @@ export default function OrganizationsPage() {
     const [modalMode, setModalMode] = useState<'REJECT' | 'SUSPEND' | 'EDIT_MESSAGE'>('REJECT');
     const [reason, setReason] = useState('');
     const [recoveryOrganization, setRecoveryOrganization] = useState<Organization | null>(null);
+    const [deleteOrganization, setDeleteOrganization] = useState<Organization | null>(null);
 
     const [newMailOpen, setNewMailOpen] = useState(false);
     const [initialTargetId, setInitialTargetId] = useState<string | undefined>(undefined);
@@ -67,6 +73,8 @@ export default function OrganizationsPage() {
     const sortBy = getStringParam('sortBy', 'name');
     const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
     const orgTypeFilter = getStringParam('type', 'ALL');
+    const contactEmailStatus = (getStringParam('contactEmailStatus', 'verified') === 'unverified' ? 'unverified' : 'verified') as 'verified' | 'unverified';
+    const showingUnverifiedOrgs = contactEmailStatus === 'unverified';
 
     // URL State
     const orgParams: AdminOrgParams = {
@@ -77,6 +85,7 @@ export default function OrganizationsPage() {
         sortOrder,
         status: activeStatusTab,
         type: orgTypeFilter,
+        contactEmailStatus,
     };
 
     // SWR for organizations data - replaces usePaginatedData
@@ -180,6 +189,27 @@ export default function OrganizationsPage() {
             : undefined);
         setInitialSubject(`Inquiry regarding ${org.name}`);
         setNewMailOpen(true);
+    };
+
+    const handleDeleteOrganization = async () => {
+        if (!deleteOrganization || !token) return;
+        try {
+            dispatch({ type: 'UI_START_PROCESSING', payload: `delete-${deleteOrganization.id}` });
+            await api.admin.deleteOrganization(deleteOrganization.id, token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: `${deleteOrganization.name} deleted permanently`, type: 'success' } });
+            mutateCache(matchesCacheKeyPrefix('admin-organizations'));
+            if (token) {
+                statsStore.fetchAll(token).then(({ admin }) => {
+                    if (admin) dispatch({ type: 'STATS_SET_ADMIN', payload: admin });
+                }).catch(console.error);
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Failed to delete organization';
+            dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: `delete-${deleteOrganization.id}` });
+            setDeleteOrganization(null);
+        }
     };
 
     const dynamicCounts = fetchedData?.counts || stats;
@@ -320,6 +350,11 @@ export default function OrganizationsPage() {
                         onClick: () => setRecoveryOrganization(row),
                         title: 'Set Recovery Contact Email',
                     });
+                    actions.push({
+                        variant: 'activity',
+                        onClick: () => router.push(`/admin/organizations/${row.id}/activity-log`),
+                        title: 'Org Activity Log',
+                    });
 
                     return actions;
                 };
@@ -338,6 +373,10 @@ export default function OrganizationsPage() {
                             </button>
                             <TableActions
                                 extraActions={getActions()}
+                                onDelete={user?.role === Role.SUPER_ADMIN ? () => setDeleteOrganization(row) : undefined}
+                                deleteTitle={row.status === OrgStatus.APPROVED ? 'Approved organizations cannot be deleted' : 'Delete Organization'}
+                                isDeleting={state.ui.processing[`delete-${row.id}`]}
+                                deleteDisabled={row.status === OrgStatus.APPROVED}
                             />
                         </div>
                     </div>
@@ -381,9 +420,31 @@ export default function OrganizationsPage() {
             value: orgTypeFilter.replace('_', ' '),
             onRemove: () => updateQueryParams({ type: undefined, page: 1 }),
         }] : []),
+        ...(showingUnverifiedOrgs ? [{
+            key: 'contactEmailStatus',
+            label: 'Contact email',
+            value: 'Unverified orgs',
+            onRemove: () => updateQueryParams({ contactEmailStatus: undefined, page: 1 }),
+        }] : []),
     ];
 
-    const handleViewOrg = (org: Organization) => {
+    const formatMoney = (amount: string | undefined, currency: string) => {
+        const value = Number(amount || 0);
+        return Number.isFinite(value)
+            ? value.toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
+            : amount || '0';
+    };
+
+    const handleViewOrg = async (org: Organization) => {
+        let overview: OrganizationOverview | null = null;
+        if (token) {
+            try {
+                overview = await api.admin.getOrganizationOverview(org.id, token);
+            } catch {
+                overview = null;
+            }
+        }
+
         const viewFields: DataField[] = [
             { label: 'Organization ID', value: org.id, icon: Hash, fullWidth: true },
             { label: 'Organization Name', value: org.name, icon: org.logoUrl ? org.logoUrl : Building2 },
@@ -399,6 +460,16 @@ export default function OrganizationsPage() {
             },
             { label: 'Phone Number', value: org.phone || 'N/A', icon: Phone },
             { label: 'Created At', value: new Date(org.createdAt).toLocaleString(), icon: Calendar },
+            ...(overview ? [
+                { label: 'Total Users', value: overview.counts.users, icon: Users },
+                { label: 'Students', value: overview.counts.students, icon: GraduationCap },
+                { label: 'Teachers', value: overview.counts.teachers, icon: BookOpen },
+                { label: 'Courses', value: overview.counts.courses, icon: Library },
+                { label: 'Sections', value: overview.counts.sections, icon: School },
+                { label: 'Active Sessions', value: overview.counts.activeSessions, icon: ShieldCheck },
+                { label: 'Recent Critical Events', value: overview.counts.recentCriticalEvents, icon: ShieldAlert },
+                { label: 'Net Cashflow', value: formatMoney(overview.finance.netCashflow, org.currency), icon: Building2 },
+            ] : []),
         ];
 
         openViewModal({
@@ -521,6 +592,20 @@ export default function OrganizationsPage() {
                                 />
                             </FilterDrawerGrid>
                         )}
+                        actions={(
+                            <Button
+                                type="button"
+                                variant={showingUnverifiedOrgs ? 'warning' : 'outline'}
+                                size="sm"
+                                icon={showingUnverifiedOrgs ? ShieldCheck : ShieldAlert}
+                                onClick={() => updateQueryParams({
+                                    contactEmailStatus: showingUnverifiedOrgs ? undefined : 'unverified',
+                                    page: 1,
+                                })}
+                            >
+                                {showingUnverifiedOrgs ? 'Show verified orgs' : 'Show unverified orgs'}
+                            </Button>
+                        )}
                         activeFilters={activeFilters}
                     />
                 )}
@@ -572,6 +657,16 @@ export default function OrganizationsPage() {
                 onSaved={async () => {
                     await retryOrganizations();
                 }}
+            />
+            <ConfirmDialog
+                isOpen={Boolean(deleteOrganization)}
+                onClose={() => setDeleteOrganization(null)}
+                onConfirm={handleDeleteOrganization}
+                title={`Delete ${deleteOrganization?.name || 'organization'}?`}
+                description="This permanently deletes the organization and its users, courses, students, finance records, chats, mail, and audit records. This cannot be undone."
+                confirmText="Delete permanently"
+                isDestructive
+                loadingId={deleteOrganization ? `delete-${deleteOrganization.id}` : undefined}
             />
             <ModalForm
                 isOpen={isModalOpen}

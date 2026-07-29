@@ -36,6 +36,7 @@ export class AdminController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('type') type?: string,
+    @Query('contactEmailStatus') contactEmailStatus?: 'verified' | 'unverified' | 'all',
   ) {
     return this.adminService.getOrganizations({
       status,
@@ -45,6 +46,7 @@ export class AdminController {
       sortBy,
       sortOrder,
       type,
+      contactEmailStatus,
     });
   }
 
@@ -57,6 +59,29 @@ export class AdminController {
       organizationId: user.organizationId,
       name: user.name || null,
       email: user.email,
+    });
+  }
+
+  @Roles(Role.SUPER_ADMIN, Role.PLATFORM_ADMIN)
+  @Get('organizations/:id/overview')
+  async getOrganizationOverview(@Param('id') id: string) {
+    return this.adminService.getOrganizationOverview(id);
+  }
+
+  @Roles(Role.SUPER_ADMIN, Role.PLATFORM_ADMIN)
+  @Get('organizations/:id/activity-logs')
+  async getOrganizationActivityLogs(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('action') action?: string,
+  ) {
+    return this.adminService.getOrganizationActivityLogs(id, {
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
+      search,
+      action,
     });
   }
 
@@ -114,6 +139,12 @@ export class AdminController {
     @User() admin: UserEntity,
   ) {
     return this.adminService.updateOrganizationStatus(id, OrgStatus.SUSPENDED, reason, admin);
+  }
+
+  @Roles(Role.SUPER_ADMIN)
+  @Delete('organizations/:id')
+  deleteOrganization(@Param('id') id: string, @User() admin: UserEntity) {
+    return this.adminService.deleteOrganization(id, admin);
   }
 
   // --- Platform Admins ---

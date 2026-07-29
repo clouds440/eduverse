@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  ForbiddenException,
   Post,
   Body,
   Get,
@@ -47,6 +48,7 @@ type AuthenticatedRequest = {
     'x-forwarded-for'?: string;
     'x-forwarded-host'?: string;
     'x-forwarded-proto'?: string;
+    'x-registration-intent'?: string;
     'x-real-ip'?: string;
     'user-agent'?: string;
   };
@@ -59,16 +61,34 @@ export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
   @Public()
-  @Throttle({ default: { limit: 3, ttl: 60_000 } })
-  @Post('register')
-  async register(
-    @Body() registerDto: RegisterDto,
-  ) {
-    return this.authService.register(registerDto);
+  @Throttle({ default: { limit: 20, ttl: 5 * 60_000 } })
+  @Get('register-intent')
+  async getRegisterIntent(@Request() req: AuthenticatedRequest) {
+    this.assertAllowedFrontendOrigin(req);
+    return this.authService.createRegistrationIntent(this.getRequestMeta(req));
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 5 * 60_000 } })
+  @Post('register')
+  async register(
+    @Body() registerDto: RegisterDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    this.assertAllowedFrontendOrigin(req);
+    const intent = req.headers['x-registration-intent'];
+    if (!intent || typeof intent !== 'string') {
+      throw new ForbiddenException('Registration form verification is required.');
+    }
+    return this.authService.register(
+      registerDto,
+      this.getRequestMeta(req),
+      intent,
+    );
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   async login(
     @Body() loginDto: LoginDto,
@@ -76,11 +96,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     // Extract IP from request (handle proxy scenarios)
-    const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-      req.headers['x-real-ip'] ||
-      req.ip ||
-      'unknown';
-    const result = await this.authService.login(loginDto, ip);
+    const result = await this.authService.login(loginDto, this.getRequestMeta(req));
     if ('access_token' in result) {
       this.setAuthCookie(res, result.access_token, loginDto.rememberMe === true, req);
     }
@@ -665,6 +681,18 @@ export class AuthController {
       ip,
       userAgent: req.headers['user-agent'],
     };
+  }
+
+  private assertAllowedFrontendOrigin(req: { headers: { origin?: string } }) {
+    const origin = req.headers.origin;
+    const allowedOrigins = (process.env.FRONTEND_URL || '')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean);
+
+    if (!origin || !allowedOrigins.includes(origin)) {
+      throw new ForbiddenException('Request origin is not allowed.');
+    }
   }
 
   private getGoogleErrorRedirect(error: unknown) {

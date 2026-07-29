@@ -57,8 +57,8 @@ import { EmailTemplatesModule } from './common/email-templates/email-templates.m
     UserModule,
     ThrottlerModule.forRoot([
       {
-        ttl: parseInt(process.env.THROTTLE_TTL!, 10),
-        limit: parseInt(process.env.THROTTLE_LIMIT!, 10),
+        ttl: parseInt(process.env.THROTTLE_TTL || '60000', 10),
+        limit: parseInt(process.env.THROTTLE_LIMIT || '30', 10),
       },
     ]),
     ChatModule,

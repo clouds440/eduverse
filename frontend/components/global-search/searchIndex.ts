@@ -283,13 +283,13 @@ function platformSearchItems(user: JwtPayload | null): RouteSearchItem[] {
             }),
             routeItem({
                 id: 'admin-audit-logs',
-                title: 'Audit Logs',
+                title: 'Security Audit',
                 href: '/admin/logs',
                 group: 'Navigation',
-                description: 'Review platform activity',
+                description: 'Review security and account activity',
                 icon: ScrollText,
-                aliases: ['logs'],
-                keywords: ['audit', 'activity'],
+                aliases: ['logs', 'audit logs'],
+                keywords: ['audit', 'activity', 'security'],
             }),
         );
     }

@@ -129,7 +129,29 @@ export class AuthService {
       new UserPreferencesService(this.prisma, security);
   }
 
-  async register(registerDto: RegisterDto) {
+  async createRegistrationIntent(meta: RequestMetadata) {
+    return {
+      token: await this.jwtService.signAsync(
+        {
+          purpose: 'registration_intent',
+          ip: meta.ip,
+          userAgent: meta.userAgent || null,
+          nonce: randomBytes(16).toString('hex'),
+        },
+        {
+          secret: this.getRegistrationIntentSecret(),
+          expiresIn: '10m',
+        },
+      ),
+    };
+  }
+
+  async register(
+    registerDto: RegisterDto,
+    meta?: RequestMetadata,
+    registrationIntent?: string,
+  ) {
+    await this.verifyRegistrationIntent(registrationIntent, meta);
     const existing = await this.prisma.user.findUnique({
       where: { email: registerDto.email },
     });
@@ -182,6 +204,22 @@ export class AuthService {
       return { org, user };
     });
 
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'organization_registered',
+        actorUserId: result.user.id,
+        targetUserId: result.user.id,
+        organizationId: result.org.id,
+        ip: meta?.ip,
+        userAgent: meta?.userAgent,
+        details: {
+          organizationName: result.org.name,
+          organizationType: result.org.type,
+          contactEmail: result.org.contactEmail,
+        },
+      },
+    });
+
     await this.issueContactEmailVerification(result.org.id, {
       targetUserId: result.user.id,
       organizationId: result.org.id,
@@ -202,7 +240,12 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto, ip: string = 'unknown') {
+  async login(loginDto: LoginDto, metaOrIp: RequestMetadata | string = 'unknown') {
+    const meta =
+      typeof metaOrIp === 'string'
+        ? { ip: metaOrIp }
+        : metaOrIp;
+    const ip = meta.ip || 'unknown';
     const user = await this.prisma.user.findUnique({
       where: { email: loginDto.email },
       include: { organization: true, teacherProfile: true, settings: true },
@@ -214,10 +257,20 @@ export class AuthService {
 
     const isMatch = await bcrypt.compare(loginDto.password, user.password);
     if (!isMatch) {
+      await this.recordLoginAudit('login_failed', user, loginDto, ip, {
+        userAgent: meta.userAgent,
+        reason: 'invalid_password',
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.completeLogin(user, loginDto, ip);
+    const result = await this.completeLogin(user, loginDto, ip);
+    if ('access_token' in result) {
+      await this.recordLoginAudit('login_success', user, loginDto, ip, {
+        userAgent: meta.userAgent,
+      });
+    }
+    return result;
   }
 
   async generateToken(
@@ -766,6 +819,69 @@ export class AuthService {
   private getAccountSecurityUrl(user: Pick<User, 'id'>) {
     const target = this.getAccountSettingsTarget(user, 'sessions');
     return `${target.path}${target.hash ? `#${target.hash}` : ''}`;
+  }
+
+  private getRegistrationIntentSecret() {
+    return (
+      this.configService.get<string>('REGISTRATION_INTENT_SECRET') ||
+      this.configService.get<string>('JWT_SECRET') ||
+      ''
+    );
+  }
+
+  private async verifyRegistrationIntent(
+    token?: string,
+    meta?: RequestMetadata,
+  ) {
+    if (!token) {
+      throw new UnauthorizedException('Registration form verification failed.');
+    }
+
+    try {
+      const payload = await this.jwtService.verifyAsync<{
+        purpose?: string;
+        ip?: string;
+        userAgent?: string | null;
+      }>(token, { secret: this.getRegistrationIntentSecret() });
+
+      if (payload.purpose !== 'registration_intent') {
+        throw new Error('wrong purpose');
+      }
+
+      if (payload.ip && meta?.ip && payload.ip !== meta.ip) {
+        throw new Error('ip mismatch');
+      }
+    } catch {
+      throw new UnauthorizedException('Registration form verification failed.');
+    }
+  }
+
+  private async recordLoginAudit(
+    action: 'login_success' | 'login_failed',
+    user: TokenUser,
+    device: SessionDeviceInput | undefined,
+    ip: string,
+    details: Record<string, unknown> = {},
+  ) {
+    await this.prisma.auditLog.create({
+      data: {
+        action,
+        actorUserId: user.id,
+        targetUserId: user.id,
+        organizationId: user.organizationId,
+        ip,
+        userAgent:
+          typeof details.userAgent === 'string' ? details.userAgent : undefined,
+        details: {
+          ...details,
+          deviceId: device?.deviceId,
+          deviceName: device?.deviceName,
+          deviceType: device?.deviceType,
+          browser: device?.browser,
+          os: device?.os,
+        },
+      },
+    });
   }
 
   private getAccountSettingsTarget(

@@ -36,6 +36,8 @@ function formatLogForCopy(log: AuditLogItem) {
         `Organization: ${log.organization?.name || 'N/A'}`,
         `Actor: ${log.actor?.name || log.actor?.email || 'N/A'}`,
         `Target: ${log.target?.name || log.target?.email || 'N/A'}`,
+        `Device: ${log.device?.name || log.userAgent || 'N/A'}`,
+        `Location: ${log.location || 'N/A'}`,
         `IP: ${log.ip || 'N/A'}`,
         `Session: ${log.sessionId || 'N/A'}`,
         `Details: ${log.details ? JSON.stringify(log.details) : 'N/A'}`,
@@ -85,7 +87,7 @@ export default function AdminAuditLogsPage() {
     const copyLog = useCallback(async (log: AuditLogItem) => {
         try {
             await navigator.clipboard.writeText(formatLogForCopy(log));
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Audit log copied', type: 'success' } });
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Security audit event copied', type: 'success' } });
         } catch {
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Unable to copy log', type: 'error' } });
         }
@@ -153,9 +155,11 @@ export default function AdminAuditLogsPage() {
                 <div className="w-full min-w-0 space-y-1.5">
                     <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                         <Monitor className="w-3.5 h-3.5 text-primary" />
-                        <span className="min-w-0 truncate">{row.ip || 'Unknown IP'}</span>
+                        <span className="min-w-0 truncate">{row.device?.name || row.userAgent || 'Unknown device'}</span>
                     </div>
-                    <p className="w-full truncate text-[11px] text-muted-foreground/70 font-medium">{row.userAgent || 'Unknown device'}</p>
+                    <p className="w-full truncate text-[11px] text-muted-foreground/70 font-medium">
+                        {[row.device?.browser, row.device?.os, row.location || row.ip].filter(Boolean).join(' | ') || 'Unknown source'}
+                    </p>
                 </div>
             ),
         },
@@ -191,7 +195,7 @@ export default function AdminAuditLogsPage() {
     ], [copyLog]);
 
     if (loading || (!user && !loading)) {
-        return <Loading className="h-full" text="Loading audit logs..." size="lg" icon={ScrollText} />;
+        return <Loading className="h-full" text="Loading security audit..." size="lg" icon={ScrollText} />;
     }
 
     if (fetchError && !data) {
@@ -200,8 +204,8 @@ export default function AdminAuditLogsPage() {
                 error={fetchError}
                 onRetry={() => retryLogs()}
                 className="min-h-80"
-                title="Unable to load audit logs"
-                description="The audit log list could not be fetched."
+                title="Unable to load security audit"
+                description="The security audit list could not be fetched."
             />
         );
     }
@@ -212,7 +216,7 @@ export default function AdminAuditLogsPage() {
                 <div className="max-w-md rounded-2xl border border-danger/20 bg-danger/10 p-8 text-center">
                     <ShieldAlert className="mx-auto mb-4 h-10 w-10 text-danger" />
                     <h1 className="text-2xl font-black text-danger">Super Admin Only</h1>
-                    <p className="mt-2 text-sm font-semibold text-muted-foreground">Audit logs are restricted to super admins.</p>
+                    <p className="mt-2 text-sm font-semibold text-muted-foreground">Security Audit is restricted to super admins.</p>
                 </div>
             </div>
         );
@@ -221,12 +225,12 @@ export default function AdminAuditLogsPage() {
     return (
         <PageShell>
             <PageHeader
-                title="Audit Logs"
-                description="Security and account events translated into readable activity."
+                title="Security Audit"
+                description="Security and account events with clearer actor, device, source, and location context."
                 icon={ScrollText}
                 breadcrumbs={[
                     { label: 'Admin' },
-                    { label: 'Audit Logs' },
+                    { label: 'Security Audit' },
                 ]}
                 meta={data?.totalRecords !== undefined ? (
                     <span className="rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-xs font-black text-muted-foreground">
@@ -235,12 +239,12 @@ export default function AdminAuditLogsPage() {
                 ) : undefined}
                 actions={(
                     <PageControls
-                        drawerLabel="Audit filters"
+                        drawerLabel="Security audit filters"
                         leading={(
                             <SearchBar
                                 value={search}
                                 onChange={(value) => updateQueryParams({ search: value, page: 1 })}
-                                placeholder="Search org, actor, target..."
+                                placeholder="Search org, actor, target, source..."
                                 mobileMode="expandable"
                             />
                         )}
@@ -276,8 +280,8 @@ export default function AdminAuditLogsPage() {
                         }}
                         maxHeight="100%"
                         tableLayout="fixed"
-                        emptyTitle="No audit events found"
-                        emptyDescription={search || activeFilters.length > 0 ? 'Adjust the search or action filter to broaden the result set.' : 'Audit events will appear here after platform activity is recorded.'}
+                        emptyTitle="No security audit events found"
+                        emptyDescription={search || activeFilters.length > 0 ? 'Adjust the search or action filter to broaden the result set.' : 'Security audit events will appear here after platform activity is recorded.'}
                         mobileDetailLimit={3}
                     />
                 </div>

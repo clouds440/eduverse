@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   UnauthorizedException,
   NotFoundException,
   Injectable,
@@ -49,6 +50,7 @@ export class AdminService {
     options: PaginationOptions & {
       status?: OrgStatus;
       type?: string;
+      contactEmailStatus?: 'verified' | 'unverified' | 'all';
     },
   ) {
     const { skip, take, sortBy, sortOrder } = getPaginationOptions({
@@ -63,7 +65,12 @@ export class AdminService {
       prismaSortBy = 'contactEmail';
     }
 
+    const contactEmailWhere = this.getContactEmailStatusWhere(
+      options.contactEmailStatus,
+    );
+
     const where: Prisma.OrganizationWhereInput = {
+      ...contactEmailWhere,
       ...(options.status ? { status: options.status } : {}),
       ...(options.type && options.type !== 'ALL' ? { type: options.type } : {}),
       ...(options.search
@@ -79,6 +86,7 @@ export class AdminService {
 
     // For dynamic counts based on SEARCH and TYPE but NOT on status
     const countWhere: Prisma.OrganizationWhereInput = {
+      ...contactEmailWhere,
       ...(options.type && options.type !== 'ALL' ? { type: options.type } : {}),
       ...(options.search
         ? {
@@ -144,6 +152,16 @@ export class AdminService {
       ...response,
       counts: countsMap,
     };
+  }
+
+  private getContactEmailStatusWhere(
+    status?: 'verified' | 'unverified' | 'all',
+  ): Prisma.OrganizationWhereInput {
+    if (status === 'all') return {};
+    if (status === 'unverified') {
+      return { contactEmailVerifiedAt: null };
+    }
+    return { contactEmailVerifiedAt: { not: null } };
   }
 
   async approveOrganization(id: string, admin: UserEntity) {
@@ -302,6 +320,87 @@ export class AdminService {
     };
   }
 
+  async getOrganizationOverview(id: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        type: true,
+        location: true,
+        contactEmailVerifiedAt: true,
+        createdAt: true,
+      },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const [
+      users,
+      students,
+      teachers,
+      courses,
+      sections,
+      departments,
+      income,
+      expenses,
+      recentCriticalEvents,
+      activeSessions,
+    ] = await Promise.all([
+      this.prisma.user.count({ where: { organizationId: id } }),
+      this.prisma.student.count({ where: { organizationId: id } }),
+      this.prisma.teacher.count({ where: { organizationId: id } }),
+      this.prisma.course.count({ where: { organizationId: id } }),
+      this.prisma.section.count({ where: { organizationId: id } }),
+      this.prisma.department.count({ where: { organizationId: id } }),
+      this.prisma.transaction.aggregate({
+        where: { organizationId: id, type: 'INCOME' },
+        _sum: { amount: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { organizationId: id, type: 'EXPENSE' },
+        _sum: { amount: true },
+      }),
+      this.prisma.auditLog.count({
+        where: {
+          organizationId: id,
+          OR: [
+            { action: { contains: 'failed', mode: 'insensitive' } },
+            { action: { contains: 'reset', mode: 'insensitive' } },
+            { action: { contains: 'delete', mode: 'insensitive' } },
+            { action: { contains: 'recovered', mode: 'insensitive' } },
+            { action: { contains: 'suspend', mode: 'insensitive' } },
+          ],
+        },
+      }),
+      this.prisma.session.count({
+        where: { isActive: true, user: { organizationId: id } },
+      }),
+    ]);
+
+    const incomeTotal = income._sum.amount || new Prisma.Decimal(0);
+    const expenseTotal = expenses._sum.amount || new Prisma.Decimal(0);
+
+    return {
+      organization: org,
+      counts: {
+        users,
+        students,
+        teachers,
+        courses,
+        sections,
+        departments,
+        activeSessions,
+        recentCriticalEvents,
+      },
+      finance: {
+        income: incomeTotal.toFixed(2),
+        expenses: expenseTotal.toFixed(2),
+        netCashflow: incomeTotal.minus(expenseTotal).toFixed(2),
+      },
+    };
+  }
+
   async getAuditLogs(
     options: PaginationOptions & {
       action?: string;
@@ -380,44 +479,7 @@ export class AdminService {
       }),
     ]);
 
-    const userIds = Array.from(
-      new Set(
-        logs
-          .flatMap((log) => [log.actorUserId, log.targetUserId])
-          .filter((id): id is string => Boolean(id)),
-      ),
-    );
-
-    const users = userIds.length
-      ? await this.prisma.user.findMany({
-          where: { id: { in: userIds } },
-          select: { id: true, name: true, email: true, role: true },
-        })
-      : [];
-    const userMap = new Map(users.map((user) => [user.id, user]));
-
-    const mappedLogs = logs.map((log) => {
-      const actor = log.actorUserId ? userMap.get(log.actorUserId) : null;
-      const target = log.targetUserId ? userMap.get(log.targetUserId) : null;
-      return {
-        id: log.id,
-        action: log.action,
-        message: this.humanizeAuditLog(log.action, {
-          actorName: actor?.name || actor?.email || null,
-          targetName: target?.name || target?.email || null,
-          organizationName: log.organization?.name || null,
-          details: log.details,
-        }),
-        actor,
-        target,
-        organization: log.organization,
-        ip: log.ip,
-        userAgent: log.userAgent,
-        sessionId: log.sessionId,
-        details: log.details,
-        createdAt: log.createdAt,
-      };
-    });
+    const mappedLogs = await this.mapAuditLogs(logs);
 
     return {
       ...formatPaginatedResponse(
@@ -430,6 +492,217 @@ export class AdminService {
         actions.map((entry) => [entry.action, entry._count._all]),
       ),
     };
+  }
+
+  async getOrganizationActivityLogs(
+    organizationId: string,
+    options: PaginationOptions & {
+      action?: string;
+    },
+  ) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const { skip, take, search } = getPaginationOptions({
+      ...options,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    });
+
+    const matchingUserIds = search
+      ? (
+          await this.prisma.user.findMany({
+            where: {
+              organizationId,
+              OR: [
+                { id: { contains: search, mode: 'insensitive' } },
+                { name: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+            select: { id: true },
+          })
+        ).map((matchedUser) => matchedUser.id)
+      : [];
+
+    const where: Prisma.AuditLogWhereInput = {
+      organizationId,
+      ...(options.action && options.action !== 'ALL'
+        ? { action: { contains: options.action, mode: 'insensitive' } }
+        : {}),
+      ...(search
+        ? {
+            OR: [
+              { action: { contains: search, mode: 'insensitive' } },
+              { module: { contains: search, mode: 'insensitive' } },
+              { resourceType: { contains: search, mode: 'insensitive' } },
+              { resourceId: { contains: search, mode: 'insensitive' } },
+              ...(matchingUserIds.length
+                ? [
+                    { actorUserId: { in: matchingUserIds } },
+                    { targetUserId: { in: matchingUserIds } },
+                  ]
+                : []),
+            ],
+          }
+        : {}),
+    };
+
+    const [logs, totalRecords, actions] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              logoUrl: true,
+              avatarUpdatedAt: true,
+            },
+          },
+        },
+      }),
+      this.prisma.auditLog.count({ where }),
+      this.prisma.auditLog.groupBy({
+        where: { organizationId },
+        by: ['action'],
+        _count: { _all: true },
+        orderBy: { action: 'asc' },
+      }),
+    ]);
+
+    return {
+      ...formatPaginatedResponse(
+        await this.mapAuditLogs(logs),
+        totalRecords,
+        options.page,
+        options.limit,
+      ),
+      counts: Object.fromEntries(
+        actions.map((entry) => [entry.action, entry._count._all]),
+      ),
+    };
+  }
+
+  async deleteOrganization(id: string, admin: UserEntity) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, name: true, status: true },
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    if (org.status === OrgStatus.APPROVED) {
+      throw new BadRequestException(
+        'Approved organizations cannot be deleted. Suspend the organization first if it needs administrative action.',
+      );
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: 'organization_deleted',
+        actorUserId: admin.id,
+        details: {
+          organizationId: id,
+          organizationName: org.name,
+          previousStatus: org.status,
+        },
+      },
+    });
+
+    await this.prisma.organization.delete({ where: { id } });
+    return { message: `${org.name} was deleted permanently.` };
+  }
+
+  private async mapAuditLogs(
+    logs: Array<Prisma.AuditLogGetPayload<{
+      include: {
+        organization: {
+          select: {
+            id: true;
+            name: true;
+            logoUrl: true;
+            avatarUpdatedAt: true;
+          };
+        };
+      };
+    }>>,
+  ) {
+    const userIds = Array.from(
+      new Set(
+        logs
+          .flatMap((log) => [log.actorUserId, log.targetUserId])
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const sessionIds = Array.from(
+      new Set(logs.map((log) => log.sessionId).filter((id): id is string => Boolean(id))),
+    );
+
+    const [users, sessions] = await Promise.all([
+      userIds.length
+        ? this.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, name: true, email: true, role: true },
+          })
+        : [],
+      sessionIds.length
+        ? this.prisma.session.findMany({
+            where: { id: { in: sessionIds } },
+            select: {
+              id: true,
+              deviceName: true,
+              deviceType: true,
+              browser: true,
+              os: true,
+              ip: true,
+              location: true,
+            },
+          })
+        : [],
+    ]);
+    const userMap = new Map(users.map((user) => [user.id, user] as const));
+    const sessionMap = new Map(sessions.map((session) => [session.id, session] as const));
+
+    return logs.map((log) => {
+      const actor = log.actorUserId ? userMap.get(log.actorUserId) : null;
+      const target = log.targetUserId ? userMap.get(log.targetUserId) : null;
+      const session = log.sessionId ? sessionMap.get(log.sessionId) : null;
+      return {
+        id: log.id,
+        action: log.action,
+        message: this.humanizeAuditLog(log.action, {
+          actorName: actor?.name || actor?.email || null,
+          targetName: target?.name || target?.email || null,
+          organizationName: log.organization?.name || null,
+          details: log.details,
+        }),
+        actor,
+        target,
+        organization: log.organization,
+        module: log.module,
+        resourceType: log.resourceType,
+        resourceId: log.resourceId,
+        ip: log.ip || session?.ip || null,
+        userAgent: log.userAgent,
+        sessionId: log.sessionId,
+        device: session
+          ? {
+              name: session.deviceName,
+              type: session.deviceType,
+              browser: session.browser,
+              os: session.os,
+            }
+          : null,
+        location: session?.location || null,
+        details: log.details,
+        createdAt: log.createdAt,
+      };
+    });
   }
 
   private humanizeAuditLog(
@@ -465,6 +738,16 @@ export class AdminService {
         return `A password reset attempt failed for ${target}${reason ? ` because ${reason}` : ''}.`;
       case 'excessive_reset_attempts':
         return `Excessive password reset attempts were detected.`;
+      case 'organization_registered':
+        return `${org} registered and is waiting for verification and approval.`;
+      case 'login_success':
+        return `${actor} signed in successfully.`;
+      case 'login_failed':
+        return `A sign-in attempt failed for ${target}${reason ? ` because ${reason}` : ''}.`;
+      case 'organization_contact_email_recovered':
+        return `${actor} changed the recovery contact email for ${org}.`;
+      case 'organization_deleted':
+        return `${actor} permanently deleted ${org}.`;
       default:
         return action
           .split('_')

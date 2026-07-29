@@ -1,9 +1,9 @@
 import React from 'react';
-import { Pencil, Trash2, Eye, UserPen, Check, X, ShieldAlert, CheckCircle2, MessageSquareText, Send, Loader2, Lock, Users, GraduationCap, MailCheck } from 'lucide-react';
+import { Pencil, Trash2, Eye, UserPen, Check, X, ShieldAlert, CheckCircle2, MessageSquareText, Send, Loader2, Lock, Users, GraduationCap, MailCheck, Activity } from 'lucide-react';
 import { useAccess } from '@/hooks/useAccess';
 import { cn } from '@/lib/utils';
 
-export type AdminActionVariant = 'approve' | 'reject' | 'suspend' | 'unsuspend' | 'resolve' | 'reapprove' | 'editMessage' | 'mail' | 'restore' | 'pay' | 'confirm' | 'link' | 'enrollment' | 'contactRecovery';
+export type AdminActionVariant = 'approve' | 'reject' | 'suspend' | 'unsuspend' | 'resolve' | 'reapprove' | 'editMessage' | 'mail' | 'restore' | 'pay' | 'confirm' | 'link' | 'enrollment' | 'contactRecovery' | 'activity';
 
 export interface AdminAction {
     variant: AdminActionVariant;
@@ -20,6 +20,7 @@ interface TableActionsProps {
     editTitle?: string;
     deleteTitle?: string;
     isDeleting?: boolean;
+    deleteDisabled?: boolean;
     isViewAndEdit?: boolean;
     variant?: 'user' | 'default';
     extraActions?: AdminAction[];
@@ -41,7 +42,8 @@ const adminActionConfig: Record<AdminActionVariant, { icon: React.ElementType, c
     confirm: { icon: CheckCircle2, color: 'text-success hover:bg-success/10', defaultTitle: 'Confirm Payment' },
     link: { icon: Users, color: 'text-info border border-info/20 hover:bg-info/10', defaultTitle: 'Link Students' },
     enrollment: { icon: GraduationCap, color: 'text-info border border-info/20 hover:bg-info/10', defaultTitle: 'Manage Enrollment' },
-    contactRecovery: { icon: MailCheck, color: 'text-warning border border-warning/25 hover:bg-warning/10', defaultTitle: 'Set Recovery Contact Email' }
+    contactRecovery: { icon: MailCheck, color: 'text-warning border border-warning/25 hover:bg-warning/10', defaultTitle: 'Set Recovery Contact Email' },
+    activity: { icon: Activity, color: 'text-info border border-info/20 hover:bg-info/10', defaultTitle: 'Org Activity Log' }
 };
 
 export const TableActions: React.FC<TableActionsProps> = ({
@@ -51,6 +53,7 @@ export const TableActions: React.FC<TableActionsProps> = ({
     editTitle = "Edit",
     deleteTitle = "Delete",
     isDeleting = false,
+    deleteDisabled = false,
     variant = 'default',
     extraActions = [],
     className = "",
@@ -132,10 +135,10 @@ export const TableActions: React.FC<TableActionsProps> = ({
                         e.stopPropagation();
                         onDelete();
                     }}
-                    disabled={isDeleting || !canWrite}
+                    disabled={isDeleting || deleteDisabled || !canWrite}
                     className={cn(actionButtonClass, "cursor-pointer border-danger/30 text-danger hover:bg-danger/15", !canWrite && "hidden")}
-                    title={canWrite ? deleteTitle : `${deleteTitle} (Permission Denied)`}
-                    aria-label={canWrite ? deleteTitle : `${deleteTitle} (Permission Denied)`}
+                    title={!canWrite ? `${deleteTitle} (Permission Denied)` : deleteTitle}
+                    aria-label={!canWrite ? `${deleteTitle} (Permission Denied)` : deleteTitle}
                     aria-busy={isDeleting || undefined}
                 >
                     {isDeleting ? (

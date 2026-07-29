@@ -14,6 +14,7 @@ export function validateEnv() {
     'FRONTEND_URL',
     'SUPER_ADMIN_USERNAME',
     'SUPER_ADMIN_PASSWORD',
+    'SUPER_ADMIN_EMAIL',
     'PORT',
     'BCRYPT_ROUNDS',
   ];

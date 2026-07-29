@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomInt } from 'crypto';
-import { OrgStatus, Role, UserStatus } from '../common/enums';
+import { OrgStatus, Role } from '../common/enums';
 import { LinkedAccountProvider } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../security/email.service';
@@ -820,14 +820,13 @@ export class EmailVerificationService {
     organizationName: string;
     contactEmail: string;
   }) {
-    const admins = await this.prisma.user.findMany({
-      where: {
-        role: { in: [Role.SUPER_ADMIN, Role.PLATFORM_ADMIN] },
-        status: UserStatus.ACTIVE,
-      },
-      select: { email: true },
-    });
-    if (admins.length === 0) return;
+    const superAdminEmail = this.configService.get<string>('SUPER_ADMIN_EMAIL');
+    if (!superAdminEmail) {
+      this.logger.warn(
+        `SUPER_ADMIN_EMAIL is not configured; skipped pending organization alert for ${input.organizationId}`,
+      );
+      return;
+    }
     const appBaseUrl = this.configService
       .getOrThrow<string>('FRONTEND_URL')
       .replace(/\/+$/, '');
@@ -837,23 +836,11 @@ export class EmailVerificationService {
       appBaseUrl,
       actionUrl,
     });
-    const results = await Promise.allSettled(
-      admins.map((admin) =>
-        this.emailService.send({
-          to: admin.email,
-          subject: email.subject,
-          text: email.text,
-          html: email.html,
-        }),
-      ),
-    );
-    const failedCount = results.filter(
-      (result) => result.status === 'rejected',
-    ).length;
-    if (failedCount > 0) {
-      this.logger.warn(
-        `Failed to send ${failedCount} pending organization verification alert email(s) for org ${input.organizationId}`,
-      );
-    }
+    await this.emailService.send({
+      to: superAdminEmail,
+      subject: email.subject,
+      text: email.text,
+      html: email.html,
+    });
   }
 }

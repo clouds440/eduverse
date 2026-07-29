@@ -1,5 +1,5 @@
 import type {
-    Teacher, Student, Organization, RegisterRequest, LoginRequest, AuthResponse, ContactEmailStatus,
+    Teacher, Student, Organization, RegisterRequest, RegisterIntentResponse, LoginRequest, AuthResponse, ContactEmailStatus,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
     CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
@@ -12,7 +12,7 @@ import type {
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
     AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, ReassignStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
-    CampusNavigationBuildingRoomsResponse,
+    CampusNavigationBuildingRoomsResponse, OrganizationOverview,
     CampusNavigationResponse,
     CampusNavigationRoomSelection,
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, TeacherFinanceOverview, MessageResponse, AuditLogItem, PayrollRosterRow,
@@ -547,8 +547,16 @@ async function uploadFormData<T>(
 
 export const api = {
     auth: {
+        getRegisterIntent: () =>
+            request<RegisterIntentResponse>('/auth/register-intent'),
         register: (data: RegisterRequest) =>
-            request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+            api.auth.getRegisterIntent().then((intent) =>
+                request<AuthResponse>('/auth/register', {
+                    method: 'POST',
+                    body: JSON.stringify(data),
+                    headers: { 'X-Registration-Intent': intent.token },
+                }),
+            ),
         login: (data: LoginRequest) =>
             request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
         getTwoFactorChallenge: (temporaryToken: string) =>
@@ -736,8 +744,12 @@ export const api = {
     },
 
     admin: {
-        getOrganizations: (token: string, params: { status?: OrgStatus, page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', type?: string } = {}) =>
+        getOrganizations: (token: string, params: { status?: OrgStatus, page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', type?: string, contactEmailStatus?: 'verified' | 'unverified' | 'all' } = {}) =>
             request<PaginatedResponse<Organization>>(`/admin/organizations${buildQueryString(params)}`, { token }),
+        getOrganizationOverview: (id: string, token: string) =>
+            request<OrganizationOverview>(`/admin/organizations/${id}/overview`, { token }),
+        getOrganizationActivityLogs: (id: string, token: string, params: { page?: number, limit?: number, search?: string, action?: string } = {}) =>
+            request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> }>(`/admin/organizations/${id}/activity-logs${buildQueryString(params)}`, { token }),
         approveOrganization: (id: string, token: string) =>
             request<void>(`/admin/organizations/${id}/approve`, { method: 'PATCH', token }),
         setOrganizationContactEmail: (id: string, contactEmail: string, token: string) =>
@@ -750,6 +762,8 @@ export const api = {
             request<void>(`/admin/organizations/${id}/reject`, { method: 'PATCH', body: JSON.stringify({ reason }), token }),
         suspendOrganization: (id: string, reason: string, token: string) =>
             request<void>(`/admin/organizations/${id}/suspend`, { method: 'PATCH', body: JSON.stringify({ reason }), token }),
+        deleteOrganization: (id: string, token: string) =>
+            request<void>(`/admin/organizations/${id}`, { method: 'DELETE', token }),
         getAdminStats: (token: string) =>
             request<AdminStats>('/admin/stats', { token }),
         getPlatformAdmins: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc' } = {}) =>

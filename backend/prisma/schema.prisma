@@ -38,7 +38,7 @@ model Organization {
   assessments     Assessment[]
   mails           Mail[]
   parentOrgId     String?
-  parentOrg       Organization?  @relation("ParentChildOrg", fields: [parentOrgId], references: [id])
+  parentOrg       Organization?  @relation("ParentChildOrg", fields: [parentOrgId], references: [id], onDelete: SetNull)
   subOrgs         Organization[] @relation("ParentChildOrg")
   chats           Chat[]
   announcements   Announcement[]
@@ -102,7 +102,7 @@ model User {
   guardianProfile       GuardianProfile?
   settings              UserSettings?
   subAdminDepartments   SubAdminDepartment[]
-  organization          Organization?      @relation(fields: [organizationId], references: [id])
+  organization          Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sessions             Session[]
   pendingLogins        PendingLogin[]
   createdMails         Mail[]         @relation("CreatedMails")

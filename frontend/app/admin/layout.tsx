@@ -93,7 +93,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             });
             adminLinks.push({
                 id: 'AUDIT_LOGS',
-                label: 'Audit Logs',
+                label: 'Security Audit',
                 href: '/admin/logs',
                 icon: ScrollText,
             });
