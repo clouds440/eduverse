@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const isStudentPortal = pathSegments[1] === 'student' && pathSegments[2] === user.id;
                         const isStudentPreferenceWindow = pathSegments[1] === 'preference-windows' && Boolean(pathSegments[2]) && pathSegments.length === 3;
                         const isSupportInOrg = pathSegments[1] === 'mail';
-                        const isAllowedShared = ['ai', 'chat', 'settings', 'timetable', 'attendance', 'change-password', 'course-materials', 'transcripts', 'fees', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
+                        const isAllowedShared = ['ai', 'chat', 'settings', 'timetable', 'attendance', 'academic-calendar', 'change-password', 'course-materials', 'transcripts', 'fees', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
 
                         if (!isStudentPortal && !isStudentPreferenceWindow && !isSupportInOrg && !isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Students can only access their own student portal and shared school tools.', type: 'error' } });
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
                     } else if (user.role === Role.GUARDIAN) {
-                        const isAllowedShared = ['ai', 'guardian', 'chat', 'mail', 'settings', 'change-password', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
+                        const isAllowedShared = ['ai', 'guardian', 'chat', 'mail', 'academic-calendar', 'settings', 'change-password', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
                         if (!isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Guardians can only access linked-student information and support tools.', type: 'error' } });
                             router.replace('/guardian');
@@ -149,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'departments',
                             'courses',
                             'academic-cycles',
+                            'academic-calendar',
                             'cohorts',
                             'sections',
                             'attendance',
@@ -175,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             return;
                         }
                     } else if (user.role === Role.FINANCE_MANAGER) {
-                        const isAllowedShared = ['ai', 'finance', 'teacher-finance', 'chat', 'mail', 'settings', 'change-password', 'contact', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
+                        const isAllowedShared = ['ai', 'finance', 'teacher-finance', 'chat', 'mail', 'academic-calendar', 'settings', 'change-password', 'contact', 'profiles', 'campus-navigation'].includes(pathSegments[1]);
 
                         if (!isAllowedShared) {
                             dispatch({ type: 'TOAST_ADD', payload: { message: 'Finance Managers can only access finance and support tools.', type: 'error' } });

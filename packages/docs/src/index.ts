@@ -898,7 +898,7 @@ export const docsPages: DocPage[] = [
   {
     slug: 'academic-calendar',
     title: 'Academic Calendar',
-    description: 'Create academic events, holidays, closures, and exam breaks that appear over timetable and attendance planning.',
+    description: 'Create academic events, closures, holidays, and exam breaks that appear over timetable and attendance planning.',
     category: 'Academics',
     tags: ['academic calendar', 'academic events', 'events', 'closures', 'timetable'],
     related: ['academic-cycles', 'timetable', 'attendance', 'announcements'],
@@ -910,7 +910,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'The academic calendar records school-wide or department-specific dates that affect normal teaching activity. Use it for holidays, exam breaks, events, closures, and other timetable overlays.',
+            text: 'The academic calendar records school-wide or department-specific dates that affect normal teaching activity. Use it for academic events, closures, exam breaks, holiday-type events, and other timetable overlays.',
           },
           {
             type: 'list',
@@ -962,7 +962,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'list',
             items: [
-              'Use all departments for school-wide holidays, full campus closures, and major events.',
+              'Use all departments for school-wide academic events, full campus closures, holiday-type events, and major events.',
               'Use selected departments for department trips, lab closures, exam windows, or program-specific events.',
               'Check department assignment on courses, students, and rooms when a calendar item seems missing from a filtered view.',
             ],
