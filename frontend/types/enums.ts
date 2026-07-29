@@ -196,6 +196,7 @@ export enum PreferenceTargetType {
 
 export enum AISubscriptionPlan {
     NONE = 'NONE',
+    FREE = 'FREE',
     STARTER = 'STARTER',
     GROWTH = 'GROWTH',
     SCALE = 'SCALE',

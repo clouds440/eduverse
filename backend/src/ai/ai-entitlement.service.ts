@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import {
   AILimitMode,
   AISubscription,
+  AISubscriptionPlan,
   AISubscriptionStatus,
   AIUsageSourceType,
   Role,
 } from '@/prisma/prisma-client';
 import { AI_SUPPORTED_USER_STATUSES } from './ai.constants';
+import { getFreeOrgRoleMonthlyCredits } from './ai-free-quota.util';
 import { AISubscriptionService } from './ai-subscription.service';
 import { AIUsageService } from './ai-usage.service';
 import type {
@@ -118,14 +120,18 @@ export class AIEntitlementService {
       return {
         allowed: false,
         code: 'ORG_CREDITS_EXHAUSTED',
-        message: 'Your organization has used all AI Credits for this period.',
+        message: subscription.plan === AISubscriptionPlan.FREE
+          ? 'The free testing quota has been used for this month. Subscribe to a paid EduVerse Copilot plan to continue using AI.'
+          : 'Your organization has used all AI Credits for this period.',
       };
     }
 
-    const roleMonthlyCredits = await this.subscriptionService.getRoleMonthlyCredits(
-      actor.organizationId,
-      actor.role,
-    );
+    const roleMonthlyCredits = subscription.plan === AISubscriptionPlan.FREE
+      ? getFreeOrgRoleMonthlyCredits(actor.role)
+      : await this.subscriptionService.getRoleMonthlyCredits(
+        actor.organizationId,
+        actor.role,
+      );
     const roleUsedCredits = await this.usageService.getUserCreditsUsed(
       subscription.id,
       actor.id,
@@ -140,7 +146,9 @@ export class AIEntitlementService {
       return {
         allowed: false,
         code: 'ROLE_CREDITS_EXHAUSTED',
-        message: 'You have used your role-based AI Credits for this period.',
+        message: subscription.plan === AISubscriptionPlan.FREE
+          ? 'The free testing quota for your role has been used for this month. Subscribe to a paid EduVerse Copilot plan to continue using AI.'
+          : 'You have used your role-based AI Credits for this period.',
       };
     }
 

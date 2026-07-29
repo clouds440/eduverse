@@ -81,7 +81,7 @@ export function useOrganizationAISettings({
         if (!token) return;
         dispatch({ type: 'UI_START_PROCESSING', payload: 'ai-plan-update' });
         try {
-            if (plan !== AISubscriptionPlan.NONE) {
+            if (plan !== AISubscriptionPlan.NONE && plan !== AISubscriptionPlan.FREE) {
                 const checkout = await api.ai.createOrgBillingCheckout(plan, token);
                 if (checkout.checkoutUrl) {
                     window.location.assign(checkout.checkoutUrl);

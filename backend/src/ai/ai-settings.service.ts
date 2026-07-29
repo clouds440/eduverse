@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   AISubscriptionOwnerType,
   AISubscriptionPlan,
@@ -140,6 +140,10 @@ export class AISettingsService {
     organizationId: string | null | undefined,
     plan: AISubscriptionPlan,
   ) {
+    if (plan === AISubscriptionPlan.FREE) {
+      throw new BadRequestException('Free Copilot quota is only available through eligible organization roles.');
+    }
+
     await this.subscriptionService.updatePlan(
       { ownerType: AISubscriptionOwnerType.USER, userId, organizationId },
       plan,

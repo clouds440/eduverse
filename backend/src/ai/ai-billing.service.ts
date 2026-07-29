@@ -85,7 +85,7 @@ export class AIBillingService {
   ) {}
 
   async createOrgCheckoutSession(organizationId: string, actor: User, plan: AISubscriptionPlan) {
-    if (plan === AISubscriptionPlan.NONE) {
+    if (!isPaidPlan(plan)) {
       throw new BadRequestException('Use the billing portal or cancel flow for disabling a paid AI subscription.');
     }
 
@@ -115,7 +115,7 @@ export class AIBillingService {
   }
 
   async createPersonalCheckoutSession(user: User, plan: AISubscriptionPlan) {
-    if (plan === AISubscriptionPlan.NONE) {
+    if (!isPaidPlan(plan)) {
       throw new BadRequestException('Use the billing portal or cancel flow for disabling a paid AI subscription.');
     }
 
@@ -406,7 +406,7 @@ export class AIBillingService {
     const variantId = valueToString(attributes.variant_id ?? attributes.first_subscription_item?.variant_id);
     if (variantId) {
       const matched = Object.values(AISubscriptionPlan).find((plan) =>
-        plan !== AISubscriptionPlan.NONE
+        isPaidPlan(plan)
         && [
           process.env[`LEMON_SQUEEZY_AI_ORG_${plan}_VARIANT_ID`],
           process.env[`LEMON_SQUEEZY_AI_PERSONAL_${plan}_VARIANT_ID`],
@@ -457,7 +457,11 @@ function lemonStatusToAIStatus(status?: LemonSqueezySubscriptionStatus, endsAt?:
 }
 
 function isActivePaidSubscription(subscription: Pick<AISubscription, 'plan' | 'status'>) {
-  return subscription.status === AISubscriptionStatus.ACTIVE && subscription.plan !== AISubscriptionPlan.NONE;
+  return subscription.status === AISubscriptionStatus.ACTIVE && isPaidPlan(subscription.plan);
+}
+
+function isPaidPlan(plan: AISubscriptionPlan) {
+  return plan !== AISubscriptionPlan.NONE && plan !== AISubscriptionPlan.FREE;
 }
 
 function resolveLemonSqueezyPeriod(

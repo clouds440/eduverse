@@ -11,6 +11,7 @@ import {
   AI_ORG_ACCESS_ROLES,
   AI_PLAN_CONFIG,
 } from './ai.constants';
+import { currentUtcMonthPeriod, freeOrgMonthlyCredits } from './ai-free-quota.util';
 import type { AISubscriptionTarget } from './ai.types';
 
 interface AIOrgAccessPolicyUpdate {
@@ -59,10 +60,7 @@ export class AISubscriptionService {
       data: {
         ownerType: AISubscriptionOwnerType.ORGANIZATION,
         organizationId,
-        plan: AISubscriptionPlan.NONE,
-        status: AISubscriptionStatus.INACTIVE,
-        monthlyCredits: AI_PLAN_CONFIG[AISubscriptionPlan.NONE].monthlyCredits,
-        limitMode: AI_PLAN_CONFIG[AISubscriptionPlan.NONE].limitMode,
+        ...this.buildFreeOrgQuotaUpdate(),
       },
     });
   }
@@ -223,6 +221,18 @@ export class AISubscriptionService {
       currentPeriodEnd: plan === AISubscriptionPlan.NONE
         ? null
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    };
+  }
+
+  private buildFreeOrgQuotaUpdate(): AISubscriptionPlanFields {
+    const period = currentUtcMonthPeriod();
+    return {
+      plan: AISubscriptionPlan.FREE,
+      status: AISubscriptionStatus.ACTIVE,
+      monthlyCredits: freeOrgMonthlyCredits(),
+      limitMode: AI_PLAN_CONFIG[AISubscriptionPlan.FREE].limitMode,
+      currentPeriodStart: period.periodStart,
+      currentPeriodEnd: period.periodEnd,
     };
   }
 }

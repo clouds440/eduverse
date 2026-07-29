@@ -88,7 +88,7 @@ export function AICopilotHome({
                         <div className="min-w-0">
                             <p className="text-sm font-black text-warning">Credit limit reached</p>
                             <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">
-                                You have used all AI Credits included in your current plan.
+                                You have used all AI Credits included in your current plan. If this was the free testing quota, subscribe to a paid Copilot plan to continue using AI.
                             </p>
                             <Link
                                 href="/ai/subscription"

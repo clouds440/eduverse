@@ -12,6 +12,7 @@ import { AIAuditService } from './ai-audit.service';
 import { AICreditService } from './ai-credit.service';
 import { AIEntitlementService } from './ai-entitlement.service';
 import { AIEntityResolverService } from './ai-entity-resolver.service';
+import { AIFreeQuotaService } from './ai-free-quota.service';
 import { AIKnowledgeService } from './ai-knowledge.service';
 import {
   AILangChainProviderAdapter,
@@ -38,6 +39,7 @@ import { AIUsageService } from './ai-usage.service';
     AICreditService,
     AIEntitlementService,
     AIEntityResolverService,
+    AIFreeQuotaService,
     AIKnowledgeService,
     AILangChainProviderAdapter,
     AIOperationsToolsService,
@@ -59,6 +61,7 @@ import { AIUsageService } from './ai-usage.service';
     AICreditService,
     AIEntitlementService,
     AIEntityResolverService,
+    AIFreeQuotaService,
     AIKnowledgeService,
     AIOperationsToolsService,
     AIPerformanceToolsService,

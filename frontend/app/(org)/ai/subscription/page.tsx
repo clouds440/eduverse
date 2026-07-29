@@ -27,6 +27,7 @@ function formatCredits(value: number) {
 }
 
 function planRank(plan?: AISubscriptionPlan) {
+    if (plan === AISubscriptionPlan.FREE) return 0;
     if (plan === AISubscriptionPlan.STARTER) return 1;
     if (plan === AISubscriptionPlan.GROWTH) return 2;
     if (plan === AISubscriptionPlan.SCALE) return 3;
@@ -63,7 +64,7 @@ function PlanGrid({
     loadingPrefix: string;
     onSelect: (plan: AISubscriptionPlan) => void;
 }) {
-    const paidPlans = plans.filter((plan) => plan.plan !== AISubscriptionPlan.NONE);
+    const paidPlans = plans.filter((plan) => plan.plan !== AISubscriptionPlan.NONE && plan.plan !== AISubscriptionPlan.FREE);
 
     return (
         <section className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">

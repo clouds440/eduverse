@@ -10,6 +10,12 @@ export const AI_PLAN_CONFIG: Record<
     limitMode: AILimitMode.HARD,
     description: 'EduVerse Copilot disabled.',
   },
+  [AISubscriptionPlan.FREE]: {
+    label: 'Free testing quota',
+    monthlyCredits: 10,
+    limitMode: AILimitMode.HARD,
+    description: 'Testing-only monthly quota for eligible roles. Subscribe to a paid Copilot plan to continue using AI after the free credits are used.',
+  },
   [AISubscriptionPlan.STARTER]: {
     label: 'Starter',
     monthlyCredits: 500,
@@ -41,6 +47,10 @@ export const AI_DEFAULT_ROLE_CREDIT_CAPS: Partial<Record<Role, number>> = {
   [Role.TEACHER]: 200,
   [Role.STUDENT]: 80,
   [Role.GUARDIAN]: 50,
+};
+
+export const AI_FREE_ORG_ROLE_QUOTAS: Partial<Record<Role, number>> = {
+  [Role.ORG_ADMIN]: 10,
 };
 
 export const AI_ORG_ACCESS_ROLES = [

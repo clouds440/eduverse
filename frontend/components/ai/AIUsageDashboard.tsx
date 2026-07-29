@@ -13,6 +13,7 @@ import type {
     Role,
 } from '@/types';
 import { AISubscriptionStatus as AISubscriptionStatusEnum } from '@/types';
+import { AISubscriptionPlan } from '@/types';
 import { getRoleLabel } from '@/lib/roles';
 
 interface AIUsageDashboardProps {
@@ -55,6 +56,7 @@ export function AIUsageDashboard({
     const currency = state.stats.orgData?.currency || 'USD';
     const percent = usagePercent(usage.usedCredits, usage.monthlyCredits);
     const maxTrendCredits = Math.max(1, ...trends.map((point) => point.creditsUsed));
+    const isFreeTestingQuota = subscription.plan === AISubscriptionPlan.FREE;
     const statItems = [
         { label: 'Plan', value: subscription.plan, detail: subscription.status, icon: Sparkles },
         { label: 'Credits used', value: formatQuantity(usage.usedCredits), detail: `${percent}% of monthly credits`, icon: Gauge },
@@ -73,6 +75,12 @@ export function AIUsageDashboard({
                     {subscription.limitMode} limit
                 </Badge>
             </div>
+
+            {isFreeTestingQuota && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm font-semibold leading-6 text-warning/90">
+                    This is a testing-only free Copilot quota. It resets monthly and does not roll over. Subscribe to a paid Copilot plan to keep using AI after these credits are used.
+                </div>
+            )}
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {statItems.map((item) => {

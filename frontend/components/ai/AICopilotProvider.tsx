@@ -737,6 +737,6 @@ function creditLimitReachedResponse(code: string | undefined, role?: string | nu
   return [
     `I can't run that request because ${scope} used all AI Credits included in the current plan.`,
     "",
-    "You can [top up or change the Copilot subscription](/ai/subscription) to continue using EduVerse Copilot right away.",
+    "If this was the free testing quota, it was only meant for trial use. You can [subscribe to or change the Copilot plan](/ai/subscription) to continue using EduVerse Copilot.",
   ].join("\n");
 }

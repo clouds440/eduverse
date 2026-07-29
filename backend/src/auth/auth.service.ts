@@ -13,6 +13,10 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import {
+  AILimitMode,
+  AISubscriptionOwnerType,
+  AISubscriptionPlan,
+  AISubscriptionStatus,
   LinkedAccountProvider,
   User,
   Organization,
@@ -49,6 +53,7 @@ import { UserPreferencesService } from './user-preferences.service';
 import { TwoFactorService } from './two-factor.service';
 import { RegisterTrustedDeviceDto } from '../e2ee/dto/register-trusted-device.dto';
 import { ApproveTrustedDeviceDto } from '../e2ee/dto/approve-trusted-device.dto';
+import { currentUtcMonthPeriod, freeOrgMonthlyCredits } from '../ai/ai-free-quota.util';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -157,6 +162,20 @@ export class AuthService {
           organizationId: org.id,
           name: registerDto.adminName, // Set name to Admin Name for ORG_ADMIN
           isFirstLogin: false,
+        },
+      });
+
+      const freeAIQuotaPeriod = currentUtcMonthPeriod();
+      await tx.aISubscription.create({
+        data: {
+          ownerType: AISubscriptionOwnerType.ORGANIZATION,
+          organizationId: org.id,
+          plan: AISubscriptionPlan.FREE,
+          status: AISubscriptionStatus.ACTIVE,
+          monthlyCredits: freeOrgMonthlyCredits(),
+          limitMode: AILimitMode.HARD,
+          currentPeriodStart: freeAIQuotaPeriod.periodStart,
+          currentPeriodEnd: freeAIQuotaPeriod.periodEnd,
         },
       });
 

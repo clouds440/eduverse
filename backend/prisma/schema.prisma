@@ -1463,6 +1463,7 @@ enum TargetType {
 
 enum AISubscriptionPlan {
   NONE
+  FREE
   STARTER
   GROWTH
   SCALE
