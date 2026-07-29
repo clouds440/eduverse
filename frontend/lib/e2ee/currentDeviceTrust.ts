@@ -5,6 +5,14 @@ import type { TrustedEncryptionDevice, TrustedDevicesResponse } from '@/types';
 import { getLocalTrustedDeviceKeys, getUserIdFromToken } from './localDeviceKeys';
 import { registerCurrentTrustedDevice } from './trustedDeviceRegistration';
 
+type TrustedDeviceCacheEntry = {
+    expiresAt: number;
+    promise: Promise<TrustedEncryptionDevice | undefined>;
+};
+
+const trustedDeviceCache = new Map<string, TrustedDeviceCacheEntry>();
+const TRUSTED_DEVICE_CACHE_TTL_MS = 60_000;
+
 export type CurrentDeviceTrustState = {
     clientDeviceId: string | null;
     data: TrustedDevicesResponse;
@@ -12,6 +20,40 @@ export type CurrentDeviceTrustState = {
     trustedDevices: TrustedEncryptionDevice[];
     pendingDevices: TrustedEncryptionDevice[];
 };
+
+export async function getCurrentTrustedEncryptionDevice(
+    token: string,
+    clientDeviceId: string,
+) {
+    const cacheKey = `${getUserIdFromToken(token) || 'unknown'}:${clientDeviceId}`;
+    const cached = trustedDeviceCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.promise;
+
+    const promise = api.e2ee.getMyDevices(token)
+        .then(({ devices }) => devices.find((device) => (
+            device.clientDeviceId === clientDeviceId &&
+            device.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
+            !device.revokedAt &&
+            Boolean(device.trustedAt)
+        )));
+    trustedDeviceCache.set(cacheKey, {
+        promise,
+        expiresAt: Date.now() + TRUSTED_DEVICE_CACHE_TTL_MS,
+    });
+    try {
+        const device = await promise;
+        const current = trustedDeviceCache.get(cacheKey);
+        if (current?.promise === promise) {
+            current.expiresAt =
+                Date.now() +
+                (device ? TRUSTED_DEVICE_CACHE_TTL_MS : 5_000);
+        }
+        return device;
+    } catch (error) {
+        trustedDeviceCache.delete(cacheKey);
+        throw error;
+    }
+}
 
 export async function getCurrentDeviceTrustState(token: string): Promise<CurrentDeviceTrustState> {
     const clientDeviceId = getDeviceId();

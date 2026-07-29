@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
 import { getDeviceId } from '@/lib/deviceUtils';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
-import { ChatType, E2EEDeviceTrustStatus } from '@/types';
+import { ChatType } from '@/types';
 import type {
     Chat,
     ChatE2EEContext,
@@ -30,6 +30,7 @@ import {
     flattenTrustedRecipientDevices,
 } from './recipientDevices';
 import type { JsonValue } from './sodium';
+import { getCurrentTrustedEncryptionDevice } from './currentDeviceTrust';
 import {
     E2EE_CHAT_HISTORY_KEY_ALGORITHM,
     generateChatHistoryKey,
@@ -50,21 +51,14 @@ type HistoryKeyCacheEntry = {
     historyKeyId: string;
     historyKey: Uint8Array;
 };
-type CurrentTrustedDeviceCacheEntry = {
-    expiresAt: number;
-    device?: TrustedEncryptionDevice;
-};
-
 const recipientDeviceCache = new Map<string, DeviceCacheEntry>();
 const chatHistoryKeyCache = new Map<string, HistoryKeyCacheEntry>();
-const currentTrustedDeviceCache = new Map<string, CurrentTrustedDeviceCacheEntry>();
 const decryptedChatMessageCache = new Map<string, Promise<string>>();
 const decryptedChatMessageValueCache = new Map<string, string>();
 const RECIPIENT_DEVICE_CACHE_TTL_MS = 30_000;
 const HISTORY_KEY_CACHE_TTL_MS = 5 * 60_000;
-const CURRENT_DEVICE_CACHE_TTL_MS = 60_000;
 const DECRYPTED_CHAT_CACHE_PREFIX = 'eduverse:e2ee:chat-message:v1';
-const DECRYPTED_CHAT_WARMUP_PREFIX = 'eduverse:e2ee:chat-message-warmup:v1';
+const MAX_DECRYPTED_CHAT_MEMORY_ENTRIES = 250;
 
 export interface PrepareEncryptedChatMessageOptions {
     chat: Chat;
@@ -100,40 +94,11 @@ function getDecryptedChatMessageCacheKey(message: ChatMessage, token: string) {
     const encryptedRevision = [
         message.id,
         message.updatedAt || message.createdAt,
-        message.encryptedContent.id || '',
-        message.encryptedContent.ciphertext,
+        message.encryptedContent.id ||
+            message.encryptedContent.ciphertext,
     ].join(':');
 
     return `${DECRYPTED_CHAT_CACHE_PREFIX}:${tokenUserId}:${clientDeviceId}:${encryptedRevision}`;
-}
-
-function getDecryptedChatWarmupCacheKey(token: string) {
-    const tokenUserId = getUserIdFromToken(token);
-    const clientDeviceId = getDeviceId();
-    if (!tokenUserId || !clientDeviceId) return null;
-    return `${DECRYPTED_CHAT_WARMUP_PREFIX}:${tokenUserId}:${clientDeviceId}`;
-}
-
-export async function getDecryptedChatWarmupCompleted(token: string) {
-    const cacheKey = getDecryptedChatWarmupCacheKey(token);
-    if (!cacheKey) return false;
-
-    try {
-        return (await idbGet<string>(cacheKey)) === '1';
-    } catch {
-        return false;
-    }
-}
-
-export async function markDecryptedChatWarmupCompleted(token: string) {
-    const cacheKey = getDecryptedChatWarmupCacheKey(token);
-    if (!cacheKey) return;
-
-    try {
-        await idbSet(cacheKey, '1');
-    } catch {
-        // The marker only controls UX. Missing IndexedDB support should not block secure messages.
-    }
 }
 
 export async function getCachedDecryptedChatMessageContent(message: ChatMessage, token: string) {
@@ -146,7 +111,7 @@ export async function getCachedDecryptedChatMessageContent(message: ChatMessage,
     try {
         const stored = await idbGet<string>(cacheKey);
         if (typeof stored !== 'string') return null;
-        decryptedChatMessageValueCache.set(cacheKey, stored);
+        rememberDecryptedChatMessage(cacheKey, stored);
         return stored;
     } catch {
         return null;
@@ -157,12 +122,24 @@ export async function cacheDecryptedChatMessageContent(message: ChatMessage, tok
     const cacheKey = getDecryptedChatMessageCacheKey(message, token);
     if (!cacheKey) return;
 
-    decryptedChatMessageValueCache.set(cacheKey, plaintext);
+    rememberDecryptedChatMessage(cacheKey, plaintext);
     try {
         await idbSet(cacheKey, plaintext);
     } catch {
         // Decrypted message cache is SWR-only. If IndexedDB is unavailable, in-memory cache still helps.
     }
+}
+
+function rememberDecryptedChatMessage(cacheKey: string, plaintext: string) {
+    if (
+        !decryptedChatMessageValueCache.has(cacheKey) &&
+        decryptedChatMessageValueCache.size >=
+            MAX_DECRYPTED_CHAT_MEMORY_ENTRIES
+    ) {
+        const oldestKey = decryptedChatMessageValueCache.keys().next().value;
+        if (oldestKey) decryptedChatMessageValueCache.delete(oldestKey);
+    }
+    decryptedChatMessageValueCache.set(cacheKey, plaintext);
 }
 
 async function getRecipientDevices(userIds: string[], token: string) {
@@ -424,44 +401,35 @@ export async function prepareEncryptedChatMessagePayload({
     };
 }
 
-async function getCurrentTrustedDevice(token: string, clientDeviceId: string) {
-    const tokenUserId = getUserIdFromToken(token) || 'unknown';
-    const cacheKey = `${tokenUserId}:${clientDeviceId}`;
-    const cached = currentTrustedDeviceCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.device;
-
-    const devices = await api.e2ee.getMyDevices(token);
-    const device = devices.devices.find((device) => (
-        device.clientDeviceId === clientDeviceId &&
-        device.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
-        !device.revokedAt &&
-        device.trustedAt
-    ));
-    currentTrustedDeviceCache.set(cacheKey, {
-        device,
-        expiresAt: Date.now() + (device ? CURRENT_DEVICE_CACHE_TTL_MS : 5_000),
-    });
-    return device;
-}
-
 export async function decryptChatMessageContent(message: ChatMessage, token: string): Promise<string> {
     if (!message.encryptedContent) return message.content;
-    const cacheKey = `${message.id}:${message.updatedAt}:${message.encryptedContent.id || message.encryptedContent.ciphertext}`;
+    const cacheKey = getDecryptedChatMessageCacheKey(message, token);
+    if (!cacheKey) return decryptChatMessageContentUncached(message, token);
+
     const cached = decryptedChatMessageCache.get(cacheKey);
     if (cached) return cached;
 
-    const persistentCached = await getCachedDecryptedChatMessageContent(message, token);
-    if (persistentCached !== null) return persistentCached;
+    const decryptPromise = (async () => {
+        const persistentCached =
+            await getCachedDecryptedChatMessageContent(message, token);
+        if (persistentCached !== null) return persistentCached;
 
-    const decryptPromise = decryptChatMessageContentUncached(message, token)
-        .then(async (plaintext) => {
-            await cacheDecryptedChatMessageContent(message, token, plaintext);
-            return plaintext;
-        });
+        const plaintext = await decryptChatMessageContentUncached(
+            message,
+            token,
+        );
+        await cacheDecryptedChatMessageContent(message, token, plaintext);
+        return plaintext;
+    })();
     decryptedChatMessageCache.set(cacheKey, decryptPromise);
-    decryptPromise.catch(() => {
-        decryptedChatMessageCache.delete(cacheKey);
-    });
+    void decryptPromise.then(
+        () => {
+            if (decryptedChatMessageCache.get(cacheKey) === decryptPromise) {
+                decryptedChatMessageCache.delete(cacheKey);
+            }
+        },
+        () => decryptedChatMessageCache.delete(cacheKey),
+    );
     return decryptPromise;
 }
 
@@ -477,7 +445,7 @@ async function decryptChatMessageContentUncached(message: ChatMessage, token: st
 
     const [localKeys, currentDevice] = await Promise.all([
         getLocalTrustedDeviceKeys(tokenUserId, clientDeviceId),
-        getCurrentTrustedDevice(token, clientDeviceId),
+        getCurrentTrustedEncryptionDevice(token, clientDeviceId),
     ]);
 
     if (!localKeys || !currentDevice) {

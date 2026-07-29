@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 import { getDeviceId } from '@/lib/deviceUtils';
-import { E2EEDeviceTrustStatus } from '@/types';
+import { get as idbGet, set as idbSet } from 'idb-keyval';
 import type {
     CreateMailPayload,
     EncryptedMailContent,
@@ -26,9 +26,25 @@ import {
     flattenTrustedRecipientDevices,
 } from './recipientDevices';
 import type { JsonValue } from './sodium';
+import { getCurrentTrustedEncryptionDevice } from './currentDeviceTrust';
 
 const ENCRYPTED_MAIL_SUBJECT_PLACEHOLDER = 'Encrypted mail';
 const ENCRYPTED_MAIL_MESSAGE_PLACEHOLDER = '[Encrypted mail message]';
+const DECRYPTED_MAIL_CACHE_PREFIX = 'eduverse:e2ee:mail-content:v1';
+const decryptedMailContentCache = new Map<string, Promise<string>>();
+
+function getDecryptedMailContentCacheKey(
+    encryptedContent: EncryptedMailContent,
+    token: string,
+) {
+    const tokenUserId = getUserIdFromToken(token);
+    const clientDeviceId = getDeviceId();
+    if (!tokenUserId || !clientDeviceId) return null;
+
+    const revision = encryptedContent.id ||
+        `${encryptedContent.nonce}:${encryptedContent.ciphertext}`;
+    return `${DECRYPTED_MAIL_CACHE_PREFIX}:${tokenUserId}:${clientDeviceId}:${revision}`;
+}
 
 async function getMailEncryptionState(
     recipientDevices: RecipientEncryptionDevicesResponse[],
@@ -197,22 +213,68 @@ export async function decryptMailContent(
 ) {
     if (!encryptedContent?.ciphertext) return fallback;
 
+    const cacheKey = getDecryptedMailContentCacheKey(
+        encryptedContent,
+        token,
+    );
+    if (cacheKey) {
+        const cachedPromise = decryptedMailContentCache.get(cacheKey);
+        if (cachedPromise) return cachedPromise;
+
+        const decryptPromise = (async () => {
+            try {
+                const cachedPlaintext = await idbGet<string>(cacheKey);
+                if (typeof cachedPlaintext === 'string') {
+                    return cachedPlaintext;
+                }
+            } catch {
+                // Continue with normal decryption when IndexedDB is unavailable.
+            }
+
+            const plaintext = await decryptMailContentUncached(
+                encryptedContent,
+                token,
+            );
+            try {
+                await idbSet(cacheKey, plaintext);
+            } catch {
+                // Decryption does not depend on browser storage.
+            }
+            return plaintext;
+        })();
+        decryptedMailContentCache.set(cacheKey, decryptPromise);
+        void decryptPromise.then(
+            () => {
+                if (decryptedMailContentCache.get(cacheKey) === decryptPromise) {
+                    decryptedMailContentCache.delete(cacheKey);
+                }
+            },
+            () => decryptedMailContentCache.delete(cacheKey),
+        );
+        return decryptPromise;
+    }
+
+    const plaintext = await decryptMailContentUncached(
+        encryptedContent,
+        token,
+    );
+    return plaintext;
+}
+
+async function decryptMailContentUncached(
+    encryptedContent: EncryptedMailContent,
+    token: string,
+) {
     const clientDeviceId = getDeviceId();
     if (!clientDeviceId) {
         throw new E2EEError('NO_TRUSTED_DEVICE', 'This browser is not ready for secure Mail.');
     }
     const tokenUserId = getUserIdFromToken(token);
 
-    const [localKeys, devices] = await Promise.all([
+    const [localKeys, currentDevice] = await Promise.all([
         getLocalTrustedDeviceKeys(tokenUserId, clientDeviceId),
-        api.e2ee.getMyDevices(token),
+        getCurrentTrustedEncryptionDevice(token, clientDeviceId),
     ]);
-    const currentDevice = devices.devices.find((device) => (
-        device.clientDeviceId === clientDeviceId &&
-        device.trustStatus === E2EEDeviceTrustStatus.TRUSTED &&
-        !device.revokedAt &&
-        device.trustedAt
-    ));
     if (!localKeys || !currentDevice) {
         throw new E2EEError('NO_TRUSTED_DEVICE', 'This browser is not approved for secure Mail.');
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { LockKeyhole } from 'lucide-react';
+import { Loader2, LockKeyhole } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { decryptChatMessageContent, isEncryptedChatMessage } from '@/lib/e2ee';
 import type { ChatMessage } from '@/types';
@@ -34,44 +34,42 @@ export function ProtectedChatMessageContent({
             : `${message.id}:${message.updatedAt}:plain`,
         [message.encryptedContent, message.id, message.updatedAt],
     );
-    const [plaintext, setPlaintext] = useState(message.decryptedContent || (encrypted ? '' : message.content));
-    const [status, setStatus] = useState<'decrypting' | 'ready' | 'unavailable'>(
-        !encrypted || message.decryptedContent ? 'ready' : 'decrypting',
-    );
+    const [decryption, setDecryption] = useState<{
+        key: string;
+        status: 'ready' | 'unavailable';
+        plaintext: string;
+    } | null>(null);
 
     useEffect(() => {
         let cancelled = false;
 
-        if (!encrypted) {
-            setPlaintext(message.content);
-            setStatus('ready');
+        if (
+            !encrypted ||
+            message.decryptedContent ||
+            !token ||
+            decryption?.key === encryptedContentKey
+        ) {
             return;
         }
 
-        if (message.decryptedContent) {
-            setPlaintext(message.decryptedContent);
-            setStatus('ready');
-            return;
-        }
-
-        if (!token) {
-            setStatus('unavailable');
-            return;
-        }
-
-        setStatus('decrypting');
         decryptChatMessageContent(message, token)
             .then((value) => {
                 if (cancelled) return;
-                setPlaintext(value);
-                setStatus('ready');
+                setDecryption({
+                    key: encryptedContentKey,
+                    status: 'ready',
+                    plaintext: value,
+                });
                 onDecrypted?.(message.id, value);
             })
             .catch((error) => {
                 if (cancelled) return;
                 console.warn('Encrypted chat message unavailable on this device', error);
-                setPlaintext('');
-                setStatus('unavailable');
+                setDecryption({
+                    key: encryptedContentKey,
+                    status: 'unavailable',
+                    plaintext: '',
+                });
             });
 
         return () => {
@@ -80,15 +78,31 @@ export function ProtectedChatMessageContent({
     }, [
         encrypted,
         encryptedContentKey,
-        message.content,
-        message.decryptedContent,
-        message.id,
+        decryption?.key,
+        message,
         onDecrypted,
         token,
     ]);
 
+    const status = !encrypted || message.decryptedContent
+        ? 'ready'
+        : !token
+            ? 'unavailable'
+            : decryption?.key === encryptedContentKey
+                ? decryption.status
+                : 'decrypting';
+    const plaintext = message.decryptedContent ||
+        (!encrypted ? message.content : decryption?.key === encryptedContentKey
+            ? decryption.plaintext
+            : '');
+
     if (status === 'decrypting') {
-        return null;
+        return (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold opacity-75">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading chat...
+            </span>
+        );
     }
 
     if (status === 'unavailable') {

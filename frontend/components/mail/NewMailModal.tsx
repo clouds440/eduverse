@@ -10,6 +10,7 @@ import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { MailTarget, Role, MailCategory } from '@/types';
+import type { MailDetail } from '@/types';
 import { ADMIN_REPLY_TEMPLATES } from './MailTemplates';
 import { useGlobal } from '@/context/GlobalContext';
 import { Toggle } from '@/components/ui/Toggle';
@@ -20,7 +21,7 @@ import { prepareEncryptedMailPayload } from '@/lib/e2ee';
 interface NewMailModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess?: () => void;
+    onSuccess?: (mail: MailDetail) => void;
     initialTargetId?: string;
     initialTarget?: MailTarget;
     initialSubject?: string;
@@ -488,7 +489,7 @@ export function NewMailModal({
             setLastTargetSearch('');
             setSelectedFiles([]);
             setNoReply(false);
-            onSuccess?.();
+            onSuccess?.(response);
             onClose();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to send mail.');
@@ -496,7 +497,7 @@ export function NewMailModal({
             setSubmitting(false);
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'new-mail-submit' });
         }
-    }, [category, dispatch, message, noReply, onClose, onSuccess, priority, selectedFiles, selectedTargets, subject, targetIds.length, token]);
+    }, [category, dispatch, message, noReply, onClose, onSuccess, priority, selectedFiles, selectedTargets, subject, targetIds.length, token, user?.id]);
 
     return (
         <ModalForm

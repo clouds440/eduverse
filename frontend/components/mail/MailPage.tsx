@@ -18,10 +18,15 @@ import {
   Users,
   Lock,
 } from "lucide-react";
-import useSWR, { mutate as mutateCache } from "swr";
-import { matchesCacheKeyPrefix } from "@/lib/swr";
+import useSWR from "swr";
 import { api } from "@/lib/api";
-import { MailItem, MailStatus, PaginatedResponse, Role } from "@/types";
+import {
+  MailDetail,
+  MailItem,
+  MailStatus,
+  PaginatedResponse,
+  Role,
+} from "@/types";
 import { DataTable, Column } from "@/components/ui/DataTable";
 import {
   MailStatusBadge,
@@ -56,11 +61,36 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { getRoleLabel } from "@/lib/roles";
 import { DocsLink } from "@/components/ui/DocsLink";
 import { Badge } from "../ui/Badge";
+import { useRateLimitedRevalidation } from "@/hooks/useRateLimitedRevalidation";
 
 interface MailPageProps {
   localStorageKey?: string;
   fixedCategory?: string;
   title?: string;
+}
+
+function reconcileMailPage(
+  pageData: PaginatedResponse<MailItem> | null | undefined,
+  mail: MailItem,
+  prepend: boolean,
+  limit: number,
+) {
+  if (!pageData) return pageData;
+  const index = pageData.data.findIndex((item) => item.id === mail.id);
+  if (index >= 0) {
+    const data = [...pageData.data];
+    data[index] = { ...data[index], ...mail };
+    return { ...pageData, data };
+  }
+  if (!prepend) return pageData;
+
+  const totalRecords = pageData.totalRecords + 1;
+  return {
+    ...pageData,
+    data: [mail, ...pageData.data].slice(0, limit),
+    totalRecords,
+    totalPages: Math.max(1, Math.ceil(totalRecords / limit)),
+  };
 }
 
 export function MailPage({
@@ -98,6 +128,7 @@ export function MailPage({
   const sortOrder = (searchParams.get("sortOrder") as "asc" | "desc") || "desc";
   const isAdminMail =
     user?.role === Role.SUPER_ADMIN || user?.role === Role.PLATFORM_ADMIN;
+  const userId = user?.id;
 
   const updateFilters = useCallback(
     (key: string, value: string) => {
@@ -156,23 +187,28 @@ export function MailPage({
   } = useSWR<PaginatedResponse<MailItem>>(mailsKey);
   const totalMails = paginatedData?.totalRecords ?? state.stats.mail?.total;
 
-  // Sync stats when data loads
-  useEffect(() => {
-    if (token && paginatedData) {
-      api.mail
-        .getUnreadCount(token)
-        .then(
-          (stats: {
-            total: number;
-            unread: number;
-            countsByStatus: Record<string, number>;
-          }) => {
-            dispatch({ type: "STATS_SET_MAIL", payload: stats });
-          },
-        )
-        .catch(() => {});
+  const revalidateMail = useCallback(async () => {
+    await retryMails();
+    if (!token || !isAdminMail) return;
+    try {
+      const stats = await api.mail.getUnreadCount(token);
+      dispatch({ type: "STATS_SET_MAIL", payload: stats });
+    } catch {
+      // Socket state remains visible until the next successful reconciliation.
     }
-  }, [token, paginatedData, dispatch]);
+  }, [dispatch, isAdminMail, retryMails, token]);
+  const scheduleMailRevalidation =
+    useRateLimitedRevalidation(revalidateMail);
+
+  useEffect(() => {
+    if (!token || !isAdminMail) return;
+    void api.mail
+      .getUnreadCount(token)
+      .then((stats) =>
+        dispatch({ type: "STATS_SET_MAIL", payload: stats }),
+      )
+      .catch(() => {});
+  }, [dispatch, isAdminMail, token]);
 
   const { subscribe } = useSocket({
     token: token,
@@ -180,6 +216,20 @@ export function MailPage({
     userRole: user?.role || undefined,
     orgId: user?.orgId || undefined,
   });
+
+  const updateVisibleMailPage = useCallback(
+    (
+      updater: (
+        current: PaginatedResponse<MailItem> | null | undefined,
+      ) => PaginatedResponse<MailItem> | null | undefined,
+    ) => {
+      void retryMails(
+        (current) => updater(current) ?? current,
+        { revalidate: false },
+      );
+    },
+    [retryMails],
+  );
 
   useEffect(() => {
     if (!authLoading && token) {
@@ -189,22 +239,58 @@ export function MailPage({
 
   useEffect(() => {
     const unsubs = [
-      subscribe("unread:update", () =>
-        mutateCache(matchesCacheKeyPrefix("mails")),
-      ),
-      subscribe("mail:new", () => mutateCache(matchesCacheKeyPrefix("mails"))),
-      subscribe("mail:message", () =>
-        mutateCache(matchesCacheKeyPrefix("mails")),
-      ),
-      subscribe("mail:update", () =>
-        mutateCache(matchesCacheKeyPrefix("mails")),
-      ),
+      subscribe("unread:update", scheduleMailRevalidation),
+      subscribe("mail:new", (payload: unknown) => {
+        const incoming = payload as MailDetail;
+        const mail: MailItem = {
+          ...incoming,
+          unreadCount:
+            incoming.unreadCount ??
+            (incoming.creatorId === userId ? 0 : 1),
+        };
+        const canInsert =
+          page === 1 &&
+          !searchQuery &&
+          !statusFilter &&
+          !directionFilter &&
+          sortBy === "createdAt" &&
+          sortOrder === "desc" &&
+          (!fixedCategory || mail.category === fixedCategory);
+        updateVisibleMailPage((current) =>
+          reconcileMailPage(current, mail, canInsert, pageSize),
+        );
+        scheduleMailRevalidation();
+      }),
+      subscribe("mail:update", (payload: unknown) => {
+        updateVisibleMailPage((current) =>
+          reconcileMailPage(
+            current,
+            payload as MailDetail,
+            false,
+            pageSize,
+          ),
+        );
+        scheduleMailRevalidation();
+      }),
     ];
 
     return () => {
       unsubs.forEach((u) => u());
     };
-  }, [subscribe, mailsKey]);
+  }, [
+    directionFilter,
+    fixedCategory,
+    page,
+    pageSize,
+    scheduleMailRevalidation,
+    searchQuery,
+    sortBy,
+    sortOrder,
+    statusFilter,
+    subscribe,
+    updateVisibleMailPage,
+    userId,
+  ]);
 
   const handleMailClick = (mail: MailItem) => {
     setManualSelectedMailId(mail.id);
@@ -498,7 +584,7 @@ export function MailPage({
         ),
       },
     ],
-    [],
+    [token],
   );
 
   if (authLoading || (!user && !authLoading)) {
@@ -637,14 +723,25 @@ export function MailPage({
             scroll: false,
           });
         }}
-        onUpdate={() => mutateCache(matchesCacheKeyPrefix("mails"))}
+        onUpdate={scheduleMailRevalidation}
       />
 
       <NewMailModal
         isOpen={newMailOpen}
         onClose={() => setNewMailOpen(false)}
-        onSuccess={() => {
-          mutateCache(matchesCacheKeyPrefix("mails"));
+        onSuccess={(mail) => {
+          updateVisibleMailPage((current) =>
+            page === 1 &&
+            !searchQuery &&
+            !statusFilter &&
+            !directionFilter &&
+            sortBy === "createdAt" &&
+            sortOrder === "desc" &&
+            (!fixedCategory || mail.category === fixedCategory)
+              ? reconcileMailPage(current, mail, true, pageSize)
+              : reconcileMailPage(current, mail, false, pageSize),
+          );
+          scheduleMailRevalidation();
           dispatch({
             type: "TOAST_ADD",
             payload: { message: "Mail sent", type: "success" },

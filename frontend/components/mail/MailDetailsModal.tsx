@@ -15,7 +15,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { MailDetail, MailStatus } from '@/types';
+import { MailDetail, MailMessage, MailStatus } from '@/types';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { MailStatusBadge, MailPriorityBadge } from '@/components/mail/MailStatusBadge';
@@ -27,6 +27,7 @@ import { useBackStackEntry } from '@/context/BackNavigationContext';
 import { getMailSubjectDisplay } from '@/lib/protectedContentDisplay';
 import { ProtectedMailText } from '@/components/mail/ProtectedMailContent';
 import { prepareEncryptedMailReplyPayload } from '@/lib/e2ee';
+import { useRateLimitedRevalidation } from '@/hooks/useRateLimitedRevalidation';
 
 interface MailDetailsModalProps {
     mailId: string | null;
@@ -34,6 +35,11 @@ interface MailDetailsModalProps {
     onClose: () => void;
     onUpdate?: () => void;
 }
+
+type MailMessageSocketEvent = {
+    mailId: string;
+    message: MailMessage;
+};
 
 function formatLabel(value: string) {
     return value.replace(/_/g, ' ');
@@ -87,6 +93,10 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
         }
     }, [dispatch, mailId, token]);
 
+    const scheduleDetailRevalidation = useRateLimitedRevalidation(
+        () => fetchMailDetails(false),
+    );
+
     useEffect(() => {
         if (isOpen && mailId) {
             void fetchMailDetails(true);
@@ -111,17 +121,32 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
         joinRoom(`mail:${mailId}`);
         const unsubs = [
             subscribe('mail:message', (data: unknown) => {
-                const payload = data as { mailId: string };
-                if (payload.mailId === mailId) {
-                    void fetchMailDetails(false);
-                    onUpdate?.();
+                const event = data as MailMessageSocketEvent;
+                if (event.mailId === mailId && event.message) {
+                    setMail((current) => {
+                        if (!current) return current;
+                        if (current.messages.some((message) => (
+                            message.id === event.message.id
+                        ))) {
+                            return current;
+                        }
+                        return {
+                            ...current,
+                            updatedAt: event.message.updatedAt,
+                            unreadCount: 0,
+                            messages: [...current.messages, event.message],
+                            _count: {
+                                messages: current._count.messages + 1,
+                            },
+                        };
+                    });
+                    scheduleDetailRevalidation();
                 }
             }),
             subscribe('mail:update', (data: unknown) => {
                 const updated = data as MailDetail;
                 if (updated.id === mailId) {
                     setMail(updated);
-                    onUpdate?.();
                 }
             }),
         ];
@@ -130,7 +155,14 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
             unsubs.forEach((unsubscribe) => unsubscribe());
             leaveRoom(`mail:${mailId}`);
         };
-    }, [fetchMailDetails, isOpen, joinRoom, leaveRoom, mailId, onUpdate, subscribe]);
+    }, [
+        isOpen,
+        joinRoom,
+        leaveRoom,
+        mailId,
+        scheduleDetailRevalidation,
+        subscribe,
+    ]);
 
     const handleStatusUpdate = useCallback(async (newStatus: MailStatus) => {
         if (!mail || !token || loading) return;
@@ -143,8 +175,11 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
 
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: loadingId });
-            await api.mail.updateMail(mail.id, { status: newStatus }, token);
-            const updated = await api.mail.getMail(mail.id, token);
+            const updated = await api.mail.updateMail(
+                mail.id,
+                { status: newStatus },
+                token,
+            );
             setMail(updated);
             onUpdate?.();
             dispatch({ type: 'TOAST_ADD', payload: { message: `Status updated to ${formatLabel(newStatus)}`, type: 'success' } });
@@ -187,7 +222,9 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                     api.files.uploadFile(orgId, 'MAIL_MESSAGE', newMessageId, file, token),
                 ));
             }
-            const updated = await api.mail.getMail(mail.id, token);
+            const updated = files?.length
+                ? await api.mail.getMail(mail.id, token)
+                : replyResult;
             setMail(updated);
             onUpdate?.();
         } catch (error: unknown) {

@@ -30,7 +30,6 @@ import {
 import {
   Chat,
   ChatMessage,
-  ChatParticipant,
   ChatType,
   ChatMessageType,
   PaginatedResponse,
@@ -45,11 +44,9 @@ import {
   cacheDecryptedChatMessageContent,
   decryptChatMessageContent,
   getCachedDecryptedChatMessageContent,
-  getDecryptedChatWarmupCompleted,
   getActiveChatParticipantUserIds,
   getUserIdsWithoutTrustedRecipientDevices,
   isEncryptedChatMessage,
-  markDecryptedChatWarmupCompleted,
   prepareEncryptedChatMessagePayload,
   requestCurrentDeviceTrust,
   trustedDeviceSetupErrorMessage,
@@ -816,11 +813,10 @@ export function ChatLayout() {
         if (plaintext) applyDecryptedChatPreview(chatId, message.id, plaintext);
       });
 
-      const warmupCompleted = await getDecryptedChatWarmupCompleted(token);
       const cachedCount = cached.filter((entry) =>
         Boolean(entry.plaintext),
       ).length;
-      const shouldShowProgress = !warmupCompleted && cachedCount === 0;
+      const shouldShowProgress = cachedCount === 0;
       if (cancelled) return;
 
       if (shouldShowProgress) {
@@ -834,13 +830,11 @@ export function ChatLayout() {
       }
 
       let done = 0;
-      let openedCount = cachedCount;
       for (const { chatId, message } of previewMessages) {
         if (cancelled) return;
         try {
           const plaintext = await decryptChatMessageContent(message, token);
           if (!cancelled) {
-            openedCount += 1;
             applyDecryptedChatPreview(chatId, message.id, plaintext);
           }
         } catch (error) {
@@ -863,9 +857,6 @@ export function ChatLayout() {
       }
 
       if (!cancelled) {
-        if (openedCount > 0) {
-          await markDecryptedChatWarmupCompleted(token);
-        }
         setChatSyncProgress({
           status: "idle",
           done: previewMessages.length,
@@ -2987,7 +2978,15 @@ export function ChatLayout() {
                                   )}
                                 </span>
                                 <span>
-                                  {getChatListMessagePreview(lastMsg)}
+                                  {chatSyncProgress.status === "syncing" &&
+                                  isEncryptedChatMessage(lastMsg) &&
+                                  !(
+                                    lastMsg as ChatMessage & {
+                                      decryptedContent?: string;
+                                    }
+                                  ).decryptedContent
+                                    ? "Loading chat..."
+                                    : getChatListMessagePreview(lastMsg)}
                                 </span>
                               </>
                             ) : (
@@ -3093,7 +3092,7 @@ export function ChatLayout() {
                   aria-hidden="true"
                 />
                 <span>
-                  Syncing messages...{" "}
+                  Loading chats...{" "}
                   {Math.round(
                     (chatSyncProgress.done / chatSyncProgress.total) * 100,
                   )}
