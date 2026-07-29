@@ -40,7 +40,7 @@ export class AIOperationsToolsService implements OnModuleInit {
     );
     this.register(
       'getAcademicCalendarSummary',
-      'Return academic calendar context: active/upcoming academic cycles, holidays, events, closures, and active course/section preference windows.',
+      'Return academic calendar context: active/upcoming academic cycles, academic events, closures, and active course/section preference windows.',
       (input, context) => this.getAcademicCalendarSummary(context, parseInput(input)),
     );
     this.register(
@@ -102,7 +102,7 @@ export class AIOperationsToolsService implements OnModuleInit {
     const end = addDays(now, Math.min(Math.max(input.days ?? 90, 1), 180));
     const limit = clampLimit(input.limit, 12);
     const searchWhere = textSearch(input.search, ['title', 'description']);
-    const [cycles, holidays, preferenceWindows] = await Promise.all([
+    const [cycles, academicEvents, preferenceWindows] = await Promise.all([
       this.prisma.academicCycle.findMany({
         where: {
           organizationId: context.orgId,
@@ -115,7 +115,7 @@ export class AIOperationsToolsService implements OnModuleInit {
         orderBy: [{ isActive: 'desc' }, { startDate: 'asc' }],
         select: { id: true, name: true, code: true, startDate: true, endDate: true, isActive: true },
       }),
-      this.prisma.holiday.findMany({
+      this.prisma.academicEvent.findMany({
         where: {
           organizationId: context.orgId,
           isActive: true,
@@ -156,19 +156,19 @@ export class AIOperationsToolsService implements OnModuleInit {
           startDate: dateKey(cycle.startDate),
           endDate: dateKey(cycle.endDate),
         })),
-        calendarItems: holidays.map((holiday) => ({
-          calendarItemId: holiday.id,
-          title: holiday.title,
-          description: holiday.description,
-          type: holiday.type,
-          matchMode: holiday.matchMode,
-          startDate: dateKey(holiday.startDate),
-          endDate: dateKey(holiday.endDate),
-          startTime: holiday.startTime,
-          endTime: holiday.endTime,
-          isFullDay: holiday.isFullDay,
-          departmentScopeType: holiday.departmentScopeType,
-          departments: holiday.departmentLinks.map((entry) => ({
+        calendarItems: academicEvents.map((academicEvent) => ({
+          calendarItemId: academicEvent.id,
+          title: academicEvent.title,
+          description: academicEvent.description,
+          type: academicEvent.type,
+          matchMode: academicEvent.matchMode,
+          startDate: dateKey(academicEvent.startDate),
+          endDate: dateKey(academicEvent.endDate),
+          startTime: academicEvent.startTime,
+          endTime: academicEvent.endTime,
+          isFullDay: academicEvent.isFullDay,
+          departmentScopeType: academicEvent.departmentScopeType,
+          departments: academicEvent.departmentLinks.map((entry) => ({
             departmentId: entry.department.id,
             name: entry.department.name,
             code: entry.department.code,
@@ -484,8 +484,8 @@ function normalizedIncludes(include?: string[]) {
   const aliases = new Map<string, string>([
     ['event', 'calendar'],
     ['events', 'calendar'],
-    ['holiday', 'calendar'],
-    ['holidays', 'calendar'],
+    ['academic event', 'calendar'],
+    ['academic events', 'calendar'],
     ['academicCalendar', 'calendar'],
     ['room', 'campus'],
     ['rooms', 'campus'],

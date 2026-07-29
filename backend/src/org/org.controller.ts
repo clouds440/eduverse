@@ -51,7 +51,7 @@ import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import { InsightsQueryDto } from '../insights/dto/insights-query.dto';
 import { RoleAccountsService, type UpdateRoleAccountInput } from '../role-accounts/role-accounts.service';
-import { HolidaysService } from '../holidays/holidays.service';
+import { AcademicEventsService } from '../academic-events/academic-events.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -67,7 +67,7 @@ export class OrgController {
     private readonly assessmentsService: AssessmentsService,
     private readonly attendanceService: AttendanceService,
     private readonly roleAccountsService: RoleAccountsService,
-    private readonly holidaysService: HolidaysService,
+    private readonly academicEventsService: AcademicEventsService,
   ) { }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
@@ -776,7 +776,7 @@ export class OrgController {
       startDate,
       endDate,
     });
-    return this.holidaysService.buildTimetableResponse(orgId, timetable.schedules, timetable.range);
+    return this.academicEventsService.buildTimetableResponse(orgId, timetable.schedules, timetable.range);
   }
 
   // --- Attendance ---

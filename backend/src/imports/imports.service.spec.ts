@@ -44,6 +44,8 @@ function createService(overrides: Partial<Record<string, any>> = {}) {
     { createRoom: jest.fn() } as any,
     { createCohort: jest.fn() } as any,
     attendance as any,
+    { enroll: jest.fn() } as any,
+    { getOrThrow: jest.fn().mockReturnValue('test-jwt-secret') } as any,
   );
 
   return { service, prisma, attendance };
@@ -668,6 +670,32 @@ describe('ImportsService schedule validation', () => {
 
     expect(result.summary.valid).toBe(0);
     expect(result.invalidRows[0].errors[0].message).toContain('Schedule conflict');
+  });
+
+  it('confirms a prepared import on a different service instance', async () => {
+    const section = {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'section-1',
+        teachers: [{ id: 'teacher-1', user: { email: 'sara.ahmed@teacher.example' } }],
+      }),
+    };
+    const validator = createService({ prisma: { section } });
+    const importer = createService({ prisma: { section } });
+    const csv = [
+      scheduleHeaders.join(','),
+      'GRADE-9-A,Mon,,09:00,10:00,,,OFFICIAL',
+    ].join('\n');
+
+    const validation = await validator.service.validateEntityCsv('org-1', 'schedules', csv, admin);
+    const result = await importer.service.confirmEntityImport(
+      'org-1',
+      'schedules',
+      validation.importSessionId,
+      admin,
+    );
+
+    expect(result.importedCount).toBe(1);
+    expect(importer.attendance.createSchedule).toHaveBeenCalledTimes(1);
   });
 });
 

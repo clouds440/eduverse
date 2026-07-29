@@ -97,7 +97,7 @@ export const publicSeoRoutes: PublicSeoRoute[] = [
 
 export const privateSeoPaths = [
   '/admin',
-  '/academic-calender',
+  '/academic-calendar',
   '/academic-cycles',
   '/attendance',
   '/buildings-and-rooms',

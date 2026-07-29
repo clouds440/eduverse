@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
-import { HolidayOverlay, HolidayType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role, ScheduleType } from '@/types';
+import { AcademicEventOverlay, AcademicEventType, Section, Student, Teacher, TimetableEntry, TimetableResponse, Role, ScheduleType } from '@/types';
 import { Building2, CalendarDays, ChevronLeft, ChevronRight, Clock, Download, Maximize2, MapPin, UserRound, Users, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -52,7 +52,7 @@ interface TimetableGridProps {
     entriesByDay: Map<number, TimetableEntry[]>;
     slotGroupsByDay: Map<number, TimetableSlotGroup[]>;
     breaksByDay: Map<number, TimetableBreak[]>;
-    overlaysByDay: Map<number, HolidayOverlay[]>;
+    overlaysByDay: Map<number, AcademicEventOverlay[]>;
     timeSlots: number[];
     startHour: number;
     rowCount: number;
@@ -233,31 +233,43 @@ function getTimetableCardStyle(entry: TimetableEntry): React.CSSProperties {
     };
 }
 
-function getHolidayTypeLabel(type: HolidayType) {
+function getAcademicEventTypeLabel(type: AcademicEventType) {
     switch (type) {
-        case HolidayType.EXAM_BREAK:
+        case AcademicEventType.EXAM_BREAK:
             return 'Exam break';
-        case HolidayType.EVENT:
+        case AcademicEventType.EVENT:
             return 'Event';
-        case HolidayType.CLOSURE:
+        case AcademicEventType.CLOSURE:
             return 'Closure';
         default:
             return 'Holiday';
     }
 }
 
-function getHolidayOverlayStyle(overlay: HolidayOverlay): React.CSSProperties {
-    const palette: Record<HolidayType, { bg: string; border: string; text: string }> = {
-        [HolidayType.HOLIDAY]: { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.42)', text: 'rgb(5,150,105)' },
-        [HolidayType.EXAM_BREAK]: { bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.42)', text: 'rgb(37,99,235)' },
-        [HolidayType.EVENT]: { bg: 'rgba(168,85,247,0.12)', border: 'rgba(168,85,247,0.42)', text: 'rgb(126,34,206)' },
-        [HolidayType.CLOSURE]: { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.42)', text: 'rgb(220,38,38)' },
+function getAcademicEventOverlayStyle(overlay: AcademicEventOverlay): React.CSSProperties {
+    const palette: Record<AcademicEventType, { bg: string; border: string; text: string }> = {
+        [AcademicEventType.HOLIDAY]: { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.42)', text: 'rgb(5,150,105)' },
+        [AcademicEventType.EXAM_BREAK]: { bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.42)', text: 'rgb(37,99,235)' },
+        [AcademicEventType.EVENT]: { bg: 'rgba(168,85,247,0.12)', border: 'rgba(168,85,247,0.42)', text: 'rgb(126,34,206)' },
+        [AcademicEventType.CLOSURE]: { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.42)', text: 'rgb(220,38,38)' },
     };
-    const colors = palette[overlay.type] || palette[HolidayType.HOLIDAY];
+    const colors = palette[overlay.type] || palette[AcademicEventType.HOLIDAY];
     return {
         backgroundColor: colors.bg,
         borderColor: colors.border,
         color: colors.text,
+    };
+}
+
+function getAcademicEventOverlayVisualStyle(overlay: AcademicEventOverlay): React.CSSProperties {
+    const base = getAcademicEventOverlayStyle(overlay);
+    if (!overlay.bannerUrl) return base;
+
+    return {
+        ...base,
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.82), rgba(255,255,255,0.82)), url("${getPublicUrl(overlay.bannerUrl, overlay.bannerUpdatedAt)}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
     };
 }
 
@@ -468,13 +480,13 @@ function TimetableGrid({
                                         </div>
                                     )}
                                     {fullDayOverlays.length > 0 && (
-                                        <div className="absolute inset-2 z-20 flex flex-col justify-center gap-2 rounded-md border border-dashed p-3 text-center shadow-sm backdrop-blur-sm" style={getHolidayOverlayStyle(fullDayOverlays[0])}>
+                                        <div className="absolute inset-2 z-20 flex flex-col justify-center gap-2 rounded-md border border-dashed p-3 text-center shadow-sm backdrop-blur-sm" style={getAcademicEventOverlayVisualStyle(fullDayOverlays[0])}>
                                             <CalendarDays className="mx-auto h-6 w-6 opacity-80" aria-hidden="true" />
                                             {fullDayOverlays.map((overlay) => (
                                                 <div key={overlay.id} className="min-w-0">
                                                     <p className="truncate text-sm font-black">{overlay.title}</p>
                                                     <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide opacity-75">
-                                                        {getHolidayTypeLabel(overlay.type)}
+                                                        {getAcademicEventTypeLabel(overlay.type)}
                                                     </p>
                                                 </div>
                                             ))}
@@ -623,11 +635,11 @@ function TimetableGrid({
                                             <div
                                                 key={overlay.id}
                                                 className="z-20 m-1 flex min-h-0 flex-col justify-center overflow-hidden rounded-md border border-dashed px-2.5 py-2 text-center shadow-sm backdrop-blur-sm"
-                                                style={{ ...getHolidayOverlayStyle(overlay), gridRow: `${rowStart} / span ${rowSpan}` }}
+                                                style={{ ...getAcademicEventOverlayVisualStyle(overlay), gridRow: `${rowStart} / span ${rowSpan}` }}
                                             >
                                                 <p className="truncate text-[11px] font-black">{overlay.title}</p>
                                                 <p className="mt-0.5 truncate text-[10px] font-bold opacity-75">
-                                                    {overlay.startTime} - {overlay.endTime} - {getHolidayTypeLabel(overlay.type)}
+                                                    {overlay.startTime} - {overlay.endTime} - {getAcademicEventTypeLabel(overlay.type)}
                                                 </p>
                                             </div>
                                         );
@@ -740,7 +752,7 @@ export function StudentTimetableView({
     }, [visibleEntries]);
 
     const overlaysByDay = useMemo(() => {
-        const grouped = new Map<number, HolidayOverlay[]>();
+        const grouped = new Map<number, AcademicEventOverlay[]>();
         WEEK_DAYS.forEach((day) => grouped.set(day, []));
         overlays.forEach((overlay) => {
             if (!grouped.has(overlay.day)) grouped.set(overlay.day, []);

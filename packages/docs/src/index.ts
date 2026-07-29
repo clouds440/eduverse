@@ -898,15 +898,15 @@ export const docsPages: DocPage[] = [
   {
     slug: 'academic-calendar',
     title: 'Academic Calendar',
-    description: 'Create holidays, events, closures, and exam breaks that appear over timetable and attendance planning.',
+    description: 'Create academic events, holidays, closures, and exam breaks that appear over timetable and attendance planning.',
     category: 'Academics',
-    tags: ['academic calendar', 'holidays', 'events', 'closures', 'timetable'],
+    tags: ['academic calendar', 'academic events', 'events', 'closures', 'timetable'],
     related: ['academic-cycles', 'timetable', 'attendance', 'announcements'],
     sections: [
       {
         id: 'calendar-purpose',
         title: 'Calendar purpose',
-        tags: ['holidays', 'events', 'planning'],
+        tags: ['academic events', 'events', 'planning'],
         blocks: [
           {
             type: 'paragraph',

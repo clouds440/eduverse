@@ -19,7 +19,7 @@ import type {
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, SectionGradebookResponse, OrgUserCounts,
     ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, ImportProgressEvent, InvalidImportRow, AttendanceMonthlyImportOptions,
-    Holiday, CreateHolidayRequest, UpdateHolidayRequest, HolidayType,
+    AcademicEvent, CreateAcademicEventRequest, UpdateAcademicEventRequest, AcademicEventType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
     PreferenceWindow, PreferenceWindowRequest, PreferenceResults, PreferenceSubmission, Enrollment, EnrollmentMutationResponse,
@@ -1045,17 +1045,17 @@ export const api = {
         getInsights: (token: string, params: InsightsQueryParams = {}) =>
             request<DashboardInsights>(`/org/insights${buildQueryString(params as QueryParams)}`, { token }),
 
-        // --- Holidays / Academic Calendar ---
-        getHolidays: (token: string, params: { page?: number, limit?: number, search?: string, type?: HolidayType, isActive?: boolean, startDate?: string, endDate?: string, departmentId?: string } = {}) =>
-            request<PaginatedResponse<Holiday>>(`/org/holidays${buildQueryString(params)}`, { token }),
-        createHoliday: (data: CreateHolidayRequest, token: string) =>
-            request<Holiday>('/org/holidays', { method: 'POST', body: JSON.stringify(data), token }),
-        updateHoliday: (id: string, data: UpdateHolidayRequest, token: string) =>
-            request<Holiday>(`/org/holidays/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        setHolidayActive: (id: string, isActive: boolean, token: string) =>
-            request<Holiday>(`/org/holidays/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
-        deleteHoliday: (id: string, token: string) =>
-            request<void>(`/org/holidays/${id}`, { method: 'DELETE', token }),
+        // --- academic events / Academic Calendar ---
+        getAcademicEvents: (token: string, params: { page?: number, limit?: number, search?: string, type?: AcademicEventType, isActive?: boolean, startDate?: string, endDate?: string, departmentId?: string } = {}) =>
+            request<PaginatedResponse<AcademicEvent>>(`/org/academic-events${buildQueryString(params)}`, { token }),
+        createAcademicEvent: (data: CreateAcademicEventRequest, token: string) =>
+            request<AcademicEvent>('/org/academic-events', { method: 'POST', body: JSON.stringify(data), token }),
+        updateAcademicEvent: (id: string, data: UpdateAcademicEventRequest, token: string) =>
+            request<AcademicEvent>(`/org/academic-events/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        setAcademicEventActive: (id: string, isActive: boolean, token: string) =>
+            request<AcademicEvent>(`/org/academic-events/${id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive }), token }),
+        deleteAcademicEvent: (id: string, token: string) =>
+            request<void>(`/org/academic-events/${id}`, { method: 'DELETE', token }),
 
         // --- Evaluations & Feedback ---
         getEvaluationPending: (token: string) =>

@@ -43,7 +43,7 @@ model Organization {
   chats           Chat[]
   announcements   Announcement[]
   preferenceWindows PreferenceWindow[]
-  holidays        Holiday[]
+  academicEvents  AcademicEvent[]
   evaluationWindows EvaluationWindow[]
   evaluations       Evaluation[]
   academicCycles  AcademicCycle[]
@@ -132,8 +132,8 @@ model User {
   createdPreferenceWindows PreferenceWindow[] @relation("CreatedPreferenceWindows")
   updatedPreferenceWindows PreferenceWindow[] @relation("UpdatedPreferenceWindows")
   preferenceSubmissions PreferenceSubmission[] @relation("PreferenceSubmissionUsers")
-  createdHolidays        Holiday[]          @relation("CreatedHolidays")
-  updatedHolidays        Holiday[]          @relation("UpdatedHolidays")
+  createdAcademicEvents  AcademicEvent[]    @relation("CreatedAcademicEvents")
+  updatedAcademicEvents  AcademicEvent[]    @relation("UpdatedAcademicEvents")
   createdEvaluationWindows EvaluationWindow[] @relation("CreatedEvaluationWindows")
   updatedEvaluationWindows EvaluationWindow[] @relation("UpdatedEvaluationWindows")
   createdEvaluations      Evaluation[]      @relation("CreatedEvaluations")
@@ -502,7 +502,7 @@ model Department {
   studentDepartments  StudentDepartment[]
   managerDepartments  ManagerDepartment[]
   subAdminDepartments SubAdminDepartment[]
-  holidayDepartments  HolidayDepartment[]
+  academicEventDepartments AcademicEventDepartment[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -1656,18 +1656,22 @@ model AIMessage {
   @@index([createdAt])
 }
 
-enum HolidayType {
+enum AcademicEventType {
   HOLIDAY
   EXAM_BREAK
   EVENT
   CLOSURE
+
+  @@map("HolidayType")
 }
 
-enum HolidayMatchMode {
+enum AcademicEventMatchMode {
   SINGLE_DAY
   DATE_RANGE
   WEEKDAYS_IN_RANGE
   DAILY_IN_RANGE
+
+  @@map("HolidayMatchMode")
 }
 
 model Announcement {
@@ -1677,6 +1681,11 @@ model Announcement {
   targetType     TargetType
   targetId       String? // e.g. orgId, role name, or sectionId
   actionUrl      String?
+  bannerUrl      String?
+  bannerFileId   String?
+  bannerFilename String?
+  bannerMimeType String?
+  bannerUpdatedAt DateTime?
   priority       AnnouncementPriority @default(NORMAL)
   creatorId      String
   organizationId String? // Scope to org if applicable
@@ -1818,19 +1827,24 @@ model PreferenceRank {
 
 // ─── TIMETABLE & ATTENDANCE SYSTEM ──────────────────────────────────────────
 
-model Holiday {
+model AcademicEvent {
   id             String           @id @default(uuid())
   organizationId String
   title          String
   description    String?
-  type           HolidayType      @default(HOLIDAY)
-  matchMode      HolidayMatchMode @default(SINGLE_DAY)
+  type           AcademicEventType      @default(HOLIDAY)
+  matchMode      AcademicEventMatchMode @default(SINGLE_DAY)
   departmentScopeType DepartmentScopeType @default(ALL)
   startDate      DateTime
   endDate        DateTime
   startTime      String?
   endTime        String?
   daysOfWeek     Int[]            @default([])
+  bannerUrl      String?
+  bannerFileId   String?
+  bannerFilename String?
+  bannerMimeType String?
+  bannerUpdatedAt DateTime?
   isFullDay      Boolean          @default(true)
   isActive       Boolean          @default(true)
   createdById    String
@@ -1839,27 +1853,29 @@ model Holiday {
   updatedAt      DateTime         @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    User         @relation("CreatedHolidays", fields: [createdById], references: [id])
-  updatedBy    User?        @relation("UpdatedHolidays", fields: [updatedById], references: [id])
-  departmentLinks HolidayDepartment[]
+  createdBy    User         @relation("CreatedAcademicEvents", fields: [createdById], references: [id])
+  updatedBy    User?        @relation("UpdatedAcademicEvents", fields: [updatedById], references: [id])
+  departmentLinks AcademicEventDepartment[]
 
   @@index([organizationId])
   @@index([organizationId, isActive])
   @@index([organizationId, startDate, endDate])
   @@index([type])
   @@index([matchMode])
+  @@map("Holiday")
 }
 
-model HolidayDepartment {
-  holidayId    String
+model AcademicEventDepartment {
+  academicEventId String @map("holidayId")
   departmentId String
   assignedAt   DateTime @default(now())
 
-  holiday    Holiday    @relation(fields: [holidayId], references: [id], onDelete: Cascade)
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  academicEvent AcademicEvent @relation(fields: [academicEventId], references: [id], onDelete: Cascade)
+  department    Department    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
-  @@id([holidayId, departmentId])
+  @@id([academicEventId, departmentId])
   @@index([departmentId])
+  @@map("HolidayDepartment")
 }
 
 model EvaluationWindow {

@@ -29,7 +29,7 @@ type FetcherKey =
     | readonly ['academicCycles', object]
     | readonly ['cohorts', object]
     | readonly ['departments', object]
-    | readonly ['holidays', object]
+    | readonly ['academic-events', object]
     | readonly ['buildings', object]
     | readonly ['rooms', object]
     | readonly ['campus-navigation', object]
@@ -104,8 +104,8 @@ function createFetcher(token: string | null) {
                     return await api.cohorts.getCohorts(token, args[0] as object) as T;
                 case 'departments':
                     return await api.org.getDepartments(token, args[0] as object) as T;
-                case 'holidays':
-                    return await api.org.getHolidays(token, args[0] as object) as T;
+                case 'academic-events':
+                    return await api.org.getAcademicEvents(token, args[0] as object) as T;
                 case 'buildings':
                     return await api.org.getBuildings(token, args[0] as object) as T;
                 case 'rooms':

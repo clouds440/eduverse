@@ -1,5 +1,5 @@
-import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
-export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, HolidayType, HolidayMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
+import type { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, AcademicEventType, AcademicEventMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone } from './enums';
+export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategory, OrganizationType, OrgStatus, AssessmentType, GradeStatus, GpaCalculationMethod, GpaRounding, ChatType, ChatParticipantRole, ChatMessageType, TargetType, AnnouncementPriority, AcademicEventType, AcademicEventMatchMode, EvaluationType, ThemeMode, AttendanceStatus, RoomType, DepartmentScopeType, Tone, UiVariant } from './enums';
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
 import type { E2EEDeviceTrustStatus, E2EEHistoryProvisioningStatus, TwoFactorChallengeStatus, TwoFactorMethod } from './enums';
 export { E2EEDeviceTrustStatus, E2EEHistoryProvisioningStatus, TwoFactorChallengeStatus, TwoFactorMethod, TrustedDevicePromptFlow } from './enums';
@@ -2245,6 +2245,11 @@ export interface Announcement {
     targetType: TargetType;
     targetId: string | null;
     actionUrl: string | null;
+    bannerUrl?: string | null;
+    bannerFileId?: string | null;
+    bannerFilename?: string | null;
+    bannerMimeType?: string | null;
+    bannerUpdatedAt?: string | null;
     priority: AnnouncementPriority;
     creatorId: string;
     organizationId: string | null;
@@ -2255,25 +2260,30 @@ export interface Announcement {
 
 // â”€â”€â”€ Timetable & Attendance System Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-export interface HolidayDepartmentLink {
-    holidayId: string;
+export interface AcademicEventDepartmentLink {
+    academicEventId: string;
     departmentId: string;
     department?: Department;
 }
 
-export interface Holiday {
+export interface AcademicEvent {
     id: string;
     organizationId: string;
     title: string;
     description?: string | null;
-    type: HolidayType;
-    matchMode: HolidayMatchMode;
+    type: AcademicEventType;
+    matchMode: AcademicEventMatchMode;
     departmentScopeType: DepartmentScopeType;
     startDate: string;
     endDate: string;
     startTime?: string | null;
     endTime?: string | null;
     daysOfWeek: number[];
+    bannerUrl?: string | null;
+    bannerFileId?: string | null;
+    bannerFilename?: string | null;
+    bannerMimeType?: string | null;
+    bannerUpdatedAt?: string | null;
     isFullDay: boolean;
     isActive: boolean;
     createdById: string;
@@ -2282,14 +2292,18 @@ export interface Holiday {
     updatedAt: string;
     createdBy?: User;
     updatedBy?: User | null;
-    departmentLinks?: HolidayDepartmentLink[];
+    departmentLinks?: AcademicEventDepartmentLink[];
 }
 
-export interface CreateHolidayRequest {
+export interface CreateAcademicEventRequest {
     title: string;
     description?: string;
-    type?: HolidayType;
-    matchMode?: HolidayMatchMode;
+    bannerFileId?: string;
+    bannerUrl?: string;
+    bannerFilename?: string;
+    bannerMimeType?: string;
+    type?: AcademicEventType;
+    matchMode?: AcademicEventMatchMode;
     departmentScopeType?: DepartmentScopeType;
     departmentIds?: string[];
     startDate: string;
@@ -2305,7 +2319,7 @@ export interface CreateHolidayRequest {
     announcementPriority?: AnnouncementPriority;
 }
 
-export type UpdateHolidayRequest = Partial<CreateHolidayRequest>;
+export type UpdateAcademicEventRequest = Partial<CreateAcademicEventRequest>;
 
 export interface EvaluationWindow {
     id: string;
@@ -2572,17 +2586,22 @@ export interface TimetableEntry {
     teacherName?: string | null;
 }
 
-export interface HolidayOverlay {
+export interface AcademicEventOverlay {
     id: string;
-    holidayId: string;
+    academicEventId: string;
     title: string;
     description: string | null;
-    type: HolidayType;
+    type: AcademicEventType;
     date: string;
     day: number;
     isFullDay: boolean;
     startTime: string | null;
     endTime: string | null;
+    bannerUrl: string | null;
+    bannerFileId: string | null;
+    bannerFilename: string | null;
+    bannerMimeType: string | null;
+    bannerUpdatedAt: string | null;
     createdBy: string | null;
     departmentScopeType: DepartmentScopeType;
     departmentIds: string[];
@@ -2591,8 +2610,8 @@ export interface HolidayOverlay {
 
 export interface TimetableResponse {
     schedules: TimetableEntry[];
-    holidays: Holiday[];
-    overlays: HolidayOverlay[];
+    academicEvents: AcademicEvent[];
+    overlays: AcademicEventOverlay[];
     range: {
         startDate: string;
         endDate: string;

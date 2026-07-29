@@ -29,6 +29,25 @@ export class CreateAnnouncementDto {
   @IsOptional()
   actionUrl?: string;
 
+  @IsString()
+  @IsOptional()
+  bannerUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  bannerFileId?: string;
+
+  @IsString()
+  @IsOptional()
+  bannerFilename?: string;
+
+  @IsString()
+  @IsOptional()
+  bannerMimeType?: string;
+
+  @IsOptional()
+  bannerUpdatedAt?: Date;
+
   @IsEnum(AnnouncementPriority)
   @IsOptional()
   priority?: AnnouncementPriority;

@@ -156,14 +156,14 @@ export enum AnnouncementPriority {
     URGENT = 'URGENT'
 }
 
-export enum HolidayType {
+export enum AcademicEventType {
     HOLIDAY = 'HOLIDAY',
     EXAM_BREAK = 'EXAM_BREAK',
     EVENT = 'EVENT',
     CLOSURE = 'CLOSURE',
 }
 
-export enum HolidayMatchMode {
+export enum AcademicEventMatchMode {
     SINGLE_DAY = 'SINGLE_DAY',
     DATE_RANGE = 'DATE_RANGE',
     WEEKDAYS_IN_RANGE = 'WEEKDAYS_IN_RANGE',

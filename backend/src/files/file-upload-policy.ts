@@ -214,7 +214,7 @@ const TEXT_LIKE_MIME_TYPES = new Set([
   'video/mp2t',
 ]);
 
-const IMAGE_ONLY_ENTITY_TYPES = new Set(['chat_avatar']);
+const IMAGE_ONLY_ENTITY_TYPES = new Set(['chat_avatar', 'ACADEMIC_EVENT_BANNER']);
 const FINANCE_ENTITY_TYPES = new Set([
   'FINANCE_PAYMENT_CLAIM',
   'FINANCE_PAYMENT_CONFIRMATION',

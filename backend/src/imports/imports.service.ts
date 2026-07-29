@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { ConfigService } from '@nestjs/config';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { Prisma, RoomType, ScheduleType } from '@/prisma/prisma-client';
@@ -92,7 +94,7 @@ type EntityConfig<T extends Record<string, unknown>> = {
 };
 
 const MAX_IMPORT_ROWS = 1000;
-const IMPORT_SESSION_TTL_MS = 15 * 60 * 1000;
+const IMPORT_SESSION_TTL_MS = 60 * 60 * 1000;
 const PROGRESS_PERCENT_INTERVAL = 2;
 
 type PreparedImportSession =
@@ -115,8 +117,6 @@ type PreparedImportSession =
 
 @Injectable()
 export class ImportsService {
-  private readonly preparedImports = new Map<string, PreparedImportSession>();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly students: StudentService,
@@ -130,6 +130,7 @@ export class ImportsService {
     private readonly cohorts: CohortsService,
     private readonly attendance: AttendanceService,
     private readonly enrollments: EnrollmentsService,
+    private readonly config: ConfigService,
   ) {}
 
   getTemplate(entity: ImportEntity) {
@@ -516,10 +517,7 @@ export class ImportsService {
     actorId: string,
     validation: ImportValidationResult<T>,
   ) {
-    this.pruneExpiredImportSessions();
-    const importSessionId = randomUUID();
-    validation.importSessionId = importSessionId;
-    this.preparedImports.set(importSessionId, {
+    const importSessionId = this.encodeImportSession({
       kind: 'entity',
       orgId,
       actorId,
@@ -527,6 +525,7 @@ export class ImportsService {
       expiresAt: Date.now() + IMPORT_SESSION_TTL_MS,
       validation,
     });
+    validation.importSessionId = importSessionId;
     return validation;
   }
 
@@ -536,10 +535,7 @@ export class ImportsService {
     options: AttendanceMonthlyValidateOptions,
     validation: ImportValidationResult<AttendanceMonthlyConfirmRow>,
   ) {
-    this.pruneExpiredImportSessions();
-    const importSessionId = randomUUID();
-    validation.importSessionId = importSessionId;
-    this.preparedImports.set(importSessionId, {
+    const importSessionId = this.encodeImportSession({
       kind: 'attendance-monthly',
       orgId,
       actorId,
@@ -547,6 +543,7 @@ export class ImportsService {
       expiresAt: Date.now() + IMPORT_SESSION_TTL_MS,
       validation,
     });
+    validation.importSessionId = importSessionId;
     return validation;
   }
 
@@ -555,7 +552,6 @@ export class ImportsService {
     if (session.kind !== 'entity' || session.orgId !== orgId || session.actorId !== actorId || session.entity !== entity) {
       throw new BadRequestException('Import session does not match this import');
     }
-    this.preparedImports.delete(importSessionId);
     return session.validation;
   }
 
@@ -574,25 +570,43 @@ export class ImportsService {
     if (session.kind !== 'attendance-monthly' || session.orgId !== orgId || session.actorId !== actorId || !matchesOptions) {
       throw new BadRequestException('Import session does not match this attendance import');
     }
-    this.preparedImports.delete(importSessionId);
     return session.validation;
   }
 
   private getPreparedImportSession(importSessionId: string) {
     if (!importSessionId) throw new BadRequestException('Validate the CSV again before importing');
-    const session = this.preparedImports.get(importSessionId);
-    if (!session || session.expiresAt <= Date.now()) {
-      this.preparedImports.delete(importSessionId);
+    const session = this.decodeImportSession(importSessionId);
+    if (session.expiresAt <= Date.now()) {
       throw new BadRequestException('Import session expired. Validate the CSV again');
     }
     return session;
   }
 
-  private pruneExpiredImportSessions() {
-    const now = Date.now();
-    for (const [id, session] of this.preparedImports) {
-      if (session.expiresAt <= now) this.preparedImports.delete(id);
+  private encodeImportSession(session: PreparedImportSession) {
+    const payload = deflateRawSync(Buffer.from(JSON.stringify(session))).toString('base64url');
+    const signature = createHmac('sha256', this.importSessionSecret())
+      .update(payload)
+      .digest('base64url');
+    return `${payload}.${signature}`;
+  }
+
+  private decodeImportSession(token: string): PreparedImportSession {
+    try {
+      const [payload, signature, extra] = token.split('.');
+      if (!payload || !signature || extra) throw new Error('Malformed import session');
+      const expected = createHmac('sha256', this.importSessionSecret()).update(payload).digest();
+      const actual = Buffer.from(signature, 'base64url');
+      if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+        throw new Error('Invalid import session signature');
+      }
+      return JSON.parse(inflateRawSync(Buffer.from(payload, 'base64url')).toString('utf8')) as PreparedImportSession;
+    } catch {
+      throw new BadRequestException('Import session is invalid. Validate the CSV again');
     }
+  }
+
+  private importSessionSecret() {
+    return `${this.config.getOrThrow<string>('JWT_SECRET')}:csv-import-session:v1`;
   }
 
   private async getStructureRows(orgId: string, entity: ImportEntity): Promise<Record<string, unknown>[]> {

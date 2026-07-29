@@ -1,14 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { DepartmentScopeType, HolidayMatchMode, HolidayType, Prisma, TargetType } from '@/prisma/prisma-client';
+import { AcademicEventMatchMode, AcademicEventType, DepartmentScopeType, Prisma, TargetType } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnnouncementsService } from '../announcements/announcements.service';
 import { AnnouncementPriority } from '../announcements/dto/create-announcement.dto';
 import { Role } from '../common/enums';
 import { assertDepartmentIdsBelongToOrg, assertDepartmentInScope, getDepartmentScope, type DepartmentScopedUser } from '../common/department-scope';
 import { formatPaginatedResponse, getPaginationOptions } from '../common/utils';
-import { CreateHolidayDto } from './dto/create-holiday.dto';
-import { UpdateHolidayDto } from './dto/update-holiday.dto';
-import { buildHolidayOverlays, getCurrentWeekRange, toDateOnlyUtc, timeToMinutes, type TimetableSlotLike } from './holiday-matcher';
+import { CreateAcademicEventDto } from './dto/create-academic-event.dto';
+import { UpdateAcademicEventDto } from './dto/update-academic-event.dto';
+import { buildAcademicEventOverlays, getCurrentWeekRange, toDateOnlyUtc, timeToMinutes, type TimetableSlotLike } from './academic-event-matcher';
 
 interface CurrentUser extends DepartmentScopedUser {
   id: string;
@@ -18,19 +18,24 @@ interface CurrentUser extends DepartmentScopedUser {
   email?: string | null;
 }
 
-interface HolidayQuery {
+interface AcademicEventQuery {
   page?: number;
   limit?: number;
   search?: string;
-  type?: HolidayType;
+  type?: AcademicEventType;
   isActive?: boolean;
   startDate?: string;
   endDate?: string;
   departmentId?: string;
 }
 
+type ExistingScope = {
+  departmentScopeType: DepartmentScopeType;
+  departmentLinks: { departmentId: string }[];
+};
+
 @Injectable()
-export class HolidaysService {
+export class AcademicEventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly announcementsService: AnnouncementsService,
@@ -44,7 +49,7 @@ export class HolidaysService {
         department: { select: { id: true, name: true, code: true, color: true, isActive: true } },
       },
     },
-  } satisfies Prisma.HolidayInclude;
+  } satisfies Prisma.AcademicEventInclude;
 
   private parseDate(value: string, field: string) {
     const date = toDateOnlyUtc(value);
@@ -66,20 +71,62 @@ export class HolidaysService {
     return value;
   }
 
+  private bannerData(dto: CreateAcademicEventDto | UpdateAcademicEventDto) {
+    if (
+      dto.bannerFileId === undefined &&
+      dto.bannerUrl === undefined &&
+      dto.bannerFilename === undefined &&
+      dto.bannerMimeType === undefined
+    ) {
+      return {};
+    }
+
+    const bannerUrl = dto.bannerUrl?.trim() || null;
+    return {
+      bannerFileId: dto.bannerFileId?.trim() || null,
+      bannerUrl,
+      bannerFilename: dto.bannerFilename?.trim() || null,
+      bannerMimeType: dto.bannerMimeType?.trim() || null,
+      bannerUpdatedAt: bannerUrl ? new Date() : null,
+    };
+  }
+
+  private async assertCanManageScope(orgId: string, actor: CurrentUser, scope: ExistingScope) {
+    const actorScope = await getDepartmentScope(this.prisma, orgId, actor);
+    if (actor.role !== Role.SUB_ADMIN || !actorScope.applies || actorScope.all) return;
+
+    if (scope.departmentScopeType === DepartmentScopeType.ALL) {
+      throw new ForbiddenException('You can only manage academic events assigned to departments in your scope');
+    }
+
+    scope.departmentLinks.forEach((link) => {
+      assertDepartmentInScope(actorScope, link.departmentId, 'You can only manage academic events assigned to departments in your scope');
+    });
+  }
+
   private async validatePayload(
     orgId: string,
-    dto: CreateHolidayDto | UpdateHolidayDto,
+    dto: CreateAcademicEventDto | UpdateAcademicEventDto,
     actor: CurrentUser,
-    existing?: { startDate: Date; endDate: Date; matchMode: HolidayMatchMode; isFullDay: boolean; startTime: string | null; endTime: string | null; departmentScopeType: DepartmentScopeType },
+    existing?: {
+      startDate: Date;
+      endDate: Date;
+      matchMode: AcademicEventMatchMode;
+      isFullDay: boolean;
+      startTime: string | null;
+      endTime: string | null;
+      departmentScopeType: DepartmentScopeType;
+      departmentLinks?: { departmentId: string }[];
+    },
   ) {
-    const matchMode = dto.matchMode ?? existing?.matchMode ?? HolidayMatchMode.SINGLE_DAY;
+    const matchMode = dto.matchMode ?? existing?.matchMode ?? AcademicEventMatchMode.SINGLE_DAY;
     const isFullDay = dto.isFullDay ?? existing?.isFullDay ?? true;
     const startDate = dto.startDate ? this.parseDate(dto.startDate, 'startDate') : existing?.startDate;
     if (!startDate) throw new BadRequestException('startDate is required');
 
     const endDate = dto.endDate
       ? this.parseDate(dto.endDate, 'endDate')
-      : matchMode === HolidayMatchMode.SINGLE_DAY
+      : matchMode === AcademicEventMatchMode.SINGLE_DAY
         ? startDate
         : existing?.endDate || startDate;
 
@@ -90,21 +137,22 @@ export class HolidaysService {
     const startTime = isFullDay ? null : this.normalizeTime(dto.startTime ?? existing?.startTime);
     const endTime = isFullDay ? null : this.normalizeTime(dto.endTime ?? existing?.endTime);
     if (!isFullDay) {
-      if (!startTime || !endTime) throw new BadRequestException('startTime and endTime are required for partial-day holidays');
+      if (!startTime || !endTime) throw new BadRequestException('startTime and endTime are required for partial-day academic events');
       if (timeToMinutes(startTime) >= timeToMinutes(endTime)) {
         throw new BadRequestException('startTime must be before endTime');
       }
     }
 
     const daysOfWeek = dto.daysOfWeek ? Array.from(new Set(dto.daysOfWeek)).sort((a, b) => a - b) : [];
-    if (matchMode === HolidayMatchMode.WEEKDAYS_IN_RANGE && daysOfWeek.length === 0) {
+    if (matchMode === AcademicEventMatchMode.WEEKDAYS_IN_RANGE && daysOfWeek.length === 0) {
       throw new BadRequestException('daysOfWeek is required for selected weekdays in range');
     }
 
     const departmentScopeType = dto.departmentScopeType ?? existing?.departmentScopeType ?? DepartmentScopeType.ALL;
-    const departmentIds = await assertDepartmentIdsBelongToOrg(this.prisma, orgId, dto.departmentIds || []);
+    const fallbackDepartmentIds = existing?.departmentLinks?.map((link) => link.departmentId) || [];
+    const departmentIds = await assertDepartmentIdsBelongToOrg(this.prisma, orgId, dto.departmentIds ?? fallbackDepartmentIds);
 
-    if (departmentScopeType === DepartmentScopeType.SELECTED && departmentIds.length === 0 && !existing) {
+    if (departmentScopeType === DepartmentScopeType.SELECTED && departmentIds.length === 0) {
       throw new BadRequestException('Select at least one department or choose all departments');
     }
 
@@ -115,7 +163,7 @@ export class HolidaysService {
       }
     } else {
       departmentIds.forEach((departmentId) => {
-        assertDepartmentInScope(actorScope, departmentId, 'You can only assign holidays to departments in your scope');
+        assertDepartmentInScope(actorScope, departmentId, 'You can only assign academic events to departments in your scope');
       });
     }
 
@@ -126,30 +174,53 @@ export class HolidaysService {
       endDate,
       startTime,
       endTime,
-      daysOfWeek: matchMode === HolidayMatchMode.WEEKDAYS_IN_RANGE ? daysOfWeek : [],
+      daysOfWeek: matchMode === AcademicEventMatchMode.WEEKDAYS_IN_RANGE ? daysOfWeek : [],
       departmentScopeType,
       departmentIds,
     };
   }
 
-  private buildAnnouncementBody(holiday: { title: string; description?: string | null; startDate: Date; endDate: Date; isFullDay: boolean; startTime?: string | null; endTime?: string | null }) {
-    const dates = holiday.startDate.getTime() === holiday.endDate.getTime()
-      ? holiday.startDate.toISOString().slice(0, 10)
-      : `${holiday.startDate.toISOString().slice(0, 10)} to ${holiday.endDate.toISOString().slice(0, 10)}`;
-    const time = holiday.isFullDay ? 'Full day' : `${holiday.startTime} - ${holiday.endTime}`;
-    return [holiday.description, `Date: ${dates}`, `Time: ${time}`].filter(Boolean).join('\n\n');
+  private buildAnnouncementBody(event: { description?: string | null; startDate: Date; endDate: Date; isFullDay: boolean; startTime?: string | null; endTime?: string | null }) {
+    const dates = event.startDate.getTime() === event.endDate.getTime()
+      ? event.startDate.toISOString().slice(0, 10)
+      : `${event.startDate.toISOString().slice(0, 10)} to ${event.endDate.toISOString().slice(0, 10)}`;
+    const time = event.isFullDay ? 'Full day' : `${event.startTime} - ${event.endTime}`;
+    return [event.description, `Date: ${dates}`, `Time: ${time}`].filter(Boolean).join('\n\n');
   }
 
-  private async maybeAnnounce(dto: CreateHolidayDto | UpdateHolidayDto, holiday: { id: string; title: string; description?: string | null; startDate: Date; endDate: Date; isFullDay: boolean; startTime?: string | null; endTime?: string | null }, actor: CurrentUser) {
+  private async maybeAnnounce(
+    dto: CreateAcademicEventDto | UpdateAcademicEventDto,
+    event: {
+      id: string;
+      title: string;
+      description?: string | null;
+      startDate: Date;
+      endDate: Date;
+      isFullDay: boolean;
+      startTime?: string | null;
+      endTime?: string | null;
+      bannerUrl?: string | null;
+      bannerFileId?: string | null;
+      bannerFilename?: string | null;
+      bannerMimeType?: string | null;
+      bannerUpdatedAt?: Date | null;
+    },
+    actor: CurrentUser,
+  ) {
     if (!dto.announce) return null;
     const targetType = dto.announcementTargetType || TargetType.ORG;
     return this.announcementsService.createAnnouncement({
-      title: holiday.title,
-      body: this.buildAnnouncementBody(holiday),
+      title: event.title,
+      body: this.buildAnnouncementBody(event),
       targetType,
       targetId: dto.announcementTargetId || (targetType === TargetType.ORG ? actor.organizationId || undefined : undefined),
-      actionUrl: '/holidays',
+      actionUrl: '/academic-calendar',
       priority: dto.announcementPriority || AnnouncementPriority.NORMAL,
+      bannerUrl: event.bannerUrl || undefined,
+      bannerFileId: event.bannerFileId || undefined,
+      bannerFilename: event.bannerFilename || undefined,
+      bannerMimeType: event.bannerMimeType || undefined,
+      bannerUpdatedAt: event.bannerUpdatedAt || undefined,
     }, {
       id: actor.id,
       role: actor.role as Role,
@@ -157,21 +228,21 @@ export class HolidaysService {
     });
   }
 
-  private scopedWhere(orgId: string, actor?: CurrentUser): Prisma.HolidayWhereInput {
+  private scopedWhere(orgId: string): Prisma.AcademicEventWhereInput {
     return { organizationId: orgId };
   }
 
-  async createHoliday(orgId: string, dto: CreateHolidayDto, actor: CurrentUser) {
+  async createAcademicEvent(orgId: string, dto: CreateAcademicEventDto, actor: CurrentUser) {
     const normalized = await this.validatePayload(orgId, dto, actor);
     const title = dto.title?.trim();
     if (!title) throw new BadRequestException('title is required');
 
-    const holiday = await this.prisma.holiday.create({
+    const event = await this.prisma.academicEvent.create({
       data: {
         organizationId: orgId,
         title,
         description: dto.description?.trim() || null,
-        type: dto.type || HolidayType.HOLIDAY,
+        type: dto.type || AcademicEventType.HOLIDAY,
         matchMode: normalized.matchMode,
         departmentScopeType: normalized.departmentScopeType,
         startDate: normalized.startDate,
@@ -179,6 +250,7 @@ export class HolidaysService {
         startTime: normalized.startTime,
         endTime: normalized.endTime,
         daysOfWeek: normalized.daysOfWeek,
+        ...this.bannerData(dto),
         isFullDay: normalized.isFullDay,
         isActive: dto.isActive ?? true,
         createdById: actor.id,
@@ -189,11 +261,11 @@ export class HolidaysService {
       include: this.includeRelations,
     });
 
-    await this.maybeAnnounce(dto, holiday, actor);
-    return holiday;
+    await this.maybeAnnounce(dto, event, actor);
+    return event;
   }
 
-  async getHolidays(orgId: string, query: HolidayQuery, actor?: CurrentUser) {
+  async getAcademicEvents(orgId: string, query: AcademicEventQuery, actor?: CurrentUser) {
     const { skip, take, sortBy, sortOrder } = getPaginationOptions({
       page: query.page,
       limit: query.limit,
@@ -204,8 +276,8 @@ export class HolidaysService {
     const start = query.startDate ? this.parseDate(query.startDate, 'startDate') : undefined;
     const end = query.endDate ? this.parseDate(query.endDate, 'endDate') : undefined;
 
-    const where: Prisma.HolidayWhereInput = {
-      ...this.scopedWhere(orgId, actor),
+    const where: Prisma.AcademicEventWhereInput = {
+      ...this.scopedWhere(orgId),
       ...(query.type ? { type: query.type } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
       ...(start || end
@@ -233,47 +305,44 @@ export class HolidaysService {
     };
 
     const [data, totalRecords] = await Promise.all([
-      this.prisma.holiday.findMany({
+      this.prisma.academicEvent.findMany({
         where,
         include: this.includeRelations,
         skip,
         take,
         orderBy: [{ [sortBy]: sortOrder }, { createdAt: 'desc' }],
       }),
-      this.prisma.holiday.count({ where }),
+      this.prisma.academicEvent.count({ where }),
     ]);
 
     return formatPaginatedResponse(data, totalRecords, query.page, query.limit);
   }
 
-  async getHoliday(orgId: string, id: string) {
-    const holiday = await this.prisma.holiday.findFirst({
+  async getAcademicEvent(orgId: string, id: string) {
+    const event = await this.prisma.academicEvent.findFirst({
       where: { id, organizationId: orgId },
       include: this.includeRelations,
     });
-    if (!holiday) throw new NotFoundException('Holiday not found');
-    return holiday;
+    if (!event) throw new NotFoundException('Academic event not found');
+    return event;
   }
 
-  async updateHoliday(orgId: string, id: string, dto: UpdateHolidayDto, actor: CurrentUser) {
-    const existing = await this.prisma.holiday.findFirst({
+  async updateAcademicEvent(orgId: string, id: string, dto: UpdateAcademicEventDto, actor: CurrentUser) {
+    const existing = await this.prisma.academicEvent.findFirst({
       where: { id, organizationId: orgId },
       include: { departmentLinks: true },
     });
-    if (!existing) throw new NotFoundException('Holiday not found');
+    if (!existing) throw new NotFoundException('Academic event not found');
+    await this.assertCanManageScope(orgId, actor, existing);
 
-    const dtoForValidation = {
-      ...dto,
-      departmentIds: dto.departmentIds ?? existing.departmentLinks.map((link) => link.departmentId),
-    };
-    const normalized = await this.validatePayload(orgId, dtoForValidation, actor, existing);
+    const normalized = await this.validatePayload(orgId, dto, actor, existing);
 
-    const holiday = await this.prisma.$transaction(async (tx) => {
+    const event = await this.prisma.$transaction(async (tx) => {
       if (dto.departmentScopeType !== undefined || dto.departmentIds !== undefined) {
-        await tx.holidayDepartment.deleteMany({ where: { holidayId: id } });
+        await tx.academicEventDepartment.deleteMany({ where: { academicEventId: id } });
       }
 
-      return tx.holiday.update({
+      return tx.academicEvent.update({
         where: { id },
         data: {
           title: dto.title !== undefined ? dto.title.trim() : undefined,
@@ -286,6 +355,7 @@ export class HolidaysService {
           startTime: normalized.startTime,
           endTime: normalized.endTime,
           daysOfWeek: normalized.daysOfWeek,
+          ...this.bannerData(dto),
           isFullDay: normalized.isFullDay,
           isActive: dto.isActive,
           updatedById: actor.id,
@@ -297,26 +367,38 @@ export class HolidaysService {
       });
     });
 
-    await this.maybeAnnounce(dto, holiday, actor);
-    return holiday;
+    await this.maybeAnnounce(dto, event, actor);
+    return event;
   }
 
-  async setHolidayActive(orgId: string, id: string, isActive: boolean, actor: CurrentUser) {
-    await this.getHoliday(orgId, id);
-    return this.prisma.holiday.update({
+  async setAcademicEventActive(orgId: string, id: string, isActive: boolean, actor: CurrentUser) {
+    const event = await this.prisma.academicEvent.findFirst({
+      where: { id, organizationId: orgId },
+      include: { departmentLinks: true },
+    });
+    if (!event) throw new NotFoundException('Academic event not found');
+    await this.assertCanManageScope(orgId, actor, event);
+
+    return this.prisma.academicEvent.update({
       where: { id },
       data: { isActive, updatedById: actor.id },
       include: this.includeRelations,
     });
   }
 
-  async deleteHoliday(orgId: string, id: string) {
-    await this.getHoliday(orgId, id);
-    return this.prisma.holiday.delete({ where: { id } });
+  async deleteAcademicEvent(orgId: string, id: string, actor: CurrentUser) {
+    const event = await this.prisma.academicEvent.findFirst({
+      where: { id, organizationId: orgId },
+      include: { departmentLinks: true },
+    });
+    if (!event) throw new NotFoundException('Academic event not found');
+    await this.assertCanManageScope(orgId, actor, event);
+
+    return this.prisma.academicEvent.delete({ where: { id } });
   }
 
-  async getActiveHolidaysForRange(orgId: string, startDate: Date, endDate: Date) {
-    return this.prisma.holiday.findMany({
+  async getActiveAcademicEventsForRange(orgId: string, startDate: Date, endDate: Date) {
+    return this.prisma.academicEvent.findMany({
       where: {
         organizationId: orgId,
         isActive: true,
@@ -332,8 +414,8 @@ export class HolidaysService {
     const fallback = getCurrentWeekRange();
     const start = range?.startDate ? this.parseDate(range.startDate, 'startDate') : fallback.start;
     const end = range?.endDate ? this.parseDate(range.endDate, 'endDate') : fallback.end;
-    const holidays = await this.getActiveHolidaysForRange(orgId, start, end);
-    const overlays = buildHolidayOverlays(holidays, schedules, start, end);
-    return { schedules, holidays, overlays, range: { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) } };
+    const academicEvents = await this.getActiveAcademicEventsForRange(orgId, start, end);
+    const overlays = buildAcademicEventOverlays(academicEvents, schedules, start, end);
+    return { schedules, academicEvents, overlays, range: { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) } };
   }
 }

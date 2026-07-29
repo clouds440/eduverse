@@ -41,7 +41,7 @@ export type CacheKeyPrefix =
     | 'academicCycles'
     | 'cohorts'
     | 'departments'
-    | 'holidays'
+    | 'academic-events'
     | 'buildings'
     | 'rooms'
     | 'transcript'

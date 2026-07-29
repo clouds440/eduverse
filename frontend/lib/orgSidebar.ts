@@ -197,11 +197,11 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     roles: ADMIN_ROLES,
   },
   {
-    id: "HOLIDAYS",
+    id: "ACADEMIC_EVENTS",
     label: "Academic Calendar",
-    href: "/academic-calender",
+    href: "/academic-calendar",
     icon: Calendar,
-    roles: ADMIN_ROLES,
+    roles: "all",
   },
   {
     id: "TRANSCRIPTS",

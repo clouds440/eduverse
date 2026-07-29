@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { Megaphone, Loader2, Plus, Globe, Building2, Shield, Layout, BookOpen, Network } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSocket } from '@/hooks/useSocket';
@@ -14,6 +15,7 @@ import { BrandIcon } from '@/components/ui/Brand';
 import { normalizeSafeUrl } from '@/lib/safeUrl';
 import { useBackStackEntry } from '@/context/BackNavigationContext';
 import { getRoleLabel } from '@/lib/roles';
+import { getPublicUrl } from '@/lib/utils';
 
 interface AnnouncementDropdownProps {
     onOpenChange?: (open: boolean) => void;
@@ -239,6 +241,7 @@ export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps
                                     const bgClass = priorityColors[announcement.priority || 'NORMAL'] || priorityColors.NORMAL;
                                     const creator = announcement.creator;
                                     const safeActionUrl = normalizeSafeUrl(announcement.actionUrl, { allowRelative: true });
+                                    const bannerSrc = announcement.bannerUrl ? getPublicUrl(announcement.bannerUrl, announcement.bannerUpdatedAt) : '';
 
                                     return (
                                         <div
@@ -282,6 +285,18 @@ export function AnnouncementDropdown({ onOpenChange }: AnnouncementDropdownProps
                                                     <span>{announcement.targetType}</span>
                                                 </div>
                                             </div>
+
+                                            {bannerSrc && (
+                                                <div className="relative mb-3 aspect-[16/9] overflow-hidden rounded-lg border border-border bg-muted">
+                                                    <Image
+                                                        src={bannerSrc}
+                                                        alt={announcement.title}
+                                                        fill
+                                                        className="object-cover"
+                                                        sizes="384px"
+                                                    />
+                                                </div>
+                                            )}
 
                                             <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap font-medium">
                                                 {announcement.body}

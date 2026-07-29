@@ -33,7 +33,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { BuildingsModule } from './buildings/buildings.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { ImportsModule } from './imports/imports.module';
-import { HolidaysModule } from './holidays/holidays.module';
+import { AcademicEventsModule } from './academic-events/academic-events.module';
 import { EvaluationsModule } from './evaluations/evaluations.module';
 import { CampusNavigationModule } from './campus-navigation/campus-navigation.module';
 import { PreferenceWindowsModule } from './preference-windows/preference-windows.module';
@@ -80,7 +80,7 @@ import { EmailTemplatesModule } from './common/email-templates/email-templates.m
     RoomsModule,
     CampusNavigationModule,
     ImportsModule,
-    HolidaysModule,
+    AcademicEventsModule,
     EvaluationsModule,
     PreferenceWindowsModule,
     EnrollmentsModule,

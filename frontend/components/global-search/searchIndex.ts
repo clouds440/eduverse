@@ -49,7 +49,7 @@ const SHORTHANDS: Record<string, string[]> = {
     fee: ['finance', 'fees', 'payments'],
     pay: ['payment', 'payments', 'finance'],
     gpa: ['gpa', 'grade', 'grades'],
-    cal: ['calendar', 'holidays'],
+    cal: ['calendar', 'academic-events'],
     eval: ['evaluation', 'evaluations', 'feedback'],
     msg: ['message', 'messages', 'chat'],
     map: ['campus', 'navigation', 'institute map'],
@@ -66,7 +66,7 @@ const GROUP_BY_ID: Record<string, RouteSearchGroup> = {
     GRADE_FINALIZATION: 'Academic',
     GRADES: 'Academic',
     GPA_POLICIES: 'Settings',
-    HOLIDAYS: 'Academic',
+    ACADEMIC_EVENTS: 'Academic',
     PREFERENCES: 'Academic',
     PREFERENCE_WINDOWS: 'Academic',
     SCHEDULES: 'Academic',
@@ -151,9 +151,9 @@ const ROUTE_METADATA: Record<string, Pick<RouteSearchItem, 'description' | 'alia
         aliases: ['notices'],
         keywords: ['announcement', 'notice'],
     },
-    HOLIDAYS: {
-        description: 'Holidays and academic calendar events',
-        aliases: ['holidays', 'calendar'],
+    ACADEMIC_EVENTS: {
+        description: 'Academic events calendar',
+        aliases: ['academic events', 'calendar'],
         keywords: ['cal', 'event', 'closure'],
     },
     MAIL: {

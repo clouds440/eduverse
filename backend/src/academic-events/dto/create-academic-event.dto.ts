@@ -1,8 +1,8 @@
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
-import { DepartmentScopeType, HolidayMatchMode, HolidayType, TargetType } from '@/prisma/prisma-client';
+import { DepartmentScopeType, AcademicEventMatchMode, AcademicEventType, TargetType } from '@/prisma/prisma-client';
 import { AnnouncementPriority } from '../../announcements/dto/create-announcement.dto';
 
-export class CreateHolidayDto {
+export class CreateAcademicEventDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(160)
@@ -13,13 +13,31 @@ export class CreateHolidayDto {
   @MaxLength(1000)
   description?: string;
 
-  @IsEnum(HolidayType)
+  @IsString()
   @IsOptional()
-  type?: HolidayType;
+  bannerFileId?: string;
 
-  @IsEnum(HolidayMatchMode)
+  @IsString()
   @IsOptional()
-  matchMode?: HolidayMatchMode;
+  bannerUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(255)
+  bannerFilename?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(120)
+  bannerMimeType?: string;
+
+  @IsEnum(AcademicEventType)
+  @IsOptional()
+  type?: AcademicEventType;
+
+  @IsEnum(AcademicEventMatchMode)
+  @IsOptional()
+  matchMode?: AcademicEventMatchMode;
 
   @IsEnum(DepartmentScopeType)
   @IsOptional()
@@ -57,7 +75,7 @@ export class CreateHolidayDto {
   @IsInt({ each: true })
   @Min(0, { each: true })
   @Max(6, { each: true })
-  @ValidateIf((dto) => dto.matchMode === HolidayMatchMode.WEEKDAYS_IN_RANGE)
+  @ValidateIf((dto) => dto.matchMode === AcademicEventMatchMode.WEEKDAYS_IN_RANGE)
   daysOfWeek?: number[];
 
   @IsBoolean()

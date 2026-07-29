@@ -908,7 +908,7 @@ function selectRelevantTools(
     if (role === 'ORG_ADMIN' || role === 'SUB_ADMIN' || role === 'ORG_MANAGER') add('getAcademicPerformanceProfile', { ...input, targetType: 'organization' });
   }
 
-  if (mentionsAny(text, ['calendar', 'event', 'holiday', 'closure', 'break', 'academic calendar', 'important date'])) {
+  if (mentionsAny(text, ['calendar', 'event', 'academic event', 'closure', 'break', 'academic calendar', 'important date'])) {
     add('getOperationsContext', { ...input, include: ['calendar'] });
   }
 
@@ -1138,7 +1138,7 @@ function inferEduVerseContextIncludes(value: string, role?: string) {
   if (mentionsAny(value, ['connected', 'relationship', 'assigned', 'taking', 'teaching', 'belongs to'])) include.add('relationships');
   if (mentionsAny(value, ['study plan', 'plan', 'priority', 'workload', 'weak', 'improve', 'need attention'])) include.add('planning');
   if (mentionsAny(value, ['enroll', 'enrollment', 'course load', 'too much', 'feasible', 'fit'])) include.add('enrollment');
-  if (mentionsAny(value, ['room', 'building', 'announcement', 'calendar', 'event', 'holiday', 'poll', 'preference'])) include.add('operations');
+  if (mentionsAny(value, ['room', 'building', 'announcement', 'calendar', 'event', 'academic event', 'poll', 'preference'])) include.add('operations');
   if (mentionsAny(value, ['mail', 'message', 'communication'])) include.add('communication');
   if (mentionsAny(value, ['finance', 'fee', 'payment', 'salary']) || role === 'FINANCE_MANAGER') include.add('finance');
   return Array.from(include);
