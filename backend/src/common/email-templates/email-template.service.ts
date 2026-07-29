@@ -28,6 +28,12 @@ import {
   renderLoginSecurityAlertEmail,
   type LoginSecurityAlertEmailInput,
 } from './login-security-alert-email.template';
+import {
+  renderPublicContactReplyEmail,
+  renderPublicContactSubmittedEmail,
+  type PublicContactReplyEmailInput,
+  type PublicContactSubmittedEmailInput,
+} from './public-contact-email.template';
 
 /**
  * Injectable facade for pure email templates. Keeping this facade means business
@@ -63,6 +69,14 @@ export class EmailTemplateService {
 
   buildLoginSecurityAlertEmail(input: LoginSecurityAlertEmailInput) {
     return renderLoginSecurityAlertEmail(input);
+  }
+
+  buildPublicContactSubmittedEmail(input: PublicContactSubmittedEmailInput) {
+    return renderPublicContactSubmittedEmail(input);
+  }
+
+  buildPublicContactReplyEmail(input: PublicContactReplyEmailInput) {
+    return renderPublicContactReplyEmail(input);
   }
 
   getSafeAssetUrl(value: string | null | undefined, appBaseUrl: string) {

@@ -59,10 +59,14 @@ import { Badge } from "../ui/Badge";
 
 interface MailPageProps {
   localStorageKey?: string;
+  fixedCategory?: string;
+  title?: string;
 }
 
 export function MailPage({
   localStorageKey = "edu-mail-limit",
+  fixedCategory,
+  title,
 }: MailPageProps) {
   const { user, token, loading: authLoading } = useAuth();
   const { state, dispatch } = useGlobal();
@@ -126,6 +130,7 @@ export function MailPage({
         limit: pageSize,
         search: searchQuery,
         status: statusFilter || undefined,
+        category: fixedCategory,
         direction: directionFilter || undefined,
         sortBy,
         sortOrder,
@@ -137,6 +142,7 @@ export function MailPage({
     pageSize,
     searchQuery,
     statusFilter,
+    fixedCategory,
     directionFilter,
     sortBy,
     sortOrder,
@@ -362,24 +368,30 @@ export function MailPage({
       },
       {
         header: "Sender",
-        accessor: (row: MailItem) => (
-          <div className="flex items-center gap-3">
-            <BrandIcon
-              variant="user"
-              size="sm"
-              user={row.creator}
-              className="w-8 h-8 rounded-full shadow-sm"
-            />
-            <div className="min-w-0">
-              <p className="text-xs font-black text-foreground truncate max-w-30">
-                {row.creator?.name || row.creator?.email || "Unknown"}
-              </p>
-              <p className="text-[10px] font-bold text-muted-foreground">
-                {getRoleLabel(row.creatorRole, "N/A")}
-              </p>
+        accessor: (row: MailItem) => {
+          const isPublicTicket = row.metadata?.source === "PUBLIC_CONTACT";
+          const externalName = typeof row.metadata?.externalName === "string" ? row.metadata.externalName : undefined;
+          const externalEmail = typeof row.metadata?.externalEmail === "string" ? row.metadata.externalEmail : undefined;
+
+          return (
+            <div className="flex items-center gap-3">
+              <BrandIcon
+                variant="user"
+                size="sm"
+                user={row.creator}
+                className="w-8 h-8 rounded-full shadow-sm"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-black text-foreground truncate max-w-30">
+                  {isPublicTicket ? externalName || externalEmail || "Public contact" : row.creator?.name || row.creator?.email || "Unknown"}
+                </p>
+                <p className="text-[10px] font-bold text-muted-foreground truncate max-w-32">
+                  {isPublicTicket ? externalEmail || "Public ticket" : getRoleLabel(row.creatorRole, "N/A")}
+                </p>
+              </div>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         header: "Recipient",
@@ -526,7 +538,7 @@ export function MailPage({
   return (
     <PageShell>
       <PageHeader
-        title={isAdminMail ? "Platform Mail" : "Mail"}
+        title={title || (isAdminMail ? "Platform Mail" : "Mail")}
         description={
           <>
             Track support conversations, assignments, and internal replies from

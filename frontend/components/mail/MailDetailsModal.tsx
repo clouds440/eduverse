@@ -158,9 +158,19 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
 
     const handleReply = useCallback(async (content: string, files?: File[]) => {
         if (!mail || !token) return;
+        if (mail.metadata?.source === 'PUBLIC_CONTACT' && files?.length) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Public ticket email replies do not support attachments.', type: 'error' } });
+            throw new Error('Public ticket email replies do not support attachments.');
+        }
 
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: 'reply-submit' });
+            if (mail.metadata?.source === 'PUBLIC_CONTACT') {
+                const replyResult = await api.mail.addPublicReply(mail.id, { content }, token);
+                setMail(replyResult);
+                onUpdate?.();
+                return;
+            }
             const recipientDevices = await api.mail.getE2EEContext(mail.id, token);
             const encryptedPayload = await prepareEncryptedMailReplyPayload({
                 mailId: mail.id,
@@ -221,6 +231,9 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
     const isNoReply = mail?.status === MailStatus.NO_REPLY;
     const replyLocked = isClosed || isNoReply;
     const canManageStatus = mail && !isClosed && !isNoReply;
+    const isPublicTicket = mail?.metadata?.source === 'PUBLIC_CONTACT';
+    const publicContactName = typeof mail?.metadata?.externalName === 'string' ? mail.metadata.externalName : undefined;
+    const publicContactEmail = typeof mail?.metadata?.externalEmail === 'string' ? mail.metadata.externalEmail : undefined;
 
     return (
         <Modal
@@ -265,7 +278,13 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                                 <div className="mt-3 hidden flex-wrap gap-2 sm:flex">
                                     <DetailChip icon={Tag}>{formatLabel(mail.category)}</DetailChip>
                                     <DetailChip icon={Hash}>{mail.id.slice(0, 8)}</DetailChip>
-                                    <DetailChip icon={User}>{mail.creator.name || mail.creator.email}</DetailChip>
+                                    <DetailChip icon={User}>
+                                        {isPublicTicket
+                                            ? publicContactEmail
+                                                ? `${publicContactName || 'Public contact'} <${publicContactEmail}>`
+                                                : publicContactName || 'Public contact'
+                                            : mail.creator.name || mail.creator.email}
+                                    </DetailChip>
                                 </div>
                             )}
                         </div>
@@ -303,6 +322,11 @@ export function MailDetailsModal({ mailId, isOpen, onClose, onUpdate }: MailDeta
                                     isNoReply
                                         ? 'This is a no-reply mail. Replies are disabled.'
                                         : 'This thread is closed. No further replies can be sent.'
+                                }
+                                replyContextMessage={
+                                    isPublicTicket
+                                        ? 'This sends a no-reply email to the public contact and stores the response in this ticket.'
+                                        : undefined
                                 }
                                 onComposerOpenChange={handleComposerOpenChange}
                             />

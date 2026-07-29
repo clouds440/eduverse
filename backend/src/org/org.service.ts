@@ -281,18 +281,19 @@ export class OrgService {
   async updateLogo(
     orgId: string,
     file: Express.Multer.File,
-    uploadedBy: string,
+    _uploadedBy: string,
   ) {
     const org = await this.getOrganizationById(orgId);
+    const oldOrgAdminAvatarUrls = await this.prisma.user.findMany({
+      where: {
+        organizationId: orgId,
+        role: Role.ORG_ADMIN,
+        avatarUrl: { not: null },
+      },
+      select: { avatarUrl: true },
+    });
 
     const publicUrl = await this.filesService.replaceFile(org.logoUrl, file);
-
-    // Save new file record via FilesService (for audit trail)
-    await this.filesService.saveFile(
-      { orgId, entityType: 'orgLogo', entityId: orgId },
-      file,
-      uploadedBy,
-    );
 
     // Update org with new logo URL and bump cache-buster timestamp
     // Also update the org admin's avatarUrl with the same logo URL
@@ -326,31 +327,55 @@ export class OrgService {
       return updatedOrg;
     });
 
+    await this.deleteReplacedCloudinaryAvatarUrls(
+      oldOrgAdminAvatarUrls
+        .map((user) => user.avatarUrl)
+        .filter((avatarUrl): avatarUrl is string => Boolean(avatarUrl)),
+      [org.logoUrl, publicUrl],
+    );
+
     return result;
   }
 
   async updateUserAvatar(
     userId: string,
     file: Express.Multer.File,
-    uploadedBy: string,
+    _uploadedBy: string,
   ) {
     const user = await this.userService.getUserById(userId);
 
-    const publicUrl = await this.filesService.replaceFile(user.avatarUrl, file);
-
-    // Save new file record via FilesService (for audit trail)
-    await this.filesService.saveFile(
-      {
-        orgId: user.organizationId ?? 'system',
-        entityType: 'userAvatar',
-        entityId: user.id,
-      },
-      file,
-      uploadedBy,
+    const organization = user.organizationId
+      ? await this.prisma.organization.findUnique({
+        where: { id: user.organizationId },
+        select: { logoUrl: true },
+      })
+      : null;
+    const oldAvatarIsSharedOrgLogo = Boolean(
+      user.avatarUrl &&
+      organization?.logoUrl &&
+      user.avatarUrl === organization.logoUrl,
     );
+    const publicUrl = oldAvatarIsSharedOrgLogo
+      ? file.path
+      : await this.filesService.replaceFile(user.avatarUrl, file);
 
     // Update user with new avatar URL and bump cache-buster timestamp
     return this.userService.updateUser(userId, { avatarUrl: publicUrl });
+  }
+
+  private async deleteReplacedCloudinaryAvatarUrls(
+    oldUrls: string[],
+    excludedUrls: Array<string | null | undefined>,
+  ) {
+    const excluded = new Set(excludedUrls.filter(Boolean));
+    const uniqueOldUrls = Array.from(new Set(oldUrls)).filter((url) => !excluded.has(url));
+    await Promise.all(uniqueOldUrls.map(async (oldUrl) => {
+      try {
+        await this.filesService.deletePublicCloudinaryImageUrl(oldUrl);
+      } catch (error) {
+        this.logger.warn(`Failed to delete replaced avatar URL ${oldUrl}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }));
   }
 
   async getUserCounts(orgId: string, requesterRole: string) {

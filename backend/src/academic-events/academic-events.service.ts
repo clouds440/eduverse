@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { AcademicEventMatchMode, AcademicEventType, DepartmentScopeType, Prisma, TargetType } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnnouncementsService } from '../announcements/announcements.service';
+import { FilesService } from '../files/files.service';
 import { AnnouncementPriority } from '../announcements/dto/create-announcement.dto';
 import { Role } from '../common/enums';
 import { assertDepartmentIdsBelongToOrg, assertDepartmentInScope, getDepartmentScope, type DepartmentScopedUser } from '../common/department-scope';
@@ -39,6 +40,7 @@ export class AcademicEventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly announcementsService: AnnouncementsService,
+    private readonly filesService: FilesService,
   ) {}
 
   private includeRelations = {
@@ -334,6 +336,7 @@ export class AcademicEventsService {
     });
     if (!existing) throw new NotFoundException('Academic event not found');
     await this.assertCanManageScope(orgId, actor, existing);
+    const oldBannerFileId = existing.bannerFileId;
 
     const normalized = await this.validatePayload(orgId, dto, actor, existing);
 
@@ -368,6 +371,7 @@ export class AcademicEventsService {
     });
 
     await this.maybeAnnounce(dto, event, actor);
+    await this.deleteReplacedBannerFile(oldBannerFileId, event.bannerFileId, actor);
     return event;
   }
 
@@ -394,7 +398,27 @@ export class AcademicEventsService {
     if (!event) throw new NotFoundException('Academic event not found');
     await this.assertCanManageScope(orgId, actor, event);
 
-    return this.prisma.academicEvent.delete({ where: { id } });
+    const deleted = await this.prisma.academicEvent.delete({ where: { id } });
+    await this.deleteReplacedBannerFile(event.bannerFileId, null, actor);
+    return deleted;
+  }
+
+  private async deleteReplacedBannerFile(
+    oldBannerFileId: string | null | undefined,
+    nextBannerFileId: string | null | undefined,
+    actor: CurrentUser,
+  ) {
+    if (!oldBannerFileId || oldBannerFileId === nextBannerFileId) return;
+
+    try {
+      await this.filesService.deleteFile(oldBannerFileId, {
+        id: actor.id,
+        role: actor.role || '',
+        organizationId: actor.organizationId || null,
+      });
+    } catch (error) {
+      console.error(`Failed to delete replaced academic event banner file: ${oldBannerFileId}`, error);
+    }
   }
 
   async getActiveAcademicEventsForRange(orgId: string, startDate: Date, endDate: Date) {

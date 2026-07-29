@@ -4,10 +4,13 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { E2EEContentType, E2EEDeviceTrustStatus, Prisma } from '@/prisma/prisma-client';
+import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
-import { MailStatus, Role, OrgStatus } from '../common/enums';
+import { MailStatus, Role, OrgStatus, UserStatus } from '../common/enums';
 import {
   getPaginationOptions,
   formatPaginatedResponse,
@@ -18,9 +21,13 @@ import { UpdateMailDto } from './dto/update-mail.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { MailEncryptedContentDto } from './dto/mail-encrypted-content.dto';
 import { MailE2eeContextDto } from './dto/mail-e2ee-context.dto';
+import { PublicContactDto } from './dto/public-contact.dto';
+import { PublicReplyDto } from './dto/public-reply.dto';
 import { MailUser } from './interfaces/mail-user.interface';
 import { formatRoleLabel } from '../common/role-labels';
 import { FilesService } from '../files/files.service';
+import { EmailService } from '../security/email.service';
+import { EmailTemplateService } from '../common/email-templates/email-template.service';
 
 /** Maximum active (non-resolved/closed) mails per user */
 const MAX_ACTIVE_MAILS = 10;
@@ -41,6 +48,9 @@ const MAIL_DIRECTIONS = ['sent', 'received', 'assigned', 'team'] as const;
 type MailDirection = (typeof MAIL_DIRECTIONS)[number];
 const ENCRYPTED_MAIL_SUBJECT_PLACEHOLDER = 'Encrypted mail';
 const ENCRYPTED_MAIL_MESSAGE_PLACEHOLDER = '[Encrypted mail message]';
+const PUBLIC_CONTACT_CATEGORY = 'PUBLIC_CONTACT';
+const PUBLIC_CONTACT_SOURCE = 'PUBLIC_CONTACT';
+const SUPPORT_INTAKE_EMAIL = 'support-intake@eduverse.system';
 
 export interface ContactTarget {
   id: string;
@@ -82,7 +92,64 @@ export class MailService {
     private readonly events: EventsGateway,
     private readonly notifications: NotificationsService,
     private readonly filesService: FilesService,
+    private readonly emailService: EmailService,
+    private readonly emailTemplates: EmailTemplateService,
+    private readonly config: ConfigService,
   ) {}
+
+  private getAppBaseUrl() {
+    return (
+      this.config.get<string>('FRONTEND_URL') ||
+      this.config.get<string>('APP_URL') ||
+      'http://localhost:3000'
+    ).replace(/\/$/, '');
+  }
+
+  private getPublicContactMetadata(
+    metadata: Prisma.JsonValue | null | undefined,
+  ): {
+    source?: string;
+    externalName?: string;
+    externalEmail?: string;
+    externalCompany?: string;
+    externalDetails?: string;
+    publicReplyCount?: number;
+  } {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return {};
+    }
+    return metadata as Record<string, unknown> as {
+      source?: string;
+      externalName?: string;
+      externalEmail?: string;
+      externalCompany?: string;
+      externalDetails?: string;
+      publicReplyCount?: number;
+    };
+  }
+
+  private async getSupportIntakeUserId() {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: SUPPORT_INTAKE_EMAIL },
+      select: { id: true },
+    });
+    if (existing) return existing.id;
+
+    const rounds = Number.parseInt(process.env.BCRYPT_ROUNDS || '10', 10);
+    const password = await bcrypt.hash(randomBytes(32).toString('hex'), Number.isFinite(rounds) ? rounds : 10);
+    const created = await this.prisma.user.create({
+      data: {
+        email: SUPPORT_INTAKE_EMAIL,
+        password,
+        role: Role.PLATFORM_ADMIN,
+        status: UserStatus.SUSPENDED,
+        name: 'EduVerse Support Intake',
+        isFirstLogin: false,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  }
 
   private getEncryptedContentInclude(recipientUserId?: string) {
     return {
@@ -660,6 +727,96 @@ export class MailService {
     return transformed;
   }
 
+  async createPublicContact(dto: PublicContactDto) {
+    if (dto.honeypot?.trim()) {
+      return { submitted: true };
+    }
+
+    const supportUserId = await this.getSupportIntakeUserId();
+    const externalName = dto.name.trim();
+    const externalEmail = dto.email.trim().toLowerCase();
+    const externalCompany = dto.company?.trim() || undefined;
+    const externalDetails = dto.details?.trim() || undefined;
+    const subject = dto.subject.trim();
+    const message = dto.message.trim();
+    const publicTicketBody = [
+      message,
+      externalDetails ? `\n\nAdditional details:\n${externalDetails}` : '',
+    ].join('');
+
+    const metadata = {
+      source: PUBLIC_CONTACT_SOURCE,
+      externalName,
+      externalEmail,
+      publicReplyCount: 0,
+      ...(externalCompany ? { externalCompany } : {}),
+      ...(externalDetails ? { externalDetails } : {}),
+    } satisfies Prisma.JsonObject;
+
+    const mail = await this.prisma.$transaction(async (tx) => {
+      const req = await tx.mail.create({
+        data: {
+          subject,
+          category: PUBLIC_CONTACT_CATEGORY,
+          priority: 'NORMAL',
+          status: MailStatus.OPEN,
+          creatorId: supportUserId,
+          creatorRole: Role.PLATFORM_ADMIN,
+          organizationId: null,
+          targetRole: Role.PLATFORM_ADMIN,
+          metadata,
+        },
+      });
+
+      await tx.mailMessage.create({
+        data: {
+          mailId: req.id,
+          senderId: supportUserId,
+          content: publicTicketBody,
+        },
+      });
+
+      await tx.mailActionLog.create({
+        data: {
+          mailId: req.id,
+          performedBy: supportUserId,
+          action: 'PUBLIC_CONTACT_CREATED',
+          details: {
+            externalName,
+            externalEmail,
+            externalCompany,
+          },
+        },
+      });
+
+      return req;
+    });
+
+    const email = this.emailTemplates.buildPublicContactSubmittedEmail({
+      appBaseUrl: this.getAppBaseUrl(),
+      name: externalName,
+      email: externalEmail,
+      company: externalCompany,
+      subject,
+      message: publicTicketBody,
+      ticketId: mail.id,
+    });
+    await this.emailService.send({
+      to: externalEmail,
+      subject: email.subject,
+      text: email.text,
+      html: email.html,
+    });
+
+    const fullMail = await this.getMailByIdInternal(mail.id);
+    this.events.emitToRole(Role.PLATFORM_ADMIN, 'mail:new', fullMail);
+    this.events.emitToRole(Role.SUPER_ADMIN, 'mail:new', fullMail);
+    this.events.emitToRole(Role.PLATFORM_ADMIN, 'unread:update', null);
+    this.events.emitToRole(Role.SUPER_ADMIN, 'unread:update', null);
+
+    return { submitted: true, ticketId: mail.id };
+  }
+
   private async validateMailRecipients(dto: CreateMailDto, user: MailUser) {
     if (user.role === Role.STUDENT) {
       throw new ForbiddenException('Students are not allowed to submit mails.');
@@ -847,6 +1004,7 @@ export class MailService {
                 'FEATURE_REQUEST',
                 'BILLING',
                 'PLATFORM_SUPPORT',
+                'PUBLIC_CONTACT',
                 'ORG_COMPLIANCE',
                 'ORG_ACCOUNT',
                 'PLATFORM_NOTICE',
@@ -1438,6 +1596,106 @@ export class MailService {
     // Notify total unread count changes
     this.emitUnreadUpdateToParticipants(mail, user.id);
 
+    return transformed;
+  }
+
+  async addPublicReply(mailId: string, dto: PublicReplyDto, user: MailUser) {
+    if (user.role !== Role.SUPER_ADMIN && user.role !== Role.PLATFORM_ADMIN) {
+      throw new ForbiddenException('Only platform administrators can reply to public tickets.');
+    }
+
+    const mail = await this.prisma.mail.findUnique({
+      where: { id: mailId },
+    });
+    if (!mail) throw new NotFoundException('Mail not found');
+
+    const publicMetadata = this.getPublicContactMetadata(mail.metadata);
+    if (
+      mail.category !== PUBLIC_CONTACT_CATEGORY ||
+      publicMetadata.source !== PUBLIC_CONTACT_SOURCE ||
+      !publicMetadata.externalEmail
+    ) {
+      throw new BadRequestException('This mail is not a public contact ticket.');
+    }
+    if (
+      mail.status === MailStatus.CLOSED ||
+      mail.status === MailStatus.RESOLVED ||
+      mail.status === MailStatus.NO_REPLY
+    ) {
+      throw new BadRequestException('This thread is closed or does not allow replies.');
+    }
+
+    const content = dto.content.trim();
+    const recipientName = publicMetadata.externalName || 'there';
+    const recipientEmail = publicMetadata.externalEmail;
+    const email = this.emailTemplates.buildPublicContactReplyEmail({
+      appBaseUrl: this.getAppBaseUrl(),
+      name: recipientName,
+      subject: mail.subject,
+      content,
+      ticketId: mail.id,
+    });
+
+    await this.emailService.send({
+      to: recipientEmail,
+      subject: email.subject,
+      text: email.text,
+      html: email.html,
+    });
+
+    const nextReplyCount = (publicMetadata.publicReplyCount || 0) + 1;
+    const nextMetadata = {
+      ...(mail.metadata && typeof mail.metadata === 'object' && !Array.isArray(mail.metadata)
+        ? (mail.metadata as Prisma.JsonObject)
+        : {}),
+      publicReplyCount: nextReplyCount,
+      lastPublicReplyAt: new Date().toISOString(),
+      lastPublicReplyBy: user.id,
+    } satisfies Prisma.JsonObject;
+
+    await this.prisma.$transaction(async (tx) => {
+      const msg = await tx.mailMessage.create({
+        data: {
+          mailId,
+          senderId: user.id,
+          content,
+        },
+      });
+
+      await tx.mailActionLog.create({
+        data: {
+          mailId,
+          performedBy: user.id,
+          action: 'PUBLIC_EMAIL_SENT',
+          details: {
+            to: recipientEmail,
+            messageId: msg.id,
+            replyCount: nextReplyCount,
+          },
+        },
+      });
+
+      await tx.mail.update({
+        where: { id: mailId },
+        data: {
+          status: MailStatus.AWAITING_RESPONSE,
+          metadata: nextMetadata,
+          updatedAt: new Date(),
+        },
+      });
+
+      await tx.mailUserView.upsert({
+        where: { userId_mailId: { userId: user.id, mailId } },
+        update: { lastViewedAt: new Date() },
+        create: { userId: user.id, mailId, lastViewedAt: new Date() },
+      });
+    });
+
+    const fullMail = await this.getMailByIdInternal(mailId, user.id);
+    const transformed = this.transformMail(fullMail, user.role as Role);
+    this.events.emitToRoom(`mail:${mailId}`, 'mail:update', transformed);
+    this.events.emitToRole(Role.PLATFORM_ADMIN, 'mail:update', fullMail);
+    this.events.emitToRole(Role.SUPER_ADMIN, 'mail:update', fullMail);
     return transformed;
   }
 

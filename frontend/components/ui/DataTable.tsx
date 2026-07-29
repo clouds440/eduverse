@@ -168,6 +168,10 @@ export function DataTable<T>({
         }
     };
 
+    const stopRowInteraction = (event: React.SyntheticEvent) => {
+        event.stopPropagation();
+    };
+
     const handleMouseDown = (e: React.MouseEvent, index: number) => {
         e.preventDefault();
         e.stopPropagation();
@@ -471,10 +475,16 @@ export function DataTable<T>({
                                                 style={{
                                                     width: columnWidths[index]
                                                 }}
+                                                onClick={isActions ? stopRowInteraction : undefined}
+                                                onKeyDown={isActions ? stopRowInteraction : undefined}
                                                 className={`py-2 sm:py-3 align-middle border-b border-border px-2 ${isSerialColumn(index) ? 'pl-1 text-center' : (isActions ? 'overflow-visible' : 'overflow-hidden px-3 sm:px-6')}`}
                                             >
                                                 {isActions ? (
-                                                    <div className="flex shrink-0 flex-nowrap w-max">
+                                                    <div
+                                                        className="flex shrink-0 flex-nowrap w-max"
+                                                        onClick={stopRowInteraction}
+                                                        onKeyDown={stopRowInteraction}
+                                                    >
                                                         {content}
                                                     </div>
                                                 ) : (

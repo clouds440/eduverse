@@ -41,6 +41,7 @@ interface MailThreadProps {
     onReply: (content: string, files?: File[]) => Promise<void>;
     isClosed?: boolean;
     closedMessage?: string;
+    replyContextMessage?: string;
     onComposerOpenChange?: (open: boolean) => void;
 }
 
@@ -200,6 +201,13 @@ const ActionLogItem = memo(function ActionLogItem({ log }: { log: MailActionLog 
             }
             case 'ASSIGNED':
                 return 'assigned this mail';
+            case 'PUBLIC_CONTACT_CREATED':
+                return 'created this public ticket';
+            case 'PUBLIC_EMAIL_SENT': {
+                const details = log.details as Record<string, unknown> | null | undefined;
+                const to = typeof details?.to === 'string' ? details.to : '';
+                return to ? `sent a no-reply email to ${to}` : 'sent a no-reply email';
+            }
             case 'UPDATED':
                 return 'updated this mail';
             default:
@@ -263,9 +271,10 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
     orgData: Record<string, string>;
     onReply: (content: string, files?: File[]) => Promise<void>;
     className?: string;
+    contextMessage?: string;
     onCancel?: () => void;
     onSent?: () => void;
-}>(function ReplyComposer({ isPlatformAdmin, orgData, onReply, className = '', onCancel, onSent }, ref) {
+}>(function ReplyComposer({ isPlatformAdmin, orgData, onReply, className = '', contextMessage, onCancel, onSent }, ref) {
     const [replyContent, setReplyContent] = useState('');
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [sending, setSending] = useState(false);
@@ -310,7 +319,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
             <div className="mb-2 flex items-center justify-between gap-2 sm:mb-3">
                 <div className="min-w-0">
                     <h3 className="text-xs font-black uppercase tracking-widest text-foreground">Reply</h3>
-                    <p className="hidden text-[11px] font-semibold text-muted-foreground sm:block">Up to 3 attachments.</p>
+                    <p className="hidden text-[11px] font-semibold text-muted-foreground sm:block">{contextMessage || 'Up to 3 attachments.'}</p>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
@@ -394,7 +403,7 @@ const ReplyComposer = forwardRef<ReplyComposerHandle, {
 ReplyComposer.displayName = 'ReplyComposer';
 
 export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
-    ({ mail, currentUserId, currentUserRole, token, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.', onComposerOpenChange }, ref) => {
+    ({ mail, currentUserId, currentUserRole, token, onReply, isClosed, closedMessage = 'This thread is closed. No further replies can be sent.', replyContextMessage, onComposerOpenChange }, ref) => {
         const composerRef = useRef<ReplyComposerHandle>(null);
         const [composerOpen, setComposerOpen] = useState(false);
         const isPlatformAdmin = currentUserRole === Role.PLATFORM_ADMIN || currentUserRole === Role.SUPER_ADMIN;
@@ -504,6 +513,7 @@ export const MailThread = forwardRef<MailThreadHandle, MailThreadProps>(
                             isPlatformAdmin={isPlatformAdmin}
                             orgData={orgData}
                             onReply={onReply}
+                            contextMessage={replyContextMessage}
                             className="max-h-[52vh] overflow-y-auto custom-scrollbar sm:max-h-none sm:overflow-visible"
                             onCancel={closeReplyComposer}
                             onSent={closeReplyComposer}

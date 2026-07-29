@@ -1249,6 +1249,16 @@ export interface MailDetail extends MailItem {
     userViews: MailUserView[];
 }
 
+export interface PublicContactPayload {
+    name: string;
+    email: string;
+    company?: string;
+    subject: string;
+    message: string;
+    details?: string;
+    honeypot?: string;
+}
+
 export interface CreateMailPayload {
     subject: string;
     category: MailCategory;

@@ -4,9 +4,10 @@ import { ChatService } from './chat.service';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TeacherModule } from '../teacher/teacher.module';
+import { FilesModule } from '../files/files.module';
 
 @Module({
-  imports: [AuthModule, NotificationsModule, TeacherModule],
+  imports: [AuthModule, NotificationsModule, TeacherModule, FilesModule],
   controllers: [ChatController],
   providers: [ChatService],
 })

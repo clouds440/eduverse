@@ -196,7 +196,10 @@ export function ModalOverlay({
         mobileMode === "full" && "p-0 sm:p-4 md:p-6",
         overlayClassName,
       )}
+      onMouseDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
       onClick={(event) => {
+        event.stopPropagation();
         if (closeOnBackdrop && event.target === event.currentTarget)
           closeTopModal();
       }}

@@ -15,6 +15,7 @@ import { RegisterChatHistoryKeyDto } from './dto/register-chat-history-key.dto';
 import { buildVisibleChatMessageWhere } from './chat-message-visibility';
 import { AddParticipantsDto } from './dto/add-participants.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { FilesService } from '../files/files.service';
 import {
   Role,
   ChatType,
@@ -64,6 +65,7 @@ export class ChatService {
     private readonly events: EventsGateway,
     private readonly notifications: NotificationsService,
     private readonly teacherService: TeacherService,
+    private readonly filesService: FilesService,
   ) { }
 
   private isPlatformUser(role: Role) {
@@ -2400,6 +2402,7 @@ export class ChatService {
     }
 
     const data: Prisma.ChatUpdateInput = {};
+    const oldAvatarUrl = chat.avatarUrl;
     const systemMessages: string[] = [];
     const userRec = await this.prisma.user.findUnique({
       where: { id: user.id },
@@ -2475,6 +2478,22 @@ export class ChatService {
     );
     for (const p of activeParticipants) {
       this.events.emitToRoom(`user:${p.userId}`, 'chat:update', updatedChat);
+    }
+
+    if (
+      data.avatarUrl !== undefined &&
+      oldAvatarUrl &&
+      oldAvatarUrl !== updatedChat.avatarUrl
+    ) {
+      try {
+        await this.filesService.deleteFileByPath(oldAvatarUrl, {
+          id: user.id,
+          role: user.role,
+          organizationId: user.organizationId || null,
+        });
+      } catch (error) {
+        console.error(`Failed to delete replaced chat avatar file for chat ${chatId}`, error);
+      }
     }
 
     return updatedChat;

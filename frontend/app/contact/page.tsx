@@ -31,15 +31,19 @@ function getErrorMessage(error: unknown, fallback = 'Failed to send message. Ple
 
 export default function ContactPage() {
   const { user, token } = useAuth();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [company, setCompany] = useState('');
+  const [details, setDetails] = useState('');
+  const [honeypot, setHoneypot] = useState('');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [formErrors, setFormErrors] = useState<{ subject?: string; message?: string; general?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ name?: string; email?: string; subject?: string; message?: string; general?: string }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
 
     setIsSubmitting(true);
     setFormErrors({});
@@ -56,6 +60,16 @@ export default function ContactPage() {
         newErrors.message = 'Message cannot be empty.';
         hasError = true;
       }
+      if (!token) {
+        if (!name.trim()) {
+          newErrors.name = 'Name is required';
+          hasError = true;
+        }
+        if (!email.trim()) {
+          newErrors.email = 'Email is required';
+          hasError = true;
+        }
+      }
 
       if (hasError) {
         setFormErrors(newErrors);
@@ -63,15 +77,32 @@ export default function ContactPage() {
         return;
       }
 
-      await api.mail.createMail({
-        subject: subject,
-        message: message,
-        category: MailCategory.PLATFORM_SUPPORT,
-        priority: 'NORMAL',
-        targetRole: Role.PLATFORM_ADMIN,
-      }, token);
+      if (token) {
+        await api.mail.createMail({
+          subject: subject,
+          message: message,
+          category: MailCategory.PLATFORM_SUPPORT,
+          priority: 'NORMAL',
+          targetRole: Role.PLATFORM_ADMIN,
+        }, token);
+      } else {
+        await api.mail.createPublicContact({
+          name,
+          email,
+          company: company || undefined,
+          subject,
+          message,
+          details: details || undefined,
+          honeypot: honeypot || undefined,
+        });
+      }
 
       setIsSuccess(true);
+      setName('');
+      setEmail('');
+      setCompany('');
+      setDetails('');
+      setHoneypot('');
       setSubject('');
       setMessage('');
     } catch (err: unknown) {
@@ -81,13 +112,17 @@ export default function ContactPage() {
       if (Array.isArray(message)) {
         message.forEach((m: string) => {
           const msg = m.toLowerCase();
-          if (msg.includes('subject')) newErrors.subject = m;
+          if (msg.includes('name')) newErrors.name = m;
+          else if (msg.includes('email')) newErrors.email = m;
+          else if (msg.includes('subject')) newErrors.subject = m;
           else if (msg.includes('message')) newErrors.message = m;
           else newErrors.general = m;
         });
       } else {
         const msgStr = message;
-        if (msgStr.toLowerCase().includes('subject')) newErrors.subject = msgStr;
+        if (msgStr.toLowerCase().includes('name')) newErrors.name = msgStr;
+        else if (msgStr.toLowerCase().includes('email')) newErrors.email = msgStr;
+        else if (msgStr.toLowerCase().includes('subject')) newErrors.subject = msgStr;
         else if (msgStr.toLowerCase().includes('message')) newErrors.message = msgStr;
         else newErrors.general = msgStr;
       }
@@ -148,8 +183,8 @@ export default function ContactPage() {
                 <div className="space-y-6">
                   <InfoCard
                     icon={<ShieldHalf className="w-5 h-5 text-primary" />}
-                    title="Identity Verified"
-                    description="Your message will be tied to your official account for faster resolution."
+                    title={user ? "Identity Verified" : "Account Optional"}
+                    description={user ? "Your message will be tied to your official account for faster resolution." : "You can contact support even if you are locked out or do not have an account."}
                   />
                   <InfoCard
                     icon={<MessageSquare className="w-5 h-5 text-primary" />}
@@ -185,29 +220,7 @@ export default function ContactPage() {
             <div className="lg:col-span-3">
               <Reveal delay={300}>
                 <div className="bg-linear-to-br from-card/80 via-card/60 to-card/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-border/50 p-6 md:p-10 relative overflow-hidden">
-                  {!user ? (
-                    <div className="text-center py-12 space-y-6">
-                      <div className="relative mx-auto w-16 h-16 mb-6">
-                        <div className="absolute inset-0 bg-danger/20 rounded-full animate-pulse" />
-                        <div className="relative w-full h-full bg-danger/10 rounded-full flex items-center justify-center">
-                          <AlertCircle className="w-8 h-8 text-danger" />
-                        </div>
-                      </div>
-                      <h2 className="text-2xl md:text-3xl font-bold text-foreground">Login Required</h2>
-                      <p className="text-muted-foreground text-base md:text-lg">
-                        To ensure the security and tracking of your support requests,
-                        you must be logged in to contact our team.
-                      </p>
-                      <div className="pt-4">
-                        <Link
-                          href="/login"
-                          className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:brightness-95 shadow-lg hover:shadow-xl transition-all"
-                        >
-                          Login to Continue
-                        </Link>
-                      </div>
-                    </div>
-                  ) : isSuccess ? (
+                  {isSuccess ? (
                     <div className="text-center py-12 space-y-6 animate-scale-in">
                       <div className="relative mx-auto w-20 h-20 mb-6">
                         <div className="absolute inset-0 bg-success/20 rounded-full animate-pulse" />
@@ -218,7 +231,7 @@ export default function ContactPage() {
                       <h2 className="text-3xl md:text-4xl font-bold text-foreground">Message Sent!</h2>
                       <p className="text-muted-foreground text-base md:text-lg font-medium">
                         Thank you for reaching out. Your mail has been logged and assigned to
-                        our administrative team. You will receive a notification when they reply.
+                        our administrative team. {!user ? 'A confirmation email has been sent to you.' : 'You will receive a notification when they reply.'}
                       </p>
                       <button
                         onClick={() => setIsSuccess(false)}
@@ -226,17 +239,76 @@ export default function ContactPage() {
                       >
                         Send another message
                       </button>
-                      <div className="pt-6">
+                      {user && (
+                        <div className="pt-6">
                         <Link
                           href={user.role === Role.SUPER_ADMIN ? '/admin/organizations' : '/mail'}
                           className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:brightness-95 shadow-lg hover:shadow-xl transition-all"
                         >
                           Go to Your Mailbox
                         </Link>
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in-up" noValidate>
+                      {!user && (
+                        <>
+                          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/50 p-3">
+                            <p className="text-xs font-bold text-muted-foreground">Already have an account?</p>
+                            <Link href="/login" className="text-xs font-black text-primary hover:text-primary/80">
+                              Log in
+                            </Link>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold tracking-wider text-muted-foreground ml-1 opacity-70">Name</label>
+                              <Input
+                                type="text"
+                                required
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="Your name"
+                                error={!!formErrors.name}
+                                className="h-12 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
+                              />
+                              {formErrors.name && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.name}</p>}
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-semibold tracking-wider text-muted-foreground ml-1 opacity-70">Email</label>
+                              <Input
+                                type="email"
+                                required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="you@example.com"
+                                error={!!formErrors.email}
+                                className="h-12 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
+                              />
+                              {formErrors.email && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.email}</p>}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-semibold tracking-wider text-muted-foreground ml-1 opacity-70">Company <span className="text-muted-foreground/60">(optional)</span></label>
+                            <Input
+                              type="text"
+                              value={company}
+                              onChange={(e) => setCompany(e.target.value)}
+                              placeholder="Company or organization"
+                              className="h-12 font-medium border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all bg-background/50 backdrop-blur-sm"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={honeypot}
+                            onChange={(e) => setHoneypot(e.target.value)}
+                            tabIndex={-1}
+                            autoComplete="off"
+                            className="hidden"
+                            aria-hidden="true"
+                          />
+                        </>
+                      )}
                       <div className="space-y-2">
                         <label className="text-xs font-semibold tracking-wider text-muted-foreground ml-1 opacity-70">Subject</label>
                         <Input
@@ -267,6 +339,18 @@ export default function ContactPage() {
                       </div>
 
                       {formErrors.message && <p className="mt-1 text-xs text-danger font-semibold ml-1">{formErrors.message}</p>}
+
+                      {!user && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold tracking-wider text-foreground ml-1 opacity-70">Other Details <span className="text-muted-foreground/60">(optional)</span></label>
+                          <MarkdownEditor
+                            value={details}
+                            onChange={setDetails}
+                            placeholder="Anything else that may help us route your request."
+                            rows={4}
+                          />
+                        </div>
+                      )}
 
                       {formErrors.general && (
                         <div className="p-4 bg-danger/10 border border-danger/30 text-danger rounded-xl flex items-center text-sm font-medium animate-shake">

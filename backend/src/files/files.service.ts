@@ -220,29 +220,35 @@ export class FilesService {
     oldUrl: string | null,
     file: Express.Multer.File,
   ): Promise<string> {
-    if (oldUrl) {
-      if (oldUrl.startsWith('http') && oldUrl.includes('cloudinary.com')) {
-        const parts = oldUrl.split('/');
-        const uploadIndex = parts.indexOf('upload');
-        if (uploadIndex !== -1 && parts.length > uploadIndex + 2) {
-          const publicIdWithExt = parts.slice(uploadIndex + 2).join('/');
-          const publicId = publicIdWithExt.split('.')[0];
-          try {
-            await cloudinary.uploader.destroy(publicId, {
-              resource_type: 'image',
-              invalidate: true,
-            });
-          } catch (err) {
-            console.error(
-              `Failed to delete old file from Cloudinary: ${publicId}`,
-              err,
-            );
-          }
-        }
-      }
-    }
+    await this.deletePublicCloudinaryImageUrl(oldUrl);
 
     return file.path;
+  }
+
+  async deletePublicCloudinaryImageUrl(url: string | null | undefined) {
+    const publicId = this.extractPublicCloudinaryImageId(url);
+    if (!publicId) return false;
+
+    try {
+      await cloudinary.uploader.destroy(publicId, {
+        resource_type: 'image',
+        invalidate: true,
+      });
+      return true;
+    } catch (err) {
+      console.error(`Failed to delete old file from Cloudinary: ${publicId}`, err);
+      return false;
+    }
+  }
+
+  async deleteFileByPath(
+    path: string | null | undefined,
+    requestingUser: RequestingUser,
+  ) {
+    const fileId = this.extractDownloadFileId(path);
+    if (!fileId) return false;
+    await this.deleteFile(fileId, requestingUser);
+    return true;
   }
 
   private async uploadToCloudinary(
@@ -429,12 +435,23 @@ export class FilesService {
   }
 
   private async assertChatAccess(chatId: string, requestingUser: RequestingUser) {
-    const participant = await this.prisma.chatParticipant.findFirst({
-      where: { chatId, userId: requestingUser.id, isActive: true },
-      select: { id: true },
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: {
+        organizationId: true,
+        participants: {
+          where: { userId: requestingUser.id, isActive: true },
+          select: { id: true },
+        },
+      },
     });
+    if (!chat) throw new NotFoundException('Chat not found');
 
-    if (!participant) {
+    const isOrgChatAdmin =
+      chat.organizationId &&
+      requestingUser.organizationId === chat.organizationId &&
+      (requestingUser.role === Role.ORG_ADMIN || requestingUser.role === Role.SUB_ADMIN);
+    if (!isOrgChatAdmin && chat.participants.length === 0) {
       throw new ForbiddenException('You do not have permission to access this file');
     }
   }
@@ -533,6 +550,43 @@ export class FilesService {
 
   private downloadPath(fileId: string) {
     return `/files/${fileId}/download`;
+  }
+
+  private extractDownloadFileId(path: string | null | undefined) {
+    if (!path) return null;
+
+    try {
+      const pathname = path.startsWith('http')
+        ? new URL(path).pathname
+        : path;
+      const match = pathname.match(/\/files\/([^/]+)\/download\/?$/);
+      return match?.[1] ? decodeURIComponent(match[1]) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private extractPublicCloudinaryImageId(url: string | null | undefined) {
+    if (!url || !url.includes('cloudinary.com')) return null;
+
+    try {
+      const pathname = new URL(url).pathname;
+      const parts = pathname.split('/').filter(Boolean);
+      const uploadIndex = parts.indexOf('upload');
+      if (uploadIndex === -1) return null;
+
+      const afterUpload = parts.slice(uploadIndex + 1);
+      const withoutTransformations = afterUpload.filter((part) => !part.includes(','));
+      const publicIdParts = withoutTransformations[0]?.match(/^v\d+$/)
+        ? withoutTransformations.slice(1)
+        : withoutTransformations;
+      if (publicIdParts.length === 0) return null;
+
+      const publicIdWithExt = publicIdParts.join('/');
+      return publicIdWithExt.replace(/\.[^/.]+$/, '');
+    } catch {
+      return null;
+    }
   }
 
   private safeBaseName(filename: string) {

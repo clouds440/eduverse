@@ -15,10 +15,13 @@ import { CreateMailDto } from './dto/create-mail.dto';
 import { UpdateMailDto } from './dto/update-mail.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { MailE2eeContextDto } from './dto/mail-e2ee-context.dto';
+import { PublicContactDto } from './dto/public-contact.dto';
+import { PublicReplyDto } from './dto/public-reply.dto';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
+import { Public } from '../common/decorators/public.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Access(AccessLevel.NONE)
@@ -38,6 +41,12 @@ export class MailController {
       name: req.user.name,
       email: req.user.email,
     });
+  }
+
+  @Public()
+  @Post('public-contact')
+  async createPublicContact(@Body() dto: PublicContactDto) {
+    return this.mailService.createPublicContact(dto);
   }
 
   @Get('unread-count')
@@ -159,6 +168,21 @@ export class MailController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.mailService.addMessage(id, dto, {
+      id: req.user.id,
+      role: req.user.role,
+      organizationId: req.user.organizationId,
+      name: req.user.name,
+      email: req.user.email,
+    });
+  }
+
+  @Post(':id/public-reply')
+  async addPublicReply(
+    @Param('id') id: string,
+    @Body() dto: PublicReplyDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.mailService.addPublicReply(id, dto, {
       id: req.user.id,
       role: req.user.role,
       organizationId: req.user.organizationId,

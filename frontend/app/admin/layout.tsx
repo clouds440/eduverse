@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useMemo } from 'react';
 import { DashboardLayout, SidebarLink } from '@/components/ui/DashboardLayout';
-import { Building, Mail, MessageSquare, ScrollText, Settings, Sparkles, Users } from 'lucide-react';
+import { Building, Mail, MessageSquare, ScrollText, Settings, Sparkles, Ticket, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import statsStore from '@/lib/statsStore';
 import { Role } from '@/types';
@@ -112,6 +112,12 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             href: '/admin/mail',
             icon: Mail,
             badge: stats?.UNREAD_MAIL ? `${stats.UNREAD_MAIL} New` : undefined
+        });
+        adminLinks.push({
+            id: 'PUBLIC_TICKETS',
+            label: 'Public Tickets',
+            href: '/admin/mail/public',
+            icon: Ticket,
         });
 
         // Add Chat/Messages link

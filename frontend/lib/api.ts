@@ -4,7 +4,7 @@ import type {
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
     CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
     CreateSectionRequest, UpdateSectionRequest, CreateCourseRequest, UpdateCourseRequest,
-    PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, UpdateMailPayload, MailE2EEContextRequest, EncryptedMailContent,
+    PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, PublicContactPayload, UpdateMailPayload, MailE2EEContextRequest, EncryptedMailContent,
     Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
     UpdateGradeRequest, CreateSubmissionRequest, FinalGradeResponse, MailTarget,
     Chat, ChatE2EEContext, ChatMentionOptions, ChatMentionTarget, ChatMessage, ChatSearchUser, CommunicationBlock, Notification, Announcement, TargetType, AnnouncementPriority, User, Attachment,
@@ -1241,6 +1241,8 @@ export const api = {
             request<MailDetail>(`/mail/${id}`, { token }),
         createMail: (data: CreateMailPayload, token: string) =>
             request<MailDetail>('/mail', { method: 'POST', body: JSON.stringify(data), token }),
+        createPublicContact: (data: PublicContactPayload) =>
+            request<{ submitted: boolean; ticketId?: string }>('/mail/public-contact', { method: 'POST', body: JSON.stringify(data) }),
         getComposeE2EEContext: (data: MailE2EEContextRequest, token: string) =>
             request<RecipientEncryptionDevicesResponse[]>('/mail/e2ee-context', { method: 'POST', body: JSON.stringify(data), token }),
         getE2EEContext: (id: string, token: string) =>
@@ -1252,6 +1254,8 @@ export const api = {
         addMessage: (mailId: string, data: { content: string; encryptedContent?: EncryptedMailContent }, token: string) => {
             return request<MailDetail>(`/mail/${mailId}/messages`, { method: 'POST', body: JSON.stringify(data), token });
         },
+        addPublicReply: (mailId: string, data: { content: string }, token: string) =>
+            request<MailDetail>(`/mail/${mailId}/public-reply`, { method: 'POST', body: JSON.stringify(data), token }),
 
         getContactableUsers: (token: string, search?: string) =>
             request<MailTarget[]>(`/mail/contacts${buildQueryString({ search })}`, { token }),
