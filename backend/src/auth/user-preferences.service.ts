@@ -93,14 +93,15 @@ export class UserPreferencesService {
         }
       }
       if (data.deviceTwoFactorEnabled) {
-        const trustedDevice = await this.prisma.trustedEncryptionDevice.findFirst({
-          where: {
-            userId,
-            trustStatus: E2EEDeviceTrustStatus.TRUSTED,
-            revokedAt: null,
-          },
-          select: { id: true },
-        });
+        const trustedDevice =
+          await this.prisma.trustedEncryptionDevice.findFirst({
+            where: {
+              userId,
+              trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+              revokedAt: null,
+            },
+            select: { id: true },
+          });
         if (!trustedDevice) {
           throw new BadRequestException(
             'Trust at least one browser before enabling trusted-browser verification.',
@@ -131,94 +132,61 @@ export class UserPreferencesService {
     return this.withDefaults(settings);
   }
 
-  async toggleManagedTwoFactor(
+  async resetManagedTwoFactor(
     actor: { id: string; role?: string; organizationId?: string | null },
     targetUserId: string,
     meta: RequestMetadata,
   ) {
     const target = await this.getManagedSecurityTarget(actor, targetUserId);
-
-    const currentlyEnabled = target.settings?.twoFactorEnabled === true;
-    let emailEnabled = false;
-    let deviceEnabled = false;
-    if (!currentlyEnabled) {
-      emailEnabled = Boolean(
-        target.role === Role.ORG_ADMIN
-          ? target.organization?.contactEmailVerifiedAt
-          : target.contactEmailVerifiedAt,
-      );
-      deviceEnabled = Boolean(
-        await this.prisma.trustedEncryptionDevice.findFirst({
-          where: {
-            userId: target.id,
-            trustStatus: E2EEDeviceTrustStatus.TRUSTED,
-            revokedAt: null,
-          },
-          select: { id: true },
-        }),
-      );
-      if (!emailEnabled && !deviceEnabled) {
-        throw new BadRequestException(
-          'This user needs a verified contact email or trusted browser before two-step verification can be enabled.',
-        );
-      }
+    if (!target.settings?.twoFactorEnabled) {
+      return {
+        enabled: false,
+        emailEnabled: false,
+        deviceEnabled: false,
+        message: 'Two-step verification is already off for this user.',
+      };
     }
 
-    const enabled = emailEnabled || deviceEnabled;
     const settings = await this.prisma.userSettings.upsert({
       where: { userId: target.id },
       create: {
         userId: target.id,
-        twoFactorEnabled: enabled,
-        emailTwoFactorEnabled: emailEnabled,
-        deviceTwoFactorEnabled: deviceEnabled,
-        twoFactorMethod: this.getTwoFactorMethod(
-          emailEnabled,
-          deviceEnabled,
-        ),
+        twoFactorEnabled: false,
+        emailTwoFactorEnabled: false,
+        deviceTwoFactorEnabled: false,
+        twoFactorMethod: TwoFactorMethod.DEVICE,
       },
       update: {
-        twoFactorEnabled: enabled,
-        emailTwoFactorEnabled: emailEnabled,
-        deviceTwoFactorEnabled: deviceEnabled,
-        twoFactorMethod: this.getTwoFactorMethod(
-          emailEnabled,
-          deviceEnabled,
-        ),
+        twoFactorEnabled: false,
+        emailTwoFactorEnabled: false,
+        deviceTwoFactorEnabled: false,
+        twoFactorMethod: TwoFactorMethod.DEVICE,
       },
     });
-    if (!enabled) {
-      await this.prisma.pendingLogin.updateMany({
-        where: {
-          userId: target.id,
-          status: {
-            in: [
-              PendingLoginStatus.PENDING,
-              PendingLoginStatus.VERIFIED,
-            ],
-          },
+    await this.prisma.pendingLogin.updateMany({
+      where: {
+        userId: target.id,
+        status: {
+          in: [PendingLoginStatus.PENDING, PendingLoginStatus.VERIFIED],
         },
-        data: { status: PendingLoginStatus.CANCELLED },
-      });
-    }
-    await this.securityService.recordEvent('managed_two_factor_toggled', {
+      },
+      data: { status: PendingLoginStatus.CANCELLED },
+    });
+    await this.securityService.recordEvent('managed_two_factor_reset', {
       ...meta,
       actorUserId: actor.id,
       targetUserId: target.id,
       organizationId: target.organizationId ?? undefined,
       details: {
-        enabled,
-        emailEnabled,
-        deviceEnabled,
+        previousEmailEnabled: target.settings.emailTwoFactorEnabled,
+        previousDeviceEnabled: target.settings.deviceTwoFactorEnabled,
       },
     });
     return {
       enabled: settings.twoFactorEnabled,
       emailEnabled: settings.emailTwoFactorEnabled,
       deviceEnabled: settings.deviceTwoFactorEnabled,
-      message: enabled
-        ? 'Two-step verification was enabled for this user.'
-        : 'Two-step verification was disabled for this user.',
+      message: 'Two-step verification was reset for this user.',
     };
   }
 
@@ -234,14 +202,6 @@ export class UserPreferencesService {
     };
   }
 
-  private getTwoFactorMethod(
-    emailEnabled: boolean,
-    deviceEnabled: boolean,
-  ) {
-    if (emailEnabled && deviceEnabled) return TwoFactorMethod.BOTH;
-    return emailEnabled ? TwoFactorMethod.EMAIL : TwoFactorMethod.DEVICE;
-  }
-
   private async getManagedSecurityTarget(
     actor: { role?: string; organizationId?: string | null },
     targetUserId: string,
@@ -254,29 +214,24 @@ export class UserPreferencesService {
       include: { organization: true, settings: true },
     });
     if (!target) throw new NotFoundException('User not found.');
-    assertCanManageOrganizationUserSecurity(
-      actor.role,
-      target.role,
-    );
+    assertCanManageOrganizationUserSecurity(actor.role, target.role);
     return target;
   }
 
   private withDefaults(
-    settings:
-      | {
-          userId: string;
-          twoFactorEnabled: boolean;
-          twoFactorMethod: TwoFactorMethod;
-          emailTwoFactorEnabled: boolean;
-          deviceTwoFactorEnabled: boolean;
-          themeMode: ThemeMode;
-          loginNotificationEmail: boolean;
-          loginNotificationPush: boolean;
-          marketingEmails: boolean;
-          createdAt: Date;
-          updatedAt: Date;
-        }
-      | null,
+    settings: {
+      userId: string;
+      twoFactorEnabled: boolean;
+      twoFactorMethod: TwoFactorMethod;
+      emailTwoFactorEnabled: boolean;
+      deviceTwoFactorEnabled: boolean;
+      themeMode: ThemeMode;
+      loginNotificationEmail: boolean;
+      loginNotificationPush: boolean;
+      marketingEmails: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    } | null,
   ) {
     return (
       settings ?? {

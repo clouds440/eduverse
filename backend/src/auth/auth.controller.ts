@@ -311,12 +311,12 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Access(AccessLevel.WRITE)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @Post('users/:userId/two-factor/toggle')
-  async toggleManagedUserTwoFactor(
+  @Post('users/:userId/two-factor/reset')
+  async resetManagedUserTwoFactor(
     @Param('userId') userId: string,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.authService.toggleManagedUserTwoFactor(
+    return this.authService.resetManagedUserTwoFactor(
       req.user,
       userId,
       this.getRequestMeta(req),

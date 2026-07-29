@@ -19,8 +19,7 @@ import { TableActions } from '@/components/ui/TableActions';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
 import { useContextualNavigation } from '@/hooks/useContextualNavigation';
-import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
-import { ManagedTwoFactorAction } from '@/components/settings/ManagedTwoFactorAction';
+import { UserSecurityActions } from '@/components/settings/UserSecurityActions';
 
 export default function GuardiansPage() {
     const { token, user } = useAuth();
@@ -28,7 +27,6 @@ export default function GuardiansPage() {
     const contextualHref = useContextualNavigation();
     const [importOpen, setImportOpen] = useState(false);
     const canAccess = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
-    const { generatePasswordResetLink, generatingResetUserId } = usePasswordResetLinkAction(token);
     const routeBase = '/users/guardians';
     const { data = [], isLoading, error, mutate } = useSWR<GuardianProfile[]>(
         token && canAccess ? ['guardians', token] as const : null,
@@ -79,17 +77,12 @@ export default function GuardiansPage() {
                                 title: 'Link Students',
                                 onClick: () => router.push(`${routeBase}/link/${guardian.id}`),
                             },
-                            {
-                                variant: 'passwordReset',
-                                title: 'Copy Password Reset Link',
-                                loading: generatingResetUserId === guardian.user.id,
-                                onClick: () => generatePasswordResetLink(guardian.user.id),
-                            },
                         ]}
                     />
-                    <ManagedTwoFactorAction
+                    <UserSecurityActions
                         targetUserId={guardian.user.id}
                         targetName={guardian.user.name}
+                        targetEmail={guardian.user.email}
                         targetRole={Role.GUARDIAN}
                     />
                     <UserCommsAction

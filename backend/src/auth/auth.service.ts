@@ -789,12 +789,12 @@ export class AuthService {
     return this.preferencesManager.updateSettings(userId, data);
   }
 
-  async toggleManagedUserTwoFactor(
+  async resetManagedUserTwoFactor(
     actor: { id: string; role?: string; organizationId?: string | null },
     targetUserId: string,
     meta: RequestMetadata,
   ) {
-    return this.preferencesManager.toggleManagedTwoFactor(
+    return this.preferencesManager.resetManagedTwoFactor(
       actor,
       targetUserId,
       meta,

@@ -2900,8 +2900,8 @@ export const docsPages: DocPage[] = [
             type: 'table',
             headers: ['Who needs help', 'Who can help', 'What they can do'],
             rows: [
-              ['Teacher, manager, finance manager, student, or guardian', 'Org admin or sub-admin', 'Copy a password-reset link or enable/disable two-step verification.'],
-              ['Sub-admin', 'Org admin only', 'Copy a password-reset link or enable/disable two-step verification.'],
+              ['Teacher, manager, finance manager, student, or guardian', 'Org admin or sub-admin', 'Copy a password-reset link or turn off two-step verification when the user is locked out.'],
+              ['Sub-admin', 'Org admin only', 'Copy a password-reset link or turn off two-step verification when the sub-admin is locked out.'],
               ['Org admin who can open the organization contact inbox', 'No staff action is needed', 'Choose the organization recovery email on the sign-in screen.'],
               ['Org admin who also lost the organization contact inbox', 'Platform support', 'After confirming the request, replace the verified organization contact email.'],
             ],
@@ -3170,8 +3170,9 @@ export const docsPages: DocPage[] = [
             type: 'steps',
             items: [
               'Open the relevant user list and find the correct account.',
-              'Use Copy Password Reset Link if the user has forgotten the password, or use the shield action if the user cannot complete two-step verification.',
-              'Read the confirmation carefully. The two-step verification action tells you whether it will enable or disable the extra sign-in check.',
+              'Choose the shield action to open Account recovery. Password and two-step verification help are grouped in this one window.',
+              'Use Copy Password Reset Link if the user has forgotten the password.',
+              'Use Reset two-step verification only if the user cannot complete the extra sign-in check. Admins cannot use this action to turn it on.',
               'Share password-reset links directly with the intended user. Do not post them in a group chat or shared document.',
               'Ask the user to review Settings > Security after signing in and set up verification options they can keep access to.',
             ],
@@ -3247,7 +3248,7 @@ export const docsPages: DocPage[] = [
             headers: ['Area', 'Sub Admin can do', 'Boundary'],
             rows: [
               ['People', 'Create and update teachers, managers, students, guardians, and finance managers.', 'Sub admins do not create or manage main admin accounts.'],
-              ['Account recovery', 'Copy password-reset links and change two-step verification for ordinary users.', 'Sub admins cannot do this for the org admin or another sub-admin.'],
+              ['Account recovery', 'Copy password-reset links and turn off two-step verification for ordinary users who are locked out.', 'Sub admins cannot do this for the org admin or another sub-admin, and cannot turn two-step verification on for anyone.'],
               ['Academic setup', 'Manage cycles, cohorts, sections, schedules, reassignment, and operational academic records.', 'Changes should follow the school academic plan.'],
               ['Grades', 'Review grade-finalization status and finalize where allowed.', 'Finalized grades become official transcript data.'],
               ['Evaluations', 'Create windows and review teacher/course feedback where delegated.', 'Feedback review follows department scope where applicable.'],

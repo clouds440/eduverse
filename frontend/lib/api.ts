@@ -23,7 +23,7 @@ import type {
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
     PreferenceWindow, PreferenceWindowRequest, PreferenceResults, PreferenceSubmission, Enrollment, EnrollmentMutationResponse,
-    ContactEmailChangeConfirmation, LinkedAccount, ManagedTwoFactorResult, ManagedTwoFactorStatus, PasswordResetLinkResponse, PublicProfile,
+    ContactEmailChangeConfirmation, LinkedAccount, ManagedTwoFactorResetResult, ManagedTwoFactorStatus, PasswordResetLinkResponse, PublicProfile,
     ApproveTrustedDevicePayload, PendingDeviceApprovalContext, RecipientEncryptionDevicesResponse, RegisterChatHistoryKeyPayload, RegisterTrustedDevicePayload, SendChatMessagePayload,
     TrustedDeviceRegistrationResponse, TrustedDevicesResponse, TwoFactorChallenge, TwoFactorLoginMethod,
     ChatDeviceHistoryGrantPayload,
@@ -633,8 +633,8 @@ export const api = {
             request<MessageResponse>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
         generatePasswordResetLink: (userId: string, token: string) =>
             request<PasswordResetLinkResponse>(`/auth/users/${userId}/password-reset-link`, { method: 'POST', token }),
-        toggleManagedTwoFactor: (userId: string, token: string) =>
-            request<ManagedTwoFactorResult>(`/auth/users/${userId}/two-factor/toggle`, { method: 'POST', token }),
+        resetManagedTwoFactor: (userId: string, token: string) =>
+            request<ManagedTwoFactorResetResult>(`/auth/users/${userId}/two-factor/reset`, { method: 'POST', token }),
         getManagedTwoFactorStatus: (userId: string, token: string) =>
             request<ManagedTwoFactorStatus>(`/auth/users/${userId}/two-factor`, { token }),
         getContactEmail: (token: string) =>

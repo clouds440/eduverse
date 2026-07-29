@@ -424,7 +424,7 @@ Selected routes:
 - `POST /auth/two-factor/challenge`, `/select`, `/email/verify`, `/email/resend`, `/device/approve`, `/complete`, `/cancel`
 - `GET|PATCH /auth/contact-email` plus resend, verify, and linked-Google adoption routes
 - `POST /auth/contact-email/change-confirmation/request|confirm`
-- `GET /auth/users/:userId/two-factor` and `POST /auth/users/:userId/two-factor/toggle`
+- `GET /auth/users/:userId/two-factor` and `POST /auth/users/:userId/two-factor/reset`
 - `GET|PATCH /auth/settings`
 - `GET /auth/google/login`, `/google/link`, and `/google/callback`
 - `GET /auth/sessions` plus session revocation routes
@@ -710,12 +710,12 @@ The linked Google email option follows the same old-address confirmation rule wh
 
 #### Organization User Recovery
 
-- Org admins can copy a password-reset link or enable/disable two-step verification for any user in their organization.
+- Org admins can copy a password-reset link or reset two-step verification for any user in their organization.
 - Sub-admins can do the same for teachers, managers, finance managers, students, and guardians.
 - Sub-admins cannot reset the password or change two-step verification for the org admin or another sub-admin. The backend enforces this even if someone calls the API directly.
-- Before changing a user's two-step verification, the interface loads its current state and clearly asks whether it will be enabled or disabled.
-- Enabling two-step verification uses the verified options the user already has. It fails safely if the user has neither a verified contact email nor a trusted device.
-- Disabling two-step verification removes the extra sign-in check but does not change the user's password, active sessions, or trusted-device records.
+- The user-table action opens one shared **Account recovery** modal containing the password-reset and two-step reset options.
+- Admins cannot turn two-step verification on for another user. They can only reset it to off when the user is locked out.
+- Resetting two-step verification removes the extra sign-in check but does not change the user's password, active sessions, or trusted-device records.
 
 #### Org Admin Recovery
 

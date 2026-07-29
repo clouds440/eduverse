@@ -27,10 +27,9 @@ import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
-import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
 import { useContextualNavigation } from '@/hooks/useContextualNavigation';
-import { ManagedTwoFactorAction } from '@/components/settings/ManagedTwoFactorAction';
+import { UserSecurityActions } from '@/components/settings/UserSecurityActions';
 
 interface StudentParams {
     page: number;
@@ -62,7 +61,6 @@ export default function StudentsPage() {
     const canViewStudentDetails = canManageStudents || user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
     const isScopedStudentRoster = user?.role === Role.TEACHER || user?.role === Role.ORG_MANAGER;
     const routeBase = '/users/students';
-    const { generatePasswordResetLink, generatingResetUserId } = usePasswordResetLinkAction(token);
 
     // URL State
     const page = getNumberParam('page', 1);
@@ -289,18 +287,14 @@ export default function StudentsPage() {
                                     variant: 'enrollment' as const,
                                     title: 'Manage Enrollment',
                                     onClick: () => router.push(`${routeBase}/edit/${row.id}/enrollment`),
-                                }, {
-                                    variant: 'passwordReset' as const,
-                                    title: 'Copy Password Reset Link',
-                                    loading: generatingResetUserId === row.user.id,
-                                    onClick: () => generatePasswordResetLink(row.user.id),
                                 }] : []),
                             ]}
                         />
                         {!isDeletedView && canManageStudents && (
-                            <ManagedTwoFactorAction
+                            <UserSecurityActions
                                 targetUserId={row.user.id}
                                 targetName={row.user.name}
+                                targetEmail={row.user.email}
                                 targetRole={Role.STUDENT}
                             />
                         )}

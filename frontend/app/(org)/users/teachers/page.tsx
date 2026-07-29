@@ -28,10 +28,9 @@ import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { formatCourseSectionLabel, formatDepartmentLabel } from '@/lib/utils';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
-import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
 import { useContextualNavigation } from '@/hooks/useContextualNavigation';
-import { ManagedTwoFactorAction } from '@/components/settings/ManagedTwoFactorAction';
+import { UserSecurityActions } from '@/components/settings/UserSecurityActions';
 
 interface TeacherParams {
     page: number;
@@ -70,7 +69,6 @@ export default function TeachersPage() {
     const routeBase = '/users/teachers';
     const [pageSize, setPageSize] = usePersistentPageSize('edu-teachers-limit', 10);
     const canManageTeachers = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
-    const { generatePasswordResetLink, generatingResetUserId } = usePasswordResetLinkAction(token);
 
     const teacherParams = useMemo<TeacherParams>(() => ({
         page,
@@ -276,23 +274,14 @@ export default function TeachersPage() {
                                     title: 'Restore',
                                     onClick: () => handleRestore(row.id)
                                 }
-                            ] : [
-                                ...(canManageTeachers &&
-                                (user?.role === Role.ORG_ADMIN ||
-                                    (row.user.role !== Role.ORG_ADMIN &&
-                                        row.user.role !== Role.SUB_ADMIN)) ? [{
-                                    variant: 'passwordReset' as const,
-                                    title: 'Copy Password Reset Link',
-                                    loading: generatingResetUserId === row.user.id,
-                                    onClick: () => generatePasswordResetLink(row.user.id),
-                                }] : []),
-                            ])
+                            ] : [])
                         ]}
                     />
                     {!isDeletedView && canManageTeachers && (
-                        <ManagedTwoFactorAction
+                        <UserSecurityActions
                             targetUserId={row.user.id}
                             targetName={row.user.name}
+                            targetEmail={row.user.email}
                             targetRole={row.user.role}
                         />
                     )}
@@ -308,7 +297,7 @@ export default function TeachersPage() {
                 </div>
             )
         }
-    ], [canManageTeachers, contextualHref, generatePasswordResetLink, generatingResetUserId, isDeletedView, router, routeBase, handleRestore, isManagersView, user?.role]);
+    ], [canManageTeachers, contextualHref, isDeletedView, router, routeBase, handleRestore, isManagersView]);
 
     const activeFilters: ActiveFilter[] = [
         ...(isDeletedView ? [{

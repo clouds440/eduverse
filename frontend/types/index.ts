@@ -1485,14 +1485,17 @@ export interface ImportConfirmResult {
     errors: InvalidImportRow[];
 }
 
-export interface ManagedTwoFactorResult {
+export interface ManagedTwoFactorResetResult {
     enabled: boolean;
     emailEnabled: boolean;
     deviceEnabled: boolean;
     message: string;
 }
 
-export type ManagedTwoFactorStatus = Omit<ManagedTwoFactorResult, 'message'>;
+export type ManagedTwoFactorStatus = Omit<
+    ManagedTwoFactorResetResult,
+    'message'
+>;
 
 export interface UserSettings {
     userId?: string;

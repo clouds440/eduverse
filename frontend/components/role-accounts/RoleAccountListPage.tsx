@@ -21,8 +21,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { BrandIcon } from '@/components/ui/Brand';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
-import { usePasswordResetLinkAction } from '@/hooks/usePasswordResetLinkAction';
-import { ManagedTwoFactorAction } from '@/components/settings/ManagedTwoFactorAction';
+import { UserSecurityActions } from '@/components/settings/UserSecurityActions';
 import { formatDepartmentLabel } from '@/lib/utils';
 import { UserCommsAction } from '@/components/communication/UserCommsAction';
 
@@ -76,7 +75,6 @@ export default function RoleAccountListPage({
     const { getBooleanParam, getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deletingAccount, setDeletingAccount] = useState<User | null>(null);
-    const { generatePasswordResetLink, generatingResetUserId } = usePasswordResetLinkAction(token);
 
     const page = getNumberParam('page', 1);
     const searchTerm = getStringParam('search');
@@ -87,11 +85,6 @@ export default function RoleAccountListPage({
     const [pageSize, setPageSize] = usePersistentPageSize(pageSizeKey, 10);
 
     const hasAccess = !!user?.role && allowedRoles.includes(user.role);
-    const canGenerateResetForRole = useCallback((targetRole: Role) =>
-        user?.role === Role.ORG_ADMIN ||
-        (user?.role === Role.SUB_ADMIN &&
-            targetRole !== Role.ORG_ADMIN &&
-            targetRole !== Role.SUB_ADMIN), [user?.role]);
     const isSubAdminList = labelSingular === 'Sub Admin';
 
     useEffect(() => {
@@ -233,19 +226,13 @@ export default function RoleAccountListPage({
                                 title: 'Restore',
                                 onClick: () => handleRestore(row.id),
                             },
-                        ] : [
-                            ...(canGenerateResetForRole(row.role) ? [{
-                                variant: 'passwordReset' as const,
-                                title: 'Copy Password Reset Link',
-                                loading: generatingResetUserId === row.id,
-                                onClick: () => generatePasswordResetLink(row.id),
-                            }] : []),
-                        ]}
+                        ] : []}
                     />
                     {!isDeletedView && (
-                        <ManagedTwoFactorAction
+                        <UserSecurityActions
                             targetUserId={row.id}
                             targetName={row.name}
+                            targetEmail={row.email}
                             targetRole={row.role}
                         />
                     )}
@@ -261,7 +248,7 @@ export default function RoleAccountListPage({
                 </div>
             ),
         },
-    ], [canGenerateResetForRole, generatePasswordResetLink, generatingResetUserId, handleRestore, isDeletedView, isSubAdminList, labelSingular, routeBase, router]);
+    ], [handleRestore, isDeletedView, isSubAdminList, labelSingular, routeBase, router]);
 
     const activeFilters: ActiveFilter[] = [
         ...(isDeletedView ? [{

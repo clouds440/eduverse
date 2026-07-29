@@ -1,9 +1,4 @@
-import {
-  E2EEDeviceTrustStatus,
-  Role,
-  ThemeMode,
-  TwoFactorMethod,
-} from '@/prisma/prisma-client';
+import { Role, ThemeMode, TwoFactorMethod } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SecurityService } from './security.service';
 import { UserPreferencesService } from './user-preferences.service';
@@ -128,7 +123,7 @@ describe('UserPreferencesService', () => {
     });
 
     await expect(
-      service.toggleManagedTwoFactor(
+      service.resetManagedTwoFactor(
         {
           id: 'actor',
           role: Role.SUB_ADMIN,
@@ -141,25 +136,26 @@ describe('UserPreferencesService', () => {
     expect(prisma.userSettings.upsert).not.toHaveBeenCalled();
   });
 
-  it('lets an org admin enable all verified options for an org user', async () => {
+  it('lets an org admin reset all two-step verification options', async () => {
     prisma.user.findFirst.mockResolvedValue({
       id: 'target-user',
       role: Role.STUDENT,
-      contactEmailVerifiedAt: new Date(),
       organization: {},
-      settings: { twoFactorEnabled: false },
-    });
-    prisma.trustedEncryptionDevice.findFirst.mockResolvedValue({
-      id: 'trusted-device',
-      trustStatus: E2EEDeviceTrustStatus.TRUSTED,
+      organizationId: 'org-1',
+      settings: {
+        twoFactorEnabled: true,
+        emailTwoFactorEnabled: true,
+        deviceTwoFactorEnabled: true,
+      },
     });
     prisma.userSettings.upsert.mockResolvedValue({
-      twoFactorEnabled: true,
-      emailTwoFactorEnabled: true,
-      deviceTwoFactorEnabled: true,
+      twoFactorEnabled: false,
+      emailTwoFactorEnabled: false,
+      deviceTwoFactorEnabled: false,
     });
+    prisma.pendingLogin.updateMany.mockResolvedValue({ count: 1 });
 
-    const result = await service.toggleManagedTwoFactor(
+    const result = await service.resetManagedTwoFactor(
       {
         id: 'actor',
         role: Role.ORG_ADMIN,
@@ -172,14 +168,44 @@ describe('UserPreferencesService', () => {
     expect(prisma.userSettings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({
-          twoFactorEnabled: true,
-          emailTwoFactorEnabled: true,
-          deviceTwoFactorEnabled: true,
-          twoFactorMethod: TwoFactorMethod.BOTH,
+          twoFactorEnabled: false,
+          emailTwoFactorEnabled: false,
+          deviceTwoFactorEnabled: false,
+          twoFactorMethod: TwoFactorMethod.DEVICE,
         }),
       }),
     );
-    expect(result.enabled).toBe(true);
+    expect(result.enabled).toBe(false);
+    expect(prisma.pendingLogin.updateMany).toHaveBeenCalled();
     expect(security.recordEvent).toHaveBeenCalled();
+  });
+
+  it('cannot turn two-step verification on when it is already off', async () => {
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'target-user',
+      role: Role.STUDENT,
+      organization: {},
+      organizationId: 'org-1',
+      settings: {
+        twoFactorEnabled: false,
+        emailTwoFactorEnabled: false,
+        deviceTwoFactorEnabled: false,
+      },
+    });
+
+    const result = await service.resetManagedTwoFactor(
+      {
+        id: 'actor',
+        role: Role.ORG_ADMIN,
+        organizationId: 'org-1',
+      },
+      'target-user',
+      {},
+    );
+
+    expect(result.enabled).toBe(false);
+    expect(result.message).toContain('already off');
+    expect(prisma.userSettings.upsert).not.toHaveBeenCalled();
+    expect(prisma.pendingLogin.updateMany).not.toHaveBeenCalled();
   });
 });
