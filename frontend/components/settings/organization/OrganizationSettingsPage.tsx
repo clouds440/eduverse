@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, RefreshCw, Save, Settings, TriangleAlert } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useGlobal } from "@/context/GlobalContext";
 import { useUserSettings } from "@/context/UserSettingsContext";
 import { useUrlQueryState } from "@/hooks/useUrlQueryState";
+import { useUnsavedSettingsWarning } from "@/hooks/useUnsavedSettingsWarning";
 import { DocsLink } from "@/components/ui/DocsLink";
 import { Button } from "@/components/ui/Button";
 import { Loading } from "@/components/ui/Loading";
@@ -28,7 +29,7 @@ import {
 } from "@/components/settings/organization/organization-settings-tabs";
 import { useOrganizationSettingsForm } from "@/components/settings/organization/hooks/useOrganizationSettingsForm";
 import { useOrganizationAISettings } from "@/components/settings/organization/hooks/useOrganizationAISettings";
-import { OrgStatus, ThemeMode } from "@/types";
+import { OrgStatus, ThemeMode, type UserSettings } from "@/types";
 
 const HASH_TAB_MAP: Record<string, OrganizationSettingsTabKey> = {
   "contact-email": "profile",
@@ -36,13 +37,34 @@ const HASH_TAB_MAP: Record<string, OrganizationSettingsTabKey> = {
   sessions: "security",
 };
 
+const USER_PREFERENCE_KEYS = [
+  "themeMode",
+  "loginNotificationEmail",
+  "loginNotificationPush",
+  "marketingEmails",
+] as const satisfies readonly (keyof UserSettings)[];
+
+function getChangedUserSettings(
+  draft: UserSettings,
+  saved: UserSettings,
+  keys: readonly (keyof UserSettings)[],
+) {
+  const changes: Partial<UserSettings> = {};
+  keys.forEach((key) => {
+    if (draft[key] !== saved[key]) {
+      changes[key] = draft[key] as never;
+    }
+  });
+  return changes;
+}
+
 export function OrganizationSettingsPage() {
   const { token, user } = useAuth();
   const { dispatch } = useGlobal();
   const { getStringParam, updateQueryParams } = useUrlQueryState();
   const { settings: userSettings, loading: userSettingsLoading, update: updateUserSettings } = useUserSettings();
-  const [savingPreferenceTheme, setSavingPreferenceTheme] = useState(false);
-  const [savingNotification, setSavingNotification] = useState<NotificationSettingKey>();
+  const [draftUserSettings, setDraftUserSettings] = useState<UserSettings>(userSettings);
+  const [savingSettings, setSavingSettings] = useState(false);
   const pendingHashScrollRef = useRef<string | null>(null);
 
   const settingsTabs = getOrganizationSettingsTabs(user?.role);
@@ -60,6 +82,39 @@ export function OrganizationSettingsPage() {
   });
 
   useEffect(() => {
+    if (!userSettingsLoading) {
+      setDraftUserSettings(userSettings);
+    }
+  }, [userSettings, userSettingsLoading]);
+
+  const userPreferenceDirtyCount = useMemo(
+    () => USER_PREFERENCE_KEYS.filter((key) => draftUserSettings[key] !== userSettings[key]).length,
+    [draftUserSettings, userSettings],
+  );
+  const themeDirtyCount = draftUserSettings.themeMode !== userSettings.themeMode ? 1 : 0;
+  const preferenceNotificationDirtyCount = Math.max(userPreferenceDirtyCount - themeDirtyCount, 0);
+  const hasUnsavedChanges = orgSettings.dirtyCounts.total + userPreferenceDirtyCount > 0;
+  const tabCounts = useMemo(() => {
+    const counts: Partial<Record<OrganizationSettingsTabKey, number>> = {};
+    if (orgSettings.dirtyCounts.profile) counts.profile = orgSettings.dirtyCounts.profile;
+    const appearanceCount = orgSettings.dirtyCounts.appearance + themeDirtyCount;
+    if (appearanceCount) counts.appearance = appearanceCount;
+    if (orgSettings.dirtyCounts.finance) counts.finance = orgSettings.dirtyCounts.finance;
+    if (orgSettings.dirtyCounts.branding) counts.branding = orgSettings.dirtyCounts.branding;
+    if (preferenceNotificationDirtyCount) counts.preferences = preferenceNotificationDirtyCount;
+    return counts;
+  }, [
+    orgSettings.dirtyCounts.appearance,
+    orgSettings.dirtyCounts.branding,
+    orgSettings.dirtyCounts.finance,
+    orgSettings.dirtyCounts.profile,
+    preferenceNotificationDirtyCount,
+    themeDirtyCount,
+  ]);
+
+  useUnsavedSettingsWarning(hasUnsavedChanges);
+
+  useEffect(() => {
     if (typeof window === "undefined" || orgSettings.loading) return;
     const hash = window.location.hash.replace("#", "") || pendingHashScrollRef.current || "";
     const hashTab = HASH_TAB_MAP[hash];
@@ -74,43 +129,48 @@ export function OrganizationSettingsPage() {
     }
   }, [activeTab, orgSettings.loading, updateQueryParams]);
 
-  const handlePreferenceThemeChange = async (mode: ThemeMode) => {
-    if (!token || savingPreferenceTheme) return;
-    const previousMode = userSettings.themeMode;
+  const handlePreferenceThemeChange = (mode: ThemeMode) => {
     orgSettings.setThemeMode(mode);
     orgSettings.setFormData((current) => ({
       ...current,
       accentColor: { ...current.accentColor, mode },
     }));
-    setSavingPreferenceTheme(true);
-    try {
-      await updateUserSettings({ themeMode: mode });
-    } catch (error) {
-      orgSettings.setThemeMode(previousMode);
-      orgSettings.setFormData((current) => ({
-        ...current,
-        accentColor: { ...current.accentColor, mode: previousMode },
-      }));
-      const message = error instanceof Error ? error.message : "Failed to save theme preference";
-      dispatch({ type: "TOAST_ADD", payload: { message, type: "error" } });
-    } finally {
-      setSavingPreferenceTheme(false);
-    }
+    setDraftUserSettings((current) => ({ ...current, themeMode: mode }));
   };
 
-  const handleNotificationChange = async (
+  const handleNotificationChange = (
     key: NotificationSettingKey,
     enabled: boolean,
   ) => {
-    if (!token || savingNotification) return;
-    setSavingNotification(key);
+    setDraftUserSettings((current) => ({ ...current, [key]: enabled }));
+  };
+
+  const handleSaveSettings = async () => {
+    if (!token || savingSettings || !hasUnsavedChanges) return;
+    setSavingSettings(true);
     try {
-      await updateUserSettings({ [key]: enabled });
+      const savedOnlyUserPreferences = userPreferenceDirtyCount > 0 && orgSettings.dirtyCounts.total === 0;
+      if (userPreferenceDirtyCount > 0) {
+        const savedSettings = await updateUserSettings(
+          getChangedUserSettings(draftUserSettings, userSettings, USER_PREFERENCE_KEYS),
+        );
+        setDraftUserSettings(savedSettings);
+      }
+      if (orgSettings.dirtyCounts.total > 0) {
+        await orgSettings.saveSettings();
+      }
+      if (savedOnlyUserPreferences) {
+        dispatch({
+          type: "TOAST_ADD",
+          payload: { message: "Settings updated successfully", type: "success" },
+        });
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to save notification preference";
+      orgSettings.setThemeMode(userSettings.themeMode);
+      const message = error instanceof Error ? error.message : "Failed to save settings";
       dispatch({ type: "TOAST_ADD", payload: { message, type: "error" } });
     } finally {
-      setSavingNotification(undefined);
+      setSavingSettings(false);
     }
   };
 
@@ -136,6 +196,7 @@ export function OrganizationSettingsPage() {
       headerClassName="mb-0.5"
       className="gap-0 overflow-x-hidden overflow-y-auto pb-8 custom-scrollbar"
       tabs={settingsTabs}
+      tabCounts={tabCounts}
       activeTab={activeTab}
       onTabChange={handleTabChange}
       ariaLabel="Settings navigation"
@@ -156,17 +217,16 @@ export function OrganizationSettingsPage() {
               {orgSettings.orgData.status.replace("_", " ")}
             </Badge>
           )}
-          {activeTab !== "ai" && activeTab !== "gpa-policies" && activeTab !== "preferences" && (
-            <Button
-              type="submit"
-              form="organization-settings-form"
-              loadingId="settings-submit"
-              className="h-10 px-4 text-xs sm:h-11 sm:px-5 sm:text-sm"
-              icon={Save}
-            >
-              Save Settings
-            </Button>
-          )}
+          <Button
+            type="button"
+            onClick={handleSaveSettings}
+            disabled={!hasUnsavedChanges || savingSettings}
+            isLoading={savingSettings}
+            className="h-10 px-4 text-xs sm:h-11 sm:px-5 sm:text-sm"
+            icon={Save}
+          >
+            Save Settings
+          </Button>
         </div>
       }
       beforeTabs={
@@ -222,9 +282,9 @@ export function OrganizationSettingsPage() {
             <AppearanceSettingsTab
               formData={orgSettings.formData}
               setFormData={orgSettings.setFormData}
-              currentThemeMode={orgSettings.themeMode}
+              currentThemeMode={draftUserSettings.themeMode}
               onPrimaryColorChange={orgSettings.handlePrimaryColorChange}
-              onThemeModeChange={orgSettings.setThemeMode}
+              onThemeModeChange={handlePreferenceThemeChange}
             />
           )}
 
@@ -239,11 +299,7 @@ export function OrganizationSettingsPage() {
 
           {activeTab === "preferences" && (
             <AccountPreferencesSettingsTab
-              settings={userSettings}
-              themeMode={orgSettings.themeMode}
-              savingTheme={savingPreferenceTheme}
-              savingNotification={savingNotification}
-              onThemeModeChange={handlePreferenceThemeChange}
+              settings={draftUserSettings}
               onNotificationChange={handleNotificationChange}
             />
           )}

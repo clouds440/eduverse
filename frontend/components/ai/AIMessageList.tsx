@@ -19,20 +19,20 @@ export function AIMessageList({ messages }: AIMessageListProps) {
   }, [messages]);
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto px-3 py-4 custom-scrollbar sm:px-4">
-      <div className="mx-auto grid max-w-3xl gap-4">
+    <div className="h-full min-h-0 overflow-y-auto px-3 py-5 custom-scrollbar sm:px-5">
+      <div className="mx-auto grid max-w-3xl gap-5">
         {messages.map((message) => {
           const isUser = message.role === "user";
           const Icon = Sparkles;
           return (
             <div
               key={message.id}
-              className={cn("flex min-w-0 gap-3", isUser && "flex-row-reverse")}
+                className={cn("flex min-w-0 gap-2.5", isUser && "flex-row-reverse")}
             >
               {!isUser && (
                 <div
                   className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border shadow-sm",
+                    "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-sm",
                     isUser
                       ? "border-primary/25 bg-primary text-primary-foreground"
                       : "border-border bg-card text-primary",
@@ -43,29 +43,24 @@ export function AIMessageList({ messages }: AIMessageListProps) {
               )}
               <div
                 className={cn(
-                  "group/message relative min-w-0 max-w-[82%] rounded-lg border px-3 py-2.5 shadow-sm",
+                  "group/message relative min-w-0 rounded-2xl border px-3.5 py-3 shadow-xs",
                   isUser
-                    ? "border-primary/20 bg-primary text-primary-foreground"
+                    ? "max-w-[82%] border-primary/20 bg-primary text-primary-foreground"
                     : message.status === "error"
-                      ? "border-danger/30 bg-danger/10 text-danger"
-                      : "border-border/70 bg-card text-foreground",
+                      ? "max-w-[92%] border-danger/25 bg-danger/10 text-danger"
+                      : "max-w-[92%] border-border/60 bg-card/95 text-foreground",
                 )}
               >
                 {message.status === "sending" && !message.content ? (
-                  <div className="min-w-55 overflow-hidden rounded-md border border-primary/15 bg-primary/5 px-3 py-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <Sparkles
-                          className="h-3.5 w-3.5 animate-pulse"
-                          aria-hidden="true"
-                        />
+                  <div className="min-w-48 py-0.5">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/35" />
+                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
                       </span>
-                      <span className="truncate text-xs font-black text-foreground">
-                        {message.statusLabel ?? "Thinking"}
+                      <span className="truncate text-sm font-semibold text-muted-foreground">
+                        {formatStatusLabel(message.statusLabel)}
                       </span>
-                    </div>
-                    <div className="mt-2 h-1 overflow-hidden rounded-full bg-primary/10">
-                      <div className="h-full w-1/2 animate-[ai-progress_1.4s_ease-in-out_infinite] rounded-full bg-primary/70" />
                     </div>
                   </div>
                 ) : isUser ? (
@@ -105,6 +100,13 @@ export function AIMessageList({ messages }: AIMessageListProps) {
       </div>
     </div>
   );
+}
+
+function formatStatusLabel(label?: string) {
+  if (!label) return "Thinking";
+  const normalized = label.trim();
+  if (!normalized) return "Thinking";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 function MessageContextRow({ message }: { message: AICopilotMessage }) {

@@ -36,11 +36,9 @@ const NOTIFICATION_SETTINGS: Array<{
 
 export function NotificationSettingsTab({
     settings,
-    savingKey,
     onChange,
 }: {
     settings: UserSettings;
-    savingKey?: NotificationSettingKey;
     onChange: (key: NotificationSettingKey, enabled: boolean) => void;
 }) {
     return (
@@ -64,7 +62,6 @@ export function NotificationSettingsTab({
                         <Toggle
                             checked={settings[key]}
                             onCheckedChange={(checked) => onChange(key, checked)}
-                            disabled={Boolean(savingKey)}
                             size="lg"
                         />
                     </div>

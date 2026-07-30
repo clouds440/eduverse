@@ -190,14 +190,14 @@ export function AICopilotPanel() {
         aria-label="EduVerse Copilot"
         style={dockedActive ? { width: dockedWidth } : undefined}
         className={cn(
-          "z-100 relative flex min-w-0 flex-col overflow-hidden border border-border/70 bg-background shadow-2xl",
+          "z-100 relative flex min-w-0 flex-col overflow-hidden border border-border/70 bg-background/95 shadow-2xl backdrop-blur",
           dockedActive
             ? "relative h-full rounded-none border-y-0 border-r-0 animate-in fade-in slide-in-from-right-3 duration-200"
             : "animate-in fade-in slide-in-from-bottom-4 duration-200",
           isDesktop
             ? dockedActive
               ? ""
-              : "fixed bottom-5 right-5 top-5 w-[min(560px,calc(100vw-2.5rem))] rounded-xl"
+              : "fixed bottom-5 right-5 top-5 w-[min(590px,calc(100vw-2.5rem))] rounded-2xl"
             : "fixed inset-0 rounded-none",
         )}
       >
@@ -212,10 +212,10 @@ export function AICopilotPanel() {
             <span className="pointer-events-none absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border transition-colors group-hover:bg-primary/55" />
           </div>
         )}
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-card px-3 py-3 sm:px-4">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-background/90 px-3 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-primary">
-              <Sparkles className="h-5 w-5" aria-hidden="true" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/15 bg-primary/10 text-primary">
+              <Sparkles className="h-[18px] w-[18px] fill-current" aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
@@ -322,7 +322,7 @@ export function AICopilotPanel() {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 bg-background">
+        <div className="min-h-0 flex-1 bg-muted/20">
           {hasMessages ? (
             <AIMessageList messages={messages} />
           ) : (

@@ -5,11 +5,9 @@ import { SettingsSection } from '../SettingsSection';
 
 export function AccountAppearanceSettingsTab({
     themeMode,
-    saving,
     onThemeModeChange,
 }: {
     themeMode: ThemeMode;
-    saving: boolean;
     onThemeModeChange: (mode: ThemeMode) => void;
 }) {
     return (
@@ -17,7 +15,6 @@ export function AccountAppearanceSettingsTab({
             icon={MonitorCog}
             title="Theme Mode"
             description="Choose the display mode used for your administrator account."
-            action={saving ? <span className="text-xs font-semibold text-muted-foreground">Saving…</span> : undefined}
         >
             <div className="max-w-md space-y-4">
                 <ThemeDropdown currentMode={themeMode} onModeChange={onThemeModeChange} />

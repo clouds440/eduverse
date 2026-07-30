@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { api } from '@/lib/api';
 import { getSafePrimaryColor } from '@/lib/themeColor';
@@ -25,6 +25,21 @@ const DEFAULT_FORM_DATA: OrganizationSettingsFormData = {
     },
 };
 
+const PROFILE_FIELDS = ['name', 'location', 'contactEmail', 'phone'] as const;
+const FINANCE_FIELDS = ['currency'] as const;
+
+function normalizeText(value: string | null | undefined) {
+    return (value ?? '').trim();
+}
+
+function countChangedFields<T extends keyof OrganizationSettingsFormData>(
+    current: OrganizationSettingsFormData,
+    saved: OrganizationSettingsFormData,
+    fields: readonly T[],
+) {
+    return fields.filter((field) => normalizeText(String(current[field])) !== normalizeText(String(saved[field]))).length;
+}
+
 function mapSettingsError(message: string | string[]) {
     const nextErrors: OrganizationSettingsFormErrors = {};
     const messages = Array.isArray(message) ? message : [message];
@@ -43,7 +58,7 @@ function mapSettingsError(message: string | string[]) {
 }
 
 export function useOrganizationSettingsForm() {
-    const { token, user } = useAuth();
+    const { token, user, updateUser } = useAuth();
     const { dispatch } = useGlobal();
     const { setPrimaryColor, setThemeMode, themeMode } = useTheme();
     const [loading, setLoading] = useState(false);
@@ -52,6 +67,7 @@ export function useOrganizationSettingsForm() {
     const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
     const [formErrors, setFormErrors] = useState<OrganizationSettingsFormErrors>({});
     const [formData, setFormData] = useState<OrganizationSettingsFormData>(DEFAULT_FORM_DATA);
+    const [savedFormData, setSavedFormData] = useState<OrganizationSettingsFormData>(DEFAULT_FORM_DATA);
 
     useEffect(() => {
         if (!token || !user || user.role !== Role.ORG_ADMIN) return;
@@ -62,7 +78,7 @@ export function useOrganizationSettingsForm() {
             .then(async (data: Organization) => {
                 const userSettings = await api.auth.getSettings(token);
                 setOrgData(data);
-                setFormData({
+                const nextFormData = {
                     name: data.name || '',
                     location: data.location || '',
                     contactEmail: data.contactEmail || '',
@@ -72,7 +88,9 @@ export function useOrganizationSettingsForm() {
                         primary: getSafePrimaryColor(data.accentColor?.primary || '#4f46e5'),
                         mode: userSettings.themeMode,
                     },
-                });
+                };
+                setFormData(nextFormData);
+                setSavedFormData(nextFormData);
             })
             .catch((err) => {
                 console.error('Failed to load settings', err);
@@ -97,6 +115,24 @@ export function useOrganizationSettingsForm() {
         setPendingLogoFile(file);
     }, []);
 
+    const dirtyCounts = useMemo(() => {
+        const profile = countChangedFields(formData, savedFormData, PROFILE_FIELDS);
+        const finance = countChangedFields(formData, savedFormData, FINANCE_FIELDS);
+        const appearance =
+            getSafePrimaryColor(formData.accentColor.primary) !== getSafePrimaryColor(savedFormData.accentColor.primary)
+                ? 1
+                : 0;
+        const branding = pendingLogoFile ? 1 : 0;
+
+        return {
+            profile,
+            finance,
+            appearance,
+            branding,
+            total: profile + finance + appearance + branding,
+        };
+    }, [formData, pendingLogoFile, savedFormData]);
+
     const handlePrimaryColorChange = (newPrimary: string) => {
         setFormErrors((current) => ({ ...current, accentColor: undefined }));
         setFormData((current) => ({
@@ -108,8 +144,7 @@ export function useOrganizationSettingsForm() {
         }));
     };
 
-    const handleSubmit = async (event: FormEvent) => {
-        event.preventDefault();
+    const saveSettings = async () => {
         if (!token) return;
         setFormErrors({});
 
@@ -124,45 +159,72 @@ export function useOrganizationSettingsForm() {
             return;
         }
 
+        if (dirtyCounts.total === 0) return;
+
         dispatch({ type: 'UI_START_PROCESSING', payload: 'settings-submit' });
         try {
-            const updatedSettings = await api.org.updateSettings(
-                {
-                    ...formData,
-                    accentColor: {
-                        primary: getSafePrimaryColor(formData.accentColor.primary),
+            let savedOrg = orgData;
+            if (dirtyCounts.profile > 0 || dirtyCounts.finance > 0 || dirtyCounts.appearance > 0) {
+                savedOrg = await api.org.updateSettings(
+                    {
+                        name: formData.name,
+                        location: formData.location,
+                        contactEmail: formData.contactEmail,
+                        phone: formData.phone,
+                        ...(dirtyCounts.finance > 0 ? { currency: formData.currency } : {}),
+                        ...(dirtyCounts.appearance > 0
+                            ? {
+                                accentColor: {
+                                    primary: getSafePrimaryColor(formData.accentColor.primary),
+                                },
+                            }
+                            : {}),
                     },
-                },
-                token,
-            );
-            setOrgData((current) => (current ? { ...current, ...updatedSettings } : updatedSettings));
-            dispatch({ type: 'STATS_SET_ORG_DATA', payload: updatedSettings });
-
-            try {
-                await api.auth.updateSettings({ themeMode: formData.accentColor.mode }, token);
-            } catch (error) {
-                console.warn('Failed to save user themeMode', error);
+                    token,
+                );
+                setOrgData(savedOrg);
+                dispatch({ type: 'STATS_SET_ORG_DATA', payload: savedOrg });
             }
 
             if (pendingLogoFile) {
                 const logoRes = await api.org.uploadLogo(pendingLogoFile, token);
-                setOrgData((current) =>
-                    current
-                        ? {
-                            ...current,
-                            logoUrl: logoRes.logoUrl,
-                            avatarUpdatedAt: logoRes.avatarUpdatedAt,
-                        }
-                        : current,
-                );
+                const nextOrgData = {
+                    ...(savedOrg ?? orgData),
+                    logoUrl: logoRes.logoUrl,
+                    avatarUpdatedAt: logoRes.avatarUpdatedAt,
+                } as Organization;
+                setOrgData(nextOrgData);
+                dispatch({ type: 'STATS_SET_ORG_DATA', payload: nextOrgData });
+                updateUser({
+                    orgLogoUrl: logoRes.logoUrl,
+                    avatarUpdatedAt: logoRes.avatarUpdatedAt,
+                    ...(user?.role === Role.ORG_ADMIN ? { avatarUrl: logoRes.logoUrl } : {}),
+                });
                 setPendingLogoFile(null);
+                savedOrg = nextOrgData;
+            }
+
+            if (savedOrg) {
+                const nextSavedFormData = {
+                    name: savedOrg.name || '',
+                    location: savedOrg.location || '',
+                    contactEmail: savedOrg.contactEmail || '',
+                    phone: savedOrg.phone || '',
+                    currency: savedOrg.currency || formData.currency || 'USD',
+                    accentColor: {
+                        primary: getSafePrimaryColor(savedOrg.accentColor?.primary || formData.accentColor.primary),
+                        mode: formData.accentColor.mode,
+                    },
+                };
+                setFormData(nextSavedFormData);
+                setSavedFormData(nextSavedFormData);
             }
 
             dispatch({
                 type: 'TOAST_ADD',
                 payload: { message: 'Settings updated successfully!', type: 'success' },
             });
-            if (updatedSettings.contactEmailVerifiedAt === null) {
+            if (savedOrg?.contactEmailVerifiedAt === null && formData.contactEmail !== savedFormData.contactEmail) {
                 dispatch({
                     type: 'TOAST_ADD',
                     payload: {
@@ -185,6 +247,11 @@ export function useOrganizationSettingsForm() {
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: 'settings-submit' });
         }
+    };
+
+    const handleSubmit = async (event: FormEvent) => {
+        event.preventDefault();
+        await saveSettings();
     };
 
     const handleReapply = async () => {
@@ -214,12 +281,14 @@ export function useOrganizationSettingsForm() {
         formErrors,
         setFormErrors,
         pendingLogoFile,
+        dirtyCounts,
         themeMode,
         setThemeMode,
         handleChange,
         handleLogoReady,
         handlePrimaryColorChange,
         handleSubmit,
+        saveSettings,
         handleReapply,
     };
 }

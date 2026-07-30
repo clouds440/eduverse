@@ -1,10 +1,10 @@
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { DocArticle } from '../_components/DocArticle';
-import { DocsShell } from '../_components/DocsShell';
-import { docsPages, getDocPage } from '@/lib/docs';
-import { SEO_KEYWORDS, SITE_NAME } from '@/lib/seo';
-import { getSiteUrl } from '@/lib/site';
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { DocArticle } from "../_components/DocArticle";
+import { DocsShell } from "../_components/DocsShell";
+import { docsPages, getDocPage } from "@/lib/docs";
+import { SEO_KEYWORDS, SITE_NAME } from "@/lib/seo";
+import { getSiteUrl } from "@/lib/site";
 
 type DocsSlugPageProps = {
   params: Promise<{ slug: string }>;
@@ -14,13 +14,15 @@ export function generateStaticParams() {
   return docsPages.map((page) => ({ slug: page.slug }));
 }
 
-export async function generateMetadata({ params }: DocsSlugPageProps): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: DocsSlugPageProps): Promise<Metadata> {
   const { slug } = await params;
   const page = getDocPage(slug);
 
   if (!page) {
     return {
-      title: 'Documentation',
+      title: "Documentation",
     };
   }
 
@@ -32,14 +34,14 @@ export async function generateMetadata({ params }: DocsSlugPageProps): Promise<M
       canonical: `/docs/${page.slug}`,
     },
     openGraph: {
-      type: 'article',
+      type: "article",
       url: `/docs/${page.slug}`,
       siteName: SITE_NAME,
       title: `${page.title} Documentation`,
       description: page.description,
       images: [
         {
-          url: '/assets/eduverse-logo.png',
+          url: "/assets/eduverse-icon-192.png",
           width: 1324,
           height: 480,
           alt: `${SITE_NAME} documentation`,
@@ -47,10 +49,10 @@ export async function generateMetadata({ params }: DocsSlugPageProps): Promise<M
       ],
     },
     twitter: {
-      card: 'summary_large_image',
+      card: "summary_large_image",
       title: `${page.title} Documentation`,
       description: page.description,
-      images: ['/assets/eduverse-logo.png'],
+      images: ["/assets/eduverse-icon-192.png"],
     },
   };
 }
@@ -66,8 +68,8 @@ export default async function DocsSlugPage({ params }: DocsSlugPageProps) {
   const siteUrl = getSiteUrl();
   const docUrl = `${siteUrl}/docs/${page.slug}`;
   const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'TechArticle',
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
     headline: `${page.title} Documentation`,
     description: page.description,
     url: docUrl,
@@ -75,30 +77,30 @@ export default async function DocsSlugPage({ params }: DocsSlugPageProps) {
     about: page.tags,
     articleSection: page.category,
     publisher: {
-      '@type': 'Organization',
+      "@type": "Organization",
       name: SITE_NAME,
       logo: {
-        '@type': 'ImageObject',
+        "@type": "ImageObject",
         url: `${siteUrl}/assets/eduverse-icon-192.png`,
       },
     },
     breadcrumb: {
-      '@type': 'BreadcrumbList',
+      "@type": "BreadcrumbList",
       itemListElement: [
         {
-          '@type': 'ListItem',
+          "@type": "ListItem",
           position: 1,
-          name: 'Home',
+          name: "Home",
           item: siteUrl,
         },
         {
-          '@type': 'ListItem',
+          "@type": "ListItem",
           position: 2,
-          name: 'Documentation',
+          name: "Documentation",
           item: `${siteUrl}/docs`,
         },
         {
-          '@type': 'ListItem',
+          "@type": "ListItem",
           position: 3,
           name: page.title,
           item: docUrl,

@@ -5,18 +5,18 @@ export const DEFAULT_SECONDARY = '#5B616E';
 export const THEME_PRIMARY_STORAGE_KEY = 'eduverse:last-valid-primary';
 
 export const LIGHT_THEME_SURFACES = {
-    background: '#E2E8F0',
+    background: '#D8E0EA',
     foreground: '#0B1220',
-    cardBg: '#EEF2F7',
+    cardBg: '#E7ECF3',
     cardText: '#0B1220',
-    mutedBg: '#CBD5E1',
+    mutedBg: '#C3CEDB',
     mutedText: '#64748B',
     accentBg: '#94A3B8',
     accentText: '#0F172A',
-    borderColor: '#CBD5E1',
-    inputBg: '#F1F5F9',
-    themeBg: '#E2E8F0',
-    navbarBg: 'rgba(226, 232, 240, 0.92)',
+    borderColor: '#BCC7D5',
+    inputBg: '#EAF0F6',
+    themeBg: '#D8E0EA',
+    navbarBg: 'rgba(216, 224, 234, 0.92)',
     navbarText: '#050F1A',
     overlay: 'rgba(15, 23, 42, 0.62)',
 } as const;

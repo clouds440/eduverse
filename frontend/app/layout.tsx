@@ -3,21 +3,26 @@ import "./globals.css";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import { getSiteUrl } from "@/lib/site";
-import { getWebsiteJsonLd, SEO_KEYWORDS, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
+import {
+  getWebsiteJsonLd,
+  SEO_KEYWORDS,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+} from "@/lib/seo";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/themeBootstrap";
 
 const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '700'],
-  variable: '--font-dm-sans',
-  display: 'swap',
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-dm-sans",
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
-  variable: '--font-jetbrains-mono',
-  display: 'swap',
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -32,39 +37,57 @@ export const metadata: Metadata = {
   authors: [{ name: SITE_NAME }],
   creator: SITE_NAME,
   publisher: SITE_NAME,
-  category: 'Education',
-  classification: 'Education software',
+  category: "Education",
+  classification: "Education software",
   robots: {
     index: true,
     follow: true,
     googleBot: {
       index: true,
       follow: true,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-      'max-video-preview': -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
     },
   },
   icons: {
-    icon: [{ url: '/assets/eduverse-icon-192.png', type: 'image/png', sizes: '192x192' }],
-    shortcut: [{ url: '/assets/eduverse-icon-192.png', type: 'image/png', sizes: '192x192' }],
-    apple: [{ url: '/assets/eduverse-icon-192.png', type: 'image/png', sizes: '192x192' }],
+    icon: [
+      {
+        url: "/assets/eduverse-icon-192.png",
+        type: "image/png",
+        sizes: "192x192",
+      },
+    ],
+    shortcut: [
+      {
+        url: "/assets/eduverse-icon-192.png",
+        type: "image/png",
+        sizes: "192x192",
+      },
+    ],
+    apple: [
+      {
+        url: "/assets/eduverse-icon-192.png",
+        type: "image/png",
+        sizes: "192x192",
+      },
+    ],
   },
-  manifest: '/manifest.json',
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'EduVerse',
+    statusBarStyle: "black-translucent",
+    title: "EduVerse",
   },
   openGraph: {
-    type: 'website',
-    url: '/',
+    type: "website",
+    url: "/",
     siteName: SITE_NAME,
     title: `${SITE_NAME} | School Management System`,
     description: SITE_DESCRIPTION,
     images: [
       {
-        url: '/assets/eduverse-logo.png',
+        url: "/assets/eduverse-icon-192.png",
         width: 1324,
         height: 480,
         alt: `${SITE_NAME} school management platform`,
@@ -72,21 +95,21 @@ export const metadata: Metadata = {
     ],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: "summary_large_image",
     title: `${SITE_NAME} | School Management System`,
     description: SITE_DESCRIPTION,
-    images: ['/assets/eduverse-logo.png'],
+    images: ["/assets/eduverse-icon-192.png"],
   },
 };
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
-  viewportFit: 'cover',
-  interactiveWidget: 'resizes-content',
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#090d16' },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#090d16" },
   ],
 };
 
@@ -122,9 +145,7 @@ export default function RootLayout({
         <Providers>
           <AppBackground />
           <Navbar />
-          <DashboardMainWrapper>
-            {children}
-          </DashboardMainWrapper>
+          <DashboardMainWrapper>{children}</DashboardMainWrapper>
           <PWAInstallPrompt />
         </Providers>
       </body>

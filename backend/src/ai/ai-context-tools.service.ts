@@ -87,8 +87,13 @@ export class AIContextToolsService implements OnModuleInit {
         requests.push({ name, input: toolInput });
       }
     };
+    const addOnce = (name: string, toolInput: Record<string, unknown> = shared) => {
+      if (!requests.some((request) => request.name === name)) {
+        requests.push({ name, input: toolInput });
+      }
+    };
 
-    if (include.has('entities')) add('resolveEduVerseEntities', { search, limit: 6 });
+    if (include.has('entities')) addOnce('resolveEduVerseEntities', { search, limit: 6 });
     if (include.has('knowledge')) {
       add('searchFlows', { search, limit: 4 });
       add('searchDocs', { search, limit: 5 });
@@ -96,20 +101,20 @@ export class AIContextToolsService implements OnModuleInit {
     }
     if (include.has('policy')) add('getPolicyContext', { search, limit: 5 });
     if (include.has('schedule')) {
-      add('getScheduleContext', {
+      addOnce('getScheduleContext', {
         ...shared,
         includeLoad: true,
         includeBottlenecks: hasAny(search, ['bottleneck', 'overloaded', 'workload', 'room']),
       });
     }
     if (include.has('academic')) {
-      add('getAcademicPerformanceProfile', { search, limit: 8 });
+      addOnce('getAcademicPerformanceProfile', { search, limit: 8 });
       if (hasAny(search, ['deadline', 'assignment', 'quiz', 'exam', 'due', 'study plan'])) {
-        add('getPendingDeadlines', { search, days: 21, limit: 8 });
+        addOnce('getPendingDeadlines', { search, days: 21, limit: 8 });
       }
       if (hasAny(search, ['enroll', 'enrollment', 'course load', 'too much', 'section'])) {
-        add('listSections', { search, limit: 8 });
-        add('listCourses', { search, limit: 8 });
+        addOnce('listSections', { search, limit: 8 });
+        addOnce('listCourses', { search, limit: 8 });
       }
     }
     if (include.has('operations')) {
@@ -119,17 +124,30 @@ export class AIContextToolsService implements OnModuleInit {
         include: ['calendar', 'campus', 'announcements', 'preferences'],
       });
     }
-    if (include.has('communication')) add('getCommunicationContext', { search, limit: input.limit ?? 6 });
-    if (include.has('finance')) add('getFinanceSummary', { search, limit: input.limit ?? 6 });
-    if (include.has('relationships')) add('getEntityRelationshipContext', { search, entities: input.entities, limit: input.limit ?? 6 });
-    if (include.has('planning')) add('getAcademicPlanningContext', {
-      search,
-      limit: input.limit ?? 8,
-      ...(input.date ? { date: input.date } : {}),
-      ...(input.startDate ? { startDate: input.startDate } : {}),
-      ...(input.endDate ? { endDate: input.endDate } : {}),
-    });
-    if (include.has('enrollment')) add('getEnrollmentFeasibilityContext', { search, entities: input.entities, limit: input.limit ?? 8 });
+    if (include.has('communication')) addOnce('getCommunicationContext', { search, limit: input.limit ?? 6 });
+    if (include.has('finance')) addOnce('getFinanceSummary', { search, limit: input.limit ?? 6 });
+    if (include.has('relationships')) {
+      addOnce('resolveEduVerseEntities', { search, entities: input.entities?.length ? input.entities : inferEntityKinds(search), limit: input.limit ?? 8 });
+      addOnce('getScheduleContext', { ...shared, includeLoad: true });
+      addOnce('getAcademicPerformanceProfile', { search, limit: input.limit ?? 8 });
+    }
+    if (include.has('planning')) {
+      addOnce('resolveEduVerseEntities', { search, entities: inferEntityKinds(search), limit: input.limit ?? 8 });
+      addOnce('getScheduleContext', { ...shared, includeLoad: true, includeBottlenecks: true });
+      addOnce('getAcademicPerformanceProfile', { search, limit: input.limit ?? 8, targetType: academicTargetForRole(context.role) });
+      addOnce('getPendingDeadlines', { search, days: 21, limit: input.limit ?? 8 });
+      if (context.role !== 'STUDENT' && context.role !== 'GUARDIAN') {
+        addOnce('getPendingGrading', { search, limit: input.limit ?? 8 });
+        addOnce('getStudentsNeedingAttention', { search, limit: input.limit ?? 8 });
+      }
+    }
+    if (include.has('enrollment')) {
+      addOnce('resolveEduVerseEntities', { search, entities: input.entities?.length ? input.entities : ['student', 'course', 'section', 'academicCycle', 'cohort'], limit: input.limit ?? 8 });
+      addOnce('getAcademicPerformanceProfile', { search, limit: input.limit ?? 8, targetType: 'student' });
+      addOnce('getScheduleContext', { search, limit: input.limit ?? 12, includeLoad: true });
+      addOnce('listSections', { search, limit: input.limit ?? 8 });
+      addOnce('listCourses', { search, limit: input.limit ?? 8 });
+    }
 
     const results = await this.toolRegistry.runTools(requests.slice(0, 9), context);
 

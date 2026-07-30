@@ -8,7 +8,7 @@ const APP_SHELL = [
   '/offline',
   '/manifest.json',
   '/assets/eduverse-icon-192.png',
-  '/assets/eduverse-logo.png',
+  '/assets/eduverse-icon-192.png',
   '/assets/chat-doodle.svg',
   '/assets/shortcut-timetable.svg',
   '/assets/shortcut-chats.svg',

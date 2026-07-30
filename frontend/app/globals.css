@@ -16,8 +16,8 @@
   --font-geist-mono: var(--font-jetbrains-mono), "Cascadia Code", "Fira Code", Consolas, monospace;
 
   /* Renovation foundation: semantic surfaces and stable design tokens. */
-  --background: #e2e8f0;
-  --background-rgb: 226, 232, 240;
+  --background: #d8e0ea;
+  --background-rgb: 216, 224, 234;
   /* slate-50 */
   --foreground: #0f172a;
   --foreground-rgb: 15, 23, 42;
@@ -44,17 +44,17 @@
   --danger: #c71c27;
   --error: var(--danger);
 
-  --card-bg: #eef2f7;
+  --card-bg: #e7ecf3;
   --card-text: #0b1220;
   /* slate-800 */
-  --muted-bg: #cbd5e1;
+  --muted-bg: #c3cedb;
   --muted-text: #64748b;
   --accent-bg: #94a3b8;
   --accent-text: #0f172a;
-  --border-color: #cbd5e1;
-  --input-bg: #f1f5f9;
+  --border-color: #bcc7d5;
+  --input-bg: #eaf0f6;
 
-  --navbar-bg: rgba(226, 232, 240, 0.92);
+  --navbar-bg: rgba(216, 224, 234, 0.92);
   --navbar-text: #0f172a;
 
   --sidebar-bg: #192231;
@@ -65,7 +65,7 @@
 
   --item-hover: #f1f5f9;
   --shadow-color: rgba(0, 0, 0, 0.1);
-  --theme-bg: #e2e8f0;
+  --theme-bg: #d8e0ea;
   --chat-doodle: url('/assets/chat-doodle.svg');
 
   --app-surface-page: var(--theme-bg);

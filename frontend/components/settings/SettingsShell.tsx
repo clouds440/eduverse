@@ -11,6 +11,7 @@ export interface SettingsShellProps<TabKey extends string> {
     icon?: LucideIcon;
     breadcrumbs?: PageBreadcrumb[];
     tabs: readonly SettingsTabDefinition<TabKey>[];
+    tabCounts?: Partial<Record<TabKey, ReactNode>>;
     activeTab: TabKey;
     onTabChange: (tab: TabKey) => void;
     children: ReactNode;
@@ -28,6 +29,7 @@ export function SettingsShell<TabKey extends string>({
     icon = Settings,
     breadcrumbs,
     tabs,
+    tabCounts,
     activeTab,
     onTabChange,
     children,
@@ -58,6 +60,7 @@ export function SettingsShell<TabKey extends string>({
                     value: key,
                     label,
                     icon: tabIcon,
+                    count: tabCounts?.[key],
                 }))}
                 activeValue={activeTab}
                 onValueChange={onTabChange}

@@ -1,145 +1,153 @@
-import type { Metadata, MetadataRoute } from 'next';
+import type { Metadata, MetadataRoute } from "next";
 
-import { getSiteUrl } from './site';
+import { getSiteUrl } from "./site";
 
-export const SITE_NAME = 'EduVerse';
+export const SITE_NAME = "EduVerse";
 
 export const SITE_DESCRIPTION =
-  'EduVerse is a secure school management system for institutes that need admissions, students, teachers, attendance, grades, timetables, finance, communication, and transcripts in one workspace.';
+  "EduVerse is a secure school management system for institutes that need admissions, students, teachers, attendance, grades, timetables, finance, communication, and transcripts in one workspace.";
 
 export const SEO_KEYWORDS = [
-  'school management system',
-  'school ERP',
-  'student information system',
-  'education management software',
-  'attendance management software',
-  'gradebook software',
-  'school finance management',
-  'timetable management',
-  'academic transcript software',
-  'school communication platform',
-  'EduVerse',
+  "school management system",
+  "school ERP",
+  "student information system",
+  "education management software",
+  "attendance management software",
+  "gradebook software",
+  "school finance management",
+  "timetable management",
+  "academic transcript software",
+  "school communication platform",
+  "EduVerse",
 ];
 
 export type PublicSeoRoute = {
   path: string;
   title: string;
   description: string;
-  changeFrequency: MetadataRoute.Sitemap[number]['changeFrequency'];
+  changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"];
   priority: number;
 };
 
 export const publicSeoRoutes: PublicSeoRoute[] = [
   {
-    path: '/',
-    title: 'EduVerse | School Management System',
+    path: "/",
+    title: "EduVerse | School Management System",
     description: SITE_DESCRIPTION,
-    changeFrequency: 'weekly',
+    changeFrequency: "weekly",
     priority: 1,
   },
   {
-    path: '/about',
-    title: 'About EduVerse',
-    description: 'Learn how EduVerse helps schools and institutes simplify academic, finance, communication, and administrative work.',
-    changeFrequency: 'monthly',
+    path: "/about",
+    title: "About EduVerse",
+    description:
+      "Learn how EduVerse helps schools and institutes simplify academic, finance, communication, and administrative work.",
+    changeFrequency: "monthly",
     priority: 0.7,
   },
   {
-    path: '/pricing',
-    title: 'EduVerse Pricing',
-    description: 'Compare EduVerse plans for small academies, growing schools, universities, and multi-campus education groups.',
-    changeFrequency: 'weekly',
+    path: "/pricing",
+    title: "EduVerse Pricing",
+    description:
+      "Compare EduVerse plans for small academies, growing schools, universities, and multi-campus education groups.",
+    changeFrequency: "weekly",
     priority: 0.8,
   },
   {
-    path: '/contact',
-    title: 'Contact EduVerse',
-    description: 'Contact the EduVerse team for school management software demos, support, onboarding, and sales questions.',
-    changeFrequency: 'monthly',
+    path: "/contact",
+    title: "Contact EduVerse",
+    description:
+      "Contact the EduVerse team for school management software demos, support, onboarding, and sales questions.",
+    changeFrequency: "monthly",
     priority: 0.65,
   },
   {
-    path: '/docs',
-    title: 'EduVerse Documentation',
-    description: 'Read EduVerse documentation for setup, roles, academics, GPA policies, transcripts, finance, communication, and operations.',
-    changeFrequency: 'weekly',
+    path: "/docs",
+    title: "EduVerse Documentation",
+    description:
+      "Read EduVerse documentation for setup, roles, academics, GPA policies, transcripts, finance, communication, and operations.",
+    changeFrequency: "weekly",
     priority: 0.75,
   },
   {
-    path: '/blog',
-    title: 'EduVerse Blog',
-    description: 'Read EduVerse articles about school operations, education technology, student records, communication, and academic management.',
-    changeFrequency: 'weekly',
+    path: "/blog",
+    title: "EduVerse Blog",
+    description:
+      "Read EduVerse articles about school operations, education technology, student records, communication, and academic management.",
+    changeFrequency: "weekly",
     priority: 0.6,
   },
   {
-    path: '/careers',
-    title: 'EduVerse Careers',
-    description: 'Explore career opportunities at EduVerse and help build modern software for schools and institutes.',
-    changeFrequency: 'monthly',
+    path: "/careers",
+    title: "EduVerse Careers",
+    description:
+      "Explore career opportunities at EduVerse and help build modern software for schools and institutes.",
+    changeFrequency: "monthly",
     priority: 0.4,
   },
   {
-    path: '/privacy',
-    title: 'EduVerse Privacy Policy',
-    description: 'Review how EduVerse protects school, staff, student, guardian, academic, finance, and communication data.',
-    changeFrequency: 'yearly',
+    path: "/privacy",
+    title: "EduVerse Privacy Policy",
+    description:
+      "Review how EduVerse protects school, staff, student, guardian, academic, finance, and communication data.",
+    changeFrequency: "yearly",
     priority: 0.3,
   },
   {
-    path: '/terms',
-    title: 'EduVerse Terms of Service',
-    description: 'Read the EduVerse terms of service for schools, institutes, platform users, accounts, subscriptions, and acceptable use.',
-    changeFrequency: 'yearly',
+    path: "/terms",
+    title: "EduVerse Terms of Service",
+    description:
+      "Read the EduVerse terms of service for schools, institutes, platform users, accounts, subscriptions, and acceptable use.",
+    changeFrequency: "yearly",
     priority: 0.3,
   },
 ];
 
 export const privateSeoPaths = [
-  '/admin',
-  '/academic-calendar',
-  '/academic-cycles',
-  '/attendance',
-  '/buildings-and-rooms',
-  '/campus-navigation',
-  '/change-password',
-  '/chat',
-  '/cohorts',
-  '/course-materials',
-  '/courses',
-  '/departments',
-  '/evaluations',
-  '/fees',
-  '/finance',
-  '/users/finance-managers',
-  '/forgot-password',
-  '/grade-finalization',
-  '/grades',
-  '/guardian',
-  '/users/guardians',
-  '/login',
-  '/mail',
-  '/offline',
-  '/overview',
-  '/reassignment',
-  '/register',
-  '/reset-password',
-  '/schedules',
-  '/sections',
-  '/settings',
-  '/student',
-  '/sub-admin',
-  '/teacher',
-  '/users/students',
-  '/users/sub-admins',
-  '/teacher-finance',
-  '/users/teachers',
-  '/finance-manager',
-  '/test-login',
-  '/timetable',
-  '/transcripts',
-  '/users',
-  '/api',
+  "/admin",
+  "/academic-calendar",
+  "/academic-cycles",
+  "/attendance",
+  "/buildings-and-rooms",
+  "/campus-navigation",
+  "/change-password",
+  "/chat",
+  "/cohorts",
+  "/course-materials",
+  "/courses",
+  "/departments",
+  "/evaluations",
+  "/fees",
+  "/finance",
+  "/users/finance-managers",
+  "/forgot-password",
+  "/grade-finalization",
+  "/grades",
+  "/guardian",
+  "/users/guardians",
+  "/login",
+  "/mail",
+  "/offline",
+  "/overview",
+  "/reassignment",
+  "/register",
+  "/reset-password",
+  "/schedules",
+  "/sections",
+  "/settings",
+  "/student",
+  "/sub-admin",
+  "/teacher",
+  "/users/students",
+  "/users/sub-admins",
+  "/teacher-finance",
+  "/users/teachers",
+  "/finance-manager",
+  "/test-login",
+  "/timetable",
+  "/transcripts",
+  "/users",
+  "/api",
 ];
 
 export function getPublicSeoRoute(path: string) {
@@ -159,14 +167,14 @@ export function createPublicMetadata(path: string): Metadata {
       canonical: path,
     },
     openGraph: {
-      type: 'website',
+      type: "website",
       url: path,
       siteName: SITE_NAME,
       title,
       description,
       images: [
         {
-          url: '/assets/eduverse-logo.png',
+          url: "/assets/eduverse-icon-192.png",
           width: 1324,
           height: 480,
           alt: `${SITE_NAME} school management platform`,
@@ -174,10 +182,10 @@ export function createPublicMetadata(path: string): Metadata {
       ],
     },
     twitter: {
-      card: 'summary_large_image',
+      card: "summary_large_image",
       title,
       description,
-      images: ['/assets/eduverse-logo.png'],
+      images: ["/assets/eduverse-icon-192.png"],
     },
   };
 }
@@ -186,41 +194,41 @@ export function getWebsiteJsonLd() {
   const siteUrl = getSiteUrl();
 
   return {
-    '@context': 'https://schema.org',
-    '@graph': [
+    "@context": "https://schema.org",
+    "@graph": [
       {
-        '@type': 'Organization',
-        '@id': `${siteUrl}/#organization`,
+        "@type": "Organization",
+        "@id": `${siteUrl}/#organization`,
         name: SITE_NAME,
         url: siteUrl,
         logo: `${siteUrl}/assets/eduverse-icon-192.png`,
       },
       {
-        '@type': 'WebSite',
-        '@id': `${siteUrl}/#website`,
+        "@type": "WebSite",
+        "@id": `${siteUrl}/#website`,
         name: SITE_NAME,
         url: siteUrl,
         publisher: {
-          '@id': `${siteUrl}/#organization`,
+          "@id": `${siteUrl}/#organization`,
         },
         potentialAction: {
-          '@type': 'SearchAction',
+          "@type": "SearchAction",
           target: `${siteUrl}/docs?search={search_term_string}`,
-          'query-input': 'required name=search_term_string',
+          "query-input": "required name=search_term_string",
         },
       },
       {
-        '@type': 'SoftwareApplication',
-        '@id': `${siteUrl}/#software`,
+        "@type": "SoftwareApplication",
+        "@id": `${siteUrl}/#software`,
         name: SITE_NAME,
-        applicationCategory: 'EducationalApplication',
-        operatingSystem: 'Web',
+        applicationCategory: "EducationalApplication",
+        operatingSystem: "Web",
         url: siteUrl,
         description: SITE_DESCRIPTION,
         offers: {
-          '@type': 'Offer',
+          "@type": "Offer",
           url: `${siteUrl}/pricing`,
-          category: 'Subscription',
+          category: "Subscription",
         },
       },
     ],

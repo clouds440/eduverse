@@ -386,13 +386,13 @@ export class AIService {
       );
     const isCapabilityQuestion = isCopilotCapabilityQuery(dto.prompt.toLowerCase());
     const plannedToolRequests = plannedToolPlan.requests;
-    const toolRequests = withEntityResolution(
+    const toolRequests = optimizeToolRequests(withEntityResolution(
       mergeToolRequests([
         ...selectRelevantTools(dto.prompt, user.role ?? undefined, requestPolicy),
         ...normalizePlannedTools(plannedToolRequests, dto.prompt),
       ]),
       dto.prompt,
-    ).filter((request) => !isCapabilityQuestion || request.name !== 'searchDocs');
+    ).filter((request) => !isCapabilityQuestion || request.name !== 'searchDocs'), dto.prompt, user.role ?? undefined);
     const results = await this.toolRegistry.runTools(toolRequests, toolContext);
 
     const toolCalls = toolRequests.map((request) => ({
@@ -1227,6 +1227,119 @@ function mergeToolRequests(requests: SelectedToolRequest[]): SelectedToolRequest
     merged.push({ name: request.name, input });
   }
   return merged.slice(0, MAX_TOOL_REQUESTS);
+}
+
+function optimizeToolRequests(
+  requests: SelectedToolRequest[],
+  prompt: string,
+  role?: string,
+): SelectedToolRequest[] {
+  const merged = mergeToolRequests(requests);
+  const eduVerseContext = merged.find((request) => request.name === 'getEduVerseContext');
+  if (eduVerseContext) {
+    const include = new Set<string>([
+      ...arrayInput(eduVerseContext.input.include),
+      ...inferEduVerseContextIncludes(prompt.toLowerCase(), role),
+    ]);
+    for (const request of merged) {
+      for (const item of includesCoveredByTool(request.name)) include.add(item);
+    }
+    eduVerseContext.input = {
+      ...eduVerseContext.input,
+      search: stringInput(eduVerseContext.input.search) ?? prompt,
+      include: Array.from(include),
+      limit: Math.min(Number(eduVerseContext.input.limit ?? 8) || 8, 8),
+    };
+
+    return [
+      eduVerseContext,
+      ...merged.filter((request) => (
+        request !== eduVerseContext
+        && !isCoveredByEduVerseContext(request.name, include)
+      )),
+    ].slice(0, 6);
+  }
+
+  const aggregateTools = new Set(merged
+    .filter((request) => isSecondaryAggregateTool(request.name))
+    .map((request) => request.name));
+
+  if (!aggregateTools.size) return merged.slice(0, 8);
+
+  return merged.filter((request) => {
+    if (isSecondaryAggregateTool(request.name)) return true;
+    if (aggregateTools.has('getAcademicPlanningContext') && isCoveredByAcademicPlanning(request.name)) return false;
+    if (aggregateTools.has('getEnrollmentFeasibilityContext') && isCoveredByEnrollmentFeasibility(request.name)) return false;
+    if (aggregateTools.has('getEntityRelationshipContext') && isCoveredByEntityRelationship(request.name)) return false;
+    return true;
+  }).slice(0, 6);
+}
+
+function includesCoveredByTool(name: string) {
+  if (name === 'resolveEduVerseEntities') return ['entities'];
+  if (name === 'searchDocs' || name === 'searchFlows' || name === 'searchRoutes') return ['knowledge'];
+  if (name === 'getPolicyContext') return ['policy'];
+  if (name === 'getScheduleContext') return ['schedule'];
+  if (['getAcademicPerformanceProfile', 'getPendingDeadlines', 'getPendingGrading', 'getStudentsNeedingAttention', 'listSections', 'listCourses', 'getCourseEnrollmentRanking'].includes(name)) return ['academic'];
+  if (name === 'getOperationsContext') return ['operations'];
+  if (name === 'getCommunicationContext') return ['communication'];
+  if (name === 'getFinanceSummary') return ['finance'];
+  if (name === 'getEntityRelationshipContext') return ['relationships'];
+  if (name === 'getAcademicPlanningContext') return ['planning'];
+  if (name === 'getEnrollmentFeasibilityContext') return ['enrollment'];
+  return [];
+}
+
+function isCoveredByEduVerseContext(name: string, include: Set<string>) {
+  if (name === 'getAICreditStatus' || name === 'getAIUsageSummary') return false;
+  if (name === 'getCourseEnrollmentRanking') return false;
+  const needed = includesCoveredByTool(name);
+  return needed.length > 0 && needed.every((item) => include.has(item));
+}
+
+function isSecondaryAggregateTool(name: string) {
+  return name === 'getAcademicPlanningContext'
+    || name === 'getEnrollmentFeasibilityContext'
+    || name === 'getEntityRelationshipContext';
+}
+
+function isCoveredByAcademicPlanning(name: string) {
+  return [
+    'resolveEduVerseEntities',
+    'getScheduleContext',
+    'getAcademicPerformanceProfile',
+    'getPendingDeadlines',
+    'getPendingGrading',
+    'getStudentsNeedingAttention',
+  ].includes(name);
+}
+
+function isCoveredByEnrollmentFeasibility(name: string) {
+  return [
+    'resolveEduVerseEntities',
+    'getScheduleContext',
+    'getAcademicPerformanceProfile',
+    'listSections',
+    'listCourses',
+  ].includes(name);
+}
+
+function isCoveredByEntityRelationship(name: string) {
+  return [
+    'resolveEduVerseEntities',
+    'getScheduleContext',
+    'getAcademicPerformanceProfile',
+  ].includes(name);
+}
+
+function arrayInput(value: unknown) {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
+  return [];
+}
+
+function stringInput(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function normalizePlannedTools(
