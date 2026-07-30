@@ -4,6 +4,40 @@ export const DEFAULT_PRIMARY = '#0052FF';
 export const DEFAULT_SECONDARY = '#5B616E';
 export const THEME_PRIMARY_STORAGE_KEY = 'eduverse:last-valid-primary';
 
+export const LIGHT_THEME_SURFACES = {
+    background: '#E2E8F0',
+    foreground: '#0B1220',
+    cardBg: '#EEF2F7',
+    cardText: '#0B1220',
+    mutedBg: '#CBD5E1',
+    mutedText: '#64748B',
+    accentBg: '#94A3B8',
+    accentText: '#0F172A',
+    borderColor: '#CBD5E1',
+    inputBg: '#F1F5F9',
+    themeBg: '#E2E8F0',
+    navbarBg: 'rgba(226, 232, 240, 0.92)',
+    navbarText: '#050F1A',
+    overlay: 'rgba(15, 23, 42, 0.62)',
+} as const;
+
+export const DARK_THEME_SURFACES = {
+    background: '#0B0F19',
+    foreground: '#E6EAF2',
+    cardBg: '#121826',
+    cardText: '#E6EAF2',
+    mutedBg: '#1A2233',
+    mutedText: '#94A3B8',
+    accentBg: '#1E293B',
+    accentText: '#E2E8F0',
+    borderColor: 'rgba(148, 163, 184, 0.2)',
+    inputBg: '#0F172A',
+    themeBg: '#0A0E1A',
+    navbarBg: 'rgba(17, 24, 39, 0.9)',
+    navbarText: '#F9FAFB',
+    overlay: 'rgba(2, 6, 23, 0.72)',
+} as const;
+
 export function normalizeHexColor(value: string | null | undefined) {
     if (!value) return null;
 

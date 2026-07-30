@@ -18,6 +18,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { PrepareLoginDto } from './dto/prepare-login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -85,6 +86,13 @@ export class AuthController {
       this.getRequestMeta(req),
       intent,
     );
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('login/prepare')
+  async prepareLogin(@Body() dto: PrepareLoginDto) {
+    return this.authService.prepareLogin(dto.email);
   }
 
   @Public()
@@ -169,6 +177,7 @@ export class AuthController {
   ) {
     const result = await this.authService.completeTwoFactorLogin(
       body.temporaryToken,
+      body.loginPreparationId,
     );
     this.setAuthCookie(res, result.access_token, result.rememberMe, req);
     return result;

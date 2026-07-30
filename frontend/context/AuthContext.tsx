@@ -12,6 +12,7 @@ import { Loading } from '@/components/ui/Loading';
 import { decodeAuthToken } from '@/lib/authSession';
 import { unsubscribeCurrentWebPushSubscription } from '@/lib/webPush';
 import { getRoleDashboardPath, getRoleLabel } from '@/lib/roles';
+import { THEME_PRIMARY_STORAGE_KEY } from '@/lib/themeColor';
 
 export type { JwtPayload };
 
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             unsubscribeCurrentWebPushSubscription(currentToken).catch(() => { });
         }
         localStorage.removeItem('themeMode');
+        localStorage.removeItem(THEME_PRIMARY_STORAGE_KEY);
         clearChatSession();
         disconnectSocket();
         dispatch({ type: 'AUTH_LOGOUT' });
@@ -69,6 +71,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (token && (!failedToken || failedToken === token)) {
                 clearChatSession();
                 disconnectSocket();
+                localStorage.removeItem('themeMode');
+                localStorage.removeItem(THEME_PRIMARY_STORAGE_KEY);
                 dispatch({ type: 'AUTH_LOGOUT' });
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Your session has expired. Please log in again.', type: 'info' } });
                 router.replace('/login');

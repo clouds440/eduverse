@@ -17,6 +17,10 @@ export class TemporaryTwoFactorTokenDto {
   @IsString()
   @IsNotEmpty()
   temporaryToken!: string;
+
+  @IsString()
+  @IsOptional()
+  loginPreparationId?: string;
 }
 
 export class SelectTwoFactorMethodDto extends TemporaryTwoFactorTokenDto {

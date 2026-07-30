@@ -18,6 +18,8 @@ import { StatusBanner } from '@/components/ui/StatusBanner';
 import { buildOrgSidebarLinks, getOrgOverviewHref } from '@/lib/orgSidebar';
 import { AICopilotProvider } from '@/components/ai/AICopilotProvider';
 import { settingsPath } from '@/lib/routes';
+import { matchesInsightCacheKey } from '@/lib/swr';
+import { mutate as mutateSWR } from 'swr';
 
 const MarkdownRenderer = dynamic(
     () => import('@/components/ui/MarkdownRenderer').then((module) => module.MarkdownRenderer),
@@ -348,7 +350,10 @@ export default function OrgLayout({ children }: { children: React.ReactNode }) {
             subscribe('chat:read', scheduleFetch)
         ];
 
-        const refreshOnEvent = () => scheduleFetch();
+        const refreshOnEvent = () => {
+            scheduleFetch();
+            mutateSWR(matchesInsightCacheKey);
+        };
         window.addEventListener('stats-updated', refreshOnEvent);
 
         return () => {

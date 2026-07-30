@@ -16,6 +16,7 @@ import { FinancialAmount } from '@/components/finance/FinancialAmount';
 import { BillingCycleBadge } from '@/components/finance/BillingCycleBadge';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { dispatchInsightStatsUpdated } from '@/lib/swr';
 import { StructureModal } from './StructureModal';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
@@ -94,6 +95,7 @@ export default function StructuresPage() {
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Structure created successfully', type: 'success' } });
             }
             mutate();
+            dispatchInsightStatsUpdated();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to save';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
@@ -114,6 +116,7 @@ export default function StructuresPage() {
                 },
             });
             mutate();
+            dispatchInsightStatsUpdated();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to generate entries';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });

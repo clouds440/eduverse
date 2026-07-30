@@ -54,6 +54,7 @@ import { TwoFactorService } from './two-factor.service';
 import { RegisterTrustedDeviceDto } from '../e2ee/dto/register-trusted-device.dto';
 import { ApproveTrustedDeviceDto } from '../e2ee/dto/approve-trusted-device.dto';
 import { currentUtcMonthPeriod, freeOrgMonthlyCredits } from '../ai/ai-free-quota.util';
+import { LoginPreparationService } from './login-preparation.service';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -85,6 +86,7 @@ export class AuthService {
     @Optional() userPreferencesService?: UserPreferencesService,
     @Optional() emailTemplateService?: EmailTemplateService,
     @Optional() private readonly twoFactorService?: TwoFactorService,
+    @Optional() private readonly loginPreparationService?: LoginPreparationService,
   ) {
     const templates = emailTemplateService ?? new EmailTemplateService();
     const security =
@@ -269,8 +271,44 @@ export class AuthService {
       await this.recordLoginAudit('login_success', user, loginDto, ip, {
         userAgent: meta.userAgent,
       });
+      return this.withLoginBootstrap(result, loginDto.loginPreparationId, user);
+    }
+    if ('requiresTwoFactor' in result && loginDto.loginPreparationId) {
+      return { ...result, loginPreparationId: loginDto.loginPreparationId };
     }
     return result;
+  }
+
+  async prepareLogin(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        organizationId: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const preparation = this.loginPreparationService?.prepare({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      organizationId: user.organizationId,
+    });
+
+    return {
+      email: user.email,
+      loginPreparationId: preparation?.loginPreparationId ?? null,
+      expiresAt: preparation?.expiresAt ?? null,
+    };
   }
 
   async generateToken(
@@ -622,7 +660,10 @@ export class AuthService {
     );
   }
 
-  async completeTwoFactorLogin(temporaryToken: string) {
+  async completeTwoFactorLogin(
+    temporaryToken: string,
+    loginPreparationId?: string,
+  ) {
     const verified = await this.requireTwoFactorService().consume(temporaryToken);
     const result = await this.generateToken(
       verified.user,
@@ -630,7 +671,24 @@ export class AuthService {
       verified.device,
       verified.ip,
     );
-    return { ...result, rememberMe: verified.rememberMe };
+    const withBootstrap = await this.withLoginBootstrap(
+      result,
+      loginPreparationId,
+      verified.user,
+    );
+    return { ...withBootstrap, rememberMe: verified.rememberMe };
+  }
+
+  private async withLoginBootstrap<T extends { access_token: string }>(
+    result: T,
+    loginPreparationId: string | null | undefined,
+    user: { id: string; email: string },
+  ) {
+    const bootstrap = await this.loginPreparationService?.consume(
+      loginPreparationId,
+      user,
+    );
+    return bootstrap ? { ...result, bootstrap } : result;
   }
 
   private requireTwoFactorService() {

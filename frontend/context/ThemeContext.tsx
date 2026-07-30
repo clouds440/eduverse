@@ -6,6 +6,8 @@ import { ThemeMode } from '@/types';
 import {
     DEFAULT_PRIMARY,
     DEFAULT_SECONDARY,
+    DARK_THEME_SURFACES,
+    LIGHT_THEME_SURFACES,
     THEME_PRIMARY_STORAGE_KEY,
     adjustBrightness,
     getContrastColor,
@@ -88,50 +90,25 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const chatBubbleBg = isColorTooBright(safePrimary) ? adjustBrightness(safePrimary, isDark ? -60 : -25) : safePrimary;
 
         // 1. Core Backgrounds & Foregrounds - Crypto Blue Design System
-        if (isDark) {
-            root.style.setProperty('--background', '#0B0F19'); // slightly richer than pure black
-            root.style.setProperty('--background-rgb', '11, 15, 25');
-            root.style.setProperty('--foreground', '#E6EAF2');
-            root.style.setProperty('--foreground-rgb', '230, 234, 242');
+        const surfaces = isDark ? DARK_THEME_SURFACES : LIGHT_THEME_SURFACES;
+        const surfaceRgb = hexToRgb(surfaces.background);
+        const foregroundRgb = hexToRgb(surfaces.foreground);
 
-            root.style.setProperty('--card-bg', '#121826'); // lifted surface
-            root.style.setProperty('--card-text', '#E6EAF2');
-
-            root.style.setProperty('--muted-bg', '#1A2233'); // subtle separation
-            root.style.setProperty('--muted-text', '#94A3B8');
-
-            root.style.setProperty('--accent-bg', '#1E293B'); // cooler tone
-            root.style.setProperty('--accent-text', '#E2E8F0');
-
-            root.style.setProperty('--border-color', 'rgba(148, 163, 184, 0.2)');
-            root.style.setProperty('--input-bg', '#0F172A');
-
-            root.style.setProperty('--text-primary', '#F1F5F9');
-            root.style.setProperty('--text-secondary', '#94A3B8');
-            root.style.setProperty('--app-surface-overlay', 'rgba(2, 6, 23, 0.72)');
-        }
-        else {
-            root.style.setProperty('--background', '#e2e8f0'); // slate-200
-            root.style.setProperty('--background-rgb', '226, 232, 240');
-            root.style.setProperty('--foreground', '#0B1220');
-            root.style.setProperty('--foreground-rgb', '11, 18, 32');
-
-            root.style.setProperty('--card-bg', '#f1f5f9'); // slate-100
-            root.style.setProperty('--card-text', '#0B1220');
-
-            root.style.setProperty('--muted-bg', '#cbd5e1'); // slate-300
-            root.style.setProperty('--muted-text', '#64748B');
-
-            root.style.setProperty('--accent-bg', '#94a3b8'); // slate-400
-            root.style.setProperty('--accent-text', '#0F172A');
-
-            root.style.setProperty('--border-color', '#cbd5e1');
-            root.style.setProperty('--input-bg', '#f8fafc'); // slightly lighter for inputs
-
-            root.style.setProperty('--text-primary', '#0F172A');
-            root.style.setProperty('--text-secondary', '#64748B');
-            root.style.setProperty('--app-surface-overlay', 'rgba(15, 23, 42, 0.62)');
-        }
+        root.style.setProperty('--background', surfaces.background);
+        root.style.setProperty('--background-rgb', `${surfaceRgb?.r || 226}, ${surfaceRgb?.g || 232}, ${surfaceRgb?.b || 240}`);
+        root.style.setProperty('--foreground', surfaces.foreground);
+        root.style.setProperty('--foreground-rgb', `${foregroundRgb?.r || 11}, ${foregroundRgb?.g || 18}, ${foregroundRgb?.b || 32}`);
+        root.style.setProperty('--card-bg', surfaces.cardBg);
+        root.style.setProperty('--card-text', surfaces.cardText);
+        root.style.setProperty('--muted-bg', surfaces.mutedBg);
+        root.style.setProperty('--muted-text', surfaces.mutedText);
+        root.style.setProperty('--accent-bg', surfaces.accentBg);
+        root.style.setProperty('--accent-text', surfaces.accentText);
+        root.style.setProperty('--border-color', surfaces.borderColor);
+        root.style.setProperty('--input-bg', surfaces.inputBg);
+        root.style.setProperty('--text-primary', isDark ? '#F1F5F9' : '#0F172A');
+        root.style.setProperty('--text-secondary', surfaces.mutedText);
+        root.style.setProperty('--app-surface-overlay', surfaces.overlay);
 
         root.style.setProperty('--primary-text', primaryText);
         root.style.setProperty('--secondary-text', secondaryText);
@@ -140,11 +117,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
         // Tints & Atmospherics
         root.style.setProperty('--chat-doodle', "url('/assets/chat-doodle.svg')");
-        root.style.setProperty('--theme-bg', isDark ? '#0A0E1A' : '#e2e8f0');
+        root.style.setProperty('--theme-bg', surfaces.themeBg);
 
         // Navbar defaults
-        root.style.setProperty('--navbar-bg', isDark ? 'rgba(17, 24, 39, 0.9)' : 'rgba(255, 255, 255, 0.9)');
-        root.style.setProperty('--navbar-text', isDark ? '#F9FAFB' : '#050F1A');
+        root.style.setProperty('--navbar-bg', surfaces.navbarBg);
+        root.style.setProperty('--navbar-text', surfaces.navbarText);
 
         // Shadows
         root.style.setProperty('--shadow-color', isDark ? 'rgba(0,0,0,0.5)' : `rgba(${primaryRgb?.r || 0}, ${primaryRgb?.g || 0}, ${primaryRgb?.b || 0}, 0.15)`);
@@ -164,9 +141,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         const computedSecondary = getDerivedSecondaryColor(safePrimary, mode);
         setPrimaryColorState(safePrimary);
         setSecondaryColor(computedSecondary);
-        if (typeof window !== 'undefined') {
-            window.localStorage.setItem(THEME_PRIMARY_STORAGE_KEY, safePrimary);
-        }
     }, [themeMode]);
 
     // Preview-only: set theme mode locally (no DB persistence). Settings form will persist on save.
@@ -192,11 +166,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             if (typeof window !== 'undefined' && isPrimaryColorAllowed(primary)) {
                 window.localStorage.setItem(THEME_PRIMARY_STORAGE_KEY, primary);
             }
-        } else {
-            // Fallback to defaults if no org data or no primary color
+        } else if (!state.auth.user?.organizationId && !state.auth.user?.orgId) {
             setThemeColors(DEFAULT_PRIMARY, DEFAULT_SECONDARY);
+            if (typeof window !== 'undefined') {
+                window.localStorage.removeItem(THEME_PRIMARY_STORAGE_KEY);
+            }
         }
-    }, [setThemeColors, themeMode, state.stats.orgData]);
+    }, [setThemeColors, themeMode, state.auth.user?.organizationId, state.auth.user?.orgId, state.stats.orgData]);
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect

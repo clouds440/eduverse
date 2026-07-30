@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { mutate } from "swr";
 import { CalendarDays, Download, FileUp, UploadCloud } from "lucide-react";
 import { api } from "@/lib/api";
-import { matchesCacheKeyPrefixStartsWith } from "@/lib/swr";
+import { dispatchInsightStatsUpdated, matchesCacheKeyPrefixStartsWith } from "@/lib/swr";
 import {
   AttendanceImportTargetMode,
   ImportConfirmResult,
@@ -144,6 +144,7 @@ export function AttendanceMonthlyImportModal({
       await waitForProgressCompletion();
       setResult(response);
       mutate(matchesCacheKeyPrefixStartsWith("attendance-"));
+      dispatchInsightStatsUpdated();
       dispatch({
         type: "TOAST_ADD",
         payload: {

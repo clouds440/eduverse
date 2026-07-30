@@ -1,5 +1,5 @@
 import type {
-    Teacher, Student, Organization, RegisterRequest, RegisterIntentResponse, LoginRequest, AuthResponse, ContactEmailStatus,
+    Teacher, Student, Organization, RegisterRequest, RegisterIntentResponse, LoginRequest, PrepareLoginResponse, AuthResponse, ContactEmailStatus,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
     CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
@@ -559,6 +559,8 @@ export const api = {
             ),
         login: (data: LoginRequest) =>
             request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+        prepareLogin: (email: string) =>
+            request<PrepareLoginResponse>('/auth/login/prepare', { method: 'POST', body: JSON.stringify({ email }) }),
         getTwoFactorChallenge: (temporaryToken: string) =>
             request<TwoFactorChallenge>('/auth/two-factor/challenge', {
                 method: 'POST', body: JSON.stringify({ temporaryToken }),
@@ -583,9 +585,9 @@ export const api = {
             request<MessageResponse>('/auth/two-factor/email/resend', {
                 method: 'POST', body: JSON.stringify({ temporaryToken }),
             }),
-        completeTwoFactorLogin: (temporaryToken: string) =>
+        completeTwoFactorLogin: (temporaryToken: string, loginPreparationId?: string | null) =>
             request<AuthResponse>('/auth/two-factor/complete', {
-                method: 'POST', body: JSON.stringify({ temporaryToken }),
+                method: 'POST', body: JSON.stringify({ temporaryToken, loginPreparationId }),
             }),
         cancelTwoFactorLogin: (temporaryToken: string) =>
             request<MessageResponse>('/auth/two-factor/cancel', {

@@ -83,10 +83,10 @@ export function useOrganizationSettingsForm() {
     }, [dispatch, token, user]);
 
     useEffect(() => {
-        if (formData.accentColor.primary) {
+        if (orgData && formData.accentColor.primary) {
             setPrimaryColor(formData.accentColor.primary);
         }
-    }, [formData.accentColor.primary, setPrimaryColor]);
+    }, [formData.accentColor.primary, orgData, setPrimaryColor]);
 
     const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;

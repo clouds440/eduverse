@@ -17,6 +17,8 @@ import { TwoFactorService } from './two-factor.service';
 import { EmailTemplatesModule } from '../common/email-templates/email-templates.module';
 import { UserSettingsContextService } from './user-settings-context.service';
 import { E2eeModule } from '../e2ee/e2ee.module';
+import { InsightsModule } from '../insights/insights.module';
+import { LoginPreparationService } from './login-preparation.service';
 
 // ...
 
@@ -25,6 +27,7 @@ import { E2eeModule } from '../e2ee/e2ee.module';
     PassportModule,
     SecurityModule,
     EmailTemplatesModule,
+    InsightsModule,
     forwardRef(() => NotificationsModule),
     forwardRef(() => E2eeModule),
     JwtModule.registerAsync({
@@ -47,6 +50,7 @@ import { E2eeModule } from '../e2ee/e2ee.module';
     UserPreferencesService,
     TwoFactorService,
     UserSettingsContextService,
+    LoginPreparationService,
   ],
   exports: [AuthService, UserSettingsContextService],
 })

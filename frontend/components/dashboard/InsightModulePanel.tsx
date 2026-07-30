@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { BarChart3, CircleSlash, Loader2 } from 'lucide-react';
 import { DashboardInsights, type InsightTimeRange } from '@/types';
 import { api } from '@/lib/api';
+import { insightSWRConfig } from '@/lib/swr';
 import { InsightChartsGrid, hasInsightCharts } from './InsightChartsGrid';
 import { getInsightRangePreview, InsightRangeControl } from './InsightRangeControl';
 
@@ -104,7 +105,7 @@ export default function InsightModulePanel({
   const { data, isLoading } = useSWR<DashboardInsights>(
     ['insights-module-panel', token, moduleName, range, fetchModule === api.org.getInsightModule ? 'org' : 'custom'] as const,
     ([, t, name]) => fetchModule(t as string, name as string, { range }),
-    { refreshInterval: 30000 },
+    insightSWRConfig,
   );
 
   return (

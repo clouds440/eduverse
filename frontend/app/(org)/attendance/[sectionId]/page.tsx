@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { matchesCacheKeyPrefixStartsWith } from '@/lib/swr';
+import { dispatchInsightStatsUpdated, matchesCacheKeyPrefixStartsWith } from '@/lib/swr';
 import { api } from '@/lib/api';
 import { ApiError, SectionAttendanceResponse, AttendanceStatus, Role, Section, RangeAttendanceResponse, SectionSchedule } from '@/types';
 import { useAuth } from '@/context/AuthContext';
@@ -157,6 +157,7 @@ export default function SectionAttendancePage() {
             await api.org.markAttendance(sessionId as string, records, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Attendance saved successfully', type: 'success' } });
             mutate(matchesCacheKeyPrefixStartsWith('attendance-'));
+            dispatchInsightStatsUpdated();
         } catch (error: unknown) {
             dispatch({
                 type: 'TOAST_ADD',

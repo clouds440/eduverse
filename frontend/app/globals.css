@@ -44,17 +44,17 @@
   --danger: #c71c27;
   --error: var(--danger);
 
-  --card-bg: #babadb;
-  --card-text: #1e293b;
+  --card-bg: #eef2f7;
+  --card-text: #0b1220;
   /* slate-800 */
   --muted-bg: #cbd5e1;
   --muted-text: #64748b;
   --accent-bg: #94a3b8;
   --accent-text: #0f172a;
   --border-color: #cbd5e1;
-  --input-bg: #f8fafc;
+  --input-bg: #f1f5f9;
 
-  --navbar-bg: rgb(179, 221, 255);
+  --navbar-bg: rgba(226, 232, 240, 0.92);
   --navbar-text: #0f172a;
 
   --sidebar-bg: #192231;

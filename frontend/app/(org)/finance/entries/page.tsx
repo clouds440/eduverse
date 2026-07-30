@@ -16,6 +16,7 @@ import { TableActions } from '@/components/ui/TableActions';
 import { FinanceStatusBadge } from '@/components/finance/FinanceStatusBadge';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
+import { dispatchInsightStatsUpdated } from '@/lib/swr';
 import { ClaimPaidModal } from './ClaimPaidModal';
 import { ConfirmPaymentModal } from './ConfirmPaymentModal';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -129,6 +130,7 @@ export default function EntriesPage() {
             await api.finance.markEntryPaid(claimingEntry.id, { ...claimPayload, attachmentIds }, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Payment claim submitted', type: 'success' } });
             mutate();
+            dispatchInsightStatsUpdated();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to submit claim';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
@@ -144,6 +146,7 @@ export default function EntriesPage() {
             await api.finance.confirmEntry(confirmingEntry.id, { ...confirmPayload, attachmentIds }, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Payment confirmed securely', type: 'success' } });
             mutate();
+            dispatchInsightStatsUpdated();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to confirm payment';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
@@ -158,6 +161,7 @@ export default function EntriesPage() {
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Entry cancelled', type: 'success' } });
             setCancellationReason('');
             mutate();
+            dispatchInsightStatsUpdated();
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to cancel entry';
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });

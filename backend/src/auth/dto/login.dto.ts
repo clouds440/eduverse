@@ -38,4 +38,8 @@ export class LoginDto {
   @IsString()
   @IsOptional()
   os?: string;
+
+  @IsString()
+  @IsOptional()
+  loginPreparationId?: string;
 }

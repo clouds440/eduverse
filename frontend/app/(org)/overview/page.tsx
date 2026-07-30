@@ -12,6 +12,7 @@ import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { Badge } from '@/components/ui/Badge';
 import InsightModulePanel from '@/components/dashboard/InsightModulePanel';
 import InsightShellSummary from '@/components/dashboard/InsightShellSummary';
+import { insightSWRConfig } from '@/lib/swr';
 
 const defaultRange: InsightTimeRange = '1M';
 
@@ -75,7 +76,7 @@ export default function AdminPage() {
     const { data: insights, isLoading: insightsLoading } = useSWR<DashboardInsights>(
         insightsKey,
         ([, t]) => api.org.getInsights(t as string, { range: shellRange }),
-        { refreshInterval: 30000 },
+        insightSWRConfig,
     );
 
     const modules = useMemo(() => moduleDefinitions(insights?.role), [insights?.role]);

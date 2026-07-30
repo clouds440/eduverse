@@ -1,25 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api";
-import { Mail, Lock, ArrowRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { mutate } from "swr";
+import { ArrowLeft, ArrowRight, Lock, Mail } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { useGlobal } from "@/context/GlobalContext";
+import { api } from "@/lib/api";
+import { PLATFORM_NAME } from "@/lib/constants";
+import { getDeviceId, getDeviceInfo } from "@/lib/deviceUtils";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
-import { PLATFORM_NAME } from "@/lib/constants";
-import { getDeviceId, getDeviceInfo } from "@/lib/deviceUtils";
-import Image from "next/image";
 import { TrustedDevicePrompt } from "@/components/TrustedDevicePrompt";
-import { TrustedDevicePromptFlow } from "@/types";
+import { LoginBootstrapPayload, TrustedDevicePromptFlow } from "@/types";
+
+type LoginStep = "email" | "password";
 
 export default function LoginPage() {
   const { login, loading } = useAuth();
   const searchParams = useSearchParams();
   const { state, dispatch } = useGlobal();
+  const [loginStep, setLoginStep] = useState<LoginStep>("email");
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -31,6 +35,7 @@ export default function LoginPage() {
     general?: string;
   }>({});
   const [temporaryToken, setTemporaryToken] = useState<string | null>(null);
+  const [loginPreparationId, setLoginPreparationId] = useState<string | null>(null);
 
   useEffect(() => {
     const hashParams = typeof window !== "undefined"
@@ -42,6 +47,7 @@ export default function LoginPage() {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
       return;
     }
+
     const googleError = searchParams.get("googleError");
     if (googleError) {
       setErrors({ general: googleError });
@@ -53,8 +59,7 @@ export default function LoginPage() {
     dispatch({ type: "UI_START_PROCESSING", payload: "google-session" });
     login()
       .catch((error) => {
-        const message =
-          error instanceof Error ? error.message : "Google sign-in failed";
+        const message = error instanceof Error ? error.message : "Google sign-in failed";
         setErrors({ general: message });
       })
       .finally(() => {
@@ -62,9 +67,26 @@ export default function LoginPage() {
       });
   }, [dispatch, loading, login, searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setErrors({});
+
+    if (loginStep === "email") {
+      if (state.ui.processing["login-prepare"]) return;
+      dispatch({ type: "UI_START_PROCESSING", payload: "login-prepare" });
+      try {
+        const prepared = await api.auth.prepareLogin(formData.email);
+        setFormData((current) => ({ ...current, email: prepared.email, password: "" }));
+        setLoginPreparationId(prepared.loginPreparationId ?? null);
+        setLoginStep("password");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to continue";
+        setErrors({ email: message });
+      } finally {
+        dispatch({ type: "UI_STOP_PROCESSING", payload: "login-prepare" });
+      }
+      return;
+    }
 
     if (state.ui.processing["login-submit"]) return;
     dispatch({ type: "UI_START_PROCESSING", payload: "login-submit" });
@@ -74,6 +96,7 @@ export default function LoginPage() {
       const deviceInfo = getDeviceInfo();
       const loginPayload = {
         ...formData,
+        loginPreparationId,
         deviceId,
         deviceName: deviceInfo?.deviceName,
         deviceType: deviceInfo?.deviceType,
@@ -83,36 +106,39 @@ export default function LoginPage() {
       const res = await api.auth.login(loginPayload);
       if (res.requiresTwoFactor && res.temporaryToken) {
         setTemporaryToken(res.temporaryToken);
+        setLoginPreparationId(res.loginPreparationId ?? loginPreparationId);
         return;
       }
       await login(res.access_token);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err?.message : "Login failed";
+      primeLoginBootstrap(res.access_token, res.bootstrap);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Login failed";
       const msgStr = Array.isArray(message) ? message[0] : message;
-      const newErrors: typeof errors = {};
+      const nextErrors: typeof errors = {};
 
       if (msgStr.toLowerCase().includes("email")) {
-        newErrors.email = msgStr;
+        nextErrors.email = msgStr;
+        setLoginStep("email");
       } else if (
         msgStr.toLowerCase().includes("password") ||
         msgStr.toLowerCase().includes("credentials")
       ) {
-        newErrors.password = msgStr;
+        nextErrors.password = msgStr;
       } else {
-        newErrors.general = msgStr;
+        nextErrors.general = msgStr;
       }
-      setErrors(newErrors);
+      setErrors(nextErrors);
     } finally {
       dispatch({ type: "UI_STOP_PROCESSING", payload: "login-submit" });
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = event.target;
+    setFormData((current) => ({
+      ...current,
       [name]: type === "checkbox" ? checked : value,
-    });
+    }));
   };
 
   const handleGoogleLogin = () => {
@@ -130,9 +156,18 @@ export default function LoginPage() {
     });
   };
 
-  const finishTwoFactorLogin = async (accessToken: string) => {
+  const handleChangeEmail = () => {
+    setLoginStep("email");
+    setErrors({});
+    setLoginPreparationId(null);
+    setFormData((current) => ({ ...current, password: "" }));
+  };
+
+  const finishTwoFactorLogin = async (accessToken: string, bootstrap?: LoginBootstrapPayload | null) => {
     await login(accessToken);
+    primeLoginBootstrap(accessToken, bootstrap);
     setTemporaryToken(null);
+    setLoginPreparationId(null);
   };
 
   if (temporaryToken) {
@@ -140,6 +175,7 @@ export default function LoginPage() {
       <TrustedDevicePrompt
         flow={TrustedDevicePromptFlow.TWO_FACTOR}
         temporaryToken={temporaryToken}
+        loginPreparationId={loginPreparationId}
         onComplete={finishTwoFactorLogin}
         onCancel={() => {
           void api.auth.cancelTwoFactorLogin(temporaryToken);
@@ -151,215 +187,206 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-fit h-screen bg-background flex items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden">
-      {/* Animated gradient background */}
+    <div className="relative flex h-screen min-h-fit items-center justify-center overflow-hidden bg-background p-4 sm:p-6 lg:p-8">
       <div className="absolute inset-0 bg-background">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
-        <div
-          className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/8 rounded-full blur-[120px] animate-pulse"
-          style={{ animationDelay: "2s" }}
-        />
-        <div
-          className="absolute top-[40%] left-[30%] w-[30%] h-[30%] bg-primary/6 rounded-full blur-[80px] animate-pulse"
-          style={{ animationDelay: "4s" }}
-        />
+        <div className="absolute left-[-10%] top-[-10%] h-[50%] w-[50%] animate-pulse rounded-full bg-primary/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] h-[50%] w-[50%] animate-pulse rounded-full bg-primary/8 blur-[120px]" style={{ animationDelay: "2s" }} />
+        <div className="absolute left-[30%] top-[40%] h-[30%] w-[30%] animate-pulse rounded-full bg-primary/6 blur-[80px]" style={{ animationDelay: "4s" }} />
       </div>
-
-      {/* Grid overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-size-[64px_64px]" />
 
-      {/* Main card */}
       <div className="relative z-10 w-full max-w-lg">
-        <div className="glass-card rounded-3xl p-8 sm:p-10 lg:p-12 shadow-2xl animate-fade-in-up">
-          {/* Header */}
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-2">
-              <Image
-                src={"/assets/eduverse-icon-192.png"}
-                alt="Eduverse Logo"
-                className="object-cover"
-                width={64}
-                height={64}
-              />
+        <div className="glass-card animate-fade-in-up rounded-3xl p-8 shadow-2xl sm:p-10 lg:p-12">
+          <div className="mb-10 text-center">
+            <div className="mb-2 inline-flex h-16 w-16 items-center justify-center rounded-2xl">
+              <Image src="/assets/eduverse-icon-192.png" alt="Eduverse Logo" className="object-cover" width={64} height={64} />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-3">
+            <h1 className="mb-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
               Welcome Back
             </h1>
-            <p className="text-muted-foreground font-medium text-sm sm:text-base">
+            <p className="text-sm font-medium text-muted-foreground sm:text-base">
               Sign in to your {PLATFORM_NAME} portal
             </p>
           </div>
 
-          {/* Form */}
           <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <Label
-                  htmlFor="email-address"
-                  className="text-xs font-bold tracking-wider text-muted-foreground uppercase ml-1"
-                >
-                  Email
-                </Label>
-                <Input
-                  id="email-address"
-                  name="email"
-                  type="email"
-                  required
-                  tabIndex={1}
-                  icon={Mail}
-                  placeholder="admin@school.edu"
-                  value={formData.email}
-                  onChange={handleChange}
-                  error={!!errors.email}
-                  className="h-12 font-medium border-border/40 bg-background/60 backdrop-blur-sm focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-                {errors.email && (
-                  <p className="mt-1 text-xs text-danger font-semibold ml-1">
-                    {errors.email}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between items-center ml-1">
-                  <Label
-                    htmlFor="password"
-                    className="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                  >
-                    Password
-                  </Label>
-                  <Link
-                    href="/forgot-password"
-                    className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  tabIndex={2}
-                  icon={Lock}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  error={!!errors.password}
-                  className="h-12 font-medium border-border/40 bg-background/60 backdrop-blur-sm focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
-                />
-                {errors.password && (
-                  <p className="mt-1 text-xs text-danger font-semibold ml-1">
-                    {errors.password}
-                  </p>
-                )}
-                {errors.general && (
-                  <p className="mt-2 text-sm text-danger font-bold text-center">
-                    {errors.general}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Remember me */}
-            <div className="flex items-center">
-              <label className="flex items-center group cursor-pointer select-none">
-                <div className="relative">
-                  <input
-                    id="remember-me"
-                    name="rememberMe"
-                    type="checkbox"
-                    className="peer sr-only"
-                    checked={formData.rememberMe}
-                    onChange={handleChange}
-                  />
-                  <div className="w-5 h-5 bg-background/60 border-2 border-border/40 rounded-lg peer-checked:bg-primary peer-checked:border-primary transition-all duration-200 group-hover:border-primary/30 flex items-center justify-center">
-                    <svg
-                      className={`w-3 h-3 text-white transition-opacity duration-200 ${formData.rememberMe ? "opacity-100" : "opacity-0"}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-                <span className="ml-3 text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                  Remember me
-                </span>
-              </label>
-            </div>
-
-            {/* Submit button */}
-            <Button
-              type="submit"
-              loadingId="login-submit"
-              loadingText="Signing in..."
-              icon={ArrowRight}
-              className="w-full h-12 font-bold text-base shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-            >
-              Sign In
-            </Button>
-
-            <div className="relative py-1">
+            <div className="overflow-hidden">
               <div
-                className="absolute inset-0 flex items-center"
-                aria-hidden="true"
+                className="flex w-[200%] transition-transform duration-300 ease-out motion-reduce:transition-none"
+                style={{ transform: loginStep === "email" ? "translateX(0)" : "translateX(-50%)" }}
               >
-                <div className="w-full border-t border-border/60" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-card px-3 text-xs font-black uppercase tracking-widest text-muted-foreground">
-                  Or
-                </span>
+                <div className="w-1/2 shrink-0 space-y-6 pr-1">
+                  <div className="space-y-2">
+                    <Label htmlFor="email-address" className="ml-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Email
+                    </Label>
+                    <Input
+                      id="email-address"
+                      name="email"
+                      type="email"
+                      required
+                      tabIndex={loginStep === "email" ? 1 : -1}
+                      icon={Mail}
+                      placeholder="admin@school.edu"
+                      value={formData.email}
+                      onChange={handleChange}
+                      error={!!errors.email}
+                      className="h-12 border-border/40 bg-background/60 font-medium backdrop-blur-sm transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                    />
+                    {errors.email && <p className="ml-1 mt-1 text-xs font-semibold text-danger">{errors.email}</p>}
+                    {errors.general && <p className="mt-2 text-center text-sm font-bold text-danger">{errors.general}</p>}
+                  </div>
+
+                  <Button
+                    type="submit"
+                    loadingId="login-prepare"
+                    loadingText="Checking..."
+                    icon={ArrowRight}
+                    className="h-12 w-full text-base font-bold shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
+                  >
+                    Continue
+                  </Button>
+
+                  <div className="relative py-1">
+                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                      <div className="w-full border-t border-border/60" />
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-card px-3 text-xs font-black uppercase tracking-widest text-muted-foreground">Or</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={() => (
+                      <Image src="./assets/svgs/google.svg" width={20} height={20} alt="Google Icon" className="h-6 w-6" />
+                    )}
+                    onClick={handleGoogleLogin}
+                    loadingId="google-session"
+                    loadingText="Continuing..."
+                    className="h-12 w-full text-base font-bold"
+                  >
+                    Continue with Google
+                  </Button>
+                </div>
+
+                <div className="w-1/2 shrink-0 space-y-6 pl-1">
+                  <div className="rounded-xl border border-border/70 bg-background/55 px-4 py-3">
+                    <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Signing in as</p>
+                    <div className="mt-1 flex items-center justify-between gap-3">
+                      <p className="min-w-0 truncate text-sm font-black text-foreground">{formData.email}</p>
+                      <button
+                        type="button"
+                        onClick={handleChangeEmail}
+                        className="inline-flex shrink-0 items-center gap-1 text-xs font-black text-primary hover:text-primary/80"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                        Change
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="ml-1 flex items-center justify-between">
+                      <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Password
+                      </Label>
+                      <Link href="/forgot-password" className="text-xs font-semibold text-primary transition-colors hover:text-primary/80">
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      required
+                      tabIndex={loginStep === "password" ? 1 : -1}
+                      icon={Lock}
+                      placeholder="••••••••"
+                      value={formData.password}
+                      onChange={handleChange}
+                      error={!!errors.password}
+                      className="h-12 border-border/40 bg-background/60 font-medium backdrop-blur-sm transition-all focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+                    />
+                    {errors.password && <p className="ml-1 mt-1 text-xs font-semibold text-danger">{errors.password}</p>}
+                    {errors.general && <p className="mt-2 text-center text-sm font-bold text-danger">{errors.general}</p>}
+                  </div>
+
+                  <div className="flex items-center">
+                    <label className="group flex cursor-pointer select-none items-center">
+                      <div className="relative">
+                        <input
+                          id="remember-me"
+                          name="rememberMe"
+                          type="checkbox"
+                          className="peer sr-only"
+                          checked={formData.rememberMe}
+                          onChange={handleChange}
+                        />
+                        <div className="flex h-5 w-5 items-center justify-center rounded-lg border-2 border-border/40 bg-background/60 transition-all duration-200 group-hover:border-primary/30 peer-checked:border-primary peer-checked:bg-primary">
+                          <svg
+                            className={`h-3 w-3 text-white transition-opacity duration-200 ${formData.rememberMe ? "opacity-100" : "opacity-0"}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <span className="ml-3 text-sm font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+                        Remember me
+                      </span>
+                    </label>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    loadingId="login-submit"
+                    loadingText="Signing in..."
+                    icon={ArrowRight}
+                    className="h-12 w-full text-base font-bold shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
+                  >
+                    Sign In
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <Button
-              type="button"
-              variant="secondary"
-              icon={() => (
-                <Image
-                  src="./assets/svgs/google.svg"
-                  width={20}
-                  height={20}
-                  alt="Google Icon"
-                  className="w-6 h-6"
-                />
-              )}
-              onClick={handleGoogleLogin}
-              loadingId="google-session"
-              loadingText="Continuing..."
-              className="h-12 w-full font-bold text-base"
-            >
-              Continue with Google
-            </Button>
-
-            {/* Sign up link */}
-            <p className="text-center text-sm text-muted-foreground font-medium">
+            <p className="text-center text-sm font-medium text-muted-foreground">
               Don&apos;t have an account?{" "}
-              <Link
-                href="/register"
-                className="text-primary hover:text-primary/80 transition-colors font-bold"
-              >
+              <Link href="/register" className="font-bold text-primary transition-colors hover:text-primary/80">
                 Get started free
               </Link>
             </p>
           </form>
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-8">
-          <p className="text-xs text-muted-foreground/60 font-medium">
+        <div className="mt-8 text-center">
+          <p className="text-xs font-medium text-muted-foreground/60">
             © {new Date().getFullYear()} {PLATFORM_NAME}. All rights reserved.
           </p>
         </div>
       </div>
     </div>
   );
+}
+
+function primeLoginBootstrap(
+  accessToken: string | undefined,
+  bootstrap?: LoginBootstrapPayload | null,
+) {
+  if (!accessToken || !bootstrap) return;
+
+  if (bootstrap.kind === "overview-insights") {
+    void mutate(["insights-shell", accessToken, bootstrap.range], bootstrap.data, false);
+  } else if (bootstrap.kind === "finance-insights") {
+    void mutate(["finance/insights-shell", accessToken, bootstrap.range], bootstrap.data, false);
+  } else if (bootstrap.kind === "teacher-insights") {
+    void mutate(["teacher-insights", accessToken, { range: bootstrap.range }], bootstrap.data, false);
+  } else if (bootstrap.kind === "student-insights") {
+    void mutate(["student-insights", accessToken, { range: bootstrap.range }], bootstrap.data, false);
+  }
 }

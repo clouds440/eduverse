@@ -610,6 +610,25 @@ export interface LoginRequest {
     deviceType?: string;
     browser?: string;
     os?: string;
+    loginPreparationId?: string | null;
+}
+
+export interface PrepareLoginResponse {
+    email: string;
+    loginPreparationId?: string | null;
+    expiresAt?: string | null;
+}
+
+export type LoginBootstrapKind =
+    | 'overview-insights'
+    | 'finance-insights'
+    | 'teacher-insights'
+    | 'student-insights';
+
+export interface LoginBootstrapPayload {
+    kind: LoginBootstrapKind;
+    range: InsightTimeRange;
+    data: DashboardInsights;
 }
 
 export interface AuthResponse {
@@ -625,6 +644,8 @@ export interface AuthResponse {
     pendingLoginId?: string;
     methods?: TwoFactorLoginMethod[];
     expiresAt?: string;
+    loginPreparationId?: string;
+    bootstrap?: LoginBootstrapPayload | null;
 }
 
 export type TwoFactorLoginMethod = TwoFactorMethod;

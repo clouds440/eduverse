@@ -9,38 +9,42 @@ export function cn(...inputs: ClassValue[]) {
 export const DEFAULT_SECTION_COLOR = '#3B82F6';
 
 export const SECTION_COLOR_PALETTE = [
-    '#3B82F6', // Blue
-    '#10B981', // Emerald
-    '#F59E0B', // Amber
-    '#EF4444', // Red
-    '#8B5CF6', // Violet
-    '#06B6D4', // Cyan
-    '#EC4899', // Pink
-    '#F97316', // Orange
-    '#14B8A6', // Teal
-    '#6366F1', // Indigo
-    '#84CC16', // Lime
-    '#0EA5E9', // Sky
-    '#F43F5E', // Rose
-    '#D946EF', // Fuchsia
-    '#64748B', // Slate
-    '#B45309', // Dark Amber
-    '#059669', // Dark Emerald
-    '#0284C7', // Dark Sky
-    '#BE185D', // Dark Pink
-    '#7C3AED', // Dark Violet
-    '#1D4ED8', // Dark Blue
-    '#B91C1C', // Dark Red
-    '#0F766E', // Dark Teal
-    '#4F46E5', // Dark Indigo
-    '#9333EA', // Purple
-    '#475569', // Dark Slate
-    '#EA580C', // Orange-600
-    '#E11D48', // Rose-600
-    '#C084FC', // Light Purple
-    '#38BDF8', // Light Sky
-    '#818CF8', // Light Indigo
-    '#FB7185', // Light Rose
+    '#2563EB', // Blue
+    '#059669', // Emerald
+    '#D97706', // Amber
+    '#DC2626', // Red
+    '#7C3AED', // Violet
+    '#0891B2', // Cyan
+    '#DB2777', // Pink
+    '#EA580C', // Orange
+    '#0D9488', // Teal
+    '#4F46E5', // Indigo
+    '#65A30D', // Olive
+    '#0284C7', // Sky
+    '#E11D48', // Rose
+    '#C026D3', // Fuchsia
+    '#475569', // Slate
+    '#92400E', // Deep Amber
+    '#047857', // Deep Emerald
+    '#0369A1', // Deep Sky
+    '#BE185D', // Deep Pink
+    '#6D28D9', // Deep Violet
+    '#1D4ED8', // Deep Blue
+    '#B91C1C', // Deep Red
+    '#0F766E', // Deep Teal
+    '#4338CA', // Deep Indigo
+    '#7E22CE', // Deep Purple
+    '#334155', // Deep Slate
+    '#9A3412', // Burnt Orange
+    '#BE123C', // Deep Rose
+    '#164E63', // Dark Cyan
+    '#14532D', // Dark Green
+    '#581C87', // Dark Purple
+    '#7F1D1D', // Dark Maroon
+    '#1E3A8A', // Navy
+    '#3F3F46', // Zinc
+    '#365314', // Dark Olive
+    '#78350F', // Bronze
 ] as const;
 
 

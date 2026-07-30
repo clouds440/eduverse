@@ -18,6 +18,7 @@ import {
     TrustedDevicePromptFlow,
     TwoFactorChallengeStatus,
     TwoFactorMethod,
+    type LoginBootstrapPayload,
     type TwoFactorChallenge,
     type TwoFactorLoginMethod,
 } from '@/types';
@@ -162,7 +163,8 @@ interface EncryptionPromptProps {
 interface TwoFactorPromptProps {
     flow: TrustedDevicePromptFlow.TWO_FACTOR;
     temporaryToken: string;
-    onComplete: (accessToken: string) => Promise<void>;
+    loginPreparationId?: string | null;
+    onComplete: (accessToken: string, bootstrap?: LoginBootstrapPayload | null) => Promise<void>;
     onCancel: () => void;
 }
 
@@ -177,11 +179,13 @@ export function TrustedDevicePrompt(props: TrustedDevicePromptProps) {
 
 function TwoFactorPrompt({
     temporaryToken,
+    loginPreparationId,
     onComplete,
     onCancel,
 }: {
     temporaryToken: string;
-    onComplete: (accessToken: string) => Promise<void>;
+    loginPreparationId?: string | null;
+    onComplete: (accessToken: string, bootstrap?: LoginBootstrapPayload | null) => Promise<void>;
     onCancel: () => void;
 }) {
     const [challenge, setChallenge] = useState<TwoFactorChallenge | null>(null);
@@ -198,15 +202,15 @@ function TwoFactorPrompt({
         setBusy(true);
         setError(null);
         try {
-            const result = await api.auth.completeTwoFactorLogin(temporaryToken);
+            const result = await api.auth.completeTwoFactorLogin(temporaryToken, loginPreparationId);
             if (!result.access_token) throw new Error('Unable to finish signing in.');
-            await onComplete(result.access_token);
+            await onComplete(result.access_token, result.bootstrap);
         } catch (err) {
             completingRef.current = false;
             setError(err instanceof Error ? err.message : 'Unable to finish signing in.');
             setBusy(false);
         }
-    }, [onComplete, temporaryToken]);
+    }, [loginPreparationId, onComplete, temporaryToken]);
 
     useEffect(() => {
         api.auth.getTwoFactorChallenge(temporaryToken)

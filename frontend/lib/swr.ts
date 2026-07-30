@@ -47,6 +47,17 @@ export type CacheKeyPrefix =
     | 'transcript'
     | 'studentsSearch';
 
+export const INSIGHT_CACHE_WINDOW_MS = 7 * 60 * 1000;
+
+export const insightSWRConfig = {
+    dedupingInterval: INSIGHT_CACHE_WINDOW_MS,
+    focusThrottleInterval: INSIGHT_CACHE_WINDOW_MS,
+    refreshInterval: INSIGHT_CACHE_WINDOW_MS,
+    revalidateIfStale: true,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+} as const;
+
 // Cache key can be a string, an array with a prefix, or null
 export type CacheKey = string | readonly [CacheKeyPrefix, ...unknown[]] | null;
 
@@ -77,4 +88,16 @@ export function matchesCacheKeyPrefixStartsWith(prefix: string): (key: unknown) 
         if (!Array.isArray(key) || key.length === 0) return false;
         return typeof key[0] === 'string' && key[0].startsWith(prefix);
     };
+}
+
+export function matchesInsightCacheKey(key: unknown): boolean {
+    if (!Array.isArray(key) || key.length === 0) return false;
+    return key[0] === 'insights-shell'
+        || key[0] === 'insights-module-panel'
+        || key[0] === 'finance/insights-shell';
+}
+
+export function dispatchInsightStatsUpdated() {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new Event('stats-updated'));
 }

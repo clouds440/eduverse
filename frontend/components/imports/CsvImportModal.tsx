@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { mutate } from "swr";
 import { Download, FileUp, UploadCloud } from "lucide-react";
 import { api } from "@/lib/api";
-import { CacheKeyPrefix, matchesCacheKeyPrefix } from "@/lib/swr";
+import { CacheKeyPrefix, dispatchInsightStatsUpdated, matchesCacheKeyPrefix } from "@/lib/swr";
 import {
   ImportConfirmResult,
   ImportEntity,
@@ -174,6 +174,7 @@ export function CsvImportModal({
       await waitForProgressCompletion();
       setResult(response);
       cachePrefixes.forEach((prefix) => mutate(matchesCacheKeyPrefix(prefix)));
+      dispatchInsightStatsUpdated();
       dispatch({
         type: "TOAST_ADD",
         payload: {

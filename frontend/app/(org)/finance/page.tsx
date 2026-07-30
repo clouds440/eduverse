@@ -11,6 +11,7 @@ import InsightShellSummary from '@/components/dashboard/InsightShellSummary';
 import { useFinanceHeaderActions } from './FinanceHeaderActionsContext';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { insightSWRConfig } from '@/lib/swr';
 import type { DashboardInsights, InsightTimeRange } from '@/types';
 
 const financeModules = [
@@ -48,7 +49,8 @@ export default function FinanceOverviewPage() {
 
     const { data: insights, error, isLoading, mutate } = useSWR<DashboardInsights>(
         token ? ['finance/insights-shell', token, range] : null,
-        ([, t]) => api.finance.getInsights(t as string, { range })
+        ([, t]) => api.finance.getInsights(t as string, { range }),
+        insightSWRConfig,
     );
 
     const headerAction = useMemo(() => (
