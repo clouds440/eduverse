@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { Activity, Landmark, ListChecks, PieChart, Sparkles, WalletCards } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { getInsightRangePreview, InsightRangeControl } from '@/components/dashboard/InsightRangeControl';
 import InsightModulePanel from '@/components/dashboard/InsightModulePanel';
 import InsightShellSummary from '@/components/dashboard/InsightShellSummary';
 import { useFinanceHeaderActions } from './FinanceHeaderActionsContext';
@@ -21,6 +20,8 @@ const financeModules = [
     { id: 'departments', title: 'Departments', description: 'Expected, collected, pending, and overdue amounts by department.', icon: <Landmark className="h-5 w-5" /> },
     { id: 'activity', title: 'Finance Activity', description: 'Recently confirmed income and expense entries.', icon: <Activity className="h-5 w-5" /> },
 ];
+
+const defaultRange: InsightTimeRange = '1M';
 
 function FinanceOverviewSkeleton() {
     return (
@@ -43,28 +44,19 @@ function FinanceOverviewSkeleton() {
 
 export default function FinanceOverviewPage() {
     const { token } = useAuth();
-    const [range, setRange] = useState<InsightTimeRange>('1M');
     const [moduleRanges, setModuleRanges] = useState<Record<string, InsightTimeRange>>({});
     const setFinanceHeaderActions = useFinanceHeaderActions();
 
     const { data: insights, error, isLoading, mutate } = useSWR<DashboardInsights>(
-        token ? ['finance/insights-shell', token, range] : null,
-        ([, t]) => api.finance.getInsights(t as string, { range }),
+        token ? ['finance/insights-shell', token, defaultRange] : null,
+        ([, t]) => api.finance.getInsights(t as string, { range: defaultRange }),
         insightSWRConfig,
     );
 
-    const headerAction = useMemo(() => (
-        <InsightRangeControl
-            value={range}
-            onChange={setRange}
-            preview={getInsightRangePreview(insights?.filters)}
-        />
-    ), [insights?.filters, range]);
-
     useEffect(() => {
-        setFinanceHeaderActions(headerAction);
+        setFinanceHeaderActions(null);
         return () => setFinanceHeaderActions(null);
-    }, [headerAction, setFinanceHeaderActions]);
+    }, [setFinanceHeaderActions]);
 
     if (error) {
         return (
@@ -109,7 +101,7 @@ export default function FinanceOverviewPage() {
                     title={module.title}
                     description={module.description}
                     icon={module.icon}
-                    range={moduleRanges[module.id] || range}
+                    range={moduleRanges[module.id] || defaultRange}
                     onRangeChange={(nextRange) => setModuleRanges((current) => ({ ...current, [module.id]: nextRange }))}
                     fetchModule={api.finance.getInsightModule}
                 />

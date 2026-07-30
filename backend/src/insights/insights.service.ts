@@ -62,15 +62,15 @@ export class InsightsService {
     }
 
     if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
-      return this.teacherInsightsBuilder.build(orgId, user, query);
+      return this.teacherInsightsBuilder.buildShell(orgId, user, query);
     }
 
     if (user.role === Role.STUDENT) {
-      return this.studentInsightsBuilder.build(orgId, user, query);
+      return this.studentInsightsBuilder.buildShell(orgId, user, query);
     }
 
     if (user.role === Role.GUARDIAN) {
-      return this.guardianInsightsBuilder.build(orgId, user, query);
+      return this.guardianInsightsBuilder.buildShell(orgId, user, query);
     }
 
     if (user.role === Role.FINANCE_MANAGER) {
@@ -91,15 +91,15 @@ export class InsightsService {
     }
 
     if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
-      return insightModule(await this.teacherInsightsBuilder.build(orgId, user, query), module);
+      return this.teacherInsightsBuilder.buildModule(orgId, user, module, query);
     }
 
     if (user.role === Role.STUDENT) {
-      return insightModule(await this.studentInsightsBuilder.build(orgId, user, query), module);
+      return this.studentInsightsBuilder.buildModule(orgId, user, module, query);
     }
 
     if (user.role === Role.GUARDIAN) {
-      return insightModule(await this.guardianInsightsBuilder.build(orgId, user, query), module);
+      return this.guardianInsightsBuilder.buildModule(orgId, user, module, query);
     }
 
     if (user.role === Role.FINANCE_MANAGER) {

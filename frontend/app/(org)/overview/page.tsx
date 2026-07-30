@@ -7,7 +7,6 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { DashboardInsights, Role, type InsightTimeRange } from '@/types';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
-import { getInsightRangePreview, InsightRangeControl } from '@/components/dashboard/InsightRangeControl';
 import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { Badge } from '@/components/ui/Badge';
 import InsightModulePanel from '@/components/dashboard/InsightModulePanel';
@@ -69,13 +68,12 @@ function OverviewEmptyState() {
 
 export default function AdminPage() {
     const { token, loading } = useAuth();
-    const [shellRange, setShellRange] = useState<InsightTimeRange>(defaultRange);
     const [moduleRanges, setModuleRanges] = useState<Record<string, InsightTimeRange>>({});
 
-    const insightsKey = token ? ['insights-shell', token, shellRange] as const : null;
+    const insightsKey = token ? ['insights-shell', token, defaultRange] as const : null;
     const { data: insights, isLoading: insightsLoading } = useSWR<DashboardInsights>(
         insightsKey,
-        ([, t]) => api.org.getInsights(t as string, { range: shellRange }),
+        ([, t]) => api.org.getInsights(t as string, { range: defaultRange }),
         insightSWRConfig,
     );
 
@@ -97,7 +95,6 @@ export default function AdminPage() {
                     { label: 'Organization' },
                     { label: 'Overview' },
                 ]}
-                actions={<InsightRangeControl value={shellRange} onChange={setShellRange} preview={getInsightRangePreview(insights?.filters)} />}
             />
             <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
                 {loading || insightsLoading || !insights ? (

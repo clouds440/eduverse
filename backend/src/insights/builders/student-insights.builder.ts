@@ -21,19 +21,247 @@ function moneyNumber(value: unknown): number {
 export class StudentInsightsBuilder {
   constructor(private readonly prisma: PrismaService) {}
 
+  async buildShell(
+    orgId: string,
+    user: InsightsUser,
+    query: InsightsQueryDto = {},
+  ): Promise<StandardDashboardInsightsResponse> {
+    const student = await this.getStudent(orgId, user);
+    return this.buildShellForStudent(orgId, student.id, student.userId, user.role || Role.STUDENT, query);
+  }
+
+  async buildModule(
+    orgId: string,
+    user: InsightsUser,
+    module: string,
+    query: InsightsQueryDto = {},
+  ): Promise<StandardDashboardInsightsResponse> {
+    const student = await this.getStudent(orgId, user);
+    return this.buildModuleForStudent(orgId, student.id, student.userId, user.role || Role.STUDENT, module, query);
+  }
+
+  async buildShellForStudent(
+    orgId: string,
+    studentId: string,
+    studentUserId: string,
+    role: string,
+    query: InsightsQueryDto = {},
+  ): Promise<StandardDashboardInsightsResponse> {
+    const now = new Date();
+    const range = resolveInsightDateRange(query);
+    const [enrollments, grades, attendanceRecords, pendingAssessmentCount, overdueAssessmentCount, financeEntries] = await Promise.all([
+      this.getEnrollments(orgId, studentId),
+      this.calculateFinalGrade(orgId, studentId),
+      this.getAttendanceRecords(orgId, studentId, range.from, range.to),
+      this.prisma.assessment.count({
+        where: {
+          section: {
+            enrollments: { some: { studentId } },
+            course: { organizationId: orgId },
+          },
+          dueDate: { gte: now },
+          submissions: { none: { studentId } },
+        },
+      }),
+      this.prisma.assessment.count({
+        where: {
+          section: {
+            enrollments: { some: { studentId } },
+            course: { organizationId: orgId },
+          },
+          dueDate: { lt: now },
+          submissions: { none: { studentId } },
+        },
+      }),
+      this.getFinanceEntries(orgId, studentId),
+    ]);
+
+    const officialPresent = attendanceRecords.filter(
+      (record) => record.status === AttendanceStatus.PRESENT || record.status === AttendanceStatus.LATE,
+    ).length;
+    const overallAttendancePercent = attendanceRecords.length > 0 ? (officialPresent / attendanceRecords.length) * 100 : 100;
+    const averageGrade = grades.length > 0 ? grades.reduce((sum, grade) => sum + grade.finalPercentage, 0) / grades.length : 0;
+    const finance = this.getFinanceSummary(financeEntries);
+    const upcomingClasses = getUpcomingScheduleOccurrences(
+      enrollments.flatMap((enrollment) =>
+        enrollment.section.schedules.map((schedule) => ({
+          ...schedule,
+          section: {
+            id: enrollment.section.id,
+            name: enrollment.section.name,
+            color: enrollment.section.color,
+            room: enrollment.section.room,
+            course: { name: enrollment.section.course.name },
+          },
+        })),
+      ),
+      5,
+    );
+
+    return {
+      role,
+      filters: {
+        selectedRange: range.range,
+        interval: range.interval,
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+        selectedStudentId: studentId,
+      },
+      headline: {
+        eyebrow: role === Role.GUARDIAN ? 'Guardian Insights' : 'Student Insights',
+        title: 'Academic overview',
+        subtitle: `Fast learner snapshot. Detailed learning modules load independently for the selected ${range.range} window.`,
+      },
+      summaryCards: [
+        {
+          id: 'sections',
+          label: 'Enrolled Sections',
+          value: `${enrollments.length}`,
+          detail: `${upcomingClasses.length} upcoming classes in view`,
+          href: `/student/${studentUserId}?tab=courses`,
+          tone: InsightTone.INFO,
+        },
+        {
+          id: 'grade',
+          label: 'Average Final Grade',
+          value: grades.length > 0 ? formatPercent(averageGrade, 1) : 'No grade',
+          detail: `${grades.length} graded sections`,
+          href: `/student/${studentUserId}?tab=grades`,
+          tone: averageGrade >= 80 ? InsightTone.SUCCESS : averageGrade >= 60 ? InsightTone.WARNING : InsightTone.DANGER,
+        },
+        {
+          id: 'attendance',
+          label: 'Official Attendance',
+          value: formatPercent(overallAttendancePercent),
+          detail: `${attendanceRecords.length} official marks in ${range.range}`,
+          href: `/student/${studentUserId}?tab=attendance`,
+          tone: overallAttendancePercent >= 85 ? InsightTone.SUCCESS : overallAttendancePercent >= 75 ? InsightTone.WARNING : InsightTone.DANGER,
+        },
+        {
+          id: 'pending',
+          label: 'Pending Assessments',
+          value: `${pendingAssessmentCount}`,
+          detail: `${overdueAssessmentCount} overdue submissions`,
+          href: `/student/${studentUserId}?tab=assessments`,
+          tone: overdueAssessmentCount > 0 ? InsightTone.DANGER : pendingAssessmentCount > 0 ? InsightTone.WARNING : InsightTone.SUCCESS,
+        },
+        {
+          id: 'fees',
+          label: 'Outstanding Fees',
+          value: formatCurrency(finance.outstanding, finance.currency),
+          detail: `${formatCurrency(finance.overdue, finance.currency)} overdue`,
+          href: role === Role.GUARDIAN ? '/guardian?view=fees' : '/finance/entries',
+          tone: finance.overdue > 0 ? InsightTone.DANGER : finance.outstanding > 0 ? InsightTone.WARNING : InsightTone.SUCCESS,
+        },
+      ],
+      spotlight: this.getSpotlight({
+        studentUserId,
+        overdueAssessments: [],
+        finance,
+        lowAttendanceSections: this.getLowAttendanceSections(attendanceRecords),
+        lowGradeSections: grades.filter((grade) => grade.finalPercentage < 60).sort((a, b) => a.finalPercentage - b.finalPercentage).slice(0, 5),
+        nextClass: upcomingClasses[0],
+      }),
+      groups: [],
+      recentActivity: [],
+      charts: {},
+    };
+  }
+
+  async buildModuleForStudent(
+    orgId: string,
+    studentId: string,
+    studentUserId: string,
+    role: string,
+    module: string,
+    query: InsightsQueryDto = {},
+  ): Promise<StandardDashboardInsightsResponse> {
+    const now = new Date();
+    const range = resolveInsightDateRange(query);
+    const base = this.emptyResponse(role, range, studentId);
+
+    if (module === 'summary') {
+      return this.buildShellForStudent(orgId, studentId, studentUserId, role, query);
+    }
+
+    if (module === 'charts') {
+      const [grades, attendanceRecords] = await Promise.all([
+        this.calculateFinalGrade(orgId, studentId),
+        this.getAttendanceRecords(orgId, studentId, range.from, range.to),
+      ]);
+      return {
+        ...base,
+        charts: {
+          attendanceTrend: this.getAttendanceTrend(attendanceRecords, range.from, range.to),
+          gradeDistribution: processGradeDistribution(grades.map((grade) => ({
+            marksObtained: grade.finalPercentage,
+            assessment: { totalMarks: 100, section: { course: { name: grade.courseName } } },
+          }))),
+          studentPerformance: this.getStudentPerformance(grades, attendanceRecords),
+        },
+      };
+    }
+
+    if (module === 'actions') {
+      const [grades, attendanceRecords, pendingAssessments, overdueAssessments, financeEntries, enrollments] = await Promise.all([
+        this.calculateFinalGrade(orgId, studentId),
+        this.getAttendanceRecords(orgId, studentId, range.from, range.to),
+        this.getPendingAssessments(orgId, studentId, now),
+        this.getOverdueAssessments(orgId, studentId, now),
+        this.getFinanceEntries(orgId, studentId),
+        this.getEnrollments(orgId, studentId),
+      ]);
+      const finance = this.getFinanceSummary(financeEntries);
+      const upcomingClasses = getUpcomingScheduleOccurrences(
+        enrollments.flatMap((enrollment) =>
+          enrollment.section.schedules.map((schedule) => ({
+            ...schedule,
+            section: {
+              id: enrollment.section.id,
+              name: enrollment.section.name,
+              color: enrollment.section.color,
+              room: enrollment.section.room,
+              course: { name: enrollment.section.course.name },
+            },
+          })),
+        ),
+        5,
+      );
+      return {
+        ...base,
+        groups: this.getActionGroups(studentUserId, role, range.range, {
+          pendingAssessments,
+          overdueAssessments,
+          finance,
+          lowAttendanceSections: this.getLowAttendanceSections(attendanceRecords),
+          lowGradeSections: grades.filter((grade) => grade.finalPercentage < 60).sort((a, b) => a.finalPercentage - b.finalPercentage).slice(0, 5),
+          upcomingClasses,
+        }),
+      };
+    }
+
+    if (module === 'activity') {
+      const [submissions, attendanceRecords, financeEntries] = await Promise.all([
+        this.getRecentSubmissions(studentId, range.from, range.to),
+        this.getAttendanceRecords(orgId, studentId, range.from, range.to),
+        this.getFinanceEntries(orgId, studentId),
+      ]);
+      const finance = this.getFinanceSummary(financeEntries);
+      return {
+        ...base,
+        recentActivity: this.getRecentActivity(studentUserId, submissions, attendanceRecords, financeEntries, finance.currency),
+      };
+    }
+
+    return base;
+  }
+
   async build(
     orgId: string,
     user: InsightsUser,
     query: InsightsQueryDto = {},
   ): Promise<StandardDashboardInsightsResponse> {
-    const student = await this.prisma.student.findFirst({
-      where: { userId: user.id, organizationId: orgId },
-      include: { user: { select: { name: true } } },
-    });
-
-    if (!student) {
-      throw new NotFoundException('Student profile not found');
-    }
+    const student = await this.getStudent(orgId, user);
 
     return this.buildForStudent(orgId, student.id, student.userId, user.role || Role.STUDENT, query);
   }
@@ -375,6 +603,278 @@ export class StudentInsightsBuilder {
     };
   }
 
+  private emptyResponse(
+    role: string,
+    range: ReturnType<typeof resolveInsightDateRange>,
+    studentId: string,
+  ): StandardDashboardInsightsResponse {
+    return {
+      role,
+      filters: {
+        selectedRange: range.range,
+        interval: range.interval,
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+        selectedStudentId: studentId,
+      },
+      headline: {
+        eyebrow: role === Role.GUARDIAN ? 'Guardian Insights' : 'Student Insights',
+        title: 'Academic overview',
+        subtitle: `Learning module for the selected ${range.range} window.`,
+      },
+      summaryCards: [],
+      spotlight: null,
+      groups: [],
+      recentActivity: [],
+      charts: {},
+    };
+  }
+
+  private async getStudent(orgId: string, user: InsightsUser) {
+    const student = await this.prisma.student.findFirst({
+      where: { userId: user.id, organizationId: orgId },
+      include: { user: { select: { name: true } } },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student profile not found');
+    }
+
+    return student;
+  }
+
+  private getEnrollments(orgId: string, studentId: string) {
+    return this.prisma.enrollment.findMany({
+      where: {
+        studentId,
+        section: { course: { organizationId: orgId } },
+      },
+      include: {
+        section: {
+          include: {
+            course: { select: { name: true } },
+            schedules: true,
+          },
+        },
+      },
+    });
+  }
+
+  private getAttendanceRecords(orgId: string, studentId: string, from: Date, to: Date) {
+    return this.prisma.attendanceRecord.findMany({
+      where: {
+        studentId,
+        session: {
+          section: { course: { organizationId: orgId } },
+          schedule: { type: ScheduleType.OFFICIAL },
+          date: { gte: from, lte: to },
+        },
+      },
+      orderBy: { session: { date: 'desc' } },
+      include: {
+        session: {
+          include: {
+            section: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+                course: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  private getPendingAssessments(orgId: string, studentId: string, now: Date) {
+    return this.prisma.assessment.findMany({
+      where: {
+        section: {
+          enrollments: { some: { studentId } },
+          course: { organizationId: orgId },
+        },
+        dueDate: { gte: now },
+        submissions: { none: { studentId } },
+      },
+      include: { section: { select: { id: true, name: true, color: true, course: { select: { name: true } } } } },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+      take: 8,
+    });
+  }
+
+  private getOverdueAssessments(orgId: string, studentId: string, now: Date) {
+    return this.prisma.assessment.findMany({
+      where: {
+        section: {
+          enrollments: { some: { studentId } },
+          course: { organizationId: orgId },
+        },
+        dueDate: { lt: now },
+        submissions: { none: { studentId } },
+      },
+      include: { section: { select: { id: true, name: true, color: true, course: { select: { name: true } } } } },
+      orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+      take: 8,
+    });
+  }
+
+  private getRecentSubmissions(studentId: string, from: Date, to: Date) {
+    return this.prisma.submission.findMany({
+      where: {
+        studentId,
+        submittedAt: { gte: from, lte: to },
+      },
+      include: {
+        assessment: {
+          include: { section: { select: { id: true, name: true, color: true, course: { select: { name: true } } } } },
+        },
+      },
+      orderBy: { submittedAt: 'desc' },
+      take: 5,
+    });
+  }
+
+  private getFinanceEntries(orgId: string, studentId: string) {
+    return this.prisma.financialEntry.findMany({
+      where: {
+        organizationId: orgId,
+        studentId,
+        status: { not: EntryStatus.CANCELLED },
+      },
+      include: {
+        structure: { select: { currency: true, title: true } },
+      },
+      orderBy: [{ dueDate: 'asc' }, { updatedAt: 'desc' }],
+    });
+  }
+
+  private getRecentActivity(
+    studentUserId: string,
+    submissions: Awaited<ReturnType<StudentInsightsBuilder['getRecentSubmissions']>>,
+    attendanceRecords: Awaited<ReturnType<StudentInsightsBuilder['getAttendanceRecords']>>,
+    financeEntries: Awaited<ReturnType<StudentInsightsBuilder['getFinanceEntries']>>,
+    currency: string,
+  ) {
+    return sortActivities([
+      ...submissions.map((submission) => ({
+        id: `submission:${submission.id}`,
+        title: 'Submission recorded',
+        description: `${submission.assessment.title} - ${formatSectionLabel(submission.assessment.section.name, submission.assessment.section.course.name)}`,
+        createdAt: submission.submittedAt.toISOString(),
+        href: `/student/${studentUserId}?tab=assessments&assessmentId=${submission.assessment.id}`,
+        tone: InsightTone.SUCCESS,
+      })),
+      ...attendanceRecords.slice(0, 4).map((record) => ({
+        id: `attendance:${record.id}`,
+        title: 'Attendance updated',
+        description: `${formatSectionLabel(record.session.section.name, record.session.section.course.name)} - ${record.status}`,
+        createdAt: record.session.date.toISOString(),
+        href: `/student/${studentUserId}?tab=attendance`,
+        tone:
+          record.status === AttendanceStatus.ABSENT
+            ? InsightTone.DANGER
+            : record.status === AttendanceStatus.LATE
+              ? InsightTone.WARNING
+              : InsightTone.SUCCESS,
+      })),
+      ...this.getFinanceActivities(financeEntries, currency),
+    ]);
+  }
+
+  private getActionGroups(
+    studentUserId: string,
+    role: string,
+    rangeLabel: string,
+    input: {
+      pendingAssessments: Awaited<ReturnType<StudentInsightsBuilder['getPendingAssessments']>>;
+      overdueAssessments: Awaited<ReturnType<StudentInsightsBuilder['getOverdueAssessments']>>;
+      finance: ReturnType<StudentInsightsBuilder['getFinanceSummary']>;
+      lowAttendanceSections: ReturnType<StudentInsightsBuilder['getLowAttendanceSections']>;
+      lowGradeSections: Awaited<ReturnType<StudentInsightsBuilder['calculateFinalGrade']>>;
+      upcomingClasses: ReturnType<typeof getUpcomingScheduleOccurrences>;
+    },
+  ) {
+    return [
+      {
+        id: 'urgent',
+        title: 'Urgent follow-up',
+        description: 'Overdue coursework and overdue fees that need action first.',
+        items: [
+          ...input.overdueAssessments.slice(0, 4).map((assessment) => ({
+            id: `overdue:${assessment.id}`,
+            title: `${assessment.title} is overdue`,
+            description: `${formatSectionLabel(assessment.section.name, assessment.section.course.name)} - ${assessment.type}`,
+            meta: assessment.dueDate ? `Due ${assessment.dueDate.toLocaleDateString()}` : undefined,
+            href: `/student/${studentUserId}?tab=assessments&assessmentId=${assessment.id}`,
+            badge: 'Overdue',
+            tone: InsightTone.DANGER,
+          })),
+          ...input.finance.overdueItems.slice(0, 3).map((entry) => ({
+            id: `finance-overdue:${entry.id}`,
+            title: entry.title,
+            description: 'Past-due fee entry',
+            meta: formatCurrency(Math.max(moneyNumber(entry.amount) - moneyNumber(entry.paidAmount), 0), input.finance.currency),
+            href: role === Role.GUARDIAN ? '/guardian?view=fees' : '/finance/entries',
+            badge: 'Fee',
+            tone: InsightTone.DANGER,
+          })),
+        ],
+      },
+      {
+        id: 'attention',
+        title: 'Needs attention',
+        description: `Low-attendance or low-grade sections in the selected ${rangeLabel} window.`,
+        items: [
+          ...input.lowAttendanceSections.map((section, idx) => ({
+            id: `attendance-risk:${section.sectionId}-${idx}`,
+            title: `${formatSectionLabel(section.sectionName, section.courseName)} attendance is low`,
+            description: section.courseName,
+            meta: formatPercent(section.percent),
+            href: `/student/${studentUserId}?tab=attendance`,
+            badge: 'Attendance risk',
+            tone: InsightTone.DANGER,
+          })),
+          ...input.lowGradeSections.map((grade, idx) => ({
+            id: `grade-risk:${grade.sectionId}-${idx}`,
+            title: `${formatSectionLabel(grade.sectionName, grade.courseName)} grade is below target`,
+            description: grade.courseName,
+            meta: formatPercent(grade.finalPercentage, 1),
+            href: `/student/${studentUserId}?tab=grades`,
+            badge: 'Grade risk',
+            tone: InsightTone.WARNING,
+          })),
+        ].slice(0, 6),
+      },
+      {
+        id: 'upcoming',
+        title: 'Coming up',
+        description: 'Deadlines and classes that will shape the next few days.',
+        items: [
+          ...input.pendingAssessments.slice(0, 4).map((assessment) => ({
+            id: `pending:${assessment.id}`,
+            title: assessment.title,
+            description: `${formatSectionLabel(assessment.section.name, assessment.section.course.name)} - ${assessment.type}`,
+            meta: assessment.dueDate ? `Due ${assessment.dueDate.toLocaleDateString()}` : 'No due date',
+            href: `/student/${studentUserId}?tab=assessments&assessmentId=${assessment.id}`,
+            badge: 'Pending',
+            tone: InsightTone.WARNING,
+          })),
+          ...input.upcomingClasses.slice(0, 4).map((next) => ({
+            id: `class:${next.scheduleId}:${next.startsAt.toISOString()}`,
+            title: `${formatSectionLabel(next.sectionName, next.courseName)} - ${next.startTime}-${next.endTime}`,
+            description: next.courseName,
+            meta: next.startsAt.toLocaleString(),
+            href: '/timetable',
+            badge: 'Class',
+            tone: InsightTone.INFO,
+          })),
+        ].slice(0, 8),
+      },
+    ];
+  }
+
   private async calculateFinalGrade(orgId: string, studentId: string) {
     const grades = await this.prisma.grade.findMany({
       where: {
@@ -398,12 +898,37 @@ export class StudentInsightsBuilder {
       },
     });
 
-    return grades.map((grade) => ({
-      sectionId: grade.assessment.section.id,
-      sectionName: grade.assessment.section.name,
-      courseName: grade.assessment.section.course.name,
-      color: grade.assessment.section.color,
-      finalPercentage: (grade.marksObtained / grade.assessment.totalMarks) * 100,
+    const bySection = new Map<string, {
+      sectionId: string;
+      sectionName: string;
+      courseName: string;
+      color: string;
+      totalPercent: number;
+      graded: number;
+    }>();
+
+    grades.forEach((grade) => {
+      if (grade.assessment.totalMarks <= 0) return;
+      const section = grade.assessment.section;
+      const row = bySection.get(section.id) || {
+        sectionId: section.id,
+        sectionName: section.name,
+        courseName: section.course.name,
+        color: section.color,
+        totalPercent: 0,
+        graded: 0,
+      };
+      row.totalPercent += (grade.marksObtained / grade.assessment.totalMarks) * 100;
+      row.graded += 1;
+      bySection.set(section.id, row);
+    });
+
+    return Array.from(bySection.values()).map((row) => ({
+      sectionId: row.sectionId,
+      sectionName: row.sectionName,
+      courseName: row.courseName,
+      color: row.color,
+      finalPercentage: row.graded > 0 ? row.totalPercent / row.graded : 0,
     }));
   }
 
