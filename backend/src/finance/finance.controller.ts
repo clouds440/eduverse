@@ -182,6 +182,21 @@ export class FinanceController {
     return this.insightsService.getFinanceInsights(finalOrgId, req.user, query);
   }
 
+  @Get('insights/modules/:module')
+  @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.SUB_ADMIN, Role.FINANCE_MANAGER)
+  getInsightModule(
+    @Query('organizationId') orgId: string | undefined,
+    @Request() req: AuthenticatedRequest,
+    @Param('module') module: string,
+    @Query() query: FinanceInsightsQueryDto,
+  ) {
+    const finalOrgId = orgId || req.user.organizationId;
+    if (!finalOrgId) {
+      throw new BadRequestException('Organization is required');
+    }
+    return this.insightsService.getFinanceInsightModule(finalOrgId, req.user, module, query);
+  }
+
   @Post('entries/manual')
   @Roles(Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.FINANCE_MANAGER)
   @Access(AccessLevel.WRITE)

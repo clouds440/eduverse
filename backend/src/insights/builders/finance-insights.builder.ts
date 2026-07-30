@@ -15,6 +15,7 @@ import { sortActivities } from '../shared/insights-activity.util';
 import { formatCurrency, formatPercent, labelize } from '../shared/insights-format.util';
 import type {
   DashboardInsightActivity,
+  DashboardInsightCard,
   DashboardInsightItem,
   DashboardInsightsResponse,
   InsightsUser,
@@ -96,6 +97,219 @@ function moneyNumber(value: unknown): number {
 export class FinanceInsightsBuilder {
   constructor(private readonly prisma: PrismaService) {}
 
+  async buildShell(
+    orgId: string,
+    user: InsightsUser,
+    query: FinanceInsightsQuery = {},
+  ): Promise<DashboardInsightsResponse<Partial<FinanceInsightCharts>>> {
+    const selectedRange = this.resolveRange(query);
+    const { from, to } = selectedRange;
+    const interval = query.interval || selectedRange.interval;
+    const currency = await this.getCurrency(orgId, query);
+    const { previousFrom, previousTo } = previousEqualRange(from, to);
+
+    const [currentTotals, previousTotals, entries] = await Promise.all([
+      this.getTransactionTotals(orgId, from, to, currency),
+      this.getTransactionTotals(orgId, previousFrom, previousTo, currency),
+      this.getEntriesForHealth(orgId, currency),
+    ]);
+
+    const totalIncome = currentTotals.income;
+    const totalExpense = currentTotals.expense;
+    const previousIncome = previousTotals.income;
+    const previousExpense = previousTotals.expense;
+    const netFlow = totalIncome - totalExpense;
+    const previousNetFlow = previousIncome - previousExpense;
+    const profitMarginPercent = totalIncome > 0 ? (netFlow / totalIncome) * 100 : 0;
+    const incomeChangePercent = this.changePercent(totalIncome, previousIncome);
+    const expenseChangePercent = this.changePercent(totalExpense, previousExpense);
+    const netFlowChangePercent = this.changePercent(netFlow, previousNetFlow);
+    const collection = this.getCollectionHealth(entries, totalIncome);
+
+    return {
+      role: user.role || Role.FINANCE_MANAGER,
+      filters: {
+        selectedRange: selectedRange.range,
+        interval,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      },
+      headline: {
+        eyebrow: 'Finance Insights',
+        title: 'Finance overview',
+        subtitle: `Fast finance snapshot. Detailed finance modules load independently for the selected ${selectedRange.range} window.`,
+      },
+      summaryCards: this.getSummaryCards(currency, {
+        totalIncome,
+        totalExpense,
+        netFlow,
+        profitMarginPercent,
+        incomeChangePercent,
+        expenseChangePercent,
+        netFlowChangePercent,
+        collection,
+      }),
+      spotlight: this.getSpotlight({
+        currency,
+        netFlow,
+        expenseChangePercent,
+        collectionRatePercent: collection.collectionRatePercent,
+        overdueAmount: collection.overdueAmount,
+        bestNetFlowMonth: null,
+        topIncomeSource: undefined,
+        topExpenseSource: undefined,
+      }),
+      groups: [
+        {
+          id: 'collection-health',
+          title: 'Collection health',
+          description: 'Open receivables and payable records separated from actual cash flow.',
+          items: this.getCollectionItems(collection, currency),
+        },
+      ],
+      recentActivity: [],
+      charts: {},
+    };
+  }
+
+  async buildModule(
+    orgId: string,
+    user: InsightsUser,
+    module: string,
+    query: FinanceInsightsQuery = {},
+  ): Promise<DashboardInsightsResponse<Partial<FinanceInsightCharts>>> {
+    const selectedRange = this.resolveRange(query);
+    const { from, to } = selectedRange;
+    const interval = query.interval || selectedRange.interval;
+    const currency = await this.getCurrency(orgId, query);
+    const base: DashboardInsightsResponse<Partial<FinanceInsightCharts>> = {
+      role: user.role || Role.FINANCE_MANAGER,
+      filters: {
+        selectedRange: selectedRange.range,
+        interval,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      },
+      headline: {
+        eyebrow: 'Finance Insights',
+        title: 'Finance overview',
+        subtitle: `Finance module for the selected ${selectedRange.range} window.`,
+      },
+      summaryCards: [],
+      spotlight: null,
+      groups: [],
+      recentActivity: [],
+      charts: {},
+    };
+
+    if (module === 'summary') {
+      return this.buildShell(orgId, user, query);
+    }
+
+    if (module === 'cash-flow') {
+      const transactions = await this.getTransactions(orgId, from, to, currency);
+      return {
+        ...base,
+        charts: {
+          moneyFlowTrend: this.getMoneyFlowTrend(transactions, from, to, interval),
+          topMonths: this.getTopMonths(transactions),
+        },
+      };
+    }
+
+    if (module === 'sources') {
+      const transactions = await this.getTransactions(orgId, from, to, currency);
+      const sourceSummary = this.getSourceSummaries(transactions);
+      return {
+        ...base,
+        groups: [{
+          id: 'top-sources',
+          title: 'Top sources',
+          description: 'Largest income and expense contributors in the selected period.',
+          items: [
+            ...sourceSummary.incomeSources.slice(0, 3).map((source) => this.toSourceItem(source, currency, 'income')),
+            ...sourceSummary.expenseSources.slice(0, 3).map((source) => this.toSourceItem(source, currency, 'expense')),
+          ],
+        }],
+        charts: {
+          incomeSources: sourceSummary.incomeSources,
+          expenseSources: sourceSummary.expenseSources,
+          incomeSourceTrend: this.getSourceTrend(transactions, TransactionType.INCOME, sourceSummary.incomeSources, from, to, interval),
+          expenseSourceTrend: this.getSourceTrend(transactions, TransactionType.EXPENSE, sourceSummary.expenseSources, from, to, interval),
+        },
+      };
+    }
+
+    if (module === 'collections') {
+      const { previousFrom, previousTo } = previousEqualRange(from, to);
+      const [totals, previousTotals, entries] = await Promise.all([
+        this.getTransactionTotals(orgId, from, to, currency),
+        this.getTransactionTotals(orgId, previousFrom, previousTo, currency),
+        this.getEntriesForHealth(orgId, currency),
+      ]);
+      const collection = this.getCollectionHealth(entries, totals.income);
+      const netFlow = totals.income - totals.expense;
+      return {
+        ...base,
+        groups: [
+          {
+            id: 'cash-flow-alerts',
+            title: 'Cash-flow alerts',
+            description: 'Backend-generated signals from confirmed transactions and collectible entries.',
+            items: this.getCashFlowAlerts(currency, {
+              netFlow,
+              incomeChangePercent: this.changePercent(totals.income, previousTotals.income),
+              expenseChangePercent: this.changePercent(totals.expense, previousTotals.expense),
+              overdueAmount: collection.overdueAmount,
+              collectionRatePercent: collection.collectionRatePercent,
+              highestExpenseMonth: null,
+              bestNetFlowMonth: null,
+              topIncomeSource: undefined,
+              topExpenseSource: undefined,
+            }),
+          },
+          {
+            id: 'collection-health',
+            title: 'Collection health',
+            description: 'Open receivables and payable records separated from actual cash flow.',
+            items: this.getCollectionItems(collection, currency),
+          },
+        ],
+        charts: {
+          collectionHealth: {
+            collectedAmount: totals.income,
+            pendingAmount: collection.pendingIncomeAmount,
+            overdueAmount: collection.overdueAmount,
+            collectionRatePercent: collection.collectionRatePercent,
+            chartData: [
+              { status: 'Collected', amount: totals.income },
+              { status: 'Pending', amount: collection.pendingIncomeAmount },
+              { status: 'Overdue', amount: collection.overdueAmount },
+            ],
+          },
+        },
+      };
+    }
+
+    if (module === 'departments') {
+      const departmentFinanceInsights = await getDepartmentFinanceInsights(this.prisma, orgId, currency);
+      return {
+        ...base,
+        groups: departmentFinanceInsights.group ? [departmentFinanceInsights.group] : [],
+        charts: {
+          departmentFinance: departmentFinanceInsights.chart,
+        },
+      };
+    }
+
+    if (module === 'activity') {
+      const recentEntries = await this.getRecentConfirmedEntries(orgId, currency);
+      return { ...base, recentActivity: sortActivities(recentEntries.map((entry) => this.toRecentActivity(entry, currency)), 10) };
+    }
+
+    return base;
+  }
+
   async build(
     orgId: string,
     user: InsightsUser,
@@ -104,8 +318,7 @@ export class FinanceInsightsBuilder {
     const selectedRange = this.resolveRange(query);
     const { from, to } = selectedRange;
     const interval = query.interval || selectedRange.interval;
-    const organization = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { currency: true } });
-    const currency = query.currency || organization?.currency || 'USD';
+    const currency = await this.getCurrency(orgId, query);
     const { previousFrom, previousTo } = previousEqualRange(from, to);
 
     const [transactions, previousTransactions, entries, recentEntries, departmentFinanceInsights] = await Promise.all([
@@ -163,58 +376,16 @@ export class FinanceInsightsBuilder {
         title: 'Finance overview',
         subtitle: `Track confirmed cash flow, collection health, source concentration, and ledger movement for the selected ${selectedRange.range} window.`,
       },
-      summaryCards: [
-        {
-          id: 'income',
-          label: 'Income',
-          value: formatCurrency(totalIncome, currency),
-          detail: `${formatPercent(incomeChangePercent, 1)} vs previous period`,
-          href: '/finance/transactions?type=INCOME',
-          tone: incomeChangePercent >= 0 ? InsightTone.SUCCESS : InsightTone.WARNING,
-        },
-        {
-          id: 'expenses',
-          label: 'Expenses',
-          value: formatCurrency(totalExpense, currency),
-          detail: `${formatPercent(expenseChangePercent, 1)} vs previous period`,
-          href: '/finance/transactions?type=EXPENSE',
-          tone: expenseChangePercent > 20 ? InsightTone.WARNING : InsightTone.INFO,
-        },
-        {
-          id: 'net-flow',
-          label: 'Net Flow',
-          value: formatCurrency(netFlow, currency),
-          detail: `${formatPercent(netFlowChangePercent, 1)} vs previous period`,
-          href: '/finance/transactions',
-          tone: netFlow >= 0 ? InsightTone.SUCCESS : InsightTone.DANGER,
-        },
-        {
-          id: 'profit-margin',
-          label: 'Profit Margin',
-          value: formatPercent(profitMarginPercent, 1),
-          detail: `${formatCurrency(collection.pendingIncomeAmount + collection.overdueAmount, currency)} pending or overdue`,
-          href: '/finance/entries',
-          tone:
-            profitMarginPercent >= 25
-              ? InsightTone.SUCCESS
-              : profitMarginPercent >= 0
-                ? InsightTone.WARNING
-                : InsightTone.DANGER,
-        },
-        {
-          id: 'collection-rate',
-          label: 'Collection Rate',
-          value: formatPercent(collection.collectionRatePercent, 1),
-          detail: `${formatCurrency(collection.overdueAmount, currency)} overdue`,
-          href: '/finance/entries',
-          tone:
-            collection.collectionRatePercent >= 85
-              ? InsightTone.SUCCESS
-              : collection.collectionRatePercent >= 70
-                ? InsightTone.WARNING
-                : InsightTone.DANGER,
-        },
-      ],
+      summaryCards: this.getSummaryCards(currency, {
+        totalIncome,
+        totalExpense,
+        netFlow,
+        profitMarginPercent,
+        incomeChangePercent,
+        expenseChangePercent,
+        netFlowChangePercent,
+        collection,
+      }),
       spotlight,
       groups: [
         {
@@ -285,6 +456,100 @@ export class FinanceInsightsBuilder {
 
   private resolveRange(query: FinanceInsightsQuery) {
     return resolveInsightDateRange(query);
+  }
+
+  private async getCurrency(orgId: string, query: FinanceInsightsQuery) {
+    if (query.currency) return query.currency;
+    const organization = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { currency: true } });
+    return organization?.currency || 'USD';
+  }
+
+  private async getTransactionTotals(orgId: string, from: Date, to: Date, currency: string) {
+    const rows = await this.prisma.transaction.groupBy({
+      by: ['type'],
+      where: {
+        organizationId: orgId,
+        currency,
+        createdAt: { gte: from, lte: to },
+      },
+      _sum: { amount: true },
+    });
+
+    return {
+      income: moneyNumber(rows.find((row) => row.type === TransactionType.INCOME)?._sum.amount),
+      expense: moneyNumber(rows.find((row) => row.type === TransactionType.EXPENSE)?._sum.amount),
+    };
+  }
+
+  private getSummaryCards(
+    currency: string,
+    input: {
+      totalIncome: number;
+      totalExpense: number;
+      netFlow: number;
+      profitMarginPercent: number;
+      incomeChangePercent: number;
+      expenseChangePercent: number;
+      netFlowChangePercent: number;
+      collection: {
+        pendingIncomeAmount: number;
+        overdueAmount: number;
+        collectionRatePercent: number;
+      };
+    },
+  ): DashboardInsightCard[] {
+    return [
+      {
+        id: 'income',
+        label: 'Income',
+        value: formatCurrency(input.totalIncome, currency),
+        detail: `${formatPercent(input.incomeChangePercent, 1)} vs previous period`,
+        href: '/finance/transactions?type=INCOME',
+        tone: input.incomeChangePercent >= 0 ? InsightTone.SUCCESS : InsightTone.WARNING,
+      },
+      {
+        id: 'expenses',
+        label: 'Expenses',
+        value: formatCurrency(input.totalExpense, currency),
+        detail: `${formatPercent(input.expenseChangePercent, 1)} vs previous period`,
+        href: '/finance/transactions?type=EXPENSE',
+        tone: input.expenseChangePercent > 20 ? InsightTone.WARNING : InsightTone.INFO,
+      },
+      {
+        id: 'net-flow',
+        label: 'Net Flow',
+        value: formatCurrency(input.netFlow, currency),
+        detail: `${formatPercent(input.netFlowChangePercent, 1)} vs previous period`,
+        href: '/finance/transactions',
+        tone: input.netFlow >= 0 ? InsightTone.SUCCESS : InsightTone.DANGER,
+      },
+      {
+        id: 'profit-margin',
+        label: 'Profit Margin',
+        value: formatPercent(input.profitMarginPercent, 1),
+        detail: `${formatCurrency(input.collection.pendingIncomeAmount + input.collection.overdueAmount, currency)} pending or overdue`,
+        href: '/finance/entries',
+        tone:
+          input.profitMarginPercent >= 25
+            ? InsightTone.SUCCESS
+            : input.profitMarginPercent >= 0
+              ? InsightTone.WARNING
+              : InsightTone.DANGER,
+      },
+      {
+        id: 'collection-rate',
+        label: 'Collection Rate',
+        value: formatPercent(input.collection.collectionRatePercent, 1),
+        detail: `${formatCurrency(input.collection.overdueAmount, currency)} overdue`,
+        href: '/finance/entries',
+        tone:
+          input.collection.collectionRatePercent >= 85
+            ? InsightTone.SUCCESS
+            : input.collection.collectionRatePercent >= 70
+              ? InsightTone.WARNING
+              : InsightTone.DANGER,
+      },
+    ];
   }
 
   private getTransactions(orgId: string, from: Date, to: Date, currency: string) {

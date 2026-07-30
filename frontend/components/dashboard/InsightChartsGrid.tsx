@@ -15,6 +15,32 @@ import {
 } from '@/components/charts/ChartComponents';
 
 type InsightCharts = DashboardInsights['charts'];
+type TopMonths = NonNullable<InsightCharts>['topMonths'];
+
+function hasPositiveValue(data: unknown[] | undefined, keys: string[]) {
+  return Boolean(data?.some((item) => {
+    const row = item as Record<string, unknown>;
+    return keys.some((key) => Number(row[key] || 0) > 0);
+  }));
+}
+
+function hasPositivePie(data: Array<{ value: number }> | undefined) {
+  return Boolean(data?.some((item) => Number(item.value || 0) > 0));
+}
+
+function trendValueKeys(data: unknown[] | undefined) {
+  return Object.keys((data?.[0] as Record<string, unknown> | undefined) || {}).filter((key) => key !== 'label');
+}
+
+function hasTopMonthValue(topMonths: TopMonths | undefined) {
+  if (!topMonths) return false;
+  return [
+    topMonths.highestIncomeMonth,
+    topMonths.highestExpenseMonth,
+    topMonths.bestNetFlowMonth,
+    topMonths.worstNetFlowMonth,
+  ].some((month) => Math.abs(Number(month?.amount || 0)) > 0);
+}
 
 function ChartPanel({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -66,58 +92,58 @@ export function hasInsightCharts(role: string, charts: InsightCharts) {
   if (!charts) return false;
 
   if (
-    charts.moneyFlowTrend?.length ||
-    charts.incomeSources?.length ||
-    charts.expenseSources?.length ||
-    charts.incomeSourceTrend?.length ||
-    charts.expenseSourceTrend?.length ||
-    charts.departmentFinance?.length ||
-    charts.collectionHealth?.chartData.length ||
-    charts.topMonths
+    hasPositiveValue(charts.moneyFlowTrend, ['income', 'expense', 'netFlow']) ||
+    hasPositiveValue(charts.incomeSources, ['amount']) ||
+    hasPositiveValue(charts.expenseSources, ['amount']) ||
+    hasPositiveValue(charts.incomeSourceTrend, trendValueKeys(charts.incomeSourceTrend)) ||
+    hasPositiveValue(charts.expenseSourceTrend, trendValueKeys(charts.expenseSourceTrend)) ||
+    hasPositiveValue(charts.departmentFinance, ['expectedAmount', 'collectedAmount', 'pendingAmount', 'overdueAmount']) ||
+    hasPositivePie(charts.collectionHealth?.chartData.map((item) => ({ value: item.amount }))) ||
+    hasTopMonthValue(charts.topMonths)
   ) {
     return true;
   }
 
   const hasAdminCharts = Boolean(
-    charts.enrollmentTrend?.length ||
-    charts.mailStatus?.length ||
-    charts.sectionCapacity?.length ||
-    charts.teacherWorkload?.length ||
-    charts.departmentActivity?.length ||
-    charts.departmentPerformance?.length ||
-    charts.roomUsage?.length ||
-    charts.buildingUsage?.length,
+    hasPositiveValue(charts.enrollmentTrend, ['value']) ||
+    hasPositiveValue(charts.mailStatus, ['count']) ||
+    hasPositiveValue(charts.sectionCapacity, ['enrolled']) ||
+    hasPositiveValue(charts.teacherWorkload, ['sections', 'students', 'weeklySlots']) ||
+    hasPositiveValue(charts.departmentActivity, ['courses', 'sections', 'students', 'teachers']) ||
+    hasPositiveValue(charts.departmentPerformance, ['averageGradePercent', 'attendanceRatePercent']) ||
+    hasPositiveValue(charts.roomUsage, ['scheduledSlots']) ||
+    hasPositiveValue(charts.buildingUsage, ['scheduledSlots']),
   );
-  const hasTeacherCharts = Boolean(charts.assessmentCompletion?.length);
-  const hasStudentCharts = Boolean(charts.studentPerformance?.length);
+  const hasTeacherCharts = hasPositiveValue(charts.assessmentCompletion, ['completed', 'total']);
+  const hasStudentCharts = hasPositiveValue(charts.studentPerformance, ['grade', 'attendance']);
 
   if (hasAdminCharts || role === Role.ORG_ADMIN || role === Role.SUB_ADMIN) {
     return Boolean(
-      charts.enrollmentTrend?.length ||
-      charts.attendanceTrend?.length ||
-      charts.mailStatus?.length ||
-      charts.sectionCapacity?.length ||
-      charts.teacherWorkload?.length ||
-      charts.departmentActivity?.length ||
-      charts.departmentPerformance?.length ||
-      charts.roomUsage?.length ||
-      charts.buildingUsage?.length,
+      hasPositiveValue(charts.enrollmentTrend, ['value']) ||
+      hasPositiveValue(charts.attendanceTrend, ['value']) ||
+      hasPositiveValue(charts.mailStatus, ['count']) ||
+      hasPositiveValue(charts.sectionCapacity, ['enrolled']) ||
+      hasPositiveValue(charts.teacherWorkload, ['sections', 'students', 'weeklySlots']) ||
+      hasPositiveValue(charts.departmentActivity, ['courses', 'sections', 'students', 'teachers']) ||
+      hasPositiveValue(charts.departmentPerformance, ['averageGradePercent', 'attendanceRatePercent']) ||
+      hasPositiveValue(charts.roomUsage, ['scheduledSlots']) ||
+      hasPositiveValue(charts.buildingUsage, ['scheduledSlots']),
     );
   }
 
   if (hasTeacherCharts || role === Role.TEACHER || role === Role.ORG_MANAGER) {
     return Boolean(
-      charts.attendanceTrend?.length ||
-      charts.gradeDistribution?.length ||
-      charts.assessmentCompletion?.length,
+      hasPositiveValue(charts.attendanceTrend, ['value']) ||
+      hasPositiveValue(charts.gradeDistribution, ['count']) ||
+      hasPositiveValue(charts.assessmentCompletion, ['completed', 'total']),
     );
   }
 
   if (hasStudentCharts || role === Role.STUDENT || role === Role.GUARDIAN) {
     return Boolean(
-      charts.attendanceTrend?.length ||
-      charts.gradeDistribution?.length ||
-      charts.studentPerformance?.length,
+      hasPositiveValue(charts.attendanceTrend, ['value']) ||
+      hasPositiveValue(charts.gradeDistribution, ['count']) ||
+      hasPositiveValue(charts.studentPerformance, ['grade', 'attendance']),
     );
   }
 
@@ -128,58 +154,58 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
   if (!charts) return null;
 
   if (
-    charts.moneyFlowTrend?.length ||
-    charts.incomeSources?.length ||
-    charts.expenseSources?.length ||
-    charts.incomeSourceTrend?.length ||
-    charts.expenseSourceTrend?.length ||
-    charts.departmentFinance?.length ||
-    charts.collectionHealth?.chartData.length ||
-    charts.topMonths
+    hasPositiveValue(charts.moneyFlowTrend, ['income', 'expense', 'netFlow']) ||
+    hasPositiveValue(charts.incomeSources, ['amount']) ||
+    hasPositiveValue(charts.expenseSources, ['amount']) ||
+    hasPositiveValue(charts.incomeSourceTrend, trendValueKeys(charts.incomeSourceTrend)) ||
+    hasPositiveValue(charts.expenseSourceTrend, trendValueKeys(charts.expenseSourceTrend)) ||
+    hasPositiveValue(charts.departmentFinance, ['expectedAmount', 'collectedAmount', 'pendingAmount', 'overdueAmount']) ||
+    hasPositivePie(charts.collectionHealth?.chartData.map((item) => ({ value: item.amount }))) ||
+    hasTopMonthValue(charts.topMonths)
   ) {
     return (
       <div className="space-y-6">
-        {charts.moneyFlowTrend && charts.moneyFlowTrend.length > 0 && (
+        {hasPositiveValue(charts.moneyFlowTrend, ['income', 'expense', 'netFlow']) && (
           <ChartPanel>
-            <MoneyFlowChart data={charts.moneyFlowTrend} title="Money Flow Trend" />
+            <MoneyFlowChart data={charts.moneyFlowTrend ?? []} title="Money Flow Trend" />
           </ChartPanel>
         )}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.incomeSources && charts.incomeSources.length > 0 && (
+          {hasPositiveValue(charts.incomeSources, ['amount']) && (
             <ChartPanel>
-              <InsightBarChart data={charts.incomeSources} dataKey="amount" nameKey="source" title="Income Sources" color={COLORS.success} horizontal disableHover />
+              <InsightBarChart data={charts.incomeSources ?? []} dataKey="amount" nameKey="source" title="Income Sources" color={COLORS.success} horizontal disableHover />
             </ChartPanel>
           )}
-          {charts.expenseSources && charts.expenseSources.length > 0 && (
+          {hasPositiveValue(charts.expenseSources, ['amount']) && (
             <ChartPanel>
-              <InsightBarChart data={charts.expenseSources} dataKey="amount" nameKey="source" title="Expense Sources" color={COLORS.danger} horizontal disableHover />
-            </ChartPanel>
-          )}
-        </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.incomeSourceTrend && charts.incomeSourceTrend.length > 0 && (
-            <ChartPanel>
-              <MultiLineChart data={charts.incomeSourceTrend} title="Income Source Trend" />
-            </ChartPanel>
-          )}
-          {charts.expenseSourceTrend && charts.expenseSourceTrend.length > 0 && (
-            <ChartPanel>
-              <MultiLineChart data={charts.expenseSourceTrend} title="Expense Source Trend" />
+              <InsightBarChart data={charts.expenseSources ?? []} dataKey="amount" nameKey="source" title="Expense Sources" color={COLORS.danger} horizontal disableHover />
             </ChartPanel>
           )}
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.collectionHealth && charts.collectionHealth.chartData.length > 0 && (
+          {hasPositiveValue(charts.incomeSourceTrend, trendValueKeys(charts.incomeSourceTrend)) && (
             <ChartPanel>
-              <InsightPieChart data={charts.collectionHealth.chartData.map((item) => ({ name: item.status, value: item.amount }))} title="Collection Health" />
+              <MultiLineChart data={charts.incomeSourceTrend ?? []} title="Income Source Trend" />
             </ChartPanel>
           )}
-          <TopMonthCards charts={charts} />
+          {hasPositiveValue(charts.expenseSourceTrend, trendValueKeys(charts.expenseSourceTrend)) && (
+            <ChartPanel>
+              <MultiLineChart data={charts.expenseSourceTrend ?? []} title="Expense Source Trend" />
+            </ChartPanel>
+          )}
         </div>
-        {charts.departmentFinance && charts.departmentFinance.length > 0 && (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {hasPositivePie(charts.collectionHealth?.chartData.map((item) => ({ value: item.amount }))) && (
+            <ChartPanel>
+              <InsightPieChart data={charts.collectionHealth!.chartData.map((item) => ({ name: item.status, value: item.amount }))} title="Collection Health" />
+            </ChartPanel>
+          )}
+          {hasTopMonthValue(charts.topMonths) && <TopMonthCards charts={charts} />}
+        </div>
+        {hasPositiveValue(charts.departmentFinance, ['expectedAmount', 'collectedAmount', 'pendingAmount', 'overdueAmount']) && (
           <ChartPanel>
             <GroupedBarChart
-              data={charts.departmentFinance}
+              data={charts.departmentFinance ?? []}
               nameKey="department"
               title="Finance by Department"
               horizontal
@@ -198,55 +224,64 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
   }
 
   const hasAdminCharts = Boolean(
-    charts.enrollmentTrend?.length ||
-    charts.mailStatus?.length ||
-    charts.sectionCapacity?.length ||
-    charts.teacherWorkload?.length ||
-    charts.departmentActivity?.length ||
-    charts.departmentPerformance?.length ||
-    charts.roomUsage?.length ||
-    charts.buildingUsage?.length,
+    hasPositiveValue(charts.enrollmentTrend, ['value']) ||
+    hasPositiveValue(charts.attendanceTrend, ['value']) ||
+    hasPositiveValue(charts.mailStatus, ['count']) ||
+    hasPositiveValue(charts.sectionCapacity, ['enrolled']) ||
+    hasPositiveValue(charts.teacherWorkload, ['sections', 'students', 'weeklySlots']) ||
+    hasPositiveValue(charts.departmentActivity, ['courses', 'sections', 'students', 'teachers']) ||
+    hasPositiveValue(charts.departmentPerformance, ['averageGradePercent', 'attendanceRatePercent']) ||
+    hasPositiveValue(charts.roomUsage, ['scheduledSlots']) ||
+    hasPositiveValue(charts.buildingUsage, ['scheduledSlots']),
   );
-  const hasTeacherCharts = Boolean(charts.assessmentCompletion?.length);
-  const hasStudentCharts = Boolean(charts.studentPerformance?.length);
+  const hasTeacherCharts = Boolean(
+    hasPositiveValue(charts.attendanceTrend, ['value']) ||
+    hasPositiveValue(charts.gradeDistribution, ['count']) ||
+    hasPositiveValue(charts.assessmentCompletion, ['completed', 'total']),
+  );
+  const hasStudentCharts = Boolean(
+    hasPositiveValue(charts.attendanceTrend, ['value']) ||
+    hasPositiveValue(charts.gradeDistribution, ['count']) ||
+    hasPositiveValue(charts.studentPerformance, ['grade', 'attendance']),
+  );
 
   if (hasAdminCharts || role === Role.ORG_ADMIN || role === Role.SUB_ADMIN) {
     return (
       <div className="space-y-6">
-        {charts.enrollmentTrend && charts.enrollmentTrend.length > 0 && (
+        {hasPositiveValue(charts.enrollmentTrend, ['value']) && (
           <ChartPanel>
-            <InsightLineChart data={charts.enrollmentTrend} title="Student Enrollment Trend" color={COLORS.info} />
+            <InsightLineChart data={charts.enrollmentTrend ?? []} title="New Student Trend" color={COLORS.info} />
           </ChartPanel>
         )}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.attendanceTrend && charts.attendanceTrend.length > 0 && (
+          {hasPositiveValue(charts.attendanceTrend, ['value']) && (
             <ChartPanel>
-              <InsightLineChart data={charts.attendanceTrend} title="Attendance Coverage Trend" color={COLORS.success} />
+              <InsightLineChart data={charts.attendanceTrend ?? []} title="Attendance Coverage %" color={COLORS.success} />
             </ChartPanel>
           )}
-          {charts.mailStatus && charts.mailStatus.length > 0 && (
+          {hasPositiveValue(charts.mailStatus, ['count']) && (
             <ChartPanel>
-              <InsightPieChart data={charts.mailStatus.map((item) => ({ name: item.status, value: item.count }))} title="Mail Status Distribution" />
-            </ChartPanel>
-          )}
-        </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.sectionCapacity && charts.sectionCapacity.length > 0 && (
-            <ChartPanel>
-              <InsightBarChart data={charts.sectionCapacity} dataKey="enrolled" nameKey="name" title="Section Capacity" color={COLORS.purple} disableHover />
-            </ChartPanel>
-          )}
-          {charts.teacherWorkload && charts.teacherWorkload.length > 0 && (
-            <ChartPanel>
-              <InsightBarChart data={charts.teacherWorkload} dataKey="sections" nameKey="name" title="Teacher Workload" color={COLORS.warning} horizontal disableHover />
+              <InsightPieChart data={(charts.mailStatus ?? []).map((item) => ({ name: item.status, value: item.count }))} title="Mail Status Distribution" />
             </ChartPanel>
           )}
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.departmentActivity && charts.departmentActivity.length > 0 && (
+          {hasPositiveValue(charts.sectionCapacity, ['enrolled']) && (
+            <ChartPanel>
+              <InsightBarChart data={charts.sectionCapacity ?? []} dataKey="enrolled" nameKey="name" title="Largest Sections" color={COLORS.purple} disableHover />
+            </ChartPanel>
+          )}
+          {hasPositiveValue(charts.teacherWorkload, ['sections', 'students', 'weeklySlots']) && (
+            <ChartPanel>
+              <InsightBarChart data={charts.teacherWorkload ?? []} dataKey="weeklySlots" nameKey="name" title="Teaching Load" color={COLORS.warning} horizontal disableHover />
+            </ChartPanel>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {hasPositiveValue(charts.departmentActivity, ['courses', 'sections', 'students', 'teachers']) && (
             <ChartPanel>
               <GroupedBarChart
-                data={charts.departmentActivity}
+                data={charts.departmentActivity ?? []}
                 nameKey="department"
                 title="Department Academic Footprint"
                 horizontal
@@ -259,12 +294,12 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
               />
             </ChartPanel>
           )}
-          {charts.departmentPerformance && charts.departmentPerformance.length > 0 && (
+          {hasPositiveValue(charts.departmentPerformance, ['averageGradePercent', 'attendanceRatePercent']) && (
             <ChartPanel>
               <GroupedBarChart
-                data={charts.departmentPerformance}
+                data={charts.departmentPerformance ?? []}
                 nameKey="department"
-                title="Department Performance"
+                title="Department Performance in Window"
                 horizontal
                 valueFormatter={(value) => `${value.toFixed(1)}%`}
                 bars={[
@@ -276,16 +311,16 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
           )}
         </div>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.roomUsage && charts.roomUsage.length > 0 && (
+          {hasPositiveValue(charts.roomUsage, ['scheduledSlots']) && (
             <ChartPanel>
-              <InsightBarChart data={charts.roomUsage} dataKey="scheduledSlots" nameKey="room" title="Room Usage" color={COLORS.teal} horizontal disableHover />
+              <InsightBarChart data={charts.roomUsage ?? []} dataKey="scheduledSlots" nameKey="room" title="Room Usage" color={COLORS.teal} horizontal disableHover />
             </ChartPanel>
           )}
         </div>
-        {charts.buildingUsage && charts.buildingUsage.length > 0 && (
+        {hasPositiveValue(charts.buildingUsage, ['scheduledSlots']) && (
           <ChartPanel>
             <InsightBarChart
-              data={charts.buildingUsage}
+              data={charts.buildingUsage ?? []}
               dataKey="scheduledSlots"
               nameKey="building"
               title="Building Scheduled Slots"
@@ -293,7 +328,7 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
               horizontal
               disableHover
               categoryAxisWidth={132}
-              height={Math.max(320, charts.buildingUsage.length * 42)}
+              height={Math.max(320, (charts.buildingUsage ?? []).length * 42)}
             />
           </ChartPanel>
         )}
@@ -304,20 +339,20 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
   if (hasTeacherCharts || role === Role.TEACHER || role === Role.ORG_MANAGER) {
     return (
       <div className="space-y-6">
-        {charts.attendanceTrend && charts.attendanceTrend.length > 0 && (
+        {hasPositiveValue(charts.attendanceTrend, ['value']) && (
           <ChartPanel>
-            <InsightLineChart data={charts.attendanceTrend} title="Attendance Follow-Through Trend" color={COLORS.success} />
+            <InsightLineChart data={charts.attendanceTrend ?? []} title="Attendance Follow-Through Trend" color={COLORS.success} />
           </ChartPanel>
         )}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.gradeDistribution && charts.gradeDistribution.length > 0 && (
+          {hasPositiveValue(charts.gradeDistribution, ['count']) && (
             <ChartPanel>
-              <InsightPieChart data={charts.gradeDistribution.map((item) => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
+              <InsightPieChart data={(charts.gradeDistribution ?? []).map((item) => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
             </ChartPanel>
           )}
-          {charts.assessmentCompletion && charts.assessmentCompletion.length > 0 && (
+          {hasPositiveValue(charts.assessmentCompletion, ['completed', 'total']) && (
             <ChartPanel>
-              <CompletionBarChart data={charts.assessmentCompletion} title="Assessment Completion Rates" />
+              <CompletionBarChart data={charts.assessmentCompletion ?? []} title="Assessment Completion Rates" />
             </ChartPanel>
           )}
         </div>
@@ -329,20 +364,20 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {charts.attendanceTrend && charts.attendanceTrend.length > 0 && (
+          {hasPositiveValue(charts.attendanceTrend, ['value']) && (
             <ChartPanel>
-              <InsightLineChart data={charts.attendanceTrend} title="Attendance Trend" color={COLORS.success} />
+              <InsightLineChart data={charts.attendanceTrend ?? []} title="Attendance Trend" color={COLORS.success} />
             </ChartPanel>
           )}
-          {charts.gradeDistribution && charts.gradeDistribution.length > 0 && (
+          {hasPositiveValue(charts.gradeDistribution, ['count']) && (
             <ChartPanel>
-              <InsightPieChart data={charts.gradeDistribution.map((item) => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
+              <InsightPieChart data={(charts.gradeDistribution ?? []).map((item) => ({ name: item.range, value: item.count }))} title="Grade Distribution" />
             </ChartPanel>
           )}
         </div>
-        {charts.studentPerformance && charts.studentPerformance.length > 0 && (
+        {hasPositiveValue(charts.studentPerformance, ['grade', 'attendance']) && (
           <ChartPanel>
-            <PerformanceChart data={charts.studentPerformance} title="Performance by Subject" />
+            <PerformanceChart data={charts.studentPerformance ?? []} title="Performance by Subject" />
           </ChartPanel>
         )}
       </div>

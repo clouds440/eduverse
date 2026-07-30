@@ -70,7 +70,7 @@ export class OrgController {
     private readonly academicEventsService: AcademicEventsService,
   ) { }
 
-  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN, Role.FINANCE_MANAGER)
   @Get('insights')
   getInsights(
     @OrgId() orgId: string,
@@ -78,6 +78,17 @@ export class OrgController {
     @Query() query: InsightsQueryDto,
   ) {
     return this.insightsService.getInsights(orgId, req.user, query);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN, Role.FINANCE_MANAGER)
+  @Get('insights/modules/:module')
+  getInsightModule(
+    @OrgId() orgId: string,
+    @Request() req: AuthenticatedRequest,
+    @Param('module') module: string,
+    @Query() query: InsightsQueryDto,
+  ) {
+    return this.insightsService.getInsightModule(orgId, req.user, module, query);
   }
 
   // --- Settings ---

@@ -8,6 +8,40 @@ import { TeacherInsightsBuilder } from './builders/teacher-insights.builder';
 import type { InsightsQueryDto } from './dto/insights-query.dto';
 import type { DashboardInsightsResponse, InsightsUser } from './shared/insights.types';
 
+function insightShell(response: DashboardInsightsResponse): DashboardInsightsResponse {
+  return {
+    ...response,
+    groups: response.groups.slice(0, 2),
+    recentActivity: [],
+    charts: {},
+  };
+}
+
+function insightModule(response: DashboardInsightsResponse, module: string): DashboardInsightsResponse {
+  const base = {
+    ...response,
+    summaryCards: [],
+    spotlight: null,
+    groups: [],
+    recentActivity: [],
+    charts: {},
+  };
+
+  if (module === 'summary') {
+    return insightShell(response);
+  }
+
+  if (module === 'actions') {
+    return { ...base, groups: response.groups };
+  }
+
+  if (module === 'activity') {
+    return { ...base, recentActivity: response.recentActivity };
+  }
+
+  return { ...base, charts: response.charts || {} };
+}
+
 @Injectable()
 export class InsightsService {
   constructor(
@@ -24,7 +58,7 @@ export class InsightsService {
     query: InsightsQueryDto = {},
   ): Promise<DashboardInsightsResponse> {
     if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
-      return this.adminInsightsBuilder.build(orgId, user, query);
+      return this.adminInsightsBuilder.buildShell(orgId, user, query);
     }
 
     if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
@@ -39,7 +73,40 @@ export class InsightsService {
       return this.guardianInsightsBuilder.build(orgId, user, query);
     }
 
+    if (user.role === Role.FINANCE_MANAGER) {
+      return this.financeInsightsBuilder.buildShell(orgId, user, query);
+    }
+
     throw new ForbiddenException('Insights are not available for this role.');
+  }
+
+  async getInsightModule(
+    orgId: string,
+    user: InsightsUser,
+    module: string,
+    query: InsightsQueryDto = {},
+  ): Promise<DashboardInsightsResponse> {
+    if (user.role === Role.ORG_ADMIN || user.role === Role.SUB_ADMIN) {
+      return this.adminInsightsBuilder.buildModule(orgId, user, module, query);
+    }
+
+    if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
+      return insightModule(await this.teacherInsightsBuilder.build(orgId, user, query), module);
+    }
+
+    if (user.role === Role.STUDENT) {
+      return insightModule(await this.studentInsightsBuilder.build(orgId, user, query), module);
+    }
+
+    if (user.role === Role.GUARDIAN) {
+      return insightModule(await this.guardianInsightsBuilder.build(orgId, user, query), module);
+    }
+
+    if (user.role === Role.FINANCE_MANAGER) {
+      return this.financeInsightsBuilder.buildModule(orgId, user, module, query);
+    }
+
+    throw new ForbiddenException('Insight modules are not available for this role.');
   }
 
   async getFinanceInsights(
@@ -57,9 +124,31 @@ export class InsightsService {
       user.role === Role.FINANCE_MANAGER ||
       user.role === Role.SUPER_ADMIN
     ) {
-      return this.financeInsightsBuilder.build(orgId, user, query);
+      return this.financeInsightsBuilder.buildShell(orgId, user, query);
     }
 
     throw new ForbiddenException('Finance insights are not available for this role.');
+  }
+
+  async getFinanceInsightModule(
+    orgId: string,
+    user: InsightsUser,
+    module: string,
+    query: FinanceInsightsQuery = {},
+  ) {
+    if (user.role !== Role.SUPER_ADMIN && orgId !== user.organizationId) {
+      throw new ForbiddenException('Cannot access finance insights for a different organization.');
+    }
+
+    if (
+      user.role === Role.ORG_ADMIN ||
+      user.role === Role.SUB_ADMIN ||
+      user.role === Role.FINANCE_MANAGER ||
+      user.role === Role.SUPER_ADMIN
+    ) {
+      return this.financeInsightsBuilder.buildModule(orgId, user, module, query);
+    }
+
+    throw new ForbiddenException('Finance insight modules are not available for this role.');
   }
 }

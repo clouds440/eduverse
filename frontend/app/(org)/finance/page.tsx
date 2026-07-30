@@ -2,14 +2,24 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
+import { Activity, Landmark, ListChecks, PieChart, Sparkles, WalletCards } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import InsightsOverview from '@/components/dashboard/InsightsOverview';
 import { getInsightRangePreview, InsightRangeControl } from '@/components/dashboard/InsightRangeControl';
+import InsightModulePanel from '@/components/dashboard/InsightModulePanel';
+import InsightShellSummary from '@/components/dashboard/InsightShellSummary';
 import { useFinanceHeaderActions } from './FinanceHeaderActionsContext';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
-import type { FinanceInsights, InsightTimeRange } from '@/types';
+import type { DashboardInsights, InsightTimeRange } from '@/types';
+
+const financeModules = [
+    { id: 'cash-flow', title: 'Cash Flow', description: 'Income, expenses, net flow, and top months.', icon: <WalletCards className="h-5 w-5" /> },
+    { id: 'sources', title: 'Finance Sources', description: 'Income and expense concentration by source.', icon: <PieChart className="h-5 w-5" /> },
+    { id: 'collections', title: 'Collections', description: 'Pending, overdue, and collected finance health.', icon: <ListChecks className="h-5 w-5" /> },
+    { id: 'departments', title: 'Departments', description: 'Expected, collected, pending, and overdue amounts by department.', icon: <Landmark className="h-5 w-5" /> },
+    { id: 'activity', title: 'Finance Activity', description: 'Recently confirmed income and expense entries.', icon: <Activity className="h-5 w-5" /> },
+];
 
 function FinanceOverviewSkeleton() {
     return (
@@ -33,10 +43,11 @@ function FinanceOverviewSkeleton() {
 export default function FinanceOverviewPage() {
     const { token } = useAuth();
     const [range, setRange] = useState<InsightTimeRange>('1M');
+    const [moduleRanges, setModuleRanges] = useState<Record<string, InsightTimeRange>>({});
     const setFinanceHeaderActions = useFinanceHeaderActions();
 
-    const { data: insights, error, isLoading, mutate } = useSWR<FinanceInsights>(
-        token ? ['finance/insights', token, range] : null,
+    const { data: insights, error, isLoading, mutate } = useSWR<DashboardInsights>(
+        token ? ['finance/insights-shell', token, range] : null,
         ([, t]) => api.finance.getInsights(t as string, { range })
     );
 
@@ -68,5 +79,39 @@ export default function FinanceOverviewPage() {
         return <FinanceOverviewSkeleton />;
     }
 
-    return <InsightsOverview insights={insights} />;
+    const hasShellContent = Boolean(
+        insights.summaryCards.length ||
+        insights.spotlight ||
+        insights.groups.some((group) => group.items.length > 0),
+    );
+
+    return (
+        <div className="space-y-5 pb-6">
+            <InsightShellSummary insights={insights} />
+
+            {!hasShellContent && (
+                <section className="rounded-lg border border-dashed border-border/80 bg-card/70 p-8 text-center">
+                    <Sparkles className="mx-auto h-8 w-8 text-primary" />
+                    <h2 className="mt-4 text-lg font-black text-foreground">Your finance overview will build up here</h2>
+                    <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold text-muted-foreground">
+                        As finance entries, confirmations, and transactions are added, this page will fill with useful cards, charts, and follow-up signals.
+                    </p>
+                </section>
+            )}
+
+            {token && financeModules.map((module) => (
+                <InsightModulePanel
+                    key={module.id}
+                    token={token}
+                    moduleName={module.id}
+                    title={module.title}
+                    description={module.description}
+                    icon={module.icon}
+                    range={moduleRanges[module.id] || range}
+                    onRangeChange={(nextRange) => setModuleRanges((current) => ({ ...current, [module.id]: nextRange }))}
+                    fetchModule={api.finance.getInsightModule}
+                />
+            ))}
+        </div>
+    );
 }

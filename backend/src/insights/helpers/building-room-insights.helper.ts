@@ -16,6 +16,16 @@ export interface BuildingUsagePoint {
   scheduledSlots: number;
 }
 
+interface RoomScheduleInsight {
+  id: string;
+  section: {
+    id: string;
+    name: string;
+    course: { name: string };
+    _count: { enrollments: number };
+  };
+}
+
 function formatName(entity: { name: string; code?: string | null }) {
   return entity.code ? `${entity.code} - ${entity.name}` : entity.name;
 }
@@ -52,6 +62,24 @@ export async function getBuildingRoomInsights(
           },
         },
       },
+      defaultSections: {
+        select: {
+          schedules: {
+            where: { roomId: null },
+            select: {
+              id: true,
+              section: {
+                select: {
+                  id: true,
+                  name: true,
+                  course: { select: { name: true } },
+                  _count: { select: { enrollments: true } },
+                },
+              },
+            },
+          },
+        },
+      },
     },
     orderBy: [{ building: { name: 'asc' } }, { name: 'asc' }],
   });
@@ -68,17 +96,21 @@ export async function getBuildingRoomInsights(
   const roomUsage = rooms.map((room) => {
     const building = formatName(room.building);
     const buildingName = formatBuildingName(room.building);
+    const effectiveSchedules: RoomScheduleInsight[] = [
+      ...room.schedules,
+      ...room.defaultSections.flatMap((section) => section.schedules),
+    ];
     const buildingStats = buildingRooms.get(room.building.id) || {
       building: buildingName,
       rooms: 0,
       scheduledSlots: 0,
     };
     buildingStats.rooms += 1;
-    buildingStats.scheduledSlots += room.schedules.length;
+    buildingStats.scheduledSlots += effectiveSchedules.length;
     buildingRooms.set(room.building.id, buildingStats);
 
     if (room.capacity !== null && room.capacity !== undefined) {
-      room.schedules.forEach((schedule) => {
+      effectiveSchedules.forEach((schedule) => {
         const enrolled = schedule.section._count.enrollments;
         if (enrolled > room.capacity!) {
           capacityWarnings.set(`${room.id}:${schedule.section.id}`, {
@@ -95,7 +127,7 @@ export async function getBuildingRoomInsights(
     return {
       room: room.name,
       building,
-      scheduledSlots: room.schedules.length,
+      scheduledSlots: effectiveSchedules.length,
       capacity: room.capacity,
     };
   });

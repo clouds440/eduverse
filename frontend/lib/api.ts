@@ -15,7 +15,7 @@ import type {
     CampusNavigationBuildingRoomsResponse, OrganizationOverview,
     CampusNavigationResponse,
     CampusNavigationRoomSelection,
-    FinancialStructure, FinancialEntry, Transaction, FinanceStats, FinanceInsights, TeacherFinanceOverview, MessageResponse, AuditLogItem, PayrollRosterRow,
+    FinancialStructure, FinancialEntry, Transaction, FinanceStats, TeacherFinanceOverview, MessageResponse, AuditLogItem, PayrollRosterRow,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, SectionGradebookResponse, OrgUserCounts,
     ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, ImportProgressEvent, InvalidImportRow, AttendanceMonthlyImportOptions,
@@ -1058,6 +1058,8 @@ export const api = {
             request<T>('/org/profile', { method: 'PATCH', body: JSON.stringify(data), token }),
         getInsights: (token: string, params: InsightsQueryParams = {}) =>
             request<DashboardInsights>(`/org/insights${buildQueryString(params as QueryParams)}`, { token }),
+        getInsightModule: (token: string, module: string, params: InsightsQueryParams = {}) =>
+            request<DashboardInsights>(`/org/insights/modules/${module}${buildQueryString(params as QueryParams)}`, { token }),
 
         // --- academic events / Academic Calendar ---
         getAcademicEvents: (token: string, params: { page?: number, limit?: number, search?: string, type?: AcademicEventType, isActive?: boolean, startDate?: string, endDate?: string, departmentId?: string } = {}) =>
@@ -1480,6 +1482,8 @@ export const api = {
         getAuditLogs: (token: string, params: { page?: number, limit?: number, search?: string, action?: string, resourceType?: string, resourceId?: string, userId?: string } = {}) =>
             request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> }>(`/finance/audit-logs${buildQueryString(params)}`, { token }),
         getInsights: (token: string, params: InsightsQueryParams & { currency?: string } = {}) =>
-            request<FinanceInsights>(`/finance/insights${buildQueryString(params as QueryParams)}`, { token }),
+            request<DashboardInsights>(`/finance/insights${buildQueryString(params as QueryParams)}`, { token }),
+        getInsightModule: (token: string, module: string, params: InsightsQueryParams & { currency?: string } = {}) =>
+            request<DashboardInsights>(`/finance/insights/modules/${module}${buildQueryString(params as QueryParams)}`, { token }),
     }
 };

@@ -27,12 +27,14 @@ function formatDepartmentName(department: { name: string; code?: string | null }
 export async function getDepartmentAdminInsights(
   prisma: PrismaService,
   orgId: string,
+  from: Date,
+  to: Date,
 ): Promise<{
   group: DashboardInsightGroup | null;
   chart: DepartmentActivityPoint[];
   performance: DepartmentPerformancePoint[];
 }> {
-  const [departments, grades, attendanceRecords] = await Promise.all([
+  const [departments, grades, attendanceRecordAggregates] = await Promise.all([
     prisma.department.findMany({
       where: { organizationId: orgId, isActive: true },
       select: {
@@ -63,6 +65,7 @@ export async function getDepartmentAdminInsights(
     }),
     prisma.grade.findMany({
       where: {
+        updatedAt: { gte: from, lte: to },
         assessment: {
           organizationId: orgId,
           totalMarks: { gt: 0 },
@@ -79,9 +82,11 @@ export async function getDepartmentAdminInsights(
         },
       },
     }),
-    prisma.attendanceRecord.findMany({
+    prisma.attendanceRecord.groupBy({
+      by: ['sessionId', 'status'],
       where: {
         session: {
+          date: { gte: from, lte: to },
           section: {
             course: {
               organizationId: orgId,
@@ -90,18 +95,7 @@ export async function getDepartmentAdminInsights(
           },
         },
       },
-      select: {
-        status: true,
-        session: {
-          select: {
-            section: {
-              select: {
-                course: { select: { departmentId: true } },
-              },
-            },
-          },
-        },
-      },
+      _count: true,
     }),
   ]);
 
@@ -164,14 +158,26 @@ export async function getDepartmentAdminInsights(
     row.gradedAssessments += 1;
   });
 
-  attendanceRecords.forEach((record) => {
-    const departmentId = record.session.section.course.departmentId;
+  const sessionIds = Array.from(new Set(attendanceRecordAggregates.map((record) => record.sessionId)));
+  const sessions = sessionIds.length > 0
+    ? await prisma.attendanceSession.findMany({
+      where: { id: { in: sessionIds } },
+      select: {
+        id: true,
+        section: { select: { course: { select: { departmentId: true } } } },
+      },
+    })
+    : [];
+  const departmentBySession = new Map(sessions.map((session) => [session.id, session.section.course.departmentId]));
+
+  attendanceRecordAggregates.forEach((record) => {
+    const departmentId = departmentBySession.get(record.sessionId);
     if (!departmentId) return;
     const row = departmentMeta.get(departmentId);
     if (!row) return;
-    row.attendanceMarks += 1;
+    row.attendanceMarks += record._count;
     if (record.status === 'PRESENT' || record.status === 'LATE') {
-      row.attendancePresent += 1;
+      row.attendancePresent += record._count;
     }
   });
 

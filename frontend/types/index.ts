@@ -1103,7 +1103,7 @@ export interface DashboardInsightCharts {
     sectionCapacity?: { name: string; courseName?: string; color?: string; enrolled: number; capacity?: number }[];
     mailStatus?: { status: string; count: number }[];
     assessmentCompletion?: { section: string; courseName?: string; color?: string; completed: number; total: number }[];
-    teacherWorkload?: { name: string; sections: number; students: number }[];
+    teacherWorkload?: { name: string; sections: number; students: number; weeklySlots?: number }[];
     studentPerformance?: { subject: string; sectionName?: string; courseName?: string; color?: string; grade: number; attendance: number }[];
     departmentActivity?: { department: string; courses: number; sections: number; students: number; teachers: number; color?: string | null }[];
     departmentPerformance?: { department: string; averageGradePercent: number; attendanceRatePercent: number; gradedAssessments: number; attendanceMarks: number; color?: string | null }[];
