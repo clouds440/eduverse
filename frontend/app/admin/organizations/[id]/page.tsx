@@ -11,7 +11,6 @@ import {
     Building2,
     Calendar,
     Coins,
-    Filter,
     GraduationCap,
     Library,
     Mail,
@@ -22,18 +21,15 @@ import {
     ShieldCheck,
     Users,
 } from 'lucide-react';
-import { ActivityLogType, AuditLogItem, OrganizationOverview, OrgStatus, PaginatedResponse } from '@/types';
+import { AuditLogItem, OrganizationOverview, OrgStatus, PaginatedResponse } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { DataTable, type Column } from '@/components/ui/DataTable';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Loading } from '@/components/ui/Loading';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { OrgLogoOrIcon } from '@/components/ui/OrgLogoOrIcon';
-import { PageHeader, PageShell, ResourcePanel, type ActiveFilter } from '@/components/ui/PageShell';
-import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerToolbar';
+import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
@@ -87,17 +83,14 @@ export default function AdminOrganizationDetailsPage() {
     const params = useParams<{ id: string }>();
     const orgId = params.id;
     const { token, loading } = useAuth();
-    const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
+    const { getNumberParam, updateQueryParams } = useUrlQueryState();
     const [pageSize, setPageSize] = usePersistentPageSize('edu-admin-org-details-activity-limit', 8);
 
     const page = getNumberParam('page', 1);
-    const search = getStringParam('search');
-    const action = getStringParam('action', 'ALL');
-    const type = getStringParam('type', 'ALL');
 
     const overviewKey = token && orgId ? ['admin-org-overview', orgId] as const : null;
     const activityKey = token && orgId
-        ? ['admin-org-activity-logs', orgId, { page, limit: pageSize, search, action: action === 'ALL' ? undefined : action, type: type === 'ALL' ? undefined : type }] as const
+        ? ['admin-org-activity-logs', orgId, { page, limit: pageSize }] as const
         : null;
 
     const { data: overview, error: overviewError, isLoading: overviewLoading, mutate: retryOverview } = useSWR<OrganizationOverview>(overviewKey);
@@ -105,26 +98,6 @@ export default function AdminOrganizationDetailsPage() {
 
     const org = overview?.organization;
     const reversedStatusHistory = useMemo(() => [...(org?.statusHistory ?? [])].reverse(), [org?.statusHistory]);
-    const actionOptions = useMemo(() => {
-        const counts = activity?.counts || {};
-        return [
-            { value: 'ALL', label: 'All Activity', icon: Filter },
-            ...Object.keys(counts).map((key) => ({ value: key, label: `${humanizeAction(key)} (${counts[key]})`, icon: ShieldAlert })),
-        ];
-    }, [activity?.counts]);
-    const typeOptions = useMemo(() => {
-        const counts = activity?.typeCounts || {};
-        return [
-            { value: 'ALL', label: 'All Types', icon: Filter },
-            ...Object.values(ActivityLogType).map((key) => ({ value: key, label: `${humanizeAction(key)}${counts[key] ? ` (${counts[key]})` : ''}`, icon: ShieldAlert })),
-        ];
-    }, [activity?.typeCounts]);
-
-    const activeFilters: ActiveFilter[] = [
-        ...(search ? [{ key: 'search', label: 'Search', value: search, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
-        ...(action !== 'ALL' ? [{ key: 'action', label: 'Action', value: humanizeAction(action), onRemove: () => updateQueryParams({ action: undefined, page: 1 }) }] : []),
-        ...(type !== 'ALL' ? [{ key: 'type', label: 'Type', value: humanizeAction(type), onRemove: () => updateQueryParams({ type: undefined, page: 1 }) }] : []),
-    ];
 
     const columns: Column<AuditLogItem>[] = useMemo(() => [
         {
@@ -277,18 +250,11 @@ export default function AdminOrganizationDetailsPage() {
             </div>
 
             <ResourcePanel>
-                <div className="border-b border-border/60 bg-card/85 p-3">
-                    <PageControls
-                        drawerLabel="Activity filters"
-                        leading={<SearchBar value={search} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search activity..." mobileMode="expandable" />}
-                        renderFilters={() => (
-                            <FilterDrawerGrid>
-                                <CustomSelect value={type} onChange={(value) => updateQueryParams({ type: value === 'ALL' ? undefined : value, page: 1 })} options={typeOptions} placeholder="Filter type" />
-                                <CustomSelect value={action} onChange={(value) => updateQueryParams({ action: value, page: 1 })} options={actionOptions} placeholder="Filter action" />
-                            </FilterDrawerGrid>
-                        )}
-                        activeFilters={activeFilters}
-                    />
+                <div className="border-b border-border/60 bg-card/85 p-4">
+                    <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Recent activity</p>
+                        <h3 className="mt-1 text-lg font-black text-foreground">Latest organization events</h3>
+                    </div>
                 </div>
                 <div className="min-h-0 flex-1 overflow-x-auto">
                     <DataTable
