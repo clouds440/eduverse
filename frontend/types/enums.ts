@@ -231,9 +231,19 @@ export enum ThemeMode {
 }
 
 export enum TwoFactorMethod {
-    DEVICE = 'DEVICE',
-    EMAIL = 'EMAIL',
-    BOTH = 'BOTH',
+  DEVICE = 'DEVICE',
+  EMAIL = 'EMAIL',
+  BOTH = 'BOTH',
+}
+
+export enum ActivityLogType {
+  SECURITY = 'SECURITY',
+  ADMIN = 'ADMIN',
+  FINANCE = 'FINANCE',
+  SYSTEM = 'SYSTEM',
+  AI = 'AI',
+  COMMUNICATION = 'COMMUNICATION',
+  ACADEMIC = 'ACADEMIC',
 }
 
 export enum TwoFactorChallengeStatus {

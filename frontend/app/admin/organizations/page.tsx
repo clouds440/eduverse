@@ -5,17 +5,15 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
-import { ShieldOff, ShieldAlert, ShieldCheck, Building2, MapPin, Mail, Calendar, LucideIcon, Tag, Phone, Info, Hash, Clock, GraduationCap, BookOpen, School, Library, MonitorPlay, Pencil, Send, Users } from 'lucide-react';
+import { ShieldOff, ShieldAlert, ShieldCheck, Building2, MapPin, Mail, Calendar, LucideIcon, Tag, Info, GraduationCap, BookOpen, School, Library, MonitorPlay, Pencil, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import statsStore from '@/lib/statsStore';
-import { MailTarget, Organization, OrganizationOverview, OrgStatus, Role } from '@/types';
+import { MailTarget, Organization, OrgStatus, Role } from '@/types';
 import { getPublicUrl } from '@/lib/utils';
 import { TableActions, AdminAction } from '@/components/ui/TableActions';
 import { ModalForm } from '@/components/ui/ModalForm';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import { DataField, useUI } from '@/context/UIContext';
-import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { MarkdownEditor } from '@/components/ui/MarkdownEditor';
 import useSWR, { mutate as mutateCache } from 'swr';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
@@ -41,6 +39,8 @@ interface AdminOrgParams {
     status: OrgStatus | 'ALL';
     type: string;
     contactEmailStatus: 'verified' | 'unverified';
+    createdFrom: string;
+    createdTo: string;
 }
 
 export default function OrganizationsPage() {
@@ -49,7 +49,6 @@ export default function OrganizationsPage() {
     const { state, dispatch } = useGlobal();
     const { getNumberParam, getStringParam, updateQueryParams } = useUrlQueryState();
 
-    const { openViewModal } = useUI();
     const actionLoading = Object.keys(state.ui.processing).length > 0;
     const stats = state.stats.admin;
 
@@ -74,6 +73,8 @@ export default function OrganizationsPage() {
     const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
     const orgTypeFilter = getStringParam('type', 'ALL');
     const contactEmailStatus = (getStringParam('contactEmailStatus', 'verified') === 'unverified' ? 'unverified' : 'verified') as 'verified' | 'unverified';
+    const createdFrom = getStringParam('createdFrom');
+    const createdTo = getStringParam('createdTo');
     const showingUnverifiedOrgs = contactEmailStatus === 'unverified';
 
     // URL State
@@ -86,6 +87,8 @@ export default function OrganizationsPage() {
         status: activeStatusTab,
         type: orgTypeFilter,
         contactEmailStatus,
+        createdFrom,
+        createdTo,
     };
 
     // SWR for organizations data - replaces usePaginatedData
@@ -350,12 +353,6 @@ export default function OrganizationsPage() {
                         onClick: () => setRecoveryOrganization(row),
                         title: 'Set Recovery Contact Email',
                     });
-                    actions.push({
-                        variant: 'activity',
-                        onClick: () => router.push(`/admin/organizations/${row.id}/activity-log`),
-                        title: 'Org Activity Log',
-                    });
-
                     return actions;
                 };
 
@@ -426,119 +423,13 @@ export default function OrganizationsPage() {
             value: 'Unverified orgs',
             onRemove: () => updateQueryParams({ contactEmailStatus: undefined, page: 1 }),
         }] : []),
+        ...(createdFrom || createdTo ? [{
+            key: 'createdAt',
+            label: 'Applied',
+            value: `${createdFrom || 'Any'} → ${createdTo || 'Any'}`,
+            onRemove: () => updateQueryParams({ createdFrom: undefined, createdTo: undefined, page: 1 }),
+        }] : []),
     ];
-
-    const formatMoney = (amount: string | undefined, currency: string) => {
-        const value = Number(amount || 0);
-        return Number.isFinite(value)
-            ? value.toLocaleString(undefined, { style: 'currency', currency: currency || 'USD' })
-            : amount || '0';
-    };
-
-    const handleViewOrg = async (org: Organization) => {
-        let overview: OrganizationOverview | null = null;
-        if (token) {
-            try {
-                overview = await api.admin.getOrganizationOverview(org.id, token);
-            } catch {
-                overview = null;
-            }
-        }
-
-        const viewFields: DataField[] = [
-            { label: 'Organization ID', value: org.id, icon: Hash, fullWidth: true },
-            { label: 'Organization Name', value: org.name, icon: org.logoUrl ? org.logoUrl : Building2 },
-            { label: 'Location', value: org.location, icon: MapPin },
-            { label: 'Type', value: org.type, icon: Tag },
-            { label: 'Contact Email', value: org.email, icon: Mail },
-            {
-                label: 'Contact Verification',
-                value: org.contactEmailVerifiedAt
-                    ? `Verified ${new Date(org.contactEmailVerifiedAt).toLocaleString()}`
-                    : 'Not verified',
-                icon: org.contactEmailVerifiedAt ? ShieldCheck : ShieldAlert
-            },
-            { label: 'Phone Number', value: org.phone || 'N/A', icon: Phone },
-            { label: 'Created At', value: new Date(org.createdAt).toLocaleString(), icon: Calendar },
-            ...(overview ? [
-                { label: 'Total Users', value: overview.counts.users, icon: Users },
-                { label: 'Students', value: overview.counts.students, icon: GraduationCap },
-                { label: 'Teachers', value: overview.counts.teachers, icon: BookOpen },
-                { label: 'Courses', value: overview.counts.courses, icon: Library },
-                { label: 'Sections', value: overview.counts.sections, icon: School },
-                { label: 'Active Sessions', value: overview.counts.activeSessions, icon: ShieldCheck },
-                { label: 'Recent Critical Events', value: overview.counts.recentCriticalEvents, icon: ShieldAlert },
-                { label: 'Net Cashflow', value: formatMoney(overview.finance.netCashflow, org.currency), icon: Building2 },
-            ] : []),
-        ];
-
-        openViewModal({
-            title: "Organization Details",
-            subtitle: org.name || 'Entity Information',
-            fields: viewFields,
-            body: (
-                <div className="space-y-6">
-                    <div className="flex items-center gap-3 text-[11px] font-black opacity-80 tracking-[0.25em] uppercase">
-                        <Clock className="w-4 h-4 text-primary" />
-                        Verification Status History
-                    </div>
-
-                    {org.statusHistory && org.statusHistory.length > 0 ? (
-                        <div className="space-y-4 max-h-160 overflow-y-auto pr-6 custom-scrollbar">
-                            {[...org.statusHistory].reverse().map((entry, idx) => (
-                                <div key={idx} className="relative pl-8 border-l-2 border-primary/10 last:border-l-0 pb-10 last:pb-2">
-                                    <div className="absolute left-0 top-0.5 w-5 h-5 rounded-full bg-card border-4 border-primary/20 flex items-center justify-center shadow-sm">
-                                        <div className={`w-2 h-2 rounded-full ${entry.status === OrgStatus.APPROVED ? 'bg-success' :
-                                            entry.status === OrgStatus.REJECTED ? 'bg-danger' :
-                                                'bg-warning'
-                                            }`} />
-                                    </div>
-
-                                    <div className="bg-card-text/[0.03] rounded-2xl p-6 border border-border shadow-sm relative transition-all hover:bg-card-text/[0.05]">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                                            <div className="flex items-center gap-4">
-                                                <span className={`text-[10px] font-black tracking-[0.2em] px-4 py-1.5 rounded-lg shadow-sm ${entry.status === OrgStatus.APPROVED ? 'bg-success text-white' :
-                                                    entry.status === OrgStatus.REJECTED ? 'bg-danger text-white' :
-                                                        'bg-warning text-white'
-                                                    }`}>
-                                                    {entry.status}
-                                                </span>
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] font-black opacity-30 tracking-widest leading-none mb-1 uppercase">Decision Date</span>
-                                                    <span className="text-xs font-bold opacity-80">
-                                                        {new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-col md:items-end">
-                                                <span className="text-[10px] font-black opacity-30 tracking-widest leading-none mb-1 text-left md:text-right uppercase">Reviewed By</span>
-                                                <span className="text-xs font-bold opacity-90 tracking-tight">
-                                                    {entry.adminName} <span className="opacity-40 ml-1 font-black">({entry.adminRole})</span>
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-background/50 rounded-xl p-6 border border-border/50">
-                                            <div className="text-[10px] font-black opacity-20 tracking-[0.2em] uppercase mb-3">Official Communication</div>
-                                            <MarkdownRenderer
-                                                content={entry.message}
-                                                className="text-sm! leading-relaxed"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="p-12 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center text-center bg-card-text/[0.02]">
-                            <Clock className="w-10 h-10 opacity-10 mb-4" />
-                            <p className="text-sm font-bold opacity-30 tracking-tight">No verification history available for this entity.</p>
-                        </div>
-                    )}
-                </div>
-            )
-        });
-    };
 
     return (
         <PageShell>
@@ -590,6 +481,27 @@ export default function OrganizationsPage() {
                                     className="w-full"
                                     placeholder="Org Type"
                                 />
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    <label className="space-y-1.5">
+                                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Applied from</span>
+                                        <input
+                                            type="date"
+                                            value={createdFrom}
+                                            onChange={(event) => updateQueryParams({ createdFrom: event.target.value || undefined, page: 1 })}
+                                            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                        />
+                                    </label>
+                                    <label className="space-y-1.5">
+                                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Applied to</span>
+                                        <input
+                                            type="date"
+                                            value={createdTo}
+                                            min={createdFrom || undefined}
+                                            onChange={(event) => updateQueryParams({ createdTo: event.target.value || undefined, page: 1 })}
+                                            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                        />
+                                    </label>
+                                </div>
                             </FilterDrawerGrid>
                         )}
                         actions={(
@@ -630,7 +542,7 @@ export default function OrganizationsPage() {
                         data={fetchedData?.data || []}
                         keyExtractor={(row) => row.id}
                         isLoading={isFetching}
-                        onRowClick={handleViewOrg}
+                        onRowClick={(org) => router.push(`/admin/organizations/${org.id}`)}
                         currentPage={page}
                         totalPages={fetchedData?.totalPages || 1}
                         totalResults={fetchedData?.totalRecords || 0}
@@ -641,7 +553,7 @@ export default function OrganizationsPage() {
                         sortConfig={{ key: sortBy, direction: sortOrder }}
                         onSort={(key, direction) => updateQueryParams({ sortBy: key, sortOrder: direction })}
                         emptyTitle="No organizations found"
-                        emptyDescription={searchQuery || activeStatusTab !== 'ALL' || orgTypeFilter !== 'ALL'
+                        emptyDescription={searchQuery || activeStatusTab !== 'ALL' || orgTypeFilter !== 'ALL' || createdFrom || createdTo
                             ? 'Adjust the filters to broaden the organization review queue.'
                             : 'Organizations will appear here when they register on the platform.'}
                         mobileDetailLimit={3}

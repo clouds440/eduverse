@@ -3,6 +3,8 @@ export { Role, TeacherStatus, StudentStatus, UserStatus, MailStatus, MailCategor
 export type { BadgeVariant, ButtonVariant, FeedbackVariant, StatToneVariant, StatusBannerVariant, ToastVariant, UiVariant as UiVariantType } from './enums';
 import type { E2EEDeviceTrustStatus, E2EEHistoryProvisioningStatus, TwoFactorChallengeStatus, TwoFactorMethod } from './enums';
 export { E2EEDeviceTrustStatus, E2EEHistoryProvisioningStatus, TwoFactorChallengeStatus, TwoFactorMethod, TrustedDevicePromptFlow } from './enums';
+import type { ActivityLogType } from './enums';
+export { ActivityLogType } from './enums';
 import type { CommunicationChannel } from './enums';
 export { CommunicationChannel } from './enums';
 import type { AISubscriptionPlan, AISubscriptionOwnerType, AISubscriptionStatus, AILimitMode, AIUsageSourceType } from './enums';
@@ -695,6 +697,7 @@ export interface PasswordResetLinkResponse {
 
 export interface AuditLogItem {
     id: string;
+    type: ActivityLogType;
     action: string;
     message: string;
     actor: { id: string; name: string | null; email: string; role: string } | null;
@@ -718,7 +721,7 @@ export interface AuditLogItem {
 }
 
 export interface OrganizationOverview {
-    organization: Pick<Organization, 'id' | 'name' | 'status' | 'type' | 'location' | 'contactEmailVerifiedAt' | 'createdAt'>;
+    organization: Pick<Organization, 'id' | 'name' | 'status' | 'type' | 'location' | 'email' | 'contactEmail' | 'contactEmailVerifiedAt' | 'phone' | 'logoUrl' | 'avatarUpdatedAt' | 'currency' | 'statusHistory' | 'createdAt'>;
     counts: {
         users: number;
         students: number;

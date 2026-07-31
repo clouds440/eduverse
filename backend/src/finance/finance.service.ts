@@ -25,6 +25,7 @@ import { Role } from '../common/enums';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { formatPaginatedResponse } from '../common/utils';
 import { FilesService } from '../files/files.service';
+import { ActivityLogType } from '../activity-logs/activity-log.types';
 
 type FinanceFilters = {
   studentId?: string;
@@ -899,7 +900,7 @@ export class FinanceService {
           })
         ).map((matchedUser) => matchedUser.id)
       : [];
-    const where: Prisma.AuditLogWhereInput = {
+    const where: Prisma.OrganizationActivityLogWhereInput = {
       organizationId: finalOrgId,
       module: 'finance',
       ...(filters.action && filters.action !== 'ALL' ? { action: { contains: filters.action, mode: 'insensitive' } } : {}),
@@ -918,9 +919,9 @@ export class FinanceService {
       } : {}),
     };
     const [logs, totalRecords, actions] = await Promise.all([
-      this.prisma.auditLog.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
-      this.prisma.auditLog.count({ where }),
-      this.prisma.auditLog.groupBy({ where: { organizationId: finalOrgId, module: 'finance' }, by: ['action'], _count: { _all: true }, orderBy: { action: 'asc' } }),
+      this.prisma.organizationActivityLog.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+      this.prisma.organizationActivityLog.count({ where }),
+      this.prisma.organizationActivityLog.groupBy({ where: { organizationId: finalOrgId, module: 'finance' }, by: ['action'], _count: { _all: true }, orderBy: { action: 'asc' } }),
     ]);
     const structureIds = new Set<string>();
     const entryIds = new Set<string>();
@@ -1498,8 +1499,9 @@ export class FinanceService {
     resourceId: string;
     details?: Record<string, unknown>;
   }) {
-    await tx.auditLog.create({
+    await tx.organizationActivityLog.create({
       data: {
+        type: ActivityLogType.FINANCE,
         action: inputAction,
         actorUserId: input.audit?.user.id,
         targetUserId: input.targetUserId || undefined,

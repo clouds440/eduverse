@@ -41,11 +41,13 @@ import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { AIModule } from './ai/ai.module';
 import { E2eeModule } from './e2ee/e2ee.module';
 import { EmailTemplatesModule } from './common/email-templates/email-templates.module';
+import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EmailTemplatesModule,
+    ActivityLogsModule,
     ScheduleModule.forRoot(),
     AuthModule,
     AdminModule,

@@ -55,6 +55,7 @@ import { RegisterTrustedDeviceDto } from '../e2ee/dto/register-trusted-device.dt
 import { ApproveTrustedDeviceDto } from '../e2ee/dto/approve-trusted-device.dto';
 import { currentUtcMonthPeriod, freeOrgMonthlyCredits } from '../ai/ai-free-quota.util';
 import { LoginPreparationService } from './login-preparation.service';
+import { ActivityLogType } from '../activity-logs/activity-log.types';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -206,8 +207,9 @@ export class AuthService {
       return { org, user };
     });
 
-    await this.prisma.auditLog.create({
+    await this.prisma.organizationActivityLog.create({
       data: {
+        type: ActivityLogType.ADMIN,
         action: 'organization_registered',
         actorUserId: result.user.id,
         targetUserId: result.user.id,
@@ -921,25 +923,30 @@ export class AuthService {
     ip: string,
     details: Record<string, unknown> = {},
   ) {
-    await this.prisma.auditLog.create({
-      data: {
-        action,
-        actorUserId: user.id,
-        targetUserId: user.id,
-        organizationId: user.organizationId,
-        ip,
-        userAgent:
-          typeof details.userAgent === 'string' ? details.userAgent : undefined,
-        details: {
-          ...details,
-          deviceId: device?.deviceId,
-          deviceName: device?.deviceName,
-          deviceType: device?.deviceType,
-          browser: device?.browser,
-          os: device?.os,
-        },
+    const data = {
+      type: ActivityLogType.SECURITY,
+      action,
+      actorUserId: user.id,
+      targetUserId: user.id,
+      ip,
+      userAgent:
+        typeof details.userAgent === 'string' ? details.userAgent : undefined,
+      details: {
+        ...details,
+        deviceId: device?.deviceId,
+        deviceName: device?.deviceName,
+        deviceType: device?.deviceType,
+        browser: device?.browser,
+        os: device?.os,
       },
-    });
+    };
+    if (user.organizationId) {
+      await this.prisma.organizationActivityLog.create({
+        data: { ...data, organizationId: user.organizationId },
+      });
+      return;
+    }
+    await this.prisma.platformActivityLog.create({ data });
   }
 
   private getAccountSettingsTarget(

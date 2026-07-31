@@ -28,6 +28,7 @@ export function renderTwoFactorCodeEmail(input: TwoFactorCodeEmailInput) {
       preview: 'Use this code to finish signing in to EduVerse.',
       organizationName: input.accountName,
       organizationLogoUrl: input.organizationLogoUrl,
+      includeIgnoreNotice: true,
       bodyHtml: `
         <p style="color:#4b5563;font-size:15px;line-height:1.65;">${escapeHtml(guidance)}</p>
         <div style="text-align:center;margin:22px 0;">

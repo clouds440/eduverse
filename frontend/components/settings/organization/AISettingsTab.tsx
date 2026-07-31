@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Loading } from '@/components/ui/Loading';
+import { Toggle } from '@/components/ui/Toggle';
 import { SettingsSection } from '../SettingsSection';
 
 const AI_ROLE_LABELS: Partial<Record<Role, string>> = {
@@ -204,16 +205,15 @@ export function AISettingsTab({
                                                     {AI_ACCESS_ROLE_ENTRIES.map(([role, field]) => {
                                                         const checked = Boolean(aiSettings?.accessPolicy[field]);
                                                         return (
-                                                            <label key={role} className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
+                                                            <div key={role} className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
                                                                 <span className="text-sm font-semibold text-foreground">{AI_ROLE_LABELS[role as Role] ?? role}</span>
-                                                                <input
-                                                                    type="checkbox"
-                                                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary/30"
+                                                                <Toggle
                                                                     checked={checked}
                                                                     disabled={!aiSettings}
-                                                                    onChange={(event) => onAccessToggle(field, event.target.checked)}
+                                                                    onCheckedChange={(enabled) => onAccessToggle(field, enabled)}
+                                                                    size="lg"
                                                                 />
-                                                            </label>
+                                                            </div>
                                                         );
                                                     })}
                                                 </div>

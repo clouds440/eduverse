@@ -49,6 +49,7 @@ export function renderSecurityEmailLayout(input: {
   bodyHtml: string;
   organizationName?: string;
   organizationLogoUrl?: string | null;
+  includeIgnoreNotice?: boolean;
 }) {
   const platformLogoUrl = `${input.appBaseUrl}/assets/eduverse-icon-192.png`;
   const orgLogoHtml = input.organizationLogoUrl
@@ -86,7 +87,11 @@ export function renderSecurityEmailLayout(input: {
                 ${input.bodyHtml}
               </div>
             </div>
-            <p style="margin:18px 0 0;text-align:center;color:#6b7280;font-size:12px;line-height:1.6;">EduVerse security email. You can safely ignore this message if you did not request it.</p>
+            ${
+              input.includeIgnoreNotice
+                ? '<p style="margin:18px 0 0;text-align:center;color:#6b7280;font-size:12px;line-height:1.6;">EduVerse security email. You can safely ignore this message if you did not request it.</p>'
+                : ''
+            }
           </div>
         </body>
       </html>

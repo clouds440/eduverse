@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import { Building2, Clipboard, Clock, Filter, Monitor, ScrollText, ShieldAlert, UserRound } from 'lucide-react';
-import { AuditLogItem, PaginatedResponse, Role } from '@/types';
+import { ActivityLogType, AuditLogItem, PaginatedResponse, Role } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { DataTable, Column } from '@/components/ui/DataTable';
@@ -18,7 +18,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
-type AuditLogsResponse = PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> };
+type AuditLogsResponse = PaginatedResponse<AuditLogItem> & { counts?: Record<string, number>; typeCounts?: Record<string, number> };
 
 function humanizeAction(action: string) {
     return action
@@ -35,7 +35,7 @@ function formatLogForCopy(log: AuditLogItem) {
         `Message: ${log.message}`,
         `Organization: ${log.organization?.name || 'N/A'}`,
         `Actor: ${log.actor?.name || log.actor?.email || 'N/A'}`,
-        `Target: ${log.target?.name || log.target?.email || 'N/A'}`,
+        `Target: ${log.target?.name || log.target?.email || log.resourceTitle || log.resourceId || 'N/A'}`,
         `Device: ${log.device?.name || log.userAgent || 'N/A'}`,
         `Location: ${log.location || 'N/A'}`,
         `IP: ${log.ip || 'N/A'}`,
@@ -53,8 +53,9 @@ export default function AdminAuditLogsPage() {
     const page = getNumberParam('page', 1);
     const search = getStringParam('search');
     const action = getStringParam('action', 'ALL');
+    const type = getStringParam('type', 'ALL');
 
-    const logsKey = token ? ['admin-audit-logs', { page, limit: pageSize, search, action: action === 'ALL' ? undefined : action }] as const : null;
+    const logsKey = token ? ['admin-audit-logs', { page, limit: pageSize, search, action: action === 'ALL' ? undefined : action, type: type === 'ALL' ? undefined : type }] as const : null;
     const { data, error: fetchError, isLoading, mutate: retryLogs } = useSWR<AuditLogsResponse>(logsKey);
 
     const actionOptions = useMemo(() => {
@@ -69,6 +70,18 @@ export default function AdminAuditLogsPage() {
         ];
     }, [data?.counts]);
 
+    const typeOptions = useMemo(() => {
+        const counts = data?.typeCounts || {};
+        return [
+            { value: 'ALL', label: 'All Types', icon: Filter },
+            ...Object.values(ActivityLogType).map((key) => ({
+                value: key,
+                label: `${humanizeAction(key)}${counts[key] ? ` (${counts[key]})` : ''}`,
+                icon: ShieldAlert,
+            })),
+        ];
+    }, [data?.typeCounts]);
+
     const activeFilters: ActiveFilter[] = [
         ...(search ? [{
             key: 'search',
@@ -81,6 +94,12 @@ export default function AdminAuditLogsPage() {
             label: 'Action',
             value: humanizeAction(action),
             onRemove: () => updateQueryParams({ action: undefined, page: 1 }),
+        }] : []),
+        ...(type !== 'ALL' ? [{
+            key: 'type',
+            label: 'Type',
+            value: humanizeAction(type),
+            onRemove: () => updateQueryParams({ type: undefined, page: 1 }),
         }] : []),
     ];
 
@@ -143,7 +162,9 @@ export default function AdminAuditLogsPage() {
                     </div>
                     <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                         <ShieldAlert className="w-3.5 h-3.5 text-warning" />
-                        <span className="min-w-0 truncate">Target: {row.target?.name || row.target?.email || 'N/A'}</span>
+                        <span className="min-w-0 truncate">
+                            Target: {row.target?.name || row.target?.email || row.resourceTitle || row.resourceId || 'N/A'}
+                        </span>
                     </div>
                 </div>
             ),
@@ -250,6 +271,12 @@ export default function AdminAuditLogsPage() {
                         )}
                         renderFilters={() => (
                             <FilterDrawerGrid>
+                                <CustomSelect
+                                    value={type}
+                                    onChange={(value) => updateQueryParams({ type: value === 'ALL' ? undefined : value, page: 1 })}
+                                    options={typeOptions}
+                                    placeholder="Filter type"
+                                />
                                 <CustomSelect
                                     value={action}
                                     onChange={(value) => updateQueryParams({ action: value, page: 1 })}

@@ -27,6 +27,7 @@ import { AuthService } from '../auth/auth.service';
 import { EmailService } from '../security/email.service';
 import { ConfigService } from '@nestjs/config';
 import { EmailTemplateService } from '../common/email-templates/email-template.service';
+import { ActivityLogType } from '../activity-logs/activity-log.types';
 
 @Injectable()
 export class OrgService {
@@ -256,12 +257,18 @@ export class OrgService {
         },
         data: { status: PendingLoginStatus.CANCELLED },
       });
-      await tx.auditLog.create({
+      await tx.platformActivityLog.create({
         data: {
+          type: ActivityLogType.ADMIN,
           action: 'organization_contact_email_recovered',
           actorUserId: actor.id,
-          organizationId: orgId,
+          module: 'admin',
+          resourceType: 'organization',
+          resourceId: orgId,
+          resourceTitle: organization.name,
           details: {
+            organizationId: orgId,
+            organizationName: organization.name,
             previousContactEmail: organization.contactEmail,
             newContactEmail: normalized,
           },

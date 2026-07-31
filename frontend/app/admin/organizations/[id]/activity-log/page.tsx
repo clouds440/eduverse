@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import useSWR from 'swr';
 import { Activity, Building2, Clock, Filter, Monitor, ShieldAlert, UserRound } from 'lucide-react';
-import { AuditLogItem, PaginatedResponse } from '@/types';
+import { ActivityLogType, AuditLogItem, PaginatedResponse } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { DataTable, Column } from '@/components/ui/DataTable';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -18,7 +18,7 @@ import { FilterDrawerGrid, PageControls } from '@/components/ui/FilterDrawerTool
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 
-type ActivityResponse = PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> };
+type ActivityResponse = PaginatedResponse<AuditLogItem> & { counts?: Record<string, number>; typeCounts?: Record<string, number> };
 
 function humanizeAction(action: string) {
     return action.split('_').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -34,8 +34,9 @@ export default function OrgActivityLogPage() {
     const page = getNumberParam('page', 1);
     const search = getStringParam('search');
     const action = getStringParam('action', 'ALL');
+    const type = getStringParam('type', 'ALL');
 
-    const key = token && orgId ? ['admin-org-activity-logs', orgId, { page, limit: pageSize, search, action: action === 'ALL' ? undefined : action }] as const : null;
+    const key = token && orgId ? ['admin-org-activity-logs', orgId, { page, limit: pageSize, search, action: action === 'ALL' ? undefined : action, type: type === 'ALL' ? undefined : type }] as const : null;
     const { data, error: fetchError, isLoading, mutate: retryLogs } = useSWR<ActivityResponse>(key);
 
     const actionOptions = useMemo(() => {
@@ -46,9 +47,18 @@ export default function OrgActivityLogPage() {
         ];
     }, [data?.counts]);
 
+    const typeOptions = useMemo(() => {
+        const counts = data?.typeCounts || {};
+        return [
+            { value: 'ALL', label: 'All Types', icon: Filter },
+            ...Object.values(ActivityLogType).map((key) => ({ value: key, label: `${humanizeAction(key)}${counts[key] ? ` (${counts[key]})` : ''}`, icon: ShieldAlert })),
+        ];
+    }, [data?.typeCounts]);
+
     const activeFilters: ActiveFilter[] = [
         ...(search ? [{ key: 'search', label: 'Search', value: search, onRemove: () => updateQueryParams({ search: undefined, page: 1 }) }] : []),
         ...(action !== 'ALL' ? [{ key: 'action', label: 'Action', value: humanizeAction(action), onRemove: () => updateQueryParams({ action: undefined, page: 1 }) }] : []),
+        ...(type !== 'ALL' ? [{ key: 'type', label: 'Type', value: humanizeAction(type), onRemove: () => updateQueryParams({ type: undefined, page: 1 }) }] : []),
     ];
 
     const columns: Column<AuditLogItem>[] = useMemo(() => [
@@ -144,6 +154,7 @@ export default function OrgActivityLogPage() {
                         leading={<SearchBar value={search} onChange={(value) => updateQueryParams({ search: value, page: 1 })} placeholder="Search action, actor, source..." mobileMode="expandable" />}
                         renderFilters={() => (
                             <FilterDrawerGrid>
+                                <CustomSelect value={type} onChange={(value) => updateQueryParams({ type: value === 'ALL' ? undefined : value, page: 1 })} options={typeOptions} placeholder="Filter type" />
                                 <CustomSelect value={action} onChange={(value) => updateQueryParams({ action: value, page: 1 })} options={actionOptions} placeholder="Filter action" />
                             </FilterDrawerGrid>
                         )}

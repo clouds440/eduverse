@@ -920,6 +920,8 @@ export class MailService {
     const direction = MAIL_DIRECTIONS.includes(options.direction as MailDirection)
       ? (options.direction as MailDirection)
       : undefined;
+    const excludePublicContactFromGeneralAdminInbox =
+      ADMIN_ROLES.has(user.role as Role) && !options.category;
     const directionFilter: Prisma.MailWhereInput | null = direction === 'sent'
       ? { creatorId: user.id }
       : direction === 'assigned'
@@ -940,6 +942,9 @@ export class MailService {
         // Optional base filters
         ...(options.status ? [{ status: options.status as MailStatus }] : []),
         ...(options.category ? [{ category: options.category }] : []),
+        ...(excludePublicContactFromGeneralAdminInbox
+          ? [{ category: { not: PUBLIC_CONTACT_CATEGORY } }]
+          : []),
         ...(directionFilter ? [directionFilter] : []),
 
         // Participation / Visibility Filter

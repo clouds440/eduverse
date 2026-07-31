@@ -61,7 +61,7 @@ model Organization {
   paymentClaims       PaymentClaim[]
   financeAttachments  FinanceAttachment[]
   transactions        Transaction[]
-  auditLogs           AuditLog[]
+  activityLogs        OrganizationActivityLog[]
   guardianStudentLinks GuardianStudent[]
   gpaPolicies         GpaPolicy[]
   aiSubscriptions     AISubscription[]
@@ -240,31 +240,60 @@ model PasswordResetToken {
   @@index([usedAt])
 }
 
-model AuditLog {
-  id             String   @id @default(uuid())
-  action         String
-  actorUserId    String?
-  targetUserId   String?
-  organizationId String?
-  module         String?
-  resourceType   String?
-  resourceId     String?
-  financeStructureId String?
-  financeEntryId String?
-  paymentClaimId String?
-  transactionId  String?
-  ip             String?
-  userAgent      String?
-  sessionId      String?
-  details        Json?
-  createdAt      DateTime @default(now())
+model PlatformActivityLog {
+  id            String          @id @default(uuid())
+  type          ActivityLogType @default(SECURITY)
+  action        String
+  actorUserId   String?
+  targetUserId  String?
+  module        String?
+  resourceType  String?
+  resourceId    String?
+  resourceTitle String?
+  ip            String?
+  userAgent     String?
+  sessionId     String?
+  details       Json?
+  createdAt     DateTime        @default(now())
 
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
+  @@index([type])
   @@index([action])
   @@index([actorUserId])
   @@index([targetUserId])
+  @@index([module])
+  @@index([resourceType])
+  @@index([resourceId])
+  @@index([createdAt])
+}
+
+model OrganizationActivityLog {
+  id                 String          @id @default(uuid())
+  organizationId     String
+  type               ActivityLogType @default(SECURITY)
+  action             String
+  actorUserId        String?
+  targetUserId       String?
+  module             String?
+  resourceType       String?
+  resourceId         String?
+  resourceTitle      String?
+  financeStructureId String?
+  financeEntryId     String?
+  paymentClaimId     String?
+  transactionId      String?
+  ip                 String?
+  userAgent          String?
+  sessionId          String?
+  details            Json?
+  createdAt          DateTime        @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   @@index([organizationId])
+  @@index([type])
+  @@index([action])
+  @@index([actorUserId])
+  @@index([targetUserId])
   @@index([module])
   @@index([resourceType])
   @@index([resourceId])
@@ -1077,6 +1106,16 @@ enum TwoFactorMethod {
   DEVICE
   EMAIL
   BOTH
+}
+
+enum ActivityLogType {
+  SECURITY
+  ADMIN
+  FINANCE
+  SYSTEM
+  AI
+  COMMUNICATION
+  ACADEMIC
 }
 
 enum PendingLoginStatus {

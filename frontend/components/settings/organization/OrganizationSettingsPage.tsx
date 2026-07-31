@@ -112,7 +112,7 @@ export function OrganizationSettingsPage() {
     themeDirtyCount,
   ]);
 
-  useUnsavedSettingsWarning(hasUnsavedChanges);
+  const unsavedChangesDialog = useUnsavedSettingsWarning(hasUnsavedChanges);
 
   useEffect(() => {
     if (typeof window === "undefined" || orgSettings.loading) return;
@@ -183,6 +183,7 @@ export function OrganizationSettingsPage() {
   }
 
   return (
+    <>
     <SettingsShell
       title="Organization Settings"
       description={
@@ -348,5 +349,7 @@ export function OrganizationSettingsPage() {
 
       {activeTab === "gpa-policies" && <GpaPoliciesSettingsTab />}
     </SettingsShell>
+    {unsavedChangesDialog}
+    </>
   );
 }

@@ -12,6 +12,9 @@ import { getDetailsReason } from './auth-internal.utils';
 import { EmailService } from '../security/email.service';
 import { EmailTemplateService } from '../common/email-templates/email-template.service';
 import { UserSettingsContextService } from './user-settings-context.service';
+import { OrganizationActivityService } from '../activity-logs/organization-activity.service';
+import { PlatformActivityService } from '../activity-logs/platform-activity.service';
+import { ActivityLogType } from '../activity-logs/activity-log.types';
 
 @Injectable()
 export class SecurityService {
@@ -26,39 +29,89 @@ export class SecurityService {
     @Optional() private readonly templates?: EmailTemplateService,
     @Optional()
     private readonly settingsContext?: UserSettingsContextService,
+    @Optional()
+    private readonly organizationActivity?: OrganizationActivityService,
+    @Optional()
+    private readonly platformActivity?: PlatformActivityService,
   ) {}
 
   async recordEvent(action: string, input: AuditLogInput) {
-    await this.prisma.auditLog.create({
-      data: {
+    const type = input.type ?? ActivityLogType.SECURITY;
+    if (input.organizationId) {
+      if (this.organizationActivity) {
+        await this.organizationActivity.record({
+          organizationId: input.organizationId,
+          type,
+          action,
+          actorUserId: input.actorUserId,
+          targetUserId: input.targetUserId,
+          ip: input.ip,
+          userAgent: input.userAgent,
+          sessionId: input.sessionId,
+          details: input.details as Prisma.JsonObject | undefined,
+        });
+      } else {
+        await this.prisma.organizationActivityLog.create({
+          data: {
+            organizationId: input.organizationId,
+            type,
+            action,
+            actorUserId: input.actorUserId,
+            targetUserId: input.targetUserId,
+            ip: input.ip,
+            userAgent: input.userAgent,
+            sessionId: input.sessionId,
+            details: input.details as Prisma.InputJsonValue | undefined,
+          },
+        });
+      }
+      return;
+    }
+
+    if (this.platformActivity) {
+      await this.platformActivity.record({
+        type,
         action,
         actorUserId: input.actorUserId,
         targetUserId: input.targetUserId,
-        organizationId: input.organizationId,
         ip: input.ip,
         userAgent: input.userAgent,
         sessionId: input.sessionId,
-        details: input.details as Prisma.InputJsonValue | undefined,
-      },
-    });
+        details: input.details as Prisma.JsonObject | undefined,
+      });
+    } else {
+      await this.prisma.platformActivityLog.create({
+        data: {
+          type,
+          action,
+          actorUserId: input.actorUserId,
+          targetUserId: input.targetUserId,
+          ip: input.ip,
+          userAgent: input.userAgent,
+          sessionId: input.sessionId,
+          details: input.details as Prisma.InputJsonValue | undefined,
+        },
+      });
+    }
   }
 
   async getLatestContactEmailVerificationReason(orgId: string) {
-    const auditLogs = await this.prisma.auditLog.findMany({
-      where: {
-        organizationId: orgId,
-        action: 'contact_email_verification_requested',
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { details: true },
-    });
+    if (this.organizationActivity) {
+      return this.organizationActivity.getLatestContactEmailVerificationReason(orgId);
+    }
 
-    for (const log of auditLogs) {
+    const logs = await this.prisma.organizationActivityLog.findMany({
+        where: {
+          organizationId: orgId,
+          action: 'contact_email_verification_requested',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { details: true },
+      });
+    for (const log of logs) {
       const reason = getDetailsReason(log.details);
-      if (reason === 'first_registration' || reason === 'contact_email_changed') {
-        return reason;
-      }
+      if (reason === 'first_registration' || reason === 'contact_email_changed') return reason;
     }
     return null;
   }

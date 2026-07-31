@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { createElement, useCallback, useEffect, useState } from 'react';
+import type { ReactElement } from 'react';
+import { useRouter } from 'next/navigation';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 const DEFAULT_MESSAGE = 'You have unsaved settings changes. Leave this page and discard them?';
 
@@ -11,7 +14,24 @@ function isModifiedClick(event: MouseEvent) {
 export function useUnsavedSettingsWarning(
     hasUnsavedChanges: boolean,
     message = DEFAULT_MESSAGE,
-) {
+): ReactElement {
+    const router = useRouter();
+    const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+    const handleConfirmNavigation = useCallback(() => {
+        if (!pendingHref || typeof window === 'undefined') return;
+
+        const nextUrl = new URL(pendingHref, window.location.href);
+        setPendingHref(null);
+        router.push(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    }, [pendingHref, router]);
+
+    useEffect(() => {
+        if (!hasUnsavedChanges) {
+            setPendingHref(null);
+        }
+    }, [hasUnsavedChanges]);
+
     useEffect(() => {
         if (!hasUnsavedChanges || typeof window === 'undefined') return;
 
@@ -36,11 +56,10 @@ export function useUnsavedSettingsWarning(
             if (nextUrl.pathname === '/settings') return;
             if (nextUrl.pathname === window.location.pathname && nextUrl.search === window.location.search) return;
 
-            if (!window.confirm(message)) {
-                event.preventDefault();
-                event.stopPropagation();
-                event.stopImmediatePropagation();
-            }
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            setPendingHref(nextUrl.href);
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
@@ -51,4 +70,15 @@ export function useUnsavedSettingsWarning(
             document.removeEventListener('click', handleDocumentClick, true);
         };
     }, [hasUnsavedChanges, message]);
+
+    return createElement(ConfirmDialog, {
+        isOpen: Boolean(pendingHref),
+        onClose: () => setPendingHref(null),
+        onConfirm: handleConfirmNavigation,
+        title: 'Discard unsaved changes?',
+        description: message,
+        confirmText: 'Leave page',
+        cancelText: 'Stay here',
+        isDestructive: true,
+    });
 }

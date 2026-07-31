@@ -63,6 +63,7 @@ export function renderContactVerificationEmail(
       preview: `${intro} ${guidance}`,
       organizationName: input.organizationName,
       organizationLogoUrl: input.organizationLogoUrl,
+      includeIgnoreNotice: true,
       bodyHtml: `
           <p style="margin:0 0 10px;color:#4b5563;font-size:15px;line-height:1.65;">${escapeHtml(intro)}</p>
           <p style="margin:0 0 18px;color:#4b5563;font-size:15px;line-height:1.65;">${escapeHtml(guidance)}</p>

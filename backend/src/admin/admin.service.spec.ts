@@ -50,6 +50,8 @@ describe('AdminService updateOrganizationStatus', () => {
       {} as never,
       userService as never,
       orgService as never,
+      { record: jest.fn(), list: jest.fn() } as never,
+      { record: jest.fn(), list: jest.fn() } as never,
     );
   });
 

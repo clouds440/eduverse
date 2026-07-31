@@ -166,7 +166,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 <button
                     type="button"
                     onClick={() => setPreviewMode(!previewMode)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black tracking-widest rounded-lg transition-all border ${previewMode
+                    title={previewMode ? 'Switch to edit mode' : 'Preview'}
+                    aria-label={previewMode ? 'Switch to edit mode' : 'Preview'}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-black tracking-widest rounded-lg transition-all border sm:px-3 ${previewMode
                         ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
                         : 'text-muted-foreground border-border hover:bg-card'
                         }`}
@@ -177,10 +179,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                             Edit Mode
                         </>
                     ) : (
-                        <>
-                            <Eye className="w-3.5 h-3.5" />
-                            Preview
-                        </>
+                        <Eye className="w-3.5 h-3.5" />
                     )}
                 </button>
             </div>

@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { BillingCycle, EntrySource, EntryStatus, FinanceTargetType, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityLogType } from '../activity-logs/activity-log.types';
 
 @Injectable()
 export class FinanceCron {
@@ -70,8 +71,9 @@ export class FinanceCron {
         });
 
         await this.notifyAssignment(structure.title, entry.id, dueDate, structure.amount, assignment);
-        await this.prisma.auditLog.create({
+        await this.prisma.organizationActivityLog.create({
           data: {
+            type: ActivityLogType.FINANCE,
             action: 'finance_entry_generated',
             organizationId: structure.organizationId,
             module: 'finance',
@@ -92,23 +94,31 @@ export class FinanceCron {
       }
     }
 
-    const overdueEntries = await this.prisma.financialEntry.updateMany({
-      where: {
+    const overdueWhere = {
         status: EntryStatus.PENDING,
         dueDate: { lt: now },
-      },
+      };
+    const overdueByOrg = await this.prisma.financialEntry.groupBy({
+      by: ['organizationId'],
+      where: overdueWhere,
+      _count: { _all: true },
+    });
+    const overdueEntries = await this.prisma.financialEntry.updateMany({
+      where: overdueWhere,
       data: { status: EntryStatus.OVERDUE },
     });
 
     if (overdueEntries.count > 0) {
-      await this.prisma.auditLog.create({
-        data: {
+      await this.prisma.organizationActivityLog.createMany({
+        data: overdueByOrg.map((entry) => ({
+          organizationId: entry.organizationId,
+          type: ActivityLogType.FINANCE,
           action: 'finance_entries_marked_overdue',
           module: 'finance',
           resourceType: 'entry',
           resourceId: 'bulk-overdue',
-          details: { count: overdueEntries.count, source: 'cron' },
-        },
+          details: { count: entry._count._all, source: 'cron' },
+        })),
       });
       this.logger.log(`Marked ${overdueEntries.count} entries as OVERDUE.`);
     }

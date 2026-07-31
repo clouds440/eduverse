@@ -102,7 +102,7 @@ export function AccountSettingsShell({
     const appearanceDirtyCount = draftSettings.themeMode !== settings.themeMode ? 1 : 0;
     const hasUnsavedChanges = preferenceDirtyCount + appearanceDirtyCount > 0;
 
-    useUnsavedSettingsWarning(hasUnsavedChanges);
+    const unsavedChangesDialog = useUnsavedSettingsWarning(hasUnsavedChanges);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -167,55 +167,58 @@ export function AccountSettingsShell({
     }
 
     return (
-        <SettingsShell
-            title={title}
-            description={description}
-            icon={icon}
-            breadcrumbs={breadcrumbs}
-            tabs={ACCOUNT_SETTINGS_TABS}
-            tabCounts={{
-                ...(appearanceDirtyCount ? { appearance: appearanceDirtyCount } : {}),
-                ...(preferenceDirtyCount ? { preferences: preferenceDirtyCount } : {}),
-            }}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            ariaLabel={adminOnly ? 'Admin settings navigation' : 'Account settings navigation'}
-            className="min-h-0 gap-3 overflow-x-hidden overflow-y-auto pb-8 pr-1 custom-scrollbar"
-            actions={
-                <Button
-                    type="button"
-                    onClick={handleSaveSettings}
-                    disabled={!hasUnsavedChanges || savingSettings}
-                    isLoading={savingSettings}
-                    icon={Save}
-                    className="h-10 px-4 text-xs sm:h-11 sm:px-5 sm:text-sm"
-                >
-                    Save Settings
-                </Button>
-            }
-            actionsDefaultOpen
-        >
-            {activeTab === 'profile' && profileContent}
+        <>
+            <SettingsShell
+                title={title}
+                description={description}
+                icon={icon}
+                breadcrumbs={breadcrumbs}
+                tabs={ACCOUNT_SETTINGS_TABS}
+                tabCounts={{
+                    ...(appearanceDirtyCount ? { appearance: appearanceDirtyCount } : {}),
+                    ...(preferenceDirtyCount ? { preferences: preferenceDirtyCount } : {}),
+                }}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                ariaLabel={adminOnly ? 'Admin settings navigation' : 'Account settings navigation'}
+                className="min-h-0 gap-3 overflow-x-hidden overflow-y-auto pb-8 pr-1 custom-scrollbar"
+                actions={
+                    <Button
+                        type="button"
+                        onClick={handleSaveSettings}
+                        disabled={!hasUnsavedChanges || savingSettings}
+                        isLoading={savingSettings}
+                        icon={Save}
+                        className="h-10 px-4 text-xs sm:h-11 sm:px-5 sm:text-sm"
+                    >
+                        Save Settings
+                    </Button>
+                }
+                actionsDefaultOpen
+            >
+                {activeTab === 'profile' && profileContent}
 
-            {activeTab === 'appearance' && (
-                <AccountAppearanceSettingsTab
-                    themeMode={themeMode}
-                    onThemeModeChange={handleThemeChange}
-                />
-            )}
+                {activeTab === 'appearance' && (
+                    <AccountAppearanceSettingsTab
+                        themeMode={themeMode}
+                        onThemeModeChange={handleThemeChange}
+                    />
+                )}
 
-            {activeTab === 'preferences' && (
-                <AccountPreferencesSettingsTab
-                    settings={draftSettings}
-                    onNotificationChange={handleNotificationChange}
-                />
-            )}
+                {activeTab === 'preferences' && (
+                    <AccountPreferencesSettingsTab
+                        settings={draftSettings}
+                        onNotificationChange={handleNotificationChange}
+                    />
+                )}
 
-            {activeTab === 'security' && (
-                <AccountSecuritySettings
-                    changePasswordHref={changePasswordHref}
-                />
-            )}
-        </SettingsShell>
+                {activeTab === 'security' && (
+                    <AccountSecuritySettings
+                        changePasswordHref={changePasswordHref}
+                    />
+                )}
+            </SettingsShell>
+            {unsavedChangesDialog}
+        </>
     );
 }

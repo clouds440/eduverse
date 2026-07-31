@@ -23,6 +23,9 @@ import {
 import { MailService } from '../mail/mail.service';
 import { MailUser } from '../mail/interfaces/mail-user.interface';
 import { EmailService } from '../security/email.service';
+import { PlatformActivityService } from '../activity-logs/platform-activity.service';
+import { OrganizationActivityService } from '../activity-logs/organization-activity.service';
+import { ActivityLogType } from '../activity-logs/activity-log.types';
 
 import { CreatePlatformAdminDto } from './dto/create-platform-admin.dto';
 import { UpdatePlatformAdminDto } from './dto/update-platform-admin.dto';
@@ -36,6 +39,8 @@ export class AdminService {
     private readonly emailService: EmailService,
     private readonly userService: UserService,
     private readonly orgService: OrgService,
+    private readonly platformActivity: PlatformActivityService,
+    private readonly organizationActivity: OrganizationActivityService,
   ) {}
 
   private orgWithAdminInclude = {
@@ -51,6 +56,8 @@ export class AdminService {
       status?: OrgStatus;
       type?: string;
       contactEmailStatus?: 'verified' | 'unverified' | 'all';
+      createdFrom?: string;
+      createdTo?: string;
     },
   ) {
     const { skip, take, sortBy, sortOrder } = getPaginationOptions({
@@ -68,9 +75,14 @@ export class AdminService {
     const contactEmailWhere = this.getContactEmailStatusWhere(
       options.contactEmailStatus,
     );
+    const createdAtWhere = this.getCreatedAtRangeWhere(
+      options.createdFrom,
+      options.createdTo,
+    );
 
     const where: Prisma.OrganizationWhereInput = {
       ...contactEmailWhere,
+      ...createdAtWhere,
       ...(options.status ? { status: options.status } : {}),
       ...(options.type && options.type !== 'ALL' ? { type: options.type } : {}),
       ...(options.search
@@ -87,6 +99,7 @@ export class AdminService {
     // For dynamic counts based on SEARCH and TYPE but NOT on status
     const countWhere: Prisma.OrganizationWhereInput = {
       ...contactEmailWhere,
+      ...createdAtWhere,
       ...(options.type && options.type !== 'ALL' ? { type: options.type } : {}),
       ...(options.search
         ? {
@@ -320,6 +333,27 @@ export class AdminService {
     };
   }
 
+  private getCreatedAtRangeWhere(
+    createdFrom?: string,
+    createdTo?: string,
+  ): Prisma.OrganizationWhereInput {
+    const range: Prisma.DateTimeFilter = {};
+    const from = this.parseDateBoundary(createdFrom, 'start');
+    const to = this.parseDateBoundary(createdTo, 'end');
+    if (from) range.gte = from;
+    if (to) range.lte = to;
+    return Object.keys(range).length ? { createdAt: range } : {};
+  }
+
+  private parseDateBoundary(value: string | undefined, boundary: 'start' | 'end') {
+    if (!value) return null;
+    const dateOnlyMatch = /^\d{4}-\d{2}-\d{2}$/.test(value);
+    const date = dateOnlyMatch
+      ? new Date(`${value}T${boundary === 'start' ? '00:00:00.000' : '23:59:59.999'}Z`)
+      : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
   async getOrganizationOverview(id: string) {
     const org = await this.prisma.organization.findUnique({
       where: { id },
@@ -329,7 +363,13 @@ export class AdminService {
         status: true,
         type: true,
         location: true,
+        contactEmail: true,
         contactEmailVerifiedAt: true,
+        phone: true,
+        logoUrl: true,
+        avatarUpdatedAt: true,
+        currency: true,
+        statusHistory: true,
         createdAt: true,
       },
     });
@@ -361,7 +401,7 @@ export class AdminService {
         where: { organizationId: id, type: 'EXPENSE' },
         _sum: { amount: true },
       }),
-      this.prisma.auditLog.count({
+      this.prisma.organizationActivityLog.count({
         where: {
           organizationId: id,
           OR: [
@@ -382,7 +422,10 @@ export class AdminService {
     const expenseTotal = expenses._sum.amount || new Prisma.Decimal(0);
 
     return {
-      organization: org,
+      organization: {
+        ...org,
+        email: org.contactEmail,
+      },
       counts: {
         users,
         students,
@@ -404,190 +447,20 @@ export class AdminService {
   async getAuditLogs(
     options: PaginationOptions & {
       action?: string;
+      type?: string;
     },
   ) {
-    const { skip, take, search } = getPaginationOptions({
-      ...options,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-    });
-
-    const matchingUserIds = search
-      ? (
-          await this.prisma.user.findMany({
-            where: {
-              OR: [
-                { id: { contains: search, mode: 'insensitive' } },
-                { name: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-              ],
-            },
-            select: { id: true },
-          })
-        ).map((matchedUser) => matchedUser.id)
-      : [];
-
-    const where: Prisma.AuditLogWhereInput = {
-      ...(options.action && options.action !== 'ALL'
-        ? { action: { contains: options.action, mode: 'insensitive' } }
-        : {}),
-      ...(search
-        ? {
-            OR: [
-              { organizationId: { contains: search, mode: 'insensitive' } },
-              {
-                organization: {
-                  OR: [
-                    { id: { contains: search, mode: 'insensitive' } },
-                    { name: { contains: search, mode: 'insensitive' } },
-                  ],
-                },
-              },
-              ...(matchingUserIds.length
-                ? [
-                    { actorUserId: { in: matchingUserIds } },
-                    { targetUserId: { in: matchingUserIds } },
-                  ]
-                : []),
-            ],
-          }
-        : {}),
-    };
-
-    const [logs, totalRecords, actions] = await Promise.all([
-      this.prisma.auditLog.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              logoUrl: true,
-              avatarUpdatedAt: true,
-            },
-          },
-        },
-      }),
-      this.prisma.auditLog.count({ where }),
-      this.prisma.auditLog.groupBy({
-        by: ['action'],
-        _count: { _all: true },
-        orderBy: { action: 'asc' },
-      }),
-    ]);
-
-    const mappedLogs = await this.mapAuditLogs(logs);
-
-    return {
-      ...formatPaginatedResponse(
-        mappedLogs,
-        totalRecords,
-        options.page,
-        options.limit,
-      ),
-      counts: Object.fromEntries(
-        actions.map((entry) => [entry.action, entry._count._all]),
-      ),
-    };
+    return this.platformActivity.list(options);
   }
 
   async getOrganizationActivityLogs(
     organizationId: string,
     options: PaginationOptions & {
       action?: string;
+      type?: string;
     },
   ) {
-    const org = await this.prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { id: true },
-    });
-    if (!org) throw new NotFoundException('Organization not found');
-
-    const { skip, take, search } = getPaginationOptions({
-      ...options,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-    });
-
-    const matchingUserIds = search
-      ? (
-          await this.prisma.user.findMany({
-            where: {
-              organizationId,
-              OR: [
-                { id: { contains: search, mode: 'insensitive' } },
-                { name: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-              ],
-            },
-            select: { id: true },
-          })
-        ).map((matchedUser) => matchedUser.id)
-      : [];
-
-    const where: Prisma.AuditLogWhereInput = {
-      organizationId,
-      ...(options.action && options.action !== 'ALL'
-        ? { action: { contains: options.action, mode: 'insensitive' } }
-        : {}),
-      ...(search
-        ? {
-            OR: [
-              { action: { contains: search, mode: 'insensitive' } },
-              { module: { contains: search, mode: 'insensitive' } },
-              { resourceType: { contains: search, mode: 'insensitive' } },
-              { resourceId: { contains: search, mode: 'insensitive' } },
-              ...(matchingUserIds.length
-                ? [
-                    { actorUserId: { in: matchingUserIds } },
-                    { targetUserId: { in: matchingUserIds } },
-                  ]
-                : []),
-            ],
-          }
-        : {}),
-    };
-
-    const [logs, totalRecords, actions] = await Promise.all([
-      this.prisma.auditLog.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              logoUrl: true,
-              avatarUpdatedAt: true,
-            },
-          },
-        },
-      }),
-      this.prisma.auditLog.count({ where }),
-      this.prisma.auditLog.groupBy({
-        where: { organizationId },
-        by: ['action'],
-        _count: { _all: true },
-        orderBy: { action: 'asc' },
-      }),
-    ]);
-
-    return {
-      ...formatPaginatedResponse(
-        await this.mapAuditLogs(logs),
-        totalRecords,
-        options.page,
-        options.limit,
-      ),
-      counts: Object.fromEntries(
-        actions.map((entry) => [entry.action, entry._count._all]),
-      ),
-    };
+    return this.organizationActivity.list(organizationId, options);
   }
 
   async deleteOrganization(id: string, admin: UserEntity) {
@@ -602,159 +475,23 @@ export class AdminService {
       );
     }
 
-    await this.prisma.auditLog.create({
-      data: {
-        action: 'organization_deleted',
-        actorUserId: admin.id,
-        details: {
-          organizationId: id,
-          organizationName: org.name,
-          previousStatus: org.status,
-        },
+    await this.platformActivity.record({
+      type: ActivityLogType.ADMIN,
+      action: 'organization_deleted',
+      actorUserId: admin.id,
+      module: 'admin',
+      resourceType: 'organization',
+      resourceId: id,
+      resourceTitle: org.name,
+      details: {
+        organizationId: id,
+        organizationName: org.name,
+        previousStatus: org.status,
       },
     });
 
     await this.prisma.organization.delete({ where: { id } });
     return { message: `${org.name} was deleted permanently.` };
-  }
-
-  private async mapAuditLogs(
-    logs: Array<Prisma.AuditLogGetPayload<{
-      include: {
-        organization: {
-          select: {
-            id: true;
-            name: true;
-            logoUrl: true;
-            avatarUpdatedAt: true;
-          };
-        };
-      };
-    }>>,
-  ) {
-    const userIds = Array.from(
-      new Set(
-        logs
-          .flatMap((log) => [log.actorUserId, log.targetUserId])
-          .filter((id): id is string => Boolean(id)),
-      ),
-    );
-    const sessionIds = Array.from(
-      new Set(logs.map((log) => log.sessionId).filter((id): id is string => Boolean(id))),
-    );
-
-    const [users, sessions] = await Promise.all([
-      userIds.length
-        ? this.prisma.user.findMany({
-            where: { id: { in: userIds } },
-            select: { id: true, name: true, email: true, role: true },
-          })
-        : [],
-      sessionIds.length
-        ? this.prisma.session.findMany({
-            where: { id: { in: sessionIds } },
-            select: {
-              id: true,
-              deviceName: true,
-              deviceType: true,
-              browser: true,
-              os: true,
-              ip: true,
-              location: true,
-            },
-          })
-        : [],
-    ]);
-    const userMap = new Map(users.map((user) => [user.id, user] as const));
-    const sessionMap = new Map(sessions.map((session) => [session.id, session] as const));
-
-    return logs.map((log) => {
-      const actor = log.actorUserId ? userMap.get(log.actorUserId) : null;
-      const target = log.targetUserId ? userMap.get(log.targetUserId) : null;
-      const session = log.sessionId ? sessionMap.get(log.sessionId) : null;
-      return {
-        id: log.id,
-        action: log.action,
-        message: this.humanizeAuditLog(log.action, {
-          actorName: actor?.name || actor?.email || null,
-          targetName: target?.name || target?.email || null,
-          organizationName: log.organization?.name || null,
-          details: log.details,
-        }),
-        actor,
-        target,
-        organization: log.organization,
-        module: log.module,
-        resourceType: log.resourceType,
-        resourceId: log.resourceId,
-        ip: log.ip || session?.ip || null,
-        userAgent: log.userAgent,
-        sessionId: log.sessionId,
-        device: session
-          ? {
-              name: session.deviceName,
-              type: session.deviceType,
-              browser: session.browser,
-              os: session.os,
-            }
-          : null,
-        location: session?.location || null,
-        details: log.details,
-        createdAt: log.createdAt,
-      };
-    });
-  }
-
-  private humanizeAuditLog(
-    action: string,
-    context: {
-      actorName?: string | null;
-      targetName?: string | null;
-      organizationName?: string | null;
-      details?: Prisma.JsonValue;
-    },
-  ) {
-    const actor = context.actorName || 'Someone';
-    const target = context.targetName || 'an account';
-    const org = context.organizationName || 'an organization';
-    const details = context.details as Record<string, unknown> | null;
-    const reason =
-      typeof details?.reason === 'string'
-        ? details.reason.replace(/_/g, ' ')
-        : null;
-
-    switch (action) {
-      case 'contact_email_verification_requested':
-        return `A verification code was sent for ${org}'s contact email.`;
-      case 'contact_email_verified':
-        return `${org}'s contact email was verified.`;
-      case 'contact_email_verification_failed':
-        return `${actor} failed contact email verification for ${org}${reason ? ` because ${reason}` : ''}.`;
-      case 'password_reset_requested':
-        return `A password reset was requested.`;
-      case 'password_reset_completed':
-        return `${target}'s password reset was completed and active sessions were revoked.`;
-      case 'password_reset_failed':
-        return `A password reset attempt failed for ${target}${reason ? ` because ${reason}` : ''}.`;
-      case 'excessive_reset_attempts':
-        return `Excessive password reset attempts were detected.`;
-      case 'organization_registered':
-        return `${org} registered and is waiting for verification and approval.`;
-      case 'login_success':
-        return `${actor} signed in successfully.`;
-      case 'login_failed':
-        return `A sign-in attempt failed for ${target}${reason ? ` because ${reason}` : ''}.`;
-      case 'organization_contact_email_recovered':
-        return `${actor} changed the recovery contact email for ${org}.`;
-      case 'organization_deleted':
-        return `${actor} permanently deleted ${org}.`;
-      default:
-        return action
-          .split('_')
-          .filter(Boolean)
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ');
-    }
   }
 
   // --- Platform Admins ---

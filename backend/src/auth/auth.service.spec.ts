@@ -15,7 +15,7 @@ describe('AuthService register', () => {
     user: {
       findUnique: jest.Mock;
     };
-    auditLog: {
+    organizationActivityLog: {
       create: jest.Mock;
     };
     $transaction: jest.Mock;
@@ -26,7 +26,7 @@ describe('AuthService register', () => {
       user: {
         findUnique: jest.fn().mockResolvedValue(null),
       },
-      auditLog: {
+      organizationActivityLog: {
         create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
       },
       $transaction: jest.fn(async (callback) =>
@@ -128,9 +128,12 @@ type MockPrismaService = {
     updateMany: jest.Mock;
     create: jest.Mock;
   };
-  auditLog: {
+  organizationActivityLog: {
     create: jest.Mock;
     findMany: jest.Mock;
+  };
+  platformActivityLog: {
+    create: jest.Mock;
   };
 };
 
@@ -181,9 +184,12 @@ describe('AuthService forgotPassword', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         create: jest.fn().mockResolvedValue({ id: 'reset-token-1' }),
       },
-      auditLog: {
+      organizationActivityLog: {
         create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
         findMany: jest.fn().mockResolvedValue([]),
+      },
+      platformActivityLog: {
+        create: jest.fn().mockResolvedValue({ id: 'platform-audit-1' }),
       },
     };
 
@@ -390,7 +396,7 @@ describe('AuthService forgotPassword', () => {
       contactEmailVerificationExpiresAt: new Date(Date.now() + 60_000),
       contactEmailVerificationAttempts: 0,
     });
-    prisma.auditLog.findMany.mockResolvedValue([
+    prisma.organizationActivityLog.findMany.mockResolvedValue([
       { details: { reason: 'first_registration' } },
     ]);
 
@@ -422,7 +428,7 @@ describe('AuthService forgotPassword', () => {
       contactEmailVerificationExpiresAt: new Date(Date.now() + 60_000),
       contactEmailVerificationAttempts: 0,
     });
-    prisma.auditLog.findMany.mockResolvedValue([
+    prisma.organizationActivityLog.findMany.mockResolvedValue([
       { details: { reason: 'contact_email_changed' } },
     ]);
 

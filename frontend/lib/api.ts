@@ -746,12 +746,12 @@ export const api = {
     },
 
     admin: {
-        getOrganizations: (token: string, params: { status?: OrgStatus, page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', type?: string, contactEmailStatus?: 'verified' | 'unverified' | 'all' } = {}) =>
+        getOrganizations: (token: string, params: { status?: OrgStatus, page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', type?: string, contactEmailStatus?: 'verified' | 'unverified' | 'all', createdFrom?: string, createdTo?: string } = {}) =>
             request<PaginatedResponse<Organization>>(`/admin/organizations${buildQueryString(params)}`, { token }),
         getOrganizationOverview: (id: string, token: string) =>
             request<OrganizationOverview>(`/admin/organizations/${id}/overview`, { token }),
-        getOrganizationActivityLogs: (id: string, token: string, params: { page?: number, limit?: number, search?: string, action?: string } = {}) =>
-            request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> }>(`/admin/organizations/${id}/activity-logs${buildQueryString(params)}`, { token }),
+        getOrganizationActivityLogs: (id: string, token: string, params: { page?: number, limit?: number, search?: string, action?: string, type?: string } = {}) =>
+            request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number>, typeCounts?: Record<string, number> }>(`/admin/organizations/${id}/activity-logs${buildQueryString(params)}`, { token }),
         approveOrganization: (id: string, token: string) =>
             request<void>(`/admin/organizations/${id}/approve`, { method: 'PATCH', token }),
         setOrganizationContactEmail: (id: string, contactEmail: string, token: string) =>
@@ -770,8 +770,8 @@ export const api = {
             request<AdminStats>('/admin/stats', { token }),
         getPlatformAdmins: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc' } = {}) =>
             request<PaginatedResponse<PlatformAdmin>>(`/admin/platform-admins${buildQueryString(params)}`, { token }),
-        getAuditLogs: (token: string, params: { page?: number, limit?: number, search?: string, action?: string } = {}) =>
-            request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number> }>(`/admin/audit-logs${buildQueryString(params)}`, { token }),
+        getAuditLogs: (token: string, params: { page?: number, limit?: number, search?: string, action?: string, type?: string } = {}) =>
+            request<PaginatedResponse<AuditLogItem> & { counts?: Record<string, number>, typeCounts?: Record<string, number> }>(`/admin/audit-logs${buildQueryString(params)}`, { token }),
         createPlatformAdmin: (data: Partial<PlatformAdmin> & { password?: string }, token: string) =>
             request<PlatformAdmin>('/admin/platform-admins', { method: 'POST', body: JSON.stringify(data), token }),
         updatePlatformAdmin: (id: string, data: Partial<PlatformAdmin>, token: string) =>

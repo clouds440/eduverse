@@ -45,9 +45,7 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
     yield output;
   }
 
-  async planTools(
-    input: AIProviderChatInput,
-  ): Promise<AIProviderToolPlan> {
+  async planTools(input: AIProviderChatInput): Promise<AIProviderToolPlan> {
     if (!input.tools.length) return { requests: [] };
 
     const model = this.createModel({ temperature: 0 });
@@ -66,7 +64,9 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
       'If recent context lists an internal request key already used, do not request the same tool with the same effective input again unless the user asks for refreshed data or changes the target/date/scope.',
       '',
       'Available tools:',
-      ...input.tools.map((tool) => `- ${tool.name}: ${trimForPlanner(tool.description, 180)}`),
+      ...input.tools.map(
+        (tool) => `- ${tool.name}: ${trimForPlanner(tool.description, 180)}`,
+      ),
       '',
       `Role: ${String(input.metadata?.role ?? 'unknown')}`,
       '',
@@ -74,22 +74,25 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
       ...input.messages
         .filter((message) => message.role !== 'tool')
         .slice(-5)
-        .map((message) => `${message.role}: ${trimForPlanner(message.content, 700)}`),
+        .map(
+          (message) =>
+            `${message.role}: ${trimForPlanner(message.content, 700)}`,
+        ),
     ].join('\n');
     const response = await model.invoke([new HumanMessage(prompt)]);
     const parsed = parseToolPlanJson(stringifyModelContent(response.content));
 
     return {
       title: isChatStart ? sanitizePlannerTitle(parsed.title) : null,
-      requests: parsed.requests.filter((request) => knownTools.has(request.name)).slice(0, 10),
+      requests: parsed.requests
+        .filter((request) => knownTools.has(request.name))
+        .slice(0, 10),
     };
   }
 
   estimateProviderTokens(input: AIProviderChatInput | string) {
     const text =
-      typeof input === 'string'
-        ? input
-        : buildOpenRouterPrompt(input);
+      typeof input === 'string' ? input : buildOpenRouterPrompt(input);
 
     return Math.ceil(text.length / 4);
   }
@@ -116,7 +119,7 @@ export class AILangChainProviderAdapter implements AIProviderAdapter {
         options.temperature ?? Number(process.env.AI_TEMPERATURE ?? 0.2),
       maxRetries: Number(process.env.AI_MAX_RETRIES ?? 2),
       configuration: {
-        baseURL: process.env.AI_API_BASE_URL?.trim() || 'https://openrouter.ai/api/v1',
+        baseURL: process.env.AI_API_BASE_URL?.trim(),
         defaultHeaders: openRouterHeaders(),
       },
     });
@@ -157,7 +160,8 @@ export class AIProviderService implements AIProviderAdapter {
 
   async planTools(input: AIProviderChatInput) {
     try {
-      return await (this.adapter.planTools?.(input) ?? Promise.resolve({ requests: [] }));
+      return await (this.adapter.planTools?.(input) ??
+        Promise.resolve({ requests: [] }));
     } catch (error) {
       this.logger.warn(
         `AI tool planner failed; using deterministic tool routing: ${errorMessage(error)}`,
@@ -286,7 +290,9 @@ function sumOptional(a?: number, b?: number) {
 
 function openRouterHeaders() {
   const headers: Record<string, string> = {};
-  const appUrl = process.env.AI_APP_URL?.trim() || process.env.FRONTEND_URL?.split(',')[0]?.trim();
+  const appUrl =
+    process.env.AI_APP_URL?.trim() ||
+    process.env.FRONTEND_URL?.split(',')[0]?.trim();
   const appName = process.env.AI_APP_NAME?.trim() || 'EduVerse';
   if (appUrl) headers['HTTP-Referer'] = appUrl;
   if (appName) headers['X-OpenRouter-Title'] = appName;

@@ -1,9 +1,12 @@
+import { ActivityLogType } from '../activity-logs/activity-log.types';
+
 export interface RequestMetadata {
   ip?: string;
   userAgent?: string;
 }
 
 export interface AuditLogInput extends RequestMetadata {
+  type?: ActivityLogType;
   actorUserId?: string;
   targetUserId?: string;
   organizationId?: string;

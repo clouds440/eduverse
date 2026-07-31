@@ -37,6 +37,8 @@ export class AdminController {
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('type') type?: string,
     @Query('contactEmailStatus') contactEmailStatus?: 'verified' | 'unverified' | 'all',
+    @Query('createdFrom') createdFrom?: string,
+    @Query('createdTo') createdTo?: string,
   ) {
     return this.adminService.getOrganizations({
       status,
@@ -47,6 +49,8 @@ export class AdminController {
       sortOrder,
       type,
       contactEmailStatus,
+      createdFrom,
+      createdTo,
     });
   }
 
@@ -76,12 +80,14 @@ export class AdminController {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('action') action?: string,
+    @Query('type') type?: string,
   ) {
     return this.adminService.getOrganizationActivityLogs(id, {
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 10,
       search,
       action,
+      type,
     });
   }
 
@@ -92,12 +98,14 @@ export class AdminController {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('action') action?: string,
+    @Query('type') type?: string,
   ) {
     return this.adminService.getAuditLogs({
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 10,
       search,
       action,
+      type,
     });
   }
 
