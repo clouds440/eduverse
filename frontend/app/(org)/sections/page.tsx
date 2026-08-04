@@ -9,7 +9,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { usePathname, useRouter } from 'next/navigation';
-import { Section, Role, AcademicCycle, Cohort, Teacher, Department } from '@/types';
+import { Section, Role, AcademicCycle, Cohort, Teacher, Department, Program, ProgramClassificationStatus } from '@/types';
 import { TableActions } from '@/components/ui/TableActions';
 import { Label } from '@/components/ui/Label';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -41,6 +41,8 @@ interface SectionParams {
     cohortId?: string;
     teacherId?: string;
     departmentId?: string;
+    programId?: string;
+    programClassificationStatus?: string;
     activeAcademicCycleOnly?: boolean;
 }
 
@@ -62,6 +64,8 @@ export default function SectionsPage() {
     const cohortId = getStringParam('cohortId');
     const teacherId = getStringParam('teacherId');
     const departmentId = getStringParam('departmentId');
+    const programId = getStringParam('programId');
+    const programClassificationStatus = getStringParam('programClassificationStatus');
     const includeInactiveCycles = getBooleanParam('includeInactiveCycles');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-sections-limit', 10);
     const canManageSections = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
@@ -78,6 +82,8 @@ export default function SectionsPage() {
         cohortId: cohortId || undefined,
         teacherId: teacherId || undefined,
         departmentId: departmentId || undefined,
+        programId: programId || undefined,
+        programClassificationStatus: programClassificationStatus || undefined,
         activeAcademicCycleOnly: !includeInactiveCycles && !academicCycleId ? true : undefined,
     };
 
@@ -191,6 +197,9 @@ export default function SectionsPage() {
                             {row.cohort.code ? `${row.cohort.code} - ${row.cohort.name}` : row.cohort.name}
                         </span>
                     )}
+                    <Badge className="mt-1 w-fit" variant={row.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'info' : 'secondary'} size="sm">
+                        {row.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'Program mapped' : 'Standalone'}
+                    </Badge>
                 </div>
             )
         },
@@ -261,6 +270,18 @@ export default function SectionsPage() {
             label: 'Department',
             value: 'Selected department',
             onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
+        }] : []),
+        ...(programClassificationStatus ? [{
+            key: 'programClassificationStatus',
+            label: 'Delivery',
+            value: programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'Program mapped' : 'Standalone',
+            onRemove: () => updateQueryParams({ programClassificationStatus: undefined, page: 1 }),
+        }] : []),
+        ...(programId ? [{
+            key: 'programId',
+            label: 'Program',
+            value: 'Selected program',
+            onRemove: () => updateQueryParams({ programId: undefined, page: 1 }),
         }] : []),
         ...(includeInactiveCycles ? [{
             key: 'includeInactiveCycles',
@@ -343,6 +364,32 @@ export default function SectionsPage() {
                                     allLabel="All Departments"
                                     selectedLabel="Selected department"
                                     loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'departments', search, isActive: true })}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Delivery Type</Label>
+                                <CustomSelect
+                                    value={programClassificationStatus}
+                                    onChange={(value) => updateQueryParams({ programClassificationStatus: value || undefined, programId: value === ProgramClassificationStatus.STANDALONE ? undefined : programId || undefined, page: 1 })}
+                                    options={[
+                                        { value: '', label: 'All delivery types' },
+                                        { value: ProgramClassificationStatus.STANDALONE, label: 'Standalone / No program' },
+                                        { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program mapped' },
+                                    ]}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Filter by Program</Label>
+                                <RemoteFilterSelect<Program>
+                                    cacheKey="sections-program-filter"
+                                    value={programId}
+                                    onChange={(value) => updateQueryParams({ programId: value || undefined, programClassificationStatus: value ? ProgramClassificationStatus.PROGRAM_MAPPED : programClassificationStatus || undefined, page: 1 })}
+                                    placeholder="All Programs"
+                                    allLabel="All Programs"
+                                    selectedLabel="Selected program"
+                                    loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'programs', search })}
                                 />
                             </div>
 

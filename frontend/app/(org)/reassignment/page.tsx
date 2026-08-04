@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type Dispatch } from 'react';
 import useSWR from 'swr';
-import { AcademicCycle, ApiError, Cohort, CopyForwardPreview, Role, Section, Student } from '@/types';
+import { AcademicCycle, ApiError, Cohort, CopyForwardPreview, ProgramClassificationStatus, ProgramDeliveryOption, Role, Section, Student } from '@/types';
 import { api } from '@/lib/api';
 import { searchFilterLookup } from '@/lib/filterLookups';
 import { useAuth } from '@/context/AuthContext';
@@ -131,6 +131,10 @@ function formatCount(count: number, singular: string, plural = `${singular}s`) {
 function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[]; token: string; dispatch: Dispatch<GlobalAction> }) {
     const [fromCycleId, setFromCycleId] = useState('');
     const [toCycleId, setToCycleId] = useState('');
+    const [classification, setClassification] = useState(ProgramClassificationStatus.STANDALONE);
+    const [sourceProgramAcademicCycleId, setSourceProgramAcademicCycleId] = useState('');
+    const [targetProgramAcademicCycleId, setTargetProgramAcademicCycleId] = useState('');
+    const [targetProgramStageId, setTargetProgramStageId] = useState('');
     const [options, setOptions] = useState({ copySchedules: false, copyMaterials: false });
     const [isExecuting, setIsExecuting] = useState(false);
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -139,12 +143,29 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
 
     const fromCycle = cycles.find((cycle) => cycle.id === fromCycleId);
     const toCycle = cycles.find((cycle) => cycle.id === toCycleId);
+    const { data: sourceDeliveryOptions = [] } = useSWR<ProgramDeliveryOption[]>(
+        fromCycleId ? ['copy-forward-source-programs', fromCycleId, token] : null,
+        () => api.programs.getDeliveryOptions(token, fromCycleId),
+    );
+    const { data: targetDeliveryOptions = [] } = useSWR<ProgramDeliveryOption[]>(
+        toCycleId ? ['copy-forward-target-programs', toCycleId, token] : null,
+        () => api.programs.getDeliveryOptions(token, toCycleId),
+    );
+    const sourceAssociation = sourceDeliveryOptions.find((option) => option.id === sourceProgramAcademicCycleId);
+    const eligibleTargets = targetDeliveryOptions.filter((option) => !sourceAssociation || option.programId === sourceAssociation.programId);
+    const targetAssociation = eligibleTargets.find((option) => option.id === targetProgramAcademicCycleId);
     const copyForwardPayload = useMemo(() => ({
+        programClassificationStatus: classification,
+        ...(classification === ProgramClassificationStatus.PROGRAM_MAPPED ? {
+            sourceProgramAcademicCycleId,
+            targetProgramAcademicCycleId,
+            targetProgramStageId,
+        } : {}),
         fromCycleId,
         toCycleId,
         copySchedules: options.copySchedules,
         copyMaterials: options.copyMaterials,
-    }), [fromCycleId, options.copyMaterials, options.copySchedules, toCycleId]);
+    }), [classification, fromCycleId, options.copyMaterials, options.copySchedules, sourceProgramAcademicCycleId, targetProgramAcademicCycleId, targetProgramStageId, toCycleId]);
     const previewItems = copyPreview ? [
         formatCount(copyPreview.sections, 'section'),
         ...(options.copySchedules ? [formatCount(copyPreview.schedules, 'schedule')] : []),
@@ -163,6 +184,11 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
         }
         if (fromCycleId === toCycleId) {
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Source and target cycles must be different.', type: 'error' } });
+            return;
+        }
+        if (classification === ProgramClassificationStatus.PROGRAM_MAPPED
+            && (!sourceProgramAcademicCycleId || !targetProgramAcademicCycleId || !targetProgramStageId)) {
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Choose the source program, target program, and target stage.', type: 'error' } });
             return;
         }
 
@@ -219,7 +245,7 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
                             <CustomSelect
                                 options={cycles.map((cycle) => ({ value: cycle.id, label: cycle.name }))}
                                 value={fromCycleId}
-                                onChange={setFromCycleId}
+                                onChange={(value) => { setFromCycleId(value); setSourceProgramAcademicCycleId(''); }}
                                 placeholder="Select Source Cycle"
                             />
                         </div>
@@ -228,11 +254,40 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
                             <CustomSelect
                                 options={cycles.map((cycle) => ({ value: cycle.id, label: cycle.name }))}
                                 value={toCycleId}
-                                onChange={setToCycleId}
+                                onChange={(value) => { setToCycleId(value); setTargetProgramAcademicCycleId(''); setTargetProgramStageId(''); }}
                                 placeholder="Select Target Cycle"
                             />
                         </div>
                     </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold">Delivery Type</label>
+                            <CustomSelect
+                                value={classification}
+                                onChange={(value) => { setClassification(value as ProgramClassificationStatus); setSourceProgramAcademicCycleId(''); setTargetProgramAcademicCycleId(''); setTargetProgramStageId(''); }}
+                                options={[
+                                    { value: ProgramClassificationStatus.STANDALONE, label: 'Standalone / No program' },
+                                    { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program mapped' },
+                                ]}
+                            />
+                        </div>
+                    </div>
+                    {classification === ProgramClassificationStatus.PROGRAM_MAPPED && (
+                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold">Source Program</label>
+                                <CustomSelect value={sourceProgramAcademicCycleId} onChange={(value) => { setSourceProgramAcademicCycleId(value); setTargetProgramAcademicCycleId(''); setTargetProgramStageId(''); }} options={sourceDeliveryOptions.map((option) => ({ value: option.id, label: `${option.program.code} - ${option.program.name}` }))} disabled={!fromCycleId} searchable />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold">Target Program</label>
+                                <CustomSelect value={targetProgramAcademicCycleId} onChange={(value) => { setTargetProgramAcademicCycleId(value); setTargetProgramStageId(''); }} options={eligibleTargets.map((option) => ({ value: option.id, label: `${option.program.code} - ${option.program.name}` }))} disabled={!sourceProgramAcademicCycleId || !toCycleId} searchable />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold">Target Stage</label>
+                                <CustomSelect value={targetProgramStageId} onChange={setTargetProgramStageId} options={(targetAssociation?.stages || []).map((stage) => ({ value: stage.id, label: `${stage.code} - ${stage.name}` }))} disabled={!targetProgramAcademicCycleId} />
+                            </div>
+                        </div>
+                    )}
                 </StepBlock>
 
                 <StepBlock step={2} title="Select what travels forward" description="Sections and teacher assignments are copied; optional setup records can follow if useful.">
@@ -262,6 +317,7 @@ function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[];
                 items={[
                     ['Source', fromCycle?.name || 'Not selected'],
                     ['Target', toCycle?.name || 'Not selected'],
+                    ['Delivery', classification === ProgramClassificationStatus.STANDALONE ? 'Standalone / No program' : sourceAssociation?.program.name || 'Program not selected'],
                     ['Schedules', options.copySchedules ? 'Included with conflict checks' : 'Skipped'],
                     ['Materials', options.copyMaterials ? 'Included' : 'Skipped'],
                     ['Assessments', 'Never copied'],

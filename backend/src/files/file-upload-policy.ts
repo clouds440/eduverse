@@ -21,6 +21,7 @@ export interface FilePolicyResult {
 export const CODE_MAX_SIZE_BYTES = Math.floor(1.5 * 1024 * 1024);
 export const IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 export const DEFAULT_MAX_SIZE_BYTES = 50 * 1024 * 1024;
+export const GRADE_ANSWERBOOK_ENTITY_TYPE = 'GRADE_ANSWERBOOK';
 
 export const GENERIC_UPLOAD_ACCEPT_EXTENSIONS = [
   '.c',
@@ -259,6 +260,16 @@ export function classifyAndValidateUpload(
   ) {
     throw new BadRequestException(
       'Finance attachments only accept images and PDF files.',
+    );
+  }
+
+  if (
+    entityType === GRADE_ANSWERBOOK_ENTITY_TYPE &&
+    fileKind !== 'image' &&
+    !(fileKind === 'document' && extension === '.pdf')
+  ) {
+    throw new BadRequestException(
+      'Answerbook attachments only accept PDF, JPG, JPEG, PNG, or WEBP files.',
     );
   }
 

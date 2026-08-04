@@ -192,7 +192,7 @@ export class AIPerformanceToolsService implements OnModuleInit {
           userId: student.userId,
           name: student.user?.name ?? student.user?.email ?? 'Student',
           registrationNumber: student.registrationNumber,
-          department: student.primaryDepartment?.name ?? student.department ?? null,
+          department: student.primaryDepartment?.name ?? null,
         })),
         departments: departments.map((department) => ({
           departmentId: department.id,
@@ -437,13 +437,13 @@ export class AIPerformanceToolsService implements OnModuleInit {
         where: { studentId: student.id },
         take: clampLimit(input.limit, 20),
         include: {
-          academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+          academicCycle: { select: { id: true, name: true, code: true, status: true } },
           section: {
             select: {
               id: true,
               name: true,
               code: true,
-              academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+              academicCycle: { select: { id: true, name: true, code: true, status: true } },
               course: { select: { id: true, name: true, code: true, creditHours: true, department: { select: { name: true } } } },
               teachers: { include: { user: { select: { name: true, email: true } } } },
               _count: { select: { schedules: true, assessments: true, enrollments: true } },
@@ -466,14 +466,14 @@ export class AIPerformanceToolsService implements OnModuleInit {
         sectionName: section.name,
         sectionCode: section.code,
         academicCycle: cycle?.name ?? null,
-        academicCycleIsActive: cycle?.isActive ?? null,
+        academicCycleStatus: cycle?.status ?? null,
         teachers: section.teachers.map((teacher) => teacher.user?.name ?? teacher.user?.email).filter(Boolean),
         weeklyScheduleSlots: section._count.schedules,
         assessments: section._count.assessments,
         enrolledStudents: section._count.enrollments,
       };
     });
-    const activeEnrollments = currentEnrollments.filter((enrollment) => enrollment.academicCycleIsActive !== false);
+    const activeEnrollments = currentEnrollments.filter((enrollment) => enrollment.academicCycleStatus === 'ACTIVE');
     const weakestCourses = courseSummaries
       .filter((course) => course.averageGradePercent !== null || course.attendanceRate !== null)
       .sort((a, b) => riskScore(b) - riskScore(a))
@@ -489,7 +489,7 @@ export class AIPerformanceToolsService implements OnModuleInit {
           userId: student.userId,
           name: student.user?.name ?? student.user?.email ?? 'Student',
           registrationNumber: student.registrationNumber,
-          department: student.primaryDepartment?.name ?? student.department ?? null,
+          department: student.primaryDepartment?.name ?? null,
         },
         academicSignals: {
           averageGradePercent: roundOrNull(overallAverage),
@@ -826,7 +826,7 @@ export class AIPerformanceToolsService implements OnModuleInit {
       student.rollNumber,
       student.primaryDepartment?.name,
       student.primaryDepartment?.code,
-      student.department,
+      student.primaryDepartment?.name,
     ]);
   }
 

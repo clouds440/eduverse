@@ -7,10 +7,16 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ReassignStudentsDto } from './dto/reassign-students.dto';
 import { EnrollmentSource, Prisma } from '@/prisma/prisma-client';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
+import { StudentProgramEnrollmentsService } from '../student-program-enrollments/student-program-enrollments.service';
+import { ProgramClassificationStatus } from '../common/enums';
 
 @Injectable()
 export class ReassignmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly studentPrograms: StudentProgramEnrollmentsService,
+  ) {}
 
   private unique(ids?: string[]) {
     return Array.from(new Set((ids ?? []).map((id) => id?.trim()).filter(Boolean)));
@@ -94,8 +100,9 @@ export class ReassignmentService {
   private async enrollInSection(
     tx: Prisma.TransactionClient,
     studentId: string,
-    section: { id: string; academicCycleId: string | null; cohortId?: string | null },
+    section: { id: string; academicCycleId: string; cohortId?: string | null },
     source: EnrollmentSource,
+    programContext?: { enrollment: { id: string }; attempt: { id: string } } | null,
   ) {
     const existing = await tx.enrollment.findUnique({
       where: { studentId_sectionId: { studentId, sectionId: section.id } },
@@ -108,6 +115,8 @@ export class ReassignmentService {
         sectionId: section.id,
         academicCycleId: section.academicCycleId,
         source,
+        studentProgramEnrollmentId: programContext?.enrollment.id,
+        studentStageAttemptId: programContext?.attempt.id,
       },
     });
     await tx.enrollmentHistory.create({
@@ -116,6 +125,8 @@ export class ReassignmentService {
         sectionId: section.id,
         academicCycleId: section.academicCycleId,
         source,
+        studentProgramEnrollmentId: programContext?.enrollment.id,
+        studentStageAttemptId: programContext?.attempt.id,
       },
     });
     return true;
@@ -125,7 +136,8 @@ export class ReassignmentService {
     tx: Prisma.TransactionClient,
     studentId: string,
     fromSectionId: string,
-    toSection: { id: string; academicCycleId: string | null; cohortId: string | null },
+    toSection: { id: string; academicCycleId: string; cohortId: string | null },
+    programContext?: { enrollment: { id: string }; attempt: { id: string } } | null,
   ) {
     const targetExisting = await tx.enrollment.findUnique({
       where: { studentId_sectionId: { studentId, sectionId: toSection.id } },
@@ -144,7 +156,7 @@ export class ReassignmentService {
     });
     await tx.enrollment.delete({ where: { id: current.id } });
 
-    await this.enrollInSection(tx, studentId, toSection, current.source);
+    await this.enrollInSection(tx, studentId, toSection, current.source, programContext);
     return true;
   }
 
@@ -176,7 +188,11 @@ export class ReassignmentService {
    * rows; historical enrollment, grades, submissions, attendance, and assessments
    * remain tied to their original academic cycle records.
    */
-  async reassignStudents(orgId: string, dto: ReassignStudentsDto) {
+  async reassignStudents(orgId: string, dto: ReassignStudentsDto, actorId: string) {
+    await assertAcademicCycleWritable(this.prisma, orgId, dto.toCycleId, 'DELIVERY');
+    if (dto.fromCycleId) {
+      await assertAcademicCycleWritable(this.prisma, orgId, dto.fromCycleId, 'DELIVERY');
+    }
     const sourceType = dto.sourceType ?? (dto.fromSectionId ? 'section' : 'cohort');
     const excludedStudentIds = new Set(this.unique(dto.excludedStudentIds));
     const sourceStudentIds = this.unique(await this.getSourceStudentIds(orgId, dto));
@@ -216,19 +232,25 @@ export class ReassignmentService {
         }),
         this.prisma.section.findFirst({
           where: { id: dto.toSectionId, organizationId: orgId, academicCycleId: dto.toCycleId },
-          select: { id: true, academicCycleId: true, cohortId: true, cohort: { select: { id: true, academicCycleId: true, isActive: true } } },
+          include: {
+            cohort: true,
+            requirementMappings: { include: { stageCourseRequirement: true } },
+          },
         }),
       ]);
 
       if (!fromSection) throw new NotFoundException('Source section not found');
       if (!toSection) throw new NotFoundException('Destination section not found in the target cycle');
-      if (toSection.cohort && !toSection.cohort.isActive) {
-        throw new ConflictException('Cannot reassign students into a section attached to an inactive cohort');
+      if (toSection.cohort && toSection.cohort.status !== 'ACTIVE') {
+        throw new ConflictException('Cannot reassign students into a section attached to a closed cohort');
       }
 
       await this.prisma.$transaction(async (tx) => {
         for (const student of students) {
-          const moved = await this.moveCurrentSectionEnrollment(tx, student.id, fromSection.id, toSection);
+          const programContext = toSection.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+            ? await this.studentPrograms.ensureMappedSectionEnrollment(tx, orgId, student.id, toSection, actorId)
+            : null;
+          const moved = await this.moveCurrentSectionEnrollment(tx, student.id, fromSection.id, toSection, programContext);
           if (!moved) {
             results.skipped++;
             continue;
@@ -251,10 +273,12 @@ export class ReassignmentService {
     await this.validateCycle(orgId, dto.toCycleId, 'Target');
     const targetCohort = await this.prisma.cohort.findFirst({
       where: { id: dto.toCohortId, organizationId: orgId, academicCycleId: dto.toCycleId },
-      include: { sections: { select: { id: true, academicCycleId: true, cohortId: true } } },
+      include: {
+        sections: { select: { id: true, academicCycleId: true, cohortId: true } },
+      },
     });
     if (!targetCohort) throw new NotFoundException('Destination cohort not found in the target cycle');
-    if (!targetCohort.isActive) throw new ConflictException('Cannot reassign students into an inactive cohort');
+    if (targetCohort.status !== 'ACTIVE') throw new ConflictException('Cannot reassign students into a closed cohort');
 
     await this.prisma.$transaction(async (tx) => {
       for (const student of students) {
@@ -264,8 +288,11 @@ export class ReassignmentService {
         }
 
         await this.syncStudentToCohort(tx, student, targetCohort);
+        const programContext = targetCohort.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+          ? await this.studentPrograms.ensureMappedCohortPlacement(tx, orgId, student.id, targetCohort, actorId)
+          : null;
         for (const section of targetCohort.sections) {
-          await this.enrollInSection(tx, student.id, section, EnrollmentSource.COHORT);
+          await this.enrollInSection(tx, student.id, section, EnrollmentSource.COHORT, programContext);
         }
 
         results.reassigned++;

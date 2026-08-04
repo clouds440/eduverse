@@ -135,8 +135,14 @@ function StudentLayout({ profile }: { profile: Extract<PublicProfile, { kind: 's
                 <div className="grid gap-2 sm:grid-cols-2">
                     <DetailItem label="Registration" value={profile.profile.registrationNumber} />
                     <DetailItem label="Roll Number" value={profile.profile.rollNumber} />
-                    <DetailItem label="Program" value={profile.profile.major} />
                     <DetailItem label="Cohort" value={profile.profile.cohort?.code ? `${profile.profile.cohort.code} - ${profile.profile.cohort.name}` : profile.profile.cohort?.name} />
+                    <DetailItem label="Major" value={profile.profile.majorProgram?.code ? `${profile.profile.majorProgram.code} - ${profile.profile.majorProgram.name}` : profile.profile.majorProgram?.name} />
+                    <DetailItem
+                        label="Program Progress"
+                        value={profile.profile.majorProgramEnrollment
+                            ? `${profile.profile.majorProgramEnrollment.cycles.filter((cycle) => cycle.status === 'COMPLETED' || cycle.status === 'SKIPPED').length} of ${profile.profile.majorProgramEnrollment.requiredCycleCountSnapshot} cycles`
+                            : undefined}
+                    />
                 </div>
             </ProfileSection>
             <ProfileSection title="Timeline" icon={CalendarDays}>
@@ -303,7 +309,7 @@ function ProfileHero({ profile }: { profile: PublicProfile }) {
                         </h1>
                         <p className="mt-1 text-sm font-semibold text-muted-foreground">
                             {profile.kind === 'student'
-                                ? profile.profile.major || profile.profile.registrationNumber || 'Student profile'
+                                ? profile.profile.registrationNumber || 'Student profile'
                                 : profile.kind === 'teacher' || profile.kind === 'manager'
                                     ? profile.profile.designation || profile.profile.subject || 'Staff profile'
                                     : 'Organization account'}

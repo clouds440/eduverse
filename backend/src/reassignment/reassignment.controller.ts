@@ -3,6 +3,7 @@ import {
   Post,
   Body,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { ReassignmentService } from './reassignment.service';
 import { ReassignStudentsDto } from './dto/reassign-students.dto';
@@ -13,6 +14,7 @@ import { Role } from '../common/enums';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -23,7 +25,7 @@ export class ReassignmentController {
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
-  reassign(@OrgId() orgId: string, @Body() dto: ReassignStudentsDto) {
-    return this.reassignmentService.reassignStudents(orgId, dto);
+  reassign(@OrgId() orgId: string, @Body() dto: ReassignStudentsDto, @Request() req: AuthenticatedRequest) {
+    return this.reassignmentService.reassignStudents(orgId, dto, req.user.id);
   }
 }

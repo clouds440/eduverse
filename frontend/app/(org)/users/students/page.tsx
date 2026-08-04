@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useGlobal } from '@/context/GlobalContext';
 import { DataTable, Column } from '@/components/ui/DataTable';
-import { BadgeVariant, Department, Role, Student, Section, StudentStatus } from '@/types';
+import { BadgeVariant, Department, Program, Role, Student, Section, StudentStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { searchFilterLookup } from '@/lib/filterLookups';
@@ -43,6 +43,7 @@ interface StudentParams {
     deleted?: boolean;
     cohortId?: string;
     departmentId?: string;
+    programId?: string;
 }
 
 export default function StudentsPage() {
@@ -74,6 +75,7 @@ export default function StudentsPage() {
     const showAlumni = getBooleanParam('showAlumni');
     const cohortId = getStringParam('cohortId');
     const departmentId = getStringParam('departmentId');
+    const programId = getStringParam('programId');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-students-limit', 10);
     const pageBreadcrumbs = [
         { label: 'Organization' },
@@ -91,6 +93,7 @@ export default function StudentsPage() {
         sectionId: sectionId || undefined,
         cohortId: cohortId || undefined,
         departmentId: departmentId || undefined,
+        programId: programId || undefined,
         status: isDeletedView ? undefined : (statusFilter || (showAlumni ? undefined : 'ACTIVE,SUSPENDED')),
         deleted: isDeletedView,
     };
@@ -161,10 +164,13 @@ export default function StudentsPage() {
             )
         },
         {
-            header: 'Major / Course',
-            sortable: true,
-            sortKey: 'major',
-            accessor: (row: Student) => row.major || '-'
+            header: 'Major',
+            sortable: false,
+            accessor: (row: Student) => row.majorProgram ? (
+                <Badge variant="secondary" size="sm" title={row.majorProgram.name}>
+                    {row.majorProgram.code || row.majorProgram.name}
+                </Badge>
+            ) : <span className="text-muted-foreground/30 italic">No major</span>,
         },
         {
             header: 'Department',
@@ -370,6 +376,12 @@ export default function StudentsPage() {
             value: 'Selected department',
             onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }),
         }] : []),
+        ...(programId ? [{
+            key: 'program',
+            label: 'Major',
+            value: 'Selected program',
+            onRemove: () => updateQueryParams({ programId: undefined, page: 1 }),
+        }] : []),
         ...(sectionId ? [{
             key: 'section',
             label: 'Section',
@@ -423,6 +435,23 @@ export default function StudentsPage() {
                                 allLabel="All Cohorts"
                                 selectedLabel="Selected cohort"
                                 loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'cohorts', search })}
+                            />
+                        </div>
+                    )}
+
+                    {canManageStudents && (
+                        <div>
+                            <label className="text-xs font-bold text-muted-foreground mb-1 block">
+                                Major Program
+                            </label>
+                            <RemoteFilterSelect<Program>
+                                cacheKey="students-program-filter"
+                                value={programId}
+                                onChange={(val) => updateQueryParams({ programId: val, page: 1 })}
+                                placeholder="All Programs"
+                                allLabel="All Programs"
+                                selectedLabel="Selected program"
+                                loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'programs', search })}
                             />
                         </div>
                     )}

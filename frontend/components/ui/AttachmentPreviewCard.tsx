@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Object URLs and authenticated previews are intentionally rendered without Next image optimization. */
 
 import React, { useState, useEffect } from "react";
 import {
@@ -33,6 +34,7 @@ type AttachmentPreviewCardProps = {
   align?: "left" | "right";
   fileSize?: number;
   compact?: boolean;
+  compactDownload?: boolean;
 };
 
 const MIME_BY_KIND: Record<AttachmentPreviewKind, string> = {
@@ -100,6 +102,7 @@ export function AttachmentPreviewCard({
   align = "left",
   fileSize: initialFileSize,
   compact = false,
+  compactDownload = false,
 }: AttachmentPreviewCardProps) {
   const { token } = useAuth();
   const isBlob = href.startsWith("blob:");
@@ -112,6 +115,35 @@ export function AttachmentPreviewCard({
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [fileSize, setFileSize] = useState<number | undefined>(initialFileSize);
+  const [authenticatedImageUrl, setAuthenticatedImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    setImageFailed(false);
+    if (!isImage || isBlob || !token) {
+      setAuthenticatedImageUrl(null);
+      return;
+    }
+    let active = true;
+    let objectUrl: string | null = null;
+    fetch(href, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Image preview unavailable');
+        return response.blob();
+      })
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setAuthenticatedImageUrl(objectUrl);
+        setImageFailed(false);
+      })
+      .catch(() => { if (active) setImageFailed(true); });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [href, isBlob, isImage, token]);
+
+  const imageSource = authenticatedImageUrl || href;
 
   useEffect(() => {
     if (initialFileSize !== undefined) {
@@ -178,7 +210,7 @@ export function AttachmentPreviewCard({
             <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted">
               {!imageFailed ? (
                 <img
-                  src={href}
+                  src={imageSource}
                   alt=""
                   className="object-cover w-full h-full"
                   onError={() => setImageFailed(true)}
@@ -195,7 +227,11 @@ export function AttachmentPreviewCard({
                   {formatBytes(fileSize)}
                 </span>
               )}
-              {/* No download button in compact mode */}
+              {compactDownload && !isBlob && (
+                <button type="button" onClick={handleDownload} disabled={isDownloading} className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-primary" title={`Download ${downloadFileName}`}>
+                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -234,6 +270,11 @@ export function AttachmentPreviewCard({
                 )}
               </div>
             </div>
+            {compactDownload && !isBlob && (
+              <button type="button" onClick={handleDownload} disabled={isDownloading} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-primary" title={`Download ${downloadFileName}`}>
+                {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -251,7 +292,7 @@ export function AttachmentPreviewCard({
           <div className="relative w-full aspect-video bg-muted">
             {!imageFailed ? (
               <img
-                src={href}
+                src={imageSource}
                 alt=""
                 className="object-cover w-full h-full"
                 onError={() => setImageFailed(true)}

@@ -14,6 +14,7 @@ import {
   TargetType,
 } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 import { AnnouncementsService } from '../announcements/announcements.service';
 import { AnnouncementPriority } from '../announcements/dto/create-announcement.dto';
 import { Role } from '../common/enums';
@@ -42,7 +43,7 @@ interface WindowQuery {
 }
 
 const WINDOW_INCLUDE = {
-  academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+  academicCycle: { select: { id: true, name: true, code: true, status: true } },
   announcement: { select: { id: true, title: true, actionUrl: true, priority: true } },
   createdBy: { select: { id: true, name: true, email: true } },
   updatedBy: { select: { id: true, name: true, email: true } },
@@ -156,6 +157,7 @@ export class PreferenceWindowsService {
       select: { id: true },
     });
     if (!cycle) throw new BadRequestException('Academic cycle must belong to this organization');
+    await assertAcademicCycleWritable(this.prisma, orgId, dto.academicCycleId, 'SETUP');
 
     const optionCourseIds = this.unique(dto.optionCourseIds);
     const optionSectionIds = this.unique(dto.optionSectionIds);
@@ -235,6 +237,7 @@ export class PreferenceWindowsService {
     await this.assertOrgAdminOrManager(actor);
     const window = await this.prisma.preferenceWindow.findFirst({ where: { id, organizationId: orgId }, include: WINDOW_INCLUDE });
     if (!window) throw new NotFoundException('Preference window not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, window.academicCycleId, 'DELIVERY');
     return window;
   }
 
@@ -260,6 +263,7 @@ export class PreferenceWindowsService {
   async update(orgId: string, id: string, dto: UpdatePreferenceWindowDto, actor: CurrentUser) {
     const existing = await this.prisma.preferenceWindow.findFirst({ where: { id, organizationId: orgId }, include: { submissions: { select: { id: true } } } });
     if (!existing) throw new NotFoundException('Preference window not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, existing.academicCycleId, 'CLOSEOUT');
     if (existing.status !== PreferenceWindowStatus.DRAFT && existing.submissions.length > 0) {
       throw new ConflictException('Preference windows with submissions can only be closed or archived');
     }
@@ -416,6 +420,7 @@ export class PreferenceWindowsService {
     const student = await this.prisma.student.findFirst({ where: { userId: actor.id, organizationId: orgId }, select: { id: true } });
     if (!student) throw new NotFoundException('Student profile not found');
     const window = await this.getStudentWindow(orgId, id, actor);
+    await assertAcademicCycleWritable(this.prisma, orgId, window.academicCycleId, 'DELIVERY');
     const now = new Date();
     if (window.status !== PreferenceWindowStatus.ACTIVE || now < window.startAt || now > window.endAt) {
       throw new ConflictException('Preference window is not open');

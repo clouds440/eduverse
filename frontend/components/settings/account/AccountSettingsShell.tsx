@@ -93,7 +93,7 @@ export function AccountSettingsShell({
             setDraftSettings(settings);
             setThemeMode(settings.themeMode);
         }
-    }, [setThemeMode, settings.themeMode, settingsLoading]);
+    }, [setThemeMode, settings, settingsLoading]);
 
     const preferenceDirtyCount = useMemo(
         () => PREFERENCE_KEYS.filter((key) => draftSettings[key] !== settings[key]).length,

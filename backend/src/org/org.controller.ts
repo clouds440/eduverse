@@ -245,6 +245,8 @@ export class OrgController {
     @Query('cohortId') cohortId?: string,
     @Query('teacherId') teacherId?: string,
     @Query('departmentId') departmentId?: string,
+    @Query('programId') programId?: string,
+    @Query('programClassificationStatus') programClassificationStatus?: string,
     @Query('activeAcademicCycleOnly') activeAcademicCycleOnly?: string,
     @Request() req?: AuthenticatedRequest,
   ) {
@@ -260,6 +262,8 @@ export class OrgController {
       cohortId,
       teacherId,
       departmentId,
+      programId,
+      programClassificationStatus,
       activeAcademicCycleOnly: activeAcademicCycleOnly === 'true',
     }, req?.user);
   }

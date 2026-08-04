@@ -18,6 +18,10 @@ export type FilterLookupRequest =
     | (FilterLookupBase & { entity: 'teachers'; departmentId?: string; status?: string })
     | (FilterLookupBase & { entity: 'students'; my?: boolean; sectionId?: string; status?: string; cohortId?: string; departmentId?: string })
     | (FilterLookupBase & { entity: 'cohorts'; academicCycleId?: string; includeAllCycles?: boolean })
+    | (FilterLookupBase & { entity: 'programs'; departmentId?: string; status?: import('@/types').ProgramStatus })
+    | (FilterLookupBase & { entity: 'academicCycles' })
+    | (FilterLookupBase & { entity: 'curricula'; programId: string })
+    | (FilterLookupBase & { entity: 'programStages'; programId: string; curriculumId?: string })
     | (FilterLookupBase & { entity: 'rooms'; isActive?: boolean; buildingId?: string; departmentId?: string; type?: RoomType })
     | (FilterLookupBase & { entity: 'buildings'; isActive?: boolean; departmentId?: string })
     | (FilterLookupBase & { entity: 'guardians' })
@@ -133,6 +137,42 @@ export async function searchFilterLookup(request: FilterLookupRequest): Promise<
                 value: cohort.id,
                 label: cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name,
             }));
+        }
+        case 'programs': {
+            const response = await api.programs.getPrograms(request.token, {
+                page: 1,
+                limit,
+                search,
+                departmentId: request.departmentId,
+                status: request.status,
+                sortBy: 'name',
+                sortOrder: 'asc',
+            });
+            return response.data.map((program) => ({
+                value: program.id,
+                label: `${program.code} - ${program.name}`,
+                description: program.department.name,
+            }));
+        }
+        case 'academicCycles': {
+            const response = await api.academicCycles.getCycles(request.token, { page: 1, limit, search, sortBy: 'startDate', sortOrder: 'desc' });
+            return response.data.map((cycle) => ({ value: cycle.id, label: `${cycle.code} - ${cycle.name}`, meta: cycle.status }));
+        }
+        case 'curricula': {
+            const program = await api.programs.getProgram(request.programId, request.token);
+            return (program.curriculumVersions || [])
+                .filter((curriculum) => !search || `${curriculum.code} ${curriculum.name}`.toLowerCase().includes(search.toLowerCase()))
+                .slice(0, limit)
+                .map((curriculum) => ({ value: curriculum.id, label: `${curriculum.code} - ${curriculum.name}`, meta: curriculum.status }));
+        }
+        case 'programStages': {
+            const program = await api.programs.getProgram(request.programId, request.token);
+            return (program.curriculumVersions || [])
+                .filter((curriculum) => !request.curriculumId || curriculum.id === request.curriculumId)
+                .flatMap((curriculum) => curriculum.stages)
+                .filter((stage) => !search || `${stage.code} ${stage.name}`.toLowerCase().includes(search.toLowerCase()))
+                .slice(0, limit)
+                .map((stage) => ({ value: stage.id, label: `${stage.code} - ${stage.name}` }));
         }
         case 'rooms': {
             const response = await api.org.getRooms(request.token, {

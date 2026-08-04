@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowLeft, AtSign, GraduationCap, Loader2, Megaphone, Users } from 'lucide-react';
 import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import {
@@ -40,6 +40,13 @@ interface MentionPickerDrawerProps {
 
 export function MentionPickerDrawer({
     isOpen,
+    ...props
+}: MentionPickerDrawerProps) {
+    if (!isOpen) return null;
+    return <OpenMentionPickerDrawer {...props} isOpen />;
+}
+
+function OpenMentionPickerDrawer({
     query,
     members,
     options,
@@ -55,14 +62,6 @@ export function MentionPickerDrawer({
     const [step, setStep] = useState<MentionPickerStep>('ROOT');
     const [audienceRole, setAudienceRole] = useState<ChatMentionAudience | null>(null);
     const [scopeType, setScopeType] = useState<ChatMentionScopeType | null>(null);
-
-    useEffect(() => {
-        if (isOpen) {
-            setStep('ROOT');
-            setAudienceRole(null);
-            setScopeType(null);
-        }
-    }, [isOpen]);
 
     const filteredMembers = useMemo(() => {
         const activeMembers = members.filter(member => member.isActive && member.userId !== currentUserId && member.user);
@@ -100,8 +99,6 @@ export function MentionPickerDrawer({
         if (!query) return scopes;
         return fuzzyFilterAndRank(scopes, query, scope => [scope.name, scope.code, scope.type]);
     }, [audienceRole, options?.scopes, query, scopeType]);
-
-    if (!isOpen) return null;
 
     const rootOptions = [
         { key: 'PEOPLE', label: 'People', icon: AtSign, enabled: filteredMembers.length > 0, onClick: () => setStep('PEOPLE') },

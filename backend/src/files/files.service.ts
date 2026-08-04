@@ -19,6 +19,7 @@ import {
 import {
   classifyAndValidateUpload,
   FilePolicyResult,
+  GRADE_ANSWERBOOK_ENTITY_TYPE,
 } from './file-upload-policy';
 
 type RequestingUser = {
@@ -47,7 +48,7 @@ type StoredFileRecord = {
   createdAt: Date;
 };
 
-interface DownloadPayload {
+export interface DownloadPayload {
   buffer: Buffer;
   filename: string;
   mimeType: string;
@@ -67,6 +68,29 @@ export class FilesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async saveFile(
+    dto: FileUploadDto,
+    file: Express.Multer.File,
+    uploadedBy: string,
+  ): Promise<UploadedFileInfo> {
+    if (dto.entityType.toUpperCase() === GRADE_ANSWERBOOK_ENTITY_TYPE) {
+      throw new ForbiddenException('Answerbook evidence must be uploaded through the grade evidence endpoint');
+    }
+    return this.persistFile(dto, file, uploadedBy);
+  }
+
+  async saveManagedFile(
+    dto: FileUploadDto,
+    file: Express.Multer.File,
+    uploadedBy: string,
+    managedEntityType: typeof GRADE_ANSWERBOOK_ENTITY_TYPE,
+  ): Promise<UploadedFileInfo> {
+    if (dto.entityType.toUpperCase() !== managedEntityType) {
+      throw new ForbiddenException('Managed file type does not match the requested upload');
+    }
+    return this.persistFile(dto, file, uploadedBy);
+  }
+
+  private async persistFile(
     dto: FileUploadDto,
     file: Express.Multer.File,
     uploadedBy: string,
@@ -129,6 +153,14 @@ export class FilesService {
       throw new NotFoundException(`File with id "${fileId}" not found`);
     }
 
+    if (record.entityType.toUpperCase() === GRADE_ANSWERBOOK_ENTITY_TYPE) {
+      throw new ForbiddenException('Answerbook evidence must be deleted through the grade evidence endpoint');
+    }
+
+    if (record.lockedByArchiveId) {
+      throw new ForbiddenException('Archived academic files are immutable and cannot be deleted');
+    }
+
     await this.assertCanAccessFile(record, requestingUser);
 
     if (record.publicId) {
@@ -151,6 +183,27 @@ export class FilesService {
     return { message: 'File deleted successfully' };
   }
 
+  async deleteManagedFile(
+    fileId: string,
+    orgId: string,
+    entityType: typeof GRADE_ANSWERBOOK_ENTITY_TYPE,
+  ): Promise<DeleteFileResult> {
+    const record = await this.prisma.file.findFirst({ where: { id: fileId, orgId, entityType } });
+    if (!record) return { message: 'File already deleted' };
+    if (record.lockedByArchiveId) {
+      throw new ForbiddenException('Archived academic files are immutable and cannot be deleted');
+    }
+    if (record.publicId) {
+      await cloudinary.uploader.destroy(record.publicId, {
+        resource_type: this.resolveResourceType(record),
+        type: record.deliveryType || AUTHENTICATED_DELIVERY_TYPE,
+        invalidate: true,
+      });
+    }
+    await this.prisma.file.delete({ where: { id: record.id } });
+    return { message: 'File deleted successfully' };
+  }
+
   async getDownloadPayload(
     fileId: string,
     requestingUser: RequestingUser,
@@ -161,6 +214,22 @@ export class FilesService {
     }
 
     await this.assertCanAccessFile(record, requestingUser);
+
+    return this.downloadStoredFile(record);
+  }
+
+  async getManagedDownloadPayload(
+    fileId: string,
+    orgId: string,
+    entityType: typeof GRADE_ANSWERBOOK_ENTITY_TYPE,
+    entityId: string,
+  ): Promise<DownloadPayload> {
+    const record = await this.prisma.file.findFirst({ where: { id: fileId, orgId, entityType, entityId } });
+    if (!record) throw new NotFoundException('Managed file not found');
+    return this.downloadStoredFile(record);
+  }
+
+  private async downloadStoredFile(record: StoredFileRecord): Promise<DownloadPayload> {
 
     if (!record.publicId) {
       throw new NotFoundException('File storage reference not found');
@@ -305,6 +374,9 @@ export class FilesService {
     if (isGlobalAdmin) return;
 
     const entityType = record.entityType.toUpperCase();
+    if (entityType === GRADE_ANSWERBOOK_ENTITY_TYPE) {
+      throw new ForbiddenException('Answerbook evidence must be accessed through the grade evidence endpoint');
+    }
     if (entityType === 'MAIL_MESSAGE') {
       await this.assertMailMessageAccess(record.entityId, requestingUser);
       return;

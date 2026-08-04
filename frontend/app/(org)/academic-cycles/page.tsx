@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
-import { Calendar, Hash, Plus } from 'lucide-react';
+import { Archive, Calendar, Hash, Plus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, ApiError, GpaPolicy, Role } from '@/types';
+import { AcademicCycle, AcademicCycleStatus, ApiError, GpaPolicy, Role } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -61,6 +61,10 @@ export default function AcademicCyclesPage() {
     const [deletingCycle, setDeletingCycle] = useState<AcademicCycle | null>(null);
     const [activateDialogOpen, setActivateDialogOpen] = useState(false);
     const [activatingCycle, setActivatingCycle] = useState<AcademicCycle | null>(null);
+    const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+    const [completingCycle, setCompletingCycle] = useState<AcademicCycle | null>(null);
+    const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+    const [archivingCycle, setArchivingCycle] = useState<AcademicCycle | null>(null);
 
     const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
     const { data: gpaPolicies = [] } = useSWR<GpaPolicy[]>(
@@ -146,7 +150,7 @@ export default function AcademicCyclesPage() {
         if (!activatingCycle || !token) return;
 
         try {
-            await api.academicCycles.activateCycle(activatingCycle.id, token);
+            await api.academicCycles.transitionCycle(activatingCycle.id, AcademicCycleStatus.ACTIVE, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Academic Cycle activated successfully', type: 'success' } });
             setActivateDialogOpen(false);
             mutate(matchesCacheKeyPrefix('academicCycles'));
@@ -155,6 +159,35 @@ export default function AcademicCyclesPage() {
             const rawMessage = apiError?.response?.data?.message || apiError?.message || 'Error activating cycle';
             const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
             dispatch({ type: 'TOAST_ADD', payload: { message, type: 'error' } });
+        }
+    };
+
+    const handleCompleteConfirm = async () => {
+        if (!completingCycle || !token) return;
+        try {
+            await api.academicCycles.transitionCycle(completingCycle.id, AcademicCycleStatus.COMPLETED, token);
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Academic Cycle completed', type: 'success' } });
+            setCompleteDialogOpen(false);
+            mutate(matchesCacheKeyPrefix('academicCycles'));
+        } catch (err: unknown) {
+            const apiError = err as ApiError;
+            const rawMessage = apiError?.response?.data?.message || apiError?.message || 'Error completing cycle';
+            dispatch({ type: 'TOAST_ADD', payload: { message: Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage, type: 'error' } });
+        }
+    };
+
+    const handleArchiveConfirm = async () => {
+        if (!archivingCycle || !token) return;
+        try {
+            const retry = archivingCycle.status === AcademicCycleStatus.ARCHIVING;
+            await api.academicCycles.archiveCycle(archivingCycle.id, token, retry);
+            dispatch({ type: 'TOAST_ADD', payload: { message: retry ? 'Archive retry completed' : 'Academic cycle archived', type: 'success' } });
+            setArchiveDialogOpen(false);
+            mutate(matchesCacheKeyPrefix('academicCycles'));
+        } catch (err: unknown) {
+            const apiError = err as ApiError;
+            const rawMessage = apiError?.response?.data?.message || apiError?.message || 'Error archiving cycle';
+            dispatch({ type: 'TOAST_ADD', payload: { message: Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage, type: 'error' } });
         }
     };
 
@@ -180,7 +213,7 @@ export default function AcademicCyclesPage() {
                     <div className="min-w-0">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <p className="truncate text-sm font-black text-foreground">{row.name}</p>
-                            {row.isActive && <Badge variant="primary" size="sm">Active</Badge>}
+                            <Badge variant={row.status === AcademicCycleStatus.ACTIVE ? 'primary' : row.status === AcademicCycleStatus.COMPLETED || row.status === AcademicCycleStatus.ARCHIVED ? 'success' : row.status === AcademicCycleStatus.ARCHIVING ? 'warning' : 'neutral'} size="sm">{row.status}</Badge>
                         </div>
                         <p className="mt-1 text-xs font-black uppercase tracking-wider text-muted-foreground">{row.code}</p>
                     </div>
@@ -220,7 +253,7 @@ export default function AcademicCyclesPage() {
             width: 250,
             accessor: (row) => (
                 <div className="flex items-center gap-2">
-                    {isAdmin && !row.isActive && (
+                    {isAdmin && row.status === AcademicCycleStatus.DRAFT && (
                         <Button
                             variant="secondary"
                             size="sm"
@@ -233,9 +266,48 @@ export default function AcademicCyclesPage() {
                             Activate
                         </Button>
                     )}
+                    {isAdmin && row.status === AcademicCycleStatus.ACTIVE && (
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setCompletingCycle(row);
+                                setCompleteDialogOpen(true);
+                            }}
+                        >
+                            Complete
+                        </Button>
+                    )}
+                    {user?.role === Role.ORG_ADMIN && (row.status === AcademicCycleStatus.COMPLETED || row.status === AcademicCycleStatus.ARCHIVING) && (
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            icon={Archive}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setArchivingCycle(row);
+                                setArchiveDialogOpen(true);
+                            }}
+                        >
+                            {row.status === AcademicCycleStatus.ARCHIVING ? 'Retry Archive' : 'Archive'}
+                        </Button>
+                    )}
+                    {row.status === AcademicCycleStatus.ARCHIVED && (
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                router.push(`/past-records?cycleId=${row.id}`);
+                            }}
+                        >
+                            View Records
+                        </Button>
+                    )}
                     <TableActions
-                        onEdit={isAdmin ? () => openEditModal(row) : undefined}
-                        onDelete={isAdmin && !row.isActive ? () => {
+                        onEdit={isAdmin && row.status === AcademicCycleStatus.DRAFT ? () => openEditModal(row) : undefined}
+                        onDelete={isAdmin && row.status === AcademicCycleStatus.DRAFT ? () => {
                             setDeletingCycle(row);
                             setDeleteDialogOpen(true);
                         } : undefined}
@@ -247,7 +319,7 @@ export default function AcademicCyclesPage() {
                 </div>
             ),
         },
-    ], [isAdmin]);
+    ], [isAdmin, router, user?.role]);
 
     if (cyclesError) {
         return <ErrorState error={cyclesError} onRetry={() => mutateCycles()} />;
@@ -414,8 +486,26 @@ export default function AcademicCyclesPage() {
                 onClose={() => setActivateDialogOpen(false)}
                 onConfirm={handleActivateConfirm}
                 title={<>Activate Cycle <strong>{activatingCycle?.name}</strong></>}
-                description="Are you sure you want to mark this cycle as active? Doing so will deactivate the currently active cycle."
+                description="Activate this cycle for institute-wide delivery. Another active cycle must be completed first."
                 confirmText="Yes, Activate"
+            />
+
+            <ConfirmDialog
+                isOpen={completeDialogOpen}
+                onClose={() => setCompleteDialogOpen(false)}
+                onConfirm={handleCompleteConfirm}
+                title={<>Complete Cycle <strong>{completingCycle?.name}</strong></>}
+                description="Complete active delivery and allow only approved grading closeout operations. This cannot return to active through the normal workflow."
+                confirmText="Yes, Complete"
+            />
+
+            <ConfirmDialog
+                isOpen={archiveDialogOpen}
+                onClose={() => setArchiveDialogOpen(false)}
+                onConfirm={handleArchiveConfirm}
+                title={<>{archivingCycle?.status === AcademicCycleStatus.ARCHIVING ? 'Retry Archive' : 'Archive Cycle'} <strong>{archivingCycle?.name}</strong></>}
+                description="Build and verify an immutable snapshot of sections, students, grades, assessments, attendance, schedules, materials, files, and program context. Archived cycles cannot be reopened."
+                confirmText={archivingCycle?.status === AcademicCycleStatus.ARCHIVING ? 'Retry Archive' : 'Archive Cycle'}
             />
         </PageShell>
     );

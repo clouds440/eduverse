@@ -257,7 +257,7 @@ export default function CreateEvaluationWindowsPage() {
                                         icon={CalendarDays}
                                         options={[
                                             { value: '', label: 'Select cycle' },
-                                            ...cycles.map((cycle) => ({ value: cycle.id, label: `${cycle.name}${cycle.isActive ? ' (active)' : ''}` })),
+                                            ...cycles.map((cycle) => ({ value: cycle.id, label: `${cycle.name}${cycle.status === 'ACTIVE' ? ' (active)' : ''}` })),
                                         ]}
                                         searchable
                                     />

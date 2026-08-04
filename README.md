@@ -1042,21 +1042,20 @@ Protected-content notification rules:
 
 ### Required Backend Variables
 
-| Variable               | Description                                     |
-| ---------------------- | ----------------------------------------------- |
-| `DATABASE_URL`         | PostgreSQL connection string.                   |
-| `JWT_SECRET`           | JWT signing secret.                             |
-| `FRONTEND_URL`         | Frontend URL used in email links and redirects. |
-| `SUPER_ADMIN_USERNAME` | Initial super admin username.                   |
-| `SUPER_ADMIN_PASSWORD` | Initial super admin password.                   |
-| `PORT`                 | Backend port.                                   |
-| `BCRYPT_ROUNDS`        | Password hash cost.                             |
+| Variable         | Description                                                                  |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `NODE_ENV`       | Use `production` for a release deployment.                                  |
+| `DATABASE_URL`   | PostgreSQL connection string.                                                |
+| `JWT_SECRET`     | JWT signing secret; production requires at least 32 characters.             |
+| `CLOUDINARY_URL` | Cloudinary upload configuration.                                             |
+| `FRONTEND_URL`   | Exact comma-separated allowed frontend origins; production requires HTTPS.  |
+| `PORT`           | Backend port.                                                                |
+| `BCRYPT_ROUNDS`  | Password hash cost between 10 and 15.                                        |
 
 ### Optional / Feature Variables
 
 | Variable                    | Description                                                                       |
 | --------------------------- | --------------------------------------------------------------------------------- |
-| `CLOUDINARY_URL`            | Cloudinary upload configuration.                                                  |
 | `RESEND_API_KEY`            | Resend API key.                                                                   |
 | `RESEND_FROM_EMAIL`         | Email sender address.                                                             |
 | `AUTH_COOKIE_DOMAIN`        | Cookie domain.                                                                    |
@@ -1068,6 +1067,17 @@ Protected-content notification rules:
 | `GOOGLE_OAUTH_STATE_SECRET` | Optional separate secret for signed Google OAuth state. Defaults to `JWT_SECRET`. |
 | `THROTTLE_TTL`              | Rate-limit TTL.                                                                   |
 | `THROTTLE_LIMIT`            | Rate-limit request count.                                                         |
+| `DATABASE_POOL_MAX`         | Maximum PostgreSQL connections per backend replica; defaults to 10.               |
+| `DATABASE_POOL_IDLE_TIMEOUT_MS` | Idle pool-connection timeout; defaults to 30000 ms.                          |
+| `DATABASE_POOL_CONNECTION_TIMEOUT_MS` | Pool connection timeout; defaults to 5000 ms.                        |
+| `BOOTSTRAP_SUPER_ADMIN`     | Enables one-time initial super-admin provisioning when explicitly `true`.         |
+| `SUPER_ADMIN_USERNAME`      | Required only while one-time bootstrap is enabled.                                |
+| `SUPER_ADMIN_PASSWORD`      | Required only while one-time bootstrap is enabled; remove it afterward.           |
+| `SUPER_ADMIN_EMAIL`         | Platform notification address and bootstrap requirement.                          |
+
+Use `backend/.env.example` and `frontend/.env.example` as the complete inventory. Production values belong in a secret manager. Run `npm run release:env-check` inside the built backend artifact before migration or startup.
+
+The exact production certification, staging, deployment, smoke-test, and rollback procedure is in [production-release-runbook.md](production-release-runbook.md).
 
 ---
 

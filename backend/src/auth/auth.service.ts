@@ -56,6 +56,7 @@ import { ApproveTrustedDeviceDto } from '../e2ee/dto/approve-trusted-device.dto'
 import { currentUtcMonthPeriod, freeOrgMonthlyCredits } from '../ai/ai-free-quota.util';
 import { LoginPreparationService } from './login-preparation.service';
 import { ActivityLogType } from '../activity-logs/activity-log.types';
+import { allocateOrganizationSlug } from '../common/organization-slug';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -169,9 +170,11 @@ export class AuthService {
 
     // Transaction to ensure both Org and User are created
     const result = await this.prisma.$transaction(async (tx) => {
+      const slug = await allocateOrganizationSlug(tx, registerDto.name);
       const org = await tx.organization.create({
         data: {
           name: registerDto.name,
+          slug,
           location: registerDto.location,
           type: registerDto.type,
           contactEmail: registerDto.contactEmail,

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, ValidateNested } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsEnum, ValidateNested, ValidateIf } from 'class-validator';
+import { ProgramClassificationStatus } from '../../common/enums';
 
 export class CopyForwardOptionsDto {
   @IsBoolean()
@@ -12,6 +13,24 @@ export class CopyForwardOptionsDto {
 }
 
 export class CopyForwardDto {
+  @IsEnum(ProgramClassificationStatus)
+  programClassificationStatus: ProgramClassificationStatus;
+
+  @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED)
+  @IsString()
+  @IsNotEmpty()
+  sourceProgramAcademicCycleId?: string;
+
+  @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED)
+  @IsString()
+  @IsNotEmpty()
+  targetProgramAcademicCycleId?: string;
+
+  @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED)
+  @IsString()
+  @IsNotEmpty()
+  targetProgramStageId?: string;
+
   @IsString()
   @IsNotEmpty()
   fromCycleId: string;

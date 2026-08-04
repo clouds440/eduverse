@@ -79,6 +79,14 @@ export const aiRouteEntries: AIRouteEntry[] = [
     tags: ['courses', 'subjects'],
   },
   {
+    label: 'Programs',
+    href: '/programs',
+    roles: STAFF_ROLES,
+    description: 'View department programs, shared academic-cycle plans, curricula, stages, and course requirements.',
+    module: 'Academics',
+    tags: ['programs', 'majors', 'curricula', 'stages', 'course offerings'],
+  },
+  {
     label: 'Sections',
     href: '/sections',
     roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER],

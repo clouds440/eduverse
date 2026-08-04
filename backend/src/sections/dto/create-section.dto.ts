@@ -1,6 +1,7 @@
-import { IsArray, IsOptional, IsString, IsNotEmpty, Matches, MaxLength } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, IsString, IsNotEmpty, Matches, MaxLength } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 import { HEX_COLOR_PATTERN } from '../section-colors';
+import { ProgramClassificationStatus, SectionLifecycleStatus } from '../../common/enums';
 
 export class CreateSectionDto {
   @IsString()
@@ -28,6 +29,18 @@ export class CreateSectionDto {
   @IsString()
   @IsNotEmpty()
   academicCycleId: string;
+
+  @IsEnum(ProgramClassificationStatus)
+  programClassificationStatus: ProgramClassificationStatus;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  stageCourseRequirementIds?: string[];
+
+  @IsEnum(SectionLifecycleStatus)
+  @IsOptional()
+  status?: SectionLifecycleStatus;
 
   @IsString()
   @IsOptional()

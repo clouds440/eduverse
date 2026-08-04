@@ -6,6 +6,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CopyForwardDto } from './dto/copy-forward.dto';
 import { ScheduleType } from '@/prisma/prisma-client';
+import { ProgramClassificationStatus } from '../common/enums';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 
 @Injectable()
 export class CopyForwardService {
@@ -58,13 +60,49 @@ export class CopyForwardService {
     return { fromCycle, toCycle };
   }
 
+  private async validateProgramMapping(orgId: string, dto: CopyForwardDto) {
+    if (dto.programClassificationStatus === ProgramClassificationStatus.STANDALONE) return null;
+    if (!dto.sourceProgramAcademicCycleId || !dto.targetProgramAcademicCycleId || !dto.targetProgramStageId) {
+      throw new BadRequestException('Source program association, target program association, and target stage are required');
+    }
+    const [source, targetStage] = await Promise.all([
+      this.prisma.programAcademicCycle.findFirst({
+        where: { id: dto.sourceProgramAcademicCycleId, organizationId: orgId, academicCycleId: dto.fromCycleId, status: 'ACTIVE' },
+      }),
+      this.prisma.programStage.findFirst({
+        where: {
+          id: dto.targetProgramStageId,
+          organizationId: orgId,
+          programAcademicCycleId: dto.targetProgramAcademicCycleId,
+          programAcademicCycle: { academicCycleId: dto.toCycleId, status: 'ACTIVE' },
+          curriculumVersion: { status: 'ACTIVE' },
+        },
+        include: {
+          programAcademicCycle: true,
+          courseRequirements: true,
+          curriculumVersion: { include: { programConfigurationRevision: true } },
+        },
+      }),
+    ]);
+    if (!source || !targetStage) throw new BadRequestException('Selected program copy-forward mapping is not eligible');
+    if (source.programId !== targetStage.programAcademicCycle.programId) {
+      throw new BadRequestException('Source and target associations must belong to the same program');
+    }
+    return { source, targetStage };
+  }
+
   async previewCopyForward(orgId: string, dto: CopyForwardDto) {
     const options = this.getOptions(dto);
     await this.validateCycles(orgId, dto);
+    await this.validateProgramMapping(orgId, dto);
 
     const sectionWhere = {
       academicCycleId: dto.fromCycleId,
       course: { organizationId: orgId },
+      programClassificationStatus: dto.programClassificationStatus,
+      ...(dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+        ? { requirementMappings: { some: { programAcademicCycleId: dto.sourceProgramAcademicCycleId } } }
+        : {}),
     };
 
     const [sections, schedules, assessments, materials] = await Promise.all([
@@ -97,10 +135,17 @@ export class CopyForwardService {
   async copyForward(orgId: string, dto: CopyForwardDto) {
     const options = this.getOptions(dto);
     const { toCycle } = await this.validateCycles(orgId, dto);
+    await assertAcademicCycleWritable(this.prisma, orgId, dto.toCycleId, 'SETUP');
+    const programMapping = await this.validateProgramMapping(orgId, dto);
 
     // Get all sections from the source cycle
     const sourceSections = await this.prisma.section.findMany({
-      where: { academicCycleId: dto.fromCycleId, course: { organizationId: orgId } },
+      where: {
+        academicCycleId: dto.fromCycleId,
+        course: { organizationId: orgId },
+        programClassificationStatus: dto.programClassificationStatus,
+        ...(programMapping ? { requirementMappings: { some: { programAcademicCycleId: programMapping.source.id } } } : {}),
+      },
       include: {
         teachers: { select: { id: true } },
         ...(options.copySchedules
@@ -143,6 +188,12 @@ export class CopyForwardService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const sourceSection of sourceSections) {
+        const targetRequirements = programMapping
+          ? programMapping.targetStage.courseRequirements.filter((requirement) => requirement.courseId === sourceSection.courseId)
+          : [];
+        if (programMapping && targetRequirements.length === 0) {
+          throw new BadRequestException(`Target stage has no requirement for section course ${sourceSection.courseId}`);
+        }
         // Create new section with same data but new cycle
         const codeBase = this.copyCodeBase(sourceSection.code, toCycle);
         let code = codeBase;
@@ -169,9 +220,18 @@ export class CopyForwardService {
             defaultRoomId: sourceSection.defaultRoomId,
             courseId: sourceSection.courseId,
             academicCycleId: dto.toCycleId,
+            status: 'ACTIVE',
+            programClassificationStatus: dto.programClassificationStatus,
             teachers: {
               connect: sourceSection.teachers.map((teacher) => ({ id: teacher.id })),
             },
+            requirementMappings: programMapping ? {
+              create: targetRequirements.map((requirement) => ({
+                  organizationId: orgId,
+                  stageCourseRequirementId: requirement.id,
+                  programAcademicCycleId: programMapping.targetStage.programAcademicCycleId,
+                })),
+            } : undefined,
           },
         });
         results.sectionsCopied++;

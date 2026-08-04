@@ -28,6 +28,10 @@ export class TranscriptsService {
       include: {
         user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } },
         cohort: { select: { id: true, name: true } },
+        programEnrollments: {
+          include: { program: { include: { department: true } }, curriculumVersion: true },
+          orderBy: { admittedAt: 'asc' },
+        },
       },
     });
 
@@ -68,6 +72,8 @@ export class TranscriptsService {
           },
         },
         academicCycle: { select: { id: true, name: true, startDate: true, endDate: true, gpaPolicySnapshot: true } },
+        studentProgramEnrollment: { include: { program: true, curriculumVersion: true } },
+        studentStageAttempt: { include: { programStage: true } },
       },
       orderBy: { enrolledAt: 'asc' },
     });
@@ -145,6 +151,9 @@ export class TranscriptsService {
         letterGrade: string;
         gradePoints: number;
         qualityPoints: number;
+        program: { id: string; name: string; code: string } | null;
+        curriculum: { id: string; name: string; code: string } | null;
+        stage: { id: string; name: string; code: string } | null;
       }>;
       cohortName: string | null;
     }>();
@@ -177,6 +186,9 @@ export class TranscriptsService {
           letterGrade: 'N/A',
           gradePoints: 0,
           qualityPoints: 0,
+          program: eh.studentProgramEnrollment?.program || null,
+          curriculum: eh.studentProgramEnrollment?.curriculumVersion || null,
+          stage: eh.studentStageAttempt?.programStage || null,
         });
       }
     }
@@ -309,6 +321,7 @@ export class TranscriptsService {
         registrationNumber: student.registrationNumber,
         rollNumber: student.rollNumber,
         currentCohort: student.cohort,
+        programHistory: student.programEnrollments,
       },
       transcript,
       summary: {

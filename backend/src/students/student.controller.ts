@@ -41,6 +41,7 @@ export class StudentController {
     @Query('status') status?: string,
     @Query('deleted') deleted?: string,
     @Query('departmentId') departmentId?: string,
+    @Query('programId') programId?: string,
     @Request() req?: AuthenticatedRequest,
   ) {
     return this.studentService.getStudents(orgId, {
@@ -55,6 +56,7 @@ export class StudentController {
       status,
       deleted: deleted === 'true',
       departmentId,
+      programId,
     }, req?.user);
   }
 

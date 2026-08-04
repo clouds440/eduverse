@@ -5,7 +5,7 @@ import type {
     CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
     CreateSectionRequest, UpdateSectionRequest, CreateCourseRequest, UpdateCourseRequest,
     PaginatedResponse, OrgStatus, MailItem, MailDetail, CreateMailPayload, PublicContactPayload, UpdateMailPayload, MailE2EEContextRequest, EncryptedMailContent,
-    Assessment, Grade, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
+    Assessment, Grade, GradeAnswerbookAttachment, Submission, CreateAssessmentRequest, UpdateAssessmentRequest,
     UpdateGradeRequest, CreateSubmissionRequest, FinalGradeResponse, MailTarget,
     Chat, ChatE2EEContext, ChatMentionOptions, ChatMentionTarget, ChatMessage, ChatSearchUser, CommunicationBlock, Notification, Announcement, TargetType, AnnouncementPriority, User, Attachment,
     ThemeMode, UserSettings, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
@@ -18,7 +18,7 @@ import type {
     FinancialStructure, FinancialEntry, Transaction, FinanceStats, TeacherFinanceOverview, MessageResponse, AuditLogItem, PayrollRosterRow,
     GpaPolicy, CreateGpaPolicyRequest, UpdateGpaPolicyRequest, GpaPolicyPreviewRequest, GpaPolicyPreviewResponse,
     GradeFinalizationFilters, GradeFinalizationRow, SectionGradebookResponse, OrgUserCounts,
-    ImportEntity, ImportValidationResult, ImportPreviewRow, ImportConfirmResult, ImportProgressEvent, InvalidImportRow, AttendanceMonthlyImportOptions,
+    ImportEntity, ImportValidationResult, ImportConfirmResult, ImportProgressEvent, InvalidImportRow, AttendanceMonthlyImportOptions,
     AcademicEvent, CreateAcademicEventRequest, UpdateAcademicEventRequest, AcademicEventType,
     Evaluation, EvaluationPendingResponse, EvaluationSummary, EvaluationType,
     CreateEvaluationRequest, UpdateEvaluationRequest, EvaluationWindow, CreateEvaluationWindowRequest, UpdateEvaluationWindowRequest, BulkCreateEvaluationWindowsRequest, BulkCreateEvaluationWindowsResponse,
@@ -27,6 +27,8 @@ import type {
     ApproveTrustedDevicePayload, PendingDeviceApprovalContext, RecipientEncryptionDevicesResponse, RegisterChatHistoryKeyPayload, RegisterTrustedDevicePayload, SendChatMessagePayload,
     TrustedDeviceRegistrationResponse, TrustedDevicesResponse, TwoFactorChallenge, TwoFactorLoginMethod,
     ChatDeviceHistoryGrantPayload,
+    Program, ProgramStatus, CurriculumStatus, CreateProgramRequest, EligibleProgramCycle, ProgramConfigurationRevision, ProgramDeliveryOption, StudentProgramEnrollment,
+    AcademicCycleArchiveStatusResponse, PastRecordFilters, PastRecordOptions, PastRecordSectionDetail, PastRecordSectionSummary, PastRecordStudentSummary,
 } from '@/types';
 import type {
     AIOrgSettingsResponse,
@@ -73,27 +75,33 @@ export class ApiRequestError extends Error {
     status: number;
     code?: string;
     field?: string;
+    rowIndex?: number;
+    details?: Record<string, unknown>;
     response?: {
         status: number;
         data: {
             code?: string;
             field?: string;
             message: string;
+            rowIndex?: number;
         };
     };
 
-    constructor(message: string, status: number, details?: { code?: string; field?: string }) {
+    constructor(message: string, status: number, details?: { code?: string; field?: string; rowIndex?: number; data?: Record<string, unknown> }) {
         super(message);
         this.name = 'ApiRequestError';
         this.status = status;
         this.code = details?.code;
         this.field = details?.field;
+        this.rowIndex = details?.rowIndex;
+        this.details = details?.data;
         this.response = {
             status,
             data: {
                 code: details?.code,
                 field: details?.field,
                 message,
+                rowIndex: details?.rowIndex,
             },
         };
     }
@@ -185,7 +193,10 @@ function parseApiErrorData(data: unknown, fallback: string) {
             ? nested.field
             : undefined;
 
-    return { message, code, field };
+    const rowIndexValue = root.rowIndex ?? nested.rowIndex;
+    const rowIndex = typeof rowIndexValue === 'number' ? rowIndexValue : undefined;
+
+    return { message, code, field, rowIndex, data: { ...root, ...nested } };
 }
 
 function maybeEmitProfanityWarning(error: { code?: string; field?: string; message: string }) {
@@ -229,6 +240,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
             let message = `Request failed with status ${response.status}`;
             let code: string | undefined;
             let field: string | undefined;
+            let rowIndex: number | undefined;
+            let errorData: Record<string, unknown> | undefined;
             try {
                 const contentType = response.headers.get('content-type');
                 if (contentType?.includes('application/json')) {
@@ -237,6 +250,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
                     message = parsed.message;
                     code = parsed.code;
                     field = parsed.field;
+                    rowIndex = parsed.rowIndex;
+                    errorData = parsed.data;
                 } else {
                     const text = await response.text();
                     if (text && text.length < 200) message = text;
@@ -245,7 +260,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
                 console.error('Error parsing error response:', error);
             }
             maybeEmitProfanityWarning({ code, field, message });
-            throw new ApiRequestError(message, response.status, { code, field });
+            throw new ApiRequestError(message, response.status, { code, field, rowIndex, data: errorData });
         }
 
         if (response.status === 204) return null as T;
@@ -897,7 +912,7 @@ export const api = {
             request<Student>(`/org/students/${id}`, { token }),
         getStudentByUserId: (userId: string, token: string) =>
             request<Student>(`/org/students/by-user/${userId}`, { token }),
-        getStudents: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, sectionId?: string, status?: string, deleted?: boolean, cohortId?: string, departmentId?: string } = {}) =>
+        getStudents: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, sectionId?: string, status?: string, deleted?: boolean, cohortId?: string, departmentId?: string, programId?: string } = {}) =>
             request<PaginatedResponse<Student>>(`/org/students${buildQueryString(params)}`, { token }),
         createStudent: (data: CreateStudentRequest, token: string) =>
             request<Student>('/org/students', { method: 'POST', body: JSON.stringify(data), token }),
@@ -933,7 +948,7 @@ export const api = {
 
         getSection: (id: string, token: string) =>
             request<Section>(`/org/sections/${id}`, { token }),
-        getSections: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, userId?: string, academicCycleId?: string, cohortId?: string, teacherId?: string, departmentId?: string, activeAcademicCycleOnly?: boolean } = {}) =>
+        getSections: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', my?: boolean, userId?: string, academicCycleId?: string, cohortId?: string, teacherId?: string, departmentId?: string, programId?: string, programClassificationStatus?: string, activeAcademicCycleOnly?: boolean } = {}) =>
             request<PaginatedResponse<Section>>(`/org/sections${buildQueryString(params)}`, { token }),
         createSection: (data: CreateSectionRequest, token: string) =>
             request<Section>('/org/sections', { method: 'POST', body: JSON.stringify(data), token }),
@@ -1030,6 +1045,15 @@ export const api = {
             request<SectionGradebookResponse>(`/org/sections/${sectionId}/gradebook`, { token }),
         updateGrade: (assessmentId: string, studentId: string, data: UpdateGradeRequest, token: string) =>
             request<Grade>(`/org/assessments/${assessmentId}/grades/${studentId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        getGradeAnswerbookAttachments: (gradeId: string, token: string) =>
+            request<GradeAnswerbookAttachment[]>(`/org/grades/${gradeId}/answerbook-attachments`, { token }),
+        uploadGradeAnswerbookAttachment: (gradeId: string, file: File, token: string) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            return uploadFormData<GradeAnswerbookAttachment>(`/org/grades/${gradeId}/answerbook-attachments`, formData, token, 'POST');
+        },
+        deleteGradeAnswerbookAttachment: (gradeId: string, attachmentId: string, token: string) =>
+            request<{ deleted: boolean; cleanupPending: boolean }>(`/org/grades/${gradeId}/answerbook-attachments/${attachmentId}`, { method: 'DELETE', token }),
         getOwnFinalGrades: (token: string) =>
             request<FinalGradeResponse[]>('/org/grades/final', { token }),
         getOwnReleasedGrades: (token: string) =>
@@ -1392,14 +1416,85 @@ export const api = {
             request<AcademicCycle>(`/org/academic-cycles`, { method: 'POST', body: JSON.stringify(data), token }),
         updateCycle: (id: string, data: UpdateAcademicCycleDto, token: string) =>
             request<AcademicCycle>(`/org/academic-cycles/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        activateCycle: (id: string, token: string) =>
-            request<{ message: string; cycle: AcademicCycle }>(`/org/academic-cycles/${id}/activate`, { method: 'PATCH', token }),
+        transitionCycle: (id: string, status: AcademicCycle['status'], token: string, reason?: string) =>
+            request<AcademicCycle>(`/org/academic-cycles/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, reason }), token }),
         deleteCycle: (id: string, token: string) =>
             request<void>(`/org/academic-cycles/${id}`, { method: 'DELETE', token }),
+        getArchiveStatus: (id: string, token: string) =>
+            request<AcademicCycleArchiveStatusResponse>(`/org/academic-cycles/${id}/archive`, { token }),
+        archiveCycle: (id: string, token: string, retry = false) =>
+            request<AcademicCycleArchiveStatusResponse>(`/org/academic-cycles/${id}/archive${buildQueryString({ retry: retry || undefined })}`, { method: 'POST', token }),
+        verifyArchive: (id: string, token: string) =>
+            request<{ valid: boolean; archiveId: string; checksum: string }>(`/org/academic-cycles/${id}/archive/verify`, { token }),
+    },
+
+    pastRecords: {
+        options: (token: string, params: PastRecordFilters = {}) =>
+            request<PastRecordOptions>(`/org/past-records/options${buildQueryString(params)}`, { token }),
+        cycles: (token: string, params: PastRecordFilters = {}) =>
+            request<PaginatedResponse<AcademicCycle>>(`/org/past-records/cycles${buildQueryString(params)}`, { token }),
+        sections: (token: string, params: PastRecordFilters = {}) =>
+            request<PaginatedResponse<PastRecordSectionSummary>>(`/org/past-records/sections${buildQueryString(params)}`, { token }),
+        section: (token: string, archiveSectionId: string) =>
+            request<PastRecordSectionDetail>(`/org/past-records/sections/${archiveSectionId}`, { token }),
+        students: (token: string, params: PastRecordFilters = {}) =>
+            request<PaginatedResponse<PastRecordStudentSummary>>(`/org/past-records/students${buildQueryString(params)}`, { token }),
+        student: (token: string, studentId: string, params: PastRecordFilters = {}) =>
+            request<{ student: PastRecordStudentSummary; sections: PaginatedResponse<PastRecordSectionSummary> }>(`/org/past-records/students/${studentId}${buildQueryString(params)}`, { token }),
+    },
+
+    programs: {
+        getPrograms: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', departmentId?: string, status?: ProgramStatus } = {}) =>
+            request<PaginatedResponse<Program>>(`/org/programs${buildQueryString(params)}`, { token }),
+        getProgram: (id: string, token: string) =>
+            request<Program>(`/org/programs/${id}`, { token }),
+        getEligibleCycles: (token: string, params: { search?: string, programId?: string, page?: number, limit?: number } = {}) =>
+            request<PaginatedResponse<EligibleProgramCycle>>(`/org/programs/eligible-cycles${buildQueryString(params)}`, { token }),
+        getDeliveryOptions: (token: string, academicCycleId: string, departmentId?: string) =>
+            request<ProgramDeliveryOption[]>(`/org/programs/delivery-options${buildQueryString({ academicCycleId, departmentId })}`, { token }),
+        createProgram: (data: CreateProgramRequest, token: string) =>
+            request<Program>('/org/programs', { method: 'POST', body: JSON.stringify(data), token }),
+        updateProgram: (id: string, data: Partial<Omit<CreateProgramRequest, 'cycles' | 'curriculumName' | 'curriculumCode'>>, token: string) =>
+            request<Program>(`/org/programs/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        replaceCycles: (id: string, data: { configurationVersion: number, changeReason: string, curriculumName: string, curriculumCode: string, stageTerminology?: string, cycles: CreateProgramRequest['cycles'], metadata?: Partial<Omit<CreateProgramRequest, 'cycles' | 'curriculumName' | 'curriculumCode'>> }, token: string) =>
+            request<Program>(`/org/programs/${id}/cycles`, { method: 'PUT', body: JSON.stringify(data), token }),
+        transitionProgram: (id: string, status: ProgramStatus, token: string, reason?: string) =>
+            request<Program>(`/org/programs/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, reason }), token }),
+        getConfigurationRevisions: (id: string, token: string) =>
+            request<ProgramConfigurationRevision[]>(`/org/programs/${id}/configuration-revisions`, { token }),
+        transitionCurriculum: (id: string, status: CurriculumStatus, token: string, defaultForAdmissions = true) =>
+            request(`/org/programs/curricula/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, defaultForAdmissions }), token }),
+        deleteProgram: (id: string, token: string) =>
+            request<{ message: string }>(`/org/programs/${id}`, { method: 'DELETE', token }),
+    },
+
+    studentPrograms: {
+        list: (studentId: string, token: string) =>
+            request<StudentProgramEnrollment[]>(`/org/students/${studentId}/program-enrollments`, { token }),
+        admit: (studentId: string, data: { programId: string; entryAcademicCycleId?: string; entryStageSequence?: number }, token: string) =>
+            request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/admit`, { method: 'POST', body: JSON.stringify(data), token }),
+        transfer: (studentId: string, data: { programId: string; reason: string; entryAcademicCycleId?: string; entryStageSequence?: number }, token: string) =>
+            request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/transfer`, { method: 'POST', body: JSON.stringify(data), token }),
+        hold: (studentId: string, enrollmentId: string, reason: string, token: string) =>
+            request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/hold`, { method: 'POST', body: JSON.stringify({ reason }), token }),
+        resume: (studentId: string, enrollmentId: string, token: string) =>
+            request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/resume`, { method: 'POST', token }),
+        withdraw: (studentId: string, enrollmentId: string, data: { reason: string; retainPrimaryDepartment?: boolean; replacementPrimaryDepartmentId?: string }, token: string) =>
+            request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/withdraw`, { method: 'POST', body: JSON.stringify(data), token }),
+        activateCycle: (studentId: string, enrollmentId: string, data: { studentProgramEnrollmentCycleId: string; cohortId?: string; reason?: string }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/cycles/activate`, { method: 'POST', body: JSON.stringify(data), token }),
+        completeCycle: (studentId: string, enrollmentId: string, cycleId: string, data: { reason: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/cycles/${cycleId}/complete`, { method: 'POST', body: JSON.stringify(data), token }),
+        skipCycle: (studentId: string, enrollmentId: string, cycleId: string, data: { reason: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/cycles/${cycleId}/skip`, { method: 'POST', body: JSON.stringify(data), token }),
+        repeatCycle: (studentId: string, enrollmentId: string, cycleId: string, data: { reason: string; cohortId?: string }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/cycles/${cycleId}/repeat`, { method: 'POST', body: JSON.stringify(data), token }),
+        complete: (studentId: string, enrollmentId: string, data: { reason: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
+            request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/complete`, { method: 'POST', body: JSON.stringify(data), token }),
     },
 
     cohorts: {
-        getCohorts: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', academicCycleId?: string, includeAllCycles?: boolean } = {}) =>
+        getCohorts: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', academicCycleId?: string, includeAllCycles?: boolean, programId?: string, programClassificationStatus?: string } = {}) =>
             request<PaginatedResponse<Cohort>>(`/org/cohorts${buildQueryString(params)}`, { token }),
         getCohort: (id: string, token: string) =>
             request<Cohort>(`/org/cohorts/${id}`, { token }),

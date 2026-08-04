@@ -28,7 +28,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useBackStackEntry } from "@/context/BackNavigationContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
-import { AIUsageSourceType, Role, type AIConversationSummary } from "@/types";
+import { AIUsageSourceType, type AIConversationSummary } from "@/types";
 import { cn } from "@/lib/utils";
 import { useAICopilot } from "./AICopilotProvider";
 import { AICopilotHome } from "./AICopilotHome";

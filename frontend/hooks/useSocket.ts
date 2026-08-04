@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -25,13 +25,22 @@ type EventCallback = (...args: unknown[]) => void;
 // Use a singleton socket so multiple components don't open duplicate connections
 let socketSingleton: Socket | null = null;
 const listenersSingleton: Map<string, Set<EventCallback>> = new Map();
-const connectionStateListeners = new Set<(isConnected: boolean) => void>();
+const connectionStateListeners = new Set<() => void>();
 const joinedRoomCounts = new Map<string, number>();
 let connected = false;
 
 function updateConnectionState(isConnected: boolean) {
     connected = isConnected;
-    connectionStateListeners.forEach(listener => listener(isConnected));
+    connectionStateListeners.forEach(listener => listener());
+}
+
+function subscribeToConnectionState(listener: () => void) {
+    connectionStateListeners.add(listener);
+    return () => connectionStateListeners.delete(listener);
+}
+
+function getConnectionState() {
+    return connected;
 }
 
 function rejoinRequestedRooms(socket: Socket) {
@@ -48,15 +57,7 @@ function attachStoredListeners(socket: Socket) {
 
 export function useSocket(options: UseSocketOptions) {
     const { token, userId, userRole, orgId, enabled = true } = options;
-    const [isConnected, setIsConnected] = useState(connected);
-
-    useEffect(() => {
-        connectionStateListeners.add(setIsConnected);
-        setIsConnected(connected);
-        return () => {
-            connectionStateListeners.delete(setIsConnected);
-        };
-    }, []);
+    const isConnected = useSyncExternalStore(subscribeToConnectionState, getConnectionState, () => false);
 
     useEffect(() => {
         if (!enabled || !token) return;

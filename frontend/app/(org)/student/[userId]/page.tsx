@@ -210,7 +210,8 @@ function StudentPortalContent() {
         if (tab === 'overview') {
             if (insightsLoading) return <DashboardSkeleton />;
             if (insightsError) return <ErrorState error={insightsError} onRetry={() => mutateInsights()} />;
-            return <Overview insights={insights || null} />;
+            if (!studentData) return <DashboardSkeleton />;
+            return <Overview insights={insights || null} student={studentData} />;
         }
 
         if (tab === 'courses') {

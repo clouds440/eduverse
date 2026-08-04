@@ -139,7 +139,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
         }
 
         return adminLinks;
-    }, [chatStats, stats, user?.id, user?.role]);
+    }, [chatStats, stats, user]);
 
     const bottomLinks = useMemo<SidebarLink[]>(() => [], []);
 

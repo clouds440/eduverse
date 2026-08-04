@@ -22,6 +22,7 @@ import { FilesService } from './files.service';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import { FileUploadDto } from './files.dto';
+import { GRADE_ANSWERBOOK_ENTITY_TYPE } from './file-upload-policy';
 import type {
   UploadedFileInfo,
   DeleteFileResult,
@@ -43,6 +44,9 @@ export class FilesController {
   ): Promise<UploadedFileInfo> {
     if (!file) {
       throw new BadRequestException('No file provided');
+    }
+    if (dto.entityType.toUpperCase() === GRADE_ANSWERBOOK_ENTITY_TYPE) {
+      throw new ForbiddenException('Answerbook evidence must be uploaded through the grade evidence endpoint');
     }
 
     const isGlobalAdmin =

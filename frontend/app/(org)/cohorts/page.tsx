@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, ApiError, Cohort, Role } from '@/types';
+import { AcademicCycle, ApiError, Cohort, CohortLifecycleStatus, Program, ProgramClassificationStatus, Role } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -24,6 +24,8 @@ import { Badge } from '@/components/ui/Badge';
 import { usePersistentPageSize } from '@/hooks/usePersistentPageSize';
 import { useUrlQueryState } from '@/hooks/useUrlQueryState';
 import { CsvImportModal } from '@/components/imports/CsvImportModal';
+import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
+import { searchFilterLookup } from '@/lib/filterLookups';
 
 export default function CohortsPage() {
     const { token, user } = useAuth();
@@ -38,6 +40,8 @@ export default function CohortsPage() {
     const academicCycleId = getStringParam('academicCycleId');
     const cycleScope = getStringParam('cycleScope');
     const showAllCycles = cycleScope === 'all';
+    const programId = getStringParam('programId');
+    const programClassificationStatus = getStringParam('programClassificationStatus');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-cohorts-limit', 10);
 
     const cohortParams = {
@@ -48,6 +52,8 @@ export default function CohortsPage() {
         sortOrder,
         academicCycleId: showAllCycles ? undefined : academicCycleId || undefined,
         includeAllCycles: showAllCycles ? true : undefined,
+        programId: programId || undefined,
+        programClassificationStatus: programClassificationStatus || undefined,
     };
 
     const cohortsKey = token ? ['cohorts', cohortParams] as const : null;
@@ -94,7 +100,7 @@ export default function CohortsPage() {
     const handleRestore = useCallback(async (cohort: Cohort) => {
         if (!token) return;
         try {
-            await api.cohorts.updateCohort(cohort.id, { isActive: true }, token);
+            await api.cohorts.updateCohort(cohort.id, { status: CohortLifecycleStatus.ACTIVE }, token);
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort reactivated successfully', type: 'success' } });
             mutate(matchesCacheKeyPrefix('cohorts'));
         } catch (err: unknown) {
@@ -121,6 +127,18 @@ export default function CohortsPage() {
             })(),
             onRemove: () => updateQueryParams({ academicCycleId: undefined, cycleScope: undefined, page: 1 }),
         }] : []),
+        ...(programClassificationStatus ? [{
+            key: 'programClassificationStatus',
+            label: 'Delivery',
+            value: programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'Program mapped' : 'Standalone',
+            onRemove: () => updateQueryParams({ programClassificationStatus: undefined, page: 1 }),
+        }] : []),
+        ...(programId ? [{
+            key: 'programId',
+            label: 'Program',
+            value: 'Selected program',
+            onRemove: () => updateQueryParams({ programId: undefined, page: 1 }),
+        }] : []),
         ...(showAllCycles ? [{
             key: 'cycleScope',
             label: 'Cycle',
@@ -142,7 +160,10 @@ export default function CohortsPage() {
                     <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2">
                             <p className="truncate text-sm font-black text-foreground">{row.name}</p>
-                            {row.isActive === false && <Badge variant="warning" size="sm">Inactive</Badge>}
+                            {row.status !== 'ACTIVE' && <Badge variant="warning" size="sm">{row.status}</Badge>}
+                            <Badge variant={row.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'info' : 'secondary'} size="sm">
+                                {row.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'Program mapped' : 'Standalone'}
+                            </Badge>
                         </div>
                         <p className="mt-1 text-xs font-black uppercase tracking-wider text-muted-foreground">{row.code}</p>
                     </div>
@@ -176,13 +197,13 @@ export default function CohortsPage() {
                 <TableActions
                     onEdit={isAdmin ? () => router.push(`/cohorts/edit/${row.id}?returnTo=/cohorts`) : undefined}
                     onView={() => router.push(`/cohorts/${row.id}`)}
-                    onDelete={isAdmin && row.isActive !== false ? () => {
+                    onDelete={isAdmin && row.status === 'ACTIVE' ? () => {
                         setDeletingCohort(row);
                         setDeleteDialogOpen(true);
                     } : undefined}
                     editTitle="Edit Cohort"
                     deleteTitle="Archive Cohort"
-                    extraActions={isAdmin && row.isActive === false ? [{
+                    extraActions={isAdmin && row.status === 'CLOSED' ? [{
                         variant: 'restore',
                         title: 'Reactivate Cohort',
                         onClick: () => handleRestore(row),
@@ -261,6 +282,30 @@ export default function CohortsPage() {
                                         updateQueryParams({ academicCycleId: value || undefined, cycleScope: undefined, page: 1 });
                                     }}
                                     placeholder="Current Active Cycle"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Delivery Type</Label>
+                                <CustomSelect
+                                    value={programClassificationStatus}
+                                    onChange={(value) => updateQueryParams({ programClassificationStatus: value || undefined, programId: value === ProgramClassificationStatus.STANDALONE ? undefined : programId || undefined, page: 1 })}
+                                    options={[
+                                        { value: '', label: 'All delivery types' },
+                                        { value: ProgramClassificationStatus.STANDALONE, label: 'Standalone / No program' },
+                                        { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program mapped' },
+                                    ]}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Program</Label>
+                                <RemoteFilterSelect<Program>
+                                    cacheKey="cohorts-program-filter"
+                                    value={programId}
+                                    onChange={(value) => updateQueryParams({ programId: value || undefined, programClassificationStatus: value ? ProgramClassificationStatus.PROGRAM_MAPPED : programClassificationStatus || undefined, page: 1 })}
+                                    placeholder="All Programs"
+                                    allLabel="All Programs"
+                                    selectedLabel="Selected program"
+                                    loadOptions={(search) => searchFilterLookup({ token: token!, entity: 'programs', search })}
                                 />
                             </div>
                         </FilterDrawerGrid>

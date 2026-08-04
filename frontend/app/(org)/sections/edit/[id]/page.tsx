@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, Cohort, Course, PaginatedResponse, Role, Room, Section, Student, Teacher, UpdateSectionRequest } from '@/types';
+import { AcademicCycle, Cohort, Course, PaginatedResponse, ProgramClassificationStatus, ProgramDeliveryOption, Role, Room, Section, Student, Teacher, UpdateSectionRequest } from '@/types';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -34,6 +34,10 @@ interface SectionEditFormData {
     defaultRoomId: string;
     courseId: string;
     academicCycleId: string;
+    programClassificationStatus: ProgramClassificationStatus;
+    programAcademicCycleId: string;
+    programStageId: string;
+    stageCourseRequirementIds: string[];
     cohortId: string;
     color: string;
 }
@@ -70,6 +74,10 @@ export default function EditSectionPage() {
         defaultRoomId: '',
         courseId: '',
         academicCycleId: '',
+        programClassificationStatus: ProgramClassificationStatus.STANDALONE,
+        programAcademicCycleId: '',
+        programStageId: '',
+        stageCourseRequirementIds: [],
         cohortId: '',
         color: DEFAULT_SECTION_COLOR,
     });
@@ -94,6 +102,15 @@ export default function EditSectionPage() {
     const cohortsKey = token && canManage ? ['cohorts', { limit: 1000 }] as const : null;
     const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
     const cohorts = useMemo(() => cohortsData?.data || [], [cohortsData?.data]);
+    const { data: deliveryOptions = [] } = useSWR<ProgramDeliveryOption[]>(
+        token && canManage && formData.academicCycleId ? ['program-delivery-options', formData.academicCycleId, token] : null,
+        () => api.programs.getDeliveryOptions(token!, formData.academicCycleId),
+    );
+    const selectedDelivery = deliveryOptions.find((option) => option.id === formData.programAcademicCycleId);
+    const selectedStage = selectedDelivery?.stages.find((stage) => stage.id === formData.programStageId);
+    const requirementOptions = (selectedStage?.courseRequirements || [])
+        .filter((requirement) => requirement.courseId === formData.courseId)
+        .map((requirement) => ({ value: requirement.id, label: `${requirement.requirementType.replaceAll('_', ' ')} - ${requirement.course.code} ${requirement.course.name}` }));
 
     const studentsKey = token && canManage ? ['students', { limit: 1000 }] as const : null;
     const { data: studentsData, isLoading: isStudentsLoading } = useSWR<PaginatedResponse<Student>>(studentsKey);
@@ -121,6 +138,10 @@ export default function EditSectionPage() {
             defaultRoomId: section.defaultRoomId || '',
             courseId: section.courseId || '',
             academicCycleId: section.academicCycleId || '',
+            programClassificationStatus: section.programClassificationStatus,
+            programAcademicCycleId: section.requirementMappings?.[0]?.programAcademicCycleId || '',
+            programStageId: section.requirementMappings?.[0]?.stageCourseRequirement.programStage?.id || '',
+            stageCourseRequirementIds: section.requirementMappings?.map((mapping) => mapping.stageCourseRequirementId) || [],
             cohortId: section.cohortId || '',
             color: getSectionColor(section.color),
         });
@@ -132,8 +153,12 @@ export default function EditSectionPage() {
     }, [hydratedSectionId, section]);
 
     const filteredCohorts = useMemo(() => (
-        cohorts.filter((cohort) => !formData.academicCycleId || cohort.academicCycleId === formData.academicCycleId)
-    ), [cohorts, formData.academicCycleId]);
+        cohorts.filter((cohort) => (!formData.academicCycleId || cohort.academicCycleId === formData.academicCycleId)
+            && cohort.programClassificationStatus === formData.programClassificationStatus
+            && (formData.programClassificationStatus === ProgramClassificationStatus.STANDALONE
+                || (!formData.programAcademicCycleId || cohort.programAcademicCycleId === formData.programAcademicCycleId))
+            && (!formData.programStageId || cohort.programStageId === formData.programStageId))
+    ), [cohorts, formData.academicCycleId, formData.programAcademicCycleId, formData.programClassificationStatus, formData.programStageId]);
 
     const removedTeacherIds = useMemo(() => (
         (section?.teachers || [])
@@ -170,6 +195,10 @@ export default function EditSectionPage() {
         if (!formData.code.trim()) nextErrors.code = 'Section code is required';
         if (!formData.courseId) nextErrors.courseId = 'Course is required';
         if (!formData.academicCycleId) nextErrors.academicCycleId = 'Academic cycle is required';
+        if (formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+            && (!formData.programAcademicCycleId || !formData.programStageId || formData.stageCourseRequirementIds.length === 0)) {
+            nextErrors.general = 'Choose a program, stage, and matching course requirement';
+        }
         if (!isSectionPaletteColor(formData.color)) nextErrors.color = 'Choose one of the preset section colors';
         if (affectedSchedules.length > 0 && !teacherResolutionAction) {
             nextErrors.teacherIds = 'Choose how to handle schedules owned by removed teachers';
@@ -195,6 +224,8 @@ export default function EditSectionPage() {
                 defaultRoomId: formData.defaultRoomId || null,
                 courseId: formData.courseId,
                 academicCycleId: formData.academicCycleId,
+                programClassificationStatus: formData.programClassificationStatus,
+                stageCourseRequirementIds: formData.stageCourseRequirementIds,
                 cohortId: formData.cohortId,
                 color: formData.color,
                 teacherIds: selectedTeacherIds,
@@ -326,7 +357,7 @@ export default function EditSectionPage() {
                         <FormField label="Course" required error={formErrors.courseId}>
                             <CustomSelect
                                 value={formData.courseId}
-                                onChange={(value) => setFormData((previous) => ({ ...previous, courseId: value }))}
+                                onChange={(value) => setFormData((previous) => ({ ...previous, courseId: value, stageCourseRequirementIds: [] }))}
                                 options={courses.map((course) => ({ value: course.id, label: course.code ? `${course.code} - ${course.name}` : course.name, icon: BookOpen }))}
                                 placeholder="Select course"
                                 searchable
@@ -337,7 +368,7 @@ export default function EditSectionPage() {
                         <FormField label="Academic Cycle" required error={formErrors.academicCycleId}>
                             <CustomSelect
                                 value={formData.academicCycleId}
-                                onChange={(value) => setFormData((previous) => ({ ...previous, academicCycleId: value, cohortId: '' }))}
+                                onChange={(value) => setFormData((previous) => ({ ...previous, academicCycleId: value, cohortId: '', programAcademicCycleId: '', programStageId: '', stageCourseRequirementIds: [] }))}
                                 options={cycles.map((cycle) => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name, icon: Calendar }))}
                                 placeholder="Select academic cycle"
                                 required
@@ -345,11 +376,63 @@ export default function EditSectionPage() {
                             />
                         </FormField>
                     </FormGrid>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <FormField label="Delivery Type" required>
+                            <CustomSelect
+                                value={formData.programClassificationStatus}
+                                onChange={(value) => setFormData((previous) => ({ ...previous, programClassificationStatus: value as ProgramClassificationStatus, cohortId: '', programAcademicCycleId: '', programStageId: '', stageCourseRequirementIds: [] }))}
+                                options={[
+                                    { value: ProgramClassificationStatus.STANDALONE, label: 'Standalone / No program' },
+                                    { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program mapped' },
+                                ]}
+                            />
+                        </FormField>
+                        {formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED && (
+                            <FormField label="Program" required>
+                                <CustomSelect
+                                    value={formData.programAcademicCycleId}
+                                    onChange={(programAcademicCycleId) => setFormData((previous) => ({ ...previous, programAcademicCycleId, programStageId: '', cohortId: '', stageCourseRequirementIds: [] }))}
+                                    options={deliveryOptions.map((option) => ({ value: option.id, label: `${option.program.code} - ${option.program.name}` }))}
+                                    searchable
+                                />
+                            </FormField>
+                        )}
+                    </div>
+                    {formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED && (
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            <FormField label="Curriculum Stage" required>
+                                <CustomSelect
+                                    value={formData.programStageId}
+                                    onChange={(programStageId) => setFormData((previous) => ({ ...previous, programStageId, cohortId: '', stageCourseRequirementIds: [] }))}
+                                    options={(selectedDelivery?.stages || []).map((stage) => ({ value: stage.id, label: `${stage.code} - ${stage.name}` }))}
+                                    disabled={!formData.programAcademicCycleId}
+                                />
+                            </FormField>
+                            <FormField label="Course Requirements" required>
+                                <CustomMultiSelect
+                                    values={formData.stageCourseRequirementIds}
+                                    onChange={(stageCourseRequirementIds) => setFormData((previous) => ({ ...previous, stageCourseRequirementIds }))}
+                                    options={requirementOptions}
+                                    disabled={!formData.programStageId || !formData.courseId}
+                                    placeholder="Select matching requirements"
+                                />
+                            </FormField>
+                        </div>
+                    )}
                     <div className="mt-4">
                         <FormField label="Cohort" helper="Optional. Leave empty for individual enrollment.">
                             <CustomSelect
                                 value={formData.cohortId}
-                                onChange={(value) => setFormData((previous) => ({ ...previous, cohortId: value }))}
+                                onChange={(value) => {
+                                    const cohort = cohorts.find((item) => item.id === value);
+                                    setFormData((previous) => ({
+                                        ...previous,
+                                        cohortId: value,
+                                        programAcademicCycleId: cohort?.programAcademicCycleId || previous.programAcademicCycleId,
+                                        programStageId: cohort?.programStageId || previous.programStageId,
+                                        stageCourseRequirementIds: cohort ? [] : previous.stageCourseRequirementIds,
+                                    }));
+                                }}
                                 options={[
                                     { value: '', label: 'No Cohort', icon: Network },
                                     ...filteredCohorts.map((cohort) => ({ value: cohort.id, label: cohort.code ? `${cohort.code} - ${cohort.name}` : cohort.name, icon: Network })),

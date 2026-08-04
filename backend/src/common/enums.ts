@@ -125,3 +125,28 @@ export enum EnrollmentSource {
   MANUAL = 'MANUAL',
   COHORT = 'COHORT',
 }
+
+export enum AcademicCycleStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  COMPLETED = 'COMPLETED',
+  ARCHIVING = 'ARCHIVING',
+  ARCHIVED = 'ARCHIVED',
+}
+
+export enum CohortLifecycleStatus {
+  ACTIVE = 'ACTIVE',
+  CLOSED = 'CLOSED',
+  ARCHIVED = 'ARCHIVED',
+}
+
+export enum SectionLifecycleStatus {
+  ACTIVE = 'ACTIVE',
+  CLOSED = 'CLOSED',
+  ARCHIVED = 'ARCHIVED',
+}
+
+export enum ProgramClassificationStatus {
+  STANDALONE = 'STANDALONE',
+  PROGRAM_MAPPED = 'PROGRAM_MAPPED',
+}

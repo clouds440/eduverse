@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from './ws-jwt.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { configuredOrigins, isAllowedOrigin } from '../common/origin-policy';
 
 /**
  * Authenticated user data attached to socket.data.user by WsJwtGuard.
@@ -40,17 +41,7 @@ interface SocketUser {
         callback(null, true);
         return;
       }
-      const allowedOrigins = (process.env.FRONTEND_URL || '')
-        .split(',')
-        .map((url) => url.trim())
-        .filter(Boolean);
-
-      const isAllowed =
-        allowedOrigins.some((allowed) => origin === allowed) ||
-        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
-        /\.vercel\.app$/.test(origin);
-
-      if (isAllowed) {
+      if (isAllowedOrigin(origin, configuredOrigins())) {
         callback(null, true);
       } else {
         callback(null, false);

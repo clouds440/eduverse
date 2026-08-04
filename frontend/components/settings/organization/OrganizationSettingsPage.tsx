@@ -311,15 +311,11 @@ export function OrganizationSettingsPage() {
               aiSettings={aiSettings.aiSettings}
               activeAIPlan={aiSettings.activeAIPlan}
               activeAIPlanOption={aiSettings.activeAIPlanOption}
-              aiBalance={aiSettings.aiBalance}
-              aiUsagePercent={aiSettings.aiUsagePercent}
               aiRoleCreditDrafts={aiSettings.aiRoleCreditDrafts}
               setAiRoleCreditDrafts={aiSettings.setAiRoleCreditDrafts}
               aiUsage={aiSettings.aiUsage}
               aiCurrency={aiSettings.aiCurrency}
               maxAITrendCredits={aiSettings.maxAITrendCredits}
-              onPlanChange={aiSettings.handleAIPlanChange}
-              onBillingPortal={aiSettings.handleAIBillingPortal}
               onAccessToggle={aiSettings.handleAIAccessToggle}
               onRoleCreditSave={aiSettings.handleAIRoleCreditSave}
               onRefresh={aiSettings.fetchAISettings}

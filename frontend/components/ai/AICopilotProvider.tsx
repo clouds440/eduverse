@@ -402,7 +402,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         const assistantMessage: AICopilotMessage = {
           id: makeMessageId("assistant"),
           role: "assistant",
-          content: creditLimitReachedResponse(entitlement.code, user.role),
+          content: creditLimitReachedResponse(entitlement.code),
           status: "complete",
           createdAt: Date.now(),
         };
@@ -542,7 +542,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         }
         const code = err instanceof ApiRequestError ? err.code : undefined;
         if (isCreditLimitReachedCode(code)) {
-          const message = creditLimitReachedResponse(code, user.role);
+          const message = creditLimitReachedResponse(code);
           setError(null);
           setMessages((current) => {
             const next = current.map((item) =>
@@ -727,7 +727,7 @@ export function isCreditLimitReachedCode(code?: string | null) {
     || code === "PERSONAL_CREDITS_EXHAUSTED";
 }
 
-function creditLimitReachedResponse(code: string | undefined, role?: string | null) {
+function creditLimitReachedResponse(code: string | undefined) {
   const scope = code === "ORG_CREDITS_EXHAUSTED"
     ? "your organization has"
     : code === "ROLE_CREDITS_EXHAUSTED"

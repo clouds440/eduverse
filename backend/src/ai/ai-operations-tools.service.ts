@@ -107,13 +107,13 @@ export class AIOperationsToolsService implements OnModuleInit {
         where: {
           organizationId: context.orgId,
           OR: [
-            { isActive: true },
+            { status: 'ACTIVE' },
             { endDate: { gte: now } },
           ],
         },
         take: limit,
-        orderBy: [{ isActive: 'desc' }, { startDate: 'asc' }],
-        select: { id: true, name: true, code: true, startDate: true, endDate: true, isActive: true },
+        orderBy: [{ startDate: 'asc' }],
+        select: { id: true, name: true, code: true, startDate: true, endDate: true, status: true },
       }),
       this.prisma.academicEvent.findMany({
         where: {
@@ -152,7 +152,7 @@ export class AIOperationsToolsService implements OnModuleInit {
           academicCycleId: cycle.id,
           name: cycle.name,
           code: cycle.code,
-          isActive: cycle.isActive,
+          status: cycle.status,
           startDate: dateKey(cycle.startDate),
           endDate: dateKey(cycle.endDate),
         })),

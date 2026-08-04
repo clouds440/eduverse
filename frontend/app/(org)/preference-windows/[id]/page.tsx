@@ -166,7 +166,7 @@ export default function StudentPreferenceWindowPage() {
 
     useEffect(() => {
         setRankOrder(buildInitialRankOrder(window));
-    }, [window?.id, window?.submissions?.[0]?.updatedAt]);
+    }, [window]);
 
     const optionsById = useMemo(() => new Map((window?.options || []).map((option) => [option.id, option])), [window?.options]);
     const rankedOptions = rankOrder.map((optionId) => optionsById.get(optionId)).filter((option): option is PreferenceWindowOption => Boolean(option));

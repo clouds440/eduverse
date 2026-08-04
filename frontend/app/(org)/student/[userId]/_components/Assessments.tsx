@@ -22,6 +22,7 @@ import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import type { ActiveFilter } from '@/components/ui/PageShell';
 import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { GENERIC_UPLOAD_ACCEPT } from '@/lib/uploadPolicy';
+import { GradeEvidenceReadOnly } from '@/components/grading/GradeEvidenceReadOnly';
 
 function getGradeTone(marks: number, total: number) {
     const percentage = total > 0 ? (marks / total) * 100 : 0;
@@ -380,6 +381,10 @@ export default function Assessments({ sections, assessments }: { sections: Secti
                                             <p className="mt-2 text-sm font-medium text-foreground">{grade.feedback}</p>
                                         </div>
                                     )}
+                                    <GradeEvidenceReadOnly
+                                        referenceNumber={grade.answerbookReferenceNumber}
+                                        attachments={grade.answerbookAttachments}
+                                    />
                                 </div>
                             );
                         })()}

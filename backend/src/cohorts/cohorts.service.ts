@@ -14,13 +14,60 @@ import {
   PaginationOptions,
   fuzzyFilterAndRank,
 } from '../common/utils';
-import { Prisma, EnrollmentSource } from '@/prisma/prisma-client';
+import { AcademicCycleStatus, CohortLifecycleStatus, EnrollmentSource, Prisma, ProgramClassificationStatus } from '@/prisma/prisma-client';
 import { Role } from '../common/enums';
 import { normalizeEntityCode } from '../common/entity-code';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
+import { StudentProgramEnrollmentsService } from '../student-program-enrollments/student-program-enrollments.service';
 
 @Injectable()
 export class CohortsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly studentPrograms: StudentProgramEnrollmentsService,
+  ) {}
+
+  private async validateProgramPlacement(
+    client: PrismaService | Prisma.TransactionClient,
+    orgId: string,
+    academicCycleId: string,
+    classification: ProgramClassificationStatus,
+    programAcademicCycleId?: string | null,
+    programStageId?: string | null,
+  ) {
+    if (classification === ProgramClassificationStatus.STANDALONE) {
+      if (programAcademicCycleId || programStageId) {
+        throw new BadRequestException('Standalone cohorts cannot include program mapping fields');
+      }
+      return null;
+    }
+    if (!programAcademicCycleId || !programStageId) {
+      throw new BadRequestException('Program-mapped cohorts require both a program association and stage');
+    }
+    const mapping = await client.programStage.findFirst({
+      where: {
+        id: programStageId,
+        organizationId: orgId,
+        programAcademicCycleId,
+        programAcademicCycle: {
+          academicCycleId,
+          organizationId: orgId,
+          status: 'ACTIVE',
+          program: { status: { in: ['ACTIVE', 'TEACH_OUT'] } },
+        },
+        curriculumVersion: { status: 'ACTIVE' },
+      },
+      include: {
+        curriculumVersion: { include: { programConfigurationRevision: true } },
+        programAcademicCycle: { include: { program: true } },
+      },
+    });
+    if (!mapping) throw new BadRequestException('Program stage mapping does not match this academic cycle');
+    if (mapping.curriculumVersion.programConfigurationRevision.version !== mapping.programAcademicCycle.program.configurationVersion) {
+      throw new ConflictException('Program stage is not part of the current active configuration');
+    }
+    return mapping;
+  }
 
   private async assertCodeUnique(orgId: string, codeValue: string, excludeId?: string) {
     const code = normalizeEntityCode(codeValue);
@@ -78,6 +125,19 @@ export class CohortsService {
       where: { id: dto.academicCycleId, organizationId: orgId },
     });
     if (!cycle) throw new NotFoundException('Academic cycle not found in this organization');
+    await assertAcademicCycleWritable(this.prisma, orgId, dto.academicCycleId, dto.studentIds?.length ? 'DELIVERY' : 'SETUP');
+
+    await this.validateProgramPlacement(
+      this.prisma,
+      orgId,
+      dto.academicCycleId,
+      dto.programClassificationStatus as ProgramClassificationStatus,
+      dto.programAcademicCycleId,
+      dto.programStageId,
+    );
+    if (dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED && dto.studentIds?.length) {
+      throw new ConflictException('Students must enter a program-mapped cohort through the program progression workflow');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const cohort = await tx.cohort.create({
@@ -86,7 +146,10 @@ export class CohortsService {
           code: code!,
           organizationId: orgId,
           academicCycleId: dto.academicCycleId,
-          isActive: dto.isActive ?? true,
+          status: (dto.status as CohortLifecycleStatus | undefined) ?? CohortLifecycleStatus.ACTIVE,
+          programClassificationStatus: dto.programClassificationStatus as ProgramClassificationStatus,
+          programAcademicCycleId: dto.programAcademicCycleId ?? null,
+          programStageId: dto.programStageId ?? null,
           sections: {
             connect: dto.sectionIds?.map(id => ({ id })) || [],
           },
@@ -137,13 +200,15 @@ export class CohortsService {
         where: { id: cohort.id },
         include: {
           academicCycle: { select: { id: true, name: true, code: true } },
+          programAcademicCycle: { include: { program: { include: { department: true } } } },
+          programStage: true,
           _count: { select: { students: true, sections: true } },
         },
       });
     });
   }
 
-  async getCohorts(orgId: string, options: PaginationOptions & { academicCycleId?: string; includeAllCycles?: boolean }) {
+  async getCohorts(orgId: string, options: PaginationOptions & { academicCycleId?: string; includeAllCycles?: boolean; programId?: string; programClassificationStatus?: string }) {
     const { skip, take, sortBy, sortOrder } = getPaginationOptions({
       ...options,
       sortBy: options.sortBy || 'createdAt',
@@ -156,7 +221,9 @@ export class CohortsService {
         ? { academicCycleId: options.academicCycleId }
         : options.includeAllCycles
           ? {}
-          : { academicCycle: { isActive: true } }),
+          : { academicCycle: { status: AcademicCycleStatus.ACTIVE } }),
+      ...(options.programClassificationStatus ? { programClassificationStatus: options.programClassificationStatus as ProgramClassificationStatus } : {}),
+      ...(options.programId ? { programAcademicCycle: { programId: options.programId } } : {}),
     };
     const searchWhere: Prisma.CohortWhereInput = options.search
       ? {
@@ -169,7 +236,9 @@ export class CohortsService {
     const where: Prisma.CohortWhereInput = { ...baseWhere, ...searchWhere };
 
     const include = {
-      academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+      academicCycle: { select: { id: true, name: true, code: true, status: true } },
+      programAcademicCycle: { include: { program: { include: { department: true } } } },
+      programStage: true,
       _count: { select: { students: true, sections: true } },
     } satisfies Prisma.CohortInclude;
 
@@ -213,7 +282,9 @@ export class CohortsService {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id, organizationId: orgId },
       include: {
-        academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+        academicCycle: { select: { id: true, name: true, code: true, status: true } },
+        programAcademicCycle: { include: { program: { include: { department: true } } } },
+        programStage: true,
         students: {
           include: {
             user: {
@@ -235,7 +306,7 @@ export class CohortsService {
     return cohort;
   }
 
-  async updateCohort(orgId: string, id: string, dto: UpdateCohortDto) {
+  async updateCohort(orgId: string, id: string, dto: UpdateCohortDto, actorId: string) {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id, organizationId: orgId },
       include: {
@@ -250,6 +321,19 @@ export class CohortsService {
     }
 
     const nextAcademicCycleId = dto.academicCycleId ?? cohort.academicCycleId;
+    const nextClassification = (dto.programClassificationStatus ?? cohort.programClassificationStatus) as ProgramClassificationStatus;
+    const nextProgramAcademicCycleId = nextClassification === ProgramClassificationStatus.PROGRAM_MAPPED
+      ? (dto.programAcademicCycleId ?? cohort.programAcademicCycleId)
+      : null;
+    const nextProgramStageId = nextClassification === ProgramClassificationStatus.PROGRAM_MAPPED
+      ? (dto.programStageId ?? cohort.programStageId)
+      : null;
+    await assertAcademicCycleWritable(
+      this.prisma,
+      orgId,
+      nextAcademicCycleId,
+      dto.studentIds !== undefined || dto.sectionIds !== undefined ? 'DELIVERY' : 'SETUP',
+    );
 
     if (dto.academicCycleId !== undefined) {
       const cycle = await this.prisma.academicCycle.findFirst({
@@ -257,6 +341,22 @@ export class CohortsService {
         select: { id: true },
       });
       if (!cycle) throw new NotFoundException('Academic cycle not found in this organization');
+    }
+
+    await this.validateProgramPlacement(
+      this.prisma,
+      orgId,
+      nextAcademicCycleId,
+      nextClassification,
+      nextProgramAcademicCycleId,
+      nextProgramStageId,
+    );
+    const placementChanged = nextClassification !== cohort.programClassificationStatus
+      || nextProgramAcademicCycleId !== cohort.programAcademicCycleId
+      || nextProgramStageId !== cohort.programStageId
+      || nextAcademicCycleId !== cohort.academicCycleId;
+    if (placementChanged && cohort.students.length > 0) {
+      throw new ConflictException('Move enrolled students through program progression before changing cohort program placement');
     }
 
     const sectionIdsForValidation = dto.sectionIds ?? cohort.sections.map(section => section.id);
@@ -267,7 +367,7 @@ export class CohortsService {
           id: { in: uniqueSectionIds },
           course: { organizationId: orgId },
         },
-        select: { id: true, academicCycleId: true },
+        select: { id: true, academicCycleId: true, programClassificationStatus: true },
       });
 
       if (sections.length !== uniqueSectionIds.length) {
@@ -277,6 +377,10 @@ export class CohortsService {
       const sectionFromOtherCycle = sections.find(section => section.academicCycleId !== nextAcademicCycleId);
       if (sectionFromOtherCycle) {
         throw new BadRequestException('Assigned sections must belong to the selected academic cycle');
+      }
+      const sectionWithWrongClassification = sections.find(section => section.programClassificationStatus !== nextClassification);
+      if (sectionWithWrongClassification) {
+        throw new BadRequestException('Assigned sections must use the same delivery classification as the cohort');
       }
     }
 
@@ -297,7 +401,10 @@ export class CohortsService {
           name: dto.name !== undefined ? dto.name.trim() : undefined,
           code: dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
           academicCycleId: dto.academicCycleId !== undefined ? dto.academicCycleId : undefined,
-          isActive: dto.isActive,
+          status: dto.status as CohortLifecycleStatus | undefined,
+          programClassificationStatus: nextClassification,
+          programAcademicCycleId: nextProgramAcademicCycleId,
+          programStageId: nextProgramStageId,
           sections: dto.sectionIds !== undefined ? {
             set: dto.sectionIds.map(sectionId => ({ id: sectionId })),
           } : undefined,
@@ -374,9 +481,17 @@ export class CohortsService {
       const addedSections = sectionsForEnrollment.filter(section => addedSectionIds.includes(section.id));
 
       for (const student of currentStudents) {
+        const programContext = nextClassification === ProgramClassificationStatus.PROGRAM_MAPPED
+          ? await this.studentPrograms.ensureMappedCohortPlacement(tx, orgId, student.id, {
+            id,
+            academicCycleId: nextAcademicCycleId,
+            programAcademicCycleId: nextProgramAcademicCycleId,
+            programStageId: nextProgramStageId,
+          }, actorId)
+          : null;
         const targetSections = addedStudentIds.includes(student.id) ? sectionsForEnrollment : addedSections;
         for (const section of targetSections) {
-          await this.autoEnrollStudent(tx, student.id, section.id, section.academicCycleId || nextAcademicCycleId);
+          await this.autoEnrollStudent(tx, student.id, section.id, section.academicCycleId || nextAcademicCycleId, programContext);
         }
       }
 
@@ -384,6 +499,8 @@ export class CohortsService {
         where: { id },
         include: {
           academicCycle: { select: { id: true, name: true, code: true } },
+          programAcademicCycle: { include: { program: { include: { department: true } } } },
+          programStage: true,
           _count: { select: { students: true, sections: true } },
         },
       });
@@ -393,21 +510,22 @@ export class CohortsService {
   async deleteCohort(orgId: string, id: string) {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id, organizationId: orgId },
-      select: { id: true, isActive: true },
+      select: { id: true, status: true, academicCycleId: true },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, cohort.academicCycleId, 'CLOSEOUT');
 
-    if (!cohort.isActive) {
-      return { message: 'Cohort is already inactive' };
+    if (cohort.status !== CohortLifecycleStatus.ACTIVE) {
+      return { message: 'Cohort is already closed' };
     }
 
-    await this.prisma.cohort.update({ where: { id }, data: { isActive: false } });
-    return { message: 'Cohort archived' };
+    await this.prisma.cohort.update({ where: { id }, data: { status: CohortLifecycleStatus.CLOSED } });
+    return { message: 'Cohort closed' };
   }
 
   // ─── STUDENT ↔ COHORT MANAGEMENT ──────────────────────────────────────────
 
-  async addStudentToCohort(orgId: string, cohortId: string, studentId: string) {
+  async addStudentToCohort(orgId: string, cohortId: string, studentId: string, actorId: string) {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id: cohortId, organizationId: orgId },
       include: {
@@ -416,7 +534,8 @@ export class CohortsService {
       },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
-    if (!cohort.isActive) throw new ConflictException('Cannot add students to an inactive cohort');
+    if (cohort.status !== CohortLifecycleStatus.ACTIVE) throw new ConflictException('Cannot add students to a closed cohort');
+    await assertAcademicCycleWritable(this.prisma, orgId, cohort.academicCycleId, 'DELIVERY');
 
     const student = await this.prisma.student.findFirst({
       where: { id: studentId, organizationId: orgId },
@@ -428,6 +547,9 @@ export class CohortsService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      const programContext = cohort.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+        ? await this.studentPrograms.ensureMappedCohortPlacement(tx, orgId, studentId, cohort, actorId)
+        : null;
       // If student was in another cohort, close that membership
       if (student.cohortId) {
         await this.removeCohortEnrollments(tx, studentId, student.cohortId);
@@ -454,14 +576,14 @@ export class CohortsService {
 
       // Auto-enroll into all cohort sections
       for (const section of cohort.sections) {
-        await this.autoEnrollStudent(tx, studentId, section.id, section.academicCycleId || cohort.academicCycleId);
+        await this.autoEnrollStudent(tx, studentId, section.id, section.academicCycleId || cohort.academicCycleId, programContext);
       }
     });
 
     return { message: 'Student added to cohort' };
   }
 
-  async addStudentsToCohortBulk(orgId: string, cohortId: string, studentIds: string[]) {
+  async addStudentsToCohortBulk(orgId: string, cohortId: string, studentIds: string[], actorId: string) {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id: cohortId, organizationId: orgId },
       include: {
@@ -470,7 +592,8 @@ export class CohortsService {
       },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
-    if (!cohort.isActive) throw new ConflictException('Cannot add students to an inactive cohort');
+    if (cohort.status !== CohortLifecycleStatus.ACTIVE) throw new ConflictException('Cannot add students to a closed cohort');
+    await assertAcademicCycleWritable(this.prisma, orgId, cohort.academicCycleId, 'DELIVERY');
 
     const students = await this.prisma.student.findMany({
       where: { id: { in: studentIds }, organizationId: orgId },
@@ -482,6 +605,9 @@ export class CohortsService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const student of students) {
+        const programContext = cohort.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+          ? await this.studentPrograms.ensureMappedCohortPlacement(tx, orgId, student.id, cohort, actorId)
+          : null;
         // Close old membership if exists
         if (student.cohortId && student.cohortId !== cohortId) {
           await this.removeCohortEnrollments(tx, student.id, student.cohortId);
@@ -511,7 +637,7 @@ export class CohortsService {
 
         // Auto-enroll into all cohort sections
         for (const section of cohort.sections) {
-          await this.autoEnrollStudent(tx, student.id, section.id, section.academicCycleId || cohort.academicCycleId);
+          await this.autoEnrollStudent(tx, student.id, section.id, section.academicCycleId || cohort.academicCycleId, programContext);
         }
       }
     });
@@ -524,7 +650,8 @@ export class CohortsService {
       where: { id: cohortId, organizationId: orgId },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
-    if (!cohort.isActive) throw new ConflictException('Cannot assign sections to an inactive cohort');
+    if (cohort.status !== CohortLifecycleStatus.ACTIVE) throw new ConflictException('Cannot remove students from a closed cohort');
+    await assertAcademicCycleWritable(this.prisma, orgId, cohort.academicCycleId, 'DELIVERY');
 
     const student = await this.prisma.student.findFirst({
       where: { id: studentId, organizationId: orgId, cohortId },
@@ -576,7 +703,7 @@ export class CohortsService {
 
   // ─── SECTION ↔ COHORT MANAGEMENT ──────────────────────────────────────────
 
-  async assignSectionToCohort(orgId: string, cohortId: string, sectionId: string) {
+  async assignSectionToCohort(orgId: string, cohortId: string, sectionId: string, actorId: string) {
     const cohort = await this.prisma.cohort.findFirst({
       where: { id: cohortId, organizationId: orgId },
       include: {
@@ -585,11 +712,19 @@ export class CohortsService {
       },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
+    if (cohort.status !== CohortLifecycleStatus.ACTIVE) throw new ConflictException('Cannot assign sections to a closed cohort');
+    await assertAcademicCycleWritable(this.prisma, orgId, cohort.academicCycleId, 'DELIVERY');
 
     const section = await this.prisma.section.findFirst({
       where: { id: sectionId, course: { organizationId: orgId } },
     });
     if (!section) throw new NotFoundException('Section not found');
+    if (section.academicCycleId !== cohort.academicCycleId) {
+      throw new BadRequestException('Section and cohort must belong to the same academic cycle');
+    }
+    if (section.programClassificationStatus !== cohort.programClassificationStatus) {
+      throw new BadRequestException('Section and cohort delivery classifications must match');
+    }
 
     if (section.cohortId === cohortId) {
       throw new ConflictException('Section is already assigned to this cohort');
@@ -607,11 +742,15 @@ export class CohortsService {
 
       // Auto-enroll all cohort students into this section
       for (const student of cohort.students) {
+        const programContext = cohort.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+          ? await this.studentPrograms.ensureMappedCohortPlacement(tx, orgId, student.id, cohort, actorId)
+          : null;
         await this.autoEnrollStudent(
           tx,
           student.id,
           sectionId,
           section.academicCycleId || cohort.academicCycleId,
+          programContext,
         );
       }
     });
@@ -624,6 +763,7 @@ export class CohortsService {
       where: { id: sectionId, cohortId, course: { organizationId: orgId } },
     });
     if (!section) throw new NotFoundException('Section not found in this cohort');
+    await assertAcademicCycleWritable(this.prisma, orgId, section.academicCycleId, 'DELIVERY');
 
     await this.prisma.$transaction(async (tx) => {
       // Remove cohort-sourced enrollments for this section
@@ -681,6 +821,7 @@ export class CohortsService {
     if (!enrollment) {
       throw new NotFoundException('Cohort-based enrollment not found for this student/section');
     }
+    await assertAcademicCycleWritable(this.prisma, orgId, enrollment.academicCycleId, 'DELIVERY');
 
     if (enrollment.isExcludedFromCohort) {
       throw new ConflictException('Student is already excluded from this section');
@@ -728,6 +869,7 @@ export class CohortsService {
     if (!enrollment) {
       throw new NotFoundException('Excluded cohort enrollment not found');
     }
+    await assertAcademicCycleWritable(this.prisma, orgId, enrollment.academicCycleId, 'DELIVERY');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.enrollment.update({
@@ -761,6 +903,10 @@ export class CohortsService {
     studentId: string,
     sectionId: string,
     academicCycleId: string,
+    programContext?: {
+      enrollment: { id: string };
+      attempt: { id: string };
+    } | null,
   ) {
     // Check if enrollment already exists
     const existing = await tx.enrollment.findUnique({
@@ -775,6 +921,8 @@ export class CohortsService {
         sectionId,
         academicCycleId,
         source: EnrollmentSource.COHORT,
+        studentProgramEnrollmentId: programContext?.enrollment.id,
+        studentStageAttemptId: programContext?.attempt.id,
       },
     });
 
@@ -784,6 +932,8 @@ export class CohortsService {
         sectionId,
         academicCycleId,
         source: EnrollmentSource.COHORT,
+        studentProgramEnrollmentId: programContext?.enrollment.id,
+        studentStageAttemptId: programContext?.attempt.id,
       },
     });
   }

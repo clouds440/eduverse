@@ -64,6 +64,7 @@ export class AdminInsightsBuilder {
       openMailCount,
       upcomingAssessments,
       operationalHealth,
+      activePrograms,
     ] = await Promise.all([
       this.prisma.teacher.count({ where: { organizationId: orgId, status: { not: TeacherStatus.DELETED } } }),
       this.prisma.student.count({ where: { organizationId: orgId, status: { not: StudentStatus.DELETED } } }),
@@ -79,6 +80,7 @@ export class AdminInsightsBuilder {
       }),
       this.getUpcomingAssessments(orgId, now),
       this.getOperationalHealth(orgId, now, range.from, range.to),
+      this.prisma.program.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
     ]);
 
     const attendanceCoverage = getAttendanceCoverage(
@@ -118,6 +120,14 @@ export class AdminInsightsBuilder {
           detail: `${sections.length} sections, ${operationalHealth.activeCohorts} active cohorts`,
           href: '/users/students',
           tone: InsightTone.INFO,
+        },
+        {
+          id: 'programs',
+          label: 'Active Programs',
+          value: `${activePrograms}`,
+          detail: 'Current department course offerings',
+          href: '/programs',
+          tone: activePrograms > 0 ? InsightTone.SUCCESS : InsightTone.INFO,
         },
         {
           id: 'coverage',
@@ -476,8 +486,8 @@ export class AdminInsightsBuilder {
       aiCreditsUsed,
       cohortMovesInRange,
     ] = await Promise.all([
-      this.prisma.academicCycle.count({ where: { organizationId: orgId, isActive: true } }),
-      this.prisma.cohort.count({ where: { organizationId: orgId, isActive: true } }),
+      this.prisma.academicCycle.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
+      this.prisma.cohort.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
       this.prisma.student.count({
         where: {
           organizationId: orgId,

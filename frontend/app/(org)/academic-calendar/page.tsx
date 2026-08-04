@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { Calendar, Layers, Search, Settings2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { searchFilterLookup } from "@/lib/filterLookups";
-import { formatDepartmentLabel, getPublicUrl } from "@/lib/utils";
+import { getPublicUrl } from "@/lib/utils";
 import { useUrlQueryState } from "@/hooks/useUrlQueryState";
 import {
   AcademicEvent,

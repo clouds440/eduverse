@@ -592,7 +592,6 @@ export class OrgService {
           id: true,
           registrationNumber: true,
           rollNumber: true,
-          major: true,
           admissionDate: true,
           graduationDate: true,
           status: true,
@@ -603,6 +602,18 @@ export class OrgService {
             },
           },
           cohort: { select: { id: true, name: true, code: true } },
+          programEnrollments: {
+            where: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] } },
+            select: {
+              id: true,
+              status: true,
+              requiredCycleCountSnapshot: true,
+              program: { select: { id: true, name: true, code: true, department: { select: { id: true, name: true, code: true, color: true } } } },
+              cycles: { select: { id: true, status: true }, orderBy: { sequenceSnapshot: 'asc' } },
+            },
+            orderBy: { admittedAt: 'desc' },
+            take: 1,
+          },
           enrollments: {
             where: { isExcludedFromCohort: false },
             select: {
@@ -627,7 +638,11 @@ export class OrgService {
         user: publicUser,
         canEdit: this.canEditPublicProfile(actor, target),
         editHref: this.getPublicProfileEditHref(actor, target),
-        profile: student,
+        profile: {
+          ...student,
+          majorProgramEnrollment: student.programEnrollments[0] || null,
+          majorProgram: student.programEnrollments[0]?.program || null,
+        },
       };
     }
 

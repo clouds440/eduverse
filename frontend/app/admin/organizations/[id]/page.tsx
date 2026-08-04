@@ -22,13 +22,10 @@ import {
   Users,
 } from "lucide-react";
 import {
-  AuditLogItem,
   OrganizationOverview,
   OrgStatus,
-  PaginatedResponse,
 } from "@/types";
 import { useAuth } from "@/context/AuthContext";
-import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Loading } from "@/components/ui/Loading";
 import { Badge } from "@/components/ui/Badge";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -37,23 +34,7 @@ import { OrgLogoOrIcon } from "@/components/ui/OrgLogoOrIcon";
 import {
   PageHeader,
   PageShell,
-  ResourcePanel,
 } from "@/components/ui/PageShell";
-import { usePersistentPageSize } from "@/hooks/usePersistentPageSize";
-import { useUrlQueryState } from "@/hooks/useUrlQueryState";
-
-type ActivityResponse = PaginatedResponse<AuditLogItem> & {
-  counts?: Record<string, number>;
-  typeCounts?: Record<string, number>;
-};
-
-function humanizeAction(action: string) {
-  return action
-    .split("_")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 function statusVariant(
   status?: OrgStatus,
@@ -110,20 +91,9 @@ export default function AdminOrganizationDetailsPage() {
   const params = useParams<{ id: string }>();
   const orgId = params.id;
   const { token, loading } = useAuth();
-  const { getNumberParam, updateQueryParams } = useUrlQueryState();
-  const [pageSize, setPageSize] = usePersistentPageSize(
-    "edu-admin-org-details-activity-limit",
-    8,
-  );
-
-  const page = getNumberParam("page", 1);
 
   const overviewKey =
     token && orgId ? (["admin-org-overview", orgId] as const) : null;
-  const activityKey =
-    token && orgId
-      ? (["admin-org-activity-logs", orgId, { page, limit: pageSize }] as const)
-      : null;
 
   const {
     data: overview,
@@ -131,85 +101,10 @@ export default function AdminOrganizationDetailsPage() {
     isLoading: overviewLoading,
     mutate: retryOverview,
   } = useSWR<OrganizationOverview>(overviewKey);
-  const {
-    data: activity,
-    error: activityError,
-    isLoading: activityLoading,
-  } = useSWR<ActivityResponse>(activityKey);
-
   const org = overview?.organization;
   const reversedStatusHistory = useMemo(
     () => [...(org?.statusHistory ?? [])].reverse(),
     [org?.statusHistory],
-  );
-
-  const columns: Column<AuditLogItem>[] = useMemo(
-    () => [
-      {
-        header: "Event",
-        width: 380,
-        accessor: (row) => (
-          <div className="space-y-2">
-            <Badge
-              variant={
-                row.action.includes("failed") || row.action.includes("delete")
-                  ? "error"
-                  : row.action.includes("success") ||
-                      row.action.includes("verified")
-                    ? "success"
-                    : "warning"
-              }
-              size="sm"
-            >
-              {humanizeAction(row.action)}
-            </Badge>
-            <p className="line-clamp-2 text-sm font-bold leading-snug text-foreground">
-              {row.message}
-            </p>
-            {(row.module || row.resourceType) && (
-              <p className="text-[11px] font-semibold text-muted-foreground">
-                {[row.module, row.resourceType].filter(Boolean).join(" / ")}
-              </p>
-            )}
-          </div>
-        ),
-      },
-      {
-        header: "Actor / Target",
-        width: 280,
-        accessor: (row) => (
-          <div className="space-y-1.5 text-xs font-semibold text-muted-foreground">
-            <p className="truncate">
-              Actor: {row.actor?.name || row.actor?.email || "System"}
-            </p>
-            <p className="truncate">
-              Target:{" "}
-              {row.target?.name ||
-                row.target?.email ||
-                row.resourceTitle ||
-                row.resourceId ||
-                "N/A"}
-            </p>
-          </div>
-        ),
-      },
-      {
-        header: "Time",
-        width: 220,
-        accessor: (row) => (
-          <div className="flex items-center gap-2 whitespace-nowrap text-xs font-bold text-muted-foreground">
-            <Calendar className="h-3.5 w-3.5 text-primary" />
-            <span className="truncate">
-              {new Date(row.createdAt).toLocaleString(undefined, {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
-            </span>
-          </div>
-        ),
-      },
-    ],
-    [],
   );
 
   if (loading || (overviewLoading && !overview)) {

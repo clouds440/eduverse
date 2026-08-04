@@ -47,6 +47,8 @@ export class CohortsController {
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('academicCycleId') academicCycleId?: string,
     @Query('includeAllCycles') includeAllCycles?: string,
+    @Query('programId') programId?: string,
+    @Query('programClassificationStatus') programClassificationStatus?: string,
   ) {
     return this.cohortsService.getCohorts(orgId, {
       page: page ? parseInt(page, 10) : 1,
@@ -56,6 +58,8 @@ export class CohortsController {
       sortOrder,
       academicCycleId,
       includeAllCycles: includeAllCycles === 'true',
+      programId,
+      programClassificationStatus,
     });
   }
 
@@ -72,8 +76,9 @@ export class CohortsController {
     @OrgId() orgId: string,
     @Param('id') id: string,
     @Body() dto: UpdateCohortDto,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.cohortsService.updateCohort(orgId, id, dto);
+    return this.cohortsService.updateCohort(orgId, id, dto, req.user.id);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -92,14 +97,15 @@ export class CohortsController {
     @OrgId() orgId: string,
     @Param('id') cohortId: string,
     @Body('studentIds') studentIds: string[],
+    @Request() req: AuthenticatedRequest,
   ) {
     if (!studentIds || studentIds.length === 0) {
       throw new BadRequestException('studentIds array is required');
     }
     if (studentIds.length === 1) {
-      return this.cohortsService.addStudentToCohort(orgId, cohortId, studentIds[0]);
+      return this.cohortsService.addStudentToCohort(orgId, cohortId, studentIds[0], req.user.id);
     }
-    return this.cohortsService.addStudentsToCohortBulk(orgId, cohortId, studentIds);
+    return this.cohortsService.addStudentsToCohortBulk(orgId, cohortId, studentIds, req.user.id);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -122,9 +128,10 @@ export class CohortsController {
     @OrgId() orgId: string,
     @Param('id') cohortId: string,
     @Body('sectionId') sectionId: string,
+    @Request() req: AuthenticatedRequest,
   ) {
     if (!sectionId) throw new BadRequestException('sectionId is required');
-    return this.cohortsService.assignSectionToCohort(orgId, cohortId, sectionId);
+    return this.cohortsService.assignSectionToCohort(orgId, cohortId, sectionId, req.user.id);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)

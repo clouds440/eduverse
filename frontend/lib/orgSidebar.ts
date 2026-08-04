@@ -1,4 +1,5 @@
 import {
+  Archive,
   ArrowRightCircle,
   Bell,
   Book,
@@ -134,6 +135,13 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     roles: ADMIN_ROLES,
   },
   {
+    id: "PROGRAMS",
+    label: "Programs",
+    href: "/programs",
+    icon: GraduationCap,
+    roles: ADMIN_ROLES,
+  },
+  {
     id: "BUILDINGS_AND_ROOMS",
     label: "Buildings & Rooms",
     href: "/buildings-and-rooms",
@@ -208,6 +216,13 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     label: "Transcripts",
     href: "/transcripts",
     icon: FileText,
+    roles: ADMIN_ROLES,
+  },
+  {
+    id: "PAST_RECORDS",
+    label: "Past Records",
+    href: "/past-records",
+    icon: Archive,
     roles: ADMIN_ROLES,
   },
   {
@@ -309,6 +324,13 @@ const TEACHER_ITEMS: SidebarItemConfig[] = [
     hiddenWhen: requiresUserId,
   },
   {
+    id: "PAST_RECORDS",
+    label: "Past Records",
+    href: "/past-records",
+    icon: Archive,
+    roles: [Role.TEACHER],
+  },
+  {
     id: "TEACHER_FINANCE",
     label: "My Finance",
     href: "/teacher-finance",
@@ -344,6 +366,13 @@ const MANAGER_ITEMS: SidebarItemConfig[] = [
     label: "Transcripts",
     href: "/transcripts",
     icon: FileText,
+    roles: [Role.ORG_MANAGER],
+  },
+  {
+    id: "PAST_RECORDS",
+    label: "Past Records",
+    href: "/past-records",
+    icon: Archive,
     roles: [Role.ORG_MANAGER],
   },
   {
@@ -489,6 +518,13 @@ const STUDENT_ITEMS: SidebarItemConfig[] = [
     roles: [Role.STUDENT],
   },
   {
+    id: "PAST_RECORDS",
+    label: "Past Records",
+    href: "/past-records",
+    icon: Archive,
+    roles: [Role.STUDENT],
+  },
+  {
     id: "FEES",
     label: "Fees & Payments",
     href: "/fees",
@@ -532,6 +568,13 @@ const GUARDIAN_ITEMS: SidebarItemConfig[] = [
     label: "Grades",
     href: "/guardian?view=grades",
     icon: Trophy,
+    roles: [Role.GUARDIAN],
+  },
+  {
+    id: "PAST_RECORDS",
+    label: "Past Records",
+    href: "/past-records",
+    icon: Archive,
     roles: [Role.GUARDIAN],
   },
   {

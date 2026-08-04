@@ -21,7 +21,7 @@ const unrestrictedScope: DepartmentScope = {
 };
 
 export async function getDepartmentScope(
-  prisma: PrismaService,
+  prisma: PrismaService | Prisma.TransactionClient,
   orgId: string,
   user?: DepartmentScopedUser,
 ): Promise<DepartmentScope> {

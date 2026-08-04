@@ -27,9 +27,9 @@ export function useUnsavedSettingsWarning(
     }, [pendingHref, router]);
 
     useEffect(() => {
-        if (!hasUnsavedChanges) {
-            setPendingHref(null);
-        }
+        if (hasUnsavedChanges) return;
+        const timer = window.setTimeout(() => setPendingHref(null), 0);
+        return () => window.clearTimeout(timer);
     }, [hasUnsavedChanges]);
 
     useEffect(() => {

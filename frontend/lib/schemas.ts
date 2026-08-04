@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DepartmentScopeType, OrganizationType, TeacherStatus, StudentStatus, UserStatus, AssessmentType, GradeStatus } from '@/types';
+import { CourseRequirementType, DepartmentScopeType, OrganizationType, ProgramCompletionMode, ProgramProgressionMode, ProgramStructureType, TeacherStatus, StudentStatus, UserStatus, AssessmentType, GradeStatus } from '@/types';
 import { isSafeHttpUrl } from './safeUrl';
 
 // --- Shared Patterns ---
@@ -133,14 +133,13 @@ export type FinanceManagerUpdateFormData = z.infer<typeof financeManagerUpdateSc
 // =========================
 
 const studentBaseSchema = z.object({
+    programId: z.string().optional().or(z.literal('')),
     name: z.string().min(1, 'Full Name is required'),
     email: z.string().email('Invalid email address'),
     registrationNumber: z.string().optional().or(z.literal('')),
     rollNumber: z.string().optional().or(z.literal('')),
     admissionDate: z.string().optional().or(z.literal('')),
     status: z.nativeEnum(StudentStatus),
-    major: z.string().optional().or(z.literal('')),
-    department: z.string().optional().or(z.literal('')),
     primaryDepartmentId: z.string().optional().or(z.literal('')),
     departmentIds: z.array(z.string()).default([]),
     fatherName: z.string().optional().or(z.literal('')),
@@ -160,7 +159,6 @@ export const studentCreateSchema = studentBaseSchema.extend({
     password: passwordRules,
     registrationNumber: z.string().min(1, 'Registration Number is required'),
     rollNumber: z.string().min(1, 'Roll Number is required'),
-    major: z.string().min(1, 'Major/Program is required'),
     gender: z.string().min(1, 'Gender is required'),
 });
 
@@ -169,7 +167,6 @@ export const studentUpdateSchema = studentBaseSchema.extend({
     password: optionalPasswordRules,
     registrationNumber: z.string().min(1, 'Registration Number is required'),
     rollNumber: z.string().min(1, 'Roll Number is required'),
-    major: z.string().min(1, 'Major/Program is required'),
     gender: z.string().min(1, 'Gender is required'),
 });
 
@@ -224,6 +221,51 @@ export const gradeSchema = z.object({
     feedback: z.string().optional().or(z.literal('')),
     status: z.nativeEnum(GradeStatus).optional(),
     correctionReason: z.string().optional().or(z.literal('')),
+    answerbookReferenceNumber: z.string().max(100, 'Reference number must be 100 characters or fewer').optional().or(z.literal('')),
 });
 
 export type GradeFormData = z.infer<typeof gradeSchema>;
+
+const entityCodeSchema = z.string().min(1, 'Code is required').max(32).regex(/^[A-Za-z0-9_-]+$/, 'Use letters, numbers, underscores, or hyphens');
+
+const programRequirementSchema = z.object({
+    courseId: z.string().min(1, 'Select a course'),
+    requirementType: z.nativeEnum(CourseRequirementType),
+});
+
+const programStageSchema = z.object({
+    name: z.string().min(1, 'Stage name is required'),
+    code: entityCodeSchema,
+    courseRequirements: z.array(programRequirementSchema),
+});
+
+const existingProgramCycleSchema = z.object({
+    kind: z.literal('EXISTING'),
+    academicCycleId: z.string().min(1, 'Select an institute cycle'),
+    stage: programStageSchema,
+});
+
+const newProgramCycleSchema = z.object({
+    kind: z.literal('NEW'),
+    name: z.string().min(1, 'Cycle name is required'),
+    code: entityCodeSchema,
+    startDate: z.string().min(1, 'Start date is required'),
+    endDate: z.string().min(1, 'End date is required'),
+    stage: programStageSchema,
+}).refine((row) => new Date(row.endDate) > new Date(row.startDate), {
+    message: 'End date must be after start date',
+    path: ['endDate'],
+});
+
+export const programSchema = z.object({
+    name: z.string().min(1, 'Program name is required'),
+    code: entityCodeSchema,
+    departmentId: z.string().min(1, 'Department is required'),
+    description: z.string().optional(),
+    structureType: z.nativeEnum(ProgramStructureType),
+    progressionMode: z.nativeEnum(ProgramProgressionMode),
+    completionMode: z.nativeEnum(ProgramCompletionMode),
+    curriculumName: z.string().min(1, 'Curriculum name is required'),
+    curriculumCode: entityCodeSchema,
+    cycles: z.array(z.discriminatedUnion('kind', [existingProgramCycleSchema, newProgramCycleSchema])).min(1, 'Add at least one academic cycle'),
+});

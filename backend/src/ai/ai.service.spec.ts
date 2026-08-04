@@ -144,7 +144,7 @@ describe('AIService', () => {
     expect(toolMessage.content).not.toContain('/sections/section-1');
     expect(toolRegistry.runTools).toHaveBeenCalledWith(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'getScheduleContext' }),
+        expect.objectContaining({ name: 'getEduVerseContext' }),
       ]),
       expect.objectContaining({ userId: 'user-1', orgId: 'org-1' }),
     );

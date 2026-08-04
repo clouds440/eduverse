@@ -10,7 +10,7 @@ import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
 import { formatCourseSectionLabel } from '@/lib/utils';
-import { AcademicCycle, ApiError, Cohort, CreateCohortDto, Role, Section, Student, UpdateCohortDto } from '@/types';
+import { AcademicCycle, ApiError, Cohort, CreateCohortDto, ProgramClassificationStatus, ProgramDeliveryOption, Role, Section, Student, UpdateCohortDto } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -25,6 +25,9 @@ interface CohortFormData {
     name: string;
     code: string;
     academicCycleId: string;
+    programClassificationStatus: ProgramClassificationStatus;
+    programAcademicCycleId: string;
+    programStageId: string;
     studentIds: string[];
     sectionIds: string[];
 }
@@ -47,6 +50,9 @@ function getInitialFormData(cohort?: Cohort): CohortFormData {
         name: cohort?.name || '',
         code: cohort?.code || '',
         academicCycleId: cohort?.academicCycleId || '',
+        programClassificationStatus: cohort?.programClassificationStatus || ProgramClassificationStatus.STANDALONE,
+        programAcademicCycleId: cohort?.programAcademicCycleId || '',
+        programStageId: cohort?.programStageId || '',
         studentIds: cohort?.students?.map((student) => student.id) || [],
         sectionIds: cohort?.sections?.map((section) => section.id) || [],
     };
@@ -87,6 +93,10 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
     const { data: studentsData } = useSWR<{ data: Student[] }>(studentsKey);
     const sectionsKey = token ? ['sections', { limit: 1000 }] as const : null;
     const { data: sectionsData } = useSWR<{ data: Section[] }>(sectionsKey);
+    const { data: deliveryOptions = [] } = useSWR<ProgramDeliveryOption[]>(
+        token && formData.academicCycleId ? ['program-delivery-options', formData.academicCycleId, token] : null,
+        () => api.programs.getDeliveryOptions(token!, formData.academicCycleId),
+    );
 
     useEffect(() => {
         if (!user) return;
@@ -103,8 +113,13 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
     const sections = useMemo(() => sectionsData?.data || [], [sectionsData?.data]);
     const filteredSections = useMemo(() => {
         if (!formData.academicCycleId) return sections;
-        return sections.filter((section) => section.academicCycleId === formData.academicCycleId);
-    }, [formData.academicCycleId, sections]);
+        return sections.filter((section) => section.academicCycleId === formData.academicCycleId
+            && section.programClassificationStatus === formData.programClassificationStatus
+            && (formData.programClassificationStatus === ProgramClassificationStatus.STANDALONE
+                || !formData.programAcademicCycleId
+                || section.requirementMappings?.some((mapping) => mapping.programAcademicCycleId === formData.programAcademicCycleId)));
+    }, [formData.academicCycleId, formData.programAcademicCycleId, formData.programClassificationStatus, sections]);
+    const selectedDelivery = deliveryOptions.find((option) => option.id === formData.programAcademicCycleId);
 
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;
@@ -115,6 +130,8 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
         setFormData((current) => ({
             ...current,
             academicCycleId,
+            programAcademicCycleId: '',
+            programStageId: '',
             sectionIds: current.sectionIds.filter((sectionId) => {
                 const section = sections.find((item) => item.id === sectionId);
                 return section?.academicCycleId === academicCycleId;
@@ -127,6 +144,10 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
         if (!formData.academicCycleId) nextErrors.academicCycleId = 'Academic Cycle is required';
         if (!formData.name.trim()) nextErrors.name = 'Cohort Name is required';
         if (!formData.code.trim()) nextErrors.code = 'Cohort Code is required';
+        if (formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+            && (!formData.programAcademicCycleId || !formData.programStageId)) {
+            nextErrors.general = 'Choose both a program and curriculum stage';
+        }
         setFormErrors(nextErrors);
         return Object.keys(nextErrors).length === 0;
     };
@@ -136,12 +157,15 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
         setFormErrors({});
         if (!validate() || !token) return;
 
-        const payload: CreateCohortDto = {
+        const payload = {
             name: formData.name,
             code: formData.code,
             academicCycleId: formData.academicCycleId,
             studentIds: formData.studentIds,
             sectionIds: formData.sectionIds,
+            programClassificationStatus: formData.programClassificationStatus,
+            programAcademicCycleId: formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? formData.programAcademicCycleId : null,
+            programStageId: formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? formData.programStageId : null,
         };
 
         dispatch({ type: 'UI_START_PROCESSING', payload: processingId });
@@ -152,7 +176,11 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort updated successfully', type: 'success' } });
                 mutate(['cohort', cohort.id]);
             } else {
-                await api.cohorts.createCohort(payload, token);
+                await api.cohorts.createCohort({
+                    ...payload,
+                    programAcademicCycleId: payload.programAcademicCycleId || undefined,
+                    programStageId: payload.programStageId || undefined,
+                } satisfies CreateCohortDto, token);
                 dispatch({ type: 'TOAST_ADD', payload: { message: 'Cohort created successfully', type: 'success' } });
                 window.dispatchEvent(new Event('stats-updated'));
             }
@@ -243,12 +271,57 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
                                         />
                                         {formErrors.academicCycleId && <p className="ml-1 mt-1 text-xs font-semibold text-danger">{formErrors.academicCycleId}</p>}
                                     </div>
+                                    <div className="space-y-2">
+                                            <Label className="ml-1 text-sm font-bold">Delivery Type <span className="text-primary">*</span></Label>
+                                            <CustomSelect
+                                                value={formData.programClassificationStatus}
+                                                onChange={(value) => setFormData((current) => ({
+                                                    ...current,
+                                                    programClassificationStatus: value as ProgramClassificationStatus,
+                                                    programAcademicCycleId: '',
+                                                    programStageId: '',
+                                                    studentIds: value === ProgramClassificationStatus.PROGRAM_MAPPED ? [] : current.studentIds,
+                                                    sectionIds: [],
+                                                }))}
+                                                options={[
+                                                    { value: ProgramClassificationStatus.STANDALONE, label: 'Standalone / No program' },
+                                                    { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program mapped' },
+                                                ]}
+                                                placeholder="Select delivery type"
+                                                required
+                                            />
+                                    </div>
+                                    {formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED && (
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label className="ml-1 text-sm font-bold">Program <span className="text-primary">*</span></Label>
+                                                <CustomSelect
+                                                    value={formData.programAcademicCycleId}
+                                                    onChange={(programAcademicCycleId) => setFormData((current) => ({ ...current, programAcademicCycleId, programStageId: '', sectionIds: [] }))}
+                                                    options={deliveryOptions.map((option) => ({ value: option.id, label: `${option.program.code} - ${option.program.name}` }))}
+                                                    placeholder="Select program for this cycle"
+                                                    searchable
+                                                    disabled={!formData.academicCycleId}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="ml-1 text-sm font-bold">Curriculum Stage <span className="text-primary">*</span></Label>
+                                                <CustomSelect
+                                                    value={formData.programStageId}
+                                                    onChange={(programStageId) => setFormData((current) => ({ ...current, programStageId, sectionIds: [] }))}
+                                                    options={(selectedDelivery?.stages || []).map((stage) => ({ value: stage.id, label: `${stage.code} - ${stage.name}` }))}
+                                                    placeholder="Select stage"
+                                                    disabled={!formData.programAcademicCycleId}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="space-y-4">
                                     <Label className="ml-1 text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Cohort Identity</Label>
                                     <div className="space-y-6">
-                                        <div className="space-y-2">
+                                        {formData.programClassificationStatus === ProgramClassificationStatus.STANDALONE && <div className="space-y-2">
                                             <Label className="ml-1 text-sm font-bold">Cohort Name <span className="text-primary">*</span></Label>
                                             <Input
                                                 type="text"
@@ -262,7 +335,7 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
                                                 className="h-12 font-medium md:h-14"
                                             />
                                             {formErrors.name && <p className="ml-1 mt-1 text-xs font-semibold text-danger">{formErrors.name}</p>}
-                                        </div>
+                                        </div>}
                                         <div className="space-y-2">
                                             <Label className="ml-1 text-sm font-bold">Cohort Code <span className="text-primary">*</span></Label>
                                             <Input

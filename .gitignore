@@ -5,3 +5,14 @@ backend/prisma.config.d.ts
 backend/prisma.config.js
 backend/prisma.config.js.map
 .tmp-next-dev.*.log
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules/
+**/.next/
+**/coverage/
+**/.jest-cache/
+backend/uploads/

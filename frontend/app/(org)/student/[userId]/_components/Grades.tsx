@@ -14,6 +14,7 @@ import { usePageActionsHost } from '@/components/ui/PageActionsHost';
 import { CourseSectionLabel } from '@/components/sections/SectionLabel';
 import { fuzzyFilterAndRank } from '@/lib/fuzzySearch';
 import { getSectionColor, getSectionSurfaceStyle, getSectionTintStyle } from '@/lib/utils';
+import { GradeEvidenceReadOnly } from '@/components/grading/GradeEvidenceReadOnly';
 
 function formatPercent(value: number) {
     return `${Math.round(Number(value || 0) * 10) / 10}%`;
@@ -199,6 +200,19 @@ export default function Grades({ grades, transcriptHref = '/transcripts', showSe
                                         </div>
                                     </div>
                                 </div>
+                                {(grade.assessments || []).some((assessment) => assessment.answerbookReferenceNumber || assessment.answerbookAttachments?.length) && (
+                                    <div className="mt-4 space-y-3 border-t border-border/60 pt-3">
+                                        {(grade.assessments || []).filter((assessment) => assessment.answerbookReferenceNumber || assessment.answerbookAttachments?.length).map((assessment) => (
+                                            <div key={assessment.assessmentId} className="min-w-0">
+                                                <p className="mb-2 truncate text-xs font-black text-foreground">{assessment.title}</p>
+                                                <GradeEvidenceReadOnly
+                                                    referenceNumber={assessment.answerbookReferenceNumber}
+                                                    attachments={assessment.answerbookAttachments}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </Card>
                         );
                     })}

@@ -758,6 +758,95 @@ export const docsPages: DocPage[] = [
     ],
   },
   {
+    slug: 'programs',
+    title: 'Programs and Student Majors',
+    description: 'Build department-owned course offerings from shared institute cycles and preserve each student program plan.',
+    category: 'Academic Settings',
+    tags: ['programs', 'majors', 'curriculum', 'stages', 'academic cycles', 'admissions'],
+    related: ['academic-cycles', 'students', 'courses-sections', 'cohorts-reassignment', 'csv-imports'],
+    sections: [
+      {
+        id: 'program-cycle-model',
+        title: 'Programs and cycles stay independent',
+        tags: ['shared cycles', 'relationship'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A program is a department-owned course offering. An academic cycle is an institute-wide time period. Programs attach the same shared cycle records in an ordered plan; EduVerse does not create a separate Fall 2026 cycle for every program.',
+          },
+          {
+            type: 'list',
+            items: [
+              'One department can own many programs.',
+              'One program can attach many institute academic cycles in sequence.',
+              'One academic cycle can appear in many programs and can also deliver standalone courses.',
+              'The required cycle count is derived from the program cycle plan.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'program-setup',
+        title: 'Create a program',
+        tags: ['setup', 'curriculum', 'activate'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Create the department, courses, and institute academic cycles that the offering needs.',
+              'Open Programs, create the program, and choose its main department.',
+              'Use the plus control to keep adding existing institute cycles in the required program order. Authorized admins can create a missing institute cycle inline.',
+              'Define one curriculum stage for every required cycle and attach the stage course requirements.',
+              'Activate a complete curriculum as the admissions default, then activate the program.',
+              'Enable admissions visibility only when the offering should appear to applicants.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Configuration history',
+            text: 'Changing the program cycle array creates a new immutable configuration revision. Existing student program plans keep their original revision and cycle snapshots.',
+          },
+        ],
+      },
+      {
+        id: 'student-major',
+        title: 'Student major and progression',
+        tags: ['student', 'major', 'transfer', 'progression'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A student can have one open major program. Assigning the major also derives the student primary department and copies the complete program cycle and stage plan so it survives later academic-cycle and program edits.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Assign the major during student admission or from Manage Enrollment.',
+              'Activate and complete each student program cycle through the progression controls.',
+              'Record skip, repeat, hold, withdrawal, completion, and transfer decisions with their required reason.',
+              'Program transfer preserves the previous enrollment instead of rewriting its history.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'admission-offerings',
+        title: 'Online admission offering contract',
+        tags: ['public endpoint', 'admissions'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'The public program-offerings endpoint returns only active, admissions-visible, structurally complete programs for an approved organization slug. It exposes an explicit applicant-safe projection with department, default curriculum, configuration revision, duration, and eligible shared entry cycles.',
+          },
+          {
+            type: 'note',
+            title: 'Applications are separate',
+            text: 'The offering contract is ready for a later online application workflow. This release does not create or submit application records.',
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: 'academic-cycles',
     title: 'Academic Cycles',
     description: 'Manage terms, cohorts, active cycles, copy-forward behavior, and GPA policy selection.',
@@ -3998,7 +4087,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'list',
             items: [
-              'Codes are required for departments, buildings, rooms, academic cycles, cohorts, courses, and sections.',
+              'Codes are required for departments, buildings, rooms, programs, curricula, program stages, academic cycles, cohorts, courses, and sections.',
               'Codes are unique inside one school workspace. Another organization can reuse the same code.',
               'Codes are normalized before saving and lookup, so sci, Sci, and SCI are treated as SCI.',
               'Students, teachers, guardians, and other users do not need codes because they are referenced by email, roll number, registration number, or employee number where applicable.',
@@ -4023,6 +4112,8 @@ export const docsPages: DocPage[] = [
               ['Building', 'MAIN, SCI-BLOCK, NORTH', 'Building codes identify where rooms belong.'],
               ['Room', 'ROOM-101, LAB-2, AUDITORIUM', 'Room codes identify schedulable spaces without exposing room IDs.'],
               ['Academic cycle', '2026-SPRING, AY-2026, TERM-1-2026', 'Cycle codes identify the academic period used by section imports.'],
+              ['Program', 'BSCS, BBA, GRADE-9', 'Program codes identify the student major or mapped delivery plan.'],
+              ['Curriculum and stage', 'BSCS-2026, SEM-1', 'Curriculum and stage codes disambiguate the exact active mapping inside a program.'],
               ['Cohort', 'GRADE-9, CS-2026, BATCH-A', 'Cohort codes identify student groups used by section imports and cohort management.'],
               ['Course', 'MATH-101, PHY-101, ENG-9', 'Course codes identify the parent course for section imports.'],
               ['Section', 'GRADE-9-A, PHY-101-MORN, CS-2026-A', 'Section codes identify the actual class section.'],
@@ -4050,6 +4141,9 @@ export const docsPages: DocPage[] = [
               ['buildingCode', 'Building', 'Room imports'],
               ['courseCode', 'Course', 'Section imports'],
               ['academicCycleCode', 'Academic cycle', 'Section imports'],
+              ['programCode', 'Program', 'Student, cohort, and section imports'],
+              ['curriculumCode', 'Active default curriculum', 'Student, cohort, and section imports'],
+              ['stageCode', 'Program stage in the selected cycle', 'Student, cohort, and section imports'],
               ['cohortCode', 'Cohort', 'Section imports'],
               ['defaultRoomCode', 'Room', 'Section imports'],
             ],
@@ -4071,7 +4165,7 @@ export const docsPages: DocPage[] = [
             items: [
               'Create departments first, then use department codes when creating courses, buildings, students, or teachers.',
               'Create buildings before rooms, then use buildingCode in the room CSV template.',
-              'Create academic cycles and cohorts manually before importing sections.',
+              'Create academic cycles and programs manually before importing mapped cohorts, sections, or student majors.',
               'Create courses before sections, then use courseCode in the section CSV template.',
               'Review list pages after creation. Codes are shown beside record names so users can copy the correct values into CSV files.',
             ],
@@ -4120,11 +4214,12 @@ export const docsPages: DocPage[] = [
             type: 'table',
             headers: ['Module', 'Who can import', 'Required columns', 'Relationship or optional columns'],
             rows: [
-              ['Import students CSV', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, major, gender', 'phone, fatherName, age, address, admissionDate, graduationDate, emergencyContact, bloodGroup, status, primaryDepartmentCode, departmentCodes'],
+              ['Import students CSV', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, gender', 'profile fields, department/section/cohort codes, programClassificationStatus, programCode, curriculumCode, entryAcademicCycleCode, stageCode'],
               ['Import teachers CSV', 'Org Admin or Sub Admin', 'name, email, password, phone, education, designation, subject', 'department, joiningDate, emergencyContact, bloodGroup, address, status, departmentCodes'],
               ['Import guardians CSV', 'Org Admin or Sub Admin', 'name, email, password', 'phone, status, address'],
               ['Import courses CSV', 'Org Admin or Sub Admin', 'name, code', 'description, creditHours, departmentCode'],
-              ['Import sections CSV', 'Org Admin or Sub Admin', 'name, code, courseCode, academicCycleCode', 'room, defaultRoomCode, cohortCode, color'],
+              ['Import sections CSV', 'Org Admin or Sub Admin', 'name, code, courseCode, academicCycleCode, programClassificationStatus', 'programCode, curriculumCode, stageCode, room, defaultRoomCode, cohortCode, color'],
+              ['Import cohorts CSV', 'Org Admin or Sub Admin', 'name, code, academicCycleCode, programClassificationStatus', 'programCode, curriculumCode, stageCode'],
               ['Import departments CSV', 'Org Admin only', 'name, code', 'description, color, isActive'],
               ['Import buildings CSV', 'Org Admin or Sub Admin', 'name, code', 'address, description, landmark, directionsNote, sortOrder, map fields, isActive, departmentCodes'],
               ['Import rooms CSV', 'Org Admin or Sub Admin', 'buildingCode, name, code, floor', 'type, capacity, description, landmark, directionsNote, sortOrder, map fields, isActive'],
@@ -4147,6 +4242,7 @@ export const docsPages: DocPage[] = [
               'departmentCodes accepts multiple department codes separated by semicolons.',
               'primaryDepartmentCode, departmentCode, buildingCode, courseCode, academicCycleCode, defaultRoomCode, and cohortCode must belong to the same organization.',
               'Create departments, buildings, courses, academic cycles, cohorts, and rooms before importing records that reference them.',
+              'Use STANDALONE with blank program columns, or PROGRAM_MAPPED with matching programCode, curriculumCode, and stageCode. Student majors also require entryAcademicCycleCode.',
               'Use buildingCode for room imports. Do not paste database IDs into navigation or CSV fields.',
               'Read the Identification Codes page for examples such as SCI, MAIN, ROOM-101, 2026-SPRING, GRADE-9, MATH-101, and GRADE-9-A.',
             ],
@@ -4336,6 +4432,7 @@ export const docsNavGroups: DocNavGroup[] = [
   {
     title: 'Academics',
     pages: [
+      'programs',
       'academic-cycles',
       'academic-calendar',
       'cohorts-reassignment',

@@ -240,7 +240,7 @@ export class AIAcademicToolsService implements OnModuleInit {
           code: cycle.code,
           startDate: dateKey(cycle.startDate),
           endDate: dateKey(cycle.endDate),
-          source: cycle.isActive ? 'active' : 'date-range-or-latest',
+          source: cycle.status === 'ACTIVE' ? 'active' : 'date-range-or-latest',
         },
         courses,
         totalVisibleCourses: courseMap.size,
@@ -304,7 +304,7 @@ export class AIAcademicToolsService implements OnModuleInit {
             { code: { contains: input.search, mode: Prisma.QueryMode.insensitive } },
           ],
         },
-        orderBy: [{ isActive: 'desc' }, { startDate: 'desc' }],
+        orderBy: [{ startDate: 'desc' }],
       });
       if (searched) return searched;
     }
@@ -314,11 +314,11 @@ export class AIAcademicToolsService implements OnModuleInit {
       where: {
         organizationId: contextOrgId,
         OR: [
-          { isActive: true },
+          { status: 'ACTIVE' },
           { startDate: { lte: now }, endDate: { gte: now } },
         ],
       },
-      orderBy: [{ isActive: 'desc' }, { startDate: 'desc' }],
+      orderBy: [{ startDate: 'desc' }],
     });
     if (current) return current;
 

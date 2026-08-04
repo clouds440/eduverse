@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { User, Mail, Lock, Hash, ShieldCheck, UserX, GraduationCap, BookOpen, MapPin, Phone, Plus, Users, CalendarClock, UserRoundCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useGlobal } from '@/context/GlobalContext';
-import { Department, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, GuardianProfile } from '@/types';
+import { Department, Student, StudentStatus, CreateStudentRequest, UpdateStudentRequest, Role, GuardianProfile, Program, ProgramStatus } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -60,8 +60,7 @@ function getStudentDefaults(initialData?: Student) {
         rollNumber: initialData.rollNumber || '',
         admissionDate: dateInputValue(initialData.admissionDate, todayInputValue()),
         status: initialData.status as StudentStatus || StudentStatus.ACTIVE,
-        major: initialData.major || '',
-        department: initialData.department || '',
+        programId: initialData.majorProgram?.id || '',
         primaryDepartmentId: initialData.primaryDepartmentId || '',
         departmentIds: initialData.studentDepartments?.map((entry) => entry.departmentId) || [],
         fatherName: initialData.fatherName || '',
@@ -82,8 +81,7 @@ function getStudentDefaults(initialData?: Student) {
         rollNumber: '',
         admissionDate: todayInputValue(),
         status: StudentStatus.ACTIVE,
-        major: '',
-        department: '',
+        programId: '',
         primaryDepartmentId: '',
         departmentIds: [],
         fatherName: '',
@@ -143,9 +141,23 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     const watchedGender = useWatch({ control, name: 'gender' }) as string | undefined;
     const watchedGuardianId = useWatch({ control, name: 'guardianId' }) as string | undefined;
     const watchedPrimaryDepartmentId = useWatch({ control, name: 'primaryDepartmentId' }) as string | undefined;
+    const watchedProgramId = useWatch({ control, name: 'programId' }) as string | undefined;
     const watchedDepartmentIds = useWatch({ control, name: 'departmentIds' }) as string[] | undefined;
 
     const { data: departmentsData } = useSWR<{ data: Department[] }>(token ? ['departments', { limit: 1000, isActive: true }] as const : null);
+    const { data: programsData } = useSWR<{ data: Program[] }>(
+        token && (currentUser?.role === Role.ORG_ADMIN || currentUser?.role === Role.SUB_ADMIN) && !isProfile ? ['student-admission-programs', token] : null,
+        () => api.programs.getPrograms(token!, { limit: 1000, status: ProgramStatus.ACTIVE }),
+    );
+
+    const programOptions = useMemo(() => [
+        { label: 'No major / standalone student', value: '' },
+        ...((programsData?.data || []).map((program) => ({
+            value: program.id,
+            label: `${program.code} - ${program.name}`,
+        }))),
+    ], [programsData?.data]);
+    const selectedProgram = (programsData?.data || []).find((program) => program.id === watchedProgramId) || initialData?.majorProgram || null;
 
     const departmentOptions = useMemo(() => [
         { label: 'No Primary Department', value: '' },
@@ -206,10 +218,18 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     }, [isProfile, isWatchMode, setValue, trigger]);
 
     const handlePrimaryDepartmentChange = useCallback((value: string) => {
-        if (identityLocked) return;
+        if (identityLocked || watchedProgramId) return;
         setValue('primaryDepartmentId', value);
         trigger('primaryDepartmentId');
-    }, [identityLocked, setValue, trigger]);
+    }, [identityLocked, setValue, trigger, watchedProgramId]);
+
+    const handleProgramChange = useCallback((value: string) => {
+        if (identityLocked || studentId) return;
+        setValue('programId', value);
+        const program = programsData?.data?.find((candidate) => candidate.id === value);
+        if (program) setValue('primaryDepartmentId', program.departmentId);
+        trigger(['programId', 'primaryDepartmentId']);
+    }, [identityLocked, programsData?.data, setValue, studentId, trigger]);
 
     const handleDepartmentsChange = useCallback((values: string[]) => {
         if (identityLocked) return;
@@ -236,11 +256,12 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
     const onSubmit: SubmitHandler<StudentCreateFormData | StudentUpdateFormData | StudentProfileFormData> = async (data) => {
         dispatch({ type: 'UI_START_PROCESSING', payload: 'student-submit' });
         try {
-            const { password, age, ...rest } = data;
+            const { password, age, programId, ...rest } = data;
 
             const payload: CreateStudentRequest | UpdateStudentRequest = {
                 ...rest,
                 age: age ? Number(age) : null,
+                ...(!studentId && programId ? { programId } : {}),
                 ...(studentId ? (password ? { password } : {}) : { password }),
             };
 
@@ -409,30 +430,35 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                         </FormGrid>
 
                         <FormGrid>
-                            <FormField label="Major / Program" required error={errors.major?.message}>
-                                <Input
-                                    type="text"
-                                    {...register('major')}
-                                    readOnly={identityLocked}
-                                    error={!!errors.major}
-                                    disabled={identityLocked}
+                            <FormField label="Major / Program" error={errors.programId?.message}>
+                                <CustomSelect
+                                    options={programOptions}
+                                    value={watchedProgramId || ''}
+                                    onChange={handleProgramChange}
+                                    error={!!errors.programId}
+                                    disabled={identityLocked || Boolean(studentId)}
                                     icon={GraduationCap}
-                                    placeholder="Computer Science"
-                                    className={identityLocked ? FORM_READONLY_INPUT_CLASS : FORM_INPUT_CLASS}
+                                    placeholder="Select an active program"
+                                    searchable
                                 />
+                                {studentId && !isProfile && !isWatchMode && (
+                                    <Link href={`/users/students/edit/${studentId}/enrollment`} className="mt-2 inline-flex text-xs font-black text-primary hover:underline">
+                                        Manage major and progression
+                                    </Link>
+                                )}
                             </FormField>
-
                             <FormField label="Primary Department" error={errors.primaryDepartmentId?.message}>
                                 <CustomSelect
                                     options={departmentOptions}
                                     value={watchedPrimaryDepartmentId || ''}
                                     onChange={handlePrimaryDepartmentChange}
                                     error={!!errors.primaryDepartmentId}
-                                    disabled={identityLocked}
+                                    disabled={identityLocked || Boolean(selectedProgram)}
                                     icon={BookOpen}
                                     placeholder="Select department"
                                     searchable
                                 />
+                                {selectedProgram && <p className="mt-1 text-xs font-semibold text-muted-foreground">Derived from {selectedProgram.name}.</p>}
                             </FormField>
                         </FormGrid>
                     </div>

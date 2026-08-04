@@ -1,4 +1,4 @@
-import { Chat, ChatMentionTarget, ChatMessage, ChatType, User } from '@/types';
+import { Chat, ChatMentionTarget, ChatMessage, ChatType } from '@/types';
 import { RefObject } from 'react';
 import { isToday, isYesterday, format } from 'date-fns';
 import { registerOptimisticImageFallbacks } from '@/lib/optimisticMedia';

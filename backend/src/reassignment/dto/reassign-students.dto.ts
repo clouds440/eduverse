@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional, IsIn } from 'class-validator';
+import { IsString, IsArray, IsOptional, IsIn, IsNotEmpty } from 'class-validator';
 
 export class ReassignStudentsDto {
   @IsIn(['cohort', 'section'])
@@ -10,8 +10,8 @@ export class ReassignStudentsDto {
   fromCycleId?: string;
 
   @IsString()
-  @IsOptional()
-  toCycleId?: string;
+  @IsNotEmpty()
+  toCycleId: string;
 
   @IsString()
   @IsOptional()

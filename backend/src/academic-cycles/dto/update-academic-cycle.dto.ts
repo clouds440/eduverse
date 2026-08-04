@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsDateString, IsBoolean, Matches, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsDateString, Matches, MaxLength } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 
 export class UpdateAcademicCycleDto {
@@ -19,10 +19,6 @@ export class UpdateAcademicCycleDto {
   @IsDateString()
   @IsOptional()
   endDate?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  isActive?: boolean;
 
   @IsString()
   @IsOptional()

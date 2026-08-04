@@ -17,6 +17,8 @@ export interface PaginationOptions {
   cohortId?: string;
   teacherId?: string;
   departmentId?: string;
+  programId?: string;
+  programClassificationStatus?: string;
   activeAcademicCycleOnly?: boolean;
 }
 

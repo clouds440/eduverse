@@ -3,7 +3,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BarChart3, ExternalLink, Gauge, RefreshCw, Sparkles, TrendingUp, TriangleAlert, Users } from 'lucide-react';
+import { BarChart3, ExternalLink, Gauge, RefreshCw, Sparkles, TriangleAlert, Users } from 'lucide-react';
 import {
     AISubscriptionPlan,
     AISubscriptionStatus,
@@ -54,15 +54,11 @@ export function AISettingsTab({
     aiSettings,
     activeAIPlan,
     activeAIPlanOption,
-    aiBalance,
-    aiUsagePercent,
     aiRoleCreditDrafts,
     setAiRoleCreditDrafts,
     aiUsage,
     aiCurrency,
     maxAITrendCredits,
-    onPlanChange,
-    onBillingPortal,
     onAccessToggle,
     onRoleCreditSave,
     onRefresh,
@@ -71,15 +67,11 @@ export function AISettingsTab({
     aiSettings: AIOrgSettingsResponse | null;
     activeAIPlan: AISubscriptionPlan;
     activeAIPlanOption?: AIOrgSettingsResponse['plans'][number];
-    aiBalance: AIOrgSettingsResponse['usage'] | null;
-    aiUsagePercent: number;
     aiRoleCreditDrafts: Partial<Record<Role, string>>;
     setAiRoleCreditDrafts: Dispatch<SetStateAction<Partial<Record<Role, string>>>>;
     aiUsage: AIOrgUsageResponse | null;
     aiCurrency: string;
     maxAITrendCredits: number;
-    onPlanChange: (plan: AISubscriptionPlan) => void;
-    onBillingPortal: () => void;
     onAccessToggle: (field: AIOrgAccessField, enabled: boolean) => void;
     onRoleCreditSave: (role: Role) => void;
     onRefresh: () => void;

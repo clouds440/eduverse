@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsDateString, IsOptional, IsBoolean, Matches, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsDateString, IsOptional, IsEnum, Matches, MaxLength } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
+import { AcademicCycleStatus } from '../../common/enums';
 
 export class CreateAcademicCycleDto {
   @IsString()
@@ -20,9 +21,9 @@ export class CreateAcademicCycleDto {
   @IsNotEmpty()
   endDate: string;
 
-  @IsBoolean()
+  @IsEnum(AcademicCycleStatus)
   @IsOptional()
-  isActive?: boolean;
+  status?: AcademicCycleStatus.DRAFT | AcademicCycleStatus.ACTIVE;
 
   @IsString()
   @IsOptional()

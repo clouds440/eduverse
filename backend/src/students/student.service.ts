@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { GradeStatus, Prisma } from '@/prisma/prisma-client';
+import { GradeStatus, Prisma, StudentProgramEnrollmentStatus } from '@/prisma/prisma-client';
 import { Role, StudentStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -30,6 +30,8 @@ import {
   studentDepartmentScopeWhere,
   type DepartmentScopedUser,
 } from '../common/department-scope';
+import { StudentProgramEnrollmentsService } from '../student-program-enrollments/student-program-enrollments.service';
+import { toPublicGradeEvidenceAttachment } from '../grade-evidence/grade-evidence.types';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -46,7 +48,40 @@ export class StudentService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly userService: UserService,
+    private readonly studentPrograms: StudentProgramEnrollmentsService,
   ) {}
+
+  private currentProgramInclude() {
+    return {
+      programEnrollments: {
+        where: {
+          status: { in: [
+            StudentProgramEnrollmentStatus.ADMITTED,
+            StudentProgramEnrollmentStatus.ACTIVE,
+            StudentProgramEnrollmentStatus.ON_HOLD,
+          ] },
+        },
+        include: {
+          program: { include: { department: true } },
+          curriculumVersion: true,
+          cycles: { orderBy: { sequenceSnapshot: 'asc' as const } },
+        },
+        take: 1,
+        orderBy: { admittedAt: 'desc' as const },
+      },
+    };
+  }
+
+  private normalizeStudent(student: any): any {
+    if (!student) return student;
+    const normalized = this.normalizeStudentGuardian(student);
+    const majorProgramEnrollment = student.programEnrollments?.[0] || null;
+    return {
+      ...normalized,
+      majorProgramEnrollment,
+      majorProgram: majorProgramEnrollment?.program || null,
+    };
+  }
 
   private async getStudentById(orgId: string, id: string) {
     const student = await this.prisma.student.findFirst({
@@ -235,6 +270,9 @@ export class StudentService {
           }
         : {}),
       ...(options.cohortId ? { cohortId: options.cohortId } : {}),
+      ...(options.programId
+        ? { programEnrollments: { some: { programId: options.programId, status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] } } } }
+        : {}),
       ...(options.my && options.userId
         ? {
             enrollments: {
@@ -269,8 +307,9 @@ export class StudentService {
               },
             },
             { rollNumber: { contains: options.search, mode: 'insensitive' } },
-            { major: { contains: options.search, mode: 'insensitive' } },
-            { department: { contains: options.search, mode: 'insensitive' } },
+            { primaryDepartment: { name: { contains: options.search, mode: 'insensitive' } } },
+            { studentDepartments: { some: { department: { name: { contains: options.search, mode: 'insensitive' } } } } },
+            { programEnrollments: { some: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] }, program: { name: { contains: options.search, mode: 'insensitive' } } } } },
           ],
         }
       : {};
@@ -303,6 +342,7 @@ export class StudentService {
       cohort: true,
       primaryDepartment: true,
       studentDepartments: { include: { department: true } },
+      ...this.currentProgramInclude(),
       ...this.studentGuardianInclude(),
       enrollments: {
         include: {
@@ -337,8 +377,6 @@ export class StudentService {
         student.user?.phone,
         student.registrationNumber,
         student.rollNumber,
-        student.major,
-        student.department,
         student.cohort?.name,
         student.cohort?.code,
         student.primaryDepartment?.name,
@@ -356,7 +394,7 @@ export class StudentService {
       const pageItems = ranked.slice(skip, skip + take);
 
       return formatPaginatedResponse(
-        pageItems.map((student) => this.normalizeStudentGuardian(student)),
+        pageItems.map((student) => this.normalizeStudent(student)),
         ranked.length,
         options.page,
         options.limit,
@@ -364,7 +402,7 @@ export class StudentService {
     }
 
     return formatPaginatedResponse(
-      students.map((student) => this.normalizeStudentGuardian(student)),
+      students.map((student) => this.normalizeStudent(student)),
       totalRecords,
       options.page,
       options.limit,
@@ -392,6 +430,7 @@ export class StudentService {
         cohort: true,
         primaryDepartment: true,
         studentDepartments: { include: { department: true } },
+        ...this.currentProgramInclude(),
         enrollments: {
           include: {
             section: {
@@ -410,7 +449,7 @@ export class StudentService {
     if (userContext?.role === Role.STUDENT && student.userId !== userContext.id) {
         throw new ForbiddenException('You do not have permission to view this student profile');
     }
-    return this.normalizeStudentGuardian(student);
+    return this.normalizeStudent(student);
   }
 
   async createStudent(
@@ -418,6 +457,12 @@ export class StudentService {
     data: CreateStudentDto,
     userContext: { id?: string; role?: string; name?: string | null; email: string },
   ) {
+    const programDepartment = data.programId
+      ? await this.studentPrograms.resolveAdmissionDepartment(orgId, data.programId, userContext.id && userContext.role ? { id: userContext.id, role: userContext.role } : undefined)
+      : null;
+    if (programDepartment && data.primaryDepartmentId && data.primaryDepartmentId !== programDepartment.id) {
+      throw new BadRequestException('Primary department is derived from the selected major program');
+    }
     const existingRegNum = await this.getStudentByRegistrationNumber(orgId, data.registrationNumber);
 
     if (existingRegNum) {
@@ -440,12 +485,12 @@ export class StudentService {
           prisma,
           orgId,
           [
-            ...(data.primaryDepartmentId ? [data.primaryDepartmentId] : []),
+            ...((programDepartment?.id || data.primaryDepartmentId) ? [programDepartment?.id || data.primaryDepartmentId!] : []),
             ...(data.departmentIds || []),
           ],
         );
         const departmentScope = await getDepartmentScope(this.prisma, orgId, userContext.id && userContext.role ? { id: userContext.id, role: userContext.role } : undefined);
-        assertDepartmentInScope(departmentScope, data.primaryDepartmentId, 'You cannot create a student outside your department scope');
+        assertDepartmentInScope(departmentScope, programDepartment?.id || data.primaryDepartmentId, 'You cannot create a student outside your department scope');
         departmentIds.forEach((departmentId) =>
           assertDepartmentInScope(departmentScope, departmentId, 'You cannot assign a student outside your department scope'),
         );
@@ -469,9 +514,7 @@ export class StudentService {
             fatherName: data.fatherName,
             age: data.age,
             address: data.address,
-            major: data.major,
-            department: data.department,
-            primaryDepartmentId: data.primaryDepartmentId || null,
+            primaryDepartmentId: programDepartment?.id || data.primaryDepartmentId || null,
             admissionDate: data.admissionDate
               ? new Date(data.admissionDate)
               : undefined,
@@ -498,6 +541,7 @@ export class StudentService {
             user: { select: { email: true, name: true, phone: true } },
             primaryDepartment: true,
             studentDepartments: { include: { department: true } },
+            ...this.currentProgramInclude(),
             ...this.studentGuardianInclude(),
             enrollments: { include: { section: true } },
           },
@@ -513,6 +557,24 @@ export class StudentService {
           );
         }
 
+        if (data.programId) {
+          const major = await this.studentPrograms.admitInTransaction(
+            prisma,
+            orgId,
+            student.id,
+            {
+              programId: data.programId,
+              entryAcademicCycleId: data.entryAcademicCycleId,
+              entryStageSequence: data.entryStageSequence,
+            },
+            userContext.id!,
+          );
+          await prisma.student.update({
+            where: { id: student.id },
+            data: { primaryDepartmentId: major.program.departmentId },
+          });
+        }
+
         const createdStudent = await prisma.student.findUnique({
           where: { id: student.id },
           include: {
@@ -520,11 +582,12 @@ export class StudentService {
             cohort: { select: { id: true, name: true } },
             primaryDepartment: true,
             studentDepartments: { include: { department: true } },
+            ...this.currentProgramInclude(),
             ...this.studentGuardianInclude(),
             enrollments: { include: { section: true } },
           },
         });
-        return this.normalizeStudentGuardian(createdStudent);
+        return this.normalizeStudent(createdStudent);
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -568,8 +631,6 @@ export class StudentService {
       'fatherName',
       'age',
       'address',
-      'major',
-      'department',
       'primaryDepartmentId',
       'admissionDate',
       'graduationDate',
@@ -705,11 +766,12 @@ export class StudentService {
           cohort: { select: { id: true, name: true } },
           primaryDepartment: true,
           studentDepartments: { include: { department: true } },
+          ...this.currentProgramInclude(),
           ...this.studentGuardianInclude(),
           enrollments: { include: { section: true } },
         },
       });
-      return this.normalizeStudentGuardian(savedStudent);
+      return this.normalizeStudent(savedStudent);
     });
 
     // --- Persistent Notifications ---
@@ -866,6 +928,18 @@ export class StudentService {
                     studentId,
                     status: { in: statuses },
                   },
+                  include: {
+                    answerbookAttachments: {
+                      include: {
+                        file: {
+                          select: {
+                            id: true, filename: true, mimeType: true, size: true,
+                            fileKind: true, extension: true, createdAt: true,
+                          },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -885,6 +959,7 @@ export class StudentService {
           : 0;
         totalPercentage += percentage;
         return [{
+          gradeId: grade.id,
           assessmentId: a.id,
           title: a.title,
           type: a.type,
@@ -893,6 +968,8 @@ export class StudentService {
           totalMarks: a.totalMarks,
           status: grade.status,
           percentage: percentage.toFixed(2),
+          answerbookReferenceNumber: grade.answerbookReferenceNumber,
+          answerbookAttachments: grade.answerbookAttachments.map(toPublicGradeEvidenceAttachment),
         }];
       });
 

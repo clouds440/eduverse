@@ -7,7 +7,7 @@ import { Calendar, MapPin, Hash, AlertCircle, LibraryBig, Network, Layers } from
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
-import { ApiError, Course, Role, PaginatedResponse, AcademicCycle, Cohort, Room, Teacher } from '@/types';
+import { ApiError, Course, Role, PaginatedResponse, AcademicCycle, Cohort, ProgramClassificationStatus, ProgramDeliveryOption, Room, Teacher } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
@@ -31,6 +31,10 @@ export default function CreateSectionPage() {
         defaultRoomId: '',
         courseId: '',
         academicCycleId: '',
+        programClassificationStatus: '' as '' | ProgramClassificationStatus,
+        programAcademicCycleId: '',
+        programStageId: '',
+        stageCourseRequirementIds: [] as string[],
         cohortId: '',
         teacherIds: [] as string[],
         color: DEFAULT_SECTION_COLOR,
@@ -47,6 +51,15 @@ export default function CreateSectionPage() {
 
     const cohortsKey = token ? ['cohorts', { limit: 500 }] as const : null;
     const { data: cohortsData } = useSWR<{ data: Cohort[] }>(cohortsKey);
+    const { data: deliveryOptions = [] } = useSWR<ProgramDeliveryOption[]>(
+        token && formData.academicCycleId ? ['program-delivery-options', formData.academicCycleId, token] : null,
+        () => api.programs.getDeliveryOptions(token!, formData.academicCycleId),
+    );
+    const selectedDelivery = deliveryOptions.find((option) => option.id === formData.programAcademicCycleId);
+    const selectedStage = selectedDelivery?.stages.find((stage) => stage.id === formData.programStageId);
+    const requirementOptions = (selectedStage?.courseRequirements || [])
+        .filter((requirement) => requirement.courseId === formData.courseId)
+        .map((requirement) => ({ value: requirement.id, label: `${requirement.requirementType.replaceAll('_', ' ')} - ${requirement.course.code} ${requirement.course.name}` }));
 
     const roomsKey = token ? ['rooms', { limit: 1000, isActive: true }] as const : null;
     const { data: roomsData } = useSWR<PaginatedResponse<Room>>(roomsKey);
@@ -89,6 +102,15 @@ export default function CreateSectionPage() {
             setFormErrors(prev => ({ ...prev, code: 'Section code is required' }));
             hasError = true;
         }
+        if (!formData.programClassificationStatus) {
+            setFormErrors(prev => ({ ...prev, general: 'Delivery type is required' }));
+            hasError = true;
+        }
+        if (formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+            && (!formData.programAcademicCycleId || !formData.programStageId || formData.stageCourseRequirementIds.length === 0)) {
+            setFormErrors(prev => ({ ...prev, general: 'Choose a program, stage, and matching course requirement' }));
+            hasError = true;
+        }
         if (!isSectionPaletteColor(formData.color)) {
             setFormErrors(prev => ({ ...prev, color: 'Choose one of the preset section colors' }));
             hasError = true;
@@ -101,8 +123,12 @@ export default function CreateSectionPage() {
         try {
             if (!token) return;
 
+            const { programAcademicCycleId: _programAcademicCycleId, programStageId: _programStageId, ...sectionPayload } = formData;
+            void _programAcademicCycleId;
+            void _programStageId;
             await api.org.createSection({
-                ...formData,
+                ...sectionPayload,
+                programClassificationStatus: formData.programClassificationStatus as ProgramClassificationStatus,
                 room: undefined,
                 defaultRoomId: formData.defaultRoomId || null,
             }, token);
@@ -206,7 +232,7 @@ export default function CreateSectionPage() {
                                             <Label className="text-sm font-bold ml-1">Parent Course <span className="text-primary">*</span></Label>
                                             <CustomSelect
                                                 value={formData.courseId}
-                                                onChange={(value) => setFormData({ ...formData, courseId: value })}
+                                                onChange={(value) => setFormData({ ...formData, courseId: value, stageCourseRequirementIds: [] })}
                                                 icon={LibraryBig}
                                                 options={courses.map((c: Course) => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name }))}
                                                 placeholder="Select course..."
@@ -218,7 +244,7 @@ export default function CreateSectionPage() {
                                             <Label className="text-sm font-bold ml-1">Academic Cycle <span className="text-primary">*</span></Label>
                                             <CustomSelect
                                                 value={formData.academicCycleId}
-                                                onChange={(value) => setFormData({ ...formData, academicCycleId: value, cohortId: '' })}
+                                                onChange={(value) => setFormData({ ...formData, academicCycleId: value, cohortId: '', programAcademicCycleId: '', programStageId: '', stageCourseRequirementIds: [] })}
                                                 icon={Calendar}
                                                 options={[
                                                     ...(cyclesData?.data?.map((c: AcademicCycle) => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name })) || [])
@@ -282,16 +308,77 @@ export default function CreateSectionPage() {
                                                 searchable
                                             />
                                         </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-bold ml-1">Delivery Type <span className="text-primary">*</span></Label>
+                                            <CustomSelect
+                                                value={formData.programClassificationStatus}
+                                                onChange={(value) => setFormData({ ...formData, programClassificationStatus: value as ProgramClassificationStatus, cohortId: '', programAcademicCycleId: '', programStageId: '', stageCourseRequirementIds: [] })}
+                                                options={[
+                                                    { value: ProgramClassificationStatus.STANDALONE, label: 'Standalone / No program' },
+                                                    { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program mapped' },
+                                                ]}
+                                                placeholder="Select delivery type..."
+                                                required
+                                            />
+                                        </div>
                                     </div>
+
+                                    {formData.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED && (
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label className="ml-1 text-sm font-bold">Program</Label>
+                                                <CustomSelect
+                                                    value={formData.programAcademicCycleId}
+                                                    onChange={(programAcademicCycleId) => setFormData({ ...formData, programAcademicCycleId, programStageId: '', cohortId: '', stageCourseRequirementIds: [] })}
+                                                    options={deliveryOptions.map((option) => ({ value: option.id, label: `${option.program.code} - ${option.program.name}` }))}
+                                                    searchable
+                                                    placeholder="Select program"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="ml-1 text-sm font-bold">Curriculum Stage</Label>
+                                                <CustomSelect
+                                                    value={formData.programStageId}
+                                                    onChange={(programStageId) => setFormData({ ...formData, programStageId, cohortId: '', stageCourseRequirementIds: [] })}
+                                                    options={(selectedDelivery?.stages || []).map((stage) => ({ value: stage.id, label: `${stage.code} - ${stage.name}` }))}
+                                                    placeholder="Select stage"
+                                                    disabled={!formData.programAcademicCycleId}
+                                                />
+                                            </div>
+                                            <div className="space-y-2 md:col-span-2">
+                                                <Label className="ml-1 text-sm font-bold">Course Requirements</Label>
+                                                <CustomMultiSelect
+                                                    values={formData.stageCourseRequirementIds}
+                                                    onChange={(stageCourseRequirementIds) => setFormData({ ...formData, stageCourseRequirementIds })}
+                                                    options={requirementOptions}
+                                                    placeholder={formData.courseId ? 'Select matching requirements' : 'Select a course first'}
+                                                    disabled={!formData.courseId || !formData.programStageId}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="space-y-2">
                                         <Label className="text-sm font-bold ml-1">Assigned Cohort (Optional)</Label>
                                         <CustomSelect
                                             value={formData.cohortId}
-                                            onChange={(value) => setFormData({ ...formData, cohortId: value })}
+                                            onChange={(value) => {
+                                                const cohort = cohortsData?.data?.find((item) => item.id === value);
+                                                setFormData({
+                                                    ...formData,
+                                                    cohortId: value,
+                                                    programAcademicCycleId: cohort?.programAcademicCycleId || formData.programAcademicCycleId,
+                                                    programStageId: cohort?.programStageId || formData.programStageId,
+                                                    stageCourseRequirementIds: cohort ? [] : formData.stageCourseRequirementIds,
+                                                });
+                                            }}
                                             options={[
                                                 { label: 'None (Individual Enrollment)', value: '' },
-                                                ...(cohortsData?.data?.filter((c: Cohort) => !formData.academicCycleId || c.academicCycleId === formData.academicCycleId).map((c: Cohort) => ({
+                                                ...(cohortsData?.data?.filter((c: Cohort) => c.programClassificationStatus === formData.programClassificationStatus
+                                                    && (!formData.academicCycleId || c.academicCycleId === formData.academicCycleId)
+                                                    && (formData.programClassificationStatus === ProgramClassificationStatus.STANDALONE
+                                                        || (!formData.programAcademicCycleId || c.programAcademicCycleId === formData.programAcademicCycleId))
+                                                    && (!formData.programStageId || c.programStageId === formData.programStageId)).map((c: Cohort) => ({
                                                     value: c.id,
                                                     label: c.code ? `${c.code} - ${c.name}` : c.name
                                                 })) || [])

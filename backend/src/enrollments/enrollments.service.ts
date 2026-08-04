@@ -16,6 +16,8 @@ import {
   type DepartmentScopedUser,
 } from '../common/department-scope';
 import { BulkEnrollStudentsDto, EnrollStudentDto, TransferEnrollmentDto, WithdrawEnrollmentDto } from './dto/enrollment.dto';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
+import { StudentProgramEnrollmentsService } from '../student-program-enrollments/student-program-enrollments.service';
 
 interface CurrentUser extends DepartmentScopedUser {
   id: string;
@@ -50,7 +52,10 @@ const ENROLLMENT_INCLUDE = {
 
 @Injectable()
 export class EnrollmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly studentPrograms: StudentProgramEnrollmentsService,
+  ) {}
 
   private assertCanWrite(actor: CurrentUser) {
     if (actor.role === Role.ORG_ADMIN || actor.role === Role.SUB_ADMIN) return;
@@ -71,6 +76,8 @@ export class EnrollmentsService {
         where: { id: sectionId, organizationId: orgId },
         include: {
           course: true,
+          cohort: true,
+          requirementMappings: { include: { stageCourseRequirement: true } },
           defaultRoom: true,
           schedules: true,
           _count: { select: { enrollments: true } },
@@ -124,6 +131,7 @@ export class EnrollmentsService {
   async enroll(orgId: string, dto: EnrollStudentDto, actor: CurrentUser) {
     this.assertCanWrite(actor);
     const { section } = await this.assertStudentAndSectionScope(orgId, dto.studentId, dto.sectionId, actor);
+    await assertAcademicCycleWritable(this.prisma, orgId, section.academicCycleId, 'DELIVERY');
     const existing = await this.prisma.enrollment.findUnique({
       where: { studentId_sectionId: { studentId: dto.studentId, sectionId: dto.sectionId } },
     });
@@ -131,12 +139,17 @@ export class EnrollmentsService {
 
     const warnings = this.enrollmentWarnings(section);
     const enrollment = await this.prisma.$transaction(async (tx) => {
+      const programContext = section.programClassificationStatus === 'PROGRAM_MAPPED'
+        ? await this.studentPrograms.ensureMappedSectionEnrollment(tx, orgId, dto.studentId, section, actor.id)
+        : null;
       const created = await tx.enrollment.create({
         data: {
           studentId: dto.studentId,
           sectionId: dto.sectionId,
           academicCycleId: section.academicCycleId,
           source: EnrollmentSource.MANUAL,
+          studentProgramEnrollmentId: programContext?.enrollment.id,
+          studentStageAttemptId: programContext?.attempt.id,
         },
         include: ENROLLMENT_INCLUDE,
       });
@@ -146,6 +159,8 @@ export class EnrollmentsService {
           sectionId: dto.sectionId,
           academicCycleId: section.academicCycleId,
           source: EnrollmentSource.MANUAL,
+          studentProgramEnrollmentId: programContext?.enrollment.id,
+          studentStageAttemptId: programContext?.attempt.id,
         },
       });
       return created;
@@ -178,6 +193,7 @@ export class EnrollmentsService {
       include: ENROLLMENT_INCLUDE,
     });
     if (!enrollment) throw new NotFoundException('Enrollment not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, enrollment.academicCycleId, 'DELIVERY');
 
     const warnings: EnrollmentWarning[] = enrollment.source === EnrollmentSource.COHORT
       ? [{ code: 'COHORT_SECTION', message: 'This section came from a cohort. Removing it only withdraws this one section.' }]
@@ -214,9 +230,10 @@ export class EnrollmentsService {
     this.assertCanWrite(actor);
     const cohort = await this.prisma.cohort.findFirst({
       where: { id: cohortId, organizationId: orgId },
-      select: { id: true },
+      select: { id: true, academicCycleId: true },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, cohort.academicCycleId, 'DELIVERY');
     const enrollments = await this.prisma.enrollment.findMany({
       where: {
         studentId,

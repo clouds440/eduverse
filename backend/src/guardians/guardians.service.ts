@@ -415,7 +415,7 @@ export class GuardiansService {
             room: true,
             color: true,
             course: { select: { id: true, name: true, creditHours: true } },
-            academicCycle: { select: { id: true, name: true, isActive: true } },
+            academicCycle: { select: { id: true, name: true, status: true } },
           },
         },
       },

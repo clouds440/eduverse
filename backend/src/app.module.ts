@@ -42,6 +42,13 @@ import { AIModule } from './ai/ai.module';
 import { E2eeModule } from './e2ee/e2ee.module';
 import { EmailTemplatesModule } from './common/email-templates/email-templates.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
+import { ProgramsModule } from './programs/programs.module';
+import { StudentProgramEnrollmentsModule } from './student-program-enrollments/student-program-enrollments.module';
+import { AcademicCycleArchivesModule } from './academic-cycle-archives/academic-cycle-archives.module';
+import { PastRecordsModule } from './past-records/past-records.module';
+import { GradeEvidenceModule } from './grade-evidence/grade-evidence.module';
+import { ProgramOfferingsModule } from './program-offerings/program-offerings.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -49,6 +56,7 @@ import { ActivityLogsModule } from './activity-logs/activity-logs.module';
     EmailTemplatesModule,
     ActivityLogsModule,
     ScheduleModule.forRoot(),
+    HealthModule,
     AuthModule,
     AdminModule,
     OrgModule,
@@ -68,6 +76,12 @@ import { ActivityLogsModule } from './activity-logs/activity-logs.module';
     AnnouncementsModule,
     CourseMaterialsModule,
     AcademicCyclesModule,
+    AcademicCycleArchivesModule,
+    PastRecordsModule,
+    GradeEvidenceModule,
+    ProgramOfferingsModule,
+    ProgramsModule,
+    StudentProgramEnrollmentsModule,
     CohortsModule,
     TranscriptsModule,
     ReassignmentModule,

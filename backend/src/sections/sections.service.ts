@@ -5,7 +5,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma } from '@/prisma/prisma-client';
+import { AcademicCycleStatus, Prisma, ProgramClassificationStatus, SectionLifecycleStatus } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CoursesService } from '../courses/courses.service';
 import { CreateSectionDto } from './dto/create-section.dto';
@@ -25,6 +25,7 @@ import {
   type DepartmentScopedUser,
 } from '../common/department-scope';
 import { normalizeEntityCode } from '../common/entity-code';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -41,6 +42,74 @@ export class SectionsService {
     private readonly prisma: PrismaService,
     private readonly coursesService: CoursesService,
   ) {}
+
+  private async validateRequirementMappings(
+    client: PrismaService | Prisma.TransactionClient,
+    orgId: string,
+    input: {
+      classification: ProgramClassificationStatus;
+      academicCycleId: string;
+      courseId: string;
+      cohortId?: string | null;
+      requirementIds?: string[];
+    },
+  ) {
+    const requirementIds = [...new Set((input.requirementIds || []).filter(Boolean))];
+    if (input.classification === ProgramClassificationStatus.STANDALONE) {
+      if (requirementIds.length) throw new BadRequestException('Standalone sections cannot include program requirement mappings');
+      return { requirementIds: [], programAcademicCycleId: null };
+    }
+    if (!requirementIds.length) {
+      throw new BadRequestException('Program-mapped sections require at least one course requirement mapping');
+    }
+
+    const cohort = input.cohortId
+      ? await client.cohort.findFirst({
+        where: {
+          id: input.cohortId,
+          organizationId: orgId,
+          academicCycleId: input.academicCycleId,
+          programClassificationStatus: ProgramClassificationStatus.PROGRAM_MAPPED,
+        },
+        select: { programAcademicCycleId: true, programStageId: true },
+      })
+      : null;
+    if (input.cohortId && !cohort) throw new BadRequestException('Program-mapped section requires a compatible program-mapped cohort');
+
+    const requirements = await client.stageCourseRequirement.findMany({
+      where: {
+        id: { in: requirementIds },
+        organizationId: orgId,
+        courseId: input.courseId,
+        programStage: {
+          programAcademicCycle: { academicCycleId: input.academicCycleId, status: 'ACTIVE' },
+          ...(cohort?.programStageId ? { id: cohort.programStageId } : {}),
+        },
+      },
+      include: {
+        programStage: {
+          include: {
+            curriculumVersion: { include: { programConfigurationRevision: true } },
+            programAcademicCycle: { include: { program: true } },
+          },
+        },
+      },
+    });
+    if (requirements.length !== requirementIds.length) {
+      throw new BadRequestException('One or more requirements do not match the section course, cycle, and stage');
+    }
+    if (requirements.some((requirement) => requirement.programStage.curriculumVersion.status !== 'ACTIVE'
+      || requirement.programStage.curriculumVersion.programConfigurationRevision.version !== requirement.programStage.programAcademicCycle.program.configurationVersion)) {
+      throw new ConflictException('Section requirements must belong to the current active program curriculum');
+    }
+    const associationIds = new Set(requirements.map((requirement) => requirement.programStage.programAcademicCycleId));
+    if (associationIds.size !== 1) throw new BadRequestException('All section requirements must belong to one program-cycle association');
+    const programAcademicCycleId = [...associationIds][0];
+    if (cohort?.programAcademicCycleId !== undefined && cohort.programAcademicCycleId !== programAcademicCycleId) {
+      throw new BadRequestException('Section requirements do not match the cohort program-cycle association');
+    }
+    return { requirementIds, programAcademicCycleId };
+  }
 
   async getSections(
     orgId: string,
@@ -61,8 +130,10 @@ export class SectionsService {
       ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
       ...(options.departmentId ? { course: { organizationId: orgId, departmentId: options.departmentId } } : {}),
       ...(options.academicCycleId ? { academicCycleId: options.academicCycleId } : {}),
-      ...(options.activeAcademicCycleOnly ? { academicCycle: { isActive: true } } : {}),
+      ...(options.activeAcademicCycleOnly ? { academicCycle: { status: AcademicCycleStatus.ACTIVE } } : {}),
       ...(options.cohortId ? { cohortId: options.cohortId } : {}),
+      ...(options.programClassificationStatus ? { programClassificationStatus: options.programClassificationStatus as ProgramClassificationStatus } : {}),
+      ...(options.programId ? { requirementMappings: { some: { programAcademicCycle: { programId: options.programId } } } } : {}),
       ...(options.teacherId ? { teachers: { some: { id: options.teacherId } } } : {}),
       ...(options.my && options.userId
         ? {
@@ -145,6 +216,9 @@ export class SectionsService {
       },
       academicCycle: true,
       cohort: true,
+      requirementMappings: {
+        include: { stageCourseRequirement: { include: { programStage: true } }, programAcademicCycle: { include: { program: true } } },
+      },
       _count: { select: { enrollments: true, courseMaterials: true } },
     } satisfies Prisma.SectionInclude;
 
@@ -224,6 +298,9 @@ export class SectionsService {
         },
         academicCycle: true,
         cohort: true,
+        requirementMappings: {
+          include: { stageCourseRequirement: { include: { programStage: true } }, programAcademicCycle: { include: { program: true } } },
+        },
         enrollments: {
           include: {
             student: {
@@ -282,44 +359,82 @@ export class SectionsService {
     const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
     assertDepartmentInScope(departmentScope, course.departmentId, 'You cannot create a section outside your department scope');
     await this.validateAcademicPlacement(orgId, data.academicCycleId, data.cohortId);
+    await assertAcademicCycleWritable(this.prisma, orgId, data.academicCycleId, 'SETUP');
+    const cohort = data.cohortId
+      ? await this.prisma.cohort.findFirst({
+        where: { id: data.cohortId, organizationId: orgId },
+        select: { programClassificationStatus: true, programAcademicCycleId: true, programStageId: true },
+      })
+      : null;
+    if (data.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
+      && cohort?.programClassificationStatus !== ProgramClassificationStatus.PROGRAM_MAPPED) {
+      throw new BadRequestException('A program-mapped section requires a compatible program-mapped cohort until requirement mappings are available');
+    }
+    if (data.programClassificationStatus === ProgramClassificationStatus.STANDALONE
+      && cohort?.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED) {
+      throw new BadRequestException('A standalone section cannot be assigned to a program-mapped cohort');
+    }
     if (data.defaultRoomId) {
       await validateRoomBelongsToOrg(this.prisma, orgId, data.defaultRoomId);
     }
     const teacherIds = await this.assertTeachersBelongToOrg(orgId, data.teacherIds);
     const color = normalizeSectionColor(data.color, `${orgId}:${data.courseId}:${data.name}`);
-
-    return this.prisma.section.create({
-      data: {
-        organizationId: orgId,
-        name: data.name.trim(),
-        code,
-        color,
-        room: data.room,
-        defaultRoomId: data.defaultRoomId || null,
-        courseId: data.courseId,
+    return this.prisma.$transaction(async (tx) => {
+      const mapping = await this.validateRequirementMappings(tx, orgId, {
+        classification: data.programClassificationStatus as ProgramClassificationStatus,
         academicCycleId: data.academicCycleId,
-        cohortId: data.cohortId || null,
-        teachers: teacherIds.length ? { connect: teacherIds.map((id) => ({ id })) } : undefined,
-      },
-      include: {
-        course: { include: { department: true } },
-        defaultRoom: { include: { building: true } },
-        teachers: { include: { user: { select: { id: true, email: true, name: true } } } },
-      },
+        courseId: data.courseId,
+        cohortId: data.cohortId,
+        requirementIds: data.stageCourseRequirementIds,
+      });
+      return tx.section.create({
+        data: {
+          organizationId: orgId,
+          name: data.name.trim(),
+          code,
+          color,
+          room: data.room,
+          defaultRoomId: data.defaultRoomId || null,
+          courseId: data.courseId,
+          academicCycleId: data.academicCycleId,
+          cohortId: data.cohortId || null,
+          status: (data.status as SectionLifecycleStatus | undefined) ?? SectionLifecycleStatus.ACTIVE,
+          programClassificationStatus: data.programClassificationStatus as ProgramClassificationStatus,
+          teachers: teacherIds.length ? { connect: teacherIds.map((id) => ({ id })) } : undefined,
+          requirementMappings: mapping.programAcademicCycleId ? {
+            create: mapping.requirementIds.map((stageCourseRequirementId) => ({
+              organizationId: orgId,
+              stageCourseRequirementId,
+              programAcademicCycleId: mapping.programAcademicCycleId!,
+            })),
+          } : undefined,
+        },
+        include: {
+          course: { include: { department: true } },
+          defaultRoom: { include: { building: true } },
+          teachers: { include: { user: { select: { id: true, email: true, name: true } } } },
+          requirementMappings: { include: { stageCourseRequirement: true, programAcademicCycle: { include: { program: true } } } },
+        },
+      });
     });
   }
 
   async updateSection(orgId: string, id: string, data: UpdateSectionDto, requester?: DepartmentScopedUser) {
-    const { teacherIds: requestedTeacherIds, scheduleTeacherResolution, ...sectionData } = data;
+    const { teacherIds: requestedTeacherIds, scheduleTeacherResolution, stageCourseRequirementIds, ...sectionData } = data;
     const existing = await this.prisma.section.findFirst({
       where: { id, course: { organizationId: orgId } },
       include: {
         course: true,
+        cohort: true,
+        requirementMappings: { select: { stageCourseRequirementId: true } },
         teachers: { select: { id: true } },
         schedules: { select: { id: true, teacherId: true } },
       },
     });
     if (!existing) throw new NotFoundException('Section not found');
+    if (existing.status === SectionLifecycleStatus.ARCHIVED) {
+      throw new ConflictException('Archived sections are read-only');
+    }
 
     const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
     assertDepartmentInScope(departmentScope, existing.course.departmentId, 'You cannot update a section outside your department scope');
@@ -335,6 +450,13 @@ export class SectionsService {
         sectionData.academicCycleId || existing.academicCycleId,
         sectionData.cohortId === '' ? null : (sectionData.cohortId || existing.cohortId),
       );
+    }
+    await assertAcademicCycleWritable(this.prisma, orgId, sectionData.academicCycleId || existing.academicCycleId, 'SETUP');
+    if (sectionData.status !== undefined) {
+      const nextStatus = sectionData.status as SectionLifecycleStatus;
+      const validStatusChange = existing.status === nextStatus
+        || (existing.status === SectionLifecycleStatus.ACTIVE && nextStatus === SectionLifecycleStatus.CLOSED);
+      if (!validStatusChange) throw new ConflictException(`Section cannot transition from ${existing.status} to ${nextStatus}`);
     }
 
     if (sectionData.defaultRoomId) {
@@ -377,6 +499,17 @@ export class SectionsService {
     const code = sectionData.code !== undefined ? normalizeEntityCode(sectionData.code)! : undefined;
 
     return this.prisma.$transaction(async (tx) => {
+      const nextClassification = (sectionData.programClassificationStatus ?? existing.programClassificationStatus) as ProgramClassificationStatus;
+      const nextAcademicCycleId = sectionData.academicCycleId || existing.academicCycleId;
+      const nextCourseId = sectionData.courseId || existing.courseId;
+      const nextCohortId = sectionData.cohortId === '' ? null : (sectionData.cohortId ?? existing.cohortId);
+      const mapping = await this.validateRequirementMappings(tx, orgId, {
+        classification: nextClassification,
+        academicCycleId: nextAcademicCycleId,
+        courseId: nextCourseId,
+        cohortId: nextCohortId,
+        requirementIds: stageCourseRequirementIds ?? existing.requirementMappings.map((item) => item.stageCourseRequirementId),
+      });
       if (affectedScheduleIds.length > 0 && scheduleTeacherResolution?.action === 'DELETE') {
         await tx.attendanceSession.deleteMany({ where: { scheduleId: { in: affectedScheduleIds } } });
         await tx.sectionSchedule.deleteMany({ where: { id: { in: affectedScheduleIds } } });
@@ -387,7 +520,7 @@ export class SectionsService {
         });
       }
 
-      return tx.section.update({
+      const updated = await tx.section.update({
         where: { id },
         data: {
           ...sectionData,
@@ -403,6 +536,29 @@ export class SectionsService {
           course: { include: { department: true } },
           defaultRoom: { include: { building: true } },
           teachers: { include: { user: { select: { id: true, email: true, name: true } } } },
+          requirementMappings: { include: { stageCourseRequirement: true, programAcademicCycle: { include: { program: true } } } },
+        },
+      });
+      if (stageCourseRequirementIds !== undefined || nextClassification !== existing.programClassificationStatus || nextAcademicCycleId !== existing.academicCycleId || nextCourseId !== existing.courseId || nextCohortId !== existing.cohortId) {
+        await tx.sectionRequirementMapping.deleteMany({ where: { sectionId: id } });
+        if (mapping.programAcademicCycleId) {
+          await tx.sectionRequirementMapping.createMany({
+            data: mapping.requirementIds.map((stageCourseRequirementId) => ({
+              organizationId: orgId,
+              sectionId: id,
+              stageCourseRequirementId,
+              programAcademicCycleId: mapping.programAcademicCycleId!,
+            })),
+          });
+        }
+      }
+      return tx.section.findUnique({
+        where: { id: updated.id },
+        include: {
+          course: { include: { department: true } },
+          defaultRoom: { include: { building: true } },
+          teachers: { include: { user: { select: { id: true, email: true, name: true } } } },
+          requirementMappings: { include: { stageCourseRequirement: true, programAcademicCycle: { include: { program: true } } } },
         },
       });
     });
@@ -411,14 +567,40 @@ export class SectionsService {
   async deleteSection(orgId: string, id: string, requester?: DepartmentScopedUser) {
     const section = await this.prisma.section.findFirst({
       where: { id, course: { organizationId: orgId } },
-      include: { course: true },
+      include: {
+        course: true,
+        academicCycle: { select: { status: true } },
+        _count: {
+          select: {
+            enrollments: true,
+            enrollmentHistories: true,
+            assessments: true,
+            attendanceSessions: true,
+            schedules: true,
+            courseMaterials: true,
+            evaluations: true,
+            evaluationWindows: true,
+            preferenceOptions: true,
+            preferenceAudiences: true,
+            archiveSections: true,
+          },
+        },
+      },
     });
     if (!section) throw new NotFoundException('Section not found');
     const departmentScope = await getDepartmentScope(this.prisma, orgId, requester);
     assertDepartmentInScope(departmentScope, section.course.departmentId, 'You cannot delete a section outside your department scope');
 
+    const hasActivity = Object.values(section._count).some((count) => count > 0);
+    if (section.academicCycle.status !== AcademicCycleStatus.DRAFT || hasActivity) {
+      if (section.status === SectionLifecycleStatus.ACTIVE) {
+        await this.prisma.section.update({ where: { id }, data: { status: SectionLifecycleStatus.CLOSED } });
+      }
+      return { message: 'Section has delivery history and was closed instead of deleted' };
+    }
+
     await this.prisma.section.delete({ where: { id } });
-    return { message: 'Section deleted successfully' };
+    return { message: 'Unused draft section deleted successfully' };
   }
 
   async getSectionsByTeacherId(teacherId: string) {
@@ -470,13 +652,13 @@ export class SectionsService {
     if (!cohortId) return;
     const cohort = await this.prisma.cohort.findFirst({
       where: { id: cohortId, organizationId: orgId, academicCycleId },
-      select: { id: true, isActive: true },
+      select: { id: true, status: true },
     });
     if (!cohort) {
       throw new NotFoundException('Cohort not found for this academic cycle');
     }
-    if (!cohort.isActive) {
-      throw new ConflictException('Cannot assign sections to an inactive cohort');
+    if (cohort.status !== 'ACTIVE') {
+      throw new ConflictException('Cannot assign sections to a closed cohort');
     }
   }
 }

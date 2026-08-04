@@ -6,6 +6,7 @@ import { StudentService } from '../students/student.service';
 import { SectionsService } from '../sections/sections.service';
 import { CreateCourseMaterialDto } from './dto/create-course-material.dto';
 import { Role } from '../common/enums';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 
 @Injectable()
 export class CourseMaterialsService {
@@ -30,6 +31,7 @@ export class CourseMaterialsService {
   ) {
     // Verify section exists and belongs to the organization
     const section = await this.sectionsService.validateSectionBelongsToOrg(sectionId, organizationId);
+    await assertAcademicCycleWritable(this.prisma, organizationId, section.academicCycleId, 'DELIVERY');
 
     // Verify teacher is assigned to this section
     if (userRole === Role.TEACHER || userRole === Role.ORG_MANAGER) {
@@ -222,6 +224,7 @@ export class CourseMaterialsService {
     if (material.section.course.organizationId !== organizationId) {
       throw new ForbiddenException('Material does not belong to your organization');
     }
+    await assertAcademicCycleWritable(this.prisma, organizationId, material.academicCycleId, 'DELIVERY');
 
     // Only teachers assigned to the section can delete
     if (userRole === Role.TEACHER) {
@@ -287,6 +290,7 @@ export class CourseMaterialsService {
     if (material.section.course.organizationId !== organizationId) {
       throw new ForbiddenException('Material does not belong to your organization');
     }
+    await assertAcademicCycleWritable(this.prisma, organizationId, material.academicCycleId, 'DELIVERY');
 
     // Only teachers assigned to the section can update
     if (userRole === Role.TEACHER) {

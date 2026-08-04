@@ -16,6 +16,7 @@ import { AttendanceRecordDto } from './dto/mark-attendance.dto';
 import { validateRoomBelongsToOrg } from '../common/department-scope';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Prisma, ScheduleType } from '@/prisma/prisma-client';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -460,11 +461,13 @@ export class AttendanceService {
       where: { id: sectionId },
       select: { academicCycleId: true, defaultRoomId: true, _count: { select: { enrollments: true } } },
     });
+    if (!section) throw new NotFoundException('Section not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, section.academicCycleId, 'SETUP');
 
     const schedule = await this.prisma.sectionSchedule.create({
       data: {
         sectionId,
-        academicCycleId: section?.academicCycleId,
+        academicCycleId: section.academicCycleId,
         day: normalized.day,
         date: normalized.date,
         type: normalized.type,
@@ -483,8 +486,8 @@ export class AttendanceService {
 
     const capacityWarning = await this.getCapacityWarning(
       orgId,
-      normalized.roomId || section?.defaultRoomId,
-      section?._count.enrollments || 0,
+      normalized.roomId || section.defaultRoomId,
+      section._count.enrollments,
     );
 
     return capacityWarning ? { ...schedule, capacityWarning } : schedule;
@@ -508,6 +511,7 @@ export class AttendanceService {
     if (!existing || existing.section.course.organizationId !== orgId) {
       throw new NotFoundException('Schedule not found');
     }
+    await assertAcademicCycleWritable(this.prisma, orgId, existing.academicCycleId, 'SETUP');
 
     const normalized = this.normalizeScheduleInput(dto, {
       day: existing.day,
@@ -556,7 +560,10 @@ export class AttendanceService {
   async deleteSchedule(orgId: string, scheduleId: string, user: JwtPayload) {
     const existing = await this.prisma.sectionSchedule.findUnique({
       where: { id: scheduleId },
-      include: { section: { include: { course: true } } },
+      include: {
+        section: { include: { course: true } },
+        _count: { select: { attendanceSessions: true } },
+      },
     });
 
     if (!existing || existing.section.course.organizationId !== orgId) {
@@ -564,6 +571,10 @@ export class AttendanceService {
     }
 
     await this.assertCanManageSchedule(orgId, existing.sectionId, user, existing.type);
+    await assertAcademicCycleWritable(this.prisma, orgId, existing.academicCycleId, 'SETUP');
+    if (existing._count.attendanceSessions > 0) {
+      throw new ConflictException('A schedule with attendance history cannot be deleted');
+    }
 
     return this.prisma.sectionSchedule.delete({ where: { id: scheduleId } });
   }
@@ -981,6 +992,8 @@ export class AttendanceService {
       where: { id: sectionId },
       select: { academicCycleId: true },
     });
+    if (!sectionData) throw new NotFoundException('Section not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, sectionData.academicCycleId, 'DELIVERY');
 
     const existing = await this.prisma.attendanceSession.findFirst({
       where: { 
@@ -998,7 +1011,7 @@ export class AttendanceService {
       data: {
         sectionId,
         scheduleId: schedule.id,
-        academicCycleId: schedule.academicCycleId || sectionData?.academicCycleId,
+        academicCycleId: schedule.academicCycleId,
         date: sessionDate,
       },
     });
@@ -1020,6 +1033,7 @@ export class AttendanceService {
     if (!session || session.section.course.organizationId !== orgId) {
       throw new NotFoundException('Session not found');
     }
+    await assertAcademicCycleWritable(this.prisma, orgId, session.academicCycleId, 'DELIVERY');
 
     await this.assertAttendanceSectionAccess(orgId, session.sectionId, user);
     this.assertCanWriteAttendanceForSchedule(orgId, user, session.schedule);

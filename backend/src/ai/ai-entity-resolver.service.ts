@@ -103,7 +103,7 @@ export class AIEntityResolverService implements OnModuleInit {
     const cycles = await this.prisma.academicCycle.findMany({
       where,
       take: 40,
-      orderBy: [{ isActive: 'desc' }, { startDate: 'desc' }],
+      orderBy: [{ startDate: 'desc' }],
     });
     const ranked = rankOrDefault(cycles, search, (cycle) => [cycle.name, cycle.code], limit);
     return ranked.map(({ item: cycle, confidence }) => ({
@@ -111,7 +111,7 @@ export class AIEntityResolverService implements OnModuleInit {
       academicCycleId: cycle.id,
       label: cycle.name,
       code: cycle.code,
-      isActive: cycle.isActive,
+      status: cycle.status,
       startDate: dateKey(cycle.startDate),
       endDate: dateKey(cycle.endDate),
       confidence,
@@ -144,7 +144,7 @@ export class AIEntityResolverService implements OnModuleInit {
       where,
       take: 60,
       include: {
-        academicCycle: { select: { id: true, name: true, code: true, isActive: true } },
+        academicCycle: { select: { id: true, name: true, code: true, status: true } },
         course: { select: { id: true, name: true, code: true } },
         _count: { select: { enrollments: true } },
       },
@@ -168,7 +168,7 @@ export class AIEntityResolverService implements OnModuleInit {
       courseName: section.course.name,
       academicCycleId: section.academicCycle.id,
       academicCycle: section.academicCycle.name,
-      academicCycleIsActive: section.academicCycle.isActive,
+      academicCycleStatus: section.academicCycle.status,
       enrolledStudents: section._count.enrollments,
       href: `/sections/${section.id}`,
       confidence,
@@ -201,7 +201,7 @@ export class AIEntityResolverService implements OnModuleInit {
       email: student.user?.email ?? null,
       registrationNumber: student.registrationNumber,
       rollNumber: student.rollNumber,
-      department: student.primaryDepartment?.name ?? student.department ?? null,
+      department: student.primaryDepartment?.name ?? null,
       href: `/student/${student.userId}`,
       confidence,
     }));

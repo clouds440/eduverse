@@ -4,11 +4,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, AlertCircle, CheckCircle2, Hash } from 'lucide-react';
-import { Toggle } from '@/components/ui/Toggle';
 import useSWR, { mutate } from 'swr';
 import { useGlobal } from '@/context/GlobalContext';
 import Link from 'next/link';
-import { ApiError, GpaPolicy, Role } from '@/types';
+import { AcademicCycleStatus, ApiError, GpaPolicy, Role } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Button } from '@/components/ui/Button';
@@ -28,7 +27,7 @@ export default function CreateAcademicCyclePage() {
         code: '',
         startDate: '',
         endDate: '',
-        isActive: false,
+        status: AcademicCycleStatus.DRAFT as AcademicCycleStatus.DRAFT | AcademicCycleStatus.ACTIVE,
         gpaPolicyId: '',
     });
 
@@ -254,7 +253,7 @@ export default function CreateAcademicCyclePage() {
                                     </div>
                                 </div>
 
-                                {/* Activation Section */}
+                                {/* Lifecycle Section */}
                                 <div className="space-y-4">
                                     <Label className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">GPA Policy</Label>
                                     <div className="space-y-3 rounded-xl border border-warning/35 bg-warning/10 p-4">
@@ -281,15 +280,15 @@ export default function CreateAcademicCyclePage() {
                                 {/* Activation Section */}
                                 <div className="space-y-4">
                                     <Label className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Activation</Label>
-                                    <div className="p-4 bg-background/50 rounded-xl border border-border/50">
-                                        <Toggle
-                                            checked={formData.isActive}
-                                            onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
-                                            label="Set as Active Cycle"
-                                            description={<>This deactivates the current active cycle. <DocsLink href="/docs/academic-cycles#active-cycle">Details</DocsLink></>}
-                                            size="md"
-                                        />
-                                    </div>
+                                    <CustomSelect
+                                        value={formData.status}
+                                        onChange={(value) => setFormData({ ...formData, status: value as AcademicCycleStatus.DRAFT | AcademicCycleStatus.ACTIVE })}
+                                        options={[
+                                            { value: AcademicCycleStatus.DRAFT, label: 'Draft' },
+                                            { value: AcademicCycleStatus.ACTIVE, label: 'Active' },
+                                        ]}
+                                        placeholder="Select lifecycle status"
+                                    />
                                 </div>
                             </div>
 

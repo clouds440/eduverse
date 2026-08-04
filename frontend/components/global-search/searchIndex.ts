@@ -44,6 +44,7 @@ const SHORTHANDS: Record<string, string[]> = {
     cls: ['class', 'classes', 'section', 'sections'],
     sec: ['section', 'sections'],
     dept: ['department', 'departments'],
+    prog: ['program', 'programs', 'major'],
     bldg: ['building', 'buildings'],
     rm: ['room', 'rooms'],
     fee: ['finance', 'fees', 'payments'],
@@ -62,6 +63,7 @@ const GROUP_BY_ID: Record<string, RouteSearchGroup> = {
     COHORTS: 'Academic',
     COURSES: 'Academic',
     DEPARTMENTS: 'Academic',
+    PROGRAMS: 'Academic',
     EVALUATIONS: 'Academic',
     GRADE_FINALIZATION: 'Academic',
     GRADES: 'Academic',
@@ -69,6 +71,7 @@ const GROUP_BY_ID: Record<string, RouteSearchGroup> = {
     ACADEMIC_EVENTS: 'Academic',
     PREFERENCES: 'Academic',
     PREFERENCE_WINDOWS: 'Academic',
+    PAST_RECORDS: 'Academic',
     SCHEDULES: 'Academic',
     SECTIONS: 'Academic',
     TIMETABLE: 'Academic',
@@ -115,6 +118,11 @@ const ROUTE_METADATA: Record<string, Pick<RouteSearchItem, 'description' | 'alia
         description: 'Academic departments',
         aliases: ['dept'],
         keywords: ['department', 'scope'],
+    },
+    PROGRAMS: {
+        description: 'Department programs and curricula',
+        aliases: ['majors', 'course offerings'],
+        keywords: ['program', 'major', 'curriculum', 'stages'],
     },
     EVALUATIONS: {
         description: 'Teacher and course feedback',
@@ -180,6 +188,11 @@ const ROUTE_METADATA: Record<string, Pick<RouteSearchItem, 'description' | 'alia
         description: 'Create, activate, and review section/course polls',
         aliases: ['polls', 'course polls', 'section polls', 'preference windows'],
         keywords: ['poll', 'vote', 'choice', 'ranked preference', 'announcement', 'audience'],
+    },
+    PAST_RECORDS: {
+        description: 'Immutable records from archived academic cycles',
+        aliases: ['archives', 'historical records', 'past cycles'],
+        keywords: ['archive', 'history', 'old grades', 'past attendance', 'student record'],
     },
     SETTINGS: {
         description: 'Organization and account settings',

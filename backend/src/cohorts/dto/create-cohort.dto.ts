@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty, IsArray, IsBoolean, IsOptional, Matches, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, IsEnum, IsOptional, Matches, MaxLength, ValidateIf } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
+import { CohortLifecycleStatus, ProgramClassificationStatus } from '../../common/enums';
 
 export class CreateCohortDto {
   @IsString()
@@ -16,9 +17,22 @@ export class CreateCohortDto {
   @IsNotEmpty()
   academicCycleId: string;
 
-  @IsBoolean()
+  @IsEnum(CohortLifecycleStatus)
   @IsOptional()
-  isActive?: boolean;
+  status?: CohortLifecycleStatus;
+
+  @IsEnum(ProgramClassificationStatus)
+  programClassificationStatus: ProgramClassificationStatus;
+
+  @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED)
+  @IsString()
+  @IsNotEmpty()
+  programAcademicCycleId?: string;
+
+  @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED)
+  @IsString()
+  @IsNotEmpty()
+  programStageId?: string;
 
   @IsArray()
   @IsString({ each: true })

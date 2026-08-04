@@ -359,7 +359,7 @@ export default function AcademicEventsPage() {
                 />
             ) : null,
         },
-    ], [canManage, user?.role]);
+    ], [canManage]);
 
     const renderFilters = () => (
         <FilterDrawerGrid>

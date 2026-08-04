@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { EvaluationType, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 import { Role } from '../common/enums';
 import {
   assertDepartmentInScope,
@@ -127,6 +128,7 @@ export class EvaluationsService {
       dto.sectionId,
       dto.teacherId,
     );
+    await assertAcademicCycleWritable(this.prisma, orgId, context.section.academicCycleId, 'DELIVERY');
 
     try {
       return await this.prisma.evaluation.create({
@@ -158,6 +160,7 @@ export class EvaluationsService {
       where: { id, organizationId: orgId, createdById: actor.id },
     });
     if (!existing) throw new NotFoundException('Evaluation not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, existing.academicCycleId, 'DELIVERY');
 
     const context = await this.eligibility.resolveStudentEvaluationContext(
       orgId,
@@ -317,6 +320,7 @@ export class EvaluationsService {
       where: { id: academicCycleId, organizationId: orgId },
     });
     if (!academicCycle) throw new BadRequestException('Academic cycle must belong to this organization');
+    await assertAcademicCycleWritable(this.prisma, orgId, academicCycleId, 'SETUP');
 
     const courseId = dto.courseId !== undefined ? dto.courseId || null : existing?.courseId ?? null;
     const sectionId = dto.sectionId !== undefined ? dto.sectionId || null : existing?.sectionId ?? null;
@@ -433,6 +437,7 @@ export class EvaluationsService {
       select: { id: true },
     });
     if (!academicCycle) throw new BadRequestException('Academic cycle must belong to this organization');
+    await assertAcademicCycleWritable(this.prisma, orgId, dto.academicCycleId, 'SETUP');
 
     const startDate = this.parseDate(dto.startDate, 'startDate');
     const endDate = this.parseDate(dto.endDate, 'endDate');

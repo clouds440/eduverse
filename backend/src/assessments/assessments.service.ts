@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -16,6 +17,8 @@ import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { getDepartmentScope, sectionDepartmentScopeWhere } from '../common/department-scope';
 import { GpaService } from '../gpa/gpa.service';
 import { FilesService } from '../files/files.service';
+import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
+import { GradeEvidenceService } from '../grade-evidence/grade-evidence.service';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -51,6 +54,7 @@ export class AssessmentsService {
     private readonly sectionsService: SectionsService,
     private readonly gpaService: GpaService,
     private readonly filesService: FilesService,
+    private readonly gradeEvidence: GradeEvidenceService,
   ) {}
 
   // --- Assessments ---
@@ -94,14 +98,17 @@ export class AssessmentsService {
     // Derive academicCycleId from section
     const sectionData = await this.prisma.section.findUnique({
       where: { id: data.sectionId },
-      select: { academicCycleId: true },
+      select: { academicCycleId: true, organizationId: true, status: true },
     });
+    if (!sectionData || sectionData.organizationId !== orgId) throw new NotFoundException('Section not found');
+    if (sectionData.status !== 'ACTIVE') throw new ConflictException('Cannot add assessments to a closed section');
+    await assertAcademicCycleWritable(this.prisma, orgId, sectionData.academicCycleId, 'SETUP');
 
     const assessment = await this.prisma.assessment.create({
       data: {
         ...data,
         organizationId: orgId,
-        academicCycleId: sectionData?.academicCycleId || undefined,
+        academicCycleId: sectionData.academicCycleId,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       },
     });
@@ -185,7 +192,7 @@ export class AssessmentsService {
       whereClause.sectionId = filters.sectionId;
     }
 
-    return this.prisma.assessment.findMany({
+    const assessments = await this.prisma.assessment.findMany({
       where: whereClause,
       include: {
         _count: {
@@ -203,7 +210,22 @@ export class AssessmentsService {
         ...(user.role === Role.STUDENT
           ? {
               grades: {
-                where: { student: { userId: user.id } },
+                where: {
+                  student: { userId: user.id },
+                  status: { in: [GradeStatus.PUBLISHED, GradeStatus.FINALIZED] },
+                },
+                include: {
+                  answerbookAttachments: {
+                    include: {
+                      file: {
+                        select: {
+                          id: true, filename: true, mimeType: true, size: true,
+                          fileKind: true, extension: true, createdAt: true,
+                        },
+                      },
+                    },
+                  },
+                },
               },
               submissions: {
                 where: { student: { userId: user.id } },
@@ -214,6 +236,17 @@ export class AssessmentsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return assessments.map((assessment: any) => ({
+      ...assessment,
+      ...('grades' in assessment
+        ? {
+            grades: assessment.grades.map((grade: any) => ({
+              ...grade,
+              answerbookAttachments: grade.answerbookAttachments.map((item: any) => this.gradeEvidence.publicAttachment(item)),
+            })),
+          }
+        : {}),
+    }));
   }
 
   async updateAssessment(
@@ -228,6 +261,8 @@ export class AssessmentsService {
     if (!assessment || assessment.organizationId !== orgId) {
       throw new NotFoundException('Assessment not found');
     }
+    await assertAcademicCycleWritable(this.prisma, orgId, assessment.academicCycleId, 'SETUP');
+    if (assessment.status !== 'ACTIVE') throw new ConflictException('Retired assessments are read-only');
 
     // Permission check: Manager/Teacher must be assigned to the section
     if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
@@ -267,6 +302,10 @@ export class AssessmentsService {
   async deleteAssessment(orgId: string, id: string, user: JwtPayload) {
     const assessment = await this.prisma.assessment.findUnique({
       where: { id },
+      include: {
+        academicCycle: { select: { status: true } },
+        _count: { select: { grades: true, submissions: true } },
+      },
     });
     if (!assessment || assessment.organizationId !== orgId) {
       throw new NotFoundException('Assessment not found');
@@ -280,6 +319,13 @@ export class AssessmentsService {
           'You are not authorized to delete this assessment.',
         );
       }
+    }
+
+    if (assessment.academicCycle.status !== 'DRAFT' || assessment._count.grades > 0 || assessment._count.submissions > 0) {
+      if (assessment.status === 'ACTIVE') {
+        await this.prisma.assessment.update({ where: { id }, data: { status: 'RETIRED' } });
+      }
+      return { message: 'Assessment has delivery history and was retired instead of deleted' };
     }
 
     return this.prisma.assessment.delete({ where: { id } });
@@ -311,12 +357,22 @@ export class AssessmentsService {
       if (student) studentFilter = { studentId: student.id };
     }
 
-    return this.prisma.grade.findMany({
+    const grades = await this.prisma.grade.findMany({
       where: {
         assessment: { id: assessmentId, organizationId: orgId },
         ...studentFilter,
       },
       include: {
+        answerbookAttachments: {
+          include: {
+            file: {
+              select: {
+                id: true, filename: true, mimeType: true, size: true,
+                fileKind: true, extension: true, createdAt: true,
+              },
+            },
+          },
+        },
         student: {
           include: {
             user: {
@@ -326,6 +382,10 @@ export class AssessmentsService {
         },
       },
     });
+    return grades.map((grade) => ({
+      ...grade,
+      answerbookAttachments: grade.answerbookAttachments.map((item) => this.gradeEvidence.publicAttachment(item)),
+    }));
   }
 
   async getSectionGradebook(orgId: string, sectionId: string, user: JwtPayload) {
@@ -537,14 +597,28 @@ export class AssessmentsService {
   ) {
     const assessment = await this.prisma.assessment.findUnique({
       where: { id: assessmentId },
+      include: { section: { select: { course: { select: { departmentId: true } } } } },
     });
     if (!assessment || assessment.organizationId !== orgId) {
       throw new NotFoundException('Assessment not found');
+    }
+    await assertAcademicCycleWritable(this.prisma, orgId, assessment.academicCycleId, 'CLOSEOUT');
+
+    if (userRole === Role.SUB_ADMIN || userRole === Role.ORG_MANAGER) {
+      const scope = await getDepartmentScope(this.prisma, orgId, { id: userId, role: userRole });
+      const departmentId = assessment.section.course.departmentId;
+      if (scope.applies && !scope.all && (!departmentId || !scope.departmentIds.includes(departmentId))) {
+        throw new ForbiddenException('You cannot update grades outside your department scope');
+      }
     }
 
     const grade = await this.prisma.grade.findUnique({
       where: { assessmentId_studentId: { assessmentId, studentId } },
     });
+    const referenceProvided = data.answerbookReferenceNumber !== undefined;
+    const normalizedReference = referenceProvided
+      ? this.gradeEvidence.normalizeReference(data.answerbookReferenceNumber)
+      : grade?.answerbookReferenceNumber || null;
 
     if (
       grade &&
@@ -604,6 +678,7 @@ export class AssessmentsService {
         status: data.status || 'DRAFT',
         updatedBy: userId,
         academicCycleId: assessment.academicCycleId,
+        answerbookReferenceNumber: normalizedReference,
         ...(data.status === GradeStatus.FINALIZED
           ? { finalizedById: userId, finalizedAt: now }
           : {}),
@@ -613,6 +688,7 @@ export class AssessmentsService {
         feedback: data.feedback,
         status: data.status,
         updatedBy: userId,
+        ...(referenceProvided ? { answerbookReferenceNumber: normalizedReference } : {}),
         ...(isDirectFinalization
           ? { finalizedById: userId, finalizedAt: now }
           : {}),
@@ -624,9 +700,34 @@ export class AssessmentsService {
             }
           : {}),
       },
+      include: {
+        answerbookAttachments: {
+          include: {
+            file: {
+              select: {
+                id: true, filename: true, mimeType: true, size: true,
+                fileKind: true, extension: true, createdAt: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    if (data.status === GradeStatus.PUBLISHED || data.status === GradeStatus.FINALIZED) {
+    if (referenceProvided) {
+      await this.gradeEvidence.recordReferenceChange(
+        orgId,
+        result.id,
+        userId,
+        grade?.answerbookReferenceNumber || null,
+        result.answerbookReferenceNumber,
+      );
+    }
+
+    if (
+      (data.status === GradeStatus.PUBLISHED || data.status === GradeStatus.FINALIZED) &&
+      grade?.status !== data.status
+    ) {
       const student = await this.studentService.getStudent(orgId, studentId);
       if (student) {
         await this.notifications.createNotification({
@@ -639,16 +740,20 @@ export class AssessmentsService {
       }
     }
 
-    return result;
+    return {
+      ...result,
+      answerbookAttachments: result.answerbookAttachments.map((item) => this.gradeEvidence.publicAttachment(item)),
+    };
   }
 
   async publishGrades(orgId: string, assessmentId: string, user: JwtPayload) {
     const assessment = await this.prisma.assessment.findFirst({
       where: { id: assessmentId, organizationId: orgId },
-      select: { sectionId: true },
+      select: { sectionId: true, academicCycleId: true },
     });
 
     if (!assessment) throw new NotFoundException('Assessment not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, assessment.academicCycleId, 'CLOSEOUT');
 
     if (user.role === Role.TEACHER || user.role === Role.ORG_MANAGER) {
       const isAssigned = await this.sectionsService.isTeacherAssignedToSection(
@@ -697,6 +802,7 @@ export class AssessmentsService {
     });
 
     if (!assessment) throw new NotFoundException('Assessment not found');
+    await assertAcademicCycleWritable(this.prisma, orgId, assessment.academicCycleId, 'CLOSEOUT');
 
     if (user.role === Role.ORG_MANAGER) {
       const isAssigned = await this.sectionsService.isTeacherAssignedToSection(
@@ -992,6 +1098,7 @@ export class AssessmentsService {
     if (!assessment || assessment.organizationId !== orgId) {
       throw new NotFoundException('Assessment not found');
     }
+    await assertAcademicCycleWritable(this.prisma, orgId, assessment.academicCycleId, 'DELIVERY');
 
     if (assessment.dueDate && new Date() > assessment.dueDate) {
       throw new BadRequestException('Submission deadline has passed');

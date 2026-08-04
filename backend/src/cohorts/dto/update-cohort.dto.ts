@@ -1,7 +1,24 @@
-import { IsString, IsOptional, IsArray, IsBoolean, Matches, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsEnum, Matches, MaxLength, ValidateIf, IsNotEmpty } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
+import { CohortLifecycleStatus, ProgramClassificationStatus } from '../../common/enums';
 
 export class UpdateCohortDto {
+  @IsEnum(ProgramClassificationStatus)
+  @IsOptional()
+  programClassificationStatus?: ProgramClassificationStatus;
+
+  @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED || dto.programAcademicCycleId !== undefined)
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  programAcademicCycleId?: string;
+
+  @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED || dto.programStageId !== undefined)
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  programStageId?: string;
+
   @IsString()
   @IsOptional()
   name?: string;
@@ -10,9 +27,9 @@ export class UpdateCohortDto {
   @IsOptional()
   academicCycleId?: string;
 
-  @IsBoolean()
+  @IsEnum(CohortLifecycleStatus)
   @IsOptional()
-  isActive?: boolean;
+  status?: CohortLifecycleStatus;
 
   @IsString()
   @IsOptional()

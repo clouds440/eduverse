@@ -423,6 +423,9 @@ export interface Section {
     cohortId?: string | null;
     academicCycle?: AcademicCycle;
     cohort?: Cohort;
+    status: SectionLifecycleStatus;
+    programClassificationStatus: ProgramClassificationStatus;
+    requirementMappings?: SectionRequirementMapping[];
 }
 
 export interface Student {
@@ -432,9 +435,7 @@ export interface Student {
     fatherName?: string;
     age?: number;
     address?: string;
-    major?: string;
     userId: string;
-    department?: string;
     primaryDepartmentId?: string | null;
     primaryDepartment?: Department | null;
     studentDepartments?: { department: Department; departmentId: string }[];
@@ -455,6 +456,9 @@ export interface Student {
     guardianRelationship?: string | null;
     guardian?: GuardianProfile | null;
     guardianLinks?: GuardianStudent[];
+    majorProgram?: Program | null;
+    majorProgramEnrollment?: StudentProgramEnrollment | null;
+    programEnrollments?: StudentProgramEnrollment[];
 }
 
 export interface PublicProfileRating {
@@ -491,7 +495,6 @@ export interface PublicStudentProfile {
     id: string;
     registrationNumber?: string | null;
     rollNumber?: string | null;
-    major?: string | null;
     admissionDate?: string | null;
     graduationDate?: string | null;
     status?: StudentStatus;
@@ -499,6 +502,8 @@ export interface PublicStudentProfile {
     studentDepartments?: { department: PublicProfileDepartment; departmentId: string }[];
     cohort?: Pick<Cohort, 'id' | 'name' | 'code'> | null;
     enrollments?: { section: PublicProfileSection }[];
+    majorProgram?: Pick<Program, 'id' | 'name' | 'code'> | null;
+    majorProgramEnrollment?: Pick<StudentProgramEnrollment, 'id' | 'status' | 'requiredCycleCountSnapshot' | 'cycles'> | null;
 }
 
 export interface PublicTeacherProfile {
@@ -1398,6 +1403,7 @@ export type CreateFinanceManagerRequest = Omit<CreateRoleAccountRequest, 'depart
 export type UpdateFinanceManagerRequest = Partial<CreateFinanceManagerRequest>;
 
 export interface CreateStudentRequest {
+    programId?: string | null;
     name: string;
     email: string;
     phone?: string | null;
@@ -1407,8 +1413,6 @@ export interface CreateStudentRequest {
     fatherName?: string | null;
     age?: number | null;
     address?: string | null;
-    major?: string | null;
-    department?: string | null;
     admissionDate?: string | null;
     graduationDate?: string | null;
     emergencyContact?: string | null;
@@ -1421,7 +1425,7 @@ export interface CreateStudentRequest {
     departmentIds?: string[];
 }
 
-export type UpdateStudentRequest = Partial<CreateStudentRequest>;
+export type UpdateStudentRequest = Partial<Omit<CreateStudentRequest, 'programId'>>;
 
 export interface Enrollment {
     id: string;
@@ -1462,6 +1466,9 @@ export interface CreateSectionRequest {
     defaultRoomId?: string | null;
     courseId: string;
     academicCycleId: string;
+    status?: SectionLifecycleStatus;
+    programClassificationStatus: ProgramClassificationStatus;
+    stageCourseRequirementIds?: string[];
     cohortId?: string | null;
     teacherIds?: string[];
     scheduleTeacherResolution?: {
@@ -1622,8 +1629,18 @@ export interface Grade {
     lastCorrectedById?: string | null;
     lastCorrectedAt?: string | null;
     correctionReason?: string | null;
+    answerbookReferenceNumber?: string | null;
+    answerbookAttachments?: GradeAnswerbookAttachment[];
     assessment?: Assessment;
     student?: Student;
+}
+
+export interface GradeAnswerbookAttachment {
+    id: string;
+    gradeId: string;
+    uploadedById: string;
+    createdAt: string;
+    file: Attachment;
 }
 
 export interface Submission {
@@ -1657,6 +1674,7 @@ export interface UpdateGradeRequest {
     feedback?: string;
     status?: GradeStatus;
     correctionReason?: string;
+    answerbookReferenceNumber?: string | null;
 }
 
 export interface CreateSubmissionRequest {
@@ -1666,6 +1684,7 @@ export interface CreateSubmissionRequest {
 }
 
 export interface FinalGradeDetail {
+    gradeId: string;
     assessmentId: string;
     title: string;
     type: AssessmentType;
@@ -1674,6 +1693,8 @@ export interface FinalGradeDetail {
     totalMarks: number;
     status: string;
     percentage: string;
+    answerbookReferenceNumber?: string | null;
+    answerbookAttachments?: GradeAnswerbookAttachment[];
 }
 
 export interface FinalGradeResponse {
@@ -2800,12 +2821,15 @@ export interface AcademicCycle {
     code: string;
     startDate: string;
     endDate: string;
-    isActive: boolean;
+    status: AcademicCycleStatus;
     organizationId: string;
     gpaPolicyId?: string | null;
     gpaPolicySnapshot?: unknown;
     gpaPolicy?: Pick<GpaPolicy, 'id' | 'name' | 'isArchived'> | null;
     hasFinalizedGrades?: boolean;
+    currentArchiveId?: string | null;
+    archivedAt?: string | null;
+    archiveReason?: string | null;
     _count?: {
         cohorts: number;
         sections: number;
@@ -2818,7 +2842,12 @@ export interface Cohort {
     code: string;
     organizationId: string;
     academicCycleId: string;
-    isActive?: boolean;
+    status: CohortLifecycleStatus;
+    programClassificationStatus: ProgramClassificationStatus;
+    programAcademicCycleId?: string | null;
+    programStageId?: string | null;
+    programAcademicCycle?: ProgramAcademicCycle | null;
+    programStage?: ProgramStage | null;
     academicCycle?: AcademicCycle;
     students?: Student[];
     sections?: Section[];
@@ -2878,7 +2907,7 @@ export interface CreateAcademicCycleDto {
     code: string;
     startDate: string;
     endDate: string;
-    isActive?: boolean;
+    status?: AcademicCycleStatus.DRAFT | AcademicCycleStatus.ACTIVE;
     gpaPolicyId?: string;
 }
 
@@ -3224,7 +3253,6 @@ export interface UpdateAcademicCycleDto {
     code?: string;
     startDate?: string;
     endDate?: string;
-    isActive?: boolean;
     gpaPolicyId?: string;
 }
 
@@ -3232,7 +3260,10 @@ export interface CreateCohortDto {
     name: string;
     code: string;
     academicCycleId: string;
-    isActive?: boolean;
+    status?: CohortLifecycleStatus;
+    programClassificationStatus: ProgramClassificationStatus;
+    programAcademicCycleId?: string;
+    programStageId?: string;
     studentIds?: string[];
     sectionIds?: string[];
 }
@@ -3241,7 +3272,10 @@ export interface UpdateCohortDto {
     name?: string;
     code?: string;
     academicCycleId?: string;
-    isActive?: boolean;
+    status?: CohortLifecycleStatus;
+    programClassificationStatus?: ProgramClassificationStatus;
+    programAcademicCycleId?: string | null;
+    programStageId?: string | null;
     studentIds?: string[];
     sectionIds?: string[];
 }
@@ -3259,6 +3293,10 @@ export interface ReassignStudentsDto {
 }
 
 export interface CopyForwardDto {
+    programClassificationStatus: ProgramClassificationStatus;
+    sourceProgramAcademicCycleId?: string;
+    targetProgramAcademicCycleId?: string;
+    targetProgramStageId?: string;
     fromCycleId: string;
     toCycleId: string;
     copySchedules?: boolean;
@@ -3269,9 +3307,393 @@ export interface CopyForwardDto {
     };
 }
 
+export enum AcademicCycleArchiveStatus {
+    BUILDING = 'BUILDING',
+    READY = 'READY',
+    FAILED = 'FAILED',
+}
+
+export interface AcademicCycleArchive {
+    id: string;
+    academicCycleId: string;
+    revision: number;
+    status: AcademicCycleArchiveStatus;
+    schemaVersion: number;
+    cutoffAt: string;
+    completedAt?: string | null;
+    failureReason?: string | null;
+    checksum?: string | null;
+    recordCounts?: Record<string, number> | null;
+}
+
+export interface AcademicCycleArchiveStatusResponse {
+    cycle: AcademicCycle;
+    archive: AcademicCycleArchive | null;
+}
+
+export interface PastRecordFilters {
+    [key: string]: string | number | boolean | undefined;
+    cycleId?: string;
+    departmentId?: string;
+    programId?: string;
+    cohortId?: string;
+    studentId?: string;
+    classification?: ProgramClassificationStatus;
+    search?: string;
+    page?: number;
+    limit?: number;
+}
+
+export interface PastRecordSectionSummary {
+    id: string;
+    sourceSectionId: string;
+    sourceDepartmentId?: string | null;
+    sourceCohortId?: string | null;
+    classificationStatus: ProgramClassificationStatus;
+    departmentLabel?: string | null;
+    cohortLabel?: string | null;
+    courseLabel: string;
+    sectionLabel: string;
+    studentCount: number;
+    programs: Array<{ sourceProgramId: string; programLabel: string; curriculumLabel: string; stageLabel: string; departmentLabel: string }>;
+    cycle: Pick<AcademicCycle, 'id' | 'name' | 'code' | 'startDate' | 'endDate'>;
+    archiveRevision: number;
+    schemaVersion: number;
+    sourceMode: 'ARCHIVE';
+}
+
+export interface PastRecordStudentSummary {
+    sourceStudentId: string;
+    studentName: string;
+    registrationNumber: string;
+    rollNumber: string;
+    studentStatus: StudentStatus;
+}
+
+export interface PastRecordSectionPayload {
+    schemaVersion: number;
+    cycle: Record<string, unknown>;
+    section: Section & { teachers?: Teacher[]; requirementMappings?: SectionRequirementMapping[] };
+    enrollments: Array<Enrollment & { student: Student }>;
+    enrollmentHistories: Array<EnrollmentHistory & { student?: Student }>;
+    assessments: Array<Assessment & { grades: Grade[]; submissions: Submission[] }>;
+    schedules: SectionSchedule[];
+    attendanceSessions: Array<{ id: string; date: string; startTime?: string; endTime?: string; records: AttendanceRecord[] }>;
+    courseMaterials: CourseMaterial[];
+    evaluations: Evaluation[];
+    files: Attachment[];
+}
+
+export interface PastRecordSectionDetail {
+    id: string;
+    archiveId: string;
+    archiveRevision: number;
+    schemaVersion: number;
+    sourceMode: 'ARCHIVE';
+    checksum: string;
+    cycle: Pick<AcademicCycle, 'id' | 'name' | 'code' | 'startDate' | 'endDate'>;
+    programs: Array<{ id: string; programLabel: string; curriculumLabel: string; stageLabel: string; departmentLabel: string }>;
+    payload: PastRecordSectionPayload;
+}
+
+export interface PastRecordOptions {
+    departments: Array<{ id: string; label: string }>;
+    programs: Array<{ id: string; label: string; departmentLabel: string }>;
+    cohorts: Array<{ id: string; label: string }>;
+    classifications: ProgramClassificationStatus[];
+}
+
+export enum AcademicCycleStatus {
+    DRAFT = 'DRAFT',
+    ACTIVE = 'ACTIVE',
+    COMPLETED = 'COMPLETED',
+    ARCHIVING = 'ARCHIVING',
+    ARCHIVED = 'ARCHIVED',
+}
+
+export enum CohortLifecycleStatus {
+    ACTIVE = 'ACTIVE',
+    CLOSED = 'CLOSED',
+    ARCHIVED = 'ARCHIVED',
+}
+
+export enum SectionLifecycleStatus {
+    ACTIVE = 'ACTIVE',
+    CLOSED = 'CLOSED',
+    ARCHIVED = 'ARCHIVED',
+}
+
+export enum ProgramClassificationStatus {
+    STANDALONE = 'STANDALONE',
+    PROGRAM_MAPPED = 'PROGRAM_MAPPED',
+}
+
 export interface CopyForwardPreview {
     sections: number;
     schedules: number;
     assessments: number;
     materials: number;
+}
+
+export enum ProgramStatus {
+    DRAFT = 'DRAFT',
+    ACTIVE = 'ACTIVE',
+    PAUSED = 'PAUSED',
+    TEACH_OUT = 'TEACH_OUT',
+    ARCHIVED = 'ARCHIVED',
+}
+
+export enum ProgramStructureType {
+    GRADE_BASED = 'GRADE_BASED',
+    TERM_BASED = 'TERM_BASED',
+    CREDIT_BASED = 'CREDIT_BASED',
+    LEVEL_BASED = 'LEVEL_BASED',
+    CUSTOM = 'CUSTOM',
+}
+
+export enum ProgramProgressionMode {
+    SEQUENTIAL = 'SEQUENTIAL',
+    CREDIT_ACCUMULATION = 'CREDIT_ACCUMULATION',
+    FLEXIBLE = 'FLEXIBLE',
+    MANUAL = 'MANUAL',
+}
+
+export enum ProgramCompletionMode {
+    FINAL_STAGE = 'FINAL_STAGE',
+    REQUIREMENTS = 'REQUIREMENTS',
+    CREDITS = 'CREDITS',
+    MANUAL = 'MANUAL',
+}
+
+export enum ProgramDurationUnit {
+    MONTHS = 'MONTHS',
+    YEARS = 'YEARS',
+    CYCLES = 'CYCLES',
+}
+
+export enum CurriculumStatus {
+    DRAFT = 'DRAFT',
+    ACTIVE = 'ACTIVE',
+    RETIRED = 'RETIRED',
+    ARCHIVED = 'ARCHIVED',
+}
+
+export enum CourseRequirementType {
+    REQUIRED = 'REQUIRED',
+    ELECTIVE = 'ELECTIVE',
+    OPTIONAL = 'OPTIONAL',
+}
+
+export type ProgramCycleInput = {
+    kind: 'EXISTING' | 'NEW';
+    academicCycleId?: string;
+    name?: string;
+    code?: string;
+    startDate?: string;
+    endDate?: string;
+    gpaPolicyId?: string;
+    stage: {
+        name: string;
+        code: string;
+        stageType?: string;
+        isOptional?: boolean;
+        minCredits?: number;
+        expectedCredits?: number;
+        courseRequirements: Array<{
+            courseId: string;
+            requirementType: CourseRequirementType;
+            groupKey?: string;
+            minCourses?: number;
+            minCredits?: number;
+            notes?: string;
+        }>;
+    };
+};
+
+export interface CreateProgramRequest {
+    name: string;
+    code: string;
+    departmentId: string;
+    description?: string;
+    structureType: ProgramStructureType;
+    progressionMode: ProgramProgressionMode;
+    completionMode: ProgramCompletionMode;
+    durationValue?: number;
+    durationUnit?: ProgramDurationUnit;
+    isVisibleForAdmissions?: boolean;
+    admissionsLabel?: string;
+    admissionsDescription?: string;
+    curriculumName: string;
+    curriculumCode: string;
+    stageTerminology?: string;
+    cycles: ProgramCycleInput[];
+}
+
+export interface ProgramAcademicCycle {
+    id: string;
+    programId: string;
+    academicCycleId: string;
+    sequence: number;
+    isRequired: boolean;
+    status: 'ACTIVE' | 'RETIRED';
+    academicCycle: AcademicCycle;
+    program?: Program;
+    stages?: ProgramStage[];
+}
+
+export interface StageCourseRequirement {
+    id: string;
+    courseId: string;
+    requirementType: CourseRequirementType;
+    groupKey?: string | null;
+    minCourses?: number | null;
+    minCredits?: number | null;
+    sortOrder: number;
+    creditHoursSnapshot: number;
+    notes?: string | null;
+    course: Pick<Course, 'id' | 'name' | 'code' | 'creditHours' | 'departmentId'>;
+}
+
+export interface ProgramStage {
+    id: string;
+    name: string;
+    code: string;
+    sequence: number;
+    stageType?: string | null;
+    isOptional: boolean;
+    programAcademicCycleId: string;
+    programAcademicCycle: ProgramAcademicCycle;
+    courseRequirements: StageCourseRequirement[];
+}
+
+export interface CurriculumVersion {
+    id: string;
+    name: string;
+    code: string;
+    status: CurriculumStatus;
+    stageTerminology?: string | null;
+    isDefaultForAdmissions: boolean;
+    programConfigurationRevisionId: string;
+    stages: ProgramStage[];
+}
+
+export interface ProgramConfigurationRevision {
+    id: string;
+    version: number;
+    requiredCycleCount: number;
+    cyclesSnapshot: unknown;
+    checksum: string;
+    changeReason?: string | null;
+    createdAt: string;
+}
+
+export interface Program {
+    id: string;
+    organizationId: string;
+    departmentId: string;
+    name: string;
+    code: string;
+    description?: string | null;
+    status: ProgramStatus;
+    requiredCycleCount: number;
+    configurationVersion: number;
+    structureType: ProgramStructureType;
+    progressionMode: ProgramProgressionMode;
+    completionMode: ProgramCompletionMode;
+    durationValue?: number | null;
+    durationUnit?: ProgramDurationUnit | null;
+    isVisibleForAdmissions: boolean;
+    admissionsLabel?: string | null;
+    admissionsDescription?: string | null;
+    department: Pick<Department, 'id' | 'name' | 'code' | 'isActive'>;
+    academicCycles: ProgramAcademicCycle[];
+    curriculumVersions?: CurriculumVersion[];
+    configurationRevisions?: ProgramConfigurationRevision[];
+    _count?: { studentEnrollments: number; academicCycles?: number; curriculumVersions: number };
+}
+
+export interface EligibleProgramCycle extends AcademicCycle {
+    programUseCount: number;
+}
+
+export interface ProgramDeliveryOption extends ProgramAcademicCycle {
+    program: Program;
+    stages: Array<ProgramStage & { curriculumVersion?: CurriculumVersion }>;
+}
+
+export interface SectionRequirementMapping {
+    id: string;
+    stageCourseRequirementId: string;
+    programAcademicCycleId: string;
+    stageCourseRequirement: StageCourseRequirement & { programStage?: ProgramStage };
+    programAcademicCycle?: ProgramAcademicCycle;
+}
+
+export enum StudentProgramEnrollmentStatus {
+    ADMITTED = 'ADMITTED',
+    ACTIVE = 'ACTIVE',
+    ON_HOLD = 'ON_HOLD',
+    TRANSFERRED_OUT = 'TRANSFERRED_OUT',
+    WITHDRAWN = 'WITHDRAWN',
+    COMPLETED = 'COMPLETED',
+    ARCHIVED = 'ARCHIVED',
+}
+
+export enum StudentProgramCycleStatus {
+    PLANNED = 'PLANNED',
+    IN_PROGRESS = 'IN_PROGRESS',
+    COMPLETED = 'COMPLETED',
+    FAILED = 'FAILED',
+    SKIPPED = 'SKIPPED',
+    WITHDRAWN = 'WITHDRAWN',
+}
+
+export enum StudentStageAttemptStatus {
+    PLANNED = 'PLANNED',
+    IN_PROGRESS = 'IN_PROGRESS',
+    COMPLETED = 'COMPLETED',
+    FAILED = 'FAILED',
+    SKIPPED = 'SKIPPED',
+    WITHDRAWN = 'WITHDRAWN',
+}
+
+export interface StudentStageAttempt {
+    id: string;
+    attemptNumber: number;
+    status: StudentStageAttemptStatus;
+    reason?: string | null;
+    cohortId?: string | null;
+    startedAt?: string | null;
+    completedAt?: string | null;
+}
+
+export interface StudentProgramEnrollmentCycle {
+    id: string;
+    sequenceSnapshot: number;
+    isRequiredSnapshot: boolean;
+    cycleNameSnapshot: string;
+    cycleCodeSnapshot: string;
+    stageNameSnapshot: string;
+    stageCodeSnapshot: string;
+    status: StudentProgramCycleStatus;
+    cohortId?: string | null;
+    reason?: string | null;
+    stageAttempts?: StudentStageAttempt[];
+}
+
+export interface StudentProgramEnrollment {
+    id: string;
+    studentId: string;
+    programId: string;
+    status: StudentProgramEnrollmentStatus;
+    requiredCycleCountSnapshot: number;
+    programConfigurationVersionSnapshot: number;
+    admittedAt: string;
+    startedAt?: string | null;
+    endedAt?: string | null;
+    exitReason?: string | null;
+    program: Program;
+    curriculumVersion: CurriculumVersion;
+    cycles: StudentProgramEnrollmentCycle[];
+    stageAttempts?: StudentStageAttempt[];
 }

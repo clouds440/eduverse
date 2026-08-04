@@ -9,11 +9,26 @@ import {
   IsDateString,
   IsArray,
   IsEnum,
+  IsInt,
+  Min,
   ValidateIf,
 } from 'class-validator';
 import { StudentStatus } from '../../common/enums';
 
 export class CreateStudentDto {
+  @IsString()
+  @IsOptional()
+  programId?: string;
+
+  @IsString()
+  @IsOptional()
+  entryAcademicCycleId?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  entryStageSequence?: number;
+
   @IsEmail()
   @IsNotEmpty()
   email: string;
@@ -54,14 +69,6 @@ export class CreateStudentDto {
   @IsString()
   @IsOptional()
   address?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  major: string;
-
-  @IsString()
-  @IsOptional()
-  department?: string;
 
   @IsString()
   @IsOptional()

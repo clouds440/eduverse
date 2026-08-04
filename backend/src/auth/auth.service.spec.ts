@@ -32,6 +32,7 @@ describe('AuthService register', () => {
       $transaction: jest.fn(async (callback) =>
         callback({
           organization: {
+            findUnique: jest.fn().mockResolvedValue(null),
             create: jest.fn().mockResolvedValue({
               id: 'org-1',
               name: 'Test School',
@@ -70,6 +71,7 @@ describe('AuthService register', () => {
   it('does not force password change for a self-registered organization admin', async () => {
     const tx = {
       organization: {
+        findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({
           id: 'org-1',
           name: 'Test School',
@@ -110,6 +112,11 @@ describe('AuthService register', () => {
           role: Role.ORG_ADMIN,
           isFirstLogin: false,
         }),
+      }),
+    );
+    expect(tx.organization.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ slug: 'test-school' }),
       }),
     );
   });

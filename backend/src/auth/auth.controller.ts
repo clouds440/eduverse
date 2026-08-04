@@ -37,6 +37,7 @@ import {
   TemporaryTwoFactorTokenDto,
   VerifyTwoFactorEmailDto,
 } from './dto/two-factor.dto';
+import { configuredOrigins, isAllowedOrigin } from '../common/origin-policy';
 
 type AuthenticatedRequest = {
   user: { id: string; role?: string; organizationId?: string | null; sessionId?: string };
@@ -694,12 +695,7 @@ export class AuthController {
 
   private assertAllowedFrontendOrigin(req: { headers: { origin?: string } }) {
     const origin = req.headers.origin;
-    const allowedOrigins = (process.env.FRONTEND_URL || '')
-      .split(',')
-      .map((url) => url.trim())
-      .filter(Boolean);
-
-    if (!origin || !allowedOrigins.includes(origin)) {
+    if (!origin || !isAllowedOrigin(origin, configuredOrigins())) {
       throw new ForbiddenException('Request origin is not allowed.');
     }
   }
