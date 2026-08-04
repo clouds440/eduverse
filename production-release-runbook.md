@@ -39,9 +39,8 @@ Backend requirements:
 - `AUTH_COOKIE_SECURE=true` and an intentional `AUTH_COOKIE_SAME_SITE`/`AUTH_COOKIE_DOMAIN` combination
 - `DATABASE_POOL_MAX` sized so all running instances and release jobs remain below the database connection limit
 - production Cloudinary credentials and, when enabled, email, OAuth, push, AI, and billing credentials
-- `BOOTSTRAP_SUPER_ADMIN=false` during ordinary startup
 
-For first installation only, set `BOOTSTRAP_SUPER_ADMIN=true` with strong bootstrap credentials, start one backend instance, verify the account, and immediately return the flag and bootstrap password secret to disabled/removed state. The bootstrap is transaction-serialized, but it is not an ordinary seed mechanism.
+For first installation, configure `SUPER_ADMIN_USERNAME` and `SUPER_ADMIN_PASSWORD`. When no super admin exists, startup creates the first account using those existing credentials. Subsequent startups leave the existing account unchanged.
 
 Run inside the built backend artifact:
 

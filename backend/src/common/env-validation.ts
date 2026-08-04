@@ -45,20 +45,6 @@ export function environmentErrors(env: Environment): string[] {
     (name) => `${name} is required`,
   );
 
-  const bootstrapAdmin = parseBoolean(env.BOOTSTRAP_SUPER_ADMIN);
-  if (bootstrapAdmin === null) {
-    errors.push('BOOTSTRAP_SUPER_ADMIN must be true or false when provided');
-  } else if (bootstrapAdmin) {
-    for (const name of [
-      'SUPER_ADMIN_USERNAME',
-      'SUPER_ADMIN_PASSWORD',
-      'SUPER_ADMIN_EMAIL',
-    ]) {
-      if (!env[name])
-        errors.push(`${name} is required when BOOTSTRAP_SUPER_ADMIN=true`);
-    }
-  }
-
   validateInteger(env.PORT, 'PORT', 1, 65_535, errors);
   validateInteger(env.BCRYPT_ROUNDS, 'BCRYPT_ROUNDS', 10, 15, errors);
   validateOptionalPositiveInteger(env.THROTTLE_TTL, 'THROTTLE_TTL', errors);

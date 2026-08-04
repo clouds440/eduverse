@@ -12,7 +12,7 @@ export async function bootstrapSuperAdmin(
   logger = new Logger('SuperAdminBootstrap'),
   hashPassword: PasswordHasher = bcrypt.hash,
 ) {
-  if (env.BOOTSTRAP_SUPER_ADMIN?.toLowerCase() !== 'true') return false;
+  if (!env.SUPER_ADMIN_USERNAME || !env.SUPER_ADMIN_PASSWORD) return false;
 
   const email = env.SUPER_ADMIN_USERNAME!;
   const password = env.SUPER_ADMIN_PASSWORD!;

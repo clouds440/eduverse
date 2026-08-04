@@ -2,13 +2,12 @@ import { bootstrapSuperAdmin } from './super-admin.bootstrap';
 
 describe('bootstrapSuperAdmin', () => {
   const env = {
-    BOOTSTRAP_SUPER_ADMIN: 'true',
     SUPER_ADMIN_USERNAME: 'root@example.test',
     SUPER_ADMIN_PASSWORD: 'StrongPassword123!',
     BCRYPT_ROUNDS: '10',
   };
 
-  it('does nothing unless explicitly enabled', async () => {
+  it('does nothing when credentials are not configured', async () => {
     const prisma = { $transaction: jest.fn() };
     await expect(bootstrapSuperAdmin(prisma as never, {})).resolves.toBe(false);
     expect(prisma.$transaction).not.toHaveBeenCalled();

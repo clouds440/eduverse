@@ -23,19 +23,7 @@ describe('environment validation', () => {
     ).toThrow('NODE_ENV must be production for release validation');
   });
 
-  it('requires bootstrap credentials only when provisioning is enabled', () => {
-    expect(
-      environmentErrors({
-        ...validEnvironment,
-        BOOTSTRAP_SUPER_ADMIN: 'true',
-      }),
-    ).toEqual(
-      expect.arrayContaining([
-        'SUPER_ADMIN_USERNAME is required when BOOTSTRAP_SUPER_ADMIN=true',
-        'SUPER_ADMIN_PASSWORD is required when BOOTSTRAP_SUPER_ADMIN=true',
-        'SUPER_ADMIN_EMAIL is required when BOOTSTRAP_SUPER_ADMIN=true',
-      ]),
-    );
+  it('does not require super-admin credentials for ordinary startup', () => {
     expect(environmentErrors(validEnvironment)).toEqual([]);
   });
 

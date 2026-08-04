@@ -1070,10 +1070,9 @@ Protected-content notification rules:
 | `DATABASE_POOL_MAX`         | Maximum PostgreSQL connections per backend replica; defaults to 10.               |
 | `DATABASE_POOL_IDLE_TIMEOUT_MS` | Idle pool-connection timeout; defaults to 30000 ms.                          |
 | `DATABASE_POOL_CONNECTION_TIMEOUT_MS` | Pool connection timeout; defaults to 5000 ms.                        |
-| `BOOTSTRAP_SUPER_ADMIN`     | Enables one-time initial super-admin provisioning when explicitly `true`.         |
-| `SUPER_ADMIN_USERNAME`      | Required only while one-time bootstrap is enabled.                                |
-| `SUPER_ADMIN_PASSWORD`      | Required only while one-time bootstrap is enabled; remove it afterward.           |
-| `SUPER_ADMIN_EMAIL`         | Platform notification address and bootstrap requirement.                          |
+| `SUPER_ADMIN_USERNAME`      | Creates the first super admin when configured and no super admin exists.           |
+| `SUPER_ADMIN_PASSWORD`      | Password used only when creating that first super admin.                           |
+| `SUPER_ADMIN_EMAIL`         | Platform notification address.                                                     |
 
 Use `backend/.env.example` and `frontend/.env.example` as the complete inventory. Production values belong in a secret manager. Run `npm run release:env-check` inside the built backend artifact before migration or startup.
 
