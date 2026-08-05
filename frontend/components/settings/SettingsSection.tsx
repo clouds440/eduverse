@@ -1,5 +1,5 @@
+import type { ReactElement, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 export function SettingsSection({
@@ -12,7 +12,7 @@ export function SettingsSection({
     contentClassName,
     id,
 }: {
-    icon: LucideIcon;
+    icon: React.ElementType<{ className?: string }> | ReactNode;
     title: string;
     description?: ReactNode;
     children: ReactNode;
@@ -26,7 +26,11 @@ export function SettingsSection({
             <div className="flex flex-col gap-3 border-b border-border/60 bg-background/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                 <div className="flex min-w-0 items-start gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background text-primary">
-                        <Icon className="h-4 w-4" />
+                        {typeof Icon === 'function' ? (
+                            <Icon className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                            Icon
+                        )}
                     </div>
                     <div className="min-w-0">
                         <h2 className="text-sm font-black text-foreground sm:text-base">{title}</h2>

@@ -19,7 +19,6 @@ import {
   PanelRightOpen,
   Plus,
   RefreshCw,
-  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -35,6 +34,7 @@ import { AICopilotHome } from "./AICopilotHome";
 import { AIMessageInput } from "./AIMessageInput";
 import { AIMessageList } from "./AIMessageList";
 import { AISuggestedPrompts } from "./AISuggestedPrompts";
+import { CopilotIcon } from "./CopilotIcon";
 
 export function AICopilotPanel() {
   const { user } = useAuth();
@@ -43,9 +43,8 @@ export function AICopilotPanel() {
   const [actionsCollapsed, setActionsCollapsed] = useState(true);
   const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<AIConversationSummary | null>(
-    null,
-  );
+  const [deleteTarget, setDeleteTarget] =
+    useState<AIConversationSummary | null>(null);
   const {
     isOpen,
     close,
@@ -95,7 +94,8 @@ export function AICopilotPanel() {
   }, [close, isOpen]);
 
   const allowed = entitlement?.allowed;
-  const denialCode = entitlement && entitlement.allowed === false ? entitlement.code : undefined;
+  const denialCode =
+    entitlement && entitlement.allowed === false ? entitlement.code : undefined;
   const creditLimitReached = isCreditLimitReachedCode(denialCode);
   const canUseAccountActions = allowed === true || creditLimitReached;
   const sourceLabel = allowed
@@ -107,18 +107,26 @@ export function AICopilotPanel() {
     ? entitlement.source.balance.remainingCredits
     : creditLimitReached
       ? 0
+      : undefined;
+  const monthlyCredits = allowed
+    ? entitlement.source.balance.monthlyCredits
     : undefined;
-  const monthlyCredits = allowed ? entitlement.source.balance.monthlyCredits : undefined;
   const hasMessages = messages.length > 0;
-  const disabled = entitlementLoading || (allowed === false && !creditLimitReached) || isSending;
+  const disabled =
+    entitlementLoading ||
+    (allowed === false && !creditLimitReached) ||
+    isSending;
   const showSuggestions =
-    allowed === true && !creditLimitReached && !hasMessages && suggestedQuestions.length > 0;
+    allowed === true &&
+    !creditLimitReached &&
+    !hasMessages &&
+    suggestedQuestions.length > 0;
   const showSuggestionPrompt =
-    allowed === true
-    && !creditLimitReached
-    && !hasMessages
-    && suggestedQuestions.length === 0
-    && !suggestedQuestionsLoaded;
+    allowed === true &&
+    !creditLimitReached &&
+    !hasMessages &&
+    suggestedQuestions.length === 0 &&
+    !suggestedQuestionsLoaded;
   const dockedActive = isDesktop && isDocked && dockHostAvailable;
   const subscriptionHref = "/ai/subscription";
   const groupedConversations = useMemo(
@@ -214,8 +222,8 @@ export function AICopilotPanel() {
         )}
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-background/90 px-3 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/15 bg-primary/10 text-primary">
-              <Sparkles className="h-[18px] w-[18px] fill-current" aria-hidden="true" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
+              <CopilotIcon className="h-9.5 w-9" aria-hidden={true} />
             </div>
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
@@ -230,9 +238,9 @@ export function AICopilotPanel() {
                     ? `${(remainingCredits ?? 0).toLocaleString()} credits remaining`
                     : creditLimitReached
                       ? "Credit limit reached"
-                    : entitlementLoading
-                      ? "Checking access"
-                      : "Premium addon"}
+                      : entitlementLoading
+                        ? "Checking access"
+                        : "Premium addon"}
               </p>
             </div>
           </div>
@@ -330,7 +338,9 @@ export function AICopilotPanel() {
               <AICopilotHome
                 role={user?.role}
                 entitlementLoading={entitlementLoading}
-                entitlementAllowed={creditLimitReached ? true : entitlement?.allowed}
+                entitlementAllowed={
+                  creditLimitReached ? true : entitlement?.allowed
+                }
                 denialCode={denialCode}
                 denialMessage={
                   !entitlement?.allowed ? entitlement?.message : undefined
@@ -379,7 +389,10 @@ export function AICopilotPanel() {
           <div className="shrink-0 px-3 pb-2 sm:px-4">
             <div className="flex items-center justify-between gap-3 rounded-full border border-border/70 bg-card/90 px-3 py-2 shadow-sm">
               <div className="flex min-w-0 items-center gap-2">
-                <Lightbulb className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                <Lightbulb
+                  className="h-4 w-4 shrink-0 text-warning"
+                  aria-hidden="true"
+                />
                 <span className="truncate text-xs font-black text-foreground">
                   Need ideas?
                 </span>
@@ -390,7 +403,9 @@ export function AICopilotPanel() {
                 disabled={suggestedQuestionsLoading || disabled}
                 className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {suggestedQuestionsLoading ? "Finding ideas" : "Show suggested prompts"}
+                {suggestedQuestionsLoading
+                  ? "Finding ideas"
+                  : "Show suggested prompts"}
               </button>
             </div>
           </div>
@@ -495,82 +510,94 @@ export function AICopilotPanel() {
                           {group.label}
                         </p>
                         {group.items.map((conversation) => {
-                      const isActive = conversation.id === conversationId;
-                      const isEditing = editingTitleId === conversation.id;
-                      return (
-                        <div
-                          key={conversation.id}
-                          className={cn(
-                            "flex min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card p-2 shadow-sm transition-colors",
-                            isActive && "border-primary/35 bg-primary/5",
-                          )}
-                        >
-                          {isEditing ? (
-                            <input
-                              value={editingTitle}
-                              onChange={(event) =>
-                                setEditingTitle(event.target.value)
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") void saveTitle();
-                                if (event.key === "Escape") setEditingTitleId(null);
-                              }}
-                              onBlur={() => void saveTitle()}
-                              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm font-semibold text-foreground outline-none focus:border-primary/40"
-                              autoFocus
-                            />
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                void loadConversation(conversation.id);
-                                setHistoryOpen(false);
-                              }}
-                              className="min-w-0 flex-1 py-1 text-left"
+                          const isActive = conversation.id === conversationId;
+                          const isEditing = editingTitleId === conversation.id;
+                          return (
+                            <div
+                              key={conversation.id}
+                              className={cn(
+                                "flex min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-card p-2 shadow-sm transition-colors",
+                                isActive && "border-primary/35 bg-primary/5",
+                              )}
                             >
-                              <p className="truncate text-sm font-black text-foreground">
-                                {conversation.title}
-                              </p>
-                              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
-                                {conversation.messageCount} messages
-                                {conversation.creditTotal > 0
-                                  ? ` - ${conversation.creditTotal.toLocaleString()} credits`
-                                  : ""}
-                              </p>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              isEditing
-                                ? void saveTitle()
-                                : startEditTitle(
-                                    conversation.id,
-                                    conversation.title,
-                                  )
-                            }
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                            aria-label={
-                              isEditing ? "Save chat title" : "Edit chat title"
-                            }
-                          >
-                            {isEditing ? (
-                              <Check className="h-4 w-4" aria-hidden="true" />
-                            ) : (
-                              <Pencil className="h-4 w-4" aria-hidden="true" />
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(conversation)}
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
-                            aria-label="Delete Copilot chat"
-                            title="Delete chat"
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
-                          </button>
-                        </div>
-                      );
+                              {isEditing ? (
+                                <input
+                                  value={editingTitle}
+                                  onChange={(event) =>
+                                    setEditingTitle(event.target.value)
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") void saveTitle();
+                                    if (event.key === "Escape")
+                                      setEditingTitleId(null);
+                                  }}
+                                  onBlur={() => void saveTitle()}
+                                  className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm font-semibold text-foreground outline-none focus:border-primary/40"
+                                  autoFocus
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void loadConversation(conversation.id);
+                                    setHistoryOpen(false);
+                                  }}
+                                  className="min-w-0 flex-1 py-1 text-left"
+                                >
+                                  <p className="truncate text-sm font-black text-foreground">
+                                    {conversation.title}
+                                  </p>
+                                  <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+                                    {conversation.messageCount} messages
+                                    {conversation.creditTotal > 0
+                                      ? ` - ${conversation.creditTotal.toLocaleString()} credits`
+                                      : ""}
+                                  </p>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  isEditing
+                                    ? void saveTitle()
+                                    : startEditTitle(
+                                        conversation.id,
+                                        conversation.title,
+                                      )
+                                }
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                aria-label={
+                                  isEditing
+                                    ? "Save chat title"
+                                    : "Edit chat title"
+                                }
+                              >
+                                {isEditing ? (
+                                  <Check
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                ) : (
+                                  <Pencil
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(conversation)}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger"
+                                aria-label="Delete Copilot chat"
+                                title="Delete chat"
+                              >
+                                <Trash2
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                            </div>
+                          );
                         })}
                       </div>
                     ))}
@@ -599,9 +626,11 @@ export function AICopilotPanel() {
 }
 
 function isCreditLimitReachedCode(code?: string | null) {
-  return code === "ORG_CREDITS_EXHAUSTED"
-    || code === "ROLE_CREDITS_EXHAUSTED"
-    || code === "PERSONAL_CREDITS_EXHAUSTED";
+  return (
+    code === "ORG_CREDITS_EXHAUSTED" ||
+    code === "ROLE_CREDITS_EXHAUSTED" ||
+    code === "PERSONAL_CREDITS_EXHAUSTED"
+  );
 }
 
 function groupConversationsByDate(conversations: AIConversationSummary[]) {
@@ -612,17 +641,24 @@ function groupConversationsByDate(conversations: AIConversationSummary[]) {
     const date = new Date(conversation.updatedAt);
     const start = startOfLocalDay(date).getTime();
     const diffDays = Math.round((today - start) / 86_400_000);
-    const label = diffDays === 0
-      ? "Today"
-      : diffDays === 1
-        ? "Yesterday"
-        : diffDays < 7
-          ? "This week"
-          : date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+    const label =
+      diffDays === 0
+        ? "Today"
+        : diffDays === 1
+          ? "Yesterday"
+          : diffDays < 7
+            ? "This week"
+            : date.toLocaleDateString(undefined, {
+                month: "short",
+                year: "numeric",
+              });
     groups.set(label, [...(groups.get(label) ?? []), conversation]);
   }
 
-  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+  return Array.from(groups.entries()).map(([label, items]) => ({
+    label,
+    items,
+  }));
 }
 
 function startOfLocalDay(date: Date) {

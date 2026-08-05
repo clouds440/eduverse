@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Sparkles } from "lucide-react";
+import { Check, Copy } from "lucide-react";
+import { CopilotIcon } from "./CopilotIcon";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 import { AICopilotMessage } from "./AICopilotProvider";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,7 @@ export function AIMessageList({ messages }: AIMessageListProps) {
       <div className="mx-auto grid max-w-3xl gap-5">
         {messages.map((message) => {
           const isUser = message.role === "user";
-          const Icon = Sparkles;
+          const Icon = CopilotIcon;
           return (
             <div
               key={message.id}

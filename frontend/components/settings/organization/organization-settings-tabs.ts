@@ -5,9 +5,9 @@ import {
     Palette,
     School,
     ShieldCheck,
-    Sparkles,
     Trophy,
 } from 'lucide-react';
+import { CopilotIcon } from '@/components/ai/CopilotIcon';
 import { Role } from '@/types';
 import type { SettingsTabDefinition } from '../settings-tabs';
 
@@ -31,7 +31,7 @@ export const ORGANIZATION_SETTINGS_TABS: readonly OrganizationSettingsTabDefinit
     { key: 'appearance', label: 'Appearance', icon: Palette },
     { key: 'preferences', label: 'Preferences', icon: BellRing },
     { key: 'finance', label: 'Finance', icon: Coins },
-    { key: 'ai', label: 'EduVerse Copilot', icon: Sparkles },
+    { key: 'ai', label: 'EduVerse Copilot', icon: CopilotIcon },
     {
         key: 'gpa-policies',
         label: 'GPA Policies',

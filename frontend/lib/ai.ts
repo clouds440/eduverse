@@ -1,12 +1,14 @@
-import { BarChart3, CalendarClock, ClipboardCheck, Coins, GraduationCap, ShieldCheck, Sparkles } from 'lucide-react';
+import { BarChart3, CalendarClock, ClipboardCheck, Coins, GraduationCap, ShieldCheck } from 'lucide-react';
+import type { ElementType } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Role } from '@/types';
+import { CopilotIcon } from '@/components/ai/CopilotIcon';
 
 export interface AIPromptSuggestion {
     id: string;
     label: string;
     prompt: string;
-    icon: LucideIcon;
+    icon: ElementType<{ className?: string; 'aria-hidden'?: boolean }>;
     tone: 'primary' | 'success' | 'warning' | 'info' | 'neutral';
 }
 
@@ -22,7 +24,7 @@ const STUDENT_PROMPTS: AIPromptSuggestion[] = [
     { id: 'tomorrow-classes', label: 'Tomorrow', prompt: 'What classes do I have tomorrow?', icon: CalendarClock, tone: 'info' },
     { id: 'deadlines', label: 'Deadlines', prompt: 'What deadlines are coming up?', icon: ClipboardCheck, tone: 'warning' },
     { id: 'attendance-risk', label: 'Attendance', prompt: 'Why is my attendance at risk?', icon: BarChart3, tone: 'success' },
-    { id: 'weakest-course', label: 'Weakest Course', prompt: 'Explain my weakest course.', icon: Sparkles, tone: 'neutral' },
+    { id: 'weakest-course', label: 'Weakest Course', prompt: 'Explain my weakest course.', icon: CopilotIcon, tone: 'neutral' },
 ];
 
 const TEACHER_PROMPTS: AIPromptSuggestion[] = [
@@ -40,7 +42,7 @@ const MANAGER_PROMPTS: AIPromptSuggestion[] = [
 ];
 
 const ADMIN_PROMPTS: AIPromptSuggestion[] = [
-    { id: 'ai-usage', label: 'AI Usage', prompt: 'Show AI usage this month.', icon: Sparkles, tone: 'primary' },
+    { id: 'ai-usage', label: 'AI Usage', prompt: 'Show AI usage this month.', icon: CopilotIcon, tone: 'primary' },
     { id: 'credits-left', label: 'Credits', prompt: 'How many AI Credits are left?', icon: Coins, tone: 'success' },
     { id: 'role-usage', label: 'Roles', prompt: 'Which roles use Copilot most?', icon: BarChart3, tone: 'info' },
     { id: 'org-health', label: 'Org Health', prompt: 'Summarize organization health.', icon: ShieldCheck, tone: 'neutral' },
@@ -89,9 +91,9 @@ export function getAIRoleHomeConfig(role?: Role | string | null): AIRoleHomeConf
         title: 'Ask with your role context.',
         description: 'Use Copilot for focused help across the EduVerse areas you already have permission to access.',
         suggestions: [
-            { id: 'summary', label: 'Summary', prompt: 'Summarize what needs my attention today.', icon: Sparkles, tone: 'primary' },
+            { id: 'summary', label: 'Summary', prompt: 'Summarize what needs my attention today.', icon: CopilotIcon, tone: 'primary' },
             { id: 'schedule', label: 'Schedule', prompt: 'What is on my schedule?', icon: CalendarClock, tone: 'info' },
-            { id: 'help', label: 'Help', prompt: 'What can you help me with?', icon: Sparkles, tone: 'neutral' },
+            { id: 'help', label: 'Help', prompt: 'What can you help me with?', icon: CopilotIcon, tone: 'neutral' },
         ],
     };
 }

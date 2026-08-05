@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useAICopilot } from "./AICopilotProvider";
 import { useUI } from "@/context/UIContext";
 import { useGlobal } from "@/context/GlobalContext";
 import { cn } from "@/lib/utils";
+import { CopilotIcon } from "./CopilotIcon";
 
 export function AICopilotButton() {
   const {
@@ -39,7 +40,7 @@ export function AICopilotButton() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-80 lg:bottom-5 lg:right-5 group">
+    <div className="fixed bottom-4 right-4 z-100 lg:bottom-5 lg:right-5 group">
       {!isOpen && (
         <button
           type="button"
@@ -50,30 +51,29 @@ export function AICopilotButton() {
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label={isOpen ? "Close EduVerse Copilot" : "Open EduVerse Copilot"}
-        aria-pressed={isOpen}
-        className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-full border border-border/70 bg-card text-primary shadow-xl",
-          "transition-[transform,box-shadow,background-color,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-2xl",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-          isAllowed && "border-primary/30 bg-primary/10",
-          entitlementLoading && "animate-pulse",
-          isOpen &&
-            "scale-95 border-primary/40 bg-primary text-primary-foreground",
-        )}
-      >
-        <Sparkles
+      {!isOpen && (
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="Open EduVerse Copilot"
+          aria-pressed={isOpen}
           className={cn(
-            "h-6 w-6 transition-transform duration-200",
-            isAllowed && "fill-current",
-            isSending && "animate-pulse",
+            "flex h-14 w-14 items-center justify-center rounded-full border border-border bg-card text-primary shadow-xl",
+            "duration-200 ease-out hover:-translate-y-0.5 hover:shadow-2xl",
+            isAllowed && "border-cyan border-2",
+            entitlementLoading && "animate-pulse",
           )}
-          aria-hidden="true"
-        />
-      </button>
+        >
+          <CopilotIcon
+            className={cn(
+              "h-10 w-9 transition-transform duration-200 grayscale",
+              isAllowed && "grayscale-0",
+              isSending && "animate-pulse",
+            )}
+            aria-hidden={true}
+          />
+        </button>
+      )}
     </div>
   );
 }

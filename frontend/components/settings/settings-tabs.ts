@@ -1,9 +1,9 @@
-import type { LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 export interface SettingsTabDefinition<Key extends string> {
     key: Key;
     label: string;
-    icon: LucideIcon;
+    icon: React.ElementType<{ className?: string }> | ReactNode;
 }
 
 export function isSettingsTabKey<Key extends string>(

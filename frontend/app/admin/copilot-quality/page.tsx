@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import type { ElementType } from 'react';
 import useSWR from 'swr';
-import { Activity, AlertTriangle, Gauge, Sparkles, Timer, TrendingUp } from 'lucide-react';
+import { Activity, AlertTriangle, Gauge, Timer, TrendingUp } from 'lucide-react';
+import { CopilotIcon } from '@/components/ai/CopilotIcon';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { AIPlatformQualityResponse, Role } from '@/types';
@@ -32,7 +33,7 @@ export default function CopilotQualityPage() {
   }, [data]);
 
   if (loading || isLoading) {
-    return <Loading className="h-full" text="Loading Copilot quality..." size="lg" icon={Sparkles} />;
+    return <Loading className="h-full" text="Loading Copilot quality..." size="lg" icon={CopilotIcon} />;
   }
 
   if (!canView) {
@@ -66,7 +67,7 @@ export default function CopilotQualityPage() {
       <PageHeader
         title="Copilot Quality"
         description="Platform-level reliability, usage, latency, and failure signals for EduVerse Copilot."
-        icon={Sparkles}
+        icon={CopilotIcon}
         breadcrumbs={[{ label: 'Admin' }, { label: 'Copilot Quality' }]}
         actions={(
           <div className="flex flex-wrap items-center gap-1.5">

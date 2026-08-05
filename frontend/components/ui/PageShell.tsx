@@ -16,7 +16,7 @@ interface PageShellProps extends React.HTMLAttributes<HTMLElement> {
 export interface PageTabItem<T extends string = string> {
     value: T;
     label: React.ReactNode;
-    icon?: LucideIcon;
+    icon?: React.ElementType<{ className?: string }> | React.ReactNode;
     count?: React.ReactNode;
     href?: string;
     hidden?: boolean;
@@ -37,7 +37,7 @@ interface PageTabsProps<T extends string = string> {
 interface PageHeaderProps {
     title: React.ReactNode;
     description?: React.ReactNode;
-    icon?: LucideIcon;
+    icon?: React.ElementType<{ className?: string }> | React.ReactNode;
     meta?: React.ReactNode;
     actions?: React.ReactNode;
     actionsDefaultOpen?: boolean;
@@ -323,7 +323,13 @@ export function PageTabs<T extends string = string>({
                     const isActive = activeValue === value;
                     const content = (
                         <>
-                            {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
+                            {Icon && (
+                        typeof Icon === 'function' ? (
+                            <Icon className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                            Icon
+                        )
+                    )}
                             <span>{label}</span>
                             {count !== undefined && (
                                 <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] leading-none">
@@ -518,7 +524,11 @@ export function PageHeader({ title, description, icon: Icon, meta, actions, acti
                             'flex shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary shadow-inner',
                             isCompact ? 'h-7 w-7' : 'h-10 w-10',
                         )}>
-                            <Icon className={cn(isCompact ? 'h-4 w-4' : 'h-5 w-5')} aria-hidden="true" />
+                            {typeof Icon === 'function' ? (
+                                <Icon className={cn(isCompact ? 'h-4 w-4' : 'h-5 w-5')} aria-hidden="true" />
+                            ) : (
+                                Icon
+                            )}
                         </div>
                     )}
                     <div className={cn('min-w-0', isCompact && 'flex min-h-7 flex-1 items-center')}>

@@ -106,7 +106,7 @@ export const docsPages: DocPage[] = [
     description: 'Understand who can view, create, update, delete, and finalize data.',
     category: 'Basics',
     tags: ['roles', 'permissions', 'access'],
-    related: ['settings', 'academic-cycles', 'platform-admin'],
+    related: ['settings', 'programs', 'academic-cycles', 'past-records', 'platform-admin'],
     sections: [
       {
         id: 'role-summary',
@@ -117,8 +117,8 @@ export const docsPages: DocPage[] = [
             type: 'table',
             headers: ['Role', 'Main job', 'Can manage', 'Cannot access'],
             rows: [
-              ['Org Admin', 'Owns the organization workspace.', 'All organization users, academic setup, settings, finance, grade finalization, and records.', 'Platform administration outside the organization.'],
-              ['Sub Admin', 'Runs delegated operational administration.', 'Users, academic setup, schedules, cycles, cohorts, reassignment, grade review, and operational records.', 'Main admin account management and platform administration.'],
+              ['Org Admin', 'Owns the organization workspace.', 'All organization users, programs, majors, cycle archives, academic setup, settings, finance, grade finalization, and records.', 'Platform administration outside the organization.'],
+              ['Sub Admin', 'Runs delegated operational administration.', 'Users and academic/program operations inside assigned departments, schedules, cycles, cohorts, majors, reassignment, and grade review.', 'Cycle archive creation, unassigned departments, main admin management, and platform administration.'],
               ['Manager', 'Monitors academic work for assigned sections.', 'Assigned students, assigned sections, attendance, assessments, grades, and finalization review where allowed.', 'Finance management, settings, broad user administration, and unrestricted student data.'],
               ['Finance Manager', 'Handles fee and payment operations.', 'Finance structures, entries, payment claims, transactions, and finance communication.', 'Academic setup, teaching workflows, settings, and grade management.'],
               ['Teacher', 'Runs assigned classes.', 'Assigned sections, materials, assessments, submissions, attendance, and grading.', 'Finance management, school settings, and unassigned student records.'],
@@ -144,6 +144,8 @@ export const docsPages: DocPage[] = [
               ['Guardians', 'Create, edit, link to student', 'Create, edit, link to student', 'No', 'Finance communication only', 'No', 'No', 'Own account only'],
               ['Courses and Sections', 'Manage', 'Manage', 'View assigned', 'No', 'View assigned', 'View enrolled', 'View linked-student context'],
               ['Academic Cycles and Cohorts', 'Manage', 'Manage', 'Read academic context', 'No', 'Read academic context', 'Read own context', 'Read linked-student context'],
+              ['Programs and Majors', 'Manage all departments', 'Manage assigned departments', 'Read scoped context', 'No', 'Read scoped context', 'Read own major', 'No management access'],
+              ['Past Records', 'View all; create/verify archives from cycle controls', 'View department scope', 'View department scope', 'No', 'View archived assigned sections', 'View self', 'View linked students'],
               ['Timetable and Attendance', 'Manage schedules, view all, review attendance', 'Manage schedules, view all, review attendance', 'Assigned schedule ownership for marking', 'No', 'Assigned schedule ownership for marking', 'View self', 'View linked'],
               ['Assessments and Grades', 'Review and finalize', 'Review and finalize', 'Assigned academic scope and finalization review', 'No', 'Assigned creation, grading, publish/finalize flow', 'View own visible grades', 'View linked visible grades'],
               ['Finance', 'Manage', 'Read/audit where allowed', 'No', 'Manage', 'Self/assigned finance view where allowed', 'View and claim own payments', 'View linked-student fees'],
@@ -175,6 +177,8 @@ export const docsPages: DocPage[] = [
               ['Frontend navigation', 'The sidebar hides pages that do not belong to the signed-in role, but backend guards still decide the final authority.'],
               ['Assigned-section filtering', 'Teachers and Managers only see or change academic records connected to their assigned sections where the workflow is scoped.'],
               ['Linked-student filtering', 'Guardians see only students linked to their guardian account.'],
+              ['Program department filtering', 'Sub Admin program writes require explicit assignment to the owning department; moving a program checks both departments.'],
+              ['Archived data', 'Past Records is always read-only and the server removes student rows outside the actor scope.'],
               ['Finance separation', 'Finance Managers handle finance workflows; Managers do not receive finance management access.'],
             ],
           },
@@ -193,7 +197,7 @@ export const docsPages: DocPage[] = [
     description: 'Short definitions for common EduVerse academic, finance, and communication terms.',
     category: 'Basics',
     tags: ['glossary', 'definitions', 'terms'],
-    related: ['quick-start', 'courses-sections', 'gpa-policies', 'finance'],
+    related: ['quick-start', 'programs', 'academic-cycles', 'past-records', 'courses-sections', 'gpa-policies', 'finance'],
     sections: [
       {
         id: 'academic-terms',
@@ -205,12 +209,20 @@ export const docsPages: DocPage[] = [
             headers: ['Term', 'Meaning'],
             rows: [
               ['Academic Cycle', 'A time period such as a semester, term, or academic year.'],
+              ['Program', 'A department-owned offering with an ordered relationship to shared institute cycles and one or more curricula.'],
+              ['Curriculum Version', 'A versioned set of program stages and course requirements assigned to a particular student batch.'],
+              ['Program Stage', 'The planned level, semester, year, or custom stage connected to one program cycle.'],
+              ['Student Major', 'The durable student enrollment in one program, including a frozen admitted cycle plan.'],
+              ['Standalone Delivery', 'A cohort or section that is not mapped to a defined program.'],
+              ['Program-Mapped Delivery', 'A cohort or section linked to a program cycle, curriculum stage, and where applicable a course requirement.'],
               ['Course', 'A subject such as Mathematics, Biology, or English.'],
               ['Section', 'The actual class students attend for a course in a specific cycle.'],
               ['Cohort', 'A group of students that usually move through the same academic period together.'],
               ['Enrollment', 'The connection that places a student into a cohort or section.'],
               ['Material', 'A file, link, or learning resource shared with a class.'],
               ['Attendance Record', 'A saved status showing whether a student attended a class activity.'],
+              ['Cycle Archive', 'A verified immutable snapshot created after an academic cycle is completed.'],
+              ['Past Records', 'The read-only search and section view backed by ready cycle archives.'],
             ],
           },
         ],
@@ -228,6 +240,8 @@ export const docsPages: DocPage[] = [
               ['Gradebook', 'The place where teachers and admins review and enter marks.'],
               ['Published Grade', 'A grade students can see but that may still change.'],
               ['Finalized Grade', 'A grade treated as ready for official transcript use.'],
+              ['Answerbook Reference', 'An optional identifier recorded on one student grade for its physical or digital answerbook.'],
+              ['Answerbook Attachment', 'An optional PDF or image attached to one student grade and locked with archived records.'],
               ['Transcript', 'An academic record showing courses, marks, credit hours, GPA, and related results.'],
               ['Credit Hours', 'The academic weight of a course. Higher credit hours can give a course more influence in weighted GPA.'],
               ['Letter Grade', 'The letter result matched from marks, such as A, B, or F.'],
@@ -264,10 +278,10 @@ export const docsPages: DocPage[] = [
   {
     slug: 'students',
     title: 'Students',
-    description: 'Manage student profiles, enrollment, cohorts, academic history, and portal visibility.',
+    description: 'Manage student profiles, major programs, enrollment, cohorts, progression, academic history, and portal visibility.',
     category: 'People',
-    tags: ['students', 'enrollment', 'cohort', 'portal'],
-    related: ['courses-sections', 'academic-cycles', 'cohorts-reassignment', 'gradebook', 'fees', 'transcripts', 'csv-imports'],
+    tags: ['students', 'major', 'program enrollment', 'enrollment', 'cohort', 'portal'],
+    related: ['programs', 'courses-sections', 'academic-cycles', 'cohorts-reassignment', 'past-records', 'gradebook', 'fees', 'transcripts', 'csv-imports'],
     sections: [
       {
         id: 'student-records',
@@ -306,6 +320,53 @@ export const docsPages: DocPage[] = [
                 'Changing placement can affect what the student sees in their portal, so review the cohort and section list before confirming enrollment changes.',
               ],
             },
+        ],
+      },
+      {
+        id: 'student-major-program',
+        title: 'Major program',
+        tags: ['major', 'program', 'primary department', 'transfer'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A major is the student durable enrollment in a program. It defines the primary department and preserves the exact program configuration and curriculum assigned at admission.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Assign the major while admitting the student or from Manage Enrollment.',
+              'A student can have only one open major at a time.',
+              'Changing the major uses a transfer action and keeps the previous program history.',
+              'Removing the major requires an explicit withdrawal and reason.',
+              'Later changes to the program do not rewrite the student admitted cycle plan.',
+              'Do not manually change the primary department to simulate a program transfer.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'student-program-progression',
+        title: 'Program progression',
+        tags: ['cycle progression', 'repeat', 'hold', 'complete'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Action', 'Use it when'],
+            rows: [
+              ['Activate cycle', 'The student starts the next planned program stage.'],
+              ['Complete cycle', 'The required stage outcome is finished and recorded.'],
+              ['Skip cycle', 'An authorized decision allows the student to bypass a planned cycle with a reason.'],
+              ['Repeat cycle', 'The student needs another stage attempt; the original attempt remains historical.'],
+              ['Hold / Resume', 'The program enrollment pauses temporarily and later continues.'],
+              ['Complete program', 'All required program completion rules are satisfied.'],
+              ['Transfer / Withdraw', 'The student exits the current major without deleting its history.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Progression is explicit',
+            text: 'The institute moving an academic cycle to Completed does not automatically complete the student program cycle.',
+          },
         ],
       },
       {
@@ -381,7 +442,7 @@ export const docsPages: DocPage[] = [
     description: 'Understand course credit hours, section creation, safe colors, enrollments, teachers, and materials.',
     category: 'Academics',
     tags: ['courses', 'sections', 'credit hours', 'materials'],
-    related: ['teachers', 'materials', 'gpa-policies', 'gradebook', 'evaluations-feedback', 'csv-imports'],
+    related: ['programs', 'teachers', 'materials', 'gpa-policies', 'gradebook', 'evaluations-feedback', 'csv-imports'],
     sections: [
       {
         id: 'core-academic-terms',
@@ -486,6 +547,27 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
+        id: 'section-program-delivery',
+        title: 'Standalone or program-mapped section',
+        tags: ['standalone', 'program mapped', 'requirement mapping'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Section creation asks whether the class is standalone or delivers a program requirement. This classification is explicit so reporting and archives do not have to infer a program from names or student majors.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Choose Standalone for one-time courses or organizations that are not using programs.',
+              'Choose Program mapped when the section delivers a course requirement in a program stage.',
+              'For mapped delivery, select a program cycle using the same institute cycle as the section.',
+              'Select the compatible curriculum stage and the requirement matching the section course.',
+              'A cohort can also be program-mapped, but the section requirement mapping remains the exact delivery link.',
+            ],
+          },
+        ],
+      },
+      {
         id: 'section-colors',
         title: 'Section colors',
         tags: ['safe color', 'labels'],
@@ -532,10 +614,10 @@ export const docsPages: DocPage[] = [
   {
     slug: 'assessments-grading',
     title: 'Assessments and Grading',
-    description: 'Create assessments, collect submissions, grade safely, and understand finalization rules.',
+    description: 'Create assessments, collect submissions, grade safely, attach answerbook evidence, and understand finalization rules.',
     category: 'Academics',
-    tags: ['assessments', 'grading', 'submissions', 'finalized grades'],
-    related: ['gpa-policies', 'gradebook', 'transcripts', 'teachers', 'submissions'],
+    tags: ['assessments', 'grading', 'submissions', 'finalized grades', 'answerbook'],
+    related: ['gpa-policies', 'gradebook', 'transcripts', 'teachers', 'submissions', 'past-records'],
     sections: [
       {
         id: 'assessment-ownership',
@@ -760,10 +842,10 @@ export const docsPages: DocPage[] = [
   {
     slug: 'programs',
     title: 'Programs and Student Majors',
-    description: 'Build department-owned course offerings from shared institute cycles and preserve each student program plan.',
+    description: 'Create department-owned offerings, relate shared institute cycles, build curricula, map delivery, and preserve student majors.',
     category: 'Academic Settings',
-    tags: ['programs', 'majors', 'curriculum', 'stages', 'academic cycles', 'admissions'],
-    related: ['academic-cycles', 'students', 'courses-sections', 'cohorts-reassignment', 'csv-imports'],
+    tags: ['programs', 'majors', 'curriculum', 'stages', 'academic cycles', 'admissions', 'department scope'],
+    related: ['academic-cycles', 'students', 'courses-sections', 'cohorts-reassignment', 'past-records', 'csv-imports'],
     sections: [
       {
         id: 'program-cycle-model',
@@ -781,7 +863,68 @@ export const docsPages: DocPage[] = [
               'One program can attach many institute academic cycles in sequence.',
               'One academic cycle can appear in many programs and can also deliver standalone courses.',
               'The required cycle count is derived from the program cycle plan.',
+              'Completing or archiving a shared cycle does not pause or archive any related program.',
             ],
+          },
+          {
+            type: 'note',
+            title: 'Do not duplicate cycles',
+            text: 'Create Fall 2026 once for the institute, then attach that same cycle to every program that uses it. A cycle can also exist with no program relationship.',
+          },
+        ],
+      },
+      {
+        id: 'answerbook-evidence',
+        title: 'Answerbook reference and attachments',
+        tags: ['answerbook', 'pdf', 'screenshots', 'reference number'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Each student grade can store an optional answerbook reference number and up to five optional answerbook files. The evidence belongs to that student grade, not to the assessment shared by the whole section.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Open the student grade from the grading form.',
+              'Enter the optional answerbook reference exactly as used by the institute.',
+              'Save the grade so EduVerse has a stable grade record.',
+              'Attach PDF scans or JPG, JPEG, PNG, or WEBP screenshots.',
+              'Preview the attachment and confirm it belongs to the correct student before finalizing.',
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Rule', 'Behavior'],
+            rows: [
+              ['Reference number', 'Optional, per student grade, maximum 100 characters.'],
+              ['Attachments', 'Optional, maximum five files per grade.'],
+              ['Accepted files', 'PDF, JPG, JPEG, PNG, and WEBP with matching file type.'],
+              ['Finalized grade', 'Reference and attachments can no longer be changed.'],
+              ['Archived cycle', 'Files are locked and remain available only through authorized Past Records downloads.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'answerbook-visibility',
+        title: 'Who can see answerbook evidence',
+        tags: ['permissions', 'student', 'guardian', 'teacher'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Org Admin can manage evidence across the organization while the grade is writable.',
+              'Sub Admin and Manager access follows department scope.',
+              'Teacher access follows assigned sections.',
+              'Students can view their own evidence only after the grade is published or finalized.',
+              'Guardians can view released evidence only for linked students.',
+              'Draft evidence is not exposed to students or guardians.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'No direct storage links',
+            text: 'Answerbooks use authenticated download routes. Do not share Cloudinary identifiers or treat a copied storage URL as access permission.',
           },
         ],
       },
@@ -795,16 +938,79 @@ export const docsPages: DocPage[] = [
             items: [
               'Create the department, courses, and institute academic cycles that the offering needs.',
               'Open Programs, create the program, and choose its main department.',
-              'Use the plus control to keep adding existing institute cycles in the required program order. Authorized admins can create a missing institute cycle inline.',
-              'Define one curriculum stage for every required cycle and attach the stage course requirements.',
+              'Choose the structure, progression, and completion rules. Add duration and admissions text where useful.',
+              'Use the plus control to add each required cycle in order. Select an existing institute cycle or create a missing one inline.',
+              'Define one curriculum stage for every cycle row and attach required, elective, or optional courses from the same department.',
               'Activate a complete curriculum as the admissions default, then activate the program.',
               'Enable admissions visibility only when the offering should appear to applicants.',
             ],
           },
           {
+            type: 'table',
+            headers: ['Program state', 'Meaning'],
+            rows: [
+              ['Draft', 'Still being configured; unavailable for new student admission.'],
+              ['Active', 'Available for normal delivery and admission when the curriculum is complete.'],
+              ['Paused', 'Temporarily unavailable for new activity.'],
+              ['Teach out', 'Closed to new admissions while existing students finish.'],
+              ['Archived', 'Historical program identity retained; unavailable for new use.'],
+            ],
+          },
+          {
             type: 'note',
             title: 'Configuration history',
-            text: 'Changing the program cycle array creates a new immutable configuration revision. Existing student program plans keep their original revision and cycle snapshots.',
+            text: 'Changing the program cycle array requires a reason and creates a new immutable configuration revision. Existing student plans keep their original revision, curriculum, cycle order, and snapshots.',
+          },
+        ],
+      },
+      {
+        id: 'program-permissions',
+        title: 'Program permissions by department',
+        tags: ['permissions', 'sub admin', 'department'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Role', 'Program access'],
+            rows: [
+              ['Org Admin', 'Can create, edit, transition, and configure programs in every department.'],
+              ['Sub Admin', 'Can create and change programs only in departments explicitly assigned to that Sub Admin.'],
+              ['Manager and Teacher', 'Can read program context available through their academic scope; cannot change program structure.'],
+              ['Student', 'Can read the program context attached to their own academic record.'],
+              ['Guardian and Finance Manager', 'No program-management access.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Moving a program',
+            text: 'A Sub Admin needs access to both the current and destination departments. A program with student enrollment history cannot move departments.',
+          },
+        ],
+      },
+      {
+        id: 'program-delivery',
+        title: 'Map cohorts and sections',
+        tags: ['standalone', 'program mapped', 'cohort', 'section'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Programs describe the planned offering. Cohorts and sections describe actual delivery. Every cohort and section must be explicitly standalone or program-mapped.',
+          },
+          {
+            type: 'table',
+            headers: ['Delivery type', 'Use it when', 'Required program context'],
+            rows: [
+              ['Standalone', 'The cohort or class is not part of a defined program.', 'None. The institute cycle and ordinary course/section fields remain enough.'],
+              ['Program mapped', 'The cohort or class delivers part of a program curriculum.', 'Program cycle and stage; sections also map to the matching stage course requirement.'],
+            ],
+          },
+          {
+            type: 'list',
+            items: [
+              'The selected program cycle must use the same institute cycle as the cohort or section.',
+              'The selected stage must belong to the chosen curriculum and program cycle.',
+              'The section course must match the mapped stage course requirement.',
+              'Imports and copy-forward preserve the delivery classification instead of guessing from names.',
+            ],
           },
         ],
       },
@@ -815,16 +1021,27 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'A student can have one open major program. Assigning the major also derives the student primary department and copies the complete program cycle and stage plan so it survives later academic-cycle and program edits.',
+            text: 'A student can have one open major program. Assigning it derives the primary department and copies the admitted configuration, curriculum, cycles, and stages so the plan survives later academic-cycle and program edits.',
           },
           {
             type: 'list',
             items: [
               'Assign the major during student admission or from Manage Enrollment.',
+              'Choose an eligible entry cycle and stage when the student joins after the first planned cycle.',
               'Activate and complete each student program cycle through the progression controls.',
               'Record skip, repeat, hold, withdrawal, completion, and transfer decisions with their required reason.',
               'Program transfer preserves the previous enrollment instead of rewriting its history.',
             ],
+          },
+          {
+            type: 'flow',
+            title: 'Student program lifecycle',
+            steps: ['Admit', 'Activate cycle', 'Complete, skip, or repeat', 'Continue through required cycles', 'Complete program or transfer/withdraw'],
+          },
+          {
+            type: 'note',
+            title: 'Institute cycle status is separate',
+            text: 'Activating or completing an institute cycle does not automatically progress every student. Student progression is an explicit enrollment action.',
           },
         ],
       },
@@ -844,15 +1061,33 @@ export const docsPages: DocPage[] = [
           },
         ],
       },
+      {
+        id: 'program-common-mistakes',
+        title: 'Common mistakes',
+        tags: ['mistakes', 'history', 'activation'],
+        blocks: [
+          {
+            type: 'list',
+            items: [
+              'Creating a separate copy of the same institute cycle for each program.',
+              'Activating a program before its curriculum has one valid stage for every required cycle.',
+              'Using a course from another department in a program stage.',
+              'Changing a cycle array and expecting existing students to inherit the new order.',
+              'Editing a student department manually instead of assigning or transferring the major.',
+              'Marking a mapped section as standalone to bypass a missing requirement mapping.',
+            ],
+          },
+        ],
+      },
     ],
   },
   {
     slug: 'academic-cycles',
     title: 'Academic Cycles',
-    description: 'Manage terms, cohorts, active cycles, copy-forward behavior, and GPA policy selection.',
+    description: 'Manage institute-wide periods, lifecycle transitions, GPA snapshots, copy-forward, and verified archives.',
     category: 'Academic Settings',
-    tags: ['academic cycle', 'cohort', 'reassignment', 'copy-forward'],
-    related: ['gpa-policies', 'students', 'cohorts-reassignment', 'transcripts', 'academic-calendar'],
+    tags: ['academic cycle', 'cohort', 'reassignment', 'copy-forward', 'archive', 'past records'],
+    related: ['programs', 'gpa-policies', 'students', 'cohorts-reassignment', 'transcripts', 'past-records', 'academic-calendar'],
     sections: [
       {
         id: 'cycle-purpose',
@@ -861,7 +1096,7 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'An academic cycle is a time period such as a semester, term, or academic year. It groups the classes, enrollments, grades, attendance, and transcripts that belong to that period.',
+            text: 'An academic cycle is an institute-wide period such as a semester, term, or academic year. It groups delivery and records for that period but remains independent from programs.',
           },
           {
             type: 'list',
@@ -869,18 +1104,20 @@ export const docsPages: DocPage[] = [
               'Create a cycle before creating cohorts or sections that belong to that period.',
               'Use clear names such as Fall 2026 or Academic Year 2026 so reports and transcripts are easy to read.',
               'Cycles help preserve history when students move from one period to the next.',
+              'The same cycle can serve many programs and can also contain standalone cohorts or sections.',
             ],
           },
           {
             type: 'flow',
             title: 'Cycle lifecycle',
-            steps: ['Create cycle', 'Choose GPA policy', 'Create cohorts and sections', 'Run classes', 'Finalize grades', 'Generate transcripts', 'Reassign students'],
+            steps: ['Draft', 'Activate', 'Run classes', 'Complete', 'Build and verify archive', 'Archived and read-only'],
           },
           {
             type: 'table',
             headers: ['Role', 'Academic cycle access'],
             rows: [
-              ['Admin/Sub Admin', 'Can create, update, activate, delete where safe, and choose cycle GPA policy.'],
+              ['Org Admin', 'Can create, update, transition, archive, retry, and delete only where safe.'],
+              ['Sub Admin', 'Can manage permitted operational cycle setup, but cannot create or retry an archive.'],
               ['Manager/Teacher/Student', 'Can read cycle context used by assigned or enrolled academic work.'],
               ['Guardian', 'Can see cycle context through linked-student records.'],
               ['Finance Manager', 'No academic cycle management access.'],
@@ -910,6 +1147,29 @@ export const docsPages: DocPage[] = [
               'Courses and sections have been reviewed for this period',
               'Staff know this cycle will become the default working period',
             ],
+          },
+        ],
+      },
+      {
+        id: 'cycle-lifecycle',
+        title: 'Cycle lifecycle and write locks',
+        tags: ['draft', 'completed', 'archived', 'read only'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['State', 'Purpose', 'Write behavior'],
+            rows: [
+              ['Draft', 'Prepare dates, policy, and delivery.', 'Setup can be changed or safely deleted when unused.'],
+              ['Active', 'Current institute period.', 'Normal academic work is allowed.'],
+              ['Completed', 'Teaching has ended and records are being finalized.', 'Operational writes are restricted while archive prerequisites are reviewed.'],
+              ['Archiving', 'A snapshot revision is being built or retried.', 'Source academic records are protected from mutation.'],
+              ['Archived', 'Verified historical record.', 'Past Records is read-only; live mutation is blocked.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Programs do not follow cycle status',
+            text: 'Completing or archiving Fall 2026 does not complete, pause, or archive the programs that reference it. Program lifecycle and student progression remain separate actions.',
           },
         ],
       },
@@ -967,6 +1227,30 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
+        id: 'cycle-archive',
+        title: 'Archive a completed cycle',
+        tags: ['archive', 'verify', 'retry', 'files'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Finish grade, attendance, enrollment, and student program-cycle decisions.',
+              'Transition the cycle to Completed.',
+              'Confirm no student program cycle for this institute cycle remains in progress.',
+              'As Org Admin, choose Archive. EduVerse snapshots every section and builds student/program search indexes.',
+              'Wait for Ready. If a build fails, review the reason and use Retry after correcting the source problem.',
+              'Use Verify to confirm section checksums, the archive checksum, expected section count, and locked files.',
+              'Open Past Records after the cycle becomes Archived.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Files must be verifiable',
+            text: 'Archive creation fails when a referenced managed file has no SHA-256 checksum. Ready archives lock their files so historical materials and answerbooks cannot be replaced or deleted.',
+          },
+        ],
+      },
+      {
         id: 'cycle-common-mistakes',
         title: 'Common mistakes',
         tags: ['mistakes', 'setup'],
@@ -978,6 +1262,156 @@ export const docsPages: DocPage[] = [
               'Creating sections in the wrong cycle and later wondering why students cannot see them.',
               'Using copy-forward without reviewing copied dates, rooms, teachers, and instructions.',
               'Changing setup after teachers have already started grading without telling staff.',
+              'Archiving while a student program cycle is still in progress.',
+              'Expecting archived records to remain editable from the live section control panel.',
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'past-records',
+    title: 'Past Records',
+    description: 'Search verified cycle archives and inspect historical sections, students, grades, attendance, assessments, and files in read-only mode.',
+    category: 'Academics',
+    tags: ['past records', 'archive', 'historical students', 'historical sections', 'read only'],
+    related: ['academic-cycles', 'programs', 'students', 'courses-sections', 'assessments-grading', 'transcripts'],
+    sections: [
+      {
+        id: 'past-records-purpose',
+        title: 'What Past Records contains',
+        tags: ['archive', 'snapshot', 'read only'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Past Records reads verified snapshots from archived academic cycles. It does not query old live sections and does not permit corrections inside the archive.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Only cycles with a Ready current archive appear.',
+              'Each archived section preserves its students, enrollment history, assessments and exams, grades, submissions, attendance, schedules, materials, program mappings, and managed files.',
+              'Labels and student identity values are captured at archive time, so later profile or program edits do not rewrite history.',
+              'Section and archive checksums make accidental snapshot changes detectable.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'browse-past-records',
+        title: 'Browse by department and program',
+        tags: ['department', 'program', 'cohort', 'section'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Open Past Records and choose Sections mode.',
+              'Select a department when you want to narrow the academic area.',
+              'Select a program for mapped delivery, or choose the standalone classification for one-time/non-program classes.',
+              'Optionally select a cohort, academic cycle, or student.',
+              'Open an archived section to view the read-only control-panel style record.',
+              'Switch between students, assessments/exams, grades, attendance, schedules, materials, and submissions as needed.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Filters use archived values',
+            text: 'Department, program, curriculum, stage, cohort, and student labels come from the archive indexes. Renaming a live record later does not change these results.',
+          },
+        ],
+      },
+      {
+        id: 'search-student-history',
+        title: 'Search a student directly',
+        tags: ['student search', 'registration number', 'roll number'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Choose Students mode.',
+              'Search by the archived student name, registration number, or roll number.',
+              'Open the student result.',
+              'Choose a cycle and archived cohort/section from the returned history.',
+              'Open the section record to inspect only the data your role is allowed to see.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'search-cycle-or-section',
+        title: 'Search a cycle or section directly',
+        tags: ['cycle search', 'section search', 'fall 2020'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Starting point', 'Recommended flow'],
+            rows: [
+              ['Cycle such as Fall 2020', 'Choose Cycles mode, search the cycle name/code, then open its archived sections.'],
+              ['Known section', 'Choose Sections mode, search its archived course/section label, then narrow by cycle if needed.'],
+              ['Known student', 'Choose Students mode, open the student, then select a cycle and section.'],
+              ['Program history', 'Choose Sections mode, select department and program, then add cohort/cycle filters.'],
+              ['One-time course', 'Choose Standalone classification, then filter by cycle, department, cohort, or section search.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'past-record-permissions',
+        title: 'Who can see archived data',
+        tags: ['permissions', 'teacher', 'guardian', 'scope'],
+        blocks: [
+          {
+            type: 'table',
+            headers: ['Role', 'Past Records scope'],
+            rows: [
+              ['Org Admin', 'All archived records in the organization.'],
+              ['Sub Admin and Manager', 'Archived sections in their effective department scope.'],
+              ['Teacher', 'Archived sections where that teacher was assigned at archive time.'],
+              ['Student', 'Only the student own archived rows and section context.'],
+              ['Guardian', 'Only archived rows for currently linked students.'],
+              ['Finance Manager', 'No Past Records access.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'The server removes unauthorized rows',
+            text: 'Student and guardian responses contain only authorized grades, submissions, attendance, and enrollments. Hidden file-storage identifiers and archived evaluations are not returned.',
+          },
+        ],
+      },
+      {
+        id: 'past-record-answerbooks',
+        title: 'Archived answerbooks and files',
+        tags: ['answerbook', 'download', 'locked files'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Answerbook references and attachments remain attached to the archived student grade. Downloads use an archive-scoped authenticated route and the same student, guardian, teacher, and department permissions as the archived section.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Archived files can be viewed or downloaded but cannot be replaced or removed.',
+              'The archive hides Cloudinary storage identifiers from client responses.',
+              'A missing or unauthorized attachment returns no file rather than exposing a direct storage URL.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'past-record-troubleshooting',
+        title: 'When a past record is missing',
+        tags: ['missing records', 'troubleshooting'],
+        blocks: [
+          {
+            type: 'checklist',
+            items: [
+              'The academic cycle is Archived, not only Completed',
+              'Its current archive status is Ready',
+              'Your role had access to the archived department, section, or student',
+              'The search uses the name, code, registration number, or roll number captured at archive time',
+              'Program and standalone filters match the archived delivery classification',
             ],
           },
         ],
@@ -2554,10 +2988,10 @@ export const docsPages: DocPage[] = [
   {
     slug: 'cohorts-reassignment',
     title: 'Cohorts and Reassignment',
-    description: 'Group students, assign sections, move students between cohorts or sections, and copy academic setup forward.',
+    description: 'Group students, map program delivery, assign sections, move students, and copy academic setup forward.',
     category: 'Academic Settings',
     tags: ['cohorts', 'reassignment', 'copy-forward', 'students'],
-    related: ['academic-cycles', 'students', 'courses-sections'],
+    related: ['programs', 'academic-cycles', 'students', 'courses-sections'],
     sections: [
       {
         id: 'cohorts',
@@ -2584,6 +3018,27 @@ export const docsPages: DocPage[] = [
               ['Manager/Teacher', 'Can read academic cohort context and include/exclude students only in assigned section workflows where allowed.'],
               ['Student/Guardian', 'Can see cohort context only as part of their own or linked-student records.'],
               ['Finance Manager', 'No cohort management access.'],
+            ],
+          },
+        ],
+      },
+      {
+        id: 'cohort-program-delivery',
+        title: 'Standalone or program-mapped cohort',
+        tags: ['program mapped', 'standalone', 'stage'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A cohort can remain standalone or represent students moving through one program stage in the selected institute cycle.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Choose Standalone when the group does not belong to a defined program.',
+              'Choose Program mapped when the group follows a program curriculum stage.',
+              'The program cycle must reference the same institute cycle as the cohort.',
+              'The stage must belong to the selected program cycle and active curriculum context.',
+              'Student major progression and cohort placement are related but remain explicit records; changing one does not silently rewrite the other.',
             ],
           },
         ],
@@ -3166,7 +3621,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'tip',
             title: 'Plan your academic structure first',
-            text: 'Before touching EduVerse, decide your academic cycle names, course list, class groups (cohorts), and grading policy. Having these ready makes setup much faster.',
+            text: 'Before touching EduVerse, decide departments, institute cycle names, course lists, grading policy, optional programs/curricula, and class groups. Having these ready makes setup much faster.',
           },
         ],
       },
@@ -3179,19 +3634,21 @@ export const docsPages: DocPage[] = [
           {
             type: 'flow',
             title: 'Setup order',
-            steps: ['Organization', 'GPA Policy', 'Academic Cycle', 'Courses', 'Cohorts', 'Sections', 'Teachers', 'Students', 'Timetable', 'Materials', 'Assessments', 'Go Live'],
+            steps: ['Organization', 'Departments', 'GPA Policy', 'Academic Cycles', 'Courses', 'Programs if used', 'Cohorts and sections', 'People and majors', 'Timetable', 'Teaching', 'Go Live'],
           },
           {
             type: 'steps',
             items: [
               'Configure Organization: Set school name, logo, contact email, and appearance in Settings.',
+              'Create Departments: Add the academic departments that own courses, programs, and scoped administration.',
               'Configure GPA Policy: Review the default 4.0 policy or create a custom policy that matches your grading rules.',
               'Create Academic Cycle: Create your first term or semester (e.g. "Fall 2026"). Select the GPA policy for this cycle.',
               'Create Courses: Add each subject with the correct credit hours. Course names appear on transcripts.',
-              'Create Cohorts: Group students into classes (e.g. "Grade 10-A"). Cohorts make bulk enrollment easier.',
-              'Create Sections: Create class sections under courses and link them to the academic cycle. Assign cohorts to auto-enroll students.',
+              'Create Programs if used: Attach shared cycles in order, define curriculum stages and course requirements, then activate a complete admissions curriculum.',
+              'Create Cohorts: Group students and choose standalone or program-mapped delivery.',
+              'Create Sections: Link each section to its course and institute cycle. Map it to a program requirement when applicable.',
               'Assign Teachers: Add teacher accounts and assign them to their sections.',
-              'Import Students: Create student accounts and place them in the correct cohorts.',
+              'Admit Students: Create/import student accounts, assign a major when applicable, and place them in the correct cohorts/sections.',
               'Create Timetable: Add schedule slots for each section, selecting the assigned teacher, day, time, and room.',
               'Upload Materials: Teachers upload course materials to their assigned sections.',
               'Create Assessments: Teachers create assessments with due dates, total marks, and submission settings.',
@@ -3213,6 +3670,9 @@ export const docsPages: DocPage[] = [
               'Skipping GPA policy setup: the default policy works, but review it before teachers start grading.',
               'Creating duplicate courses instead of multiple sections: one course can have many sections.',
               'Forgetting to set credit hours: the default is 3, but some courses need different values for accurate GPA.',
+              'Duplicating one institute cycle for every program instead of reusing the shared cycle.',
+              'Assigning a primary department manually when the student major should derive it.',
+              'Marking mapped cohorts or sections as standalone because the curriculum mapping is incomplete.',
             ],
           },
         ],
@@ -3225,7 +3685,7 @@ export const docsPages: DocPage[] = [
     description: 'A plain-language guide for running the school workspace, reviewing setup, and protecting academic records.',
     category: 'Role Guides',
     tags: ['org admin', 'operations', 'setup', 'review'],
-    related: ['quick-start', 'school-setup-workflow', 'settings', 'academic-cycles', 'evaluations-feedback', 'finance'],
+    related: ['quick-start', 'school-setup-workflow', 'settings', 'programs', 'academic-cycles', 'past-records', 'evaluations-feedback', 'finance'],
     sections: [
       {
         id: 'admin-responsibilities',
@@ -3241,7 +3701,7 @@ export const docsPages: DocPage[] = [
             headers: ['Area', 'Admin responsibility', 'Why it matters'],
             rows: [
               ['Settings', 'Keep school identity, contact email, logo, and appearance accurate.', 'Users trust records more when the workspace clearly belongs to the school.'],
-              ['Academic setup', 'Create cycles, courses, cohorts, sections, and GPA policies in the right order.', 'Bad setup causes missing dropdowns, wrong enrollments, and transcript mistakes.'],
+              ['Academic setup', 'Create departments, cycles, courses, optional programs, mapped delivery, and GPA policies in the right order.', 'Bad setup causes invalid mappings, wrong majors, missing options, and transcript mistakes.'],
               ['Evaluation windows', 'Open and manage teacher/course feedback periods.', 'Feedback should be collected only after enough academic activity has happened.'],
               ['People', 'Create teacher and student accounts and place them correctly.', 'Portal views depend on correct assignments and placement.'],
               ['Account recovery', 'Help organization users with password-reset links or two-step verification when they are locked out.', 'Only change security after confirming which user is asking for help.'],
@@ -3302,6 +3762,8 @@ export const docsPages: DocPage[] = [
               ['Changing a cycle GPA policy', 'It affects transcript results for that cycle until grades are finalized.', 'Confirm the policy matches school rules before teachers finalize grades.'],
               ['Finalizing grades', 'Finalized grades are treated as official for transcripts.', 'Review marks, weightage, student names, and feedback.'],
               ['Opening evaluation windows', 'Students can submit evaluations only while a matching window is active.', 'Confirm grades have been finalized and the window scope is correct.'],
+              ['Changing a program cycle plan', 'It creates a future configuration and must not rewrite admitted students.', 'Provide a clear reason and prepare a complete replacement curriculum.'],
+              ['Archiving a cycle', 'It freezes academic records and referenced files into Past Records.', 'Resolve student progression, verify files, then check the completed archive.'],
               ['Deleting or archiving records', 'Old records may explain historical transcripts, payments, or enrollments.', 'Archive when history still needs to remain understandable.'],
               ['Confirming payments', 'Balances and transaction history change after confirmation.', 'Check receipt, reference, amount, and student before accepting.'],
             ],
@@ -3321,7 +3783,7 @@ export const docsPages: DocPage[] = [
     description: 'A guide for delegated organization administration without main-admin ownership.',
     category: 'Role Guides',
     tags: ['sub admin', 'operations', 'users', 'academic setup'],
-    related: ['roles-permissions', 'admin-guide', 'school-setup-workflow', 'academic-cycles', 'evaluations-feedback'],
+    related: ['roles-permissions', 'admin-guide', 'school-setup-workflow', 'programs', 'academic-cycles', 'past-records', 'evaluations-feedback'],
     sections: [
       {
         id: 'sub-admin-role',
@@ -3338,7 +3800,8 @@ export const docsPages: DocPage[] = [
             rows: [
               ['People', 'Create and update teachers, managers, students, guardians, and finance managers.', 'Sub admins do not create or manage main admin accounts.'],
               ['Account recovery', 'Copy password-reset links and turn off two-step verification for ordinary users who are locked out.', 'Sub admins cannot do this for the org admin or another sub-admin, and cannot turn two-step verification on for anyone.'],
-              ['Academic setup', 'Manage cycles, cohorts, sections, schedules, reassignment, and operational academic records.', 'Changes should follow the school academic plan.'],
+              ['Academic setup', 'Manage cycles, cohorts, sections, schedules, reassignment, and operational academic records.', 'Changes follow department scope and the school academic plan.'],
+              ['Programs', 'Create and edit programs/curricula in explicitly assigned departments.', 'Cannot write programs in unassigned departments or create/retry cycle archives.'],
               ['Grades', 'Review grade-finalization status and finalize where allowed.', 'Finalized grades become official transcript data.'],
               ['Evaluations', 'Create windows and review teacher/course feedback where delegated.', 'Feedback review follows department scope where applicable.'],
               ['Finance', 'View/audit finance where available.', 'Finance operations belong to Admin and Finance Manager roles.'],
@@ -3371,7 +3834,7 @@ export const docsPages: DocPage[] = [
     description: 'A guide for academic managers who monitor assigned sections, attendance, assessments, and grades.',
     category: 'Role Guides',
     tags: ['manager', 'academic monitoring', 'assigned sections', 'grade finalization'],
-    related: ['roles-permissions', 'gradebook', 'evaluations-feedback', 'attendance', 'transcripts'],
+    related: ['roles-permissions', 'gradebook', 'evaluations-feedback', 'attendance', 'transcripts', 'past-records'],
     sections: [
       {
         id: 'manager-scope',
@@ -3392,6 +3855,7 @@ export const docsPages: DocPage[] = [
               ['Assessments and grades', 'Assigned academic sections and finalization review where allowed.'],
               ['Evaluations', 'Teacher and course feedback for assigned academic sections.'],
               ['Transcripts', 'Students in assigned sections.'],
+              ['Past Records', 'Archived sections in the manager effective department scope.'],
             ],
           },
           {
@@ -3736,18 +4200,20 @@ export const docsPages: DocPage[] = [
       {
         id: 'stage-academics',
         title: 'Stage 2: Academic foundation',
-        tags: ['gpa', 'cycle', 'courses'],
+        tags: ['departments', 'gpa', 'cycle', 'courses', 'programs'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'The academic foundation consists of three things that must exist before classes can operate: a GPA policy, an academic cycle, and courses.',
+            text: 'The academic foundation consists of departments, a GPA policy, shared institute cycles, courses, and optional program curricula. Programs are optional; the other records still support standalone delivery.',
           },
           {
             type: 'steps',
             items: [
+              'Create academic departments first. Departments own courses and programs and can limit Sub Admin access.',
               'Review or customize the GPA policy. The default 4.0 scale works for most schools. If your school uses a 5.0 or 10.0 scale, create a new policy.',
               'Create the first academic cycle. Name it clearly (e.g. "Semester 1 - 2026"). Select the GPA policy for this cycle.',
               'Create all courses with proper names and credit hours. These names appear on transcripts, so use official names.',
+              'If the institute uses programs, create each program under its department, reuse the shared cycles, and activate a complete curriculum.',
             ],
           },
           {
@@ -3764,16 +4230,16 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'With courses and a cycle ready, create the class structure and add people.',
+            text: 'With courses, cycles, and optional programs ready, create the delivery structure and add people.',
           },
           {
             type: 'steps',
             items: [
-              'Create cohorts for each class group (e.g. "Grade 10-A", "Grade 10-B").',
-              'Create sections under each course, linking them to the academic cycle.',
+              'Create cohorts for each class group and choose standalone or program-mapped delivery.',
+              'Create sections under each course, link them to the institute cycle, and map program requirements where applicable.',
               'Assign cohorts to sections so students are auto-enrolled.',
               'Create teacher accounts and assign them to their sections.',
-              'Create student accounts and place them in the correct cohorts.',
+              'Create student accounts, assign major programs where applicable, and place students in the correct cohorts.',
             ],
           },
           {
@@ -3919,6 +4385,27 @@ export const docsPages: DocPage[] = [
               'Use the reassignment tool to select a source cohort or section, optionally exclude students, and move the remaining students to the destination.',
               'Review reassigned students to confirm correct placement.',
               'Use copy-forward to carry sections, schedules, or materials into the new cycle if needed.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'archive-cycle-records',
+        title: 'Step 5: Archive the completed cycle',
+        tags: ['archive', 'past records', 'verify'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'After grades, transcripts, placement, and student program-cycle outcomes are settled, archive the completed institute cycle to create the permanent read-only record.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Confirm the cycle status is Completed.',
+              'Resolve every in-progress student program cycle linked to it.',
+              'As Org Admin, create the archive and wait for Ready.',
+              'Run archive verification and review the counts/checksum result.',
+              'Open Past Records and spot-check one standalone section, one program-mapped section, and one student history.',
             ],
           },
         ],
@@ -4434,6 +4921,7 @@ export const docsNavGroups: DocNavGroup[] = [
     pages: [
       'programs',
       'academic-cycles',
+      'past-records',
       'academic-calendar',
       'cohorts-reassignment',
       'courses-sections',

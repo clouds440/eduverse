@@ -1,7 +1,7 @@
 # EduVerse - Technical Design Document
 
-**Version:** 2.3.0  
-**Date:** July 2026  
+**Version:** 3.0.0
+**Date:** August 2026
 **Repository:** `clouds440/eduverse`  
 **Document Type:** Technical Design Document (TDD)
 
@@ -32,7 +32,7 @@
 
 ## 1. Overview
 
-EduVerse is a multi-tenant school and institute management platform. It supports platform administration, organization workspaces, academic lifecycle management, students, teachers, courses, sections, schedules, attendance, assessments, grading, GPA policies, transcripts, finance records, communication, notifications, and file-backed workflows.
+EduVerse is a multi-tenant school and institute management platform. It supports platform administration, organization workspaces, department-owned programs and curricula, institute-wide academic cycles, durable student majors, standalone and program-mapped delivery, immutable historical records, students, teachers, courses, sections, schedules, attendance, assessments, grading evidence, GPA policies, transcripts, finance records, communication, notifications, and file-backed workflows.
 
 The application is web-first and responsive. It uses a NestJS backend, PostgreSQL with Prisma ORM, and a Next.js frontend.
 
@@ -56,7 +56,12 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 - Role-based access control.
 - Student and teacher management.
 - Sub Admin, Finance Manager, and Guardian account flows.
-- Courses, sections, enrollments, cohorts, academic cycles, and promotions.
+- Department-owned programs, versioned curricula, ordered stages, and course requirements.
+- Independent institute-wide academic cycles reusable across programs and standalone delivery.
+- Durable student majors, program transfers, cycle progression, and historical enrollment snapshots.
+- Courses, sections, enrollments, cohorts, academic cycles, and reassignment.
+- Verified cycle archives and scoped, read-only past records.
+- Optional answerbook references and protected PDF/image evidence on individual grades.
 - Multi-teacher section support.
 - Teacher-owned schedules and timetables.
 - Materials and assessments with creator attribution.
@@ -78,6 +83,9 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 
 - Keep each organization's data isolated.
 - Preserve academic history even when policies or assignments change later.
+- Keep programs and institute academic cycles independent while supporting explicit many-to-many delivery plans.
+- Preserve each student's admitted program configuration through every required cycle and later program edits.
+- Make archived academic records immutable, verifiable, searchable, and role-scoped.
 - Centralize business rules for grading, GPA, transcripts, schedules, and finance.
 - Keep teacher and student portals scoped to the signed-in user's role and assignments.
 - Provide clear validation instead of silent data correction.
@@ -296,16 +304,19 @@ Rules:
 
 - `creditHours` defaults to `3`.
 - `creditHours` must be greater than `0`.
-- Existing courses are backfilled to `3` through migration.
 - Credit hours are used by GPA calculations when the policy method is weighted by credit hours.
+- Courses used by a program stage must belong to the program's department.
 
 ### Sections and Section Teachers
 
-Sections connect courses, academic cycles, students, teachers, schedules, materials, assessments, attendance, and grades.
+Sections connect courses, academic cycles, students, teachers, schedules, materials, assessments, attendance, grades, and optional program-delivery requirements.
 
 Rules:
 
 - A section can have multiple assigned teachers.
+- Every section declares `programClassificationStatus` as `STANDALONE` or `PROGRAM_MAPPED`.
+- A program-mapped section uses `SectionRequirementMapping` to identify the program cycle, curriculum stage, and course requirement it delivers.
+- A standalone section remains valid without any program relationship.
 - Section create/edit is the source of teacher assignment. Teacher profile forms do not assign sections.
 - Section colors use predefined safe colors so labels remain readable.
 - Teacher selection for schedules is limited to teachers assigned to the selected section.
@@ -357,6 +368,25 @@ Behavior:
 - UIs show attribution such as `Created by John Smith`.
 - Teacher workflow notifications use the assessment creator.
 
+### Grade Answerbook Evidence
+
+Answerbook evidence belongs to one student's `Grade`, never to the whole assessment.
+
+Important fields and models:
+
+- `Grade.answerbookReferenceNumber`: optional external or physical answerbook identifier, limited to 100 characters.
+- `GradeAnswerbookAttachment`: typed join between one `Grade` and one managed `File`.
+- `uploadedById`: records the staff user who attached the evidence.
+
+Rules:
+
+- A grade can have at most five answerbook attachments.
+- Accepted formats are PDF, JPG, JPEG, PNG, and WEBP.
+- Evidence can be changed only while the grade is not finalized and the academic cycle is writable.
+- Students can read evidence only after the grade is published or finalized; guardians follow linked-student scope.
+- Teachers follow assigned-section scope. Sub Admins and Managers follow department scope. Org Admins are organization-wide.
+- Archive creation locks referenced files. Archived evidence is immutable and remains downloadable only through authorized archive routes.
+
 ### GPA Policies
 
 `GpaPolicy` belongs to an organization.
@@ -388,17 +418,113 @@ Rules:
 - Maximum rule count is `20`.
 - No raw formulas, `eval`, or custom code execution.
 
-### Academic Cycles and GPA Policy Snapshots
+### Academic Cycles, Lifecycle, and GPA Snapshots
 
-Academic cycles group cohorts, sections, enrollments, assessments, grades, attendance, and transcripts.
+`AcademicCycle` is an institute-wide period such as Fall 2026. It does not belong to a program. The same cycle may be related to many programs, may deliver standalone courses, or may exist without any program relationship.
 
-GPA policy behavior:
+Lifecycle:
 
-- A cycle can store a selected GPA policy.
-- A cycle stores a policy snapshot so historical transcripts are stable.
-- If no cycle policy is chosen, the organization default policy is used.
-- Once finalized grades exist in the cycle, the cycle GPA policy cannot be changed.
-- Policies associated with historical cycles should be archived/hidden instead of hard-deleted.
+```text
+DRAFT -> ACTIVE -> COMPLETED -> ARCHIVING -> ARCHIVED
+```
+
+Rules:
+
+- Cycle identity is unique by organization and code.
+- Only one cycle can be active for an organization.
+- Program relationships use `ProgramAcademicCycle`; they never duplicate or embed institute cycle records.
+- Completing or archiving a cycle never changes a program's status and never silently advances a student program enrollment.
+- Operational writes are blocked as the cycle moves out of its writable lifecycle.
+- A cycle can store a selected GPA policy and immutable policy snapshot.
+- Once finalized grades exist, the selected cycle policy cannot change.
+- A completed cycle can be archived only when no student program cycle for it remains in progress.
+
+### Programs and Curricula
+
+`Program` is a hard-defined, department-owned course offering. It exists independently from academic cycles while maintaining an ordered relationship array to shared institute cycles.
+
+Core program fields:
+
+- organization and owning department
+- unique organization code and display metadata
+- lifecycle: `DRAFT`, `ACTIVE`, `PAUSED`, `TEACH_OUT`, `ARCHIVED`
+- structure, progression, and completion modes
+- server-derived `requiredCycleCount`
+- admissions visibility, label, description, duration, and sort order
+- monotonic `configurationVersion`
+
+Program structure:
+
+```text
+Department
+  -> Program
+     -> ProgramAcademicCycle[] -> shared AcademicCycle
+     -> ProgramConfigurationRevision[]
+     -> CurriculumVersion[]
+        -> ProgramStage[]
+           -> StageCourseRequirement[] -> Course
+```
+
+Rules:
+
+- One department can own many programs.
+- One shared academic cycle can appear in many programs.
+- `requiredCycleCount` is derived from the ordered active required relationships and cannot be patched independently.
+- Program creation accepts an expanding ordered cycle array. Each entry can reference an eligible existing cycle or create a new institute cycle inline.
+- The entire program, relationship array, initial immutable configuration revision, draft curriculum, stages, and course requirements are created transactionally.
+- Replacing the relationship array requires the caller's current `configurationVersion` and a change reason.
+- Structural edits append a `ProgramConfigurationRevision`, increment the version, and scaffold a new draft curriculum for future students.
+- Existing student plans never change when program metadata, cycle order, or curriculum structure changes later.
+- Programs with student history cannot move to another department.
+- `TEACH_OUT` blocks new admissions but allows existing students to finish. Archiving never archives shared cycles.
+
+### Program Delivery Mapping
+
+Programs do not own cohorts or sections. Delivery records explicitly state whether they are standalone or mapped.
+
+- `Cohort.programClassificationStatus` is `STANDALONE` or `PROGRAM_MAPPED`.
+- A mapped cohort points to one `ProgramAcademicCycle` and one compatible `ProgramStage`.
+- A mapped section is connected through one or more `SectionRequirementMapping` records to the exact stage course requirement it delivers.
+- Program, curriculum, stage, course, department, organization, and academic-cycle compatibility are validated server-side.
+- Standalone cohorts and sections remain first-class and require no program fields.
+- Copy-forward, reassignment, imports, reports, and filters preserve and validate this classification rather than guessing it from labels.
+
+### Student Program Enrollment
+
+`StudentProgramEnrollment` is the durable major assignment. It survives academic-cycle changes until the student completes, withdraws, or transfers out of the program.
+
+Key invariants:
+
+- A student can have at most one open major enrollment.
+- Assigning a major derives `Student.primaryDepartmentId` from the program department.
+- Admission stores the exact program, curriculum, configuration revision, required-cycle count, entry cycle, and cycle-plan hash.
+- `StudentProgramEnrollmentCycle` copies cycle and stage names, codes, dates, sequence, and required flags at admission time.
+- `StudentStageAttempt` records attempts, repeats, outcomes, cohort placement, and result snapshots.
+- Program edits never mutate previously copied student rows.
+- Transfer closes the old enrollment as `TRANSFERRED_OUT` and creates a new historical chain; it does not overwrite the old major.
+- Hold, resume, withdrawal, cycle activation, completion, skip, repeat, and final program completion are explicit commands with actor/reason metadata where required.
+- Section and enrollment history can reference the program enrollment and stage attempt that produced the placement.
+
+### Academic Cycle Archives and Past Records
+
+Archive data is a verified read model, not a live query with an old-cycle filter.
+
+Important models:
+
+- `AcademicCycleArchive`: revision, schema version, status, manifest, counts, checksum, cutoff, and creator.
+- `AcademicCycleArchiveSection`: immutable JSON payload and section checksum.
+- `AcademicCycleArchiveSectionProgramIndex`: program, curriculum, stage, and requirement search dimensions.
+- `AcademicCycleArchiveStudentIndex`: snapshotted student identity and normalized search dimensions.
+
+Archive rules:
+
+- Archive status is `BUILDING`, `READY`, or `FAILED`; failed revisions can be retried idempotently.
+- Finalization verifies every section checksum, the aggregate archive checksum, record counts, and the locked file set.
+- The cycle becomes `ARCHIVED` only after a ready archive is committed and assigned as `currentArchive`.
+- Snapshot payloads include section identity, students, enrollments/history, assessments, grades, submissions, schedules, attendance, materials, program mappings, and referenced files.
+- Files referenced by a ready archive are locked against mutation/deletion.
+- Past Records reads only `READY` snapshots attached to `ARCHIVED` cycles.
+- Archived payloads are sanitized before return; storage identifiers are hidden and student/guardian payloads are reduced to authorized students.
 
 ---
 
@@ -494,10 +620,85 @@ Core services:
 
 Main responsibilities:
 
-- Create, update, activate, list, and delete academic cycles where allowed.
+- Create, update, list, and transition shared institute cycles.
 - Store and update selected GPA policy.
 - Lock GPA policy changes after finalized grades exist.
-- Support copy-forward and promotion flows through related modules.
+- Enforce legal `DRAFT -> ACTIVE -> COMPLETED -> ARCHIVING -> ARCHIVED` transitions and cycle write policy.
+- Keep activation organization-wide and independent from program status.
+- Support copy-forward and reassignment through related modules.
+
+Selected routes:
+
+- `POST|GET /org/academic-cycles`
+- `GET|PATCH|DELETE /org/academic-cycles/:id`
+- `PATCH /org/academic-cycles/:id/status`
+
+### Programs and Curricula
+
+`ProgramsModule` owns program metadata, shared-cycle relationships, immutable configuration revisions, curriculum versions, stages, and course requirements.
+
+Selected routes:
+
+- `POST|GET /org/programs`
+- `GET|PATCH|DELETE /org/programs/:id`
+- `PUT /org/programs/:id/cycles`
+- `PATCH /org/programs/:id/status`
+- `GET /org/programs/:id/configuration-revisions`
+- `GET /org/programs/eligible-cycles`
+- `GET /org/programs/delivery-options`
+- `POST /org/programs/:id/curricula`
+- `PATCH /org/programs/curricula/:id`
+- `PATCH /org/programs/curricula/:id/status`
+- stage and requirement CRUD under `/org/programs/stages/*` and `/org/programs/requirements/*`
+
+Write permissions:
+
+- Org Admin can create and modify programs in every organization department.
+- Sub Admin can write programs only in departments explicitly assigned through `SubAdminDepartment`; moving a program requires both source and target scope.
+- Program reads are filtered through the actor's effective department scope.
+- Every nested write resolves the owning program and repeats the same scope check; controllers do not rely on hidden navigation as authorization.
+
+### Student Program Enrollment
+
+`StudentProgramEnrollmentsModule` owns durable major assignment and progression. Generic student updates cannot overwrite program history.
+
+Selected routes under `/org/students/:studentId/program-enrollments`:
+
+- `GET /`
+- `POST /admit`
+- `POST /transfer`
+- `POST /:enrollmentId/hold|resume|withdraw|complete`
+- `POST /:enrollmentId/cycles/activate`
+- `POST /:enrollmentId/cycles/:cycleId/complete|skip|repeat`
+
+Admission and transfer commands snapshot the active curriculum and program configuration. Student creation and Manage Enrollment use these commands instead of manually patching a department or program ID.
+
+### Program Offerings
+
+`GET /public/organizations/:slug/program-offerings` is public and applicant-safe. It returns only programs whose organization and department are active, whose program is active and admissions-visible, and whose current revision/default curriculum/stage structure is complete. The projection contains no internal actor, audit, or unrestricted curriculum fields. Online application submission itself remains outside this release.
+
+### Academic Cycle Archives and Past Records
+
+Archive routes:
+
+- `GET /org/academic-cycles/:cycleId/archive`
+- `POST /org/academic-cycles/:cycleId/archive`
+- `POST /org/academic-cycles/:cycleId/archive?retry=true`
+- `GET /org/academic-cycles/:cycleId/archive/verify`
+
+Only Org Admin can create or retry an archive. Org Admin, Sub Admin, and Org Manager can inspect status and verification within their access level.
+
+Past-record routes:
+
+- `GET /org/past-records/options`
+- `GET /org/past-records/cycles`
+- `GET /org/past-records/students`
+- `GET /org/past-records/students/:studentId`
+- `GET /org/past-records/sections`
+- `GET /org/past-records/sections/:archiveSectionId`
+- archived answerbook download under the archived section/grade path
+
+Filters include cycle, department, program, cohort, delivery classification, student, free-text search, and pagination. Org Admin is organization-wide; Sub Admin and Manager follow department scope; Teacher follows archived teacher assignment; Student follows self scope; Guardian follows linked students.
 
 ### Transcripts
 
@@ -537,6 +738,16 @@ Main responsibilities:
 - Grade individual or bulk submissions.
 - Validate grade entry rules.
 - Route teacher workflow notifications to assessment creators.
+- Save an optional answerbook reference on each grade.
+- Upload, list, download, and remove typed grade answerbook attachments while the grade and cycle are writable.
+- Enforce file type, MIME, size, five-file cap, section enrollment, role scope, released-grade reads, archive locks, and cleanup after a failed database link.
+
+Grade-evidence routes:
+
+- `GET /org/grades/:gradeId/answerbook-attachments`
+- `POST /org/grades/:gradeId/answerbook-attachments`
+- `GET /org/grades/:gradeId/answerbook-attachments/:attachmentId/download`
+- `DELETE /org/grades/:gradeId/answerbook-attachments/:attachmentId`
 
 ### Finance
 
@@ -607,6 +818,8 @@ Protected communication rules:
 ```text
 frontend/app/
   (org)/              Organization dashboard routes
+    programs/         Program list, creation, detail, curricula, and lifecycle
+    past-records/     Archived cycle, student, and section search/read views
     users/            User orchestration and canonical user-management routes
   admin/              Platform admin routes
   docs/               Public user-facing documentation
@@ -622,6 +835,9 @@ frontend/app/
 | Types                 | `frontend/types/index.ts`, `frontend/types/enums.ts`                       |
 | UI primitives         | `frontend/components/ui/*`                                                 |
 | Forms                 | `frontend/components/forms/*`                                              |
+| Program feature UI    | `frontend/components/programs/*`                                           |
+| Past-record UI        | `frontend/components/past-records/*`                                       |
+| Grade evidence UI     | `frontend/components/grading/*`, `frontend/components/ui/AttachmentPreviewCard.tsx` |
 | Section feature UI    | `frontend/components/sections/*`                                           |
 | Transcript PDF        | `frontend/lib/pdf/transcript.ts`                                           |
 | PWA prompt/runtime    | `frontend/components/ui/PWAInstallPrompt.tsx`                              |
@@ -732,6 +948,41 @@ The linked Google email option follows the same old-address confirmation rule wh
 - New-device and new-location security events read the full user settings context once, then independently honor login email and login push preferences.
 - Security alert email delivery uses the common email-template service; delivery failures do not invalidate an otherwise successful login.
 
+### Program Setup
+
+1. Org Admin or department-scoped Sub Admin selects the owning department.
+2. Admin enters program identity, structure, progression, completion, duration, and optional admissions metadata.
+3. Admin uses the expanding `+` cycle array to select an existing institute cycle or create a missing cycle inline.
+4. Every cycle row defines its corresponding curriculum stage and course requirements.
+5. Backend validates organization, department, cycle, course, ordering, uniqueness, and date invariants.
+6. One transaction creates the program, shared-cycle associations, revision 1, draft curriculum, stages, and requirements.
+7. Admin reviews the generated curriculum, activates a complete version as the admissions default, then activates the program.
+
+### Program Change
+
+1. Metadata-only edits update the program without changing historical student plans.
+2. Cycle-array edits use the dedicated replace command with current `configurationVersion` and a reason.
+3. The backend rejects stale versions, retires removed associations where safe, appends a configuration revision, and scaffolds a future draft curriculum.
+4. Existing students retain their original revision, curriculum, cycle snapshots, and progression rows.
+
+### Student Major Admission and Transfer
+
+1. Admin selects a program during student admission or from Manage Enrollment.
+2. The selected active/default curriculum and eligible entry cycle are resolved.
+3. The student's primary department is derived from the program department.
+4. Admission creates one open `StudentProgramEnrollment` and copies every required cycle/stage row.
+5. Progression activates and resolves student cycle rows explicitly; institute cycle transitions do not advance students automatically.
+6. Changing majors uses transfer, closes the old enrollment with history, and creates a new enrollment chain.
+7. Clearing a major requires an explicit withdrawal reason; generic student profile edits cannot erase it.
+
+### Standalone and Program-Mapped Delivery
+
+1. Admin chooses `STANDALONE` or `PROGRAM_MAPPED` when creating a cohort or section.
+2. Standalone delivery needs only the ordinary academic cycle/course context.
+3. Program-mapped delivery selects a compatible program cycle and curriculum stage.
+4. A mapped section additionally resolves the stage course requirement it delivers.
+5. Imports, copy-forward, reassignment, filters, and archive indexes preserve the selected classification.
+
 ### Course and Section Setup
 
 1. Org admin creates courses with credit hours.
@@ -781,6 +1032,15 @@ The linked Google email option follows the same old-address confirmation rule wh
 7. Grades are rounded to one decimal.
 8. Invalid values show explicit form errors.
 
+### Answerbook Evidence
+
+1. Grader saves the student's grade so a stable grade ID exists.
+2. Grader optionally enters an answerbook reference number.
+3. Grader uploads up to five PDF or image files from the grading form.
+4. Backend rechecks role, department/section assignment, enrollment, grade status, cycle writability, file policy, and concurrent attachment count.
+5. Published/finalized evidence is visible to the student and linked guardians; draft evidence remains staff-only.
+6. Finalization freezes evidence changes. Cycle archive locks the underlying files and serves them through archive-scoped download routes.
+
 ### Grade Finalization
 
 1. Teacher enters or publishes grades for assigned academic work.
@@ -815,6 +1075,17 @@ The linked Google email option follows the same old-address confirmation rule wh
 5. GPA service calculates GPA and CGPA.
 6. Web and PDF views render credit hours, grade points, quality points, GPA, CGPA, scale, and policy name.
 
+### Cycle Completion, Archive, and Past Records
+
+1. Staff finishes operational corrections and student program-cycle decisions.
+2. Org Admin transitions the active cycle to `COMPLETED`.
+3. Archive creation rejects remaining in-progress student program cycles or unverifiable referenced files.
+4. The archive service creates immutable section snapshots and student/program search indexes.
+5. It verifies per-section checksums, aggregate checksum, counts, and file locks before marking the archive ready.
+6. Only then does the cycle become `ARCHIVED` and appear in Past Records.
+7. Users can browse by cycle, department, program, cohort, standalone/program-mapped classification, section, or student search.
+8. Archived section detail renders students, grades, assessments/exams, attendance, schedules, materials, submissions, and answerbook evidence in read-only mode.
+
 ---
 
 ## 9. Security and Permissions
@@ -846,6 +1117,9 @@ The linked Google email option follows the same old-address confirmation rule wh
 - Platform administration is separate from organization administration.
 - Main organization administration is separate from delegated Sub Admin operations.
 - GPA policy management is restricted to trusted organization administration.
+- Org Admin program writes are organization-wide. Sub Admin program writes require explicit assignment to the owning department.
+- Student major admission, transfer, withdrawal, and progression are restricted to Org Admin and appropriately scoped Sub Admin users.
+- Archive creation/retry is Org Admin-only; archive status and verification reads are available to authorized academic leadership.
 - Teacher and Manager access is scoped to assigned teaching or academic oversight workflows.
 - Student access is scoped to the signed-in student's own data.
 - Guardian access is scoped to students linked through guardian relationships.
@@ -853,8 +1127,8 @@ The linked Google email option follows the same old-address confirmation rule wh
 
 | Role              | Backend authority summary                                                                               | Frontend route summary                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `ORG_ADMIN`       | Full organization management, settings, finance, users, academic setup, grade finalization.             | `/overview`, `/users/*`, academics, finance, settings.                                       |
-| `SUB_ADMIN`       | Delegated operational management; cannot manage main admin-only areas such as Sub Admin creation.       | `/overview`, `/users/*` except Sub Admin management, academics, finance audit where visible. |
+| `ORG_ADMIN`       | Full organization management, programs across all departments, student majors, cycle archive, settings, finance, users, academic setup, grade finalization. | `/overview`, `/users/*`, `/programs/*`, `/past-records/*`, academics, finance, settings. |
+| `SUB_ADMIN`       | Delegated operations and program/major writes inside explicitly assigned departments; cannot archive cycles or manage main admin-only areas. | `/overview`, permitted `/users/*`, scoped `/programs/*`, `/past-records/*`, academics. |
 | `ORG_MANAGER`     | Assigned-section academic oversight, attendance, assessments, grades, transcripts, finalization review. | Academic monitoring routes; no finance/settings/user orchestration.                          |
 | `FINANCE_MANAGER` | Finance structures, entries, payment claims, transactions, finance mail.                                | `/finance`, mail/chat support routes.                                                        |
 | `TEACHER`         | Assigned sections, materials, assessments, submissions, attendance, grading.                            | Teaching profile, assigned courses/sections, attendance, grades, timetable.                  |
@@ -863,11 +1137,14 @@ The linked Google email option follows the same old-address confirmation rule wh
 
 ### Query-Level Scoping
 
+- Every program and nested curriculum write resolves the owning department and enforces explicit Sub Admin assignment.
+- Program lists, delivery options, mapped cohorts/sections, student majors, imports, and archived records apply department scope server-side.
 - Teacher and Manager transcript reads are checked against assigned sections.
 - Teacher and Manager cohort include/exclude overrides are checked against assigned sections.
 - Guardian overview reads require the requested student to be linked to the guardian.
 - Student profile, finance, attendance, and transcript reads are self-scoped where exposed.
 - Finance services verify organization ownership for all finance records.
+- Past Records limits teachers to archived sections they taught, students to their own archived records, and guardians to linked students. Unauthorized nested archive payload data is removed server-side.
 
 ### Navigation and Breadcrumbs
 
@@ -879,6 +1156,9 @@ The linked Google email option follows the same old-address confirmation rule wh
 ### Sensitive Locks
 
 - GPA policy on an academic cycle locks after finalized grades exist.
+- Program configuration revisions and admitted student cycle plans are immutable historical contracts.
+- Archived cycle snapshots and archive-locked files are read-only.
+- Finalized grades block answerbook reference and attachment mutation.
 - Historical GPA policies used by cycles should be archived instead of hard-deleted.
 - Finance transactions act as audit records and should not be treated like ordinary editable notes.
 
@@ -905,7 +1185,7 @@ The linked Google email option follows the same old-address confirmation rule wh
 
 ### Default Standard GPA Policy
 
-Existing organizations are seeded/backfilled with a standard 4.0 policy:
+Newly initialized development data can use the standard 4.0 policy below:
 
 | Min | Max   | Letter | Points |
 | --- | ----- | ------ | ------ |
@@ -1025,10 +1305,12 @@ Protected-content notification rules:
 ### Files
 
 - Uploads are stored through Cloudinary.
-- File flows are used by chat, mail, materials, submissions, organization logos, and profile media.
+- File flows are used by chat, mail, materials, submissions, grade answerbook evidence, organization logos, and profile media.
 - File validation should happen before upload where the UI has enough information.
 - Files are stored as private Cloudinary assets and are downloaded through authenticated backend endpoints.
 - Mail-message files use Mail participant access rules; Chat files use active chat membership access rules.
+- Grade answerbook files use typed `GradeAnswerbookAttachment` ownership and grade/section/student authorization.
+- Archive finalization records and verifies referenced file IDs, then locks those files against mutation or deletion.
 
 ### PWA
 
@@ -1270,36 +1552,36 @@ UI helpers:
 
 ## 17. Rollout and Migration Notes
 
-### Course Credit Hours
+### Clean Initialization Contract
 
-- Migration adds `Course.creditHours`.
-- Existing courses are backfilled to `3`.
-- Backend validation prevents values less than or equal to `0`.
+- The project is pre-production and intentionally maintains one consolidated Prisma initialization migration at `backend/prisma/migrations/20260804145000_init/migration.sql`.
+- There is no legacy compatibility or data-backfill chain for the programs release.
+- A database containing the superseded development schema must be reset before applying the consolidated init.
+- Never run `prisma migrate reset` against an active deployment. Stop application replicas first and confirm the target database.
+- Run reset/deploy with the database role intended to own the application schema. Resetting with an admin URL can recreate `public` under the admin role and remove the runtime user's ownership/privileges.
+- `prisma migrate deploy` is idempotent after the init is recorded, but production migration execution should be serialized before introducing multiple backend replicas.
 
-### GPA Policies
+### Release Verification
 
-- Migration adds GPA policy tables/enums.
-- A default 4.0 policy is seeded/backfilled for every existing organization.
-- A partial unique index enforces one default policy per organization.
-- Existing transcript logic is routed through `GpaService`.
+Required automated gates include:
 
-### Academic Cycle Policy Snapshots
+- Prisma validation, migration status, and zero schema diff.
+- Clean-init replay on a disposable database.
+- Programs preflight and removed-field scans.
+- Backup/restore parity across critical program, archive, grade-evidence, and academic tables.
+- Critical API authorization coverage for Org Admin, scoped Sub Admin, Manager, Teacher, Student, Guardian, and public offering access.
+- Archive retry/checksum/file-lock verification.
+- Backend tests and build, frontend lint and build, and dependency audit.
+- `/health/live` process liveness and `/health/ready` database readiness.
 
-- Migration adds selected policy and snapshot support to academic cycles.
-- Cycle policy changes are blocked after finalized grades exist.
-- Policies referenced by historical cycles should be archived rather than deleted.
+### Production Runtime Constraints
 
-### Teacher-Based Schedules
-
-- Schedules require `teacherId`.
-- Existing dummy schedule data is dropped and recreated by the migration path; no legacy backfill is required.
-- Teacher timetable logic uses `schedule.teacherId`.
-- Attendance write access also uses `schedule.teacherId`; section assignment alone is not enough to mark a co-teacher's slot.
-
-### Creator Attribution
-
-- Materials and assessments store `createdById` for new records.
-- Existing records without creator remain valid and render with fallback text.
+- Initial production runs one backend replica because Socket.IO rooms/presence and throttling state are process-local.
+- Add shared Redis-backed Socket.IO and throttling stores before horizontal backend scaling.
+- Use exact HTTPS frontend origins, secure cookies, strong JWT secrets, bounded database pools, and private managed-file downloads.
+- `SUPER_ADMIN_USERNAME` and `SUPER_ADMIN_PASSWORD` recreate only the first super admin when no super-admin row exists; they do not overwrite an existing account.
+- Container startup applies committed migrations before starting NestJS. For multi-replica production, move migration execution to one dedicated release job.
+- Follow `production-release-runbook.md` for staging, health checks, backup/restore, rollback, and go/no-go evidence.
 
 ---
 

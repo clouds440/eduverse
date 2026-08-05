@@ -1,12 +1,12 @@
 'use client';
 
 import React from 'react';
-import { LucideIcon, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface LoadingProps {
     text?: string;
-    icon?: LucideIcon;
+    icon?: React.ElementType<{ className?: string }> | React.ReactNode;
     className?: string;
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
     fullScreen?: boolean;
@@ -45,7 +45,11 @@ export function Loading({
     return (
         <div className={cn(containerClasses, className)} role="status" aria-live="polite">
             {Icon ? (
-                <Icon className={cn(spinnerSize, "animate-spin text-primary")} aria-hidden="true" />
+                typeof Icon === 'function' ? (
+                    <Icon className={cn(spinnerSize, "animate-spin text-primary")} aria-hidden="true" />
+                ) : (
+                    Icon
+                )
             ) : (
                 <Loader2 className={cn(spinnerSize, "animate-spin text-primary")} aria-hidden="true" />
             )}

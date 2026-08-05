@@ -1,173 +1,218 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { AlertTriangle, LockKeyhole, Sparkles } from 'lucide-react';
-import { Badge } from '@/components/ui/Badge';
-import { Loading } from '@/components/ui/Loading';
-import { getAIRoleHomeConfig } from '@/lib/ai';
-import { Role } from '@/types';
+import type { ElementType } from "react";
+import Link from "next/link";
+import { AlertTriangle, LockKeyhole } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
+import { Loading } from "@/components/ui/Loading";
+import { getAIRoleHomeConfig } from "@/lib/ai";
+import { Role } from "@/types";
 
 interface AICopilotHomeProps {
-    role?: Role | string | null;
-    entitlementLoading: boolean;
-    entitlementAllowed?: boolean;
-    denialCode?: string;
-    denialMessage?: string;
-    sourceLabel?: string;
-    remainingCredits?: number;
-    monthlyCredits?: number;
-    disabled?: boolean;
-    onPrompt?: (prompt: string) => void;
+  role?: Role | string | null;
+  entitlementLoading: boolean;
+  entitlementAllowed?: boolean;
+  denialCode?: string;
+  denialMessage?: string;
+  sourceLabel?: string;
+  remainingCredits?: number;
+  monthlyCredits?: number;
+  disabled?: boolean;
+  onPrompt?: (prompt: string) => void;
 }
 
 export function AICopilotHome({
-    role,
-    entitlementLoading,
-    entitlementAllowed,
-    denialCode,
-    denialMessage,
-    sourceLabel,
-    remainingCredits,
-    monthlyCredits,
-    disabled,
-    onPrompt,
+  role,
+  entitlementLoading,
+  entitlementAllowed,
+  denialCode,
+  denialMessage,
+  sourceLabel,
+  remainingCredits,
+  monthlyCredits,
+  disabled,
+  onPrompt,
 }: AICopilotHomeProps) {
-    const config = getAIRoleHomeConfig(role);
-    const creditLimitReached = isCreditLimitReachedCode(denialCode);
-    const lowCreditWarning = entitlementAllowed === true
-        && typeof remainingCredits === 'number'
-        && typeof monthlyCredits === 'number'
-        && monthlyCredits > 0
-        && remainingCredits > 0
-        && remainingCredits <= Math.max(25, Math.ceil(monthlyCredits * 0.1));
+  const config = getAIRoleHomeConfig(role);
+  const creditLimitReached = isCreditLimitReachedCode(denialCode);
+  const lowCreditWarning =
+    entitlementAllowed === true &&
+    typeof remainingCredits === "number" &&
+    typeof monthlyCredits === "number" &&
+    monthlyCredits > 0 &&
+    remainingCredits > 0 &&
+    remainingCredits <= Math.max(25, Math.ceil(monthlyCredits * 0.1));
 
-    if (entitlementLoading) {
-        return (
-            <div className="flex min-h-80 flex-col items-center justify-center gap-3 rounded-lg border border-border/70 bg-card/80 p-6 text-center">
-                <Loading size="md" />
-                <p className="text-sm font-semibold text-muted-foreground">Checking Copilot access...</p>
-            </div>
-        );
-    }
-
-    if (entitlementAllowed === false && !creditLimitReached) {
-        return (
-            <div className="grid gap-4">
-                <div className="rounded-lg border border-warning/30 bg-warning/10 p-4">
-                    <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-warning/25 bg-background text-warning">
-                            <LockKeyhole className="h-5 w-5" aria-hidden="true" />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-black text-warning">Copilot is not available</p>
-                            <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">{denialMessage ?? 'EduVerse Copilot needs an active organization or personal subscription.'}</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="grid gap-2">
-                    <Link
-                        href="/ai/subscription"
-                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary px-4 py-2.5 text-sm font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-                    >
-                        <Sparkles className="h-4 w-4" aria-hidden="true" />
-                        Unlock EduVerse Copilot
-                    </Link>
-                </div>
-            </div>
-        );
-    }
-
+  if (entitlementLoading) {
     return (
-        <div className="grid gap-4">
-            {creditLimitReached && (
-                <div className="rounded-lg border border-warning/35 bg-warning/10 p-4">
-                    <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-warning/25 bg-background text-warning">
-                            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-black text-warning">Credit limit reached</p>
-                            <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">
-                                You have used all AI Credits included in your current plan. If this was the free testing quota, subscribe to a paid Copilot plan to continue using AI.
-                            </p>
-                            <Link
-                                href="/ai/subscription"
-                                className="mt-3 inline-flex min-h-9 items-center justify-center rounded-md bg-warning px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-warning/90"
-                            >
-                                Top up credits
-                            </Link>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {lowCreditWarning && (
-                <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
-                    <div className="flex items-start gap-3">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-                        <p className="text-sm font-semibold leading-6 text-warning/90">
-                            AI Credits are running low. You have {remainingCredits.toLocaleString()} of {monthlyCredits.toLocaleString()} credits left this period.
-                        </p>
-                    </div>
-                </div>
-            )}
-            <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-                <div className="border-b border-border/60 bg-primary/5 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <Badge variant="purple" size="sm" icon={Sparkles}>{config.eyebrow}</Badge>
-                                {sourceLabel && <Badge variant="secondary" size="sm">{sourceLabel}</Badge>}
-                                {creditLimitReached && <Badge variant="warning" size="sm">Zero credits</Badge>}
-                            </div>
-                            <h2 className="mt-4 text-2xl font-black leading-tight text-foreground">{config.title}</h2>
-                            <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">{config.description}</p>
-                        </div>
-                        <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-background text-primary sm:flex">
-                            <Sparkles className="h-6 w-6 fill-current" aria-hidden="true" />
-                        </div>
-                    </div>
-                </div>
-                <div className="grid gap-3 p-4 sm:grid-cols-2">
-                    <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Focus</p>
-                        <p className="mt-2 text-sm font-black text-foreground">Schedules, courses, deadlines, trends</p>
-                    </div>
-                    <div className="rounded-lg border border-border/70 bg-background/70 p-3">
-                        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">AI Credits</p>
-                        <p className="mt-2 text-sm font-black text-foreground">
-                            {typeof remainingCredits === 'number' ? `${remainingCredits.toLocaleString()} remaining` : 'Ready'}
-                        </p>
-                    </div>
-                </div>
-            </div>
-            {onPrompt && !creditLimitReached && (
-                <div className="grid gap-2 sm:grid-cols-3">
-                    {config.suggestions.slice(0, 3).map((suggestion) => {
-                        const Icon = suggestion.icon;
-                        return (
-                            <button
-                                key={suggestion.id}
-                                type="button"
-                                onClick={() => onPrompt(suggestion.prompt)}
-                                disabled={disabled}
-                                className="group min-h-28 rounded-lg border border-border/70 bg-card p-3 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border/70 bg-background text-primary transition-colors group-hover:border-primary/25">
-                                    <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                                </div>
-                                <p className="mt-3 text-sm font-black text-foreground">{suggestion.label}</p>
-                                <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted-foreground">{suggestion.prompt}</p>
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
+      <div className="flex min-h-80 flex-col items-center justify-center gap-3 rounded-lg border border-border/70 bg-card/80 p-6 text-center">
+        <Loading size="md" />
+        <p className="text-sm font-semibold text-muted-foreground">
+          Checking Copilot access...
+        </p>
+      </div>
     );
+  }
+
+  if (entitlementAllowed === false && !creditLimitReached) {
+    return (
+      <div className="grid gap-4">
+        <div className="rounded-lg border border-warning/30 bg-warning/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-warning/25 bg-background text-warning">
+              <LockKeyhole className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-black text-warning">
+                Copilot is not available
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">
+                {denialMessage ??
+                  "EduVerse Copilot needs an active organization or personal subscription."}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Link
+            href="/ai/subscription"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary px-4 py-2.5 text-sm font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          >
+            Unlock EduVerse Copilot
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      {creditLimitReached && (
+        <div className="rounded-lg border border-warning/35 bg-warning/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-warning/25 bg-background text-warning">
+              <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-black text-warning">
+                Credit limit reached
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-6 text-warning/85">
+                You have used all AI Credits included in your current plan. If
+                this was the free testing quota, subscribe to a paid Copilot
+                plan to continue using AI.
+              </p>
+              <Link
+                href="/ai/subscription"
+                className="mt-3 inline-flex min-h-9 items-center justify-center rounded-md bg-warning px-3 py-1.5 text-xs font-black text-white shadow-sm transition-colors hover:bg-warning/90"
+              >
+                Top up credits
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+      {lowCreditWarning && (
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle
+              className="mt-0.5 h-4 w-4 shrink-0 text-warning"
+              aria-hidden="true"
+            />
+            <p className="text-sm font-semibold leading-6 text-warning/90">
+              AI Credits are running low. You have{" "}
+              {remainingCredits.toLocaleString()} of{" "}
+              {monthlyCredits.toLocaleString()} credits left this period.
+            </p>
+          </div>
+        </div>
+      )}
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+        <div className="border-b border-border/60 bg-primary/5 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="purple" size="sm">
+                  {config.eyebrow}
+                </Badge>
+                {sourceLabel && (
+                  <Badge variant="secondary" size="sm">
+                    {sourceLabel}
+                  </Badge>
+                )}
+                {creditLimitReached && (
+                  <Badge variant="warning" size="sm">
+                    Zero credits
+                  </Badge>
+                )}
+              </div>
+              <h2 className="mt-4 text-2xl font-black leading-tight text-foreground">
+                {config.title}
+              </h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-muted-foreground">
+                {config.description}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-3 p-4 sm:grid-cols-2">
+          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+              Focus
+            </p>
+            <p className="mt-2 text-sm font-black text-foreground">
+              Schedules, courses, deadlines, trends
+            </p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+            <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+              AI Credits
+            </p>
+            <p className="mt-2 text-sm font-black text-foreground">
+              {typeof remainingCredits === "number"
+                ? `${remainingCredits.toLocaleString()} remaining`
+                : "Ready"}
+            </p>
+          </div>
+        </div>
+      </div>
+      {onPrompt && !creditLimitReached && (
+        <div className="grid gap-2 sm:grid-cols-3">
+          {config.suggestions.slice(0, 3).map((suggestion) => {
+            const Icon = suggestion.icon as ElementType<{
+              className?: string;
+              'aria-hidden'?: boolean;
+            }>;
+            return (
+              <button
+                key={suggestion.id}
+                type="button"
+                onClick={() => onPrompt(suggestion.prompt)}
+                disabled={disabled}
+                className="group min-h-28 rounded-lg border border-border/70 bg-card p-3 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border/70 bg-background text-primary transition-colors group-hover:border-primary/25">
+                  <Icon className="h-4.5 w-4.5" aria-hidden={true} />
+                </div>
+                <p className="mt-3 text-sm font-black text-foreground">
+                  {suggestion.label}
+                </p>
+                <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-muted-foreground">
+                  {suggestion.prompt}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function isCreditLimitReachedCode(code?: string | null) {
-    return code === 'ORG_CREDITS_EXHAUSTED'
-        || code === 'ROLE_CREDITS_EXHAUSTED'
-        || code === 'PERSONAL_CREDITS_EXHAUSTED';
+  return (
+    code === "ORG_CREDITS_EXHAUSTED" ||
+    code === "ROLE_CREDITS_EXHAUSTED" ||
+    code === "PERSONAL_CREDITS_EXHAUSTED"
+  );
 }

@@ -1,13 +1,14 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Download, X, Share, PlusSquare, Sparkles } from 'lucide-react';
-import { Button } from './Button';
+import { useEffect, useState } from "react";
+import { Download, X, Share, PlusSquare } from "lucide-react";
+import { Button } from "./Button";
+import Image from "next/image";
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
   readonly userChoice: Promise<{
-    outcome: 'accepted' | 'dismissed';
+    outcome: "accepted" | "dismissed";
     platform: string;
   }>;
   prompt(): Promise<void>;
@@ -15,40 +16,46 @@ interface BeforeInstallPromptEvent extends Event {
 
 type NavigatorWithStandalone = Navigator & { standalone?: boolean };
 
-const PWA_DISMISSED_KEY = 'eduverse-pwa-dismissed';
-const PWA_DISMISSED_UNTIL_KEY = 'eduverse-pwa-dismissed-until';
+const PWA_DISMISSED_KEY = "eduverse-pwa-dismissed";
+const PWA_DISMISSED_UNTIL_KEY = "eduverse-pwa-dismissed-until";
 const PWA_DISMISS_COOLDOWN_MS = 1000 * 60 * 60 * 24 * 30;
-const SHOULD_REGISTER_SERVICE_WORKER = process.env.NODE_ENV === 'production';
+const SHOULD_REGISTER_SERVICE_WORKER = process.env.NODE_ENV === "production";
 
 const isStandaloneDisplay = () =>
-  window.matchMedia('(display-mode: standalone)').matches ||
-  window.matchMedia('(display-mode: fullscreen)').matches ||
+  window.matchMedia("(display-mode: standalone)").matches ||
+  window.matchMedia("(display-mode: fullscreen)").matches ||
   (navigator as NavigatorWithStandalone).standalone === true;
 
 const isPromptDismissed = () => {
-  if (typeof window === 'undefined') return true;
+  if (typeof window === "undefined") return true;
 
-  if (localStorage.getItem(PWA_DISMISSED_KEY) === 'true') return true;
+  if (localStorage.getItem(PWA_DISMISSED_KEY) === "true") return true;
 
-  const dismissedUntil = Number(localStorage.getItem(PWA_DISMISSED_UNTIL_KEY) || 0);
+  const dismissedUntil = Number(
+    localStorage.getItem(PWA_DISMISSED_UNTIL_KEY) || 0,
+  );
   return Number.isFinite(dismissedUntil) && dismissedUntil > Date.now();
 };
 
 const dismissPromptForCooldown = () => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
-  localStorage.setItem(PWA_DISMISSED_UNTIL_KEY, String(Date.now() + PWA_DISMISS_COOLDOWN_MS));
+  localStorage.setItem(
+    PWA_DISMISSED_UNTIL_KEY,
+    String(Date.now() + PWA_DISMISS_COOLDOWN_MS),
+  );
 };
 
 const dismissPromptPermanently = () => {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
-  localStorage.setItem(PWA_DISMISSED_KEY, 'true');
+  localStorage.setItem(PWA_DISMISSED_KEY, "true");
   localStorage.removeItem(PWA_DISMISSED_UNTIL_KEY);
 };
 
 export function PWAInstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
 
@@ -58,10 +65,13 @@ export function PWAInstallPrompt() {
     let settleTimers: number[] = [];
     let handleBeforeInstallPrompt: ((event: Event) => void) | undefined;
     let handleAppInstalled: (() => void) | undefined;
-    const addMediaQueryListener = (query: MediaQueryList, handler: () => void) => {
-      if ('addEventListener' in query) {
-        query.addEventListener('change', handler);
-        return () => query.removeEventListener('change', handler);
+    const addMediaQueryListener = (
+      query: MediaQueryList,
+      handler: () => void,
+    ) => {
+      if ("addEventListener" in query) {
+        query.addEventListener("change", handler);
+        return () => query.removeEventListener("change", handler);
       }
 
       const legacyQuery = query as MediaQueryList & {
@@ -81,15 +91,21 @@ export function PWAInstallPrompt() {
         const height = Math.round(viewport?.height || window.innerHeight);
         const width = Math.round(viewport?.width || window.innerWidth);
         const offsetTop = Math.round(viewport?.offsetTop || 0);
-        const keyboardInset = Math.max(0, Math.round(window.innerHeight - height - offsetTop));
+        const keyboardInset = Math.max(
+          0,
+          Math.round(window.innerHeight - height - offsetTop),
+        );
         const isStandalone = isStandaloneDisplay();
 
-        root.style.setProperty('--app-height', `${height}px`);
-        root.style.setProperty('--app-width', `${width}px`);
-        root.style.setProperty('--app-viewport-top', `${offsetTop}px`);
-        root.style.setProperty('--app-keyboard-inset', `${keyboardInset}px`);
-        root.classList.toggle('pwa-standalone', isStandalone);
-        root.classList.toggle('virtual-keyboard-open', isStandalone && keyboardInset > 80);
+        root.style.setProperty("--app-height", `${height}px`);
+        root.style.setProperty("--app-width", `${width}px`);
+        root.style.setProperty("--app-viewport-top", `${offsetTop}px`);
+        root.style.setProperty("--app-keyboard-inset", `${keyboardInset}px`);
+        root.classList.toggle("pwa-standalone", isStandalone);
+        root.classList.toggle(
+          "virtual-keyboard-open",
+          isStandalone && keyboardInset > 80,
+        );
 
         if (isStandalone) {
           if (window.scrollX !== 0 || window.scrollY !== 0) {
@@ -114,36 +130,46 @@ export function PWAInstallPrompt() {
     };
 
     updateViewportVars();
-    window.addEventListener('resize', updateViewportVars);
-    window.addEventListener('orientationchange', settleViewportVars);
-    window.addEventListener('focusin', settleViewportVars);
-    window.addEventListener('focusout', settleViewportVars);
-    window.visualViewport?.addEventListener('resize', updateViewportVars);
-    window.visualViewport?.addEventListener('scroll', updateViewportVars);
-    const standaloneQuery = window.matchMedia('(display-mode: standalone)');
-    const fullscreenQuery = window.matchMedia('(display-mode: fullscreen)');
-    const removeStandaloneQueryListener = addMediaQueryListener(standaloneQuery, updateViewportVars);
-    const removeFullscreenQueryListener = addMediaQueryListener(fullscreenQuery, updateViewportVars);
+    window.addEventListener("resize", updateViewportVars);
+    window.addEventListener("orientationchange", settleViewportVars);
+    window.addEventListener("focusin", settleViewportVars);
+    window.addEventListener("focusout", settleViewportVars);
+    window.visualViewport?.addEventListener("resize", updateViewportVars);
+    window.visualViewport?.addEventListener("scroll", updateViewportVars);
+    const standaloneQuery = window.matchMedia("(display-mode: standalone)");
+    const fullscreenQuery = window.matchMedia("(display-mode: fullscreen)");
+    const removeStandaloneQueryListener = addMediaQueryListener(
+      standaloneQuery,
+      updateViewportVars,
+    );
+    const removeFullscreenQueryListener = addMediaQueryListener(
+      fullscreenQuery,
+      updateViewportVars,
+    );
 
     // 1. Register Service Worker in production only. In dev it can serve stale
     // Next chunks on soft reloads and create false runtime errors.
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       if (SHOULD_REGISTER_SERVICE_WORKER) {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker
+          .register("/sw.js")
           .then((registration) => {
-            registration.addEventListener('updatefound', () => {
+            registration.addEventListener("updatefound", () => {
               const installingWorker = registration.installing;
               if (!installingWorker) return;
 
-              installingWorker.addEventListener('statechange', () => {
-                if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  installingWorker.postMessage({ type: 'SKIP_WAITING' });
+              installingWorker.addEventListener("statechange", () => {
+                if (
+                  installingWorker.state === "installed" &&
+                  navigator.serviceWorker.controller
+                ) {
+                  installingWorker.postMessage({ type: "SKIP_WAITING" });
                 }
               });
             });
           })
           .catch((error) => {
-            console.error('PWA Service Worker registration failed:', error);
+            console.error("PWA Service Worker registration failed:", error);
           });
 
         let refreshing = false;
@@ -152,28 +178,45 @@ export function PWAInstallPrompt() {
           refreshing = true;
           window.location.reload();
         };
-        navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-        removeControllerChange = () => navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+        navigator.serviceWorker.addEventListener(
+          "controllerchange",
+          handleControllerChange,
+        );
+        removeControllerChange = () =>
+          navigator.serviceWorker.removeEventListener(
+            "controllerchange",
+            handleControllerChange,
+          );
       } else {
-        navigator.serviceWorker.getRegistrations()
-          .then((registrations) => registrations
-            .filter((registration) => registration.scope.startsWith(window.location.origin))
-            .forEach((registration) => registration.unregister()))
-          .catch((error) => console.warn('PWA Service Worker cleanup failed:', error));
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((registrations) =>
+            registrations
+              .filter((registration) =>
+                registration.scope.startsWith(window.location.origin),
+              )
+              .forEach((registration) => registration.unregister()),
+          )
+          .catch((error) =>
+            console.warn("PWA Service Worker cleanup failed:", error),
+          );
 
-        if ('caches' in window) {
-          caches.keys()
-            .then((cacheNames) => Promise.all(
-              cacheNames
-                .filter((cacheName) => cacheName.startsWith('eduverse-'))
-                .map((cacheName) => caches.delete(cacheName)),
-            ))
-            .catch((error) => console.warn('PWA cache cleanup failed:', error));
+        if ("caches" in window) {
+          caches
+            .keys()
+            .then((cacheNames) =>
+              Promise.all(
+                cacheNames
+                  .filter((cacheName) => cacheName.startsWith("eduverse-"))
+                  .map((cacheName) => caches.delete(cacheName)),
+              ),
+            )
+            .catch((error) => console.warn("PWA cache cleanup failed:", error));
         }
       }
     }
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       const isStandalone = isStandaloneDisplay();
 
       if (!isPromptDismissed() && !isStandalone) {
@@ -193,14 +236,19 @@ export function PWAInstallPrompt() {
           setShowPrompt(false);
           setShowIOSPrompt(false);
           dismissPromptPermanently();
-          document.documentElement.classList.add('pwa-standalone');
+          document.documentElement.classList.add("pwa-standalone");
           updateViewportVars();
         };
 
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        window.addEventListener('appinstalled', handleAppInstalled);
+        window.addEventListener(
+          "beforeinstallprompt",
+          handleBeforeInstallPrompt,
+        );
+        window.addEventListener("appinstalled", handleAppInstalled);
 
-        const isIOSDevice = /ipad|iphone|ipod/.test(navigator.userAgent.toLowerCase());
+        const isIOSDevice = /ipad|iphone|ipod/.test(
+          navigator.userAgent.toLowerCase(),
+        );
         if (isIOSDevice) {
           window.setTimeout(() => {
             if (!isPromptDismissed() && !isStandaloneDisplay()) {
@@ -212,15 +260,20 @@ export function PWAInstallPrompt() {
     }
 
     return () => {
-      if (handleBeforeInstallPrompt) window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      if (handleAppInstalled) window.removeEventListener('appinstalled', handleAppInstalled);
+      if (handleBeforeInstallPrompt)
+        window.removeEventListener(
+          "beforeinstallprompt",
+          handleBeforeInstallPrompt,
+        );
+      if (handleAppInstalled)
+        window.removeEventListener("appinstalled", handleAppInstalled);
       removeControllerChange?.();
-      window.removeEventListener('resize', updateViewportVars);
-      window.removeEventListener('orientationchange', settleViewportVars);
-      window.removeEventListener('focusin', settleViewportVars);
-      window.removeEventListener('focusout', settleViewportVars);
-      window.visualViewport?.removeEventListener('resize', updateViewportVars);
-      window.visualViewport?.removeEventListener('scroll', updateViewportVars);
+      window.removeEventListener("resize", updateViewportVars);
+      window.removeEventListener("orientationchange", settleViewportVars);
+      window.removeEventListener("focusin", settleViewportVars);
+      window.removeEventListener("focusout", settleViewportVars);
+      window.visualViewport?.removeEventListener("resize", updateViewportVars);
+      window.visualViewport?.removeEventListener("scroll", updateViewportVars);
       removeStandaloneQueryListener();
       removeFullscreenQueryListener();
       settleTimers.forEach((timer) => window.clearTimeout(timer));
@@ -238,7 +291,7 @@ export function PWAInstallPrompt() {
     setDeferredPrompt(null);
     setShowPrompt(false);
 
-    if (outcome === 'accepted') {
+    if (outcome === "accepted") {
       dismissPromptPermanently();
     } else {
       dismissPromptForCooldown();
@@ -260,7 +313,13 @@ export function PWAInstallPrompt() {
       {showPrompt && (
         <div className="bg-card/90 backdrop-blur-xl border border-primary/20 rounded-2xl p-5 shadow-2xl relative overflow-hidden flex flex-col gap-4">
           <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none text-primary">
-            <Sparkles className="w-24 h-24" />
+            <Image
+              src="/assets/eduverse-logo-192.png"
+              alt="EduVerse Logo"
+              width={64}
+              height={64}
+              className="h-24 w-24"
+            />
           </div>
 
           <button
@@ -280,7 +339,8 @@ export function PWAInstallPrompt() {
                 Install EduVerse App
               </h4>
               <p className="text-[11px] sm:text-[12px] text-muted-foreground leading-normal font-medium">
-                Install the official web app for full-screen management, lightning-fast speeds, and instant offline access!
+                Install the official web app for full-screen management,
+                lightning-fast speeds, and instant offline access!
               </p>
             </div>
           </div>
@@ -323,21 +383,41 @@ export function PWAInstallPrompt() {
                 Add EduVerse to Home Screen
               </h4>
               <p className="text-[11px] sm:text-[12px] text-muted-foreground leading-normal font-medium">
-                Get full app-like navigation and rapid school access on your iOS device in just a few taps.
+                Get full app-like navigation and rapid school access on your iOS
+                device in just a few taps.
               </p>
             </div>
           </div>
 
           <div className="bg-muted/30 border border-border/50 rounded-xl p-3.5 flex flex-col gap-2.5">
-            <p className="text-[10px] font-black uppercase text-primary/80 tracking-widest leading-none">Installation Guide</p>
+            <p className="text-[10px] font-black uppercase text-primary/80 tracking-widest leading-none">
+              Installation Guide
+            </p>
             <div className="flex flex-col gap-2 text-[11px] sm:text-[12px] text-muted-foreground font-medium">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[10px] font-black flex items-center justify-center border border-primary/25 shrink-0">1</span>
-                <span>Tap the <span className="inline-flex items-center gap-0.5 font-bold text-foreground bg-muted-foreground/10 px-1.5 py-0.5 rounded border border-border"><Share size={12} className="inline text-primary" /> Share</span> icon in Safari.</span>
+                <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[10px] font-black flex items-center justify-center border border-primary/25 shrink-0">
+                  1
+                </span>
+                <span>
+                  Tap the{" "}
+                  <span className="inline-flex items-center gap-0.5 font-bold text-foreground bg-muted-foreground/10 px-1.5 py-0.5 rounded border border-border">
+                    <Share size={12} className="inline text-primary" /> Share
+                  </span>{" "}
+                  icon in Safari.
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[10px] font-black flex items-center justify-center border border-primary/25 shrink-0">2</span>
-                <span>Scroll down and select <span className="inline-flex items-center gap-1 font-bold text-foreground bg-muted-foreground/10 px-1.5 py-0.5 rounded border border-border"><PlusSquare size={12} className="inline text-primary" /> Add to Home Screen</span>.</span>
+                <span className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[10px] font-black flex items-center justify-center border border-primary/25 shrink-0">
+                  2
+                </span>
+                <span>
+                  Scroll down and select{" "}
+                  <span className="inline-flex items-center gap-1 font-bold text-foreground bg-muted-foreground/10 px-1.5 py-0.5 rounded border border-border">
+                    <PlusSquare size={12} className="inline text-primary" /> Add
+                    to Home Screen
+                  </span>
+                  .
+                </span>
               </div>
             </div>
           </div>

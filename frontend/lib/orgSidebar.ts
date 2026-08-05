@@ -19,13 +19,13 @@ import {
   MessageSquare,
   Network,
   Settings,
-  Sparkles,
   ListChecks,
   Trophy,
   Users,
   Wallet,
   UserCog2,
 } from "lucide-react";
+import { CopilotIcon } from '@/components/ai/CopilotIcon';
 import { Role } from "@/types";
 import type { SidebarLink } from "@/components/ui/DashboardLayout";
 import { getRoleDashboardPath } from "@/lib/roles";
@@ -114,7 +114,7 @@ const COMMON_ITEMS: SidebarItemConfig[] = [
     id: "AI_COPILOT",
     label: "EduVerse Copilot",
     href: "/ai",
-    icon: Sparkles,
+    icon: CopilotIcon,
     roles: "all",
   },
   {

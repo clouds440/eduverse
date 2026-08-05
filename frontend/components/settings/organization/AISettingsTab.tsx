@@ -3,7 +3,8 @@
 import type { Dispatch, SetStateAction } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BarChart3, ExternalLink, Gauge, RefreshCw, Sparkles, TriangleAlert, Users } from 'lucide-react';
+import { BarChart3, ExternalLink, Gauge, RefreshCw, TriangleAlert, Users } from 'lucide-react';
+import { CopilotIcon } from '@/components/ai/CopilotIcon';
 import {
     AISubscriptionPlan,
     AISubscriptionStatus,
@@ -85,7 +86,7 @@ export function AISettingsTab({
                                 </div>
                             ) : !aiSettings || activeAIPlan === AISubscriptionPlan.NONE || aiSettings.subscription.status !== AISubscriptionStatus.ACTIVE ? (
                                 <SettingsSection
-                                    icon={Sparkles}
+                                    icon={CopilotIcon}
                                     title="EduVerse Copilot Settings"
                                     description="Organization AI settings are available after an active organization AI subscription is started."
                                     action={(
@@ -112,7 +113,7 @@ export function AISettingsTab({
                                                 href="/ai/subscription"
                                                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary px-3 py-2 text-xs font-black text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
                                             >
-                                                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                                                <CopilotIcon className="h-4 w-4" aria-hidden="true" />
                                                 View AI Packages
                                             </Link>
                                             <Link
@@ -128,7 +129,7 @@ export function AISettingsTab({
                             ) : (
                                 <>
                                     <SettingsSection
-                                        icon={Sparkles}
+                                        icon={CopilotIcon}
                                         title="EduVerse Copilot Settings"
                                         description="Configure who can use the active organization AI package and how monthly credits are allocated."
                                         action={(

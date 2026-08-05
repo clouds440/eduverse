@@ -1,14 +1,15 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Settings, type LucideIcon } from 'lucide-react';
+import { Settings } from 'lucide-react';
+import type { ReactElement } from 'react';
 import { PageHeader, PageShell, PageTabs, type PageBreadcrumb } from '@/components/ui/PageShell';
 import type { SettingsTabDefinition } from './settings-tabs';
 
 export interface SettingsShellProps<TabKey extends string> {
     title?: string;
     description?: ReactNode;
-    icon?: LucideIcon;
+    icon?: React.ElementType<{ className?: string }> | React.ReactNode;
     breadcrumbs?: PageBreadcrumb[];
     tabs: readonly SettingsTabDefinition<TabKey>[];
     tabCounts?: Partial<Record<TabKey, ReactNode>>;
