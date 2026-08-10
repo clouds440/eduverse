@@ -28,9 +28,32 @@ const textSizeMap = {
     xl: 'text-lg',
 };
 
+function renderLoadingIcon(
+    icon: React.ElementType<{ className?: string }> | React.ReactNode | undefined,
+    className: string,
+) {
+    if (!icon) {
+        return <Loader2 className={className} aria-hidden="true" />;
+    }
+
+    if (React.isValidElement(icon)) {
+        return icon;
+    }
+
+    if (
+        typeof icon === 'function' ||
+        (typeof icon === 'object' && icon !== null && '$$typeof' in icon)
+    ) {
+        const Icon = icon as React.ElementType<{ className?: string }>;
+        return <Icon className={className} aria-hidden="true" />;
+    }
+
+    return icon;
+}
+
 export function Loading({
     text,
-    icon: Icon,
+    icon,
     className = '',
     size = 'md',
     fullScreen = false
@@ -44,15 +67,7 @@ export function Loading({
 
     return (
         <div className={cn(containerClasses, className)} role="status" aria-live="polite">
-            {Icon ? (
-                typeof Icon === 'function' ? (
-                    <Icon className={cn(spinnerSize, "animate-spin text-primary")} aria-hidden="true" />
-                ) : (
-                    Icon
-                )
-            ) : (
-                <Loader2 className={cn(spinnerSize, "animate-spin text-primary")} aria-hidden="true" />
-            )}
+            {renderLoadingIcon(icon, cn(spinnerSize, "animate-spin text-primary"))}
             {text && (
                 <p className={`mt-4 font-medium text-muted-foreground ${textSize}`}>
                     {text}

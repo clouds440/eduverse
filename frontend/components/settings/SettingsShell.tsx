@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react';
 import { Settings } from 'lucide-react';
-import type { ReactElement } from 'react';
 import { PageHeader, PageShell, PageTabs, type PageBreadcrumb } from '@/components/ui/PageShell';
 import type { SettingsTabDefinition } from './settings-tabs';
 

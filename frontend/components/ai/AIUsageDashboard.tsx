@@ -121,6 +121,7 @@ export function AIUsageDashboard({
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {statItems.map((item) => {
+          const Icon = item.icon;
           return (
             <div
               key={item.label}
@@ -130,6 +131,11 @@ export function AIUsageDashboard({
                 <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                   {item.label}
                 </p>
+                {Icon && (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                )}
               </div>
               <p className="mt-3 text-2xl font-black text-foreground">
                 {item.value}

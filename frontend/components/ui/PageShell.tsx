@@ -8,7 +8,6 @@ import {
   ChevronRight,
   MoreHorizontal,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getRouteOrientation } from "@/lib/routeOrientation";

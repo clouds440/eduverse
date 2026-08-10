@@ -313,9 +313,6 @@ export function OrganizationSettingsPage() {
               activeAIPlanOption={aiSettings.activeAIPlanOption}
               aiRoleCreditDrafts={aiSettings.aiRoleCreditDrafts}
               setAiRoleCreditDrafts={aiSettings.setAiRoleCreditDrafts}
-              aiUsage={aiSettings.aiUsage}
-              aiCurrency={aiSettings.aiCurrency}
-              maxAITrendCredits={aiSettings.maxAITrendCredits}
               onAccessToggle={aiSettings.handleAIAccessToggle}
               onRoleCreditSave={aiSettings.handleAIRoleCreditSave}
               onRefresh={aiSettings.fetchAISettings}
