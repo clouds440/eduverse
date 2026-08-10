@@ -20,6 +20,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { getDeviceId } from '@/lib/deviceUtils';
+import { clearSensitiveBrowserCaches } from '@/lib/securityCache';
 import {
     provisionRecentChatHistory,
     requestCurrentDeviceTrust,
@@ -45,7 +46,7 @@ interface AccountSession {
 }
 
 export function TrustedEncryptionDevicesPanel() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const { dispatch } = useGlobal();
     const router = useRouter();
     const pathname = usePathname();
@@ -127,6 +128,11 @@ export function TrustedEncryptionDevicesPanel() {
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: `e2ee-device-revoke-${device.id}` });
             await api.e2ee.revokeDevice(device.id, token);
+            await clearSensitiveBrowserCaches({
+                userId: user?.id,
+                clientDeviceId: device.clientDeviceId,
+                removeTrustedDeviceKeys: device.clientDeviceId === currentClientDeviceId,
+            });
             setTrustedDeviceToRemove(null);
             await fetchSecurityDevices();
         } catch (error) {
@@ -191,6 +197,10 @@ export function TrustedEncryptionDevicesPanel() {
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: `revoke-session-${session.id}` });
             await api.auth.revokeSession(session.id, token);
+            await clearSensitiveBrowserCaches({
+                userId: user?.id,
+                clientDeviceId: currentClientDeviceId,
+            });
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Session revoked successfully', type: 'success' } });
             await fetchSecurityDevices();
         } catch (error) {
@@ -212,6 +222,10 @@ export function TrustedEncryptionDevicesPanel() {
         try {
             dispatch({ type: 'UI_START_PROCESSING', payload: 'revoke-all-sessions' });
             await api.auth.revokeAllSessions(token);
+            await clearSensitiveBrowserCaches({
+                userId: user?.id,
+                clientDeviceId: currentClientDeviceId,
+            });
             dispatch({ type: 'TOAST_ADD', payload: { message: 'All other sessions revoked successfully', type: 'success' } });
             await fetchSecurityDevices();
         } catch (error) {

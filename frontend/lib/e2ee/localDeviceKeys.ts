@@ -1,4 +1,4 @@
-import { get, set } from 'idb-keyval';
+import { del, get, set } from 'idb-keyval';
 import { getDeviceId } from '@/lib/deviceUtils';
 
 const PRIVATE_KEY_STORE_PREFIX = 'e2ee:trusted-device';
@@ -56,4 +56,9 @@ export async function getLegacyLocalTrustedDeviceKeys(clientDeviceId = getDevice
 
 export async function saveLocalTrustedDeviceKeys(userId: string, keys: LocalTrustedDeviceKeys) {
     await set(privateKeyStoreKey(userId, keys.clientDeviceId), { ...keys, userId });
+}
+
+export async function removeLocalTrustedDeviceKeys(userId: string | null | undefined, clientDeviceId: string | null | undefined) {
+    if (!userId || !clientDeviceId) return;
+    await del(privateKeyStoreKey(userId, clientDeviceId));
 }

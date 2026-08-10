@@ -13,6 +13,10 @@ type TrustedDeviceCacheEntry = {
 const trustedDeviceCache = new Map<string, TrustedDeviceCacheEntry>();
 const TRUSTED_DEVICE_CACHE_TTL_MS = 60_000;
 
+export function clearTrustedDeviceMemoryCache() {
+    trustedDeviceCache.clear();
+}
+
 export type CurrentDeviceTrustState = {
     clientDeviceId: string | null;
     data: TrustedDevicesResponse;

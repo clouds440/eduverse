@@ -32,6 +32,11 @@ const ENCRYPTED_MAIL_SUBJECT_PLACEHOLDER = 'Encrypted mail';
 const ENCRYPTED_MAIL_MESSAGE_PLACEHOLDER = '[Encrypted mail message]';
 const DECRYPTED_MAIL_CACHE_PREFIX = 'eduverse:e2ee:mail-content:v1';
 const decryptedMailContentCache = new Map<string, Promise<string>>();
+export const DECRYPTED_MAIL_CONTENT_CACHE_PREFIX = DECRYPTED_MAIL_CACHE_PREFIX;
+
+export function clearDecryptedMailContentMemoryCache() {
+    decryptedMailContentCache.clear();
+}
 
 function getDecryptedMailContentCacheKey(
     encryptedContent: EncryptedMailContent,

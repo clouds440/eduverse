@@ -59,6 +59,7 @@ const RECIPIENT_DEVICE_CACHE_TTL_MS = 30_000;
 const HISTORY_KEY_CACHE_TTL_MS = 5 * 60_000;
 const DECRYPTED_CHAT_CACHE_PREFIX = 'eduverse:e2ee:chat-message:v1';
 const MAX_DECRYPTED_CHAT_MEMORY_ENTRIES = 250;
+export const DECRYPTED_CHAT_MESSAGE_CACHE_PREFIX = DECRYPTED_CHAT_CACHE_PREFIX;
 
 export interface PrepareEncryptedChatMessageOptions {
     chat: Chat;
@@ -140,6 +141,13 @@ function rememberDecryptedChatMessage(cacheKey: string, plaintext: string) {
         if (oldestKey) decryptedChatMessageValueCache.delete(oldestKey);
     }
     decryptedChatMessageValueCache.set(cacheKey, plaintext);
+}
+
+export function clearDecryptedChatMessageMemoryCache() {
+    recipientDeviceCache.clear();
+    chatHistoryKeyCache.clear();
+    decryptedChatMessageCache.clear();
+    decryptedChatMessageValueCache.clear();
 }
 
 async function getRecipientDevices(userIds: string[], token: string) {

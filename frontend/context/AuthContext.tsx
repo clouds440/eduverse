@@ -6,13 +6,14 @@ import { api, setUnauthorizedHandler } from '@/lib/api';
 import { Role } from '@/types';
 import { useGlobal, JwtPayload } from './GlobalContext';
 import { PLATFORM_NAME, DASHBOARD_MODULES } from '@/lib/constants';
-import { clearChatSession } from '@/lib/chatStore';
 import { disconnectSocket } from '@/hooks/useSocket';
 import { Loading } from '@/components/ui/Loading';
 import { decodeAuthToken } from '@/lib/authSession';
 import { unsubscribeCurrentWebPushSubscription } from '@/lib/webPush';
 import { getRoleDashboardPath, getRoleLabel } from '@/lib/roles';
 import { THEME_PRIMARY_STORAGE_KEY } from '@/lib/themeColor';
+import { clearSensitiveBrowserCaches } from '@/lib/securityCache';
+import { getDeviceId } from '@/lib/deviceUtils';
 
 export type { JwtPayload };
 
@@ -40,12 +41,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         localStorage.removeItem('themeMode');
         localStorage.removeItem(THEME_PRIMARY_STORAGE_KEY);
-        clearChatSession();
+        await clearSensitiveBrowserCaches({
+            userId: user?.id,
+            clientDeviceId: getDeviceId(),
+        });
         disconnectSocket();
         dispatch({ type: 'AUTH_LOGOUT' });
         router.replace('/login');
         api.auth.logout(currentToken || undefined).catch(() => { });
-    }, [token, router, dispatch]);
+    }, [token, user?.id, router, dispatch]);
 
     const processToken = React.useCallback((t: string) => {
         try {
@@ -69,7 +73,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Only trigger if the failure was for our actual current in-memory token
             // This prevents race conditions when switching accounts
             if (token && (!failedToken || failedToken === token)) {
-                clearChatSession();
+                void clearSensitiveBrowserCaches({
+                    userId: user?.id,
+                    clientDeviceId: getDeviceId(),
+                });
                 disconnectSocket();
                 localStorage.removeItem('themeMode');
                 localStorage.removeItem(THEME_PRIMARY_STORAGE_KEY);
@@ -78,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 router.replace('/login');
             }
         });
-    }, [dispatch, router, token]);
+    }, [dispatch, router, token, user?.id]);
 
     useEffect(() => {
         if (!loading) {
