@@ -29,13 +29,26 @@ function sourceFiles(root) {
 }
 
 const schema = fs.readFileSync(schemaPath, 'utf8');
+const removedModels = [
+  'ProgramAcademicCycle',
+  'StudentProgramEnrollmentCycle',
+  'StudentStageAttempt',
+  'CohortMembershipHistory',
+];
 const removedModelFields = [
   ['AcademicCycle', 'isActive'],
   ['Cohort', 'isActive'],
+  ['Program', 'requiredCycleCount'],
   ['Student', 'major'],
   ['Student', 'department'],
 ];
 const failures = [];
+
+for (const model of removedModels) {
+  if (new RegExp(`model\\s+${model}\\s*\\{`).test(schema)) {
+    failures.push(`prisma/schema.prisma: removed model ${model} still exists`);
+  }
+}
 
 for (const [model, field] of removedModelFields) {
   const body = modelBody(schema, model);
@@ -70,6 +83,7 @@ if (failures.length) {
 
 console.log(JSON.stringify({
   passed: true,
+  checkedRemovedModels: removedModels,
   checkedModelFields: removedModelFields.map(([model, field]) => `${model}.${field}`),
   checkedSourceFiles: sourceFiles(path.join(backendRoot, 'src')).length + sourceFiles(path.join(repositoryRoot, 'frontend')).length,
 }, null, 2));

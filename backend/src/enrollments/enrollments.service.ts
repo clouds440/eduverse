@@ -41,7 +41,8 @@ const ENROLLMENT_INCLUDE = {
     include: {
       course: { include: { department: true } },
       academicCycle: true,
-      cohort: true,
+      cohortOfferingSections: { include: { cohortOffering: { include: { cohort: true } } } },
+      programMappings: true,
       defaultRoom: true,
       schedules: true,
       _count: { select: { enrollments: true } },
@@ -76,8 +77,7 @@ export class EnrollmentsService {
         where: { id: sectionId, organizationId: orgId },
         include: {
           course: true,
-          cohort: true,
-          requirementMappings: { include: { stageCourseRequirement: true } },
+          programMappings: { include: { stageCourseRequirement: true } },
           defaultRoom: true,
           schedules: true,
           _count: { select: { enrollments: true } },
@@ -139,7 +139,7 @@ export class EnrollmentsService {
 
     const warnings = this.enrollmentWarnings(section);
     const enrollment = await this.prisma.$transaction(async (tx) => {
-      const programContext = section.programClassificationStatus === 'PROGRAM_MAPPED'
+      const programContext = section.programMappings.length
         ? await this.studentPrograms.ensureMappedSectionEnrollment(tx, orgId, dto.studentId, section, actor.id)
         : null;
       const created = await tx.enrollment.create({
@@ -149,7 +149,7 @@ export class EnrollmentsService {
           academicCycleId: section.academicCycleId,
           source: EnrollmentSource.MANUAL,
           studentProgramEnrollmentId: programContext?.enrollment.id,
-          studentStageAttemptId: programContext?.attempt.id,
+          studentStageEnrollmentId: programContext?.stageEnrollment.id,
         },
         include: ENROLLMENT_INCLUDE,
       });
@@ -160,7 +160,7 @@ export class EnrollmentsService {
           academicCycleId: section.academicCycleId,
           source: EnrollmentSource.MANUAL,
           studentProgramEnrollmentId: programContext?.enrollment.id,
-          studentStageAttemptId: programContext?.attempt.id,
+          studentStageEnrollmentId: programContext?.stageEnrollment.id,
         },
       });
       return created;
@@ -226,10 +226,10 @@ export class EnrollmentsService {
     return { withdrawn, enrolled, warnings: [...withdrawn.warnings, ...enrolled.warnings] };
   }
 
-  async withdrawCohort(orgId: string, studentId: string, cohortId: string, actor: CurrentUser) {
+  async withdrawCohort(orgId: string, studentId: string, cohortOfferingId: string, actor: CurrentUser) {
     this.assertCanWrite(actor);
-    const cohort = await this.prisma.cohort.findFirst({
-      where: { id: cohortId, organizationId: orgId },
+    const cohort = await this.prisma.cohortOffering.findFirst({
+      where: { id: cohortOfferingId, organizationId: orgId },
       select: { id: true, academicCycleId: true },
     });
     if (!cohort) throw new NotFoundException('Cohort not found');
@@ -238,7 +238,8 @@ export class EnrollmentsService {
       where: {
         studentId,
         source: EnrollmentSource.COHORT,
-        section: { cohortId, organizationId: orgId },
+        studentCohortMembership: { cohortOfferingId },
+        section: { organizationId: orgId },
       },
       select: { id: true, sectionId: true },
     });
@@ -253,7 +254,10 @@ export class EnrollmentsService {
         data: { removedAt: new Date() },
       });
       await tx.enrollment.deleteMany({ where: { id: { in: enrollments.map((enrollment) => enrollment.id) } } });
-      await tx.student.update({ where: { id: studentId }, data: { cohortId: null } });
+      await tx.studentCohortMembership.updateMany({
+        where: { studentId, cohortOfferingId, leftAt: null },
+        data: { leftAt: new Date(), leftById: actor.id },
+      });
     });
     return { count: enrollments.length };
   }

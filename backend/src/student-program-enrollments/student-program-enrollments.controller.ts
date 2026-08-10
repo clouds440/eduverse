@@ -6,11 +6,12 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import { Role } from '../common/enums';
 import {
-  ActivateProgramCycleDto,
+  ActivateProgramStageDto,
+  AdvanceProgramStageDto,
   AdmitStudentProgramDto,
   ProgramEnrollmentReasonDto,
-  RepeatProgramCycleDto,
-  ResolveProgramCycleDto,
+  RepeatProgramStageDto,
+  ResolveProgramStageDto,
   TransferStudentProgramDto,
   WithdrawStudentProgramDto,
 } from './dto/student-program-enrollment.dto';
@@ -41,18 +42,25 @@ export class StudentProgramEnrollmentsController {
     return this.service.transfer(orgId, studentId, dto, req.user);
   }
 
+  @Access(AccessLevel.READ)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Get(':enrollmentId/progression-preview')
+  progressionPreview(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Req() req: AuthenticatedRequest) {
+    return this.service.progressionPreview(orgId, studentId, enrollmentId, req.user);
+  }
+
   @Access(AccessLevel.WRITE)
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Post(':enrollmentId/hold')
   hold(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Body() dto: ProgramEnrollmentReasonDto, @Req() req: AuthenticatedRequest) {
-    return this.service.hold(orgId, studentId, enrollmentId, dto.reason, req.user.id);
+    return this.service.hold(orgId, studentId, enrollmentId, dto.reason, req.user);
   }
 
   @Access(AccessLevel.WRITE)
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Post(':enrollmentId/resume')
   resume(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Req() req: AuthenticatedRequest) {
-    return this.service.resume(orgId, studentId, enrollmentId, req.user.id);
+    return this.service.resume(orgId, studentId, enrollmentId, req.user);
   }
 
   @Access(AccessLevel.WRITE)
@@ -64,36 +72,50 @@ export class StudentProgramEnrollmentsController {
 
   @Access(AccessLevel.WRITE)
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
-  @Post(':enrollmentId/cycles/activate')
-  activateCycle(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Body() dto: ActivateProgramCycleDto, @Req() req: AuthenticatedRequest) {
-    return this.service.activateCycle(orgId, studentId, enrollmentId, dto, req.user.id);
+  @Post(':enrollmentId/stages/activate')
+  activateStage(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Body() dto: ActivateProgramStageDto, @Req() req: AuthenticatedRequest) {
+    return this.service.activateStage(orgId, studentId, enrollmentId, dto, req.user);
   }
 
   @Access(AccessLevel.WRITE)
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
-  @Post(':enrollmentId/cycles/:cycleId/complete')
-  completeCycle(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Param('cycleId') cycleId: string, @Body() dto: ResolveProgramCycleDto, @Req() req: AuthenticatedRequest) {
-    return this.service.completeCycle(orgId, studentId, enrollmentId, cycleId, dto, req.user.id);
+  @Post(':enrollmentId/stages/:stageEnrollmentId/complete')
+  completeStage(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Param('stageEnrollmentId') stageEnrollmentId: string, @Body() dto: ResolveProgramStageDto, @Req() req: AuthenticatedRequest) {
+    return this.service.completeStage(orgId, studentId, enrollmentId, stageEnrollmentId, dto, req.user);
   }
 
   @Access(AccessLevel.WRITE)
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
-  @Post(':enrollmentId/cycles/:cycleId/skip')
-  skipCycle(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Param('cycleId') cycleId: string, @Body() dto: ResolveProgramCycleDto, @Req() req: AuthenticatedRequest) {
-    return this.service.skipCycle(orgId, studentId, enrollmentId, cycleId, dto, req.user.id);
+  @Post(':enrollmentId/stages/:stageEnrollmentId/advance')
+  advanceStage(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Param('stageEnrollmentId') stageEnrollmentId: string, @Body() dto: AdvanceProgramStageDto, @Req() req: AuthenticatedRequest) {
+    return this.service.advanceStage(orgId, studentId, enrollmentId, stageEnrollmentId, dto, req.user);
   }
 
   @Access(AccessLevel.WRITE)
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
-  @Post(':enrollmentId/cycles/:cycleId/repeat')
-  repeatCycle(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Param('cycleId') cycleId: string, @Body() dto: RepeatProgramCycleDto, @Req() req: AuthenticatedRequest) {
-    return this.service.repeatCycle(orgId, studentId, enrollmentId, cycleId, dto, req.user.id);
+  @Post(':enrollmentId/stages/:stageEnrollmentId/complete-program')
+  completeStageAndProgram(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Param('stageEnrollmentId') stageEnrollmentId: string, @Body() dto: ResolveProgramStageDto, @Req() req: AuthenticatedRequest) {
+    return this.service.completeStageAndProgram(orgId, studentId, enrollmentId, stageEnrollmentId, dto, req.user);
+  }
+
+  @Access(AccessLevel.WRITE)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Post(':enrollmentId/stages/:stageEnrollmentId/skip')
+  skipStage(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Param('stageEnrollmentId') stageEnrollmentId: string, @Body() dto: ResolveProgramStageDto, @Req() req: AuthenticatedRequest) {
+    return this.service.skipStage(orgId, studentId, enrollmentId, stageEnrollmentId, dto, req.user);
+  }
+
+  @Access(AccessLevel.WRITE)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Post(':enrollmentId/stages/:stageEnrollmentId/repeat')
+  repeatStage(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Param('stageEnrollmentId') stageEnrollmentId: string, @Body() dto: RepeatProgramStageDto, @Req() req: AuthenticatedRequest) {
+    return this.service.repeatStage(orgId, studentId, enrollmentId, stageEnrollmentId, dto, req.user);
   }
 
   @Access(AccessLevel.WRITE)
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Post(':enrollmentId/complete')
-  completeProgram(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Body() dto: ResolveProgramCycleDto, @Req() req: AuthenticatedRequest) {
-    return this.service.completeProgram(orgId, studentId, enrollmentId, dto, req.user.id);
+  completeProgram(@OrgId() orgId: string, @Param('studentId') studentId: string, @Param('enrollmentId') enrollmentId: string, @Body() dto: ResolveProgramStageDto, @Req() req: AuthenticatedRequest) {
+    return this.service.completeProgram(orgId, studentId, enrollmentId, dto, req.user);
   }
 }

@@ -20,6 +20,7 @@ import {
   Network,
   Settings,
   ListChecks,
+  GitBranch,
   Trophy,
   Users,
   Wallet,
@@ -230,6 +231,13 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     label: "Reassignment",
     href: "/reassignment",
     icon: ArrowRightCircle,
+    roles: ADMIN_ROLES,
+  },
+  {
+    id: "PROGRESSION",
+    label: "Progression",
+    href: "/progression",
+    icon: GitBranch,
     roles: ADMIN_ROLES,
   },
   {

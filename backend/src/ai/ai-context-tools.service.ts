@@ -109,6 +109,9 @@ export class AIContextToolsService implements OnModuleInit {
     }
     if (include.has('academic')) {
       addOnce('getAcademicPerformanceProfile', { search, limit: 8 });
+      if (context.role === 'STUDENT' || context.role === 'GUARDIAN' || hasAny(search, ['program', 'major', 'curriculum', 'stage', 'graduat', 'degree'])) {
+        addOnce('getProgramContext', { search, limit: 8 });
+      }
       if (hasAny(search, ['deadline', 'assignment', 'quiz', 'exam', 'due', 'study plan'])) {
         addOnce('getPendingDeadlines', { search, days: 21, limit: 8 });
       }
@@ -136,13 +139,15 @@ export class AIContextToolsService implements OnModuleInit {
       addOnce('getScheduleContext', { ...shared, includeLoad: true, includeBottlenecks: true });
       addOnce('getAcademicPerformanceProfile', { search, limit: input.limit ?? 8, targetType: academicTargetForRole(context.role) });
       addOnce('getPendingDeadlines', { search, days: 21, limit: input.limit ?? 8 });
+      addOnce('getProgramContext', { search, limit: input.limit ?? 8 });
       if (context.role !== 'STUDENT' && context.role !== 'GUARDIAN') {
         addOnce('getPendingGrading', { search, limit: input.limit ?? 8 });
         addOnce('getStudentsNeedingAttention', { search, limit: input.limit ?? 8 });
       }
     }
     if (include.has('enrollment')) {
-      addOnce('resolveEduVerseEntities', { search, entities: input.entities?.length ? input.entities : ['student', 'course', 'section', 'academicCycle', 'cohort'], limit: input.limit ?? 8 });
+      addOnce('resolveEduVerseEntities', { search, entities: input.entities?.length ? input.entities : ['student', 'program', 'course', 'section', 'academicCycle', 'cohort'], limit: input.limit ?? 8 });
+      addOnce('getProgramContext', { search, limit: input.limit ?? 8 });
       addOnce('getAcademicPerformanceProfile', { search, limit: input.limit ?? 8, targetType: 'student' });
       addOnce('getScheduleContext', { search, limit: input.limit ?? 12, includeLoad: true });
       addOnce('listSections', { search, limit: input.limit ?? 8 });
@@ -279,8 +284,11 @@ export class AIContextToolsService implements OnModuleInit {
       { name: 'getScheduleContext', input: { search, limit: input.limit ?? 12, includeLoad: true } },
     ];
 
-    if (entities.some((entity) => ['student', 'teacher', 'course', 'section', 'department'].includes(entity))) {
+    if (entities.some((entity) => ['student', 'teacher', 'program', 'course', 'section', 'department'].includes(entity))) {
       requests.push({ name: 'getAcademicPerformanceProfile', input: { search, limit: input.limit ?? 8 } });
+    }
+    if (entities.includes('program')) {
+      requests.push({ name: 'getProgramContext', input: { search, limit: input.limit ?? 8 } });
     }
 
     const results = await this.toolRegistry.runTools(requests, context);
@@ -351,7 +359,8 @@ export class AIContextToolsService implements OnModuleInit {
   ): Promise<AIToolResult<unknown>> {
     const search = input.search ?? '';
     const requests: Array<{ name: string; input?: Record<string, unknown> }> = [
-      { name: 'resolveEduVerseEntities', input: { search, entities: input.entities?.length ? input.entities : ['student', 'course', 'section', 'academicCycle', 'cohort'], limit: input.limit ?? 8 } },
+      { name: 'resolveEduVerseEntities', input: { search, entities: input.entities?.length ? input.entities : ['student', 'program', 'course', 'section', 'academicCycle', 'cohort'], limit: input.limit ?? 8 } },
+      { name: 'getProgramContext', input: { search, limit: input.limit ?? 8 } },
       { name: 'getAcademicPerformanceProfile', input: { search, limit: input.limit ?? 8, targetType: 'student' } },
       { name: 'getScheduleContext', input: { search, limit: input.limit ?? 12, includeLoad: true } },
       { name: 'listSections', input: { search, limit: input.limit ?? 8 } },
@@ -465,8 +474,9 @@ function inferEntityKinds(search: string) {
   if (hasAny(value, ['cohort', 'batch'])) add('cohort');
   if (hasAny(value, ['semester', 'academic cycle', 'term', 'summer', 'fall', 'spring'])) add('academicCycle');
   if (hasAny(value, ['department', 'dept'])) add('department');
+  if (hasAny(value, ['program', 'major', 'curriculum', 'stage', 'degree', 'graduat'])) add('program');
   if (hasAny(value, ['room', 'building', 'lab', 'campus'])) add('room');
-  return entities.length ? entities : ['student', 'teacher', 'course', 'section', 'academicCycle', 'department'];
+  return entities.length ? entities : ['student', 'teacher', 'program', 'course', 'section', 'academicCycle', 'department'];
 }
 
 function academicTargetForRole(role?: string | null) {

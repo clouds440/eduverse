@@ -614,14 +614,19 @@ export class ImportsService {
     const limit = MAX_IMPORT_ROWS;
     switch (entity) {
       case 'students': {
-        const [departments, sections, cohorts, programStages] = await Promise.all([
+        const [departments, sections, cohortOfferings, programStages] = await Promise.all([
           this.prisma.department.findMany({ where: { organizationId: orgId, isActive: true }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
           this.prisma.section.findMany({ where: { organizationId: orgId }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
-          this.prisma.cohort.findMany({ where: { organizationId: orgId, status: 'ACTIVE' }, select: { code: true }, orderBy: { code: 'asc' }, take: limit }),
+          this.prisma.cohortOffering.findMany({
+            where: { organizationId: orgId, cohort: { status: 'ACTIVE' } },
+            select: { cohort: { select: { code: true } }, academicCycle: { select: { code: true } } },
+            orderBy: [{ academicCycle: { startDate: 'desc' } }, { cohort: { code: 'asc' } }],
+            take: limit,
+          }),
           this.getImportProgramStages(orgId, true),
         ]);
         const departmentCode = departments[0]?.code || '';
-        return this.repeatStructureRows(Math.max(sections.length, cohorts.length, departments.length, 1), (index) => ({
+        return this.repeatStructureRows(Math.max(sections.length, cohortOfferings.length, departments.length, 1), (index) => ({
           name: '',
           email: '',
           password: 'Student123',
@@ -640,11 +645,11 @@ export class ImportsService {
           primaryDepartmentCode: departments[index]?.code || departmentCode,
           departmentCodes: departments[index]?.code || '',
           sectionCodes: sections[index]?.code || '',
-          cohortCode: cohorts[index]?.code || '',
+          cohortCode: cohortOfferings[index]?.cohort.code || '',
+          cohortAcademicCycleCode: cohortOfferings[index]?.academicCycle.code || '',
           programClassificationStatus: programStages[index] ? ProgramClassificationStatus.PROGRAM_MAPPED : ProgramClassificationStatus.STANDALONE,
           programCode: programStages[index]?.programCode || '',
           curriculumCode: programStages[index]?.curriculumCode || '',
-          entryAcademicCycleCode: programStages[index]?.academicCycleCode || '',
           stageCode: programStages[index]?.stageCode || '',
         }));
       }
@@ -832,22 +837,22 @@ export class ImportsService {
     const stages = await this.prisma.programStage.findMany({
       where: {
         organizationId: orgId,
-        programAcademicCycle: {
-          status: 'ACTIVE',
-          program: { status: admissionsOnly ? 'ACTIVE' : { in: ['ACTIVE', 'TEACH_OUT'] } },
-        },
         curriculumVersion: {
           status: 'ACTIVE',
           isDefaultForAdmissions: true,
+          program: { status: admissionsOnly ? 'ACTIVE' : { in: ['ACTIVE', 'TEACH_OUT'] } },
         },
+        ...(!admissionsOnly ? { offerings: { some: { status: 'OPEN' } } } : {}),
       },
       select: {
         code: true,
         curriculumVersion: {
           select: { code: true, program: { select: { code: true } } },
         },
-        programAcademicCycle: {
-          select: { academicCycle: { select: { code: true } } },
+        offerings: {
+          where: { status: 'OPEN' },
+          take: 1,
+          select: { programOffering: { select: { academicCycle: { select: { code: true } } } } },
         },
       },
       orderBy: [{ curriculumVersion: { program: { code: 'asc' } } }, { sequence: 'asc' }],
@@ -856,7 +861,7 @@ export class ImportsService {
     return stages.map((stage) => ({
       programCode: stage.curriculumVersion.program.code,
       curriculumCode: stage.curriculumVersion.code,
-      academicCycleCode: stage.programAcademicCycle.academicCycle.code,
+      academicCycleCode: stage.offerings[0]?.programOffering.academicCycle.code || '',
       stageCode: stage.code,
     }));
   }
@@ -866,7 +871,6 @@ export class ImportsService {
     data: Record<string, unknown>,
     options: {
       academicCycleId?: string;
-      academicCycleField?: 'entryAcademicCycleCode';
       courseId?: string;
       requireAdmissionEligible?: boolean;
     },
@@ -875,16 +879,13 @@ export class ImportsService {
     const programCode = data.programCode as string | undefined;
     const curriculumCode = data.curriculumCode as string | undefined;
     const stageCode = data.stageCode as string | undefined;
-    const entryAcademicCycleCode = options.academicCycleField
-      ? data[options.academicCycleField] as string | undefined
-      : undefined;
-    const hasProgramColumns = Boolean(programCode || curriculumCode || stageCode || entryAcademicCycleCode);
+    const hasProgramColumns = Boolean(programCode || curriculumCode || stageCode);
 
     if (classification === ProgramClassificationStatus.STANDALONE) {
       if (hasProgramColumns) {
         throw new BadRequestException({
           field: 'programClassificationStatus',
-          message: 'Standalone rows must leave program, curriculum, cycle, and stage columns blank',
+        message: 'Standalone rows must leave program, curriculum, and stage columns blank',
         });
       }
       return {};
@@ -898,42 +899,36 @@ export class ImportsService {
         message: 'Program-mapped rows require programCode, curriculumCode, and stageCode',
       });
     }
-    if (options.academicCycleField && !entryAcademicCycleCode) {
-      throw new BadRequestException({ field: options.academicCycleField, message: 'Program-mapped student rows require an entry academic cycle' });
-    }
-
-    const academicCycleId = options.academicCycleId
-      || await this.resolveAcademicCycleId(orgId, entryAcademicCycleCode, options.academicCycleField);
+    const academicCycleId = options.academicCycleId;
     const stage = await this.prisma.programStage.findFirst({
       where: {
         organizationId: orgId,
         code: { equals: stageCode, mode: Prisma.QueryMode.insensitive },
-        programAcademicCycle: {
-          organizationId: orgId,
-          academicCycleId,
+        curriculumVersion: {
+          code: { equals: curriculumCode, mode: Prisma.QueryMode.insensitive },
           status: 'ACTIVE',
+          isDefaultForAdmissions: true,
           program: {
             code: { equals: programCode, mode: Prisma.QueryMode.insensitive },
             status: options.requireAdmissionEligible ? 'ACTIVE' : { in: ['ACTIVE', 'TEACH_OUT'] },
           },
         },
-        curriculumVersion: {
-          code: { equals: curriculumCode, mode: Prisma.QueryMode.insensitive },
-          status: 'ACTIVE',
-          isDefaultForAdmissions: true,
-        },
+        ...(!options.requireAdmissionEligible
+          ? { offerings: { some: { status: 'OPEN', programOffering: { academicCycleId } } } }
+          : {}),
       },
       select: {
         id: true,
         sequence: true,
-        programAcademicCycleId: true,
         curriculumVersion: {
           select: {
             programConfigurationRevision: { select: { version: true } },
             program: { select: { id: true, configurationVersion: true } },
           },
         },
-        programAcademicCycle: { select: { academicCycleId: true } },
+        offerings: academicCycleId
+          ? { where: { status: 'OPEN', programOffering: { academicCycleId } }, select: { id: true } }
+          : false,
         courseRequirements: options.courseId
           ? { where: { courseId: options.courseId }, select: { id: true } }
           : false,
@@ -942,7 +937,7 @@ export class ImportsService {
     if (!stage) {
       throw new BadRequestException({
         field: 'stageCode',
-        message: 'Program, curriculum, cycle, and stage do not form an active mapping',
+        message: 'Program, curriculum, and stage do not form an active mapping for the selected cycle',
       });
     }
     if (stage.curriculumVersion.programConfigurationRevision.version !== stage.curriculumVersion.program.configurationVersion) {
@@ -953,18 +948,23 @@ export class ImportsService {
       if (requirementIds.length === 0) {
         throw new BadRequestException({ field: 'courseCode', message: 'Course is not a requirement of the selected program stage' });
       }
-      return { stageCourseRequirementIds: requirementIds };
+      const programStageOfferingId = stage.offerings?.[0]?.id;
+      if (!programStageOfferingId) throw new BadRequestException({ field: 'stageCode', message: 'Stage is not offered in the selected academic cycle' });
+      return {
+        programMappings: requirementIds.map((stageCourseRequirementId) => ({
+          programStageOfferingId,
+          stageCourseRequirementId,
+        })),
+      };
     }
     if (options.requireAdmissionEligible) {
       return {
         programId: stage.curriculumVersion.program.id,
-        entryAcademicCycleId: stage.programAcademicCycle.academicCycleId,
-        entryStageSequence: stage.sequence,
+        entryStageId: stage.id,
       };
     }
     return {
-      programAcademicCycleId: stage.programAcademicCycleId,
-      programStageId: stage.id,
+      programStageOfferingId: stage.offerings?.[0]?.id,
     };
   }
 
@@ -972,7 +972,7 @@ export class ImportsService {
     const configs: Record<ImportEntity, EntityConfig<Record<string, unknown>>> = {
       students: {
         entity: 'students',
-        headers: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'gender', 'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate', 'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes', 'sectionCodes', 'cohortCode', 'programClassificationStatus', 'programCode', 'curriculumCode', 'entryAcademicCycleCode', 'stageCode'],
+        headers: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'gender', 'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate', 'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes', 'sectionCodes', 'cohortCode', 'cohortAcademicCycleCode', 'programClassificationStatus', 'programCode', 'curriculumCode', 'stageCode'],
         required: ['name', 'email', 'password', 'registrationNumber', 'rollNumber', 'gender'],
         dto: CreateStudentDto,
         examples: [{
@@ -995,10 +995,10 @@ export class ImportsService {
           departmentCodes: '',
           sectionCodes: '',
           cohortCode: '',
+          cohortAcademicCycleCode: '',
           programClassificationStatus: 'STANDALONE',
           programCode: '',
           curriculumCode: '',
-          entryAcademicCycleCode: '',
           stageCode: '',
         }],
         normalize: (row) => ({
@@ -1021,10 +1021,10 @@ export class ImportsService {
           departmentCodes: splitIds(row.departmentCodes),
           sectionCodes: splitIds(row.sectionCodes),
           cohortCode: this.normalizeCode(row.cohortCode),
+          cohortAcademicCycleCode: this.normalizeCode(row.cohortAcademicCycleCode),
           programClassificationStatus: optionalEnum(row.programClassificationStatus, Object.values(ProgramClassificationStatus), 'programClassificationStatus') || ProgramClassificationStatus.STANDALONE,
           programCode: this.normalizeCode(row.programCode),
           curriculumCode: this.normalizeCode(row.curriculumCode),
-          entryAcademicCycleCode: this.normalizeCode(row.entryAcademicCycleCode),
           stageCode: this.normalizeCode(row.stageCode),
         }),
         create: async (orgId, data, actor) => {
@@ -1042,7 +1042,7 @@ export class ImportsService {
             });
           }
           if (data.cohortId) {
-            await this.cohorts.addStudentToCohort(orgId, data.cohortId as string, student.id, actor.id);
+            await this.cohorts.addStudentToCohort(orgId, data.cohortId as string, student.id, actor);
           }
           return student;
         },
@@ -1052,9 +1052,14 @@ export class ImportsService {
           const resolvedSections = await this.resolveSectionIds(orgId, data.sectionCodes as string[] | undefined, 'sectionCodes', row.rowNumber);
           data.departmentIds = resolvedDepartments.ids;
           data.sectionIds = resolvedSections.ids;
-          data.cohortId = await this.resolveCohortId(orgId, data.cohortCode as string | undefined, 'cohortCode');
+          data.cohortId = await this.resolveCohortOfferingId(
+            orgId,
+            data.cohortCode as string | undefined,
+            undefined,
+            data.cohortAcademicCycleCode as string | undefined,
+            'cohortCode',
+          );
           const programPlacement = await this.resolveImportProgramPlacement(orgId, data, {
-            academicCycleField: 'entryAcademicCycleCode',
             requireAdmissionEligible: true,
           });
           Object.assign(data, programPlacement);
@@ -1062,9 +1067,9 @@ export class ImportsService {
           delete data.departmentCodes;
           delete data.sectionCodes;
           delete data.cohortCode;
+          delete data.cohortAcademicCycleCode;
           delete data.programCode;
           delete data.curriculumCode;
-          delete data.entryAcademicCycleCode;
           delete data.stageCode;
           delete data.programClassificationStatus;
           return [...resolvedDepartments.warnings, ...resolvedSections.warnings];
@@ -1074,7 +1079,7 @@ export class ImportsService {
             data.primaryDepartmentId as string | undefined,
             ...((data.departmentIds as string[] | undefined) || []),
           ]);
-          await this.assertCohortAvailableForEnrollment(orgId, data.cohortId as string | undefined);
+          await this.assertCohortOfferingAvailableForEnrollment(orgId, data.cohortId as string | undefined);
         },
         duplicateKeys: [
           { label: 'Email', value: (data) => data.email as string, existing: (orgId, value) => this.userExists(value) },
@@ -1231,7 +1236,13 @@ export class ImportsService {
           data.courseId = await this.resolveCourseId(orgId, data.courseCode as string | undefined, 'courseCode');
           data.academicCycleId = await this.resolveAcademicCycleId(orgId, data.academicCycleCode as string | undefined, 'academicCycleCode');
           data.defaultRoomId = await this.resolveRoomId(orgId, data.defaultRoomCode as string | undefined, 'defaultRoomCode');
-          data.cohortId = await this.resolveCohortId(orgId, data.cohortCode as string | undefined, 'cohortCode');
+          data.cohortId = await this.resolveCohortOfferingId(
+            orgId,
+            data.cohortCode as string | undefined,
+            data.academicCycleId as string,
+            undefined,
+            'cohortCode',
+          );
           const programPlacement = await this.resolveImportProgramPlacement(orgId, data, {
             academicCycleId: data.academicCycleId as string,
             courseId: data.courseId as string,
@@ -1385,7 +1396,16 @@ export class ImportsService {
           delete data.curriculumCode;
           delete data.stageCode;
         },
-        create: (orgId, data) => this.cohorts.createCohort(orgId, data as unknown as CreateCohortDto),
+        create: async (orgId, data, actor) => {
+          const cohort = await this.cohorts.createCohort(orgId, {
+            name: data.name as string,
+            code: data.code as string,
+          });
+          return this.cohorts.createOffering(orgId, cohort.id, {
+            academicCycleId: data.academicCycleId as string,
+            programStageOfferingId: data.programStageOfferingId as string | undefined,
+          }, actor);
+        },
         validateRelations: async (orgId, data) => this.assertAcademicCycleExists(orgId, data.academicCycleId as string | undefined),
         duplicateKeys: [
           { label: 'Cohort name', value: (data) => data.name as string, existing: (orgId, value) => this.cohortNameExists(orgId, value) },
@@ -1908,6 +1928,33 @@ export class ImportsService {
     return cohort.id;
   }
 
+  private async resolveCohortOfferingId(
+    orgId: string,
+    codeOrId?: string,
+    academicCycleId?: string,
+    academicCycleCode?: string,
+    field = 'cohortCode',
+  ) {
+    const value = this.normalizeCode(codeOrId);
+    if (!value) return undefined;
+    const cycleId = academicCycleId || await this.resolveAcademicCycleId(orgId, academicCycleCode, 'cohortAcademicCycleCode');
+    const offering = await this.prisma.cohortOffering.findFirst({
+      where: {
+        organizationId: orgId,
+        academicCycleId: cycleId,
+        status: { in: ['PLANNED', 'ACTIVE'] },
+        cohort: { status: 'ACTIVE' },
+        OR: [
+          { id: codeOrId?.trim() },
+          { cohort: { code: { equals: value, mode: Prisma.QueryMode.insensitive } } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!offering) throw new BadRequestException({ field, message: `Cohort offering "${value}" was not found in the selected cycle` });
+    return offering.id;
+  }
+
   private async resolveSectionId(orgId: string, codeOrId?: string, field = 'sectionCode') {
     const value = this.normalizeCode(codeOrId);
     if (!value) return undefined;
@@ -2119,14 +2166,16 @@ export class ImportsService {
     if (!exists) throw new BadRequestException('Academic cycle does not belong to this organization');
   }
 
-  private async assertCohortAvailableForEnrollment(orgId: string, cohortId?: string) {
-    if (!cohortId) return;
-    const cohort = await this.prisma.cohort.findFirst({
-      where: { id: cohortId, organizationId: orgId },
-      select: { id: true, status: true },
+  private async assertCohortOfferingAvailableForEnrollment(orgId: string, cohortOfferingId?: string) {
+    if (!cohortOfferingId) return;
+    const offering = await this.prisma.cohortOffering.findFirst({
+      where: { id: cohortOfferingId, organizationId: orgId },
+      select: { id: true, status: true, cohort: { select: { status: true } } },
     });
-    if (!cohort) throw new BadRequestException('Cohort does not belong to this organization');
-    if (cohort.status !== 'ACTIVE') throw new BadRequestException('Cannot enroll students into a closed cohort');
+    if (!offering) throw new BadRequestException('Cohort offering does not belong to this organization');
+    if (!['PLANNED', 'ACTIVE'].includes(offering.status) || offering.cohort.status !== 'ACTIVE') {
+      throw new BadRequestException('Cannot enroll students into a closed or cancelled cohort offering');
+    }
   }
 
   private async assertSectionRelations(orgId: string, data: Record<string, unknown>) {

@@ -22,12 +22,7 @@ export class CreateStudentDto {
 
   @IsString()
   @IsOptional()
-  entryAcademicCycleId?: string;
-
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  entryStageSequence?: number;
+  entryStageId?: string;
 
   @IsEmail()
   @IsNotEmpty()

@@ -93,7 +93,18 @@ export class PastRecordsService {
       },
       ...(filters.cohortId ? { sourceCohortId: filters.cohortId } : {}),
       ...(filters.classification ? { classificationStatus: filters.classification } : {}),
-      ...(filters.programId ? { programIndexes: { some: { sourceProgramId: filters.programId } } } : {}),
+      ...(filters.programId || filters.programOfferingId || filters.programStageId || filters.programStageOfferingId
+        ? {
+            programIndexes: {
+              some: {
+                sourceProgramId: filters.programId,
+                sourceProgramOfferingId: filters.programOfferingId,
+                sourceProgramStageId: filters.programStageId,
+                sourceProgramStageOfferingId: filters.programStageOfferingId,
+              },
+            },
+          }
+        : {}),
       ...(filters.studentId ? { studentIndexes: { some: { sourceStudentId: filters.studentId } } } : {}),
       ...(filters.search?.trim() ? { normalizedSearchText: { contains: filters.search.trim().toLowerCase() } } : {}),
     };
@@ -288,16 +299,22 @@ export class PastRecordsService {
   async options(orgId: string, filters: PastRecordFiltersDto, actor: Actor) {
     const access = await this.access(orgId, actor);
     const where = this.sectionWhere(orgId, filters, access);
-    const [departments, cohorts, classifications, programs] = await Promise.all([
+    const [departments, cohorts, classifications, programs, offerings, stages, stageOfferings] = await Promise.all([
       this.prisma.academicCycleArchiveSection.findMany({ where: { ...where, sourceDepartmentId: { not: null } }, distinct: ['sourceDepartmentId'], select: { sourceDepartmentId: true, departmentLabel: true } }),
       this.prisma.academicCycleArchiveSection.findMany({ where: { ...where, sourceCohortId: { not: null } }, distinct: ['sourceCohortId'], select: { sourceCohortId: true, cohortLabel: true } }),
       this.prisma.academicCycleArchiveSection.findMany({ where, distinct: ['classificationStatus'], select: { classificationStatus: true } }),
       this.prisma.academicCycleArchiveSectionProgramIndex.findMany({ where: { archiveSection: where }, distinct: ['sourceProgramId'], select: { sourceProgramId: true, programLabel: true, departmentLabel: true } }),
+      this.prisma.academicCycleArchiveSectionProgramIndex.findMany({ where: { archiveSection: where }, distinct: ['sourceProgramOfferingId'], select: { sourceProgramOfferingId: true, programLabel: true, curriculumLabel: true } }),
+      this.prisma.academicCycleArchiveSectionProgramIndex.findMany({ where: { archiveSection: where }, distinct: ['sourceProgramStageId'], select: { sourceProgramStageId: true, sourceProgramId: true, stageLabel: true, programLabel: true } }),
+      this.prisma.academicCycleArchiveSectionProgramIndex.findMany({ where: { archiveSection: where }, distinct: ['sourceProgramStageOfferingId'], select: { sourceProgramStageOfferingId: true, sourceProgramId: true, sourceProgramStageId: true, stageLabel: true, programLabel: true } }),
     ]);
     const unique = <T extends { id: string }>(items: T[]) => [...new Map(items.map((item) => [item.id, item])).values()];
     return {
       departments: unique(departments.map((row) => ({ id: row.sourceDepartmentId!, label: row.departmentLabel || 'Department' }))),
       programs: unique(programs.map((program) => ({ id: program.sourceProgramId, label: program.programLabel, departmentLabel: program.departmentLabel }))),
+      programOfferings: unique(offerings.map((offering) => ({ id: offering.sourceProgramOfferingId, label: `${offering.programLabel} - ${offering.curriculumLabel}` }))),
+      stages: unique(stages.map((stage) => ({ id: stage.sourceProgramStageId, programId: stage.sourceProgramId, label: `${stage.programLabel} - ${stage.stageLabel}` }))),
+      stageOfferings: unique(stageOfferings.map((stage) => ({ id: stage.sourceProgramStageOfferingId, programId: stage.sourceProgramId, programStageId: stage.sourceProgramStageId, label: `${stage.programLabel} - ${stage.stageLabel}` }))),
       cohorts: unique(cohorts.map((row) => ({ id: row.sourceCohortId!, label: row.cohortLabel || 'Cohort' }))),
       classifications: classifications.map((row) => row.classificationStatus),
     };

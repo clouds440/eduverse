@@ -543,8 +543,8 @@ export class AdminInsightsBuilder {
         },
         _sum: { creditUsed: true },
       }),
-      this.prisma.cohortMembershipHistory.count({
-        where: { cohort: { organizationId: orgId }, joinedAt: { gte: from, lte: to } },
+      this.prisma.studentCohortMembership.count({
+        where: { organizationId: orgId, joinedAt: { gte: from, lte: to } },
       }),
     ]);
 

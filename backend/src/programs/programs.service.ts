@@ -9,12 +9,10 @@ import {
   AcademicCycleStatus,
   CurriculumStatus,
   Prisma,
-  ProgramAcademicCycleStatus,
   ProgramStatus,
-  Role,
 } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
-import { GpaService, GpaPolicySnapshot } from '../gpa/gpa.service';
+import { GpaService } from '../gpa/gpa.service';
 import { OrganizationActivityService } from '../activity-logs/organization-activity.service';
 import {
   assertDepartmentInScope,
@@ -31,9 +29,8 @@ import { runSerializableTransaction } from '../common/prisma-transaction';
 import {
   CreateProgramDto,
   ProgramCourseRequirementInputDto,
-  ProgramCycleInputDto,
-  ProgramCycleInputKind,
-  ReplaceProgramCyclesDto,
+  ProgramStageInputDto,
+  ReplaceProgramStructureDto,
   UpdateProgramDto,
 } from './dto/program.dto';
 import {
@@ -46,81 +43,44 @@ import {
 } from './dto/curriculum.dto';
 
 type Actor = DepartmentScopedUser & { id: string };
-
-type StructureInput = {
-  curriculumName: string;
-  curriculumCode: string;
-  stageTerminology?: string;
-  cycles: ProgramCycleInputDto[];
-};
-
-type PreparedCycle = {
-  gpaPolicySnapshot?: GpaPolicySnapshot;
-};
+type Transaction = Prisma.TransactionClient;
 
 const PROGRAM_DETAIL_INCLUDE = {
   department: { select: { id: true, name: true, code: true, isActive: true } },
-  academicCycles: {
-    orderBy: { sequence: 'asc' as const },
-    include: {
-      academicCycle: {
-        select: {
-          id: true,
-          name: true,
-          code: true,
-          startDate: true,
-          endDate: true,
-          status: true,
-        },
-      },
-    },
-  },
-  configurationRevisions: { orderBy: { version: 'desc' as const }, take: 1 },
+  configurationRevisions: { orderBy: { version: 'desc' as const }, take: 5 },
   curriculumVersions: {
     orderBy: { createdAt: 'desc' as const },
     include: {
       stages: {
         orderBy: { sequence: 'asc' as const },
         include: {
-          programAcademicCycle: {
-            include: {
-              academicCycle: {
-                select: { id: true, name: true, code: true, status: true },
-              },
-            },
-          },
           courseRequirements: {
             orderBy: { sortOrder: 'asc' as const },
-            include: {
-              course: {
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                  creditHours: true,
-                  departmentId: true,
-                },
-              },
-            },
+            include: { course: true },
           },
         },
       },
     },
   },
-  _count: {
-    select: {
-      studentEnrollments: true,
-      academicCycles: true,
-      curriculumVersions: true,
+  offerings: {
+    orderBy: { academicCycle: { startDate: 'desc' as const } },
+    include: {
+      academicCycle: true,
+      stageOfferings: {
+        orderBy: { programStage: { sequence: 'asc' as const } },
+        include: { programStage: true },
+      },
     },
   },
+  _count: { select: { studentEnrollments: true, curriculumVersions: true, offerings: true } },
 } satisfies Prisma.ProgramInclude;
 
 @Injectable()
 export class ProgramsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly gpaService: GpaService,
+    // Retained in the module contract; GPA policy is now selected on the institute cycle.
+    private readonly _gpaService: GpaService,
     private readonly activity: OrganizationActivityService,
   ) {}
 
@@ -132,12 +92,9 @@ export class ProgramsService {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
   }
 
-  private async runSerializable<T>(
-    operation: (tx: Prisma.TransactionClient) => Promise<T>,
-  ) {
+  private runSerializable<T>(operation: (tx: Transaction) => Promise<T>) {
     return runSerializableTransaction(this.prisma, operation, {
-      conflictMessage:
-        'Program configuration changed concurrently; refresh and try again',
+      conflictMessage: 'Program configuration changed concurrently; refresh and try again',
     });
   }
 
@@ -160,361 +117,125 @@ export class ProgramsService {
     });
   }
 
-  private async assertDepartment(
-    orgId: string,
-    departmentId: string,
-    actor: Actor,
-  ) {
+  private async assertDepartment(orgId: string, departmentId: string, actor: Actor) {
     const department = await this.prisma.department.findFirst({
       where: { id: departmentId, organizationId: orgId },
       select: { id: true, isActive: true },
     });
     if (!department) throw new NotFoundException('Department not found');
-    if (!department.isActive)
-      throw new ConflictException(
-        'Programs cannot be assigned to an inactive department',
-      );
-    await this.assertProgramWriteScope(orgId, departmentId, actor);
+    if (!department.isActive) throw new ConflictException('Programs cannot be assigned to an inactive department');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(
-      scope,
-      departmentId,
-      'You cannot manage programs outside your department scope',
-    );
+    assertDepartmentInScope(scope, departmentId, 'You cannot manage programs outside your assigned departments');
   }
 
-  private async assertProgramWriteScope(
-    orgId: string,
-    departmentId: string,
-    actor: Actor,
-  ) {
-    if (actor.role !== Role.SUB_ADMIN) return;
-    const assigned = await this.prisma.subAdminDepartment.findFirst({
-      where: {
-        organizationId: orgId,
-        userId: actor.id,
-        departmentId,
-      },
-      select: { id: true },
-    });
-    if (!assigned) {
-      throw new BadRequestException(
-        'You cannot manage programs outside your assigned departments',
-      );
-    }
-  }
-
-  private async assertUnique(
-    orgId: string,
-    nameValue: string,
-    codeValue: string,
-    excludeId?: string,
-  ) {
+  private async assertUnique(orgId: string, nameValue: string, codeValue: string, excludeId?: string) {
     const name = nameValue.trim();
-    const code = normalizeEntityCode(codeValue);
+    const code = normalizeEntityCode(codeValue)!;
     const duplicate = await this.prisma.program.findFirst({
       where: {
         organizationId: orgId,
         id: excludeId ? { not: excludeId } : undefined,
         OR: [
           { name: { equals: name, mode: Prisma.QueryMode.insensitive } },
-          { code: { equals: code!, mode: Prisma.QueryMode.insensitive } },
+          { code: { equals: code, mode: Prisma.QueryMode.insensitive } },
         ],
       },
-      select: { name: true, code: true },
+      select: { name: true },
     });
     if (!duplicate) return;
-    if (duplicate.name.toLowerCase() === name.toLowerCase())
-      throw new ConflictException('Program name already exists');
+    if (duplicate.name.toLowerCase() === name.toLowerCase()) throw new ConflictException('Program name already exists');
     throw new ConflictException('Program code already exists');
   }
 
-  private validateCycleRows(cycles: ProgramCycleInputDto[]) {
-    const existingIds = new Set<string>();
-    const newCodes = new Set<string>();
-    cycles.forEach((cycle, index) => {
-      if (!cycle.stage)
-        throw new BadRequestException(
-          `Cycle row ${index + 1} requires a stage`,
-        );
-      if (cycle.kind === ProgramCycleInputKind.EXISTING) {
-        if (!cycle.academicCycleId)
-          throw new BadRequestException(
-            `Cycle row ${index + 1} must select an existing cycle`,
-          );
-        if (existingIds.has(cycle.academicCycleId))
-          throw new ConflictException(
-            `Cycle row ${index + 1} duplicates an existing selection`,
-          );
-        existingIds.add(cycle.academicCycleId);
-      } else {
-        if (
-          !cycle.name?.trim() ||
-          !cycle.code ||
-          !cycle.startDate ||
-          !cycle.endDate
-        ) {
-          throw new BadRequestException(
-            `Cycle row ${index + 1} requires name, code, start date, and end date`,
-          );
-        }
-        const code = normalizeEntityCode(cycle.code)!;
-        if (newCodes.has(code))
-          throw new ConflictException(
-            `Cycle row ${index + 1} duplicates code ${code}`,
-          );
-        if (new Date(cycle.endDate) <= new Date(cycle.startDate)) {
-          throw new BadRequestException(
-            `Cycle row ${index + 1} end date must be after its start date`,
-          );
-        }
-        newCodes.add(code);
+  private validateStages(stages: ProgramStageInputDto[]) {
+    const codes = new Set<string>();
+    stages.forEach((stage, index) => {
+      const code = normalizeEntityCode(stage.code)!;
+      if (codes.has(code)) throw new ConflictException(`Stage ${index + 1} duplicates code ${code}`);
+      codes.add(code);
+      if (!stage.isOptional && stage.courseRequirements.length === 0) {
+        throw new BadRequestException(`Stage ${index + 1} requires at least one course requirement`);
       }
     });
   }
 
-  private async prepareCycles(orgId: string, cycles: ProgramCycleInputDto[]) {
-    this.validateCycleRows(cycles);
-    return Promise.all(
-      cycles.map(async (cycle): Promise<PreparedCycle> => {
-        if (cycle.kind !== ProgramCycleInputKind.NEW) return {};
-        const policy = cycle.gpaPolicyId
-          ? await this.prisma.gpaPolicy.findFirst({
-              where: {
-                id: cycle.gpaPolicyId,
-                organizationId: orgId,
-                isArchived: false,
-              },
-            })
-          : await this.gpaService.getDefaultPolicy(orgId);
-        if (!policy) throw new NotFoundException('GPA policy not found');
-        return { gpaPolicySnapshot: this.gpaService.snapshotPolicy(policy) };
-      }),
-    );
-  }
-
-  private async validateCourseRequirements(
-    tx: PrismaService | Prisma.TransactionClient,
+  private async loadCourses(
+    tx: Transaction,
     orgId: string,
-    departmentId: string,
-    requirements: ProgramCourseRequirementInputDto[],
+    stages: ProgramStageInputDto[],
   ) {
-    const ids = requirements.map((requirement) => requirement.courseId);
-    if (new Set(ids).size !== ids.length)
-      throw new ConflictException(
-        'A course can only appear once in the same stage',
-      );
-    if (ids.length === 0)
-      return new Map<string, { id: string; creditHours: number }>();
+    const ids = [...new Set(stages.flatMap((stage) => stage.courseRequirements.map((row) => row.courseId)))];
     const courses = await tx.course.findMany({
       where: { id: { in: ids }, organizationId: orgId },
-      select: { id: true, creditHours: true, departmentId: true },
+      select: { id: true, creditHours: true },
     });
-    if (courses.length !== ids.length)
-      throw new BadRequestException(
-        'One or more stage courses do not belong to this organization',
-      );
-    if (courses.some((course) => course.departmentId !== departmentId)) {
-      throw new BadRequestException(
-        'Every stage course must belong to the program department',
-      );
-    }
+    if (courses.length !== ids.length) throw new BadRequestException('One or more curriculum courses do not belong to this organization');
     return new Map(courses.map((course) => [course.id, course]));
   }
 
-  private async resolveCycle(
-    tx: Prisma.TransactionClient,
-    orgId: string,
-    row: ProgramCycleInputDto,
-    index: number,
-    prepared: PreparedCycle,
-  ) {
-    if (row.kind === ProgramCycleInputKind.EXISTING) {
-      const cycle = await tx.academicCycle.findFirst({
-        where: {
-          id: row.academicCycleId!,
-          organizationId: orgId,
-          status: {
-            notIn: [
-              AcademicCycleStatus.ARCHIVING,
-              AcademicCycleStatus.ARCHIVED,
-            ],
-          },
-        },
-      });
-      if (!cycle)
-        throw new BadRequestException(`Cycle row ${index + 1} is not eligible`);
-      return cycle;
-    }
-
-    const code = normalizeEntityCode(row.code)!;
-    const conflict = await tx.academicCycle.findFirst({
-      where: {
-        organizationId: orgId,
-        code: { equals: code, mode: Prisma.QueryMode.insensitive },
+  private structureSnapshot(dto: {
+    curriculumName: string;
+    curriculumCode: string;
+    stageTerminology?: string;
+    stages: ProgramStageInputDto[];
+  }) {
+    return {
+      curriculum: {
+        name: dto.curriculumName.trim(),
+        code: normalizeEntityCode(dto.curriculumCode),
+        stageTerminology: this.text(dto.stageTerminology),
       },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        status: true,
-        startDate: true,
-        endDate: true,
-      },
-    });
-    if (conflict) {
-      throw new ConflictException({
-        message: `Cycle ${code} already exists; switch this row to Use existing`,
-        rowIndex: index,
-        code: 'INLINE_CYCLE_EXISTS',
-        existingCycle: conflict,
-      });
-    }
-    const snapshot = prepared.gpaPolicySnapshot!;
-    return tx.academicCycle.create({
-      data: {
-        organizationId: orgId,
-        name: row.name!.trim(),
-        code,
-        startDate: new Date(row.startDate!),
-        endDate: new Date(row.endDate!),
-        status: AcademicCycleStatus.DRAFT,
-        gpaPolicyId: snapshot.policyId,
-        gpaPolicySnapshot: snapshot as unknown as Prisma.InputJsonValue,
-      },
-    });
+      stages: dto.stages.map((stage, index) => ({
+        sequence: index + 1,
+        ...stage,
+        code: normalizeEntityCode(stage.code),
+      })),
+    };
   }
 
-  private async createConfiguration(
-    tx: Prisma.TransactionClient,
+  private async createStructure(
+    tx: Transaction,
     orgId: string,
-    program: { id: string; departmentId: string; code: string },
+    programId: string,
     version: number,
     actorId: string,
-    input: StructureInput,
-    prepared: PreparedCycle[],
-    changeReason?: string,
+    input: {
+      curriculumName: string;
+      curriculumCode: string;
+      stageTerminology?: string;
+      stages: ProgramStageInputDto[];
+      changeReason?: string;
+    },
   ) {
-    const selectedCycleIds = new Set<string>();
-    const associations: Prisma.ProgramAcademicCycleGetPayload<{
-      include: {
-        academicCycle: { select: { id: true; name: true; code: true } };
-      };
-    }>[] = [];
-
-    if (version > 1) {
-      await tx.programAcademicCycle.updateMany({
-        where: {
-          programId: program.id,
-          status: ProgramAcademicCycleStatus.ACTIVE,
-        },
-        data: {
-          status: ProgramAcademicCycleStatus.RETIRED,
-          retiredAt: new Date(),
-          retiredById: actorId,
-        },
-      });
-    }
-
-    for (let index = 0; index < input.cycles.length; index += 1) {
-      const cycle = await this.resolveCycle(
-        tx,
-        orgId,
-        input.cycles[index],
-        index,
-        prepared[index],
-      );
-      if (selectedCycleIds.has(cycle.id))
-        throw new ConflictException(
-          `Cycle row ${index + 1} duplicates another row`,
-        );
-      selectedCycleIds.add(cycle.id);
-
-      const association = await tx.programAcademicCycle.upsert({
-        where: {
-          programId_academicCycleId: {
-            programId: program.id,
-            academicCycleId: cycle.id,
-          },
-        },
-        create: {
-          organizationId: orgId,
-          programId: program.id,
-          academicCycleId: cycle.id,
-          sequence: index + 1,
-          status: ProgramAcademicCycleStatus.ACTIVE,
-        },
-        update: {
-          sequence: index + 1,
-          status: ProgramAcademicCycleStatus.ACTIVE,
-          retiredAt: null,
-          retiredById: null,
-        },
-        include: {
-          academicCycle: { select: { id: true, name: true, code: true } },
-        },
-      });
-      associations.push(association);
-    }
-
-    await tx.programAcademicCycle.updateMany({
-      where: {
-        programId: program.id,
-        academicCycleId: { notIn: [...selectedCycleIds] },
-        status: ProgramAcademicCycleStatus.ACTIVE,
-      },
-      data: {
-        status: ProgramAcademicCycleStatus.RETIRED,
-        retiredAt: new Date(),
-        retiredById: actorId,
-      },
-    });
-
-    const cyclesSnapshot = associations.map((association) => ({
-      programAcademicCycleId: association.id,
-      academicCycleId: association.academicCycleId,
-      sequence: association.sequence,
-      code: association.academicCycle.code,
-      name: association.academicCycle.name,
-    }));
+    this.validateStages(input.stages);
+    const courses = await this.loadCourses(tx, orgId, input.stages);
+    const snapshot = this.structureSnapshot(input);
     const revision = await tx.programConfigurationRevision.create({
       data: {
         organizationId: orgId,
-        programId: program.id,
+        programId,
         version,
-        requiredCycleCount: associations.length,
-        cyclesSnapshot: cyclesSnapshot as unknown as Prisma.InputJsonValue,
-        checksum: this.checksum(cyclesSnapshot),
-        changeReason: this.text(changeReason),
+        configurationSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+        checksum: this.checksum(snapshot),
+        changeReason: input.changeReason,
         createdById: actorId,
       },
     });
-
     const curriculum = await tx.curriculumVersion.create({
       data: {
         organizationId: orgId,
-        programId: program.id,
+        programId,
         programConfigurationRevisionId: revision.id,
         name: input.curriculumName.trim(),
         code: normalizeEntityCode(input.curriculumCode)!,
         stageTerminology: this.text(input.stageTerminology),
-        status: CurriculumStatus.DRAFT,
       },
     });
-
-    for (let index = 0; index < input.cycles.length; index += 1) {
-      const stageInput = input.cycles[index].stage;
-      const courseMap = await this.validateCourseRequirements(
-        tx,
-        orgId,
-        program.departmentId,
-        stageInput.courseRequirements || [],
-      );
+    for (const [index, stageInput] of input.stages.entries()) {
       const stage = await tx.programStage.create({
         data: {
           organizationId: orgId,
           curriculumVersionId: curriculum.id,
-          programAcademicCycleId: associations[index].id,
           name: stageInput.name.trim(),
           code: normalizeEntityCode(stageInput.code)!,
           sequence: index + 1,
@@ -524,12 +245,7 @@ export class ProgramsService {
           expectedCredits: stageInput.expectedCredits,
         },
       });
-      for (
-        let requirementIndex = 0;
-        requirementIndex < (stageInput.courseRequirements || []).length;
-        requirementIndex += 1
-      ) {
-        const requirement = stageInput.courseRequirements[requirementIndex];
+      for (const [sortOrder, requirement] of stageInput.courseRequirements.entries()) {
         await tx.stageCourseRequirement.create({
           data: {
             organizationId: orgId,
@@ -539,22 +255,27 @@ export class ProgramsService {
             groupKey: this.text(requirement.groupKey),
             minCourses: requirement.minCourses,
             minCredits: requirement.minCredits,
-            sortOrder: requirementIndex,
-            creditHoursSnapshot: courseMap.get(requirement.courseId)!
-              .creditHours,
             notes: this.text(requirement.notes),
+            sortOrder,
+            creditHoursSnapshot: courses.get(requirement.courseId)!.creditHours,
           },
         });
       }
     }
+    return { revision, curriculum };
+  }
 
-    return { revision, curriculum, associations };
+  private async scopedProgram(orgId: string, id: string, actor: Actor) {
+    const program = await this.prisma.program.findFirst({ where: { id, organizationId: orgId } });
+    if (!program) throw new NotFoundException('Program not found');
+    const scope = await getDepartmentScope(this.prisma, orgId, actor);
+    assertDepartmentInScope(scope, program.departmentId);
+    return program;
   }
 
   async create(orgId: string, dto: CreateProgramDto, actor: Actor) {
     await this.assertDepartment(orgId, dto.departmentId, actor);
     await this.assertUnique(orgId, dto.name, dto.code);
-    const prepared = await this.prepareCycles(orgId, dto.cycles);
     const program = await this.runSerializable(async (tx) => {
       const created = await tx.program.create({
         data: {
@@ -563,11 +284,11 @@ export class ProgramsService {
           name: dto.name.trim(),
           code: normalizeEntityCode(dto.code)!,
           description: this.text(dto.description),
-          requiredCycleCount: dto.cycles.length,
-          configurationVersion: 1,
           structureType: dto.structureType,
           progressionMode: dto.progressionMode,
           completionMode: dto.completionMode,
+          minimumPassingPercentage: dto.minimumPassingPercentage ?? 50,
+          minimumAttendancePercentage: dto.minimumAttendancePercentage,
           durationValue: dto.durationValue,
           durationUnit: dto.durationUnit,
           isVisibleForAdmissions: dto.isVisibleForAdmissions ?? false,
@@ -575,98 +296,56 @@ export class ProgramsService {
           admissionsDescription: this.text(dto.admissionsDescription),
         },
       });
-      await this.createConfiguration(
-        tx,
-        orgId,
-        created,
-        1,
-        actor.id,
-        dto,
-        prepared,
-        'Initial program configuration',
-      );
+      await this.createStructure(tx, orgId, created.id, 1, actor.id, {
+        curriculumName: dto.curriculumName,
+        curriculumCode: dto.curriculumCode,
+        stageTerminology: dto.stageTerminology,
+        stages: dto.stages,
+        changeReason: 'Initial program structure',
+      });
       return created;
     });
-    await this.log(orgId, actor.id, 'program_created', program, {
-      requiredCycleCount: dto.cycles.length,
-    });
+    await this.log(orgId, actor.id, 'program_created', program);
     return this.get(orgId, program.id, actor);
   }
 
   async list(
     orgId: string,
-    options: PaginationOptions & {
-      departmentId?: string;
-      status?: ProgramStatus;
-    },
+    options: PaginationOptions & { departmentId?: string; status?: ProgramStatus },
     actor: Actor,
   ) {
-    const { skip, take, sortBy, sortOrder } = getPaginationOptions({
-      ...options,
-      sortBy: options.sortBy || 'name',
-    });
+    const { skip, take, sortBy, sortOrder } = getPaginationOptions(options);
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
     const where: Prisma.ProgramWhereInput = {
       organizationId: orgId,
-      ...(scope.applies && !scope.all
-        ? { departmentId: { in: scope.departmentIds } }
-        : {}),
-      ...(options.departmentId ? { departmentId: options.departmentId } : {}),
-      ...(options.status ? { status: options.status } : {}),
-      ...(options.search
-        ? {
-            OR: [
-              { name: { contains: options.search, mode: 'insensitive' } },
-              { code: { contains: options.search, mode: 'insensitive' } },
-              {
-                description: { contains: options.search, mode: 'insensitive' },
-              },
-            ],
-          }
-        : {}),
+      departmentId: options.departmentId ?? (!scope.applies || scope.all ? undefined : { in: scope.departmentIds }),
+      status: options.status,
+      OR: options.search
+        ? [
+            { name: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+            { code: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+          ]
+        : undefined,
     };
-    const [rows, total] = await Promise.all([
+    const [data, total] = await Promise.all([
       this.prisma.program.findMany({
         where,
         skip,
         take,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
         include: {
-          department: {
-            select: { id: true, name: true, code: true, isActive: true },
-          },
-          academicCycles: {
-            where: { status: ProgramAcademicCycleStatus.ACTIVE },
-            orderBy: { sequence: 'asc' },
-            include: {
-              academicCycle: {
-                select: { id: true, name: true, code: true, status: true },
-              },
-            },
-          },
-          _count: {
-            select: { studentEnrollments: true, curriculumVersions: true },
-          },
+          department: true,
+          _count: { select: { curriculumVersions: true, offerings: true, studentEnrollments: true } },
         },
       }),
       this.prisma.program.count({ where }),
     ]);
-    return formatPaginatedResponse(rows, total, options.page, options.limit);
+    return formatPaginatedResponse(data, total, options.page || 1, options.limit || 20);
   }
 
   async get(orgId: string, id: string, actor: Actor) {
-    const program = await this.prisma.program.findFirst({
-      where: { id, organizationId: orgId },
-      include: PROGRAM_DETAIL_INCLUDE,
-    });
-    if (!program) throw new NotFoundException('Program not found');
-    const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(
-      scope,
-      program.departmentId,
-      'You cannot view programs outside your department scope',
-    );
-    return program;
+    await this.scopedProgram(orgId, id, actor);
+    return this.prisma.program.findUnique({ where: { id }, include: PROGRAM_DETAIL_INCLUDE });
   }
 
   async eligibleCycles(
@@ -674,489 +353,151 @@ export class ProgramsService {
     options: PaginationOptions & { programId?: string },
     actor: Actor,
   ) {
+    if (options.programId) await this.scopedProgram(orgId, options.programId, actor);
     const { skip, take } = getPaginationOptions(options);
-    const search = options.search;
-    const programId = options.programId;
-    if (programId) await this.get(orgId, programId, actor);
     const where: Prisma.AcademicCycleWhereInput = {
       organizationId: orgId,
-      status: {
-        notIn: [AcademicCycleStatus.ARCHIVING, AcademicCycleStatus.ARCHIVED],
-      },
-      ...(search
-        ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { code: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-      ...(programId
-        ? {
-            programAssociations: {
-              none: { programId, status: ProgramAcademicCycleStatus.ACTIVE },
-            },
-          }
-        : {}),
+      status: { in: [AcademicCycleStatus.DRAFT, AcademicCycleStatus.ACTIVE] },
+      OR: options.search
+        ? [
+            { name: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+            { code: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+          ]
+        : undefined,
     };
-    const [rows, total] = await Promise.all([
-      this.prisma.academicCycle.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { startDate: 'desc' },
-        include: {
-          _count: {
-            select: {
-              programAssociations: {
-                where: { status: ProgramAcademicCycleStatus.ACTIVE },
-              },
-            },
-          },
-        },
-      }),
+    const [data, total] = await Promise.all([
+      this.prisma.academicCycle.findMany({ where, skip, take, orderBy: { startDate: 'desc' } }),
       this.prisma.academicCycle.count({ where }),
     ]);
-    return formatPaginatedResponse(
-      rows.map((cycle) => ({
-        ...cycle,
-        programUseCount: cycle._count.programAssociations,
-      })),
-      total,
-      options.page,
-      options.limit,
-    );
+    return formatPaginatedResponse(data, total, options.page || 1, options.limit || 50);
   }
 
-  async deliveryOptions(
-    orgId: string,
-    academicCycleId: string,
-    departmentId: string | undefined,
-    actor: Actor,
-  ) {
-    if (!academicCycleId)
-      throw new BadRequestException('Academic cycle is required');
-    const cycle = await this.prisma.academicCycle.findFirst({
-      where: { id: academicCycleId, organizationId: orgId },
-      select: { id: true },
-    });
-    if (!cycle) throw new NotFoundException('Academic cycle not found');
-
+  async deliveryOptions(orgId: string, academicCycleId: string, departmentId: string | undefined, actor: Actor) {
+    if (!academicCycleId) throw new BadRequestException('academicCycleId is required');
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    if (departmentId)
-      assertDepartmentInScope(
-        scope,
-        departmentId,
-        'You cannot view program delivery outside your department scope',
-      );
-    const scopedDepartmentIds =
-      scope.applies && !scope.all ? scope.departmentIds : undefined;
-    if (scopedDepartmentIds && scopedDepartmentIds.length === 0) return [];
-
-    const associations = await this.prisma.programAcademicCycle.findMany({
+    if (departmentId) assertDepartmentInScope(scope, departmentId);
+    return this.prisma.programStageOffering.findMany({
       where: {
         organizationId: orgId,
-        academicCycleId,
-        status: ProgramAcademicCycleStatus.ACTIVE,
-        program: {
-          status: { in: [ProgramStatus.ACTIVE, ProgramStatus.TEACH_OUT] },
-          departmentId:
-            departmentId ??
-            (scopedDepartmentIds ? { in: scopedDepartmentIds } : undefined),
-        },
-      },
-      include: {
-        academicCycle: true,
-        program: { include: { department: true } },
-        stages: {
-          where: { curriculumVersion: { status: CurriculumStatus.ACTIVE } },
-          include: {
-            curriculumVersion: {
-              include: { programConfigurationRevision: true },
-            },
-            courseRequirements: {
-              include: { course: true },
-              orderBy: { sortOrder: 'asc' },
-            },
+        programOffering: {
+          academicCycleId,
+          program: {
+            departmentId: departmentId ?? (!scope.applies || scope.all ? undefined : { in: scope.departmentIds }),
           },
-          orderBy: { sequence: 'asc' },
         },
       },
-      orderBy: [{ program: { name: 'asc' } }, { sequence: 'asc' }],
+      orderBy: [{ programOffering: { program: { name: 'asc' } } }, { programStage: { sequence: 'asc' } }],
+      include: {
+        programStage: { include: { courseRequirements: { include: { course: true } } } },
+        programOffering: { include: { program: { include: { department: true } }, academicCycle: true } },
+      },
     });
-
-    return associations
-      .map((association) => ({
-        ...association,
-        stages: association.stages.filter(
-          (stage) =>
-            stage.curriculumVersion.programConfigurationRevision.version ===
-            association.program.configurationVersion,
-        ),
-      }))
-      .filter((association) => association.stages.length > 0);
   }
 
   async update(orgId: string, id: string, dto: UpdateProgramDto, actor: Actor) {
-    const existing = await this.get(orgId, id, actor);
-    await this.assertProgramWriteScope(orgId, existing.departmentId, actor);
-    if (existing.status === ProgramStatus.ARCHIVED)
-      throw new ConflictException('Archived programs are read-only');
-    const departmentId = dto.departmentId ?? existing.departmentId;
-    if (
-      dto.departmentId &&
-      dto.departmentId !== existing.departmentId &&
-      existing._count.studentEnrollments > 0
-    ) {
-      throw new ConflictException(
-        'A program with student enrollment history cannot move to another department',
-      );
-    }
-    await this.assertDepartment(orgId, departmentId, actor);
-    if (dto.name !== undefined || dto.code !== undefined) {
-      await this.assertUnique(
-        orgId,
-        dto.name ?? existing.name,
-        dto.code ?? existing.code,
-        id,
-      );
-    }
+    const current = await this.scopedProgram(orgId, id, actor);
+    const nextDepartmentId = dto.departmentId ?? current.departmentId;
+    await this.assertDepartment(orgId, nextDepartmentId, actor);
+    if (dto.name || dto.code) await this.assertUnique(orgId, dto.name ?? current.name, dto.code ?? current.code, id);
     const program = await this.prisma.program.update({
       where: { id },
       data: {
+        ...dto,
         name: dto.name?.trim(),
-        code:
-          dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
-        departmentId: dto.departmentId,
-        description:
-          dto.description !== undefined
-            ? this.text(dto.description)
-            : undefined,
-        structureType: dto.structureType,
-        progressionMode: dto.progressionMode,
-        completionMode: dto.completionMode,
-        durationValue: dto.durationValue,
-        durationUnit: dto.durationUnit,
-        isVisibleForAdmissions: dto.isVisibleForAdmissions,
-        admissionsLabel:
-          dto.admissionsLabel !== undefined
-            ? this.text(dto.admissionsLabel)
-            : undefined,
-        admissionsDescription:
-          dto.admissionsDescription !== undefined
-            ? this.text(dto.admissionsDescription)
-            : undefined,
+        code: dto.code ? normalizeEntityCode(dto.code)! : undefined,
+        description: dto.description === undefined ? undefined : this.text(dto.description),
+        admissionsLabel: dto.admissionsLabel === undefined ? undefined : this.text(dto.admissionsLabel),
+        admissionsDescription: dto.admissionsDescription === undefined ? undefined : this.text(dto.admissionsDescription),
       },
     });
     await this.log(orgId, actor.id, 'program_updated', program);
     return this.get(orgId, id, actor);
   }
 
-  async replaceCycles(
-    orgId: string,
-    id: string,
-    dto: ReplaceProgramCyclesDto,
-    actor: Actor,
-  ) {
-    const existing = await this.get(orgId, id, actor);
-    await this.assertProgramWriteScope(orgId, existing.departmentId, actor);
-    if (
-      existing.status !== ProgramStatus.DRAFT &&
-      existing.status !== ProgramStatus.PAUSED
-    ) {
-      throw new ConflictException(
-        'Program cycles can only be changed while the program is draft or paused',
-      );
+  async replaceStructure(orgId: string, id: string, dto: ReplaceProgramStructureDto, actor: Actor) {
+    const current = await this.scopedProgram(orgId, id, actor);
+    if (current.configurationVersion !== dto.configurationVersion) {
+      throw new ConflictException('Program configuration changed; refresh and try again');
     }
-    const metadata = dto.metadata;
-    const nextDepartmentId = metadata?.departmentId ?? existing.departmentId;
-    await this.assertDepartment(orgId, nextDepartmentId, actor);
-    if (
-      metadata?.departmentId &&
-      metadata.departmentId !== existing.departmentId &&
-      existing._count.studentEnrollments > 0
-    ) {
-      throw new ConflictException(
-        'A program with student enrollment history cannot move to another department',
-      );
-    }
-    if (metadata?.name !== undefined || metadata?.code !== undefined) {
-      await this.assertUnique(
-        orgId,
-        metadata.name ?? existing.name,
-        metadata.code ?? existing.code,
-        id,
-      );
-    }
-    const prepared = await this.prepareCycles(orgId, dto.cycles);
-    const program = await this.runSerializable(async (tx) => {
-      const versionClaim = await tx.program.updateMany({
-        where: {
-          id,
-          organizationId: orgId,
-          configurationVersion: dto.configurationVersion,
-        },
-        data: {
-          configurationVersion: { increment: 1 },
-          requiredCycleCount: dto.cycles.length,
-          name: metadata?.name?.trim(),
-          code:
-            metadata?.code !== undefined
-              ? normalizeEntityCode(metadata.code)!
-              : undefined,
-          departmentId: metadata?.departmentId,
-          description:
-            metadata?.description !== undefined
-              ? this.text(metadata.description)
-              : undefined,
-          structureType: metadata?.structureType,
-          progressionMode: metadata?.progressionMode,
-          completionMode: metadata?.completionMode,
-          durationValue: metadata?.durationValue,
-          durationUnit: metadata?.durationUnit,
-          isVisibleForAdmissions: metadata?.isVisibleForAdmissions,
-          admissionsLabel:
-            metadata?.admissionsLabel !== undefined
-              ? this.text(metadata.admissionsLabel)
-              : undefined,
-          admissionsDescription:
-            metadata?.admissionsDescription !== undefined
-              ? this.text(metadata.admissionsDescription)
-              : undefined,
-        },
+    if (dto.metadata) await this.update(orgId, id, dto.metadata, actor);
+    await this.runSerializable(async (tx) => {
+      const updated = await tx.program.updateMany({
+        where: { id, organizationId: orgId, configurationVersion: dto.configurationVersion },
+        data: { configurationVersion: { increment: 1 } },
       });
-      if (versionClaim.count !== 1)
-        throw new ConflictException(
-          'Program configuration is stale; refresh and try again',
-        );
-      const updated = await tx.program.findUniqueOrThrow({ where: { id } });
-      await this.createConfiguration(
-        tx,
-        orgId,
-        updated,
-        updated.configurationVersion,
-        actor.id,
-        dto,
-        prepared,
-        dto.changeReason,
-      );
-      return updated;
+      if (updated.count !== 1) throw new ConflictException('Program configuration changed; refresh and try again');
+      await this.createStructure(tx, orgId, id, dto.configurationVersion + 1, actor.id, {
+        curriculumName: dto.curriculumName,
+        curriculumCode: dto.curriculumCode,
+        stageTerminology: dto.stageTerminology,
+        stages: dto.stages,
+        changeReason: dto.changeReason,
+      });
     });
-    await this.log(orgId, actor.id, 'program_cycles_reconfigured', program, {
-      configurationVersion: program.configurationVersion,
-      requiredCycleCount: dto.cycles.length,
-      reason: dto.changeReason,
-    });
+    await this.log(orgId, actor.id, 'program_structure_replaced', current, { version: dto.configurationVersion + 1 });
     return this.get(orgId, id, actor);
   }
 
-  private async assertCurriculumComplete(
-    tx: Prisma.TransactionClient,
-    curriculumId: string,
-    programId: string,
-  ) {
-    const curriculum = await tx.curriculumVersion.findFirst({
-      where: { id: curriculumId, programId },
-      include: {
-        program: {
-          include: {
-            academicCycles: {
-              where: { status: ProgramAcademicCycleStatus.ACTIVE },
-            },
-          },
-        },
-        stages: {
-          include: { _count: { select: { courseRequirements: true } } },
-        },
+  async transitionProgram(orgId: string, id: string, status: ProgramStatus, reason: string | undefined, actor: Actor) {
+    const current = await this.scopedProgram(orgId, id, actor);
+    if (status === ProgramStatus.ACTIVE) {
+      const curriculum = await this.prisma.curriculumVersion.findFirst({
+        where: { programId: id, status: CurriculumStatus.ACTIVE, isDefaultForAdmissions: true },
+        include: { stages: { include: { _count: { select: { courseRequirements: true } } } } },
+      });
+      if (!curriculum || curriculum.stages.length === 0) throw new ConflictException('Activate a default admissions curriculum with stages first');
+      if (curriculum.stages.some((stage) => !stage.isOptional && stage._count.courseRequirements === 0)) {
+        throw new ConflictException('Every required stage needs at least one course requirement');
+      }
+    }
+    const program = await this.prisma.program.update({
+      where: { id },
+      data: {
+        status,
+        archivedAt: status === ProgramStatus.ARCHIVED ? new Date() : null,
+        archivedById: status === ProgramStatus.ARCHIVED ? actor.id : null,
+        archiveReason: status === ProgramStatus.ARCHIVED ? this.text(reason) : null,
       },
     });
-    if (!curriculum) throw new NotFoundException('Curriculum not found');
-    const requiredAssociations = curriculum.program.academicCycles;
-    if (curriculum.stages.length !== requiredAssociations.length) {
-      throw new ConflictException(
-        'Curriculum must map every required program cycle exactly once',
-      );
-    }
-    const stageAssociations = new Set(
-      curriculum.stages.map((stage) => stage.programAcademicCycleId),
-    );
-    if (
-      stageAssociations.size !== requiredAssociations.length ||
-      requiredAssociations.some((row) => !stageAssociations.has(row.id))
-    ) {
-      throw new ConflictException(
-        'Curriculum stages do not match the current program cycle configuration',
-      );
-    }
-    const incomplete = curriculum.stages.find(
-      (stage) => stage._count.courseRequirements === 0 && !stage.isOptional,
-    );
-    if (incomplete)
-      throw new ConflictException(
-        `Stage ${incomplete.name} requires at least one course requirement`,
-      );
-    return curriculum;
-  }
-
-  async transitionProgram(
-    orgId: string,
-    id: string,
-    target: ProgramStatus,
-    reason: string | undefined,
-    actor: Actor,
-  ) {
-    const existing = await this.get(orgId, id, actor);
-    await this.assertProgramWriteScope(orgId, existing.departmentId, actor);
-    if (existing.status === target) return existing;
-    const allowed: Record<ProgramStatus, ProgramStatus[]> = {
-      DRAFT: [ProgramStatus.ACTIVE, ProgramStatus.ARCHIVED],
-      ACTIVE: [
-        ProgramStatus.PAUSED,
-        ProgramStatus.TEACH_OUT,
-        ProgramStatus.ARCHIVED,
-      ],
-      PAUSED: [ProgramStatus.ACTIVE, ProgramStatus.ARCHIVED],
-      TEACH_OUT: [ProgramStatus.ARCHIVED],
-      ARCHIVED: [],
-    };
-    if (!allowed[existing.status].includes(target)) {
-      throw new ConflictException(
-        `Program cannot transition from ${existing.status} to ${target}`,
-      );
-    }
-    if (target === ProgramStatus.ARCHIVED && !reason?.trim())
-      throw new BadRequestException('Archive reason is required');
-    if (target === ProgramStatus.ARCHIVED) {
-      const openStudents = await this.prisma.studentProgramEnrollment.count({
-        where: {
-          programId: id,
-          status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] },
-        },
-      });
-      if (openStudents > 0)
-        throw new ConflictException(
-          'A program with open student enrollments cannot be archived',
-        );
-    }
-
-    const program = await this.runSerializable(async (tx) => {
-      if (target === ProgramStatus.ACTIVE) {
-        const currentRevision =
-          await tx.programConfigurationRevision.findUnique({
-            where: {
-              programId_version: {
-                programId: id,
-                version: existing.configurationVersion,
-              },
-            },
-          });
-        if (!currentRevision)
-          throw new ConflictException(
-            'Current program configuration revision is missing',
-          );
-        const curriculum = await tx.curriculumVersion.findFirst({
-          where: {
-            programId: id,
-            programConfigurationRevisionId: currentRevision.id,
-            status: CurriculumStatus.ACTIVE,
-            isDefaultForAdmissions: true,
-          },
-        });
-        if (!curriculum)
-          throw new ConflictException(
-            'Activate a default curriculum for the current program configuration first',
-          );
-        await this.assertCurriculumComplete(tx, curriculum.id, id);
-      }
-      return tx.program.update({
-        where: { id },
-        data: {
-          status: target,
-          isVisibleForAdmissions:
-            target === ProgramStatus.ARCHIVED ? false : undefined,
-          archivedAt: target === ProgramStatus.ARCHIVED ? new Date() : null,
-          archivedById: target === ProgramStatus.ARCHIVED ? actor.id : null,
-          archiveReason:
-            target === ProgramStatus.ARCHIVED ? reason!.trim() : null,
-        },
-      });
-    });
-    await this.log(orgId, actor.id, 'program_status_changed', program, {
-      from: existing.status,
-      to: target,
-      reason,
-    });
+    await this.log(orgId, actor.id, 'program_status_changed', program, { from: current.status, to: status, reason });
     return this.get(orgId, id, actor);
   }
 
   async revisions(orgId: string, id: string, actor: Actor) {
-    await this.get(orgId, id, actor);
-    return this.prisma.programConfigurationRevision.findMany({
-      where: { programId: id, organizationId: orgId },
-      orderBy: { version: 'desc' },
-    });
+    await this.scopedProgram(orgId, id, actor);
+    return this.prisma.programConfigurationRevision.findMany({ where: { programId: id }, orderBy: { version: 'desc' } });
   }
 
   async delete(orgId: string, id: string, actor: Actor) {
-    const program = await this.get(orgId, id, actor);
-    await this.assertProgramWriteScope(orgId, program.departmentId, actor);
-    if (program.status !== ProgramStatus.DRAFT)
-      throw new ConflictException('Only a draft program can be deleted');
-    const [studentEnrollments, cohorts, requirementMappings] =
-      await Promise.all([
-        this.prisma.studentProgramEnrollment.count({
-          where: { programId: id },
-        }),
-        this.prisma.cohort.count({
-          where: { programAcademicCycle: { programId: id } },
-        }),
-        this.prisma.sectionRequirementMapping.count({
-          where: { programAcademicCycle: { programId: id } },
-        }),
-      ]);
-    if (studentEnrollments + cohorts + requirementMappings > 0) {
-      throw new ConflictException(
-        'A program referenced by students or delivery cannot be deleted',
-      );
-    }
-    await this.prisma.$transaction(async (tx) => {
-      await tx.stageCourseRequirement.deleteMany({
-        where: { programStage: { curriculumVersion: { programId: id } } },
-      });
-      await tx.programStage.deleteMany({
-        where: { curriculumVersion: { programId: id } },
-      });
-      await tx.curriculumVersion.deleteMany({ where: { programId: id } });
-      await tx.programConfigurationRevision.deleteMany({
-        where: { programId: id },
-      });
-      await tx.programAcademicCycle.deleteMany({ where: { programId: id } });
-      await tx.program.delete({ where: { id } });
+    const program = await this.scopedProgram(orgId, id, actor);
+    const used = await this.prisma.program.findUnique({
+      where: { id },
+      select: { _count: { select: { offerings: true, studentEnrollments: true } } },
     });
+    if (used && (used._count.offerings || used._count.studentEnrollments)) {
+      throw new ConflictException('Programs with offerings or student history must be archived');
+    }
+    await this.prisma.program.delete({ where: { id } });
     await this.log(orgId, actor.id, 'program_deleted', program);
-    return { message: 'Unused draft program deleted' };
+    return { success: true };
   }
 
-  async createCurriculum(
-    orgId: string,
-    programId: string,
-    dto: CreateCurriculumDto,
-    actor: Actor,
-  ) {
-    const program = await this.get(orgId, programId, actor);
-    await this.assertProgramWriteScope(orgId, program.departmentId, actor);
-    if (program.status === ProgramStatus.ARCHIVED)
-      throw new ConflictException('Archived programs are read-only');
+  private async draftCurriculum(orgId: string, id: string, actor: Actor) {
+    const curriculum = await this.prisma.curriculumVersion.findFirst({ where: { id, organizationId: orgId }, include: { program: true } });
+    if (!curriculum) throw new NotFoundException('Curriculum not found');
+    const scope = await getDepartmentScope(this.prisma, orgId, actor);
+    assertDepartmentInScope(scope, curriculum.program.departmentId);
+    if (curriculum.status !== CurriculumStatus.DRAFT) throw new ConflictException('Only draft curricula can be edited');
+    return curriculum;
+  }
+
+  async createCurriculum(orgId: string, programId: string, dto: CreateCurriculumDto, actor: Actor) {
+    const program = await this.scopedProgram(orgId, programId, actor);
     const revision = await this.prisma.programConfigurationRevision.findUnique({
-      where: {
-        programId_version: { programId, version: program.configurationVersion },
-      },
+      where: { programId_version: { programId, version: program.configurationVersion } },
     });
-    if (!revision)
-      throw new ConflictException(
-        'Current program configuration revision is missing',
-      );
-    const curriculum = await this.prisma.curriculumVersion.create({
+    if (!revision) throw new ConflictException('Current program configuration revision is missing');
+    return this.prisma.curriculumVersion.create({
       data: {
         organizationId: orgId,
         programId,
@@ -1166,50 +507,16 @@ export class ProgramsService {
         stageTerminology: this.text(dto.stageTerminology),
       },
     });
-    await this.log(orgId, actor.id, 'program_curriculum_created', program, {
-      curriculumId: curriculum.id,
-    });
-    return curriculum;
   }
 
-  private async editableCurriculum(
-    orgId: string,
-    curriculumId: string,
-    actor: Actor,
-  ) {
-    const curriculum = await this.prisma.curriculumVersion.findFirst({
-      where: { id: curriculumId, organizationId: orgId },
-      include: { program: true },
-    });
-    if (!curriculum) throw new NotFoundException('Curriculum not found');
-    await this.get(orgId, curriculum.programId, actor);
-    await this.assertProgramWriteScope(
-      orgId,
-      curriculum.program.departmentId,
-      actor,
-    );
-    if (curriculum.status !== CurriculumStatus.DRAFT)
-      throw new ConflictException('Only draft curricula can be edited');
-    return curriculum;
-  }
-
-  async updateCurriculum(
-    orgId: string,
-    id: string,
-    dto: UpdateCurriculumDto,
-    actor: Actor,
-  ) {
-    const existing = await this.editableCurriculum(orgId, id, actor);
+  async updateCurriculum(orgId: string, id: string, dto: UpdateCurriculumDto, actor: Actor) {
+    await this.draftCurriculum(orgId, id, actor);
     return this.prisma.curriculumVersion.update({
       where: { id },
       data: {
         name: dto.name?.trim(),
-        code:
-          dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
-        stageTerminology:
-          dto.stageTerminology !== undefined
-            ? this.text(dto.stageTerminology)
-            : undefined,
+        code: dto.code ? normalizeEntityCode(dto.code)! : undefined,
+        stageTerminology: dto.stageTerminology === undefined ? undefined : this.text(dto.stageTerminology),
       },
     });
   }
@@ -1217,112 +524,43 @@ export class ProgramsService {
   async transitionCurriculum(
     orgId: string,
     id: string,
-    target: CurriculumStatus,
+    status: CurriculumStatus,
     defaultForAdmissions: boolean | undefined,
     actor: Actor,
   ) {
     const curriculum = await this.prisma.curriculumVersion.findFirst({
       where: { id, organizationId: orgId },
-      include: { program: true },
+      include: { program: true, stages: { include: { _count: { select: { courseRequirements: true } } } } },
     });
     if (!curriculum) throw new NotFoundException('Curriculum not found');
-    await this.get(orgId, curriculum.programId, actor);
-    await this.assertProgramWriteScope(
-      orgId,
-      curriculum.program.departmentId,
-      actor,
-    );
-    if (curriculum.status === target) return curriculum;
-    const allowed =
-      (curriculum.status === CurriculumStatus.DRAFT &&
-        target === CurriculumStatus.ACTIVE) ||
-      (curriculum.status === CurriculumStatus.ACTIVE &&
-        target === CurriculumStatus.RETIRED) ||
-      (curriculum.status === CurriculumStatus.RETIRED &&
-        target === CurriculumStatus.ARCHIVED);
-    if (!allowed)
-      throw new ConflictException(
-        `Curriculum cannot transition from ${curriculum.status} to ${target}`,
-      );
-
-    return this.runSerializable(async (tx) => {
-      if (target === CurriculumStatus.ACTIVE) {
-        const revision = await tx.programConfigurationRevision.findUnique({
-          where: {
-            programId_version: {
-              programId: curriculum.programId,
-              version: curriculum.program.configurationVersion,
-            },
-          },
-        });
-        if (
-          !revision ||
-          curriculum.programConfigurationRevisionId !== revision.id
-        ) {
-          throw new ConflictException(
-            'Only a curriculum for the current program configuration can be activated',
-          );
-        }
-        await this.assertCurriculumComplete(tx, id, curriculum.programId);
-        if (defaultForAdmissions ?? true) {
-          await tx.curriculumVersion.updateMany({
-            where: {
-              programId: curriculum.programId,
-              isDefaultForAdmissions: true,
-            },
-            data: { isDefaultForAdmissions: false },
-          });
-        }
+    const scope = await getDepartmentScope(this.prisma, orgId, actor);
+    assertDepartmentInScope(scope, curriculum.program.departmentId);
+    if (status === CurriculumStatus.ACTIVE && curriculum.stages.length === 0) throw new ConflictException('A curriculum needs at least one stage');
+    if (status === CurriculumStatus.ACTIVE && curriculum.stages.some((stage) => !stage.isOptional && stage._count.courseRequirements === 0)) {
+      throw new ConflictException('Every required stage needs at least one course requirement');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      if (defaultForAdmissions) {
+        await tx.curriculumVersion.updateMany({ where: { programId: curriculum.programId }, data: { isDefaultForAdmissions: false } });
       }
       return tx.curriculumVersion.update({
         where: { id },
         data: {
-          status: target,
-          isDefaultForAdmissions:
-            target === CurriculumStatus.ACTIVE
-              ? (defaultForAdmissions ?? true)
-              : false,
-          activatedAt:
-            target === CurriculumStatus.ACTIVE
-              ? new Date()
-              : curriculum.activatedAt,
-          retiredAt:
-            target === CurriculumStatus.RETIRED
-              ? new Date()
-              : curriculum.retiredAt,
+          status,
+          isDefaultForAdmissions: defaultForAdmissions ?? curriculum.isDefaultForAdmissions,
+          activatedAt: status === CurriculumStatus.ACTIVE ? new Date() : curriculum.activatedAt,
+          retiredAt: status === CurriculumStatus.RETIRED ? new Date() : null,
         },
       });
     });
   }
 
-  async createStage(
-    orgId: string,
-    curriculumId: string,
-    dto: CreateProgramStageDto,
-    actor: Actor,
-  ) {
-    const curriculum = await this.editableCurriculum(
-      orgId,
-      curriculumId,
-      actor,
-    );
-    const association = await this.prisma.programAcademicCycle.findFirst({
-      where: {
-        id: dto.programAcademicCycleId,
-        programId: curriculum.programId,
-        organizationId: orgId,
-        status: ProgramAcademicCycleStatus.ACTIVE,
-      },
-    });
-    if (!association)
-      throw new BadRequestException(
-        'Program cycle association is not eligible',
-      );
+  async createStage(orgId: string, curriculumId: string, dto: CreateProgramStageDto, actor: Actor) {
+    await this.draftCurriculum(orgId, curriculumId, actor);
     return this.prisma.programStage.create({
       data: {
         organizationId: orgId,
         curriculumVersionId: curriculumId,
-        programAcademicCycleId: dto.programAcademicCycleId,
         name: dto.name.trim(),
         code: normalizeEntityCode(dto.code)!,
         sequence: dto.sequence,
@@ -1334,26 +572,26 @@ export class ProgramsService {
     });
   }
 
-  async updateStage(
-    orgId: string,
-    id: string,
-    dto: UpdateProgramStageDto,
-    actor: Actor,
-  ) {
+  private async editableStage(orgId: string, id: string, actor: Actor) {
     const stage = await this.prisma.programStage.findFirst({
       where: { id, organizationId: orgId },
-      include: { curriculumVersion: true },
+      include: { curriculumVersion: { include: { program: true } } },
     });
     if (!stage) throw new NotFoundException('Program stage not found');
-    await this.editableCurriculum(orgId, stage.curriculumVersionId, actor);
+    const scope = await getDepartmentScope(this.prisma, orgId, actor);
+    assertDepartmentInScope(scope, stage.curriculumVersion.program.departmentId);
+    if (stage.curriculumVersion.status !== CurriculumStatus.DRAFT) throw new ConflictException('Only draft curricula can be edited');
+    return stage;
+  }
+
+  async updateStage(orgId: string, id: string, dto: UpdateProgramStageDto, actor: Actor) {
+    await this.editableStage(orgId, id, actor);
     return this.prisma.programStage.update({
       where: { id },
       data: {
         name: dto.name?.trim(),
-        code:
-          dto.code !== undefined ? normalizeEntityCode(dto.code)! : undefined,
-        stageType:
-          dto.stageType !== undefined ? this.text(dto.stageType) : undefined,
+        code: dto.code ? normalizeEntityCode(dto.code)! : undefined,
+        stageType: dto.stageType === undefined ? undefined : this.text(dto.stageType),
         isOptional: dto.isOptional,
         minCredits: dto.minCredits,
         expectedCredits: dto.expectedCredits,
@@ -1362,46 +600,17 @@ export class ProgramsService {
   }
 
   async deleteStage(orgId: string, id: string, actor: Actor) {
-    const stage = await this.prisma.programStage.findFirst({
-      where: { id, organizationId: orgId },
-      include: {
-        curriculumVersion: true,
-        _count: { select: { cohorts: true, studentStageAttempts: true } },
-      },
-    });
-    if (!stage) throw new NotFoundException('Program stage not found');
-    await this.editableCurriculum(orgId, stage.curriculumVersionId, actor);
-    if (stage._count.cohorts || stage._count.studentStageAttempts)
-      throw new ConflictException('A used stage cannot be deleted');
+    await this.editableStage(orgId, id, actor);
+    const count = await this.prisma.programStageOffering.count({ where: { programStageId: id } });
+    if (count) throw new ConflictException('An offered stage cannot be deleted');
     await this.prisma.programStage.delete({ where: { id } });
-    return { message: 'Program stage deleted' };
+    return { success: true };
   }
 
-  async createRequirement(
-    orgId: string,
-    stageId: string,
-    dto: CreateCourseRequirementDto,
-    actor: Actor,
-  ) {
-    const stage = await this.prisma.programStage.findFirst({
-      where: { id: stageId, organizationId: orgId },
-      include: { curriculumVersion: { include: { program: true } } },
-    });
-    if (!stage) throw new NotFoundException('Program stage not found');
-    await this.editableCurriculum(orgId, stage.curriculumVersionId, actor);
-    const duplicate = await this.prisma.stageCourseRequirement.findFirst({
-      where: { programStageId: stageId, courseId: dto.courseId },
-    });
-    if (duplicate)
-      throw new ConflictException(
-        'This course is already required by the stage',
-      );
-    const courses = await this.validateCourseRequirements(
-      this.prisma,
-      orgId,
-      stage.curriculumVersion.program.departmentId,
-      [dto],
-    );
+  async createRequirement(orgId: string, stageId: string, dto: CreateCourseRequirementDto, actor: Actor) {
+    await this.editableStage(orgId, stageId, actor);
+    const course = await this.prisma.course.findFirst({ where: { id: dto.courseId, organizationId: orgId } });
+    if (!course) throw new NotFoundException('Course not found');
     return this.prisma.stageCourseRequirement.create({
       data: {
         organizationId: orgId,
@@ -1412,39 +621,23 @@ export class ProgramsService {
         minCourses: dto.minCourses,
         minCredits: dto.minCredits,
         sortOrder: dto.sortOrder ?? 0,
-        creditHoursSnapshot: courses.get(dto.courseId)!.creditHours,
+        creditHoursSnapshot: course.creditHours,
         notes: this.text(dto.notes),
       },
     });
   }
 
-  async updateRequirement(
-    orgId: string,
-    id: string,
-    dto: UpdateCourseRequirementDto,
-    actor: Actor,
-  ) {
-    const requirement = await this.prisma.stageCourseRequirement.findFirst({
-      where: { id, organizationId: orgId },
-      include: {
-        programStage: {
-          include: { curriculumVersion: { include: { program: true } } },
-        },
-      },
-    });
-    if (!requirement)
-      throw new NotFoundException('Course requirement not found');
-    await this.editableCurriculum(
-      orgId,
-      requirement.programStage.curriculumVersionId,
-      actor,
-    );
-    const courses = await this.validateCourseRequirements(
-      this.prisma,
-      orgId,
-      requirement.programStage.curriculumVersion.program.departmentId,
-      [dto],
-    );
+  private async editableRequirement(orgId: string, id: string, actor: Actor) {
+    const requirement = await this.prisma.stageCourseRequirement.findFirst({ where: { id, organizationId: orgId } });
+    if (!requirement) throw new NotFoundException('Course requirement not found');
+    await this.editableStage(orgId, requirement.programStageId, actor);
+    return requirement;
+  }
+
+  async updateRequirement(orgId: string, id: string, dto: UpdateCourseRequirementDto, actor: Actor) {
+    await this.editableRequirement(orgId, id, actor);
+    const course = await this.prisma.course.findFirst({ where: { id: dto.courseId, organizationId: orgId } });
+    if (!course) throw new NotFoundException('Course not found');
     return this.prisma.stageCourseRequirement.update({
       where: { id },
       data: {
@@ -1454,32 +647,17 @@ export class ProgramsService {
         minCourses: dto.minCourses,
         minCredits: dto.minCredits,
         sortOrder: dto.sortOrder ?? 0,
-        creditHoursSnapshot: courses.get(dto.courseId)!.creditHours,
+        creditHoursSnapshot: course.creditHours,
         notes: this.text(dto.notes),
       },
     });
   }
 
   async deleteRequirement(orgId: string, id: string, actor: Actor) {
-    const requirement = await this.prisma.stageCourseRequirement.findFirst({
-      where: { id, organizationId: orgId },
-      include: {
-        programStage: true,
-        _count: { select: { sectionMappings: true } },
-      },
-    });
-    if (!requirement)
-      throw new NotFoundException('Course requirement not found');
-    await this.editableCurriculum(
-      orgId,
-      requirement.programStage.curriculumVersionId,
-      actor,
-    );
-    if (requirement._count.sectionMappings)
-      throw new ConflictException(
-        'A mapped course requirement cannot be deleted',
-      );
+    await this.editableRequirement(orgId, id, actor);
+    const count = await this.prisma.sectionProgramMapping.count({ where: { stageCourseRequirementId: id } });
+    if (count) throw new ConflictException('A requirement mapped to delivery cannot be deleted');
     await this.prisma.stageCourseRequirement.delete({ where: { id } });
-    return { message: 'Course requirement deleted' };
+    return { success: true };
   }
 }

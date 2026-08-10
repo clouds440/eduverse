@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
+import { FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { BookOpen, Building2, GraduationCap, Hash, Layers, Save, Settings2, type LucideIcon } from 'lucide-react';
@@ -13,11 +13,10 @@ import {
     Course,
     CreateProgramRequest,
     Department,
-    EligibleProgramCycle,
     PaginatedResponse,
     Program,
     ProgramCompletionMode,
-    ProgramCycleInput,
+    ProgramStageInput,
     ProgramProgressionMode,
     ProgramStructureType,
     Role,
@@ -29,7 +28,7 @@ import { Label } from '@/components/ui/Label';
 import { PageHeader, PageShell } from '@/components/ui/PageShell';
 import { Textarea } from '@/components/ui/Textarea';
 import { Toggle } from '@/components/ui/Toggle';
-import { ProgramCycleArrayEditor } from './ProgramCycleArrayEditor';
+import { ProgramStageArrayEditor } from './ProgramStageArrayEditor';
 
 interface ProgramFormProps {
     program?: Program;
@@ -55,28 +54,27 @@ function SectionIntroduction({ title, description, icon: Icon }: SectionIntroduc
     );
 }
 
-function initialCycles(program?: Program): ProgramCycleInput[] {
+function initialStages(program?: Program): ProgramStageInput[] {
     if (!program) return [];
     const currentCurriculum = program.curriculumVersions?.find((curriculum) =>
         curriculum.programConfigurationRevisionId === program.configurationRevisions?.[0]?.id,
     ) || program.curriculumVersions?.[0];
-    return program.academicCycles
-        .filter((association) => association.status === 'ACTIVE')
-        .map((association, index) => {
-            const stage = currentCurriculum?.stages.find((item) => item.programAcademicCycleId === association.id);
-            return {
-                kind: 'EXISTING' as const,
-                academicCycleId: association.academicCycleId,
-                stage: {
-                    name: stage?.name || `Stage ${index + 1}`,
-                    code: stage?.code || `STAGE-${index + 1}`,
-                    courseRequirements: stage?.courseRequirements.map((requirement) => ({
-                        courseId: requirement.courseId,
-                        requirementType: requirement.requirementType,
-                    })) || [],
-                },
-            };
-        });
+    return (currentCurriculum?.stages || []).map((stage) => ({
+        name: stage.name,
+        code: stage.code,
+        stageType: stage.stageType || undefined,
+        isOptional: stage.isOptional,
+        minCredits: stage.minCredits ?? undefined,
+        expectedCredits: stage.expectedCredits ?? undefined,
+        courseRequirements: stage.courseRequirements.map((requirement) => ({
+            courseId: requirement.courseId,
+            requirementType: requirement.requirementType,
+            groupKey: requirement.groupKey || undefined,
+            minCourses: requirement.minCourses ?? undefined,
+            minCredits: requirement.minCredits ?? undefined,
+            notes: requirement.notes || undefined,
+        })),
+    }));
 }
 
 export function ProgramForm({ program }: ProgramFormProps) {
@@ -95,13 +93,15 @@ export function ProgramForm({ program }: ProgramFormProps) {
         structureType: program?.structureType || ProgramStructureType.TERM_BASED,
         progressionMode: program?.progressionMode || ProgramProgressionMode.SEQUENTIAL,
         completionMode: program?.completionMode || ProgramCompletionMode.REQUIREMENTS,
+        minimumPassingPercentage: program?.minimumPassingPercentage ?? 50,
+        minimumAttendancePercentage: program?.minimumAttendancePercentage == null ? '' : String(program.minimumAttendancePercentage),
         curriculumName: isEdit ? `${currentCurriculum?.name || program?.name || 'Program'} revision ${Number(program?.configurationVersion || 1) + 1}` : '',
         curriculumCode: isEdit ? `${program?.code || 'PROGRAM'}-R${Number(program?.configurationVersion || 1) + 1}` : '',
         isVisibleForAdmissions: program?.isVisibleForAdmissions || false,
         admissionsLabel: program?.admissionsLabel || '',
         admissionsDescription: program?.admissionsDescription || '',
     });
-    const [cycles, setCycles] = useState<ProgramCycleInput[]>(() => initialCycles(program));
+    const [stages, setStages] = useState<ProgramStageInput[]>(() => initialStages(program));
     const [changeReason, setChangeReason] = useState('');
     const [formError, setFormError] = useState('');
     const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
@@ -114,19 +114,8 @@ export function ProgramForm({ program }: ProgramFormProps) {
         token ? ['departments', { limit: 1000, isActive: true }] as const : null,
     );
     const { data: coursesData } = useSWR<PaginatedResponse<Course>>(
-        token && form.departmentId ? ['courses', { limit: 1000, departmentId: form.departmentId }] as const : null,
+        token ? ['courses', { limit: 1000 }] as const : null,
     );
-    const { data: eligibleCyclesResponse } = useSWR<PaginatedResponse<EligibleProgramCycle>>(
-        token ? ['program-eligible-cycles', program?.id || 'new'] : null,
-        () => api.programs.getEligibleCycles(token!, { programId: program?.id, limit: 100 }),
-    );
-    const availableCycles = useMemo(() => {
-        const persisted = program?.academicCycles.map((association) => ({
-            ...association.academicCycle,
-            programUseCount: 1,
-        })) || [];
-        return [...persisted, ...(eligibleCyclesResponse?.data || [])].filter((cycle, index, all) => all.findIndex((item) => item.id === cycle.id) === index);
-    }, [eligibleCyclesResponse, program]);
 
     const submit = async (event: FormEvent) => {
         event.preventDefault();
@@ -141,12 +130,14 @@ export function ProgramForm({ program }: ProgramFormProps) {
             structureType: form.structureType,
             progressionMode: form.progressionMode,
             completionMode: form.completionMode,
+            minimumPassingPercentage: form.minimumPassingPercentage,
+            minimumAttendancePercentage: form.minimumAttendancePercentage === '' ? undefined : Number(form.minimumAttendancePercentage),
             isVisibleForAdmissions: form.isVisibleForAdmissions,
             admissionsLabel: form.admissionsLabel || undefined,
             admissionsDescription: form.admissionsDescription || undefined,
             curriculumName: form.curriculumName,
             curriculumCode: form.curriculumCode,
-            cycles,
+            stages,
         };
         const validation = programSchema.safeParse(payload);
         if (!validation.success) {
@@ -162,12 +153,12 @@ export function ProgramForm({ program }: ProgramFormProps) {
         try {
             let saved: Program;
             if (program) {
-                saved = await api.programs.replaceCycles(program.id, {
+                saved = await api.programs.replaceStructure(program.id, {
                     configurationVersion: program.configurationVersion,
                     changeReason,
                     curriculumName: form.curriculumName,
                     curriculumCode: form.curriculumCode,
-                    cycles,
+                    stages,
                     metadata: {
                         name: form.name,
                         code: form.code,
@@ -176,6 +167,8 @@ export function ProgramForm({ program }: ProgramFormProps) {
                         structureType: form.structureType,
                         progressionMode: form.progressionMode,
                         completionMode: form.completionMode,
+                        minimumPassingPercentage: form.minimumPassingPercentage,
+                        minimumAttendancePercentage: form.minimumAttendancePercentage === '' ? undefined : Number(form.minimumAttendancePercentage),
                         isVisibleForAdmissions: form.isVisibleForAdmissions,
                         admissionsLabel: form.admissionsLabel,
                         admissionsDescription: form.admissionsDescription,
@@ -236,11 +229,11 @@ export function ProgramForm({ program }: ProgramFormProps) {
                                         icon={Building2}
                                         searchable
                                         value={form.departmentId}
-                                        onChange={(departmentId) => { setForm({ ...form, departmentId }); setCycles([]); }}
+                                        onChange={(departmentId) => setForm({ ...form, departmentId })}
                                         options={(departmentsData?.data || []).map((department) => ({ value: department.id, label: `${department.code} - ${department.name}` }))}
                                         placeholder="Select the owning department"
                                     />
-                                    <p className="text-xs font-medium leading-relaxed text-muted-foreground">Changing the department clears the cycle plan because course requirements are department-specific.</p>
+                                    <p className="text-xs font-medium leading-relaxed text-muted-foreground">This department owns the program. Curriculum courses may still be selected from other departments.</p>
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <Label className="text-sm font-bold">Description</Label>
@@ -253,7 +246,7 @@ export function ProgramForm({ program }: ProgramFormProps) {
                     <section>
                         <SectionIntroduction
                             title="Progression rules"
-                            description="These rules describe the program itself. Academic cycles remain institute-wide records and are attached separately in the curriculum plan below."
+                            description="These rules describe the durable program itself. Institute-wide academic cycles are selected later when staff create a program offering."
                             icon={Settings2}
                         />
                         <div className="rounded-lg border border-border/70 bg-card/75 p-4 shadow-sm sm:p-6">
@@ -270,14 +263,22 @@ export function ProgramForm({ program }: ProgramFormProps) {
                                     <Label className="text-sm font-bold">Completion <span className="text-danger">*</span></Label>
                                     <CustomSelect value={form.completionMode} onChange={(completionMode) => setForm({ ...form, completionMode })} options={Object.values(ProgramCompletionMode).map((value) => ({ value, label: value.replaceAll('_', ' ') }))} />
                                 </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Passing percentage</Label>
+                                    <Input type="number" min={0} max={100} value={form.minimumPassingPercentage} onChange={(event) => setForm({ ...form, minimumPassingPercentage: Number(event.target.value) })} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-bold">Minimum attendance</Label>
+                                    <Input type="number" min={0} max={100} value={form.minimumAttendancePercentage} onChange={(event) => setForm({ ...form, minimumAttendancePercentage: event.target.value })} placeholder="Not enforced" />
+                                </div>
                             </div>
                         </div>
                     </section>
 
                     <section>
                         <SectionIntroduction
-                            title="Curriculum and cycle plan"
-                            description="Build the ordered stages students must complete. Reuse institute cycles wherever possible; only organization admins can create a new institute-wide cycle."
+                            title="Curriculum and stage plan"
+                            description="Build the ordered, reusable stages students complete. This structure remains independent of calendar cycles and can be offered repeatedly over time."
                             icon={Layers}
                         />
                         <div className="mb-4 rounded-lg border border-border/70 bg-card/75 p-4 shadow-sm sm:p-6">
@@ -298,12 +299,10 @@ export function ProgramForm({ program }: ProgramFormProps) {
                                 )}
                             </div>
                         </div>
-                        <ProgramCycleArrayEditor
-                            value={cycles}
-                            onChange={setCycles}
-                            eligibleCycles={availableCycles}
+                        <ProgramStageArrayEditor
+                            value={stages}
+                            onChange={setStages}
                             courses={coursesData?.data || []}
-                            canCreateCycles={user?.role === Role.ORG_ADMIN}
                             rowErrors={rowErrors}
                         />
                     </section>

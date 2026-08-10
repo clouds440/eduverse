@@ -73,15 +73,20 @@ model Organization {
   aiConversations                           AIConversation[]
   communicationBlocks                       UserCommunicationBlock[]
   programs                                  Program[]
-  programAcademicCycles                     ProgramAcademicCycle[]
+  programOfferings                          ProgramOffering[]
+  programStageOfferings                     ProgramStageOffering[]
   programConfigurationRevisions             ProgramConfigurationRevision[]
   curriculumVersions                        CurriculumVersion[]
   programStages                             ProgramStage[]
   stageCourseRequirements                   StageCourseRequirement[]
-  sectionRequirementMappings                SectionRequirementMapping[]
+  sectionProgramMappings                    SectionProgramMapping[]
+  cohortOfferings                           CohortOffering[]
+  cohortOfferingSections                    CohortOfferingSection[]
   studentProgramEnrollments                 StudentProgramEnrollment[]
-  studentProgramEnrollmentCycles            StudentProgramEnrollmentCycle[]
-  studentStageAttempts                      StudentStageAttempt[]
+  studentStageEnrollments                   StudentStageEnrollment[]
+  studentCohortMemberships                  StudentCohortMembership[]
+  studentProgressionDecisions               StudentProgressionDecision[]
+  progressionBulkOperations                 ProgressionBulkOperation[]
   gradeAnswerbookAttachments                GradeAnswerbookAttachment[]
   academicCycleArchives                     AcademicCycleArchive[]
   academicCycleArchiveSections              AcademicCycleArchiveSection[]
@@ -735,45 +740,42 @@ model GpaPolicy {
 }
 
 model Section {
-  id                          String                        @id @default(uuid())
-  organizationId              String
-  name                        String
-  code                        String
-  color                       String                        @default("#3B82F6")
-  room                        String?
-  defaultRoomId               String?
-  courseId                    String
-  academicCycleId             String
-  cohortId                    String?
-  status                      SectionLifecycleStatus
-  programClassificationStatus ProgramClassificationStatus
-  createdAt                   DateTime                      @default(now())
-  updatedAt                   DateTime                      @updatedAt
-  enrollments                 Enrollment[]
-  organization                Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course                      Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  defaultRoom                 Room?                         @relation("SectionDefaultRoom", fields: [defaultRoomId], references: [id], onDelete: SetNull)
-  academicCycle               AcademicCycle                 @relation(fields: [academicCycleId], references: [id])
-  cohort                      Cohort?                       @relation(fields: [cohortId], references: [id])
-  teachers                    Teacher[]                     @relation("SectionToTeacher")
-  schedules                   SectionSchedule[]
-  attendanceSessions          AttendanceSession[]
-  assessments                 Assessment[]
-  evaluationWindows           EvaluationWindow[]
-  evaluations                 Evaluation[]
-  courseMaterials             CourseMaterial[]
-  enrollmentHistories         EnrollmentHistory[]
-  preferenceOptions           PreferenceWindowOption[]      @relation("PreferenceOptionSection")
-  preferenceAudiences         PreferenceWindowAudience[]    @relation("PreferenceAudienceSection")
-  requirementMappings         SectionRequirementMapping[]
-  archiveSections             AcademicCycleArchiveSection[]
+  id                     String                        @id @default(uuid())
+  organizationId         String
+  name                   String
+  code                   String
+  color                  String                        @default("#3B82F6")
+  room                   String?
+  defaultRoomId          String?
+  courseId               String
+  academicCycleId        String
+  status                 SectionLifecycleStatus
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  enrollments            Enrollment[]
+  organization           Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course                 Course                        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  defaultRoom            Room?                         @relation("SectionDefaultRoom", fields: [defaultRoomId], references: [id], onDelete: SetNull)
+  academicCycle          AcademicCycle                 @relation(fields: [academicCycleId], references: [id])
+  teachers               Teacher[]                     @relation("SectionToTeacher")
+  schedules              SectionSchedule[]
+  attendanceSessions     AttendanceSession[]
+  assessments            Assessment[]
+  evaluationWindows      EvaluationWindow[]
+  evaluations            Evaluation[]
+  courseMaterials        CourseMaterial[]
+  enrollmentHistories    EnrollmentHistory[]
+  preferenceOptions      PreferenceWindowOption[]      @relation("PreferenceOptionSection")
+  preferenceAudiences    PreferenceWindowAudience[]    @relation("PreferenceAudienceSection")
+  programMappings        SectionProgramMapping[]
+  cohortOfferingSections CohortOfferingSection[]
+  archiveSections        AcademicCycleArchiveSection[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
   @@index([courseId])
   @@index([defaultRoomId])
   @@index([academicCycleId])
-  @@index([cohortId])
 }
 
 model Enrollment {
@@ -782,7 +784,8 @@ model Enrollment {
   sectionId                  String
   academicCycleId            String
   studentProgramEnrollmentId String?
-  studentStageAttemptId      String?
+  studentStageEnrollmentId   String?
+  studentCohortMembershipId  String?
   source                     EnrollmentSource          @default(MANUAL)
   isExcludedFromCohort       Boolean                   @default(false)
   createdAt                  DateTime                  @default(now())
@@ -791,21 +794,22 @@ model Enrollment {
   student                    Student                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   academicCycle              AcademicCycle             @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
   studentProgramEnrollment   StudentProgramEnrollment? @relation(fields: [studentProgramEnrollmentId], references: [id], onDelete: Restrict)
-  studentStageAttempt        StudentStageAttempt?      @relation(fields: [studentStageAttemptId], references: [id], onDelete: Restrict)
+  studentStageEnrollment     StudentStageEnrollment?   @relation(fields: [studentStageEnrollmentId], references: [id], onDelete: Restrict)
+  studentCohortMembership    StudentCohortMembership?  @relation(fields: [studentCohortMembershipId], references: [id], onDelete: Restrict)
 
   @@unique([studentId, sectionId])
   @@index([sectionId])
   @@index([studentId])
   @@index([academicCycleId])
   @@index([studentProgramEnrollmentId])
-  @@index([studentStageAttemptId])
+  @@index([studentStageEnrollmentId])
+  @@index([studentCohortMembershipId])
 }
 
 model Student {
   id                            String                             @id @default(uuid())
   userId                        String                             @unique
   organizationId                String
-  cohortId                      String?
   registrationNumber            String                             @default("TEMP_ID")
   rollNumber                    String                             @default("TEMP_ROLL")
   fatherName                    String?
@@ -826,7 +830,6 @@ model Student {
   primaryDepartment             Department?                        @relation("StudentPrimaryDepartment", fields: [primaryDepartmentId], references: [id], onDelete: SetNull)
   user                          User                               @relation(fields: [userId], references: [id], onDelete: Cascade)
   studentDepartments            StudentDepartment[]
-  cohort                        Cohort?                            @relation(fields: [cohortId], references: [id])
   guardianLinks                 GuardianStudent[]
   grades                        Grade[]
   evaluations                   Evaluation[]
@@ -834,7 +837,7 @@ model Student {
   preferenceSubmissions         PreferenceSubmission[]
   attendanceRecords             AttendanceRecord[]
   enrollmentHistories           EnrollmentHistory[]
-  cohortMembershipHistories     CohortMembershipHistory[]
+  cohortMemberships             StudentCohortMembership[]
   financialStructures           FinancialStructure[]
   financialStructureAssignments FinancialStructureAssignment[]
   financialEntries              FinancialEntry[]
@@ -842,7 +845,6 @@ model Student {
   archiveStudentIndexes         AcademicCycleArchiveStudentIndex[]
 
   @@index([organizationId])
-  @@index([cohortId])
   @@index([primaryDepartmentId])
 }
 
@@ -2188,27 +2190,25 @@ model AcademicCycle {
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
-  organization                    Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  gpaPolicy                       GpaPolicy?                      @relation(fields: [gpaPolicyId], references: [id], onDelete: SetNull)
-  cohorts                         Cohort[]
-  sections                        Section[]
-  enrollments                     Enrollment[]
-  enrollmentHistories             EnrollmentHistory[]
-  cohortMembershipHistories       CohortMembershipHistory[]
-  assessments                     Assessment[]
-  grades                          Grade[]
-  submissions                     Submission[]
-  attendanceSessions              AttendanceSession[]
-  courseMaterials                 CourseMaterial[]
-  evaluationWindows               EvaluationWindow[]
-  evaluations                     Evaluation[]
-  sectionSchedules                SectionSchedule[]
-  preferenceWindows               PreferenceWindow[]
-  programAssociations             ProgramAcademicCycle[]
-  studentProgramEnrollmentCycles  StudentProgramEnrollmentCycle[]
-  studentProgramEnrollmentEntries StudentProgramEnrollment[]      @relation("StudentProgramEnrollmentEntryCycle")
-  archives                        AcademicCycleArchive[]          @relation("AcademicCycleArchives")
-  currentArchive                  AcademicCycleArchive?           @relation("CurrentAcademicCycleArchive", fields: [currentArchiveId], references: [id], onDelete: Restrict)
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  gpaPolicy           GpaPolicy?             @relation(fields: [gpaPolicyId], references: [id], onDelete: SetNull)
+  cohorts             Cohort[]
+  sections            Section[]
+  enrollments         Enrollment[]
+  enrollmentHistories EnrollmentHistory[]
+  cohortOfferings     CohortOffering[]
+  assessments         Assessment[]
+  grades              Grade[]
+  submissions         Submission[]
+  attendanceSessions  AttendanceSession[]
+  courseMaterials     CourseMaterial[]
+  evaluationWindows   EvaluationWindow[]
+  evaluations         Evaluation[]
+  sectionSchedules    SectionSchedule[]
+  preferenceWindows   PreferenceWindow[]
+  programOfferings    ProgramOffering[]
+  archives            AcademicCycleArchive[] @relation("AcademicCycleArchives")
+  currentArchive      AcademicCycleArchive?  @relation("CurrentAcademicCycleArchive", fields: [currentArchiveId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -2217,35 +2217,23 @@ model AcademicCycle {
 }
 
 model Cohort {
-  id                          String                      @id @default(uuid())
-  name                        String
-  code                        String
-  organizationId              String
-  academicCycleId             String
-  status                      CohortLifecycleStatus
-  programClassificationStatus ProgramClassificationStatus
-  programAcademicCycleId      String?
-  programStageId              String?
-  createdAt                   DateTime                    @default(now())
-  updatedAt                   DateTime                    @updatedAt
+  id             String                @id @default(uuid())
+  name           String
+  code           String
+  organizationId String
+  status         CohortLifecycleStatus @default(ACTIVE)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
-  organization                   Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  academicCycle                  AcademicCycle                   @relation(fields: [academicCycleId], references: [id])
-  students                       Student[]
-  sections                       Section[]
-  cohortMembershipHistories      CohortMembershipHistory[]
-  preferenceAudiences            PreferenceWindowAudience[]
-  programAcademicCycle           ProgramAcademicCycle?           @relation(fields: [programAcademicCycleId], references: [id], onDelete: Restrict)
-  programStage                   ProgramStage?                   @relation(fields: [programStageId], references: [id], onDelete: Restrict)
-  studentProgramEnrollmentCycles StudentProgramEnrollmentCycle[]
-  studentStageAttempts           StudentStageAttempt[]
+  organization        Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  offerings           CohortOffering[]
+  preferenceAudiences PreferenceWindowAudience[]
+  academicCycle       AcademicCycle?             @relation(fields: [academicCycleId], references: [id])
+  academicCycleId     String?
 
   @@unique([organizationId, code])
   @@index([organizationId])
-  @@index([academicCycleId])
   @@index([status])
-  @@index([programAcademicCycleId])
-  @@index([programStageId])
 }
 
 model EnrollmentHistory {
@@ -2254,7 +2242,8 @@ model EnrollmentHistory {
   sectionId                  String
   academicCycleId            String
   studentProgramEnrollmentId String?
-  studentStageAttemptId      String?
+  studentStageEnrollmentId   String?
+  studentCohortMembershipId  String?
 
   source      EnrollmentSource @default(MANUAL)
   wasExcluded Boolean          @default(false)
@@ -2266,31 +2255,15 @@ model EnrollmentHistory {
   section                  Section                   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   academicCycle            AcademicCycle             @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
   studentProgramEnrollment StudentProgramEnrollment? @relation(fields: [studentProgramEnrollmentId], references: [id], onDelete: Restrict)
-  studentStageAttempt      StudentStageAttempt?      @relation(fields: [studentStageAttemptId], references: [id], onDelete: Restrict)
+  studentStageEnrollment   StudentStageEnrollment?   @relation(fields: [studentStageEnrollmentId], references: [id], onDelete: Restrict)
+  studentCohortMembership  StudentCohortMembership?  @relation(fields: [studentCohortMembershipId], references: [id], onDelete: Restrict)
 
   @@index([studentId])
   @@index([sectionId])
   @@index([academicCycleId])
   @@index([studentProgramEnrollmentId])
-  @@index([studentStageAttemptId])
-}
-
-model CohortMembershipHistory {
-  id              String @id @default(uuid())
-  studentId       String
-  cohortId        String
-  academicCycleId String
-
-  joinedAt DateTime  @default(now())
-  leftAt   DateTime?
-
-  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  cohort        Cohort        @relation(fields: [cohortId], references: [id], onDelete: Cascade)
-  academicCycle AcademicCycle @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
-
-  @@index([studentId])
-  @@index([cohortId])
-  @@index([academicCycleId])
+  @@index([studentStageEnrollmentId])
+  @@index([studentCohortMembershipId])
 }
 
 // ─── FINANCIAL LEDGER SYSTEM ────────────────────────────────────────────────
@@ -2331,9 +2304,31 @@ enum ProgramDurationUnit {
   CYCLES
 }
 
-enum ProgramAcademicCycleStatus {
+enum ProgramOfferingStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum ProgramStageOfferingStatus {
+  PLANNED
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum CohortOfferingStatus {
+  PLANNED
   ACTIVE
-  RETIRED
+  CLOSED
+  CANCELLED
+}
+
+enum CohortSectionSource {
+  SUGGESTED
+  AUTO
+  MANUAL
 }
 
 enum CurriculumStatus {
@@ -2359,7 +2354,7 @@ enum StudentProgramEnrollmentStatus {
   ARCHIVED
 }
 
-enum StudentProgramCycleStatus {
+enum StudentStageEnrollmentStatus {
   PLANNED
   IN_PROGRESS
   COMPLETED
@@ -2368,13 +2363,20 @@ enum StudentProgramCycleStatus {
   WITHDRAWN
 }
 
-enum StudentStageAttemptStatus {
-  PLANNED
-  IN_PROGRESS
+enum StudentProgressionOutcome {
+  ADVANCE
+  REPEAT
+  PAUSE
+  TRANSFER
+  COMPLETE
+  WITHDRAW
+  REMAIN
+}
+
+enum ProgressionBulkOperationStatus {
+  RUNNING
   COMPLETED
   FAILED
-  SKIPPED
-  WITHDRAWN
 }
 
 enum AcademicCycleArchiveStatus {
@@ -2384,38 +2386,39 @@ enum AcademicCycleArchiveStatus {
 }
 
 enum ArchiveProgramSourceKind {
-  COHORT
-  REQUIREMENT_MAPPING
+  COHORT_OFFERING
+  SECTION_MAPPING
 }
 
 model Program {
-  id                     String                 @id @default(uuid())
-  organizationId         String
-  departmentId           String
-  name                   String
-  code                   String
-  description            String?
-  status                 ProgramStatus          @default(DRAFT)
-  requiredCycleCount     Int
-  configurationVersion   Int                    @default(1)
-  structureType          ProgramStructureType
-  progressionMode        ProgramProgressionMode
-  completionMode         ProgramCompletionMode
-  durationValue          Int?
-  durationUnit           ProgramDurationUnit?
-  isVisibleForAdmissions Boolean                @default(false)
-  admissionsLabel        String?
-  admissionsDescription  String?
-  admissionsSortOrder    Int                    @default(0)
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
-  archivedAt             DateTime?
-  archivedById           String?
-  archiveReason          String?
+  id                          String                 @id @default(uuid())
+  organizationId              String
+  departmentId                String
+  name                        String
+  code                        String
+  description                 String?
+  status                      ProgramStatus          @default(DRAFT)
+  configurationVersion        Int                    @default(1)
+  structureType               ProgramStructureType
+  progressionMode             ProgramProgressionMode
+  completionMode              ProgramCompletionMode
+  minimumPassingPercentage    Float                  @default(50)
+  minimumAttendancePercentage Float?
+  durationValue               Int?
+  durationUnit                ProgramDurationUnit?
+  isVisibleForAdmissions      Boolean                @default(false)
+  admissionsLabel             String?
+  admissionsDescription       String?
+  admissionsSortOrder         Int                    @default(0)
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+  archivedAt                  DateTime?
+  archivedById                String?
+  archiveReason               String?
 
   organization           Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   department             Department                     @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  academicCycles         ProgramAcademicCycle[]
+  offerings              ProgramOffering[]
   configurationRevisions ProgramConfigurationRevision[]
   curriculumVersions     CurriculumVersion[]
   studentEnrollments     StudentProgramEnrollment[]
@@ -2427,45 +2430,16 @@ model Program {
   @@index([isVisibleForAdmissions, admissionsSortOrder])
 }
 
-model ProgramAcademicCycle {
-  id              String                     @id @default(uuid())
-  organizationId  String
-  programId       String
-  academicCycleId String
-  sequence        Int
-  isRequired      Boolean                    @default(true)
-  status          ProgramAcademicCycleStatus @default(ACTIVE)
-  retiredAt       DateTime?
-  retiredById     String?
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
-
-  organization               Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  program                    Program                         @relation(fields: [programId], references: [id], onDelete: Restrict)
-  academicCycle              AcademicCycle                   @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
-  stages                     ProgramStage[]
-  cohorts                    Cohort[]
-  sectionRequirementMappings SectionRequirementMapping[]
-  studentEnrollmentCycles    StudentProgramEnrollmentCycle[]
-  entryStudentEnrollments    StudentProgramEnrollment[]      @relation("StudentProgramEnrollmentEntryAssociation")
-
-  @@unique([programId, academicCycleId])
-  @@index([organizationId])
-  @@index([programId, status])
-  @@index([academicCycleId])
-}
-
 model ProgramConfigurationRevision {
-  id                 String   @id @default(uuid())
-  organizationId     String
-  programId          String
-  version            Int
-  requiredCycleCount Int
-  cyclesSnapshot     Json
-  checksum           String
-  changeReason       String?
-  createdById        String
-  createdAt          DateTime @default(now())
+  id                    String   @id @default(uuid())
+  organizationId        String
+  programId             String
+  version               Int
+  configurationSnapshot Json
+  checksum              String
+  changeReason          String?
+  createdById           String
+  createdAt             DateTime @default(now())
 
   organization       Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   program            Program                    @relation(fields: [programId], references: [id], onDelete: Restrict)
@@ -2500,6 +2474,7 @@ model CurriculumVersion {
   program                      Program                      @relation(fields: [programId], references: [id], onDelete: Restrict)
   programConfigurationRevision ProgramConfigurationRevision @relation(fields: [programConfigurationRevisionId], references: [id], onDelete: Restrict)
   stages                       ProgramStage[]
+  offerings                    ProgramOffering[]
   studentEnrollments           StudentProgramEnrollment[]
 
   @@unique([programId, code])
@@ -2509,34 +2484,32 @@ model CurriculumVersion {
 }
 
 model ProgramStage {
-  id                     String   @id @default(uuid())
-  organizationId         String
-  curriculumVersionId    String
-  programAcademicCycleId String
-  name                   String
-  code                   String
-  sequence               Int
-  stageType              String?
-  isOptional             Boolean  @default(false)
-  minCredits             Float?
-  expectedCredits        Float?
-  completionRule         Json?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  organizationId      String
+  curriculumVersionId String
+  name                String
+  code                String
+  sequence            Int
+  stageType           String?
+  isOptional          Boolean  @default(false)
+  minCredits          Float?
+  expectedCredits     Float?
+  completionRule      Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  organization            Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  curriculumVersion       CurriculumVersion               @relation(fields: [curriculumVersionId], references: [id], onDelete: Restrict)
-  programAcademicCycle    ProgramAcademicCycle            @relation(fields: [programAcademicCycleId], references: [id], onDelete: Restrict)
-  courseRequirements      StageCourseRequirement[]
-  cohorts                 Cohort[]
-  studentEnrollmentCycles StudentProgramEnrollmentCycle[]
-  studentStageAttempts    StudentStageAttempt[]
+  organization              Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  curriculumVersion         CurriculumVersion            @relation(fields: [curriculumVersionId], references: [id], onDelete: Restrict)
+  courseRequirements        StageCourseRequirement[]
+  offerings                 ProgramStageOffering[]
+  entryProgramEnrollments   StudentProgramEnrollment[]   @relation("StudentProgramEnrollmentEntryStage")
+  studentStageEnrollments   StudentStageEnrollment[]
+  progressionDecisionSource StudentProgressionDecision[] @relation("ProgressionSourceStage")
+  progressionDecisionTarget StudentProgressionDecision[] @relation("ProgressionTargetStage")
 
   @@unique([curriculumVersionId, code])
   @@unique([curriculumVersionId, sequence])
-  @@unique([curriculumVersionId, programAcademicCycleId])
   @@index([organizationId])
-  @@index([programAcademicCycleId])
 }
 
 model StageCourseRequirement {
@@ -2554,34 +2527,133 @@ model StageCourseRequirement {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
-  organization    Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  programStage    ProgramStage                @relation(fields: [programStageId], references: [id], onDelete: Restrict)
-  course          Course                      @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  sectionMappings SectionRequirementMapping[]
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  programStage    ProgramStage            @relation(fields: [programStageId], references: [id], onDelete: Restrict)
+  course          Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  sectionMappings SectionProgramMapping[]
 
   @@index([organizationId])
   @@index([programStageId, sortOrder])
   @@index([courseId])
 }
 
-model SectionRequirementMapping {
+model ProgramOffering {
+  id                  String                @id @default(uuid())
+  organizationId      String
+  programId           String
+  curriculumVersionId String
+  academicCycleId     String
+  status              ProgramOfferingStatus @default(DRAFT)
+  opensAt             DateTime?
+  closesAt            DateTime?
+  capacity            Int?
+  notes               String?
+  createdById         String
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  program           Program                @relation(fields: [programId], references: [id], onDelete: Restrict)
+  curriculumVersion CurriculumVersion      @relation(fields: [curriculumVersionId], references: [id], onDelete: Restrict)
+  academicCycle     AcademicCycle          @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  stageOfferings    ProgramStageOffering[]
+
+  @@unique([programId, curriculumVersionId, academicCycleId])
+  @@index([organizationId])
+  @@index([academicCycleId, status])
+  @@index([programId, status])
+}
+
+model ProgramStageOffering {
+  id                String                     @id @default(uuid())
+  organizationId    String
+  programOfferingId String
+  programStageId    String
+  status            ProgramStageOfferingStatus @default(PLANNED)
+  startsAt          DateTime?
+  endsAt            DateTime?
+  capacity          Int?
+  createdById       String
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  organization              Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  programOffering           ProgramOffering              @relation(fields: [programOfferingId], references: [id], onDelete: Restrict)
+  programStage              ProgramStage                 @relation(fields: [programStageId], references: [id], onDelete: Restrict)
+  cohortOfferings           CohortOffering[]
+  sectionMappings           SectionProgramMapping[]
+  studentStageEnrollments   StudentStageEnrollment[]
+  progressionTargets        StudentProgressionDecision[] @relation("ProgressionTargetOffering")
+  progressionBulkOperations ProgressionBulkOperation[]
+
+  @@unique([programOfferingId, programStageId])
+  @@index([organizationId])
+  @@index([programStageId, status])
+}
+
+model CohortOffering {
+  id                     String               @id @default(uuid())
+  organizationId         String
+  cohortId               String
+  academicCycleId        String
+  programStageOfferingId String?
+  status                 CohortOfferingStatus @default(PLANNED)
+  capacity               Int?
+  createdById            String
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  organization         Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  cohort               Cohort                    @relation(fields: [cohortId], references: [id], onDelete: Restrict)
+  academicCycle        AcademicCycle             @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  programStageOffering ProgramStageOffering?     @relation(fields: [programStageOfferingId], references: [id], onDelete: Restrict)
+  sections             CohortOfferingSection[]
+  memberships          StudentCohortMembership[]
+  stageEnrollments     StudentStageEnrollment[]
+
+  @@unique([cohortId, academicCycleId])
+  @@index([organizationId])
+  @@index([academicCycleId, status])
+  @@index([programStageOfferingId])
+}
+
+model CohortOfferingSection {
+  id               String              @id @default(uuid())
+  organizationId   String
+  cohortOfferingId String
+  sectionId        String
+  source           CohortSectionSource @default(MANUAL)
+  isDefault        Boolean             @default(true)
+  createdById      String
+  createdAt        DateTime            @default(now())
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  cohortOffering CohortOffering @relation(fields: [cohortOfferingId], references: [id], onDelete: Restrict)
+  section        Section        @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  @@unique([cohortOfferingId, sectionId])
+  @@index([organizationId])
+  @@index([sectionId])
+}
+
+model SectionProgramMapping {
   id                       String   @id @default(uuid())
   organizationId           String
   sectionId                String
+  programStageOfferingId   String
   stageCourseRequirementId String
-  programAcademicCycleId   String
+  createdById              String
   createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
 
   organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   section                Section                @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  programStageOffering   ProgramStageOffering   @relation(fields: [programStageOfferingId], references: [id], onDelete: Restrict)
   stageCourseRequirement StageCourseRequirement @relation(fields: [stageCourseRequirementId], references: [id], onDelete: Restrict)
-  programAcademicCycle   ProgramAcademicCycle   @relation(fields: [programAcademicCycleId], references: [id], onDelete: Restrict)
 
-  @@unique([sectionId, stageCourseRequirementId, programAcademicCycleId])
+  @@unique([sectionId, programStageOfferingId, stageCourseRequirementId])
   @@index([organizationId])
+  @@index([programStageOfferingId])
   @@index([stageCourseRequirementId])
-  @@index([programAcademicCycleId])
 }
 
 model StudentProgramEnrollment {
@@ -2593,12 +2665,14 @@ model StudentProgramEnrollment {
   programConfigurationRevisionId      String
   status                              StudentProgramEnrollmentStatus @default(ADMITTED)
   openSlot                            String?                        @unique
-  requiredCycleCountSnapshot          Int
+  requiredStageCountSnapshot          Int
   programConfigurationVersionSnapshot Int
-  programCyclePlanSnapshotHash        String
-  entryProgramAcademicCycleId         String?
-  entryAcademicCycleId                String?
-  entryStageSequence                  Int?
+  curriculumSnapshotHash              String
+  progressionModeSnapshot             ProgramProgressionMode
+  completionModeSnapshot              ProgramCompletionMode
+  minimumPassingPercentageSnapshot    Float
+  minimumAttendancePercentageSnapshot Float?
+  entryStageId                        String?
   admittedAt                          DateTime                       @default(now())
   admittedById                        String
   startedAt                           DateTime?
@@ -2609,15 +2683,14 @@ model StudentProgramEnrollment {
   createdAt                           DateTime                       @default(now())
   updatedAt                           DateTime                       @updatedAt
 
-  organization                 Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  student                      Student                         @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  program                      Program                         @relation(fields: [programId], references: [id], onDelete: Restrict)
-  curriculumVersion            CurriculumVersion               @relation(fields: [curriculumVersionId], references: [id], onDelete: Restrict)
-  programConfigurationRevision ProgramConfigurationRevision    @relation(fields: [programConfigurationRevisionId], references: [id], onDelete: Restrict)
-  entryProgramAcademicCycle    ProgramAcademicCycle?           @relation("StudentProgramEnrollmentEntryAssociation", fields: [entryProgramAcademicCycleId], references: [id], onDelete: Restrict)
-  entryAcademicCycle           AcademicCycle?                  @relation("StudentProgramEnrollmentEntryCycle", fields: [entryAcademicCycleId], references: [id], onDelete: Restrict)
-  cycles                       StudentProgramEnrollmentCycle[]
-  stageAttempts                StudentStageAttempt[]
+  organization                 Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  student                      Student                      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  program                      Program                      @relation(fields: [programId], references: [id], onDelete: Restrict)
+  curriculumVersion            CurriculumVersion            @relation(fields: [curriculumVersionId], references: [id], onDelete: Restrict)
+  programConfigurationRevision ProgramConfigurationRevision @relation(fields: [programConfigurationRevisionId], references: [id], onDelete: Restrict)
+  entryStage                   ProgramStage?                @relation("StudentProgramEnrollmentEntryStage", fields: [entryStageId], references: [id], onDelete: Restrict)
+  stageEnrollments             StudentStageEnrollment[]
+  progressionDecisions         StudentProgressionDecision[]
   sectionEnrollments           Enrollment[]
   sectionEnrollmentHistories   EnrollmentHistory[]
 
@@ -2626,82 +2699,121 @@ model StudentProgramEnrollment {
   @@index([programId])
   @@index([curriculumVersionId])
   @@index([programConfigurationRevisionId])
-  @@index([entryProgramAcademicCycleId])
-  @@index([entryAcademicCycleId])
+  @@index([entryStageId])
 }
 
-model StudentProgramEnrollmentCycle {
-  id                         String                    @id @default(uuid())
+model StudentStageEnrollment {
+  id                         String                       @id @default(uuid())
   organizationId             String
   studentProgramEnrollmentId String
-  programAcademicCycleId     String
-  academicCycleId            String
   programStageId             String
-  sequenceSnapshot           Int
-  isRequiredSnapshot         Boolean
-  cycleNameSnapshot          String
-  cycleCodeSnapshot          String
-  cycleStartDateSnapshot     DateTime
-  cycleEndDateSnapshot       DateTime
+  programStageOfferingId     String
+  cohortOfferingId           String?
+  attemptNumber              Int
+  status                     StudentStageEnrollmentStatus @default(PLANNED)
   stageNameSnapshot          String
   stageCodeSnapshot          String
-  status                     StudentProgramCycleStatus @default(PLANNED)
-  cohortId                   String?
+  cycleNameSnapshot          String
+  cycleCodeSnapshot          String
   reason                     String?
   startedAt                  DateTime?
   completedAt                DateTime?
   resolvedById               String?
   resultSnapshot             Json?
-  createdAt                  DateTime                  @default(now())
-  updatedAt                  DateTime                  @updatedAt
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+
+  organization             Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  studentProgramEnrollment StudentProgramEnrollment     @relation(fields: [studentProgramEnrollmentId], references: [id], onDelete: Restrict)
+  programStage             ProgramStage                 @relation(fields: [programStageId], references: [id], onDelete: Restrict)
+  programStageOffering     ProgramStageOffering         @relation(fields: [programStageOfferingId], references: [id], onDelete: Restrict)
+  cohortOffering           CohortOffering?              @relation(fields: [cohortOfferingId], references: [id], onDelete: Restrict)
+  cohortMemberships        StudentCohortMembership[]
+  progressionDecisions     StudentProgressionDecision[] @relation("ProgressionSourceEnrollment")
+  sectionEnrollments       Enrollment[]
+  sectionEnrollmentHistory EnrollmentHistory[]
+
+  @@unique([studentProgramEnrollmentId, programStageOfferingId, attemptNumber])
+  @@index([organizationId])
+  @@index([programStageId, status])
+  @@index([cohortOfferingId])
+}
+
+model StudentCohortMembership {
+  id                       String           @id @default(uuid())
+  organizationId           String
+  studentId                String
+  cohortOfferingId         String
+  studentStageEnrollmentId String?
+  source                   EnrollmentSource @default(MANUAL)
+  reason                   String?
+  joinedById               String
+  joinedAt                 DateTime         @default(now())
+  leftById                 String?
+  leftAt                   DateTime?
+
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  student                Student                 @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  cohortOffering         CohortOffering          @relation(fields: [cohortOfferingId], references: [id], onDelete: Restrict)
+  studentStageEnrollment StudentStageEnrollment? @relation(fields: [studentStageEnrollmentId], references: [id], onDelete: Restrict)
+  sectionEnrollments     Enrollment[]
+  sectionHistory         EnrollmentHistory[]
+
+  @@index([organizationId])
+  @@index([studentId, leftAt])
+  @@index([cohortOfferingId, leftAt])
+}
+
+model StudentProgressionDecision {
+  id                         String                    @id @default(uuid())
+  organizationId             String
+  studentProgramEnrollmentId String
+  sourceStageEnrollmentId    String?
+  sourceStageId              String?
+  outcome                    StudentProgressionOutcome
+  targetStageId              String?
+  targetStageOfferingId      String?
+  recommendationSnapshot     Json?
+  resultSnapshot             Json?
+  isOverride                 Boolean                   @default(false)
+  idempotencyKey             String?
+  reason                     String
+  decidedById                String
+  decidedAt                  DateTime                  @default(now())
 
   organization             Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   studentProgramEnrollment StudentProgramEnrollment @relation(fields: [studentProgramEnrollmentId], references: [id], onDelete: Restrict)
-  programAcademicCycle     ProgramAcademicCycle     @relation(fields: [programAcademicCycleId], references: [id], onDelete: Restrict)
-  academicCycle            AcademicCycle            @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
-  programStage             ProgramStage             @relation(fields: [programStageId], references: [id], onDelete: Restrict)
-  cohort                   Cohort?                  @relation(fields: [cohortId], references: [id], onDelete: Restrict)
-  stageAttempts            StudentStageAttempt[]
+  sourceStageEnrollment    StudentStageEnrollment?  @relation("ProgressionSourceEnrollment", fields: [sourceStageEnrollmentId], references: [id], onDelete: Restrict)
+  sourceStage              ProgramStage?            @relation("ProgressionSourceStage", fields: [sourceStageId], references: [id], onDelete: Restrict)
+  targetStage              ProgramStage?            @relation("ProgressionTargetStage", fields: [targetStageId], references: [id], onDelete: Restrict)
+  targetStageOffering      ProgramStageOffering?    @relation("ProgressionTargetOffering", fields: [targetStageOfferingId], references: [id], onDelete: Restrict)
 
-  @@unique([studentProgramEnrollmentId, programAcademicCycleId])
-  @@unique([studentProgramEnrollmentId, academicCycleId])
-  @@unique([studentProgramEnrollmentId, sequenceSnapshot])
+  @@unique([organizationId, idempotencyKey])
   @@index([organizationId])
-  @@index([programStageId])
-  @@index([cohortId])
-  @@index([status])
+  @@index([studentProgramEnrollmentId, decidedAt])
+  @@index([sourceStageEnrollmentId])
+  @@index([targetStageOfferingId])
 }
 
-model StudentStageAttempt {
-  id                              String                    @id @default(uuid())
-  organizationId                  String
-  studentProgramEnrollmentId      String
-  studentProgramEnrollmentCycleId String
-  programStageId                  String
-  cohortId                        String?
-  attemptNumber                   Int
-  status                          StudentStageAttemptStatus @default(PLANNED)
-  reason                          String?
-  startedAt                       DateTime?
-  completedAt                     DateTime?
-  resolvedById                    String?
-  resultSnapshot                  Json?
-  createdAt                       DateTime                  @default(now())
-  updatedAt                       DateTime                  @updatedAt
+model ProgressionBulkOperation {
+  id                           String                         @id @default(uuid())
+  organizationId               String
+  idempotencyKey               String
+  sourceProgramStageOfferingId String
+  requestHash                  String
+  status                       ProgressionBulkOperationStatus @default(RUNNING)
+  result                       Json?
+  failureReason                String?
+  createdById                  String
+  createdAt                    DateTime                       @default(now())
+  completedAt                  DateTime?
 
-  organization                  Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  studentProgramEnrollment      StudentProgramEnrollment      @relation(fields: [studentProgramEnrollmentId], references: [id], onDelete: Restrict)
-  studentProgramEnrollmentCycle StudentProgramEnrollmentCycle @relation(fields: [studentProgramEnrollmentCycleId], references: [id], onDelete: Restrict)
-  programStage                  ProgramStage                  @relation(fields: [programStageId], references: [id], onDelete: Restrict)
-  cohort                        Cohort?                       @relation(fields: [cohortId], references: [id], onDelete: Restrict)
-  sectionEnrollments            Enrollment[]
-  sectionEnrollmentHistories    EnrollmentHistory[]
+  organization               Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sourceProgramStageOffering ProgramStageOffering @relation(fields: [sourceProgramStageOfferingId], references: [id], onDelete: Restrict)
 
-  @@unique([studentProgramEnrollmentCycleId, programStageId, attemptNumber])
-  @@index([organizationId])
-  @@index([studentProgramEnrollmentId])
-  @@index([cohortId])
-  @@index([status])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status])
+  @@index([sourceProgramStageOfferingId])
 }
 
 model GradeAnswerbookAttachment {
@@ -2790,7 +2902,8 @@ model AcademicCycleArchiveSectionProgramIndex {
   archiveSectionId               String
   sourceKind                     ArchiveProgramSourceKind
   sourceMappingId                String
-  sourceProgramAcademicCycleId   String
+  sourceProgramOfferingId        String
+  sourceProgramStageOfferingId   String
   sourceProgramId                String
   sourceCurriculumVersionId      String
   sourceProgramStageId           String
@@ -2808,7 +2921,8 @@ model AcademicCycleArchiveSectionProgramIndex {
   @@unique([archiveSectionId, sourceKind, sourceMappingId])
   @@index([organizationId])
   @@index([archiveId, sourceProgramId])
-  @@index([sourceProgramAcademicCycleId])
+  @@index([sourceProgramOfferingId])
+  @@index([sourceProgramStageOfferingId])
   @@index([sourceCurriculumVersionId])
   @@index([sourceProgramStageId])
 }

@@ -182,7 +182,7 @@ export class AnnouncementsService {
       });
     } else if (dto.targetType === TargetType.COHORT && dto.targetId) {
       const students = await this.prisma.student.findMany({
-        where: { cohortId: dto.targetId },
+        where: { cohortMemberships: { some: { cohortOffering: { cohortId: dto.targetId }, leftAt: null } } },
         select: { userId: true },
       });
       students.forEach((student) => {
@@ -231,7 +231,10 @@ export class AnnouncementsService {
       if (student) {
         const profile = await this.prisma.student.findUnique({
           where: { userId: user.id },
-          include: { enrollments: { include: { section: { select: { courseId: true } } } } },
+          include: {
+            enrollments: { include: { section: { select: { courseId: true } } } },
+            cohortMemberships: { where: { leftAt: null }, take: 1, select: { cohortOffering: { select: { cohortId: true } } } },
+          },
         });
         if (profile && profile.enrollments.length > 0) {
           conditions.push({
@@ -243,10 +246,11 @@ export class AnnouncementsService {
             targetId: { in: Array.from(new Set(profile.enrollments.map((e) => e.section.courseId))) },
           });
         }
-        if (profile?.cohortId) {
+        const cohortId = profile?.cohortMemberships[0]?.cohortOffering.cohortId;
+        if (cohortId) {
           conditions.push({
             targetType: TargetType.COHORT,
-            targetId: profile.cohortId,
+            targetId: cohortId,
           });
         }
       }

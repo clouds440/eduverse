@@ -9,7 +9,7 @@ import { CurriculumStatus, ProgramStatus } from '@/prisma/prisma-client';
 import { ProgramsService } from './programs.service';
 import {
   CreateProgramDto,
-  ReplaceProgramCyclesDto,
+  ReplaceProgramStructureDto,
   TransitionProgramDto,
   UpdateProgramDto,
 } from './dto/program.dto';
@@ -103,9 +103,9 @@ export class ProgramsController {
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
-  @Put(':id/cycles')
-  replaceCycles(@OrgId() orgId: string, @Param('id') id: string, @Body() dto: ReplaceProgramCyclesDto, @Req() req: AuthenticatedRequest) {
-    return this.programs.replaceCycles(orgId, id, dto, req.user);
+  @Put(':id/structure')
+  replaceStructure(@OrgId() orgId: string, @Param('id') id: string, @Body() dto: ReplaceProgramStructureDto, @Req() req: AuthenticatedRequest) {
+    return this.programs.replaceStructure(orgId, id, dto, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)

@@ -4,6 +4,7 @@ import { Role } from '../common/enums';
 import { GpaService } from '../gpa/gpa.service';
 import { GpaRounding, Prisma } from '@/prisma/prisma-client';
 import { StudentService } from '../students/student.service';
+import { buildStudentAcademicIdentity, buildStudentProgramOverview } from '../common/student-academic-identity';
 
 @Injectable()
 export class TranscriptsService {
@@ -27,10 +28,19 @@ export class TranscriptsService {
       where: { id: studentId, organizationId: orgId },
       include: {
         user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } },
-        cohort: { select: { id: true, name: true } },
+        cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true } } } },
         programEnrollments: {
-          include: { program: { include: { department: true } }, curriculumVersion: true },
+          include: {
+            program: { include: { department: true } },
+            curriculumVersion: { include: { stages: { orderBy: { sequence: 'asc' }, include: { courseRequirements: true } } } },
+            stageEnrollments: { orderBy: { createdAt: 'asc' } },
+          },
           orderBy: { admittedAt: 'asc' },
+        },
+        enrollments: {
+          where: { isExcludedFromCohort: false },
+          include: { section: { include: { course: true } } },
+          orderBy: { createdAt: 'asc' },
         },
       },
     });
@@ -73,16 +83,15 @@ export class TranscriptsService {
         },
         academicCycle: { select: { id: true, name: true, startDate: true, endDate: true, gpaPolicySnapshot: true } },
         studentProgramEnrollment: { include: { program: true, curriculumVersion: true } },
-        studentStageAttempt: { include: { programStage: true } },
+        studentStageEnrollment: { include: { programStage: true } },
       },
       orderBy: { enrolledAt: 'asc' },
     });
 
-    const cohortHistory = await this.prisma.cohortMembershipHistory.findMany({
-      where: { studentId, ...cycleFilter },
+    const cohortHistory = await this.prisma.studentCohortMembership.findMany({
+      where: { studentId, ...(cycleId ? { cohortOffering: { academicCycleId: cycleId } } : {}) },
       include: {
-        cohort: { select: { id: true, name: true } },
-        academicCycle: { select: { id: true, name: true } },
+        cohortOffering: { include: { cohort: { select: { id: true, name: true } }, academicCycle: { select: { id: true, name: true } } } },
       },
       orderBy: { joinedAt: 'asc' },
     });
@@ -188,16 +197,16 @@ export class TranscriptsService {
           qualityPoints: 0,
           program: eh.studentProgramEnrollment?.program || null,
           curriculum: eh.studentProgramEnrollment?.curriculumVersion || null,
-          stage: eh.studentStageAttempt?.programStage || null,
+          stage: eh.studentStageEnrollment?.programStage || null,
         });
       }
     }
 
     // Fill in cohort names
     for (const ch of cohortHistory) {
-      const cId = ch.academicCycleId || 'unassigned';
+      const cId = ch.cohortOffering.academicCycleId || 'unassigned';
       if (cycleMap.has(cId)) {
-        cycleMap.get(cId)!.cohortName = ch.cohort.name;
+        cycleMap.get(cId)!.cohortName = ch.cohortOffering.cohort.name;
       }
     }
 
@@ -311,6 +320,14 @@ export class TranscriptsService {
     const totalQualityPoints = allGpaCourseResults.reduce((sum, course) => sum + course.qualityPoints, 0);
     const cgpa = totalCreditHours > 0 ? totalQualityPoints / totalCreditHours : 0;
 
+    const majorProgramEnrollment = [...student.programEnrollments].reverse().find((enrollment) => ['ADMITTED', 'ACTIVE', 'ON_HOLD'].includes(enrollment.status)) ?? null;
+    const currentCohortMembership = student.cohortMemberships[0] ?? null;
+    const academicIdentity = buildStudentAcademicIdentity({
+      majorProgramEnrollment,
+      currentCohortMembership,
+      enrollments: student.enrollments,
+    });
+
     return {
       student: {
         id: student.id,
@@ -320,7 +337,9 @@ export class TranscriptsService {
         avatarUpdatedAt: student.user.avatarUpdatedAt,
         registrationNumber: student.registrationNumber,
         rollNumber: student.rollNumber,
-        currentCohort: student.cohort,
+        currentCohort: student.cohortMemberships[0]?.cohortOffering.cohort || null,
+        academicIdentity,
+        programOverview: buildStudentProgramOverview(majorProgramEnrollment, student.graduationDate),
         programHistory: student.programEnrollments,
       },
       transcript,
@@ -356,6 +375,13 @@ export class TranscriptsService {
         student: {
           include: {
             user: { select: { id: true, name: true, email: true } },
+            programEnrollments: {
+              where: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] } },
+              take: 1,
+              orderBy: { admittedAt: 'desc' },
+              include: { program: true },
+            },
+            cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true } } } },
           },
         },
         section: {
@@ -372,6 +398,7 @@ export class TranscriptsService {
       registrationNumber: string;
       sectionsCount: number;
       enrollmentTypes: Set<string>;
+      academicIdentity: ReturnType<typeof buildStudentAcademicIdentity>;
     }>();
 
     for (const enrollment of enrollments) {
@@ -383,6 +410,11 @@ export class TranscriptsService {
           registrationNumber: enrollment.student.registrationNumber,
           sectionsCount: 0,
           enrollmentTypes: new Set(),
+          academicIdentity: buildStudentAcademicIdentity({
+            majorProgramEnrollment: enrollment.student.programEnrollments[0],
+            currentCohortMembership: enrollment.student.cohortMemberships[0],
+            enrollments: [{ section: enrollment.section }],
+          }),
         });
       }
       const s = studentMap.get(enrollment.studentId)!;

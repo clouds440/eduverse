@@ -1,7 +1,18 @@
-import { IsArray, IsEnum, IsOptional, IsString, IsNotEmpty, Matches, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsEnum, IsOptional, IsString, IsNotEmpty, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 import { HEX_COLOR_PATTERN } from '../section-colors';
-import { ProgramClassificationStatus, SectionLifecycleStatus } from '../../common/enums';
+import { SectionLifecycleStatus } from '../../common/enums';
+
+export class SectionProgramMappingInputDto {
+  @IsString()
+  @IsNotEmpty()
+  programStageOfferingId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  stageCourseRequirementId!: string;
+}
 
 export class CreateSectionDto {
   @IsString()
@@ -30,21 +41,15 @@ export class CreateSectionDto {
   @IsNotEmpty()
   academicCycleId: string;
 
-  @IsEnum(ProgramClassificationStatus)
-  programClassificationStatus: ProgramClassificationStatus;
-
   @IsArray()
-  @IsString({ each: true })
+  @ValidateNested({ each: true })
+  @Type(() => SectionProgramMappingInputDto)
   @IsOptional()
-  stageCourseRequirementIds?: string[];
+  programMappings?: SectionProgramMappingInputDto[];
 
   @IsEnum(SectionLifecycleStatus)
   @IsOptional()
   status?: SectionLifecycleStatus;
-
-  @IsString()
-  @IsOptional()
-  cohortId?: string;
 
   @IsString()
   @IsOptional()

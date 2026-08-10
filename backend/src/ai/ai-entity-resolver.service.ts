@@ -11,6 +11,7 @@ import { fuzzySearchScore, normalizeSearchText } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { AIToolRegistryService } from './ai-tool-registry.service';
 import type { AIToolContext, AIToolResult } from './ai.types';
+import { buildStudentAcademicIdentity } from '../common/student-academic-identity';
 
 const OVERSIGHT_ROLES = new Set<string>([Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER]);
 const STAFF_ROLES = new Set<string>([Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.FINANCE_MANAGER]);
@@ -24,6 +25,7 @@ type EntityKind =
   | 'student'
   | 'teacher'
   | 'department'
+  | 'program'
   | 'mail';
 
 interface EntityResolverInput {
@@ -44,7 +46,7 @@ export class AIEntityResolverService implements OnModuleInit {
     this.toolRegistry.register({
       name: 'resolveEduVerseEntities',
       description:
-        'Fuzzy-search visible EduVerse entities by keyword before using a domain tool. Supports courses, sections, academic cycles/semesters, students, teachers/managers/staff, departments, and mail threads. Returns user-safe labels, confidence, and ambiguity hints so Copilot can distinguish unknown entities from known entities with missing related records.',
+        'Fuzzy-search visible EduVerse entities by keyword before using a domain tool. Supports programs/majors, curricula, courses, sections, academic cycles/semesters, students, teachers/managers/staff, departments, and mail threads. Returns user-safe labels, confidence, and ambiguity hints so Copilot can distinguish unknown entities from known entities with missing related records.',
       run: (input, context) => this.resolveEntities(context, parseInput(input)),
     });
   }
@@ -95,6 +97,7 @@ export class AIEntityResolverService implements OnModuleInit {
     if (kind === 'student') return this.searchStudents(context, search, limit);
     if (kind === 'teacher') return this.searchTeachers(context, search, limit);
     if (kind === 'department') return this.searchDepartments(context, search, limit);
+    if (kind === 'program') return this.searchPrograms(context, search, limit);
     return this.searchMails(context, search, limit);
   }
 
@@ -183,6 +186,14 @@ export class AIEntityResolverService implements OnModuleInit {
       include: {
         user: { select: { id: true, name: true, email: true } },
         primaryDepartment: { select: { id: true, name: true } },
+        programEnrollments: {
+          where: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] } },
+          take: 1,
+          orderBy: { admittedAt: 'desc' },
+          include: { program: true },
+        },
+        cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true } } } },
+        enrollments: { where: { isExcludedFromCohort: false }, take: 4, include: { section: { include: { course: true } } } },
       },
       orderBy: { user: { name: 'asc' } },
     });
@@ -202,6 +213,11 @@ export class AIEntityResolverService implements OnModuleInit {
       registrationNumber: student.registrationNumber,
       rollNumber: student.rollNumber,
       department: student.primaryDepartment?.name ?? null,
+      academicIdentity: buildStudentAcademicIdentity({
+        majorProgramEnrollment: student.programEnrollments[0],
+        currentCohortMembership: student.cohortMemberships[0],
+        enrollments: student.enrollments,
+      }),
       href: `/student/${student.userId}`,
       confidence,
     }));
@@ -257,6 +273,52 @@ export class AIEntityResolverService implements OnModuleInit {
       departmentId: department.id,
       label: department.name,
       code: department.code,
+      confidence,
+    }));
+  }
+
+  private async searchPrograms(context: AIToolContext, search: string, limit: number) {
+    const where: Prisma.ProgramWhereInput = { organizationId: context.orgId, ...programSearch(search) };
+    if (context.role === Role.STUDENT) {
+      where.studentEnrollments = { some: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] }, student: { userId: context.userId } } };
+    } else if (context.role === Role.GUARDIAN) {
+      where.studentEnrollments = { some: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] }, student: { guardianLinks: { some: { guardian: { userId: context.userId } } } } } };
+    } else if (context.role === Role.TEACHER) {
+      where.offerings = { some: { stageOfferings: { some: { sectionMappings: { some: { section: { teachers: { some: { userId: context.userId } } } } } } } } };
+    } else if (OVERSIGHT_ROLES.has(context.role ?? '')) {
+      const scope = await getDepartmentScope(this.prisma, context.orgId, actorForScopedServices(context));
+      if (scope.applies && !scope.all) where.departmentId = { in: scope.departmentIds };
+    } else {
+      return [];
+    }
+    const programs = await this.prisma.program.findMany({
+      where,
+      take: 60,
+      include: {
+        department: { select: { id: true, name: true, code: true } },
+        curriculumVersions: { where: { status: 'ACTIVE' }, take: 1, include: { _count: { select: { stages: true } } } },
+        _count: { select: { offerings: true, studentEnrollments: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    const ranked = rankOrDefault(programs, search, (program) => [program.name, program.code, program.department.name], limit);
+    return ranked.map(({ item: program, confidence }) => ({
+      entity: 'program',
+      programId: program.id,
+      label: program.code ? `${program.code} - ${program.name}` : program.name,
+      code: program.code,
+      department: program.department.name,
+      status: program.status,
+      structureType: program.structureType,
+      progressionMode: program.progressionMode,
+      completionMode: program.completionMode,
+      durationValue: program.durationValue,
+      durationUnit: program.durationUnit,
+      activeCurriculum: program.curriculumVersions[0]?.name ?? null,
+      stages: program.curriculumVersions[0]?._count.stages ?? 0,
+      offerings: program._count.offerings,
+      students: program._count.studentEnrollments,
+      href: `/programs/${program.id}`,
       confidence,
     }));
   }
@@ -410,11 +472,12 @@ function requestedKinds(input: EntityResolverInput, search: string): EntityKind[
     if (mentionsAny(text, ['student', 'learner', 'registration', 'roll'])) normalized.add('student');
     if (mentionsAny(text, ['teacher', 'faculty', 'instructor', 'manager', 'staff'])) normalized.add('teacher');
     if (mentionsAny(text, ['department', 'dept'])) normalized.add('department');
+    if (mentionsAny(text, ['program', 'major', 'curriculum', 'degree', 'graduation'])) normalized.add('program');
     if (mentionsAny(text, ['mail', 'message', 'thread', 'ticket'])) normalized.add('mail');
   }
 
   if (!normalized.size) {
-    return ['academicCycle', 'course', 'section', 'student', 'teacher', 'department', 'mail'];
+    return ['academicCycle', 'program', 'course', 'section', 'student', 'teacher', 'department', 'mail'];
   }
 
   return Array.from(normalized).filter(isEntityKind);
@@ -428,12 +491,13 @@ function entityAliases(value: string): EntityKind[] {
   if (['student', 'students', 'learner', 'learners'].includes(text)) return ['student'];
   if (['teacher', 'teachers', 'faculty', 'instructor', 'instructors', 'manager', 'managers', 'staff'].includes(text)) return ['teacher'];
   if (['department', 'departments', 'dept', 'depts'].includes(text)) return ['department'];
+  if (['program', 'programs', 'major', 'majors', 'curriculum', 'curricula', 'degree', 'degrees'].includes(text)) return ['program'];
   if (['mail', 'mails', 'message', 'messages', 'thread', 'threads', 'ticket', 'tickets'].includes(text)) return ['mail'];
   return [];
 }
 
 function isEntityKind(value: string): value is EntityKind {
-  return ['academicCycle', 'course', 'section', 'student', 'teacher', 'department', 'mail'].includes(value);
+  return ['academicCycle', 'program', 'course', 'section', 'student', 'teacher', 'department', 'mail'].includes(value);
 }
 
 function tokenSearch<T extends string>(search: string, fields: T[]) {
@@ -488,6 +552,21 @@ function studentSearch(search: string): Prisma.StudentWhereInput {
       { user: { name: { contains: token, mode: Prisma.QueryMode.insensitive } } },
       { user: { email: { contains: token, mode: Prisma.QueryMode.insensitive } } },
       { primaryDepartment: { name: { contains: token, mode: Prisma.QueryMode.insensitive } } },
+      { programEnrollments: { some: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] }, program: { name: { contains: token, mode: Prisma.QueryMode.insensitive } } } } },
+      { programEnrollments: { some: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] }, program: { code: { contains: token, mode: Prisma.QueryMode.insensitive } } } } },
+    ]),
+  };
+}
+
+function programSearch(search: string): Prisma.ProgramWhereInput {
+  const tokens = searchTokens(search);
+  if (!tokens.length) return {};
+  return {
+    OR: tokens.flatMap((token) => [
+      { name: { contains: token, mode: Prisma.QueryMode.insensitive } },
+      { code: { contains: token, mode: Prisma.QueryMode.insensitive } },
+      { department: { name: { contains: token, mode: Prisma.QueryMode.insensitive } } },
+      { department: { code: { contains: token, mode: Prisma.QueryMode.insensitive } } },
     ]),
   };
 }
@@ -542,7 +621,7 @@ function searchTokens(search: string) {
   const stopWords = new Set([
     'a', 'an', 'and', 'are', 'by', 'for', 'in', 'of', 'on', 'or', 'to',
     'the', 'this', 'that', 'with', 'from', 'has', 'have', 'having', 'highest', 'lowest', 'current',
-    'semester', 'course', 'courses', 'section', 'sections', 'student', 'students',
+    'semester', 'program', 'programs', 'major', 'majors', 'course', 'courses', 'section', 'sections', 'student', 'students',
     'teacher', 'teachers', 'mail', 'mails', 'show', 'what', 'which', 'about', 'performance',
     'enrollment', 'enrollments', 'enrolled', 'count', 'counts', 'rank', 'ranking',
     'performing', 'improve', 'improvement', 'summary', 'summarize',

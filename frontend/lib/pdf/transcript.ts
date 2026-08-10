@@ -10,6 +10,7 @@ interface TranscriptStudent {
     registrationNumber?: string | null;
     rollNumber?: string | null;
     currentCohort?: { id: string; name: string } | null;
+    academicIdentity?: { kind: 'PROGRAM' | 'COHORT' | 'SECTION' | 'UNASSIGNED'; label: string };
 }
 
 interface TranscriptAssessmentGrade {
@@ -252,8 +253,8 @@ export async function createTranscriptPdf({
     pdf.text('Student', studentTextX, y - 20, { size: 8, font: 'bold', color: palette.muted });
     pdf.text(student.name || 'Unnamed Student', studentTextX, y - 40, { size: 14, font: 'bold', color: palette.text, maxWidth: 195 });
     pdf.text(student.email || 'No email recorded', studentTextX, y - 58, { size: 9, color: palette.muted, maxWidth: 195 });
-    pdf.text('Batch', pdf.margin + 320, y - 20, { size: 8, font: 'bold', color: palette.muted });
-    pdf.text(student.currentCohort?.name || 'Independent', pdf.margin + 320, y - 40, { size: 11, color: palette.text, maxWidth: 155 });
+    pdf.text('Academic identity', pdf.margin + 320, y - 20, { size: 8, font: 'bold', color: palette.muted });
+    pdf.text(student.academicIdentity?.label || student.currentCohort?.name || 'Independent', pdf.margin + 320, y - 40, { size: 11, color: palette.text, maxWidth: 155 });
     pdf.text('Registration', pdf.margin + 500, y - 20, { size: 8, font: 'bold', color: palette.muted });
     pdf.text(student.registrationNumber || student.rollNumber || 'N/A', pdf.margin + 500, y - 40, { size: 11, color: palette.text, maxWidth: 105 });
     pdf.text('CGPA', pdf.margin + 620, y - 20, { size: 8, font: 'bold', color: palette.muted });

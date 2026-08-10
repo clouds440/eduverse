@@ -385,7 +385,7 @@ export class EvaluationsService {
       where: {
         academicCycleId: dto.academicCycleId,
         course: { organizationId: orgId },
-        ...(cohortIds.length ? { cohortId: { in: cohortIds } } : {}),
+        ...(cohortIds.length ? { cohortOfferingSections: { some: { cohortOffering: { cohortId: { in: cohortIds } } } } } : {}),
         ...(courseIds.length ? { courseId: { in: courseIds } } : {}),
         ...(sectionIds.length ? { id: { in: sectionIds } } : {}),
         ...(andFilters.length ? { AND: andFilters } : {}),
@@ -393,7 +393,7 @@ export class EvaluationsService {
       include: {
         course: { select: { id: true, name: true, departmentId: true } },
         academicCycle: { select: { id: true, name: true } },
-        cohort: { select: { id: true, name: true } },
+        cohortOfferingSections: { select: { cohortOffering: { select: { cohort: { select: { id: true, name: true } } } } } },
       },
       orderBy: [{ course: { name: 'asc' } }, { name: 'asc' }],
     });

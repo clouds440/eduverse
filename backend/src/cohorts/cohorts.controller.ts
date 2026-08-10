@@ -14,6 +14,7 @@ import {
 import { CohortsService } from './cohorts.service';
 import { CreateCohortDto } from './dto/create-cohort.dto';
 import { UpdateCohortDto } from './dto/update-cohort.dto';
+import { AssignCohortSectionDto, CreateCohortOfferingDto, UpdateCohortOfferingDto } from './dto/cohort-offering.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -46,9 +47,7 @@ export class CohortsController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('academicCycleId') academicCycleId?: string,
-    @Query('includeAllCycles') includeAllCycles?: string,
     @Query('programId') programId?: string,
-    @Query('programClassificationStatus') programClassificationStatus?: string,
   ) {
     return this.cohortsService.getCohorts(orgId, {
       page: page ? parseInt(page, 10) : 1,
@@ -57,9 +56,7 @@ export class CohortsController {
       sortBy,
       sortOrder,
       academicCycleId,
-      includeAllCycles: includeAllCycles === 'true',
       programId,
-      programClassificationStatus,
     });
   }
 
@@ -78,24 +75,52 @@ export class CohortsController {
     @Body() dto: UpdateCohortDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    return this.cohortsService.updateCohort(orgId, id, dto, req.user.id);
+    return this.cohortsService.updateCohort(orgId, id, dto, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Delete(':id')
-  remove(@OrgId() orgId: string, @Param('id') id: string) {
-    return this.cohortsService.deleteCohort(orgId, id);
+  remove(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.cohortsService.deleteCohort(orgId, id, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Post(':id/offerings')
+  createOffering(
+    @OrgId() orgId: string,
+    @Param('id') cohortId: string,
+    @Body() dto: CreateCohortOfferingDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.cohortsService.createOffering(orgId, cohortId, dto, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Patch('offerings/:offeringId')
+  updateOffering(
+    @OrgId() orgId: string,
+    @Param('offeringId') offeringId: string,
+    @Body() dto: UpdateCohortOfferingDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.cohortsService.updateOffering(orgId, offeringId, dto, req.user);
   }
 
   // --- Student ↔ Cohort ---
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
-  @Post(':id/students')
+  @Post('offerings/:offeringId/students')
   addStudents(
     @OrgId() orgId: string,
-    @Param('id') cohortId: string,
+    @Param('offeringId') offeringId: string,
     @Body('studentIds') studentIds: string[],
     @Request() req: AuthenticatedRequest,
   ) {
@@ -103,46 +128,47 @@ export class CohortsController {
       throw new BadRequestException('studentIds array is required');
     }
     if (studentIds.length === 1) {
-      return this.cohortsService.addStudentToCohort(orgId, cohortId, studentIds[0], req.user.id);
+      return this.cohortsService.addStudentToCohort(orgId, offeringId, studentIds[0], req.user);
     }
-    return this.cohortsService.addStudentsToCohortBulk(orgId, cohortId, studentIds, req.user.id);
+    return this.cohortsService.addStudentsToCohortBulk(orgId, offeringId, studentIds, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
-  @Delete(':id/students/:studentId')
+  @Delete('offerings/:offeringId/students/:studentId')
   removeStudent(
     @OrgId() orgId: string,
-    @Param('id') cohortId: string,
+    @Param('offeringId') offeringId: string,
     @Param('studentId') studentId: string,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.cohortsService.removeStudentFromCohort(orgId, cohortId, studentId);
+    return this.cohortsService.removeStudentFromCohort(orgId, offeringId, studentId, req.user);
   }
 
   // --- Section ↔ Cohort ---
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
-  @Post(':id/sections')
+  @Post('offerings/:offeringId/sections')
   assignSection(
     @OrgId() orgId: string,
-    @Param('id') cohortId: string,
-    @Body('sectionId') sectionId: string,
+    @Param('offeringId') offeringId: string,
+    @Body() dto: AssignCohortSectionDto,
     @Request() req: AuthenticatedRequest,
   ) {
-    if (!sectionId) throw new BadRequestException('sectionId is required');
-    return this.cohortsService.assignSectionToCohort(orgId, cohortId, sectionId, req.user.id);
+    return this.cohortsService.assignSectionToCohort(orgId, offeringId, dto.sectionId, req.user, dto.source, dto.isDefault);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
-  @Delete(':id/sections/:sectionId')
+  @Delete('offerings/:offeringId/sections/:sectionId')
   removeSection(
     @OrgId() orgId: string,
-    @Param('id') cohortId: string,
+    @Param('offeringId') offeringId: string,
     @Param('sectionId') sectionId: string,
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.cohortsService.removeSectionFromCohort(orgId, cohortId, sectionId);
+    return this.cohortsService.removeSectionFromCohort(orgId, offeringId, sectionId, req.user);
   }
 
   // --- Exclusions ---

@@ -420,12 +420,13 @@ export interface Section {
     updatedAt?: string;
     schedules?: SectionSchedule[];
     academicCycleId?: string;
-    cohortId?: string | null;
     academicCycle?: AcademicCycle;
-    cohort?: Cohort;
     status: SectionLifecycleStatus;
-    programClassificationStatus: ProgramClassificationStatus;
-    requirementMappings?: SectionRequirementMapping[];
+    programClassificationStatus?: ProgramClassificationStatus;
+    cohortId?: string;
+    cohort?: Cohort;
+    programMappings?: SectionProgramMapping[];
+    cohortOfferingSections?: CohortOfferingSection[];
 }
 
 export interface Student {
@@ -450,8 +451,9 @@ export interface Student {
     user: User;
     enrollments?: { id?: string; sectionId?: string; section: Section; source?: 'MANUAL' | 'COHORT' | string; isExcludedFromCohort?: boolean; academicCycleId?: string }[];
     updatedBy?: string;
-    cohortId?: string | null;
     cohort?: Cohort;
+    currentCohortMembership?: StudentCohortMembership | null;
+    cohortMemberships?: StudentCohortMembership[];
     guardianId?: string | null;
     guardianRelationship?: string | null;
     guardian?: GuardianProfile | null;
@@ -459,6 +461,39 @@ export interface Student {
     majorProgram?: Program | null;
     majorProgramEnrollment?: StudentProgramEnrollment | null;
     programEnrollments?: StudentProgramEnrollment[];
+    academicIdentity?: StudentAcademicIdentity;
+    programOverview?: StudentProgramOverview | null;
+}
+
+export interface StudentAcademicIdentity {
+    kind: 'PROGRAM' | 'COHORT' | 'SECTION' | 'UNASSIGNED';
+    label: string;
+    programId?: string;
+    cohortId?: string;
+    sectionId?: string;
+    code?: string | null;
+}
+
+export interface StudentProgramOverview {
+    enrollmentId?: string;
+    status?: string;
+    program: Pick<Program, 'id' | 'name' | 'code' | 'durationValue' | 'durationUnit' | 'progressionMode' | 'completionMode'> & { department?: Pick<Department, 'id' | 'name' | 'code'> | null };
+    curriculum: { id?: string; name?: string | null; code?: string | null } | null;
+    admittedAt?: string | null;
+    startedAt?: string | null;
+    duration: string | null;
+    expectedGraduationDate: string | null;
+    graduationDateSource: 'RECORDED' | 'PROGRAM_DURATION_ESTIMATE' | 'UNAVAILABLE';
+    requiredStageCount: number;
+    resolvedStageCount: number;
+    remainingStageCount: number;
+    progressPercentage: number;
+    totalCredits: number;
+    completedCredits: number;
+    currentStage?: Pick<StudentStageEnrollment, 'programStageId' | 'status' | 'stageNameSnapshot' | 'stageCodeSnapshot' | 'cycleNameSnapshot' | 'cycleCodeSnapshot'> | null;
+    nextStage?: { id?: string; name?: string | null; code?: string | null; sequence?: number } | null;
+    progressionMode?: ProgramProgressionMode | null;
+    completionMode?: ProgramCompletionMode | null;
 }
 
 export interface PublicProfileRating {
@@ -503,7 +538,8 @@ export interface PublicStudentProfile {
     cohort?: Pick<Cohort, 'id' | 'name' | 'code'> | null;
     enrollments?: { section: PublicProfileSection }[];
     majorProgram?: Pick<Program, 'id' | 'name' | 'code'> | null;
-    majorProgramEnrollment?: Pick<StudentProgramEnrollment, 'id' | 'status' | 'requiredCycleCountSnapshot' | 'cycles'> | null;
+    majorProgramEnrollment?: Pick<StudentProgramEnrollment, 'id' | 'status' | 'requiredStageCountSnapshot' | 'stageEnrollments'> | null;
+    academicIdentity?: StudentAcademicIdentity;
 }
 
 export interface PublicTeacherProfile {
@@ -1467,9 +1503,7 @@ export interface CreateSectionRequest {
     courseId: string;
     academicCycleId: string;
     status?: SectionLifecycleStatus;
-    programClassificationStatus: ProgramClassificationStatus;
-    stageCourseRequirementIds?: string[];
-    cohortId?: string | null;
+    programMappings?: Array<{ programStageOfferingId: string; stageCourseRequirementId: string }>;
     teacherIds?: string[];
     scheduleTeacherResolution?: {
         action: 'MOVE' | 'DELETE';
@@ -2831,7 +2865,7 @@ export interface AcademicCycle {
     archivedAt?: string | null;
     archiveReason?: string | null;
     _count?: {
-        cohorts: number;
+        cohortOfferings?: number;
         sections: number;
     };
 }
@@ -2841,20 +2875,48 @@ export interface Cohort {
     name: string;
     code: string;
     organizationId: string;
-    academicCycleId: string;
     status: CohortLifecycleStatus;
-    programClassificationStatus: ProgramClassificationStatus;
-    programAcademicCycleId?: string | null;
-    programStageId?: string | null;
-    programAcademicCycle?: ProgramAcademicCycle | null;
-    programStage?: ProgramStage | null;
-    academicCycle?: AcademicCycle;
-    students?: Student[];
-    sections?: Section[];
+    offerings?: CohortOffering[];
     _count?: {
-        students: number;
-        sections: number;
+        offerings?: number;
     };
+}
+
+export enum CohortOfferingStatus {
+    PLANNED = 'PLANNED',
+    ACTIVE = 'ACTIVE',
+    CLOSED = 'CLOSED',
+    CANCELLED = 'CANCELLED',
+}
+
+export enum CohortSectionSource {
+    SUGGESTED = 'SUGGESTED',
+    AUTO = 'AUTO',
+    MANUAL = 'MANUAL',
+}
+
+export interface CohortOfferingSection {
+    id: string;
+    sectionId: string;
+    source: CohortSectionSource;
+    isDefault: boolean;
+    section: Section;
+    cohortOffering: CohortOffering;
+}
+
+export interface CohortOffering {
+    id: string;
+    cohortId: string;
+    academicCycleId: string;
+    programStageOfferingId?: string | null;
+    status: CohortOfferingStatus;
+    capacity?: number | null;
+    cohort?: Cohort;
+    academicCycle: AcademicCycle;
+    programStageOffering?: ProgramStageOffering | null;
+    sections?: CohortOfferingSection[];
+    memberships?: StudentCohortMembership[];
+    _count?: { memberships: number; sections: number; stageEnrollments: number };
 }
 
 export interface EnrollmentHistory {
@@ -3259,23 +3321,20 @@ export interface UpdateAcademicCycleDto {
 export interface CreateCohortDto {
     name: string;
     code: string;
-    academicCycleId: string;
     status?: CohortLifecycleStatus;
-    programClassificationStatus: ProgramClassificationStatus;
-    programAcademicCycleId?: string;
-    programStageId?: string;
-    studentIds?: string[];
-    sectionIds?: string[];
 }
 
 export interface UpdateCohortDto {
     name?: string;
     code?: string;
-    academicCycleId?: string;
     status?: CohortLifecycleStatus;
-    programClassificationStatus?: ProgramClassificationStatus;
-    programAcademicCycleId?: string | null;
-    programStageId?: string | null;
+}
+
+export interface CreateCohortOfferingDto {
+    academicCycleId: string;
+    programStageOfferingId?: string;
+    status?: CohortOfferingStatus;
+    capacity?: number;
     studentIds?: string[];
     sectionIds?: string[];
 }
@@ -3294,9 +3353,8 @@ export interface ReassignStudentsDto {
 
 export interface CopyForwardDto {
     programClassificationStatus: ProgramClassificationStatus;
-    sourceProgramAcademicCycleId?: string;
-    targetProgramAcademicCycleId?: string;
-    targetProgramStageId?: string;
+    sourceProgramStageOfferingId?: string;
+    targetProgramStageOfferingId?: string;
     fromCycleId: string;
     toCycleId: string;
     copySchedules?: boolean;
@@ -3336,6 +3394,9 @@ export interface PastRecordFilters {
     cycleId?: string;
     departmentId?: string;
     programId?: string;
+    programOfferingId?: string;
+    programStageId?: string;
+    programStageOfferingId?: string;
     cohortId?: string;
     studentId?: string;
     classification?: ProgramClassificationStatus;
@@ -3373,7 +3434,7 @@ export interface PastRecordStudentSummary {
 export interface PastRecordSectionPayload {
     schemaVersion: number;
     cycle: Record<string, unknown>;
-    section: Section & { teachers?: Teacher[]; requirementMappings?: SectionRequirementMapping[] };
+    section: Section & { teachers?: Teacher[]; requirementMappings?: SectionProgramMapping[] };
     enrollments: Array<Enrollment & { student: Student }>;
     enrollmentHistories: Array<EnrollmentHistory & { student?: Student }>;
     assessments: Array<Assessment & { grades: Grade[]; submissions: Submission[] }>;
@@ -3399,6 +3460,9 @@ export interface PastRecordSectionDetail {
 export interface PastRecordOptions {
     departments: Array<{ id: string; label: string }>;
     programs: Array<{ id: string; label: string; departmentLabel: string }>;
+    programOfferings: Array<{ id: string; label: string }>;
+    stages: Array<{ id: string; programId: string; label: string }>;
+    stageOfferings: Array<{ id: string; programId: string; programStageId: string; label: string }>;
     cohorts: Array<{ id: string; label: string }>;
     classifications: ProgramClassificationStatus[];
 }
@@ -3484,30 +3548,21 @@ export enum CourseRequirementType {
     OPTIONAL = 'OPTIONAL',
 }
 
-export type ProgramCycleInput = {
-    kind: 'EXISTING' | 'NEW';
-    academicCycleId?: string;
-    name?: string;
-    code?: string;
-    startDate?: string;
-    endDate?: string;
-    gpaPolicyId?: string;
-    stage: {
-        name: string;
-        code: string;
-        stageType?: string;
-        isOptional?: boolean;
+export type ProgramStageInput = {
+    name: string;
+    code: string;
+    stageType?: string;
+    isOptional?: boolean;
+    minCredits?: number;
+    expectedCredits?: number;
+    courseRequirements: Array<{
+        courseId: string;
+        requirementType: CourseRequirementType;
+        groupKey?: string;
+        minCourses?: number;
         minCredits?: number;
-        expectedCredits?: number;
-        courseRequirements: Array<{
-            courseId: string;
-            requirementType: CourseRequirementType;
-            groupKey?: string;
-            minCourses?: number;
-            minCredits?: number;
-            notes?: string;
-        }>;
-    };
+        notes?: string;
+    }>;
 };
 
 export interface CreateProgramRequest {
@@ -3518,6 +3573,8 @@ export interface CreateProgramRequest {
     structureType: ProgramStructureType;
     progressionMode: ProgramProgressionMode;
     completionMode: ProgramCompletionMode;
+    minimumPassingPercentage: number;
+    minimumAttendancePercentage?: number | null;
     durationValue?: number;
     durationUnit?: ProgramDurationUnit;
     isVisibleForAdmissions?: boolean;
@@ -3526,19 +3583,76 @@ export interface CreateProgramRequest {
     curriculumName: string;
     curriculumCode: string;
     stageTerminology?: string;
-    cycles: ProgramCycleInput[];
+    stages: ProgramStageInput[];
 }
 
-export interface ProgramAcademicCycle {
+export enum ProgramOfferingStatus {
+    DRAFT = 'DRAFT',
+    OPEN = 'OPEN',
+    CLOSED = 'CLOSED',
+    CANCELLED = 'CANCELLED',
+}
+
+export enum ProgramStageOfferingStatus {
+    PLANNED = 'PLANNED',
+    OPEN = 'OPEN',
+    CLOSED = 'CLOSED',
+    CANCELLED = 'CANCELLED',
+}
+
+export interface ProgramOffering {
     id: string;
     programId: string;
+    curriculumVersionId: string;
     academicCycleId: string;
-    sequence: number;
-    isRequired: boolean;
-    status: 'ACTIVE' | 'RETIRED';
+    status: ProgramOfferingStatus;
+    opensAt?: string | null;
+    closesAt?: string | null;
+    capacity?: number | null;
+    notes?: string | null;
     academicCycle: AcademicCycle;
-    program?: Program;
-    stages?: ProgramStage[];
+    program: Program;
+    curriculumVersion: CurriculumVersion;
+    stageOfferings: ProgramStageOffering[];
+}
+
+export interface ProgramOfferingReadiness {
+    offeringId: string;
+    readyForAdmissions: boolean;
+    readyForDelivery: boolean;
+    blockers: Array<{ code: string; message: string }>;
+    warnings: Array<{ code: string; message: string; stageOfferingId?: string }>;
+}
+
+export interface ProgramStageOffering {
+    id: string;
+    programOfferingId: string;
+    programStageId: string;
+    status: ProgramStageOfferingStatus;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    capacity?: number | null;
+    programStage: ProgramStage;
+    programOffering: ProgramOffering;
+    _count?: { cohortOfferings: number; sectionMappings: number; studentStageEnrollments: number };
+}
+
+export interface CreateProgramOfferingRequest {
+    programId: string;
+    curriculumVersionId: string;
+    academicCycleId: string;
+    status?: ProgramOfferingStatus;
+    opensAt?: string | null;
+    closesAt?: string | null;
+    capacity?: number;
+    notes?: string;
+    stages: Array<{
+        programStageId: string;
+        status?: ProgramStageOfferingStatus;
+        startsAt?: string;
+        endsAt?: string;
+        capacity?: number;
+    }>;
 }
 
 export interface StageCourseRequirement {
@@ -3561,8 +3675,8 @@ export interface ProgramStage {
     sequence: number;
     stageType?: string | null;
     isOptional: boolean;
-    programAcademicCycleId: string;
-    programAcademicCycle: ProgramAcademicCycle;
+    minCredits?: number | null;
+    expectedCredits?: number | null;
     courseRequirements: StageCourseRequirement[];
 }
 
@@ -3580,8 +3694,7 @@ export interface CurriculumVersion {
 export interface ProgramConfigurationRevision {
     id: string;
     version: number;
-    requiredCycleCount: number;
-    cyclesSnapshot: unknown;
+    configurationSnapshot: unknown;
     checksum: string;
     changeReason?: string | null;
     createdAt: string;
@@ -3595,38 +3708,36 @@ export interface Program {
     code: string;
     description?: string | null;
     status: ProgramStatus;
-    requiredCycleCount: number;
     configurationVersion: number;
     structureType: ProgramStructureType;
     progressionMode: ProgramProgressionMode;
     completionMode: ProgramCompletionMode;
+    minimumPassingPercentage?: number;
+    minimumAttendancePercentage?: number;
     durationValue?: number | null;
     durationUnit?: ProgramDurationUnit | null;
     isVisibleForAdmissions: boolean;
     admissionsLabel?: string | null;
     admissionsDescription?: string | null;
     department: Pick<Department, 'id' | 'name' | 'code' | 'isActive'>;
-    academicCycles: ProgramAcademicCycle[];
+    offerings?: ProgramOffering[];
     curriculumVersions?: CurriculumVersion[];
     configurationRevisions?: ProgramConfigurationRevision[];
-    _count?: { studentEnrollments: number; academicCycles?: number; curriculumVersions: number };
+    _count?: { studentEnrollments: number; offerings?: number; curriculumVersions: number };
 }
 
 export interface EligibleProgramCycle extends AcademicCycle {
     programUseCount: number;
 }
 
-export interface ProgramDeliveryOption extends ProgramAcademicCycle {
-    program: Program;
-    stages: Array<ProgramStage & { curriculumVersion?: CurriculumVersion }>;
-}
+export type ProgramDeliveryOption = ProgramStageOffering;
 
-export interface SectionRequirementMapping {
+export interface SectionProgramMapping {
     id: string;
     stageCourseRequirementId: string;
-    programAcademicCycleId: string;
+    programStageOfferingId: string;
     stageCourseRequirement: StageCourseRequirement & { programStage?: ProgramStage };
-    programAcademicCycle?: ProgramAcademicCycle;
+    programStageOffering: ProgramStageOffering;
 }
 
 export enum StudentProgramEnrollmentStatus {
@@ -3639,7 +3750,7 @@ export enum StudentProgramEnrollmentStatus {
     ARCHIVED = 'ARCHIVED',
 }
 
-export enum StudentProgramCycleStatus {
+export enum StudentStageEnrollmentStatus {
     PLANNED = 'PLANNED',
     IN_PROGRESS = 'IN_PROGRESS',
     COMPLETED = 'COMPLETED',
@@ -3648,37 +3759,113 @@ export enum StudentProgramCycleStatus {
     WITHDRAWN = 'WITHDRAWN',
 }
 
-export enum StudentStageAttemptStatus {
-    PLANNED = 'PLANNED',
-    IN_PROGRESS = 'IN_PROGRESS',
-    COMPLETED = 'COMPLETED',
-    FAILED = 'FAILED',
-    SKIPPED = 'SKIPPED',
-    WITHDRAWN = 'WITHDRAWN',
+export enum StudentProgressionOutcome {
+    ADVANCE = 'ADVANCE',
+    REPEAT = 'REPEAT',
+    PAUSE = 'PAUSE',
+    TRANSFER = 'TRANSFER',
+    COMPLETE = 'COMPLETE',
+    WITHDRAW = 'WITHDRAW',
+    REMAIN = 'REMAIN',
 }
 
-export interface StudentStageAttempt {
+export interface StudentProgressionPreview {
+    recommendation: StudentProgressionOutcome;
+    eligibleStageIds: string[];
+    nextStageIdsAfterResolution: string[];
+    resolvedStageIds: string[];
+    requiredStageIds: string[];
+    canCompleteProgram: boolean;
+    canCompleteAfterCurrentStage: boolean;
+    completedCredits: number;
+    requiredCredits: number;
+    blockers: Array<{ code: string; message: string }>;
+    currentStageEvidence?: StudentProgressionEvidence | null;
+    offerings: ProgramStageOffering[];
+}
+
+export interface StudentProgressionEvidence {
+    eligibleToComplete: boolean;
+    earnedCredits: number;
+    requiredCredits: number;
+    attendancePercentage: number | null;
+    courses: Array<{ courseId: string; courseCode: string; courseName: string; percentage: number | null; finalizedAssessments: number; assessmentCount: number; passed: boolean; credits: number }>;
+    blockers: Array<{ code: string; message: string; courseId?: string }>;
+}
+
+export enum BulkProgressionAction {
+    ADVANCE = 'ADVANCE',
+    SKIP = 'SKIP',
+    REPEAT = 'REPEAT',
+    PAUSE = 'PAUSE',
+    TRANSFER = 'TRANSFER',
+    COMPLETE_PROGRAM = 'COMPLETE_PROGRAM',
+}
+
+export interface ProgressionWorkbenchRow {
+    stageEnrollmentId: string;
+    studentId: string;
+    enrollmentId: string;
+    student: Student;
+    program: Program;
+    recommendation: BulkProgressionAction;
+    evidence: StudentProgressionEvidence | null;
+    nextOfferings: ProgramStageOffering[];
+}
+
+export interface ProgressionWorkbenchPreview {
+    offering: ProgramStageOffering;
+    rows: ProgressionWorkbenchRow[];
+}
+
+export interface BulkProgressionItem {
+    stageEnrollmentId: string;
+    action: BulkProgressionAction;
+    reason: string;
+    overrideReason?: string;
+    targetProgramStageOfferingId?: string;
+    cohortOfferingId?: string;
+    targetProgramId?: string;
+    entryStageId?: string;
+}
+
+export interface BulkProgressionResult {
+    idempotencyKey: string;
+    succeeded: number;
+    failed: number;
+    results: Array<{ stageEnrollmentId: string; success: boolean; error?: string }>;
+}
+
+export interface StudentStageEnrollment {
     id: string;
+    programStageId: string;
+    programStageOfferingId: string;
+    cohortOfferingId?: string | null;
     attemptNumber: number;
-    status: StudentStageAttemptStatus;
-    reason?: string | null;
-    cohortId?: string | null;
-    startedAt?: string | null;
-    completedAt?: string | null;
-}
-
-export interface StudentProgramEnrollmentCycle {
-    id: string;
-    sequenceSnapshot: number;
-    isRequiredSnapshot: boolean;
-    cycleNameSnapshot: string;
-    cycleCodeSnapshot: string;
+    status: StudentStageEnrollmentStatus;
     stageNameSnapshot: string;
     stageCodeSnapshot: string;
-    status: StudentProgramCycleStatus;
-    cohortId?: string | null;
+    cycleNameSnapshot: string;
+    cycleCodeSnapshot: string;
     reason?: string | null;
-    stageAttempts?: StudentStageAttempt[];
+    startedAt?: string | null;
+    completedAt?: string | null;
+    programStage?: ProgramStage;
+    programStageOffering?: ProgramStageOffering;
+    cohortOffering?: CohortOffering | null;
+}
+
+export interface StudentCohortMembership {
+    id: string;
+    studentId: string;
+    cohortOfferingId: string;
+    studentStageEnrollmentId?: string | null;
+    source: 'MANUAL' | 'COHORT';
+    reason?: string | null;
+    joinedAt: string;
+    leftAt?: string | null;
+    cohortOffering: CohortOffering;
+    student?: Student;
 }
 
 export interface StudentProgramEnrollment {
@@ -3686,7 +3873,7 @@ export interface StudentProgramEnrollment {
     studentId: string;
     programId: string;
     status: StudentProgramEnrollmentStatus;
-    requiredCycleCountSnapshot: number;
+    requiredStageCountSnapshot: number;
     programConfigurationVersionSnapshot: number;
     admittedAt: string;
     startedAt?: string | null;
@@ -3694,6 +3881,7 @@ export interface StudentProgramEnrollment {
     exitReason?: string | null;
     program: Program;
     curriculumVersion: CurriculumVersion;
-    cycles: StudentProgramEnrollmentCycle[];
-    stageAttempts?: StudentStageAttempt[];
+    entryStageId?: string | null;
+    entryStage?: ProgramStage | null;
+    stageEnrollments: StudentStageEnrollment[];
 }

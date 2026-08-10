@@ -1,171 +1,63 @@
-﻿'use client';
+'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import useSWR from 'swr';
+import { BookOpen, CalendarRange, Pencil, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { Cohort, Student, Section, Role } from '@/types';
-import { useParams } from 'next/navigation';
-import useSWR, { mutate } from 'swr';
-import { Loading } from '@/components/ui/Loading';
-import { ErrorState } from '@/components/ui/ErrorState';
-import { Users, BookOpen, Pencil } from 'lucide-react';
-import { BrandIcon } from '@/components/ui/Brand';
+import { Cohort, CohortOffering, Role } from '@/types';
 import { Badge } from '@/components/ui/Badge';
+import { BrandIcon } from '@/components/ui/Brand';
+import { Button } from '@/components/ui/Button';
+import { CustomSelect } from '@/components/ui/CustomSelect';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { Loading } from '@/components/ui/Loading';
 import { PageHeader, PageShell, PageTabs } from '@/components/ui/PageShell';
+import { CohortOfferingModal } from '@/components/cohorts/CohortOfferingModal';
 
-const COHORT_TABS = [
-    { value: 'students', label: 'Students', icon: Users },
-    { value: 'sections', label: 'Sections', icon: BookOpen },
-] as const;
-
-type CohortTab = typeof COHORT_TABS[number]['value'];
+type CohortTab = 'students' | 'sections';
 
 export default function CohortDetailPage() {
+    const { id } = useParams<{ id: string }>();
     const { token, user } = useAuth();
-    const { id } = useParams() as { id: string };
-    const isAdmin = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
-
-    const cohortKey = token ? ['cohort', id] as const : null;
-    const { data: cohort, isLoading, error } = useSWR<Cohort>(cohortKey, async () => {
-        if (!token) throw new Error('Authentication required');
-        return api.cohorts.getCohort(id, token);
-    });
-
-    const [activeTab, setActiveTab] = useState<CohortTab>('students');
-
-    if (!token || isLoading || !cohort) {
-        return <Loading className="h-full" text="Loading Cohort Details..." />;
-    }
-
-    if (error) {
-        return <ErrorState error={error} onRetry={() => mutate(cohortKey)} />;
-    }
+    const { data: cohort, isLoading, error, mutate } = useSWR<Cohort>(token ? ['cohort', id] : null, () => api.cohorts.getCohort(id, token!));
+    const [offeringId, setOfferingId] = useState('');
+    const [tab, setTab] = useState<CohortTab>('students');
+    const [offeringToEdit, setOfferingToEdit] = useState<CohortOffering | null>(null);
+    const canManage = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
+    useEffect(() => {
+        if (cohort?.offerings?.length && !cohort.offerings.some((item) => item.id === offeringId)) setOfferingId(cohort.offerings[0].id);
+    }, [cohort?.offerings, offeringId]);
+    if (error) return <ErrorState error={error} onRetry={() => mutate()} />;
+    if (isLoading || !cohort) return <Loading className="h-full" text="Loading cohort..." />;
+    const offering = cohort.offerings?.find((item) => item.id === offeringId);
 
     return (
-        <PageShell className="gap-0 overflow-y-auto">
-            <PageHeader
-                className="mb-0"
-                title={cohort.name}
-                description={cohort.academicCycle ? (cohort.academicCycle.code ? `${cohort.academicCycle.code} - ${cohort.academicCycle.name}` : cohort.academicCycle.name) : 'Academic cycle unavailable'}
-                icon={Users}
-                meta={(
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="neutral" size="sm">Cohort</Badge>
-                        <Badge variant="primary" size="sm">{cohort.code}</Badge>
-                        {cohort.status !== 'ACTIVE' && <Badge variant="warning" size="sm">{cohort.status}</Badge>}
-                    </div>
-                )}
-                actions={isAdmin ? (
-                    <Link
-                        href={`/cohorts/edit/${cohort.id}?returnTo=/cohorts/${cohort.id}`}
-                        className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-4 py-2.5 text-sm font-semibold leading-tight text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    >
-                        <Pencil className="h-4 w-4 shrink-0" aria-hidden="true" />
-                        <span className="min-w-0 text-center">
-                            Edit Cohort
-                        </span>
-                    </Link>
-                ) : undefined}
-            />
-
-            <PageTabs
-                ariaLabel="Cohort navigation"
-                items={COHORT_TABS.map((tab) => ({
-                    ...tab,
-                    count: tab.value === 'students' ? cohort._count?.students || 0 : cohort._count?.sections || 0,
-                }))}
-                activeValue={activeTab}
-                onValueChange={setActiveTab}
-                hideOnScroll
-            />
-
-            <div className="flex-1 bg-card/80 backdrop-blur-2xl rounded-lg shadow-xl border border-border p-5 overflow-y-auto min-h-0">
-                {activeTab === 'students' ? (
-                    <CohortStudentsTab students={cohort.students || []} />
-                ) : (
-                    <CohortSectionsTab sections={cohort.sections || []} />
-                )}
-            </div>
+        <PageShell className="overflow-y-auto">
+            <PageHeader title={cohort.name} description="Durable cohort with cycle-specific offerings" icon={Users} breadcrumbs={[{ label: 'Cohorts', href: '/cohorts' }, { label: cohort.code }]} meta={<div className="flex gap-2"><Badge variant="primary" size="sm">{cohort.code}</Badge><Badge variant={cohort.status === 'ACTIVE' ? 'success' : 'neutral'} size="sm">{cohort.status}</Badge></div>} actions={canManage ? <Link href={`/cohorts/edit/${cohort.id}?returnTo=/cohorts/${cohort.id}`}><Button variant="secondary" icon={Pencil}>Edit or add offering</Button></Link> : undefined} />
+            <section className="space-y-3 border-t border-border pt-5">
+                <div><h2 className="text-base font-black">Cycle offering</h2><p className="mt-1 text-sm text-muted-foreground">Choose a cycle to inspect the students and sections assigned at that time.</p></div>
+                {cohort.offerings?.length ? <CustomSelect icon={CalendarRange} value={offeringId} onChange={setOfferingId} options={cohort.offerings.map((item) => ({ value: item.id, label: `${item.academicCycle.code} - ${item.academicCycle.name}${item.programStageOffering ? ` · ${item.programStageOffering.programStage.name}` : ' · Standalone'}` }))} /> : <div className="rounded-md border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">No academic cycle offerings yet.</div>}
+            </section>
+            {offering && <OfferingView offering={offering} tab={tab} onTabChange={setTab} canManage={canManage} onEdit={() => setOfferingToEdit(offering)} />}
+            <CohortOfferingModal offering={offeringToEdit} onClose={() => setOfferingToEdit(null)} onSaved={async () => { await mutate(); }} />
         </PageShell>
     );
 }
 
-function CohortStudentsTab({ students }: { students: Student[] }) {
-    return (
-        <div className="space-y-6 max-w-4xl">
-            <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-foreground">Enrolled Students</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {students.map((s, index) => {
-                    const card = (
-                        <>
-                            <BrandIcon variant="user" size="md" user={s.user} className="shadow-sm group-hover:scale-105 transition-transform" />
-                            <div className="flex-1 min-w-0">
-                                <p className="font-bold text-foreground truncate">{s.user?.name || 'Unknown'}</p>
-                                <p className="text-xs text-muted-foreground font-medium truncate">{s.user?.email}</p>
-                                {s.registrationNumber && (
-                                    <p className="text-[10px] mt-1 font-mono bg-primary/10 text-primary w-fit px-1.5 py-0.5 rounded uppercase tracking-tighter font-bold">
-                                        {s.registrationNumber}
-                                    </p>
-                                )}
-                            </div>
-                        </>
-                    );
-                    const className = "p-4 bg-muted/20 border border-border hover:border-primary/50 hover:bg-muted/30 rounded-xl flex items-center gap-4 transition-all group shadow-sm";
-
-                    return s.user?.id ? (
-                        <Link key={`${s.id}-${index}`} href={`/profiles/${s.user.id}`} className={className}>
-                            {card}
-                        </Link>
-                    ) : (
-                        <div key={`${s.id}-${index}`} className={className}>
-                            {card}
-                        </div>
-                    );
-                })}
-                {students.length === 0 && (
-                    <div className="col-span-full py-12 flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-2xl">
-                        <Users className="w-12 h-12 opacity-20 mb-3" />
-                        <p className="font-medium">No students enrolled in this cohort yet.</p>
-                    </div>
-                )}
-            </div>
+function OfferingView({ offering, tab, onTabChange, canManage, onEdit }: { offering: CohortOffering; tab: CohortTab; onTabChange: (tab: CohortTab) => void; canManage: boolean; onEdit: () => void }) {
+    const memberships = offering.memberships || [];
+    const sections = offering.sections || [];
+    return <div className="space-y-4">
+        {canManage && <div className="flex justify-end"><Button size="sm" variant="secondary" icon={Pencil} onClick={onEdit}>Edit cycle offering</Button></div>}
+        <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-md border border-border/70 p-3"><p className="text-xs font-bold text-muted-foreground">Delivery</p><p className="mt-1 text-sm font-black">{offering.programStageOffering ? `${offering.programStageOffering.programOffering.program.code} · ${offering.programStageOffering.programStage.name}` : 'Standalone'}</p></div>
+            <div className="rounded-md border border-border/70 p-3"><p className="text-xs font-bold text-muted-foreground">Students</p><p className="mt-1 text-lg font-black">{offering._count?.memberships || memberships.length}</p></div>
+            <div className="rounded-md border border-border/70 p-3"><p className="text-xs font-bold text-muted-foreground">Sections</p><p className="mt-1 text-lg font-black">{offering._count?.sections || sections.length}</p></div>
         </div>
-    );
+        <PageTabs ariaLabel="Cohort offering records" activeValue={tab} onValueChange={onTabChange} items={[{ value: 'students', label: 'Students', icon: Users, count: memberships.length }, { value: 'sections', label: 'Sections', icon: BookOpen, count: sections.length }]} />
+        {tab === 'students' ? <div className="grid gap-3 md:grid-cols-2">{memberships.map((membership) => <Link key={membership.id} href={membership.student?.user?.id ? `/profiles/${membership.student.user.id}` : '#'} className="flex items-center gap-3 rounded-md border border-border/70 p-3"><BrandIcon variant="user" size="sm" user={membership.student?.user} /><div className="min-w-0"><p className="truncate text-sm font-black">{membership.student?.user?.name || membership.student?.user?.email || 'Student'}</p><p className="truncate text-xs text-muted-foreground">{membership.student?.registrationNumber || 'No registration number'}</p></div></Link>)}{!memberships.length && <p className="col-span-full py-8 text-center text-sm text-muted-foreground">No students in this offering.</p>}</div> : <div className="grid gap-3 md:grid-cols-2">{sections.map((assignment) => <Link key={assignment.id} href={`/sections/${assignment.section.id}`} className="rounded-md border border-border/70 p-3"><p className="text-sm font-black">{assignment.section.name}</p><p className="text-xs text-muted-foreground">{assignment.section.course?.code} · {assignment.section.code}</p></Link>)}{!sections.length && <p className="col-span-full py-8 text-center text-sm text-muted-foreground">No sections in this offering.</p>}</div>}
+    </div>;
 }
-
-function CohortSectionsTab({ sections }: { sections: Section[] }) {
-    return (
-        <div className="space-y-6 max-w-4xl">
-            <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-foreground">Assigned Sections</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {sections.map((s, index) => (
-                    <Link key={`${s.id}-${index}`} href={`/sections/${s.id}`} className="p-4 bg-muted/20 border border-border hover:border-primary/50 hover:bg-muted/30 rounded-xl flex items-center gap-4 transition-all group shadow-sm">
-                        <div className="bg-primary/10 p-3 rounded-xl group-hover:scale-105 transition-transform">
-                            <BookOpen className="w-5 h-5 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="font-bold text-foreground truncate">{s.name}</p>
-                            <p className="text-xs text-muted-foreground font-medium truncate">{s.course?.name}</p>
-                            <p className="text-[10px] mt-1 font-bold text-primary uppercase tracking-wider">
-                                SECTION CODE: {s.code}
-                            </p>
-                        </div>
-                    </Link>
-                ))}
-                {sections.length === 0 && (
-                    <div className="col-span-full py-12 flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed border-border rounded-2xl">
-                        <BookOpen className="w-12 h-12 opacity-20 mb-3" />
-                        <p className="font-medium">No sections assigned to this cohort yet.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
-
-

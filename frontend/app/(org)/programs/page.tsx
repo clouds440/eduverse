@@ -56,7 +56,7 @@ export default function ProgramsPage() {
             accessor: (row) => <div className="min-w-0"><p className="truncate text-sm font-black">{row.name}</p><p className="truncate text-xs text-muted-foreground">{row.code}</p></div>,
         },
         { header: 'Department', accessor: (row) => <span className="text-sm font-semibold">{row.department.code} - {row.department.name}</span> },
-        { header: 'Cycles', accessor: (row) => <span className="tabular-nums text-sm font-bold">{row.requiredCycleCount}</span> },
+        { header: 'Offerings', accessor: (row) => <span className="tabular-nums text-sm font-bold">{row._count?.offerings || 0}</span> },
         { header: 'Students', accessor: (row) => <span className="tabular-nums text-sm font-bold">{row._count?.studentEnrollments || 0}</span> },
         { header: 'Status', badge: true, accessor: (row) => <Badge variant={statusVariant(row.status)} size="sm">{row.status.replaceAll('_', ' ')}</Badge> },
         {
@@ -71,7 +71,7 @@ export default function ProgramsPage() {
         <PageShell>
             <PageHeader
                 title="Programs"
-                description="Department-owned course offerings with ordered institute cycles and versioned curricula."
+                description="Department-owned programs with durable stages, versioned curricula, and cycle-specific offerings."
                 icon={GraduationCap}
                 breadcrumbs={[{ label: 'Organization' }, { label: 'Academic' }, { label: 'Programs' }]}
                 actions={<PageControls

@@ -873,6 +873,10 @@ function selectRelevantTools(
     }
   }
 
+  if (mentionsAny(text, ['program', 'major', 'curriculum', 'degree', 'graduat', 'stage progress', 'time to complete'])) {
+    add('getProgramContext', { search: prompt, limit: 8 });
+  }
+
   if (mentionsAny(text, ['attendance', 'absent', 'late', 'risk'])) {
     if (role === 'STUDENT' || role === 'GUARDIAN') add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
     else add('getAttendanceRisk', input);
@@ -973,6 +977,7 @@ function entityKindsFromPrompt(prompt: string) {
   if (mentionsAny(text, ['student', 'learner', 'roll number', 'registration'])) add('student');
   if (mentionsAny(text, ['teacher', 'faculty', 'instructor', 'manager', 'staff'])) add('teacher');
   if (mentionsAny(text, ['department', 'dept'])) add('department');
+  if (mentionsAny(text, ['program', 'major', 'curriculum', 'degree', 'graduat'])) add('program');
   if (mentionsAny(text, ['mail', 'message', 'thread', 'ticket'])) add('mail');
 
   return entities;
@@ -1023,7 +1028,7 @@ function classifyCopilotRequest(prompt: string, role?: string): CopilotRequestPo
     return {
       kind: 'mixed',
       skipPlanner: false,
-      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'resolveEduVerseEntities', 'getAcademicPerformanceProfile', 'getScheduleContext', 'searchFlows', 'searchDocs', 'searchRoutes'],
+      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'resolveEduVerseEntities', 'getProgramContext', 'getAcademicPerformanceProfile', 'getScheduleContext', 'searchFlows', 'searchDocs', 'searchRoutes'],
       responseContract: 'Combine workflow guidance and live EduVerse data. Separate known facts, recommendation, and next steps. Ask at most one question only if a required choice is missing.',
     };
   }
@@ -1039,7 +1044,7 @@ function classifyCopilotRequest(prompt: string, role?: string): CopilotRequestPo
     return {
       kind: 'live-data',
       skipPlanner: false,
-      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'resolveEduVerseEntities', 'getAcademicPerformanceProfile', 'getScheduleContext', 'getOperationsContext', 'getCommunicationContext'],
+      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'resolveEduVerseEntities', 'getProgramContext', 'getAcademicPerformanceProfile', 'getScheduleContext', 'getOperationsContext', 'getCommunicationContext'],
       responseContract: 'Use live backend context. Explain empty results precisely: target missing, target found with no child records, permission denied, or partial data.',
     };
   }
@@ -1106,6 +1111,10 @@ function isLiveDataQuery(value: string) {
     'fee',
     'evaluation',
     'cohort',
+    'program',
+    'major',
+    'curriculum',
+    'graduat',
     'semester',
     'academic cycle',
   ]);
@@ -1280,7 +1289,7 @@ function includesCoveredByTool(name: string) {
   if (name === 'searchDocs' || name === 'searchFlows' || name === 'searchRoutes') return ['knowledge'];
   if (name === 'getPolicyContext') return ['policy'];
   if (name === 'getScheduleContext') return ['schedule'];
-  if (['getAcademicPerformanceProfile', 'getPendingDeadlines', 'getPendingGrading', 'getStudentsNeedingAttention', 'listSections', 'listCourses', 'getCourseEnrollmentRanking'].includes(name)) return ['academic'];
+  if (['getProgramContext', 'getAcademicPerformanceProfile', 'getPendingDeadlines', 'getPendingGrading', 'getStudentsNeedingAttention', 'listSections', 'listCourses', 'getCourseEnrollmentRanking'].includes(name)) return ['academic'];
   if (name === 'getOperationsContext') return ['operations'];
   if (name === 'getCommunicationContext') return ['communication'];
   if (name === 'getFinanceSummary') return ['finance'];
@@ -1306,6 +1315,7 @@ function isSecondaryAggregateTool(name: string) {
 function isCoveredByAcademicPlanning(name: string) {
   return [
     'resolveEduVerseEntities',
+    'getProgramContext',
     'getScheduleContext',
     'getAcademicPerformanceProfile',
     'getPendingDeadlines',
@@ -1317,6 +1327,7 @@ function isCoveredByAcademicPlanning(name: string) {
 function isCoveredByEnrollmentFeasibility(name: string) {
   return [
     'resolveEduVerseEntities',
+    'getProgramContext',
     'getScheduleContext',
     'getAcademicPerformanceProfile',
     'listSections',
@@ -1327,6 +1338,7 @@ function isCoveredByEnrollmentFeasibility(name: string) {
 function isCoveredByEntityRelationship(name: string) {
   return [
     'resolveEduVerseEntities',
+    'getProgramContext',
     'getScheduleContext',
     'getAcademicPerformanceProfile',
   ].includes(name);

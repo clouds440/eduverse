@@ -407,7 +407,10 @@ export class AssessmentsService {
       include: {
         course: { select: { id: true, name: true, creditHours: true } },
         academicCycle: { select: { id: true, name: true, startDate: true, endDate: true, gpaPolicySnapshot: true } },
-        cohort: { select: { id: true, name: true } },
+        cohortOfferingSections: {
+          take: 1,
+          select: { cohortOffering: { select: { cohort: { select: { id: true, name: true } } } } },
+        },
         teachers: { select: { id: true, user: { select: { id: true, name: true, email: true } } } },
         enrollments: {
           include: {
@@ -561,7 +564,7 @@ export class AssessmentsService {
               endDate: section.academicCycle.endDate,
             }
           : null,
-        cohort: section.cohort,
+        cohort: section.cohortOfferingSections[0]?.cohortOffering.cohort || null,
         teachers: section.teachers.map((teacher) => ({
           id: teacher.id,
           userId: teacher.user.id,

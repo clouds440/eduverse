@@ -10,6 +10,7 @@ function createService(overrides: Partial<Record<string, any>> = {}) {
     academicCycle: { findFirst: jest.fn().mockResolvedValue({ id: 'cycle-1' }), findMany: jest.fn().mockResolvedValue([]) },
     programStage: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
     cohort: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
+    cohortOffering: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
     course: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
     sectionSchedule: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     attendanceSession: {
@@ -179,8 +180,8 @@ describe('ImportsService student validation', () => {
     'name', 'email', 'password', 'registrationNumber', 'rollNumber', 'gender',
     'phone', 'fatherName', 'age', 'address', 'admissionDate', 'graduationDate',
     'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode', 'departmentCodes',
-    'sectionCodes', 'cohortCode', 'programClassificationStatus', 'programCode',
-    'curriculumCode', 'entryAcademicCycleCode', 'stageCode',
+    'sectionCodes', 'cohortCode', 'cohortAcademicCycleCode', 'programClassificationStatus',
+    'programCode', 'curriculumCode', 'stageCode',
   ];
 
   it('validates mixed student rows without importing', async () => {
@@ -270,10 +271,14 @@ describe('ImportsService student validation', () => {
             return null;
           }),
         },
-        cohort: {
+        academicCycle: { findFirst: jest.fn().mockResolvedValue({ id: 'cycle-2026' }), findMany: jest.fn().mockResolvedValue([]) },
+        cohortOffering: {
           findFirst: jest.fn(async ({ where }) => {
-            const code = where.OR?.[0]?.code?.equals;
-            if (code === 'BATCH-2026' || where.id === 'cohort-2026') return { id: 'cohort-2026', status: 'ACTIVE' };
+            if (where.id === 'cohort-offering-2026') {
+              return { id: 'cohort-offering-2026', status: 'PLANNED', cohort: { status: 'ACTIVE' } };
+            }
+            const code = where.OR?.[1]?.cohort?.code?.equals;
+            if (code === 'BATCH-2026' || where.OR?.[0]?.id === 'cohort-offering-2026') return { id: 'cohort-offering-2026' };
             return null;
           }),
         },
@@ -283,7 +288,7 @@ describe('ImportsService student validation', () => {
       studentHeaders.join(','),
       [
         'Student One', 'student-one@test.test', 'Student123', 'REG-20', 'R-20', 'Female',
-        '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '"CS-101-A,IT-201-B"', 'BATCH-2026',
+        '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '"CS-101-A,IT-201-B"', 'BATCH-2026', 'FALL-2026',
       ].join(','),
     ].join('\n');
 
@@ -297,7 +302,7 @@ describe('ImportsService student validation', () => {
     expect(result.summary.valid).toBe(1);
     expect(result.summary.invalid).toBe(0);
     expect(result.validRows[0].data.sectionIds).toEqual(['section-cs', 'section-it']);
-    expect(result.validRows[0].data.cohortId).toBe('cohort-2026');
+    expect(result.validRows[0].data.cohortId).toBe('cohort-offering-2026');
   });
 
   it('keeps student rows valid when at least one section code resolves', async () => {
@@ -365,20 +370,15 @@ describe('ImportsService student validation', () => {
   it('rejects student cohortCode when the cohort is closed', async () => {
     const { service } = createService({
       prisma: {
-        cohort: {
-          findFirst: jest.fn(async ({ where }) => {
-            const code = where.OR?.[0]?.code?.equals;
-            if (code === 'OLD-BATCH' || where.id === 'cohort-old') return { id: 'cohort-old', status: 'CLOSED' };
-            return null;
-          }),
-        },
+        academicCycle: { findFirst: jest.fn().mockResolvedValue({ id: 'cycle-old' }), findMany: jest.fn().mockResolvedValue([]) },
+        cohortOffering: { findFirst: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       },
     });
     const csv = [
       studentHeaders.join(','),
       [
         'Closed Cohort', 'closed-cohort@test.test', 'Student123', 'REG-23', 'R-23', 'Female',
-        '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '', 'OLD-BATCH',
+        '', '', '', '', '', '', '', '', 'ACTIVE', '', '', '', 'OLD-BATCH', 'OLD-CYCLE',
       ].join(','),
     ].join('\n');
 
@@ -392,7 +392,7 @@ describe('ImportsService student validation', () => {
     expect(result.summary.valid).toBe(0);
     expect(result.summary.invalid).toBe(1);
     expect(result.invalidRows[0].errors).toEqual([
-      { rowNumber: 2, message: 'Cannot enroll students into a closed cohort' },
+      { rowNumber: 2, field: 'cohortCode', message: 'Cohort offering "OLD-BATCH" was not found in the selected cycle' },
     ]);
   });
 });
@@ -918,12 +918,11 @@ describe('ImportsService cohort validation', () => {
         programStage: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue({
           id: 'stage-1',
           sequence: 1,
-          programAcademicCycleId: 'program-cycle-1',
           curriculumVersion: {
             programConfigurationRevision: { version: 2 },
             program: { id: 'program-1', configurationVersion: 2 },
           },
-          programAcademicCycle: { academicCycleId: 'cycle-2026' },
+          offerings: [{ id: 'stage-offering-1' }],
         }) },
       },
     });
@@ -937,8 +936,7 @@ describe('ImportsService cohort validation', () => {
     expect(result.summary.invalid).toBe(0);
     expect(result.validRows[0].data).toMatchObject({
       academicCycleId: 'cycle-2026',
-      programAcademicCycleId: 'program-cycle-1',
-      programStageId: 'stage-1',
+      programStageOfferingId: 'stage-offering-1',
     });
   });
 
@@ -964,12 +962,11 @@ describe('ImportsService program-aware student and section validation', () => {
   const mappedStage = {
     id: 'stage-1',
     sequence: 1,
-    programAcademicCycleId: 'program-cycle-1',
     curriculumVersion: {
       programConfigurationRevision: { version: 2 },
       program: { id: 'program-1', configurationVersion: 2 },
     },
-    programAcademicCycle: { academicCycleId: 'cycle-2026' },
+    offerings: [{ id: 'stage-offering-1' }],
     courseRequirements: [{ id: 'requirement-1' }],
   };
 
@@ -985,7 +982,7 @@ describe('ImportsService program-aware student and section validation', () => {
         'name', 'email', 'password', 'registrationNumber', 'rollNumber', 'gender', 'phone', 'fatherName', 'age', 'address',
         'admissionDate', 'graduationDate', 'emergencyContact', 'bloodGroup', 'status', 'primaryDepartmentCode',
         'departmentCodes', 'sectionCodes', 'cohortCode', 'programClassificationStatus', 'programCode', 'curriculumCode',
-        'entryAcademicCycleCode', 'stageCode',
+        'cohortAcademicCycleCode', 'stageCode',
       ].join(','),
       'Mapped Student,mapped@student.test,Student123,REG-M1,R-M1,Female,,,,,,,,,ACTIVE,,,,,PROGRAM_MAPPED,BSCS,BSCS-2026,FALL-2026,SEM-1',
     ].join('\n');
@@ -994,7 +991,7 @@ describe('ImportsService program-aware student and section validation', () => {
 
     expect(result.summary.invalid).toBe(0);
     expect(result.validRows[0].data).toMatchObject({
-      programId: 'program-1', entryAcademicCycleId: 'cycle-2026', entryStageSequence: 1,
+      programId: 'program-1', entryStageId: 'stage-1',
     });
   });
 
@@ -1015,7 +1012,7 @@ describe('ImportsService program-aware student and section validation', () => {
 
     expect(result.summary.invalid).toBe(0);
     expect(result.validRows[0].data).toMatchObject({
-      stageCourseRequirementIds: ['requirement-1'],
+      programMappings: [{ programStageOfferingId: 'stage-offering-1', stageCourseRequirementId: 'requirement-1' }],
     });
   });
 });

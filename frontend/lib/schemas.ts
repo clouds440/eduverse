@@ -239,24 +239,6 @@ const programStageSchema = z.object({
     courseRequirements: z.array(programRequirementSchema),
 });
 
-const existingProgramCycleSchema = z.object({
-    kind: z.literal('EXISTING'),
-    academicCycleId: z.string().min(1, 'Select an institute cycle'),
-    stage: programStageSchema,
-});
-
-const newProgramCycleSchema = z.object({
-    kind: z.literal('NEW'),
-    name: z.string().min(1, 'Cycle name is required'),
-    code: entityCodeSchema,
-    startDate: z.string().min(1, 'Start date is required'),
-    endDate: z.string().min(1, 'End date is required'),
-    stage: programStageSchema,
-}).refine((row) => new Date(row.endDate) > new Date(row.startDate), {
-    message: 'End date must be after start date',
-    path: ['endDate'],
-});
-
 export const programSchema = z.object({
     name: z.string().min(1, 'Program name is required'),
     code: entityCodeSchema,
@@ -265,7 +247,9 @@ export const programSchema = z.object({
     structureType: z.nativeEnum(ProgramStructureType),
     progressionMode: z.nativeEnum(ProgramProgressionMode),
     completionMode: z.nativeEnum(ProgramCompletionMode),
+    minimumPassingPercentage: z.number().min(0).max(100).optional(),
+    minimumAttendancePercentage: z.number().min(0).max(100).optional(),
     curriculumName: z.string().min(1, 'Curriculum name is required'),
     curriculumCode: entityCodeSchema,
-    cycles: z.array(z.discriminatedUnion('kind', [existingProgramCycleSchema, newProgramCycleSchema])).min(1, 'Add at least one academic cycle'),
+    stages: z.array(programStageSchema).min(1, 'Add at least one program stage'),
 });

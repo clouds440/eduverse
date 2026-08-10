@@ -130,17 +130,6 @@ export class AcademicCyclesService {
     const status = dto.status ?? AcademicCycleStatus.DRAFT;
 
     return this.runSerializable(async (tx) => {
-      if (status === AcademicCycleStatus.ACTIVE) {
-        const active = await tx.academicCycle.findFirst({
-          where: { organizationId: orgId, status: AcademicCycleStatus.ACTIVE },
-          select: { id: true },
-        });
-        if (active)
-          throw new ConflictException(
-            'Complete or return the current active academic cycle to draft first',
-          );
-      }
-
       return tx.academicCycle.create({
         data: {
           name: dto.name.trim(),
@@ -256,9 +245,8 @@ export class AcademicCyclesService {
         gpaPolicy: {
           select: { id: true, name: true, isArchived: true },
         },
-        programAssociations: {
-          where: { status: 'ACTIVE' },
-          orderBy: { sequence: 'asc' },
+        programOfferings: {
+          orderBy: { program: { name: 'asc' } },
           include: {
             program: {
               select: {
@@ -273,7 +261,7 @@ export class AcademicCyclesService {
         },
         _count: {
           select: {
-            cohorts: true,
+            cohortOfferings: true,
             sections: true,
             enrollments: true,
           },
@@ -377,29 +365,17 @@ export class AcademicCyclesService {
         );
       }
 
-      if (targetStatus === AcademicCycleStatus.ACTIVE) {
-        const active = await tx.academicCycle.findFirst({
-          where: {
-            organizationId: orgId,
-            status: AcademicCycleStatus.ACTIVE,
-            id: { not: id },
-          },
-          select: { id: true },
-        });
-        if (active)
-          throw new ConflictException(
-            'Another academic cycle is already active',
-          );
-      }
-
       if (targetStatus === AcademicCycleStatus.COMPLETED) {
-        const unresolvedProgramCycles =
-          await tx.studentProgramEnrollmentCycle.count({
-            where: { academicCycleId: id, status: 'IN_PROGRESS' },
+        const unresolvedStageEnrollments =
+          await tx.studentStageEnrollment.count({
+            where: {
+              programStageOffering: { programOffering: { academicCycleId: id } },
+              status: 'IN_PROGRESS',
+            },
           });
-        if (unresolvedProgramCycles) {
+        if (unresolvedStageEnrollments) {
           throw new ConflictException(
-            `Resolve ${unresolvedProgramCycles} in-progress student program cycle record(s) before completing this academic cycle`,
+            `Resolve ${unresolvedStageEnrollments} in-progress student stage enrollment(s) before completing this academic cycle`,
           );
         }
       }
@@ -427,9 +403,10 @@ export class AcademicCyclesService {
   async getActiveCycle(orgId: string) {
     const cycle = await this.prisma.academicCycle.findFirst({
       where: { organizationId: orgId, status: AcademicCycleStatus.ACTIVE },
+      orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
       include: {
         _count: {
-          select: { cohorts: true, sections: true, enrollments: true },
+          select: { cohortOfferings: true, sections: true, enrollments: true },
         },
       },
     });
@@ -455,7 +432,7 @@ export class AcademicCyclesService {
         'Only an unused draft academic cycle can be deleted',
       );
     }
-    const associationCount = await this.prisma.programAcademicCycle.count({
+    const associationCount = await this.prisma.programOffering.count({
       where: { academicCycleId: id },
     });
     if (
@@ -465,7 +442,7 @@ export class AcademicCyclesService {
       (await this.hasDeliveryActivity(id))
     ) {
       throw new ConflictException(
-        'Cannot delete an academic cycle referenced by delivery or a program association',
+        'Cannot delete an academic cycle referenced by delivery or a program offering',
       );
     }
 

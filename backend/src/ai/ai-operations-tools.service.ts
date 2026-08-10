@@ -451,7 +451,7 @@ export class AIOperationsToolsService implements OnModuleInit {
       const student = await this.prisma.student.findFirst({
         where: { userId: context.userId, organizationId: context.orgId },
         select: {
-          cohortId: true,
+          cohortMemberships: { where: { leftAt: null }, take: 1, select: { cohortOffering: { select: { cohortId: true } } } },
           enrollments: { select: { sectionId: true, section: { select: { courseId: true } } } },
         },
       });
@@ -459,7 +459,8 @@ export class AIOperationsToolsService implements OnModuleInit {
         conditions.push({ targetType: TargetType.SECTION, targetId: { in: student.enrollments.map((entry) => entry.sectionId) } });
         conditions.push({ targetType: TargetType.COURSE, targetId: { in: unique(student.enrollments.map((entry) => entry.section.courseId)) } });
       }
-      if (student?.cohortId) conditions.push({ targetType: TargetType.COHORT, targetId: student.cohortId });
+      const cohortId = student?.cohortMemberships[0]?.cohortOffering.cohortId;
+      if (cohortId) conditions.push({ targetType: TargetType.COHORT, targetId: cohortId });
     }
 
     if (ORG_OVERSIGHT_ROLES.has(context.role ?? '')) {

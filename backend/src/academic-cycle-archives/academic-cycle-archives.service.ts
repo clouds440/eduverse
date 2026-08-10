@@ -9,14 +9,14 @@ import {
   AcademicCycleStatus,
   ArchiveProgramSourceKind,
   Prisma,
-  StudentProgramCycleStatus,
+  StudentStageEnrollmentStatus,
 } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrganizationActivityService } from '../activity-logs/organization-activity.service';
 import { stableJsonStringify } from '../common/stable-json';
 import { runSerializableTransaction } from '../common/prisma-transaction';
 
-const ARCHIVE_SCHEMA_VERSION = 1;
+const ARCHIVE_SCHEMA_VERSION = 2;
 
 type SnapshotPayload = {
   schemaVersion: number;
@@ -187,15 +187,15 @@ export class AcademicCycleArchivesService {
         'Only a completed academic cycle can be archived',
       );
     }
-    const unresolved = await this.prisma.studentProgramEnrollmentCycle.count({
+    const unresolved = await this.prisma.studentStageEnrollment.count({
       where: {
-        academicCycleId: cycleId,
-        status: StudentProgramCycleStatus.IN_PROGRESS,
+        programStageOffering: { programOffering: { academicCycleId: cycleId } },
+        status: StudentStageEnrollmentStatus.IN_PROGRESS,
       },
     });
     if (unresolved) {
       throw new ConflictException(
-        `Resolve ${unresolved} in-progress student program cycle record(s) before archiving`,
+        `Resolve ${unresolved} in-progress student stage enrollment(s) before archiving`,
       );
     }
     return cycle;
@@ -302,22 +302,32 @@ export class AcademicCycleArchivesService {
       where: { id: sectionId, organizationId: orgId, academicCycleId: cycleId },
       include: {
         course: { include: { department: true } },
-        cohort: {
+        cohortOfferingSections: {
           include: {
-            programAcademicCycle: {
-              include: { program: { include: { department: true } } },
+            cohortOffering: {
+              include: {
+                cohort: true,
+                programStageOffering: {
+                  include: {
+                    programOffering: { include: { program: { include: { department: true } }, curriculumVersion: true } },
+                    programStage: { include: { curriculumVersion: true } },
+                  },
+                },
+              },
             },
-            programStage: { include: { curriculumVersion: true } },
           },
         },
         defaultRoom: { include: { building: true } },
         teachers: {
           include: { user: { select: { id: true, name: true, email: true } } },
         },
-        requirementMappings: {
+        programMappings: {
           include: {
-            programAcademicCycle: {
-              include: { program: { include: { department: true } } },
+            programStageOffering: {
+              include: {
+                programOffering: { include: { program: { include: { department: true } }, curriculumVersion: true } },
+                programStage: { include: { curriculumVersion: true } },
+              },
             },
             stageCourseRequirement: {
               include: {
@@ -337,8 +347,8 @@ export class AcademicCycleArchivesService {
                   include: {
                     program: true,
                     curriculumVersion: true,
-                    cycles: { orderBy: { sequenceSnapshot: 'asc' } },
-                    stageAttempts: true,
+                    stageEnrollments: { orderBy: { createdAt: 'asc' } },
+                    progressionDecisions: { orderBy: { decidedAt: 'asc' } },
                   },
                   orderBy: { admittedAt: 'asc' },
                 },
@@ -347,7 +357,8 @@ export class AcademicCycleArchivesService {
             studentProgramEnrollment: {
               include: { program: true, curriculumVersion: true },
             },
-            studentStageAttempt: { include: { programStage: true } },
+            studentStageEnrollment: { include: { programStage: true, programStageOffering: { include: { programOffering: true } } } },
+            studentCohortMembership: { include: { cohortOffering: { include: { cohort: true } } } },
           },
         },
         enrollmentHistories: {
@@ -361,7 +372,8 @@ export class AcademicCycleArchivesService {
             studentProgramEnrollment: {
               include: { program: true, curriculumVersion: true },
             },
-            studentStageAttempt: { include: { programStage: true } },
+            studentStageEnrollment: { include: { programStage: true, programStageOffering: { include: { programOffering: true } } } },
+            studentCohortMembership: { include: { cohortOffering: { include: { cohort: true } } } },
           },
         },
         assessments: {
@@ -486,12 +498,12 @@ export class AcademicCycleArchivesService {
         color: source.color,
         room: source.room,
         status: source.status,
-        programClassificationStatus: source.programClassificationStatus,
+        programClassificationStatus: source.programMappings.length ? 'PROGRAM_MAPPED' : 'STANDALONE',
         course: source.course,
-        cohort: source.cohort,
+        cohortOfferings: source.cohortOfferingSections,
         defaultRoom: source.defaultRoom,
         teachers: source.teachers,
-        requirementMappings: source.requirementMappings,
+        programMappings: source.programMappings,
       },
       enrollments: source.enrollments,
       enrollmentHistories: source.enrollmentHistories,
@@ -506,47 +518,43 @@ export class AcademicCycleArchivesService {
     const teacherUserIds = source.teachers
       .map((teacher) => teacher.userId)
       .sort();
-    const cohortProgram =
-      source.cohort?.programAcademicCycle && source.cohort.programStage
-        ? {
-            sourceKind: ArchiveProgramSourceKind.COHORT,
-            sourceMappingId: source.cohort.id,
-            sourceProgramAcademicCycleId: source.cohort.programAcademicCycle.id,
-            sourceProgramId: source.cohort.programAcademicCycle.program.id,
-            sourceCurriculumVersionId:
-              source.cohort.programStage.curriculumVersion.id,
-            sourceProgramStageId: source.cohort.programStage.id,
-            sourceStageCourseRequirementId: null,
-            departmentLabel:
-              source.cohort.programAcademicCycle.program.department.name,
-            programLabel: source.cohort.programAcademicCycle.program.name,
-            curriculumLabel: source.cohort.programStage.curriculumVersion.name,
-            stageLabel: source.cohort.programStage.name,
-          }
-        : null;
-    const requirementPrograms = source.requirementMappings.map((mapping) => ({
-      sourceKind: ArchiveProgramSourceKind.REQUIREMENT_MAPPING,
+    const cohortPrograms = source.cohortOfferingSections.flatMap((link) => {
+      const stageOffering = link.cohortOffering.programStageOffering;
+      if (!stageOffering) return [];
+      return [{
+        sourceKind: ArchiveProgramSourceKind.COHORT_OFFERING,
+        sourceMappingId: link.cohortOffering.id,
+        sourceProgramOfferingId: stageOffering.programOffering.id,
+        sourceProgramStageOfferingId: stageOffering.id,
+        sourceProgramId: stageOffering.programOffering.program.id,
+        sourceCurriculumVersionId: stageOffering.programOffering.curriculumVersion.id,
+        sourceProgramStageId: stageOffering.programStage.id,
+        sourceStageCourseRequirementId: null,
+        departmentLabel: stageOffering.programOffering.program.department.name,
+        programLabel: stageOffering.programOffering.program.name,
+        curriculumLabel: stageOffering.programOffering.curriculumVersion.name,
+        stageLabel: stageOffering.programStage.name,
+      }];
+    });
+    const requirementPrograms = source.programMappings.map((mapping) => ({
+      sourceKind: ArchiveProgramSourceKind.SECTION_MAPPING,
       sourceMappingId: mapping.id,
-      sourceProgramAcademicCycleId: mapping.programAcademicCycle.id,
-      sourceProgramId: mapping.programAcademicCycle.program.id,
-      sourceCurriculumVersionId:
-        mapping.stageCourseRequirement.programStage.curriculumVersion.id,
-      sourceProgramStageId: mapping.stageCourseRequirement.programStage.id,
+      sourceProgramOfferingId: mapping.programStageOffering.programOffering.id,
+      sourceProgramStageOfferingId: mapping.programStageOffering.id,
+      sourceProgramId: mapping.programStageOffering.programOffering.program.id,
+      sourceCurriculumVersionId: mapping.programStageOffering.programOffering.curriculumVersion.id,
+      sourceProgramStageId: mapping.programStageOffering.programStage.id,
       sourceStageCourseRequirementId: mapping.stageCourseRequirementId,
-      departmentLabel: mapping.programAcademicCycle.program.department.name,
-      programLabel: mapping.programAcademicCycle.program.name,
-      curriculumLabel:
-        mapping.stageCourseRequirement.programStage.curriculumVersion.name,
-      stageLabel: mapping.stageCourseRequirement.programStage.name,
+      departmentLabel: mapping.programStageOffering.programOffering.program.department.name,
+      programLabel: mapping.programStageOffering.programOffering.program.name,
+      curriculumLabel: mapping.programStageOffering.programOffering.curriculumVersion.name,
+      stageLabel: mapping.programStageOffering.programStage.name,
     }));
-    const programIndexes = [cohortProgram, ...requirementPrograms].filter(
-      Boolean,
-    ) as Array<NonNullable<typeof cohortProgram>>;
+    const programIndexes = [...cohortPrograms, ...requirementPrograms];
+    const primaryCohort = source.cohortOfferingSections[0]?.cohortOffering.cohort || null;
     const sourceDepartmentId =
       source.course.departmentId ||
-      source.cohort?.programAcademicCycle?.program.departmentId ||
-      source.requirementMappings[0]?.programAcademicCycle.program
-        .departmentId ||
+      source.programMappings[0]?.programStageOffering.programOffering.program.departmentId ||
       null;
     const archiveSection = await this.prisma.academicCycleArchiveSection.upsert(
       {
@@ -558,14 +566,14 @@ export class AcademicCycleArchivesService {
           archiveId,
           sourceSectionId: source.id,
           sourceDepartmentId,
-          sourceCohortId: source.cohortId,
+          sourceCohortId: primaryCohort?.id || null,
           sourceCourseId: source.courseId,
-          classificationStatus: source.programClassificationStatus,
+          classificationStatus: source.programMappings.length ? 'PROGRAM_MAPPED' : 'STANDALONE',
           departmentLabel:
             source.course.department?.name ||
             programIndexes[0]?.departmentLabel ||
             null,
-          cohortLabel: source.cohort?.name || null,
+          cohortLabel: primaryCohort?.name || null,
           courseLabel: source.course.name,
           sectionLabel: source.name,
           normalizedSearchText: this.searchText([
@@ -573,8 +581,7 @@ export class AcademicCycleArchivesService {
             source.code,
             source.course.name,
             source.course.code,
-            source.cohort?.name,
-            source.cohort?.code,
+            ...source.cohortOfferingSections.flatMap((link) => [link.cohortOffering.cohort.name, link.cohortOffering.cohort.code]),
           ]),
           teacherUserIds,
           sectionChecksum,
@@ -582,7 +589,7 @@ export class AcademicCycleArchivesService {
         },
         update: {
           sourceDepartmentId,
-          sourceCohortId: source.cohortId,
+          sourceCohortId: primaryCohort?.id || null,
           teacherUserIds,
           sectionChecksum,
           payload: payload as unknown as Prisma.InputJsonValue,
@@ -636,7 +643,7 @@ export class AcademicCycleArchivesService {
               student.registrationNumber,
               student.rollNumber,
             ]),
-            cohortLabel: source.cohort?.name || null,
+            cohortLabel: primaryCohort?.name || null,
             sectionLabel: source.name,
           })),
         });

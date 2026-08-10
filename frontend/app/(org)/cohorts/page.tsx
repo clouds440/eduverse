@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, ApiError, Cohort, CohortLifecycleStatus, Program, ProgramClassificationStatus, Role } from '@/types';
+import { AcademicCycle, ApiError, Cohort, CohortLifecycleStatus, Program, Role } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
@@ -38,10 +38,7 @@ export default function CohortsPage() {
     const sortBy = getStringParam('sortBy', 'name');
     const sortOrder = (getStringParam('sortOrder', 'asc') as 'asc' | 'desc');
     const academicCycleId = getStringParam('academicCycleId');
-    const cycleScope = getStringParam('cycleScope');
-    const showAllCycles = cycleScope === 'all';
     const programId = getStringParam('programId');
-    const programClassificationStatus = getStringParam('programClassificationStatus');
     const [pageSize, setPageSize] = usePersistentPageSize('edu-cohorts-limit', 10);
 
     const cohortParams = {
@@ -50,10 +47,8 @@ export default function CohortsPage() {
         search: searchTerm,
         sortBy,
         sortOrder,
-        academicCycleId: showAllCycles ? undefined : academicCycleId || undefined,
-        includeAllCycles: showAllCycles ? true : undefined,
+        academicCycleId: academicCycleId || undefined,
         programId: programId || undefined,
-        programClassificationStatus: programClassificationStatus || undefined,
     };
 
     const cohortsKey = token ? ['cohorts', cohortParams] as const : null;
@@ -118,32 +113,20 @@ export default function CohortsPage() {
             value: searchTerm,
             onRemove: () => updateQueryParams({ search: undefined, page: 1 }),
         }] : []),
-        ...(!showAllCycles && academicCycleId ? [{
+        ...(academicCycleId ? [{
             key: 'academicCycleId',
             label: 'Cycle',
             value: (() => {
                 const cycle = cyclesData?.data?.find((item) => item.id === academicCycleId);
                 return cycle ? (cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name) : 'Selected cycle';
             })(),
-            onRemove: () => updateQueryParams({ academicCycleId: undefined, cycleScope: undefined, page: 1 }),
-        }] : []),
-        ...(programClassificationStatus ? [{
-            key: 'programClassificationStatus',
-            label: 'Delivery',
-            value: programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'Program mapped' : 'Standalone',
-            onRemove: () => updateQueryParams({ programClassificationStatus: undefined, page: 1 }),
+            onRemove: () => updateQueryParams({ academicCycleId: undefined, page: 1 }),
         }] : []),
         ...(programId ? [{
             key: 'programId',
             label: 'Program',
             value: 'Selected program',
             onRemove: () => updateQueryParams({ programId: undefined, page: 1 }),
-        }] : []),
-        ...(showAllCycles ? [{
-            key: 'cycleScope',
-            label: 'Cycle',
-            value: 'All academic cycles',
-            onRemove: () => updateQueryParams({ cycleScope: undefined, page: 1 }),
         }] : []),
     ];
 
@@ -161,9 +144,6 @@ export default function CohortsPage() {
                         <div className="flex min-w-0 items-center gap-2">
                             <p className="truncate text-sm font-black text-foreground">{row.name}</p>
                             {row.status !== 'ACTIVE' && <Badge variant="warning" size="sm">{row.status}</Badge>}
-                            <Badge variant={row.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'info' : 'secondary'} size="sm">
-                                {row.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED ? 'Program mapped' : 'Standalone'}
-                            </Badge>
                         </div>
                         <p className="mt-1 text-xs font-black uppercase tracking-wider text-muted-foreground">{row.code}</p>
                     </div>
@@ -171,22 +151,22 @@ export default function CohortsPage() {
             ),
         },
         {
-            header: 'Academic Cycle',
-            accessor: (row) => row.academicCycle ? (row.academicCycle.code ? `${row.academicCycle.code} - ${row.academicCycle.name}` : row.academicCycle.name) : 'N/A',
+            header: 'Latest offering',
+            accessor: (row) => row.offerings?.[0] ? `${row.offerings[0].academicCycle.code} - ${row.offerings[0].academicCycle.name}` : 'Not offered',
         },
         {
-            header: 'Students',
+            header: 'Offerings',
             accessor: (row) => (
                 <span className="inline-flex min-w-12 items-center justify-center rounded-md bg-muted px-2 py-1 text-xs font-black text-foreground">
-                    {row._count?.students || 0}
+                    {row._count?.offerings || 0}
                 </span>
             ),
         },
         {
-            header: 'Sections',
+            header: 'Latest delivery',
             accessor: (row) => (
                 <span className="inline-flex min-w-12 items-center justify-center rounded-md bg-muted px-2 py-1 text-xs font-black text-foreground">
-                    {row._count?.sections || 0}
+                    {row.offerings?.[0]?.programStageOffering ? row.offerings[0].programStageOffering.programOffering.program.code : 'Standalone'}
                 </span>
             ),
         },
@@ -269,31 +249,12 @@ export default function CohortsPage() {
                                 </Label>
                                 <CustomSelect
                                     options={[
-                                        { label: 'Current Active Cycle', value: '' },
-                                        { label: 'All Academic Cycles', value: 'all' },
+                                        { label: 'All Academic Cycles', value: '' },
                                         ...(cyclesData?.data?.map((cycle) => ({ value: cycle.id, label: cycle.code ? `${cycle.code} - ${cycle.name}` : cycle.name })) || []),
                                     ]}
-                                    value={showAllCycles ? 'all' : academicCycleId}
-                                    onChange={(value) => {
-                                        if (value === 'all') {
-                                            updateQueryParams({ cycleScope: 'all', academicCycleId: undefined, page: 1 });
-                                            return;
-                                        }
-                                        updateQueryParams({ academicCycleId: value || undefined, cycleScope: undefined, page: 1 });
-                                    }}
-                                    placeholder="Current Active Cycle"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Delivery Type</Label>
-                                <CustomSelect
-                                    value={programClassificationStatus}
-                                    onChange={(value) => updateQueryParams({ programClassificationStatus: value || undefined, programId: value === ProgramClassificationStatus.STANDALONE ? undefined : programId || undefined, page: 1 })}
-                                    options={[
-                                        { value: '', label: 'All delivery types' },
-                                        { value: ProgramClassificationStatus.STANDALONE, label: 'Standalone / No program' },
-                                        { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program mapped' },
-                                    ]}
+                                    value={academicCycleId}
+                                    onChange={(value) => updateQueryParams({ academicCycleId: value || undefined, page: 1 })}
+                                    placeholder="All Academic Cycles"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -301,7 +262,7 @@ export default function CohortsPage() {
                                 <RemoteFilterSelect<Program>
                                     cacheKey="cohorts-program-filter"
                                     value={programId}
-                                    onChange={(value) => updateQueryParams({ programId: value || undefined, programClassificationStatus: value ? ProgramClassificationStatus.PROGRAM_MAPPED : programClassificationStatus || undefined, page: 1 })}
+                                    onChange={(value) => updateQueryParams({ programId: value || undefined, page: 1 })}
                                     placeholder="All Programs"
                                     allLabel="All Programs"
                                     selectedLabel="Selected program"

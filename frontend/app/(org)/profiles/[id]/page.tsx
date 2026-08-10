@@ -140,7 +140,7 @@ function StudentLayout({ profile }: { profile: Extract<PublicProfile, { kind: 's
                     <DetailItem
                         label="Program Progress"
                         value={profile.profile.majorProgramEnrollment
-                            ? `${profile.profile.majorProgramEnrollment.cycles.filter((cycle) => cycle.status === 'COMPLETED' || cycle.status === 'SKIPPED').length} of ${profile.profile.majorProgramEnrollment.requiredCycleCountSnapshot} cycles`
+                            ? `${profile.profile.majorProgramEnrollment.stageEnrollments.filter((stage) => stage.status === 'COMPLETED' || stage.status === 'SKIPPED').length} of ${profile.profile.majorProgramEnrollment.requiredStageCountSnapshot} stages`
                             : undefined}
                     />
                 </div>

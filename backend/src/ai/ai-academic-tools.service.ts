@@ -5,6 +5,7 @@ import {
   EvaluationType,
   Prisma,
   Role,
+  StudentProgramEnrollmentStatus,
 } from '@/prisma/prisma-client';
 import { getDepartmentScope, sectionDepartmentScopeWhere, courseDepartmentScopeWhere } from '../common/department-scope';
 import { EvaluationsService } from '../evaluations/evaluations.service';
@@ -13,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AISettingsService } from './ai-settings.service';
 import { AIToolRegistryService } from './ai-tool-registry.service';
 import type { AIToolContext, AIToolResult } from './ai.types';
+import { buildStudentAcademicIdentity, buildStudentProgramOverview } from '../common/student-academic-identity';
 
 const ORG_ACADEMIC_SCOPE_ROLES = new Set<string>([Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER]);
 const ACADEMIC_STAFF_ROLES = new Set<string>([Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER]);
@@ -24,6 +26,7 @@ interface AcademicToolInput {
   courseId?: string;
   teacherId?: string;
   studentId?: string;
+  programId?: string;
   days?: number;
   limit?: number;
   range?: string;
@@ -43,6 +46,7 @@ export class AIAcademicToolsService implements OnModuleInit {
     this.register('getCurrentPermissions', 'Summarize current Copilot actor permissions and role boundaries.', (_input, context) => this.getCurrentPermissions(context));
     this.register('getMyInsights', 'Return compact role-aware dashboard insights for the current user.', (input, context) => this.getMyInsights(context, parseInput(input)));
     this.register('listCourses', 'List compact courses visible to the current user.', (input, context) => this.listCourses(context, parseInput(input)));
+    this.register('getProgramContext', 'Return role-scoped program definitions, curricula, stages, current cycle offerings, and student major progress. Use for program, major, curriculum, stage, duration, credits, and expected graduation questions.', (input, context) => this.getProgramContext(context, parseInput(input)));
     this.register('listSections', 'List compact sections visible to the current user.', (input, context) => this.listSections(context, parseInput(input)));
     this.register('getCourseEnrollmentRanking', 'Rank visible courses by enrolled student count for the current or selected academic cycle.', (input, context) => this.getCourseEnrollmentRanking(context, parseInput(input)));
     this.register('getSectionDetails', 'Return compact details for a visible section.', (input, context) => this.getSectionDetails(context, parseInput(input)));
@@ -132,6 +136,141 @@ export class AIAcademicToolsService implements OnModuleInit {
           assessments: course._count.assessments,
           href: '/courses',
         })),
+      },
+    };
+  }
+
+  private async getProgramContext(context: AIToolContext, input: AcademicToolInput): Promise<AIToolResult<unknown>> {
+    if (!context.orgId) return permissionDenied('Organization context is required.');
+    const openStatuses = [
+      StudentProgramEnrollmentStatus.ADMITTED,
+      StudentProgramEnrollmentStatus.ACTIVE,
+      StudentProgramEnrollmentStatus.ON_HOLD,
+    ];
+    const search = input.search?.trim();
+    const where: Prisma.ProgramWhereInput = {
+      organizationId: context.orgId,
+      ...(input.programId ? { id: input.programId } : {}),
+    };
+    if (context.role === Role.STUDENT) {
+      where.studentEnrollments = { some: { status: { in: openStatuses }, student: { userId: context.userId } } };
+    } else if (context.role === Role.GUARDIAN) {
+      where.studentEnrollments = { some: { status: { in: openStatuses }, student: { guardianLinks: { some: { guardian: { userId: context.userId } } } } } };
+    } else if (context.role === Role.TEACHER || context.role === Role.ORG_MANAGER) {
+      where.offerings = { some: { stageOfferings: { some: { sectionMappings: { some: { section: { teachers: { some: { userId: context.userId } } } } } } } } };
+      Object.assign(where, programTextSearch(search));
+    } else if (ORG_ACADEMIC_SCOPE_ROLES.has(context.role ?? '')) {
+      const scope = await getDepartmentScope(this.prisma, context.orgId, actorForScopedServices(context));
+      if (scope.applies && !scope.all) where.departmentId = { in: scope.departmentIds };
+      Object.assign(where, programTextSearch(search));
+    } else {
+      return permissionDenied('Programs are not available for this role.');
+    }
+
+    const programs = await this.prisma.program.findMany({
+      where,
+      take: clampLimit(input.limit, 8),
+      include: {
+        department: { select: { id: true, name: true, code: true } },
+        curriculumVersions: {
+          where: { status: 'ACTIVE' },
+          take: 2,
+          orderBy: { activatedAt: 'desc' },
+          include: {
+            stages: {
+              orderBy: { sequence: 'asc' },
+              include: { courseRequirements: { include: { course: { select: { id: true, name: true, code: true } } } } },
+            },
+          },
+        },
+        offerings: {
+          where: { status: 'OPEN' },
+          take: 6,
+          orderBy: { academicCycle: { startDate: 'asc' } },
+          include: {
+            academicCycle: { select: { id: true, name: true, code: true, startDate: true, endDate: true } },
+            stageOfferings: { where: { status: 'OPEN' }, include: { programStage: { select: { id: true, name: true, code: true, sequence: true } } } },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const studentWhere: Prisma.StudentWhereInput | null = context.role === Role.STUDENT
+      ? { organizationId: context.orgId, userId: context.userId }
+      : context.role === Role.GUARDIAN
+        ? { organizationId: context.orgId, ...(input.studentId ? { id: input.studentId } : {}), guardianLinks: { some: { guardian: { userId: context.userId } } } }
+        : input.studentId ? { organizationId: context.orgId, id: input.studentId, programEnrollments: { some: { program: where } } } : null;
+    const students = studentWhere ? await this.prisma.student.findMany({
+      where: studentWhere,
+      take: clampLimit(input.limit, 8),
+      include: {
+        cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true } } } },
+        enrollments: { where: { isExcludedFromCohort: false }, take: 4, include: { section: { include: { course: true } } } },
+        programEnrollments: {
+          where: { status: { in: openStatuses }, programId: { in: programs.map((program) => program.id) } },
+          take: 1,
+          orderBy: { admittedAt: 'desc' },
+          include: {
+            program: { include: { department: true } },
+            curriculumVersion: { include: { stages: { orderBy: { sequence: 'asc' }, include: { courseRequirements: true } } } },
+            stageEnrollments: { orderBy: { createdAt: 'asc' } },
+          },
+        },
+      },
+    }) : [];
+
+    return {
+      ok: true,
+      data: {
+        programs: programs.map((program) => ({
+          programId: program.id,
+          name: program.name,
+          code: program.code,
+          department: program.department,
+          status: program.status,
+          structureType: program.structureType,
+          progressionMode: program.progressionMode,
+          completionMode: program.completionMode,
+          duration: program.durationValue && program.durationUnit ? `${program.durationValue} ${program.durationUnit.toLowerCase()}` : null,
+          minimumPassingPercentage: program.minimumPassingPercentage,
+          minimumAttendancePercentage: program.minimumAttendancePercentage,
+          curricula: program.curriculumVersions.map((curriculum) => ({
+            curriculumId: curriculum.id,
+            name: curriculum.name,
+            code: curriculum.code,
+            stages: curriculum.stages.map((stage) => ({
+              stageId: stage.id,
+              name: stage.name,
+              code: stage.code,
+              sequence: stage.sequence,
+              isOptional: stage.isOptional,
+              minimumCredits: stage.minCredits,
+              courses: stage.courseRequirements.map((requirement) => ({
+                courseId: requirement.course.id,
+                name: requirement.course.name,
+                code: requirement.course.code,
+                requirementType: requirement.requirementType,
+                credits: requirement.creditHoursSnapshot,
+              })),
+            })),
+          })),
+          openOfferings: program.offerings.map((offering) => ({
+            offeringId: offering.id,
+            academicCycle: offering.academicCycle,
+            stages: offering.stageOfferings.map((stage) => stage.programStage),
+          })),
+          href: `/programs/${program.id}`,
+        })),
+        students: students.map((student) => {
+          const major = student.programEnrollments[0] ?? null;
+          const cohort = student.cohortMemberships[0] ?? null;
+          return {
+            studentId: student.id,
+            academicIdentity: buildStudentAcademicIdentity({ majorProgramEnrollment: major, currentCohortMembership: cohort, enrollments: student.enrollments }),
+            programOverview: buildStudentProgramOverview(major, student.graduationDate),
+          };
+        }),
       },
     };
   }
@@ -710,6 +849,7 @@ function parseInput(input: unknown): AcademicToolInput {
     courseId: stringValue(value.courseId),
     teacherId: stringValue(value.teacherId),
     studentId: stringValue(value.studentId),
+    programId: stringValue(value.programId),
     range: stringValue(value.range),
     days: numberValue(value.days),
     limit: numberValue(value.limit),
@@ -724,6 +864,20 @@ function numberValue(value: unknown) {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') return Number(value);
   return undefined;
+}
+
+function programTextSearch(search?: string): Prisma.ProgramWhereInput {
+  if (!search) return {};
+  const stopWords = new Set(['about', 'all', 'from', 'graduate', 'graduation', 'major', 'my', 'program', 'programs', 'show', 'tell', 'the', 'when', 'will']);
+  const tokens = search.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 2 && !stopWords.has(token)).slice(0, 8);
+  if (!tokens.length) return {};
+  return {
+    OR: tokens.flatMap((token) => [
+      { name: { contains: token, mode: Prisma.QueryMode.insensitive } },
+      { code: { contains: token, mode: Prisma.QueryMode.insensitive } },
+      { department: { name: { contains: token, mode: Prisma.QueryMode.insensitive } } },
+    ]),
+  };
 }
 
 function clampLimit(limit = 10, max = 10) {

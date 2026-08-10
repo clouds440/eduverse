@@ -2,7 +2,8 @@ import { IsArray, IsEnum, IsIn, IsOptional, IsString, Matches, MaxLength, Valida
 import { Type } from 'class-transformer';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 import { HEX_COLOR_PATTERN } from '../section-colors';
-import { ProgramClassificationStatus, SectionLifecycleStatus } from '../../common/enums';
+import { SectionLifecycleStatus } from '../../common/enums';
+import { SectionProgramMappingInputDto } from './create-section.dto';
 
 export class SectionScheduleTeacherResolutionDto {
   @IsIn(['MOVE', 'DELETE'])
@@ -14,14 +15,11 @@ export class SectionScheduleTeacherResolutionDto {
 }
 
 export class UpdateSectionDto {
-  @IsEnum(ProgramClassificationStatus)
-  @IsOptional()
-  programClassificationStatus?: ProgramClassificationStatus;
-
   @IsArray()
-  @IsString({ each: true })
+  @ValidateNested({ each: true })
+  @Type(() => SectionProgramMappingInputDto)
   @IsOptional()
-  stageCourseRequirementIds?: string[];
+  programMappings?: SectionProgramMappingInputDto[];
   @IsEnum(SectionLifecycleStatus)
   @IsOptional()
   status?: SectionLifecycleStatus;
@@ -46,10 +44,6 @@ export class UpdateSectionDto {
   @IsString()
   @IsOptional()
   courseId?: string;
-
-  @IsString()
-  @IsOptional()
-  cohortId?: string;
 
   @IsString()
   @IsOptional()

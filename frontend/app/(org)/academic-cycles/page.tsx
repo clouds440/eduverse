@@ -236,7 +236,7 @@ export default function AcademicCyclesPage() {
             header: 'Cohorts',
             accessor: (row) => (
                 <span className="inline-flex min-w-12 items-center justify-center rounded-md bg-muted px-2 py-1 text-xs font-black text-foreground">
-                    {row._count?.cohorts || 0}
+                    {row._count?.cohortOfferings || 0}
                 </span>
             ),
         },

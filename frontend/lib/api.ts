@@ -10,7 +10,7 @@ import type {
     Chat, ChatE2EEContext, ChatMentionOptions, ChatMentionTarget, ChatMessage, ChatSearchUser, CommunicationBlock, Notification, Announcement, TargetType, AnnouncementPriority, User, Attachment,
     ThemeMode, UserSettings, SectionSchedule, TimetableResponse, AttendanceRecord, SectionAttendanceResponse,
     RangeAttendanceResponse, CourseMaterial, CreateCourseMaterialRequest, UpdateCourseMaterialRequest, DashboardInsights, InsightsQueryParams,
-    AcademicCycle, Cohort, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, ReassignStudentsDto, CopyForwardDto, CopyForwardPreview,
+    AcademicCycle, Cohort, CohortOffering, CohortOfferingStatus, CohortSectionSource, Transcript, CreateAcademicCycleDto, UpdateAcademicCycleDto, CreateCohortDto, UpdateCohortDto, CreateCohortOfferingDto, ReassignStudentsDto, CopyForwardDto, CopyForwardPreview,
     Department, Building, Room, CreateDepartmentRequest, UpdateDepartmentRequest, CreateBuildingRequest, UpdateBuildingRequest, CreateRoomRequest, UpdateRoomRequest, RoomType,
     CampusNavigationBuildingRoomsResponse, OrganizationOverview,
     CampusNavigationResponse,
@@ -27,7 +27,7 @@ import type {
     ApproveTrustedDevicePayload, PendingDeviceApprovalContext, RecipientEncryptionDevicesResponse, RegisterChatHistoryKeyPayload, RegisterTrustedDevicePayload, SendChatMessagePayload,
     TrustedDeviceRegistrationResponse, TrustedDevicesResponse, TwoFactorChallenge, TwoFactorLoginMethod,
     ChatDeviceHistoryGrantPayload,
-    Program, ProgramStatus, CurriculumStatus, CreateProgramRequest, EligibleProgramCycle, ProgramConfigurationRevision, ProgramDeliveryOption, StudentProgramEnrollment,
+    Program, ProgramStatus, CurriculumStatus, CreateProgramRequest, ProgramConfigurationRevision, ProgramDeliveryOption, ProgramOffering, ProgramOfferingReadiness, CreateProgramOfferingRequest, StudentProgramEnrollment, StudentProgressionPreview, ProgressionWorkbenchPreview, BulkProgressionItem, BulkProgressionResult,
     AcademicCycleArchiveStatusResponse, PastRecordFilters, PastRecordOptions, PastRecordSectionDetail, PastRecordSectionSummary, PastRecordStudentSummary,
 } from '@/types';
 import type {
@@ -1448,16 +1448,14 @@ export const api = {
             request<PaginatedResponse<Program>>(`/org/programs${buildQueryString(params)}`, { token }),
         getProgram: (id: string, token: string) =>
             request<Program>(`/org/programs/${id}`, { token }),
-        getEligibleCycles: (token: string, params: { search?: string, programId?: string, page?: number, limit?: number } = {}) =>
-            request<PaginatedResponse<EligibleProgramCycle>>(`/org/programs/eligible-cycles${buildQueryString(params)}`, { token }),
         getDeliveryOptions: (token: string, academicCycleId: string, departmentId?: string) =>
             request<ProgramDeliveryOption[]>(`/org/programs/delivery-options${buildQueryString({ academicCycleId, departmentId })}`, { token }),
         createProgram: (data: CreateProgramRequest, token: string) =>
             request<Program>('/org/programs', { method: 'POST', body: JSON.stringify(data), token }),
-        updateProgram: (id: string, data: Partial<Omit<CreateProgramRequest, 'cycles' | 'curriculumName' | 'curriculumCode'>>, token: string) =>
+        updateProgram: (id: string, data: Partial<Omit<CreateProgramRequest, 'stages' | 'curriculumName' | 'curriculumCode'>>, token: string) =>
             request<Program>(`/org/programs/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
-        replaceCycles: (id: string, data: { configurationVersion: number, changeReason: string, curriculumName: string, curriculumCode: string, stageTerminology?: string, cycles: CreateProgramRequest['cycles'], metadata?: Partial<Omit<CreateProgramRequest, 'cycles' | 'curriculumName' | 'curriculumCode'>> }, token: string) =>
-            request<Program>(`/org/programs/${id}/cycles`, { method: 'PUT', body: JSON.stringify(data), token }),
+        replaceStructure: (id: string, data: { configurationVersion: number, changeReason: string, curriculumName: string, curriculumCode: string, stageTerminology?: string, stages: CreateProgramRequest['stages'], metadata?: Partial<Omit<CreateProgramRequest, 'stages' | 'curriculumName' | 'curriculumCode'>> }, token: string) =>
+            request<Program>(`/org/programs/${id}/structure`, { method: 'PUT', body: JSON.stringify(data), token }),
         transitionProgram: (id: string, status: ProgramStatus, token: string, reason?: string) =>
             request<Program>(`/org/programs/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, reason }), token }),
         getConfigurationRevisions: (id: string, token: string) =>
@@ -1468,12 +1466,27 @@ export const api = {
             request<{ message: string }>(`/org/programs/${id}`, { method: 'DELETE', token }),
     },
 
+    programOfferings: {
+        list: (token: string, params: { academicCycleId?: string; programId?: string } = {}) =>
+            request<ProgramOffering[]>(`/org/program-offerings${buildQueryString(params)}`, { token }),
+        get: (id: string, token: string) =>
+            request<ProgramOffering>(`/org/program-offerings/${id}`, { token }),
+        readiness: (id: string, token: string) =>
+            request<ProgramOfferingReadiness>(`/org/program-offerings/${id}/readiness`, { token }),
+        create: (data: CreateProgramOfferingRequest, token: string) =>
+            request<ProgramOffering>('/org/program-offerings', { method: 'POST', body: JSON.stringify(data), token }),
+        update: (id: string, data: Partial<Omit<CreateProgramOfferingRequest, 'programId' | 'curriculumVersionId' | 'academicCycleId'>>, token: string) =>
+            request<ProgramOffering>(`/org/program-offerings/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+    },
+
     studentPrograms: {
         list: (studentId: string, token: string) =>
             request<StudentProgramEnrollment[]>(`/org/students/${studentId}/program-enrollments`, { token }),
-        admit: (studentId: string, data: { programId: string; entryAcademicCycleId?: string; entryStageSequence?: number }, token: string) =>
+        progressionPreview: (studentId: string, enrollmentId: string, token: string) =>
+            request<StudentProgressionPreview>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/progression-preview`, { token }),
+        admit: (studentId: string, data: { programId: string; entryStageId?: string }, token: string) =>
             request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/admit`, { method: 'POST', body: JSON.stringify(data), token }),
-        transfer: (studentId: string, data: { programId: string; reason: string; entryAcademicCycleId?: string; entryStageSequence?: number }, token: string) =>
+        transfer: (studentId: string, data: { programId: string; reason: string; entryStageId?: string }, token: string) =>
             request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/transfer`, { method: 'POST', body: JSON.stringify(data), token }),
         hold: (studentId: string, enrollmentId: string, reason: string, token: string) =>
             request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/hold`, { method: 'POST', body: JSON.stringify({ reason }), token }),
@@ -1481,20 +1494,31 @@ export const api = {
             request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/resume`, { method: 'POST', token }),
         withdraw: (studentId: string, enrollmentId: string, data: { reason: string; retainPrimaryDepartment?: boolean; replacementPrimaryDepartmentId?: string }, token: string) =>
             request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/withdraw`, { method: 'POST', body: JSON.stringify(data), token }),
-        activateCycle: (studentId: string, enrollmentId: string, data: { studentProgramEnrollmentCycleId: string; cohortId?: string; reason?: string }, token: string) =>
-            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/cycles/activate`, { method: 'POST', body: JSON.stringify(data), token }),
-        completeCycle: (studentId: string, enrollmentId: string, cycleId: string, data: { reason: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
-            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/cycles/${cycleId}/complete`, { method: 'POST', body: JSON.stringify(data), token }),
-        skipCycle: (studentId: string, enrollmentId: string, cycleId: string, data: { reason: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
-            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/cycles/${cycleId}/skip`, { method: 'POST', body: JSON.stringify(data), token }),
-        repeatCycle: (studentId: string, enrollmentId: string, cycleId: string, data: { reason: string; cohortId?: string }, token: string) =>
-            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/cycles/${cycleId}/repeat`, { method: 'POST', body: JSON.stringify(data), token }),
+        activateStage: (studentId: string, enrollmentId: string, data: { programStageOfferingId: string; cohortOfferingId?: string; reason?: string }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/stages/activate`, { method: 'POST', body: JSON.stringify(data), token }),
+        completeStage: (studentId: string, enrollmentId: string, stageEnrollmentId: string, data: { reason: string; overrideReason?: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/stages/${stageEnrollmentId}/complete`, { method: 'POST', body: JSON.stringify(data), token }),
+        advanceStage: (studentId: string, enrollmentId: string, stageEnrollmentId: string, data: { reason: string; overrideReason?: string; targetProgramStageOfferingId: string; cohortOfferingId?: string }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/stages/${stageEnrollmentId}/advance`, { method: 'POST', body: JSON.stringify(data), token }),
+        completeStageAndProgram: (studentId: string, enrollmentId: string, stageEnrollmentId: string, data: { reason: string; overrideReason?: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/stages/${stageEnrollmentId}/complete-program`, { method: 'POST', body: JSON.stringify(data), token }),
+        skipStage: (studentId: string, enrollmentId: string, stageEnrollmentId: string, data: { reason: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/stages/${stageEnrollmentId}/skip`, { method: 'POST', body: JSON.stringify(data), token }),
+        repeatStage: (studentId: string, enrollmentId: string, stageEnrollmentId: string, data: { reason: string; targetProgramStageOfferingId?: string; cohortOfferingId?: string }, token: string) =>
+            request(`/org/students/${studentId}/program-enrollments/${enrollmentId}/stages/${stageEnrollmentId}/repeat`, { method: 'POST', body: JSON.stringify(data), token }),
         complete: (studentId: string, enrollmentId: string, data: { reason: string; resultSnapshot?: Record<string, unknown> }, token: string) =>
             request<StudentProgramEnrollment>(`/org/students/${studentId}/program-enrollments/${enrollmentId}/complete`, { method: 'POST', body: JSON.stringify(data), token }),
     },
 
+    progressionWorkbench: {
+        preview: (data: { programStageOfferingId: string; cohortOfferingId?: string }, token: string) =>
+            request<ProgressionWorkbenchPreview>('/org/progression-workbench/preview', { method: 'POST', body: JSON.stringify(data), token }),
+        apply: (data: { programStageOfferingId: string; cohortOfferingId?: string; idempotencyKey: string; items: BulkProgressionItem[] }, token: string) =>
+            request<BulkProgressionResult>('/org/progression-workbench/apply', { method: 'POST', body: JSON.stringify(data), token }),
+    },
+
     cohorts: {
-        getCohorts: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', academicCycleId?: string, includeAllCycles?: boolean, programId?: string, programClassificationStatus?: string } = {}) =>
+        getCohorts: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', academicCycleId?: string, programId?: string } = {}) =>
             request<PaginatedResponse<Cohort>>(`/org/cohorts${buildQueryString(params)}`, { token }),
         getCohort: (id: string, token: string) =>
             request<Cohort>(`/org/cohorts/${id}`, { token }),
@@ -1502,16 +1526,20 @@ export const api = {
             request<Cohort>(`/org/cohorts`, { method: 'POST', body: JSON.stringify(data), token }),
         updateCohort: (id: string, data: UpdateCohortDto, token: string) =>
             request<Cohort>(`/org/cohorts/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        createOffering: (id: string, data: CreateCohortOfferingDto, token: string) =>
+            request<CohortOffering>(`/org/cohorts/${id}/offerings`, { method: 'POST', body: JSON.stringify(data), token }),
+        updateOffering: (offeringId: string, data: { programStageOfferingId?: string | null; status?: CohortOfferingStatus; capacity?: number }, token: string) =>
+            request<CohortOffering>(`/org/cohorts/offerings/${offeringId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteCohort: (id: string, token: string) =>
             request<void>(`/org/cohorts/${id}`, { method: 'DELETE', token }),
-        addStudents: (id: string, studentIds: string[], token: string) =>
-            request<{ message: string }>(`/org/cohorts/${id}/students`, { method: 'POST', body: JSON.stringify({ studentIds }), token }),
-        removeStudent: (id: string, studentId: string, token: string) =>
-            request<{ message: string }>(`/org/cohorts/${id}/students/${studentId}`, { method: 'DELETE', token }),
-        assignSection: (id: string, sectionId: string, token: string) =>
-            request<{ message: string }>(`/org/cohorts/${id}/sections`, { method: 'POST', body: JSON.stringify({ sectionId }), token }),
-        removeSection: (id: string, sectionId: string, token: string) =>
-            request<{ message: string }>(`/org/cohorts/${id}/sections/${sectionId}`, { method: 'DELETE', token }),
+        addStudents: (offeringId: string, studentIds: string[], token: string) =>
+            request<{ message: string }>(`/org/cohorts/offerings/${offeringId}/students`, { method: 'POST', body: JSON.stringify({ studentIds }), token }),
+        removeStudent: (offeringId: string, studentId: string, token: string) =>
+            request<{ message: string }>(`/org/cohorts/offerings/${offeringId}/students/${studentId}`, { method: 'DELETE', token }),
+        assignSection: (offeringId: string, sectionId: string, token: string, options: { source?: CohortSectionSource; isDefault?: boolean } = {}) =>
+            request<{ message: string }>(`/org/cohorts/offerings/${offeringId}/sections`, { method: 'POST', body: JSON.stringify({ sectionId, ...options }), token }),
+        removeSection: (offeringId: string, sectionId: string, token: string) =>
+            request<{ message: string }>(`/org/cohorts/offerings/${offeringId}/sections/${sectionId}`, { method: 'DELETE', token }),
         excludeStudentFromSection: (studentId: string, sectionId: string, token: string) =>
             request<{ message: string }>(`/org/cohorts/enrollments/exclude`, { method: 'POST', body: JSON.stringify({ studentId, sectionId }), token }),
         includeStudentInSection: (studentId: string, sectionId: string, token: string) =>

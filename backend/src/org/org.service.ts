@@ -28,6 +28,7 @@ import { EmailService } from '../security/email.service';
 import { ConfigService } from '@nestjs/config';
 import { EmailTemplateService } from '../common/email-templates/email-template.service';
 import { ActivityLogType } from '../activity-logs/activity-log.types';
+import { buildStudentAcademicIdentity } from '../common/student-academic-identity';
 
 @Injectable()
 export class OrgService {
@@ -601,15 +602,19 @@ export class OrgService {
               department: { select: { id: true, name: true, code: true, color: true } },
             },
           },
-          cohort: { select: { id: true, name: true, code: true } },
+          cohortMemberships: {
+            where: { leftAt: null },
+            take: 1,
+            select: { cohortOffering: { select: { cohort: { select: { id: true, name: true, code: true } }, academicCycle: true } } },
+          },
           programEnrollments: {
             where: { status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] } },
             select: {
               id: true,
               status: true,
-              requiredCycleCountSnapshot: true,
+              requiredStageCountSnapshot: true,
               program: { select: { id: true, name: true, code: true, department: { select: { id: true, name: true, code: true, color: true } } } },
-              cycles: { select: { id: true, status: true }, orderBy: { sequenceSnapshot: 'asc' } },
+              stageEnrollments: { select: { id: true, status: true }, orderBy: { createdAt: 'asc' } },
             },
             orderBy: { admittedAt: 'desc' },
             take: 1,
@@ -633,6 +638,8 @@ export class OrgService {
 
       if (!student) throw new NotFoundException('Student profile not found');
       const target = { ...baseTarget, entityId: student.id };
+      const majorProgramEnrollment = student.programEnrollments[0] || null;
+      const currentCohortMembership = student.cohortMemberships[0] || null;
       return {
         kind: 'student',
         user: publicUser,
@@ -640,8 +647,14 @@ export class OrgService {
         editHref: this.getPublicProfileEditHref(actor, target),
         profile: {
           ...student,
-          majorProgramEnrollment: student.programEnrollments[0] || null,
-          majorProgram: student.programEnrollments[0]?.program || null,
+          cohort: student.cohortMemberships[0]?.cohortOffering.cohort || null,
+          majorProgramEnrollment,
+          majorProgram: majorProgramEnrollment?.program || null,
+          academicIdentity: buildStudentAcademicIdentity({
+            majorProgramEnrollment,
+            currentCohortMembership,
+            enrollments: student.enrollments,
+          }),
         },
       };
     }

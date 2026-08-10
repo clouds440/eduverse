@@ -274,8 +274,8 @@ export const aiFlows: AIFlowDefinition[] = [
     steps: [
       { label: 'Open enrollment management', detail: 'Open the student record and choose Manage Enrollment.' },
       { label: 'Choose the major', detail: 'Select an active program; its department becomes the student primary department.' },
-      { label: 'Review the copied plan', detail: 'Confirm the program cycles and stages snapshotted for this student.' },
-      { label: 'Progress by cycle', detail: 'Activate, complete, skip, or repeat program-cycle attempts through the controlled progression actions.' },
+      { label: 'Review the pinned curriculum', detail: 'Confirm the program, curriculum version, and optional stable entry stage recorded for this student.' },
+      { label: 'Place and progress', detail: 'Place the student into real stage offerings, then complete, skip, or repeat each stage attempt through controlled actions.' },
     ],
     warnings: ['Do not move program students through standalone cohort reassignment.', 'Transfers preserve the prior program enrollment and require a reason.'],
     relatedDocs: ['/docs/programs', '/docs/students', '/docs/cohorts-reassignment'],

@@ -17,7 +17,7 @@ export type FilterLookupRequest =
     | (FilterLookupBase & { entity: 'sections'; my?: boolean; academicCycleId?: string; cohortId?: string; teacherId?: string; departmentId?: string; activeAcademicCycleOnly?: boolean })
     | (FilterLookupBase & { entity: 'teachers'; departmentId?: string; status?: string })
     | (FilterLookupBase & { entity: 'students'; my?: boolean; sectionId?: string; status?: string; cohortId?: string; departmentId?: string })
-    | (FilterLookupBase & { entity: 'cohorts'; academicCycleId?: string; includeAllCycles?: boolean })
+    | (FilterLookupBase & { entity: 'cohorts'; academicCycleId?: string })
     | (FilterLookupBase & { entity: 'programs'; departmentId?: string; status?: import('@/types').ProgramStatus })
     | (FilterLookupBase & { entity: 'academicCycles' })
     | (FilterLookupBase & { entity: 'curricula'; programId: string })
@@ -129,7 +129,6 @@ export async function searchFilterLookup(request: FilterLookupRequest): Promise<
                 limit,
                 search,
                 academicCycleId: request.academicCycleId,
-                includeAllCycles: request.includeAllCycles,
                 sortBy: 'name',
                 sortOrder: 'asc',
             });

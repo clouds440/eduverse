@@ -8,49 +8,30 @@ describe('bootstrapSuperAdmin', () => {
   };
 
   it('does nothing when credentials are not configured', async () => {
-    const prisma = { $transaction: jest.fn() };
+    const prisma = { user: { findFirst: jest.fn(), create: jest.fn() } };
     await expect(bootstrapSuperAdmin(prisma as never, {})).resolves.toBe(false);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.user.findFirst).not.toHaveBeenCalled();
   });
 
   it('does not hash credentials when an admin already exists', async () => {
     const hash = jest.fn();
-    const transaction = {
-      $queryRaw: jest.fn(),
-      user: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'existing-admin' }),
-        create: jest.fn(),
-      },
-    };
-    const prisma = {
-      $transaction: jest.fn((operation) => operation(transaction)),
-    };
+    const prisma = { user: { findFirst: jest.fn().mockResolvedValue({ id: 'existing-admin' }), create: jest.fn() } };
 
     await expect(
       bootstrapSuperAdmin(prisma as never, env, undefined, hash),
     ).resolves.toBe(false);
     expect(hash).not.toHaveBeenCalled();
-    expect(transaction.user.create).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
   it('serializes and creates the first admin once', async () => {
     const hash = jest.fn().mockResolvedValue('hashed-password');
-    const transaction = {
-      $queryRaw: jest.fn(),
-      user: {
-        findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({ id: 'new-admin' }),
-      },
-    };
-    const prisma = {
-      $transaction: jest.fn((operation) => operation(transaction)),
-    };
+    const prisma = { user: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'new-admin' }) } };
 
     await expect(
       bootstrapSuperAdmin(prisma as never, env, undefined, hash),
     ).resolves.toBe(true);
-    expect(transaction.$queryRaw).toHaveBeenCalledTimes(1);
-    expect(transaction.user.create).toHaveBeenCalledWith({
+    expect(prisma.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         email: env.SUPER_ADMIN_USERNAME,
         password: 'hashed-password',

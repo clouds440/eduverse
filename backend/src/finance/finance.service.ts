@@ -1060,8 +1060,11 @@ export class FinanceService {
         enrollments.forEach((enrollment) => add({ targetType, studentId: enrollment.studentId, sourceType: FinanceAssignmentSource.SECTION, sourceId: enrollment.sectionId }));
       }
       if (dto.cohortIds?.length) {
-        const students = await tx.student.findMany({ where: { organizationId: orgId, cohortId: { in: dto.cohortIds } }, select: { id: true, cohortId: true } });
-        students.forEach((student) => add({ targetType, studentId: student.id, sourceType: FinanceAssignmentSource.COHORT, sourceId: student.cohortId || undefined }));
+        const students = await tx.studentCohortMembership.findMany({
+          where: { organizationId: orgId, leftAt: null, cohortOffering: { cohortId: { in: dto.cohortIds } } },
+          select: { studentId: true, cohortOffering: { select: { cohortId: true } } },
+        });
+        students.forEach((membership) => add({ targetType, studentId: membership.studentId, sourceType: FinanceAssignmentSource.COHORT, sourceId: membership.cohortOffering.cohortId }));
       }
       if (dto.courseIds?.length) {
         const enrollments = await tx.enrollment.findMany({ where: { section: { courseId: { in: dto.courseIds }, course: { organizationId: orgId } } }, select: { studentId: true, section: { select: { courseId: true } } } });
@@ -1186,7 +1189,7 @@ export class FinanceService {
     return {
       assignments: {
         include: {
-          student: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } }, cohort: true } },
+          student: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } }, cohortMemberships: { where: { leftAt: null }, include: { cohortOffering: { include: { cohort: true } } } } } },
           teacher: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } } } },
           employeeUser: { select: { id: true, name: true, email: true, role: true, status: true, avatarUrl: true, avatarUpdatedAt: true } },
         },
@@ -1201,12 +1204,12 @@ export class FinanceService {
       structure: { include: { _count: { select: { assignments: true } } } },
       assignment: {
         include: {
-          student: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } }, cohort: true } },
+          student: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } }, cohortMemberships: { where: { leftAt: null }, include: { cohortOffering: { include: { cohort: true } } } } } },
           teacher: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } } } },
           employeeUser: { select: { id: true, name: true, email: true, role: true, status: true, avatarUrl: true, avatarUpdatedAt: true } },
         },
       },
-      student: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } }, cohort: true } },
+      student: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } }, cohortMemberships: { where: { leftAt: null }, include: { cohortOffering: { include: { cohort: true } } } } } },
       teacher: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } } } },
       employeeUser: { select: { id: true, name: true, email: true, role: true, status: true, avatarUrl: true, avatarUpdatedAt: true } },
       claims: {

@@ -239,7 +239,7 @@ export function NewChatModal({ isOpen, onClose, onChatCreated, mode = 'CREATE', 
             try {
                 const [cohortsResult, departmentsResult] = await Promise.all([
                     needsPresetCohort
-                        ? api.cohorts.getCohorts(token, { page: 1, limit: 1000, includeAllCycles: true })
+                        ? api.cohorts.getCohorts(token, { page: 1, limit: 1000 })
                         : Promise.resolve(null),
                     needsPresetDepartment
                         ? api.org.getDepartments(token, { page: 1, limit: 1000, isActive: true })

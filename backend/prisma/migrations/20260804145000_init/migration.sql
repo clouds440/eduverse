@@ -161,7 +161,16 @@ CREATE TYPE "ProgramCompletionMode" AS ENUM ('FINAL_STAGE', 'REQUIREMENTS', 'CRE
 CREATE TYPE "ProgramDurationUnit" AS ENUM ('MONTHS', 'YEARS', 'CYCLES');
 
 -- CreateEnum
-CREATE TYPE "ProgramAcademicCycleStatus" AS ENUM ('ACTIVE', 'RETIRED');
+CREATE TYPE "ProgramOfferingStatus" AS ENUM ('DRAFT', 'OPEN', 'CLOSED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "ProgramStageOfferingStatus" AS ENUM ('PLANNED', 'OPEN', 'CLOSED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "CohortOfferingStatus" AS ENUM ('PLANNED', 'ACTIVE', 'CLOSED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "CohortSectionSource" AS ENUM ('SUGGESTED', 'AUTO', 'MANUAL');
 
 -- CreateEnum
 CREATE TYPE "CurriculumStatus" AS ENUM ('DRAFT', 'ACTIVE', 'RETIRED', 'ARCHIVED');
@@ -173,16 +182,19 @@ CREATE TYPE "CourseRequirementType" AS ENUM ('REQUIRED', 'ELECTIVE', 'OPTIONAL')
 CREATE TYPE "StudentProgramEnrollmentStatus" AS ENUM ('ADMITTED', 'ACTIVE', 'ON_HOLD', 'TRANSFERRED_OUT', 'WITHDRAWN', 'COMPLETED', 'ARCHIVED');
 
 -- CreateEnum
-CREATE TYPE "StudentProgramCycleStatus" AS ENUM ('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'SKIPPED', 'WITHDRAWN');
+CREATE TYPE "StudentStageEnrollmentStatus" AS ENUM ('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'SKIPPED', 'WITHDRAWN');
 
 -- CreateEnum
-CREATE TYPE "StudentStageAttemptStatus" AS ENUM ('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'SKIPPED', 'WITHDRAWN');
+CREATE TYPE "StudentProgressionOutcome" AS ENUM ('ADVANCE', 'REPEAT', 'PAUSE', 'TRANSFER', 'COMPLETE', 'WITHDRAW', 'REMAIN');
+
+-- CreateEnum
+CREATE TYPE "ProgressionBulkOperationStatus" AS ENUM ('RUNNING', 'COMPLETED', 'FAILED');
 
 -- CreateEnum
 CREATE TYPE "AcademicCycleArchiveStatus" AS ENUM ('BUILDING', 'READY', 'FAILED');
 
 -- CreateEnum
-CREATE TYPE "ArchiveProgramSourceKind" AS ENUM ('COHORT', 'REQUIREMENT_MAPPING');
+CREATE TYPE "ArchiveProgramSourceKind" AS ENUM ('COHORT_OFFERING', 'SECTION_MAPPING');
 
 -- CreateEnum
 CREATE TYPE "FinanceCategory" AS ENUM ('TUITION', 'TRANSPORT', 'LIBRARY', 'LIBRARY_FINE', 'EXAM', 'SALARY', 'BONUS', 'ADMISSION', 'HOSTEL', 'ACTIVITY', 'REIMBURSEMENT', 'REFUND', 'LATE_FEE', 'FINE', 'BOOKS_SUPPLIES', 'STATIONERY', 'UNIFORM', 'LAB', 'ID_CARD', 'CERTIFICATE', 'TRANSCRIPT', 'GRADUATION', 'REGISTRATION', 'APPLICATION_FEE', 'PROCESSING_FEE', 'DEVELOPMENT_FEE', 'BUILDING_FUND', 'CANTEEN', 'CAFETERIA', 'MEDICAL', 'HEALTH', 'SPORTS', 'ARTS', 'MUSIC', 'TECHNOLOGY', 'PRINTING', 'PARKING', 'SECURITY_DEPOSIT', 'FIELD_TRIP', 'EVENT', 'DONATION', 'GRANT', 'SCHOLARSHIP', 'DISCOUNT', 'WAIVER', 'VENDOR_PAYMENT', 'ALLOWANCE', 'OVERTIME', 'COMMISSION', 'ADVANCE', 'LOAN', 'TRAINING', 'PROFESSIONAL_DEVELOPMENT', 'TRAVEL', 'MEAL', 'ACCOMMODATION', 'MAINTENANCE', 'UTILITIES', 'RENT', 'EQUIPMENT', 'SOFTWARE', 'INTERNET', 'PHONE', 'OFFICE_SUPPLIES', 'CLEANING', 'SECURITY', 'REPAIRS', 'MARKETING', 'LEGAL', 'CONSULTING', 'TAX', 'INSURANCE', 'BANK_CHARGE', 'MISC_INCOME', 'MISC_EXPENSE', 'OTHER');
@@ -671,9 +683,7 @@ CREATE TABLE "Section" (
     "defaultRoomId" TEXT,
     "courseId" TEXT NOT NULL,
     "academicCycleId" TEXT NOT NULL,
-    "cohortId" TEXT,
     "status" "SectionLifecycleStatus" NOT NULL,
-    "programClassificationStatus" "ProgramClassificationStatus" NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -687,7 +697,8 @@ CREATE TABLE "Enrollment" (
     "sectionId" TEXT NOT NULL,
     "academicCycleId" TEXT NOT NULL,
     "studentProgramEnrollmentId" TEXT,
-    "studentStageAttemptId" TEXT,
+    "studentStageEnrollmentId" TEXT,
+    "studentCohortMembershipId" TEXT,
     "source" "EnrollmentSource" NOT NULL DEFAULT 'MANUAL',
     "isExcludedFromCohort" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -701,7 +712,6 @@ CREATE TABLE "Student" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
-    "cohortId" TEXT,
     "registrationNumber" TEXT NOT NULL DEFAULT 'TEMP_ID',
     "rollNumber" TEXT NOT NULL DEFAULT 'TEMP_ROLL',
     "fatherName" TEXT,
@@ -1434,13 +1444,10 @@ CREATE TABLE "Cohort" (
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
-    "academicCycleId" TEXT NOT NULL,
-    "status" "CohortLifecycleStatus" NOT NULL,
-    "programClassificationStatus" "ProgramClassificationStatus" NOT NULL,
-    "programAcademicCycleId" TEXT,
-    "programStageId" TEXT,
+    "status" "CohortLifecycleStatus" NOT NULL DEFAULT 'ACTIVE',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "academicCycleId" TEXT,
 
     CONSTRAINT "Cohort_pkey" PRIMARY KEY ("id")
 );
@@ -1452,25 +1459,14 @@ CREATE TABLE "EnrollmentHistory" (
     "sectionId" TEXT NOT NULL,
     "academicCycleId" TEXT NOT NULL,
     "studentProgramEnrollmentId" TEXT,
-    "studentStageAttemptId" TEXT,
+    "studentStageEnrollmentId" TEXT,
+    "studentCohortMembershipId" TEXT,
     "source" "EnrollmentSource" NOT NULL DEFAULT 'MANUAL',
     "wasExcluded" BOOLEAN NOT NULL DEFAULT false,
     "enrolledAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "removedAt" TIMESTAMP(3),
 
     CONSTRAINT "EnrollmentHistory_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "CohortMembershipHistory" (
-    "id" TEXT NOT NULL,
-    "studentId" TEXT NOT NULL,
-    "cohortId" TEXT NOT NULL,
-    "academicCycleId" TEXT NOT NULL,
-    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "leftAt" TIMESTAMP(3),
-
-    CONSTRAINT "CohortMembershipHistory_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1482,11 +1478,12 @@ CREATE TABLE "Program" (
     "code" TEXT NOT NULL,
     "description" TEXT,
     "status" "ProgramStatus" NOT NULL DEFAULT 'DRAFT',
-    "requiredCycleCount" INTEGER NOT NULL,
     "configurationVersion" INTEGER NOT NULL DEFAULT 1,
     "structureType" "ProgramStructureType" NOT NULL,
     "progressionMode" "ProgramProgressionMode" NOT NULL,
     "completionMode" "ProgramCompletionMode" NOT NULL,
+    "minimumPassingPercentage" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "minimumAttendancePercentage" DOUBLE PRECISION,
     "durationValue" INTEGER,
     "durationUnit" "ProgramDurationUnit",
     "isVisibleForAdmissions" BOOLEAN NOT NULL DEFAULT false,
@@ -1503,30 +1500,12 @@ CREATE TABLE "Program" (
 );
 
 -- CreateTable
-CREATE TABLE "ProgramAcademicCycle" (
-    "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
-    "programId" TEXT NOT NULL,
-    "academicCycleId" TEXT NOT NULL,
-    "sequence" INTEGER NOT NULL,
-    "isRequired" BOOLEAN NOT NULL DEFAULT true,
-    "status" "ProgramAcademicCycleStatus" NOT NULL DEFAULT 'ACTIVE',
-    "retiredAt" TIMESTAMP(3),
-    "retiredById" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "ProgramAcademicCycle_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "ProgramConfigurationRevision" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "programId" TEXT NOT NULL,
     "version" INTEGER NOT NULL,
-    "requiredCycleCount" INTEGER NOT NULL,
-    "cyclesSnapshot" JSONB NOT NULL,
+    "configurationSnapshot" JSONB NOT NULL,
     "checksum" TEXT NOT NULL,
     "changeReason" TEXT,
     "createdById" TEXT NOT NULL,
@@ -1562,7 +1541,6 @@ CREATE TABLE "ProgramStage" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "curriculumVersionId" TEXT NOT NULL,
-    "programAcademicCycleId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "sequence" INTEGER NOT NULL,
@@ -1597,16 +1575,82 @@ CREATE TABLE "StageCourseRequirement" (
 );
 
 -- CreateTable
-CREATE TABLE "SectionRequirementMapping" (
+CREATE TABLE "ProgramOffering" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
-    "sectionId" TEXT NOT NULL,
-    "stageCourseRequirementId" TEXT NOT NULL,
-    "programAcademicCycleId" TEXT NOT NULL,
+    "programId" TEXT NOT NULL,
+    "curriculumVersionId" TEXT NOT NULL,
+    "academicCycleId" TEXT NOT NULL,
+    "status" "ProgramOfferingStatus" NOT NULL DEFAULT 'DRAFT',
+    "opensAt" TIMESTAMP(3),
+    "closesAt" TIMESTAMP(3),
+    "capacity" INTEGER,
+    "notes" TEXT,
+    "createdById" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "SectionRequirementMapping_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "ProgramOffering_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProgramStageOffering" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "programOfferingId" TEXT NOT NULL,
+    "programStageId" TEXT NOT NULL,
+    "status" "ProgramStageOfferingStatus" NOT NULL DEFAULT 'PLANNED',
+    "startsAt" TIMESTAMP(3),
+    "endsAt" TIMESTAMP(3),
+    "capacity" INTEGER,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ProgramStageOffering_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CohortOffering" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "cohortId" TEXT NOT NULL,
+    "academicCycleId" TEXT NOT NULL,
+    "programStageOfferingId" TEXT,
+    "status" "CohortOfferingStatus" NOT NULL DEFAULT 'PLANNED',
+    "capacity" INTEGER,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CohortOffering_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CohortOfferingSection" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "cohortOfferingId" TEXT NOT NULL,
+    "sectionId" TEXT NOT NULL,
+    "source" "CohortSectionSource" NOT NULL DEFAULT 'MANUAL',
+    "isDefault" BOOLEAN NOT NULL DEFAULT true,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "CohortOfferingSection_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SectionProgramMapping" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "sectionId" TEXT NOT NULL,
+    "programStageOfferingId" TEXT NOT NULL,
+    "stageCourseRequirementId" TEXT NOT NULL,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "SectionProgramMapping_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1619,12 +1663,14 @@ CREATE TABLE "StudentProgramEnrollment" (
     "programConfigurationRevisionId" TEXT NOT NULL,
     "status" "StudentProgramEnrollmentStatus" NOT NULL DEFAULT 'ADMITTED',
     "openSlot" TEXT,
-    "requiredCycleCountSnapshot" INTEGER NOT NULL,
+    "requiredStageCountSnapshot" INTEGER NOT NULL,
     "programConfigurationVersionSnapshot" INTEGER NOT NULL,
-    "programCyclePlanSnapshotHash" TEXT NOT NULL,
-    "entryProgramAcademicCycleId" TEXT,
-    "entryAcademicCycleId" TEXT,
-    "entryStageSequence" INTEGER,
+    "curriculumSnapshotHash" TEXT NOT NULL,
+    "progressionModeSnapshot" "ProgramProgressionMode" NOT NULL,
+    "completionModeSnapshot" "ProgramCompletionMode" NOT NULL,
+    "minimumPassingPercentageSnapshot" DOUBLE PRECISION NOT NULL,
+    "minimumAttendancePercentageSnapshot" DOUBLE PRECISION,
+    "entryStageId" TEXT,
     "admittedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "admittedById" TEXT NOT NULL,
     "startedAt" TIMESTAMP(3),
@@ -1639,23 +1685,19 @@ CREATE TABLE "StudentProgramEnrollment" (
 );
 
 -- CreateTable
-CREATE TABLE "StudentProgramEnrollmentCycle" (
+CREATE TABLE "StudentStageEnrollment" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "studentProgramEnrollmentId" TEXT NOT NULL,
-    "programAcademicCycleId" TEXT NOT NULL,
-    "academicCycleId" TEXT NOT NULL,
     "programStageId" TEXT NOT NULL,
-    "sequenceSnapshot" INTEGER NOT NULL,
-    "isRequiredSnapshot" BOOLEAN NOT NULL,
-    "cycleNameSnapshot" TEXT NOT NULL,
-    "cycleCodeSnapshot" TEXT NOT NULL,
-    "cycleStartDateSnapshot" TIMESTAMP(3) NOT NULL,
-    "cycleEndDateSnapshot" TIMESTAMP(3) NOT NULL,
+    "programStageOfferingId" TEXT NOT NULL,
+    "cohortOfferingId" TEXT,
+    "attemptNumber" INTEGER NOT NULL,
+    "status" "StudentStageEnrollmentStatus" NOT NULL DEFAULT 'PLANNED',
     "stageNameSnapshot" TEXT NOT NULL,
     "stageCodeSnapshot" TEXT NOT NULL,
-    "status" "StudentProgramCycleStatus" NOT NULL DEFAULT 'PLANNED',
-    "cohortId" TEXT,
+    "cycleNameSnapshot" TEXT NOT NULL,
+    "cycleCodeSnapshot" TEXT NOT NULL,
     "reason" TEXT,
     "startedAt" TIMESTAMP(3),
     "completedAt" TIMESTAMP(3),
@@ -1664,28 +1706,62 @@ CREATE TABLE "StudentProgramEnrollmentCycle" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "StudentProgramEnrollmentCycle_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "StudentStageEnrollment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "StudentStageAttempt" (
+CREATE TABLE "StudentCohortMembership" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "studentId" TEXT NOT NULL,
+    "cohortOfferingId" TEXT NOT NULL,
+    "studentStageEnrollmentId" TEXT,
+    "source" "EnrollmentSource" NOT NULL DEFAULT 'MANUAL',
+    "reason" TEXT,
+    "joinedById" TEXT NOT NULL,
+    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "leftById" TEXT,
+    "leftAt" TIMESTAMP(3),
+
+    CONSTRAINT "StudentCohortMembership_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StudentProgressionDecision" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "studentProgramEnrollmentId" TEXT NOT NULL,
-    "studentProgramEnrollmentCycleId" TEXT NOT NULL,
-    "programStageId" TEXT NOT NULL,
-    "cohortId" TEXT,
-    "attemptNumber" INTEGER NOT NULL,
-    "status" "StudentStageAttemptStatus" NOT NULL DEFAULT 'PLANNED',
-    "reason" TEXT,
-    "startedAt" TIMESTAMP(3),
-    "completedAt" TIMESTAMP(3),
-    "resolvedById" TEXT,
+    "sourceStageEnrollmentId" TEXT,
+    "sourceStageId" TEXT,
+    "outcome" "StudentProgressionOutcome" NOT NULL,
+    "targetStageId" TEXT,
+    "targetStageOfferingId" TEXT,
+    "recommendationSnapshot" JSONB,
     "resultSnapshot" JSONB,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "isOverride" BOOLEAN NOT NULL DEFAULT false,
+    "idempotencyKey" TEXT,
+    "reason" TEXT NOT NULL,
+    "decidedById" TEXT NOT NULL,
+    "decidedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "StudentStageAttempt_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "StudentProgressionDecision_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProgressionBulkOperation" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "idempotencyKey" TEXT NOT NULL,
+    "sourceProgramStageOfferingId" TEXT NOT NULL,
+    "requestHash" TEXT NOT NULL,
+    "status" "ProgressionBulkOperationStatus" NOT NULL DEFAULT 'RUNNING',
+    "result" JSONB,
+    "failureReason" TEXT,
+    "createdById" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completedAt" TIMESTAMP(3),
+
+    CONSTRAINT "ProgressionBulkOperation_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1751,7 +1827,8 @@ CREATE TABLE "AcademicCycleArchiveSectionProgramIndex" (
     "archiveSectionId" TEXT NOT NULL,
     "sourceKind" "ArchiveProgramSourceKind" NOT NULL,
     "sourceMappingId" TEXT NOT NULL,
-    "sourceProgramAcademicCycleId" TEXT NOT NULL,
+    "sourceProgramOfferingId" TEXT NOT NULL,
+    "sourceProgramStageOfferingId" TEXT NOT NULL,
     "sourceProgramId" TEXT NOT NULL,
     "sourceCurriculumVersionId" TEXT NOT NULL,
     "sourceProgramStageId" TEXT NOT NULL,
@@ -2250,9 +2327,6 @@ CREATE INDEX "Section_defaultRoomId_idx" ON "Section"("defaultRoomId");
 CREATE INDEX "Section_academicCycleId_idx" ON "Section"("academicCycleId");
 
 -- CreateIndex
-CREATE INDEX "Section_cohortId_idx" ON "Section"("cohortId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Section_organizationId_code_key" ON "Section"("organizationId", "code");
 
 -- CreateIndex
@@ -2268,7 +2342,10 @@ CREATE INDEX "Enrollment_academicCycleId_idx" ON "Enrollment"("academicCycleId")
 CREATE INDEX "Enrollment_studentProgramEnrollmentId_idx" ON "Enrollment"("studentProgramEnrollmentId");
 
 -- CreateIndex
-CREATE INDEX "Enrollment_studentStageAttemptId_idx" ON "Enrollment"("studentStageAttemptId");
+CREATE INDEX "Enrollment_studentStageEnrollmentId_idx" ON "Enrollment"("studentStageEnrollmentId");
+
+-- CreateIndex
+CREATE INDEX "Enrollment_studentCohortMembershipId_idx" ON "Enrollment"("studentCohortMembershipId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Enrollment_studentId_sectionId_key" ON "Enrollment"("studentId", "sectionId");
@@ -2278,9 +2355,6 @@ CREATE UNIQUE INDEX "Student_userId_key" ON "Student"("userId");
 
 -- CreateIndex
 CREATE INDEX "Student_organizationId_idx" ON "Student"("organizationId");
-
--- CreateIndex
-CREATE INDEX "Student_cohortId_idx" ON "Student"("cohortId");
 
 -- CreateIndex
 CREATE INDEX "Student_primaryDepartmentId_idx" ON "Student"("primaryDepartmentId");
@@ -2805,16 +2879,7 @@ CREATE UNIQUE INDEX "AcademicCycle_organizationId_code_key" ON "AcademicCycle"("
 CREATE INDEX "Cohort_organizationId_idx" ON "Cohort"("organizationId");
 
 -- CreateIndex
-CREATE INDEX "Cohort_academicCycleId_idx" ON "Cohort"("academicCycleId");
-
--- CreateIndex
 CREATE INDEX "Cohort_status_idx" ON "Cohort"("status");
-
--- CreateIndex
-CREATE INDEX "Cohort_programAcademicCycleId_idx" ON "Cohort"("programAcademicCycleId");
-
--- CreateIndex
-CREATE INDEX "Cohort_programStageId_idx" ON "Cohort"("programStageId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Cohort_organizationId_code_key" ON "Cohort"("organizationId", "code");
@@ -2832,16 +2897,10 @@ CREATE INDEX "EnrollmentHistory_academicCycleId_idx" ON "EnrollmentHistory"("aca
 CREATE INDEX "EnrollmentHistory_studentProgramEnrollmentId_idx" ON "EnrollmentHistory"("studentProgramEnrollmentId");
 
 -- CreateIndex
-CREATE INDEX "EnrollmentHistory_studentStageAttemptId_idx" ON "EnrollmentHistory"("studentStageAttemptId");
+CREATE INDEX "EnrollmentHistory_studentStageEnrollmentId_idx" ON "EnrollmentHistory"("studentStageEnrollmentId");
 
 -- CreateIndex
-CREATE INDEX "CohortMembershipHistory_studentId_idx" ON "CohortMembershipHistory"("studentId");
-
--- CreateIndex
-CREATE INDEX "CohortMembershipHistory_cohortId_idx" ON "CohortMembershipHistory"("cohortId");
-
--- CreateIndex
-CREATE INDEX "CohortMembershipHistory_academicCycleId_idx" ON "CohortMembershipHistory"("academicCycleId");
+CREATE INDEX "EnrollmentHistory_studentCohortMembershipId_idx" ON "EnrollmentHistory"("studentCohortMembershipId");
 
 -- CreateIndex
 CREATE INDEX "Program_organizationId_idx" ON "Program"("organizationId");
@@ -2857,18 +2916,6 @@ CREATE INDEX "Program_isVisibleForAdmissions_admissionsSortOrder_idx" ON "Progra
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Program_organizationId_code_key" ON "Program"("organizationId", "code");
-
--- CreateIndex
-CREATE INDEX "ProgramAcademicCycle_organizationId_idx" ON "ProgramAcademicCycle"("organizationId");
-
--- CreateIndex
-CREATE INDEX "ProgramAcademicCycle_programId_status_idx" ON "ProgramAcademicCycle"("programId", "status");
-
--- CreateIndex
-CREATE INDEX "ProgramAcademicCycle_academicCycleId_idx" ON "ProgramAcademicCycle"("academicCycleId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "ProgramAcademicCycle_programId_academicCycleId_key" ON "ProgramAcademicCycle"("programId", "academicCycleId");
 
 -- CreateIndex
 CREATE INDEX "ProgramConfigurationRevision_organizationId_idx" ON "ProgramConfigurationRevision"("organizationId");
@@ -2898,16 +2945,10 @@ CREATE UNIQUE INDEX "CurriculumVersion_programId_code_key" ON "CurriculumVersion
 CREATE INDEX "ProgramStage_organizationId_idx" ON "ProgramStage"("organizationId");
 
 -- CreateIndex
-CREATE INDEX "ProgramStage_programAcademicCycleId_idx" ON "ProgramStage"("programAcademicCycleId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "ProgramStage_curriculumVersionId_code_key" ON "ProgramStage"("curriculumVersionId", "code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ProgramStage_curriculumVersionId_sequence_key" ON "ProgramStage"("curriculumVersionId", "sequence");
-
--- CreateIndex
-CREATE UNIQUE INDEX "ProgramStage_curriculumVersionId_programAcademicCycleId_key" ON "ProgramStage"("curriculumVersionId", "programAcademicCycleId");
 
 -- CreateIndex
 CREATE INDEX "StageCourseRequirement_organizationId_idx" ON "StageCourseRequirement"("organizationId");
@@ -2919,16 +2960,58 @@ CREATE INDEX "StageCourseRequirement_programStageId_sortOrder_idx" ON "StageCour
 CREATE INDEX "StageCourseRequirement_courseId_idx" ON "StageCourseRequirement"("courseId");
 
 -- CreateIndex
-CREATE INDEX "SectionRequirementMapping_organizationId_idx" ON "SectionRequirementMapping"("organizationId");
+CREATE INDEX "ProgramOffering_organizationId_idx" ON "ProgramOffering"("organizationId");
 
 -- CreateIndex
-CREATE INDEX "SectionRequirementMapping_stageCourseRequirementId_idx" ON "SectionRequirementMapping"("stageCourseRequirementId");
+CREATE INDEX "ProgramOffering_academicCycleId_status_idx" ON "ProgramOffering"("academicCycleId", "status");
 
 -- CreateIndex
-CREATE INDEX "SectionRequirementMapping_programAcademicCycleId_idx" ON "SectionRequirementMapping"("programAcademicCycleId");
+CREATE INDEX "ProgramOffering_programId_status_idx" ON "ProgramOffering"("programId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SectionRequirementMapping_sectionId_stageCourseRequirementI_key" ON "SectionRequirementMapping"("sectionId", "stageCourseRequirementId", "programAcademicCycleId");
+CREATE UNIQUE INDEX "ProgramOffering_programId_curriculumVersionId_academicCycle_key" ON "ProgramOffering"("programId", "curriculumVersionId", "academicCycleId");
+
+-- CreateIndex
+CREATE INDEX "ProgramStageOffering_organizationId_idx" ON "ProgramStageOffering"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "ProgramStageOffering_programStageId_status_idx" ON "ProgramStageOffering"("programStageId", "status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ProgramStageOffering_programOfferingId_programStageId_key" ON "ProgramStageOffering"("programOfferingId", "programStageId");
+
+-- CreateIndex
+CREATE INDEX "CohortOffering_organizationId_idx" ON "CohortOffering"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "CohortOffering_academicCycleId_status_idx" ON "CohortOffering"("academicCycleId", "status");
+
+-- CreateIndex
+CREATE INDEX "CohortOffering_programStageOfferingId_idx" ON "CohortOffering"("programStageOfferingId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CohortOffering_cohortId_academicCycleId_key" ON "CohortOffering"("cohortId", "academicCycleId");
+
+-- CreateIndex
+CREATE INDEX "CohortOfferingSection_organizationId_idx" ON "CohortOfferingSection"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "CohortOfferingSection_sectionId_idx" ON "CohortOfferingSection"("sectionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CohortOfferingSection_cohortOfferingId_sectionId_key" ON "CohortOfferingSection"("cohortOfferingId", "sectionId");
+
+-- CreateIndex
+CREATE INDEX "SectionProgramMapping_organizationId_idx" ON "SectionProgramMapping"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "SectionProgramMapping_programStageOfferingId_idx" ON "SectionProgramMapping"("programStageOfferingId");
+
+-- CreateIndex
+CREATE INDEX "SectionProgramMapping_stageCourseRequirementId_idx" ON "SectionProgramMapping"("stageCourseRequirementId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SectionProgramMapping_sectionId_programStageOfferingId_stag_key" ON "SectionProgramMapping"("sectionId", "programStageOfferingId", "stageCourseRequirementId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "StudentProgramEnrollment_openSlot_key" ON "StudentProgramEnrollment"("openSlot");
@@ -2949,46 +3032,52 @@ CREATE INDEX "StudentProgramEnrollment_curriculumVersionId_idx" ON "StudentProgr
 CREATE INDEX "StudentProgramEnrollment_programConfigurationRevisionId_idx" ON "StudentProgramEnrollment"("programConfigurationRevisionId");
 
 -- CreateIndex
-CREATE INDEX "StudentProgramEnrollment_entryProgramAcademicCycleId_idx" ON "StudentProgramEnrollment"("entryProgramAcademicCycleId");
+CREATE INDEX "StudentProgramEnrollment_entryStageId_idx" ON "StudentProgramEnrollment"("entryStageId");
 
 -- CreateIndex
-CREATE INDEX "StudentProgramEnrollment_entryAcademicCycleId_idx" ON "StudentProgramEnrollment"("entryAcademicCycleId");
+CREATE INDEX "StudentStageEnrollment_organizationId_idx" ON "StudentStageEnrollment"("organizationId");
 
 -- CreateIndex
-CREATE INDEX "StudentProgramEnrollmentCycle_organizationId_idx" ON "StudentProgramEnrollmentCycle"("organizationId");
+CREATE INDEX "StudentStageEnrollment_programStageId_status_idx" ON "StudentStageEnrollment"("programStageId", "status");
 
 -- CreateIndex
-CREATE INDEX "StudentProgramEnrollmentCycle_programStageId_idx" ON "StudentProgramEnrollmentCycle"("programStageId");
+CREATE INDEX "StudentStageEnrollment_cohortOfferingId_idx" ON "StudentStageEnrollment"("cohortOfferingId");
 
 -- CreateIndex
-CREATE INDEX "StudentProgramEnrollmentCycle_cohortId_idx" ON "StudentProgramEnrollmentCycle"("cohortId");
+CREATE UNIQUE INDEX "StudentStageEnrollment_studentProgramEnrollmentId_programSt_key" ON "StudentStageEnrollment"("studentProgramEnrollmentId", "programStageOfferingId", "attemptNumber");
 
 -- CreateIndex
-CREATE INDEX "StudentProgramEnrollmentCycle_status_idx" ON "StudentProgramEnrollmentCycle"("status");
+CREATE INDEX "StudentCohortMembership_organizationId_idx" ON "StudentCohortMembership"("organizationId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StudentProgramEnrollmentCycle_studentProgramEnrollmentId_pr_key" ON "StudentProgramEnrollmentCycle"("studentProgramEnrollmentId", "programAcademicCycleId");
+CREATE INDEX "StudentCohortMembership_studentId_leftAt_idx" ON "StudentCohortMembership"("studentId", "leftAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StudentProgramEnrollmentCycle_studentProgramEnrollmentId_ac_key" ON "StudentProgramEnrollmentCycle"("studentProgramEnrollmentId", "academicCycleId");
+CREATE INDEX "StudentCohortMembership_cohortOfferingId_leftAt_idx" ON "StudentCohortMembership"("cohortOfferingId", "leftAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StudentProgramEnrollmentCycle_studentProgramEnrollmentId_se_key" ON "StudentProgramEnrollmentCycle"("studentProgramEnrollmentId", "sequenceSnapshot");
+CREATE INDEX "StudentProgressionDecision_organizationId_idx" ON "StudentProgressionDecision"("organizationId");
 
 -- CreateIndex
-CREATE INDEX "StudentStageAttempt_organizationId_idx" ON "StudentStageAttempt"("organizationId");
+CREATE INDEX "StudentProgressionDecision_studentProgramEnrollmentId_decid_idx" ON "StudentProgressionDecision"("studentProgramEnrollmentId", "decidedAt");
 
 -- CreateIndex
-CREATE INDEX "StudentStageAttempt_studentProgramEnrollmentId_idx" ON "StudentStageAttempt"("studentProgramEnrollmentId");
+CREATE INDEX "StudentProgressionDecision_sourceStageEnrollmentId_idx" ON "StudentProgressionDecision"("sourceStageEnrollmentId");
 
 -- CreateIndex
-CREATE INDEX "StudentStageAttempt_cohortId_idx" ON "StudentStageAttempt"("cohortId");
+CREATE INDEX "StudentProgressionDecision_targetStageOfferingId_idx" ON "StudentProgressionDecision"("targetStageOfferingId");
 
 -- CreateIndex
-CREATE INDEX "StudentStageAttempt_status_idx" ON "StudentStageAttempt"("status");
+CREATE UNIQUE INDEX "StudentProgressionDecision_organizationId_idempotencyKey_key" ON "StudentProgressionDecision"("organizationId", "idempotencyKey");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "StudentStageAttempt_studentProgramEnrollmentCycleId_program_key" ON "StudentStageAttempt"("studentProgramEnrollmentCycleId", "programStageId", "attemptNumber");
+CREATE UNIQUE INDEX "ProgressionBulkOperation_organizationId_idempotencyKey_key" ON "ProgressionBulkOperation"("organizationId", "idempotencyKey");
+
+-- CreateIndex
+CREATE INDEX "ProgressionBulkOperation_organizationId_status_idx" ON "ProgressionBulkOperation"("organizationId", "status");
+
+-- CreateIndex
+CREATE INDEX "ProgressionBulkOperation_sourceProgramStageOfferingId_idx" ON "ProgressionBulkOperation"("sourceProgramStageOfferingId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "GradeAnswerbookAttachment_fileId_key" ON "GradeAnswerbookAttachment"("fileId");
@@ -3036,7 +3125,10 @@ CREATE INDEX "AcademicCycleArchiveSectionProgramIndex_organizationId_idx" ON "Ac
 CREATE INDEX "AcademicCycleArchiveSectionProgramIndex_archiveId_sourcePro_idx" ON "AcademicCycleArchiveSectionProgramIndex"("archiveId", "sourceProgramId");
 
 -- CreateIndex
-CREATE INDEX "AcademicCycleArchiveSectionProgramIndex_sourceProgramAcadem_idx" ON "AcademicCycleArchiveSectionProgramIndex"("sourceProgramAcademicCycleId");
+CREATE INDEX "AcademicCycleArchiveSectionProgramIndex_sourceProgramOfferi_idx" ON "AcademicCycleArchiveSectionProgramIndex"("sourceProgramOfferingId");
+
+-- CreateIndex
+CREATE INDEX "AcademicCycleArchiveSectionProgramIndex_sourceProgramStageO_idx" ON "AcademicCycleArchiveSectionProgramIndex"("sourceProgramStageOfferingId");
 
 -- CreateIndex
 CREATE INDEX "AcademicCycleArchiveSectionProgramIndex_sourceCurriculumVer_idx" ON "AcademicCycleArchiveSectionProgramIndex"("sourceCurriculumVersionId");
@@ -3345,9 +3437,6 @@ ALTER TABLE "Section" ADD CONSTRAINT "Section_defaultRoomId_fkey" FOREIGN KEY ("
 ALTER TABLE "Section" ADD CONSTRAINT "Section_academicCycleId_fkey" FOREIGN KEY ("academicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Section" ADD CONSTRAINT "Section_cohortId_fkey" FOREIGN KEY ("cohortId") REFERENCES "Cohort"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "Section"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -3360,7 +3449,10 @@ ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_academicCycleId_fkey" FOREIG
 ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_studentProgramEnrollmentId_fkey" FOREIGN KEY ("studentProgramEnrollmentId") REFERENCES "StudentProgramEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_studentStageAttemptId_fkey" FOREIGN KEY ("studentStageAttemptId") REFERENCES "StudentStageAttempt"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_studentStageEnrollmentId_fkey" FOREIGN KEY ("studentStageEnrollmentId") REFERENCES "StudentStageEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_studentCohortMembershipId_fkey" FOREIGN KEY ("studentCohortMembershipId") REFERENCES "StudentCohortMembership"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Student" ADD CONSTRAINT "Student_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -3370,9 +3462,6 @@ ALTER TABLE "Student" ADD CONSTRAINT "Student_primaryDepartmentId_fkey" FOREIGN 
 
 -- AddForeignKey
 ALTER TABLE "Student" ADD CONSTRAINT "Student_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Student" ADD CONSTRAINT "Student_cohortId_fkey" FOREIGN KEY ("cohortId") REFERENCES "Cohort"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Assessment" ADD CONSTRAINT "Assessment_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "Section"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -3750,13 +3839,7 @@ ALTER TABLE "AcademicCycle" ADD CONSTRAINT "AcademicCycle_currentArchiveId_fkey"
 ALTER TABLE "Cohort" ADD CONSTRAINT "Cohort_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Cohort" ADD CONSTRAINT "Cohort_academicCycleId_fkey" FOREIGN KEY ("academicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Cohort" ADD CONSTRAINT "Cohort_programAcademicCycleId_fkey" FOREIGN KEY ("programAcademicCycleId") REFERENCES "ProgramAcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Cohort" ADD CONSTRAINT "Cohort_programStageId_fkey" FOREIGN KEY ("programStageId") REFERENCES "ProgramStage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Cohort" ADD CONSTRAINT "Cohort_academicCycleId_fkey" FOREIGN KEY ("academicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "EnrollmentHistory" ADD CONSTRAINT "EnrollmentHistory_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -3771,31 +3854,16 @@ ALTER TABLE "EnrollmentHistory" ADD CONSTRAINT "EnrollmentHistory_academicCycleI
 ALTER TABLE "EnrollmentHistory" ADD CONSTRAINT "EnrollmentHistory_studentProgramEnrollmentId_fkey" FOREIGN KEY ("studentProgramEnrollmentId") REFERENCES "StudentProgramEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "EnrollmentHistory" ADD CONSTRAINT "EnrollmentHistory_studentStageAttemptId_fkey" FOREIGN KEY ("studentStageAttemptId") REFERENCES "StudentStageAttempt"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "EnrollmentHistory" ADD CONSTRAINT "EnrollmentHistory_studentStageEnrollmentId_fkey" FOREIGN KEY ("studentStageEnrollmentId") REFERENCES "StudentStageEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CohortMembershipHistory" ADD CONSTRAINT "CohortMembershipHistory_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "CohortMembershipHistory" ADD CONSTRAINT "CohortMembershipHistory_cohortId_fkey" FOREIGN KEY ("cohortId") REFERENCES "Cohort"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "CohortMembershipHistory" ADD CONSTRAINT "CohortMembershipHistory_academicCycleId_fkey" FOREIGN KEY ("academicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "EnrollmentHistory" ADD CONSTRAINT "EnrollmentHistory_studentCohortMembershipId_fkey" FOREIGN KEY ("studentCohortMembershipId") REFERENCES "StudentCohortMembership"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Program" ADD CONSTRAINT "Program_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Program" ADD CONSTRAINT "Program_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "Department"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ProgramAcademicCycle" ADD CONSTRAINT "ProgramAcademicCycle_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ProgramAcademicCycle" ADD CONSTRAINT "ProgramAcademicCycle_programId_fkey" FOREIGN KEY ("programId") REFERENCES "Program"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ProgramAcademicCycle" ADD CONSTRAINT "ProgramAcademicCycle_academicCycleId_fkey" FOREIGN KEY ("academicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ProgramConfigurationRevision" ADD CONSTRAINT "ProgramConfigurationRevision_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -3819,9 +3887,6 @@ ALTER TABLE "ProgramStage" ADD CONSTRAINT "ProgramStage_organizationId_fkey" FOR
 ALTER TABLE "ProgramStage" ADD CONSTRAINT "ProgramStage_curriculumVersionId_fkey" FOREIGN KEY ("curriculumVersionId") REFERENCES "CurriculumVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ProgramStage" ADD CONSTRAINT "ProgramStage_programAcademicCycleId_fkey" FOREIGN KEY ("programAcademicCycleId") REFERENCES "ProgramAcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "StageCourseRequirement" ADD CONSTRAINT "StageCourseRequirement_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -3831,16 +3896,58 @@ ALTER TABLE "StageCourseRequirement" ADD CONSTRAINT "StageCourseRequirement_prog
 ALTER TABLE "StageCourseRequirement" ADD CONSTRAINT "StageCourseRequirement_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "Course"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "SectionRequirementMapping" ADD CONSTRAINT "SectionRequirementMapping_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProgramOffering" ADD CONSTRAINT "ProgramOffering_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "SectionRequirementMapping" ADD CONSTRAINT "SectionRequirementMapping_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "Section"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProgramOffering" ADD CONSTRAINT "ProgramOffering_programId_fkey" FOREIGN KEY ("programId") REFERENCES "Program"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "SectionRequirementMapping" ADD CONSTRAINT "SectionRequirementMapping_stageCourseRequirementId_fkey" FOREIGN KEY ("stageCourseRequirementId") REFERENCES "StageCourseRequirement"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProgramOffering" ADD CONSTRAINT "ProgramOffering_curriculumVersionId_fkey" FOREIGN KEY ("curriculumVersionId") REFERENCES "CurriculumVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "SectionRequirementMapping" ADD CONSTRAINT "SectionRequirementMapping_programAcademicCycleId_fkey" FOREIGN KEY ("programAcademicCycleId") REFERENCES "ProgramAcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ProgramOffering" ADD CONSTRAINT "ProgramOffering_academicCycleId_fkey" FOREIGN KEY ("academicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProgramStageOffering" ADD CONSTRAINT "ProgramStageOffering_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProgramStageOffering" ADD CONSTRAINT "ProgramStageOffering_programOfferingId_fkey" FOREIGN KEY ("programOfferingId") REFERENCES "ProgramOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProgramStageOffering" ADD CONSTRAINT "ProgramStageOffering_programStageId_fkey" FOREIGN KEY ("programStageId") REFERENCES "ProgramStage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CohortOffering" ADD CONSTRAINT "CohortOffering_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CohortOffering" ADD CONSTRAINT "CohortOffering_cohortId_fkey" FOREIGN KEY ("cohortId") REFERENCES "Cohort"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CohortOffering" ADD CONSTRAINT "CohortOffering_academicCycleId_fkey" FOREIGN KEY ("academicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CohortOffering" ADD CONSTRAINT "CohortOffering_programStageOfferingId_fkey" FOREIGN KEY ("programStageOfferingId") REFERENCES "ProgramStageOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CohortOfferingSection" ADD CONSTRAINT "CohortOfferingSection_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CohortOfferingSection" ADD CONSTRAINT "CohortOfferingSection_cohortOfferingId_fkey" FOREIGN KEY ("cohortOfferingId") REFERENCES "CohortOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CohortOfferingSection" ADD CONSTRAINT "CohortOfferingSection_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "Section"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SectionProgramMapping" ADD CONSTRAINT "SectionProgramMapping_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SectionProgramMapping" ADD CONSTRAINT "SectionProgramMapping_sectionId_fkey" FOREIGN KEY ("sectionId") REFERENCES "Section"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SectionProgramMapping" ADD CONSTRAINT "SectionProgramMapping_programStageOfferingId_fkey" FOREIGN KEY ("programStageOfferingId") REFERENCES "ProgramStageOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SectionProgramMapping" ADD CONSTRAINT "SectionProgramMapping_stageCourseRequirementId_fkey" FOREIGN KEY ("stageCourseRequirementId") REFERENCES "StageCourseRequirement"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StudentProgramEnrollment" ADD CONSTRAINT "StudentProgramEnrollment_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -3858,43 +3965,58 @@ ALTER TABLE "StudentProgramEnrollment" ADD CONSTRAINT "StudentProgramEnrollment_
 ALTER TABLE "StudentProgramEnrollment" ADD CONSTRAINT "StudentProgramEnrollment_programConfigurationRevisionId_fkey" FOREIGN KEY ("programConfigurationRevisionId") REFERENCES "ProgramConfigurationRevision"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentProgramEnrollment" ADD CONSTRAINT "StudentProgramEnrollment_entryProgramAcademicCycleId_fkey" FOREIGN KEY ("entryProgramAcademicCycleId") REFERENCES "ProgramAcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentProgramEnrollment" ADD CONSTRAINT "StudentProgramEnrollment_entryStageId_fkey" FOREIGN KEY ("entryStageId") REFERENCES "ProgramStage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentProgramEnrollment" ADD CONSTRAINT "StudentProgramEnrollment_entryAcademicCycleId_fkey" FOREIGN KEY ("entryAcademicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentStageEnrollment" ADD CONSTRAINT "StudentStageEnrollment_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentProgramEnrollmentCycle" ADD CONSTRAINT "StudentProgramEnrollmentCycle_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentStageEnrollment" ADD CONSTRAINT "StudentStageEnrollment_studentProgramEnrollmentId_fkey" FOREIGN KEY ("studentProgramEnrollmentId") REFERENCES "StudentProgramEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentProgramEnrollmentCycle" ADD CONSTRAINT "StudentProgramEnrollmentCycle_studentProgramEnrollmentId_fkey" FOREIGN KEY ("studentProgramEnrollmentId") REFERENCES "StudentProgramEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentStageEnrollment" ADD CONSTRAINT "StudentStageEnrollment_programStageId_fkey" FOREIGN KEY ("programStageId") REFERENCES "ProgramStage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentProgramEnrollmentCycle" ADD CONSTRAINT "StudentProgramEnrollmentCycle_programAcademicCycleId_fkey" FOREIGN KEY ("programAcademicCycleId") REFERENCES "ProgramAcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentStageEnrollment" ADD CONSTRAINT "StudentStageEnrollment_programStageOfferingId_fkey" FOREIGN KEY ("programStageOfferingId") REFERENCES "ProgramStageOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentProgramEnrollmentCycle" ADD CONSTRAINT "StudentProgramEnrollmentCycle_academicCycleId_fkey" FOREIGN KEY ("academicCycleId") REFERENCES "AcademicCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentStageEnrollment" ADD CONSTRAINT "StudentStageEnrollment_cohortOfferingId_fkey" FOREIGN KEY ("cohortOfferingId") REFERENCES "CohortOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentProgramEnrollmentCycle" ADD CONSTRAINT "StudentProgramEnrollmentCycle_programStageId_fkey" FOREIGN KEY ("programStageId") REFERENCES "ProgramStage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentCohortMembership" ADD CONSTRAINT "StudentCohortMembership_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentProgramEnrollmentCycle" ADD CONSTRAINT "StudentProgramEnrollmentCycle_cohortId_fkey" FOREIGN KEY ("cohortId") REFERENCES "Cohort"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentCohortMembership" ADD CONSTRAINT "StudentCohortMembership_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentStageAttempt" ADD CONSTRAINT "StudentStageAttempt_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentCohortMembership" ADD CONSTRAINT "StudentCohortMembership_cohortOfferingId_fkey" FOREIGN KEY ("cohortOfferingId") REFERENCES "CohortOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentStageAttempt" ADD CONSTRAINT "StudentStageAttempt_studentProgramEnrollmentId_fkey" FOREIGN KEY ("studentProgramEnrollmentId") REFERENCES "StudentProgramEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentCohortMembership" ADD CONSTRAINT "StudentCohortMembership_studentStageEnrollmentId_fkey" FOREIGN KEY ("studentStageEnrollmentId") REFERENCES "StudentStageEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentStageAttempt" ADD CONSTRAINT "StudentStageAttempt_studentProgramEnrollmentCycleId_fkey" FOREIGN KEY ("studentProgramEnrollmentCycleId") REFERENCES "StudentProgramEnrollmentCycle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentProgressionDecision" ADD CONSTRAINT "StudentProgressionDecision_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentStageAttempt" ADD CONSTRAINT "StudentStageAttempt_programStageId_fkey" FOREIGN KEY ("programStageId") REFERENCES "ProgramStage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentProgressionDecision" ADD CONSTRAINT "StudentProgressionDecision_studentProgramEnrollmentId_fkey" FOREIGN KEY ("studentProgramEnrollmentId") REFERENCES "StudentProgramEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StudentStageAttempt" ADD CONSTRAINT "StudentStageAttempt_cohortId_fkey" FOREIGN KEY ("cohortId") REFERENCES "Cohort"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "StudentProgressionDecision" ADD CONSTRAINT "StudentProgressionDecision_sourceStageEnrollmentId_fkey" FOREIGN KEY ("sourceStageEnrollmentId") REFERENCES "StudentStageEnrollment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StudentProgressionDecision" ADD CONSTRAINT "StudentProgressionDecision_sourceStageId_fkey" FOREIGN KEY ("sourceStageId") REFERENCES "ProgramStage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StudentProgressionDecision" ADD CONSTRAINT "StudentProgressionDecision_targetStageId_fkey" FOREIGN KEY ("targetStageId") REFERENCES "ProgramStage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StudentProgressionDecision" ADD CONSTRAINT "StudentProgressionDecision_targetStageOfferingId_fkey" FOREIGN KEY ("targetStageOfferingId") REFERENCES "ProgramStageOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProgressionBulkOperation" ADD CONSTRAINT "ProgressionBulkOperation_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProgressionBulkOperation" ADD CONSTRAINT "ProgressionBulkOperation_sourceProgramStageOfferingId_fkey" FOREIGN KEY ("sourceProgramStageOfferingId") REFERENCES "ProgramStageOffering"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "GradeAnswerbookAttachment" ADD CONSTRAINT "GradeAnswerbookAttachment_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

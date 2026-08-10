@@ -1,34 +1,39 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   CurriculumStatus,
+  AssessmentLifecycleStatus,
+  CohortOfferingStatus,
+  EnrollmentSource,
   Prisma,
-  ProgramAcademicCycleStatus,
+  ProgramCompletionMode,
+  ProgramOfferingStatus,
+  ProgramStageOfferingStatus,
   ProgramStatus,
-  StudentProgramCycleStatus,
   StudentProgramEnrollmentStatus,
-  StudentStageAttemptStatus,
+  StudentProgressionOutcome,
+  StudentStageEnrollmentStatus,
 } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   assertDepartmentInScope,
+  assertDepartmentIdsBelongToOrg,
   getDepartmentScope,
   type DepartmentScopedUser,
 } from '../common/department-scope';
 import {
-  ActivateProgramCycleDto,
+  ActivateProgramStageDto,
+  AdvanceProgramStageDto,
   AdmitStudentProgramDto,
-  RepeatProgramCycleDto,
-  ResolveProgramCycleDto,
+  RepeatProgramStageDto,
+  ResolveProgramStageDto,
   TransferStudentProgramDto,
   WithdrawStudentProgramDto,
 } from './dto/student-program-enrollment.dto';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 import { runSerializableTransaction } from '../common/prisma-transaction';
+import { Role } from '../common/enums';
+import { evaluateProgression } from './progression-evaluator';
+import { buildStageEvidence } from './progression-evidence';
 
 type Transaction = Prisma.TransactionClient;
 type Actor = DepartmentScopedUser & { id: string };
@@ -41,33 +46,29 @@ const OPEN_STATUSES: StudentProgramEnrollmentStatus[] = [
 
 const ENROLLMENT_INCLUDE = {
   program: { include: { department: true } },
-  curriculumVersion: true,
+  curriculumVersion: {
+    include: { stages: { orderBy: { sequence: 'asc' as const } } },
+  },
   programConfigurationRevision: true,
-  entryAcademicCycle: true,
-  cycles: {
+  entryStage: true,
+  stageEnrollments: {
+    orderBy: { createdAt: 'asc' as const },
     include: {
-      academicCycle: true,
       programStage: true,
-      cohort: true,
-      stageAttempts: { orderBy: { attemptNumber: 'asc' as const } },
+      programStageOffering: { include: { programOffering: { include: { academicCycle: true } } } },
+      cohortOffering: { include: { cohort: true } },
     },
-    orderBy: { sequenceSnapshot: 'asc' as const },
   },
-  stageAttempts: {
-    orderBy: [{ createdAt: 'asc' as const }, { attemptNumber: 'asc' as const }],
-  },
+  progressionDecisions: { orderBy: { decidedAt: 'asc' as const } },
 } satisfies Prisma.StudentProgramEnrollmentInclude;
 
 @Injectable()
 export class StudentProgramEnrollmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private runTransaction<T>(
-    operation: (tx: Prisma.TransactionClient) => Promise<T>,
-  ) {
+  private runTransaction<T>(operation: (tx: Transaction) => Promise<T>) {
     return runSerializableTransaction(this.prisma, operation, {
-      conflictMessage:
-        'Student program state changed concurrently; refresh and try again',
+      conflictMessage: 'Student program state changed concurrently; refresh and try again',
     });
   }
 
@@ -75,86 +76,128 @@ export class StudentProgramEnrollmentsService {
     return `student:${studentId}`;
   }
 
-  private async admissionProgram(
-    tx: Transaction,
-    orgId: string,
-    programId: string,
-  ) {
-    const program = await tx.program.findFirst({
-      where: {
-        id: programId,
-        organizationId: orgId,
-        status: ProgramStatus.ACTIVE,
+  private async progressionEvaluation(tx: Transaction | PrismaService, orgId: string, enrollmentId: string) {
+    const enrollment = await tx.studentProgramEnrollment.findFirst({
+      where: { id: enrollmentId, organizationId: orgId },
+      include: {
+        curriculumVersion: {
+          include: {
+            stages: {
+              orderBy: { sequence: 'asc' },
+              include: { courseRequirements: { select: { creditHoursSnapshot: true, requirementType: true, groupKey: true, minCourses: true, minCredits: true } } },
+            },
+          },
+        },
+        stageEnrollments: { select: { id: true, programStageId: true, status: true } },
       },
+    });
+    if (!enrollment) throw new NotFoundException('Student program enrollment not found');
+    return {
+      enrollment,
+      evaluation: evaluateProgression({
+        progressionMode: enrollment.progressionModeSnapshot,
+        completionMode: enrollment.completionModeSnapshot,
+        stages: enrollment.curriculumVersion.stages,
+        attempts: enrollment.stageEnrollments,
+        entryStageId: enrollment.entryStageId,
+      }),
+    };
+  }
+
+  private async stageEvidenceSnapshot(tx: Transaction | PrismaService, orgId: string, enrollmentId: string, stageEnrollmentId: string) {
+    const stageEnrollment = await tx.studentStageEnrollment.findFirst({
+      where: { id: stageEnrollmentId, organizationId: orgId, studentProgramEnrollmentId: enrollmentId },
+      include: {
+        studentProgramEnrollment: {
+          select: {
+            studentId: true,
+            minimumPassingPercentageSnapshot: true,
+            minimumAttendancePercentageSnapshot: true,
+          },
+        },
+        programStage: {
+          include: { courseRequirements: { include: { course: { select: { code: true, name: true } } } } },
+        },
+      },
+    });
+    if (!stageEnrollment) throw new NotFoundException('Stage enrollment not found');
+    const sectionEnrollments = await tx.enrollment.findMany({
+      where: { studentStageEnrollmentId: stageEnrollmentId, studentId: stageEnrollment.studentProgramEnrollment.studentId },
+      select: { sectionId: true },
+    });
+    const sectionIds = [...new Set(sectionEnrollments.map((row) => row.sectionId))];
+    const courseIds = [...new Set(stageEnrollment.programStage.courseRequirements.map((row) => row.courseId))];
+    const [assessments, attendance] = await Promise.all([
+      tx.assessment.findMany({
+        where: { sectionId: { in: sectionIds }, courseId: { in: courseIds }, status: AssessmentLifecycleStatus.ACTIVE },
+        select: {
+          courseId: true,
+          totalMarks: true,
+          weightage: true,
+          grades: {
+            where: { studentId: stageEnrollment.studentProgramEnrollment.studentId },
+            select: { status: true, marksObtained: true },
+            take: 1,
+          },
+        },
+      }),
+      tx.attendanceRecord.findMany({
+        where: { studentId: stageEnrollment.studentProgramEnrollment.studentId, session: { sectionId: { in: sectionIds } } },
+        select: { status: true },
+      }),
+    ]);
+    return buildStageEvidence({
+      requirements: stageEnrollment.programStage.courseRequirements.map((requirement) => ({
+        courseId: requirement.courseId,
+        courseCode: requirement.course.code,
+        courseName: requirement.course.name,
+        requirementType: requirement.requirementType,
+        groupKey: requirement.groupKey,
+        minCourses: requirement.minCourses,
+        minCredits: requirement.minCredits,
+        creditHoursSnapshot: requirement.creditHoursSnapshot,
+      })),
+      assessments: assessments.map((assessment) => ({
+        courseId: assessment.courseId,
+        totalMarks: assessment.totalMarks,
+        weightage: assessment.weightage,
+        grade: assessment.grades[0] ?? null,
+      })),
+      attendance: attendance.map((record) => record.status),
+      minimumPassingPercentage: stageEnrollment.studentProgramEnrollment.minimumPassingPercentageSnapshot,
+      minimumAttendancePercentage: stageEnrollment.studentProgramEnrollment.minimumAttendancePercentageSnapshot,
+      stageMinimumCredits: stageEnrollment.programStage.minCredits,
+    });
+  }
+
+  private async admissionProgram(tx: Transaction, orgId: string, programId: string) {
+    const program = await tx.program.findFirst({
+      where: { id: programId, organizationId: orgId, status: ProgramStatus.ACTIVE },
       include: {
         department: true,
         configurationRevisions: { orderBy: { version: 'desc' }, take: 1 },
         curriculumVersions: {
-          where: {
-            status: CurriculumStatus.ACTIVE,
-            isDefaultForAdmissions: true,
-          },
-          include: { stages: true },
+          where: { status: CurriculumStatus.ACTIVE, isDefaultForAdmissions: true },
+          include: { stages: { orderBy: { sequence: 'asc' } } },
           take: 1,
-        },
-        academicCycles: {
-          where: { status: ProgramAcademicCycleStatus.ACTIVE },
-          include: { academicCycle: true },
-          orderBy: { sequence: 'asc' },
         },
       },
     });
     if (!program) throw new NotFoundException('Active program not found');
-
-    const revision = program.configurationRevisions.find(
-      (candidate) => candidate.version === program.configurationVersion,
-    );
-    if (!revision)
-      throw new ConflictException(
-        'The current program configuration revision is unavailable',
-      );
-
-    const curriculum = program.curriculumVersions.find(
-      (candidate) => candidate.programConfigurationRevisionId === revision.id,
-    );
-    if (!curriculum) {
-      throw new ConflictException(
-        'The program does not have an active default admissions curriculum for its current configuration',
-      );
+    const revision = program.configurationRevisions.find((row) => row.version === program.configurationVersion);
+    if (!revision) throw new ConflictException('The current program configuration revision is unavailable');
+    const curriculum = program.curriculumVersions.find((row) => row.programConfigurationRevisionId === revision.id);
+    if (!curriculum || curriculum.stages.length === 0) {
+      throw new ConflictException('The program needs an active default admissions curriculum with stages');
     }
-
-    if (program.academicCycles.length !== program.requiredCycleCount) {
-      throw new ConflictException('The program cycle plan is incomplete');
-    }
-    const stagesByAssociation = new Map(
-      curriculum.stages.map((stage) => [stage.programAcademicCycleId, stage]),
-    );
-    if (
-      program.academicCycles.some(
-        (association) => !stagesByAssociation.has(association.id),
-      )
-    ) {
-      throw new ConflictException(
-        'Every required program cycle must have a curriculum stage before admission',
-      );
-    }
-
-    return { program, revision, curriculum, stagesByAssociation };
+    return { program, revision, curriculum };
   }
 
-  async resolveAdmissionDepartment(
-    orgId: string,
-    programId: string,
-    actor?: Actor,
-  ) {
+  async resolveAdmissionDepartment(orgId: string, programId: string, actor?: Actor) {
     return this.runTransaction(async (tx) => {
       const { program } = await this.admissionProgram(tx, orgId, programId);
       const scope = await getDepartmentScope(this.prisma, orgId, actor);
-      assertDepartmentInScope(
-        scope,
-        program.departmentId,
-        'You cannot assign a program outside your department scope',
-      );
+      assertDepartmentInScope(scope, program.departmentId, 'You cannot assign a program outside your department scope');
       return program.department;
     });
   }
@@ -166,52 +209,19 @@ export class StudentProgramEnrollmentsService {
     dto: AdmitStudentProgramDto,
     actorId: string,
   ) {
-    const student = await tx.student.findFirst({
-      where: { id: studentId, organizationId: orgId },
-      select: { id: true },
-    });
+    const student = await tx.student.findFirst({ where: { id: studentId, organizationId: orgId }, select: { id: true } });
     if (!student) throw new NotFoundException('Student not found');
-
     const open = await tx.studentProgramEnrollment.findFirst({
-      where: {
-        studentId,
-        organizationId: orgId,
-        status: { in: OPEN_STATUSES },
-      },
+      where: { studentId, organizationId: orgId, status: { in: OPEN_STATUSES } },
       select: { id: true },
     });
-    if (open)
-      throw new ConflictException('Student already has an active major');
+    if (open) throw new ConflictException('Student already has an active major');
 
-    const { program, revision, curriculum, stagesByAssociation } =
-      await this.admissionProgram(tx, orgId, dto.programId);
-    const requestedEntry = dto.entryAcademicCycleId
-      ? program.academicCycles.find(
-          (association) =>
-            association.academicCycleId === dto.entryAcademicCycleId,
-        )
-      : undefined;
-    if (dto.entryAcademicCycleId && !requestedEntry) {
-      throw new BadRequestException(
-        'Entry academic cycle is not part of the selected program plan',
-      );
-    }
-    if (
-      dto.entryStageSequence &&
-      dto.entryStageSequence > program.requiredCycleCount
-    ) {
-      throw new BadRequestException(
-        'Entry stage sequence is outside the selected program plan',
-      );
-    }
-
-    const entryAssociation =
-      requestedEntry ??
-      (dto.entryStageSequence
-        ? program.academicCycles.find(
-            (association) => association.sequence === dto.entryStageSequence,
-          )
-        : program.academicCycles[0]);
+    const { program, revision, curriculum } = await this.admissionProgram(tx, orgId, dto.programId);
+    const entryStage = dto.entryStageId
+      ? curriculum.stages.find((stage) => stage.id === dto.entryStageId)
+      : curriculum.stages[0];
+    if (dto.entryStageId && !entryStage) throw new BadRequestException('Entry stage does not belong to the admissions curriculum');
 
     return tx.studentProgramEnrollment.create({
       data: {
@@ -222,84 +232,42 @@ export class StudentProgramEnrollmentsService {
         programConfigurationRevisionId: revision.id,
         status: StudentProgramEnrollmentStatus.ADMITTED,
         openSlot: this.openSlot(studentId),
-        requiredCycleCountSnapshot: program.requiredCycleCount,
+        requiredStageCountSnapshot: curriculum.stages.filter((stage) => !stage.isOptional && stage.sequence >= (entryStage?.sequence ?? 0)).length,
         programConfigurationVersionSnapshot: program.configurationVersion,
-        programCyclePlanSnapshotHash: revision.checksum,
-        entryProgramAcademicCycleId: entryAssociation?.id,
-        entryAcademicCycleId: entryAssociation?.academicCycleId,
-        entryStageSequence: entryAssociation?.sequence,
+        curriculumSnapshotHash: revision.checksum,
+        progressionModeSnapshot: program.progressionMode,
+        completionModeSnapshot: program.completionMode,
+        minimumPassingPercentageSnapshot: program.minimumPassingPercentage,
+        minimumAttendancePercentageSnapshot: program.minimumAttendancePercentage,
+        entryStageId: entryStage?.id,
         admittedById: actorId,
-        cycles: {
-          create: program.academicCycles.map((association) => {
-            const stage = stagesByAssociation.get(association.id)!;
-            return {
-              organizationId: orgId,
-              programAcademicCycleId: association.id,
-              academicCycleId: association.academicCycleId,
-              programStageId: stage.id,
-              sequenceSnapshot: association.sequence,
-              isRequiredSnapshot: association.isRequired,
-              cycleNameSnapshot: association.academicCycle.name,
-              cycleCodeSnapshot: association.academicCycle.code,
-              cycleStartDateSnapshot: association.academicCycle.startDate,
-              cycleEndDateSnapshot: association.academicCycle.endDate,
-              stageNameSnapshot: stage.name,
-              stageCodeSnapshot: stage.code,
-            };
-          }),
-        },
       },
       include: ENROLLMENT_INCLUDE,
     });
   }
 
-  async admit(
-    orgId: string,
-    studentId: string,
-    dto: AdmitStudentProgramDto,
-    actor: Actor,
-  ) {
-    const department = await this.resolveAdmissionDepartment(
-      orgId,
-      dto.programId,
-      actor,
-    );
-    return runSerializableTransaction(
-      this.prisma,
-      async (tx) => {
-        const enrollment = await this.admitInTransaction(
-          tx,
-          orgId,
-          studentId,
-          dto,
-          actor.id,
-        );
-        await tx.student.update({
-          where: { id: studentId },
-          data: { primaryDepartmentId: department.id },
-        });
-        return enrollment;
-      },
-      {
-        conflictMessage: 'Student already has an open program enrollment',
-      },
-    );
+  async admit(orgId: string, studentId: string, dto: AdmitStudentProgramDto, actor: Actor) {
+    const department = await this.resolveAdmissionDepartment(orgId, dto.programId, actor);
+    return this.runTransaction(async (tx) => {
+      const enrollment = await this.admitInTransaction(tx, orgId, studentId, dto, actor.id);
+      await tx.student.update({ where: { id: studentId }, data: { primaryDepartmentId: department.id } });
+      return enrollment;
+    });
   }
 
   async list(orgId: string, studentId: string, actor?: Actor) {
-    const student = await this.prisma.student.findFirst({
-      where: { id: studentId, organizationId: orgId },
-      select: { id: true, primaryDepartmentId: true },
-    });
+    const student = await this.prisma.student.findFirst({ where: { id: studentId, organizationId: orgId } });
     if (!student) throw new NotFoundException('Student not found');
+    if (actor?.role === Role.STUDENT && student.userId !== actor.id) {
+      throw new NotFoundException('Student not found');
+    }
     const scope = await getDepartmentScope(this.prisma, orgId, actor);
-    assertDepartmentInScope(
-      scope,
-      student.primaryDepartmentId,
-      'You cannot view this student program history',
-    );
     return this.prisma.studentProgramEnrollment.findMany({
-      where: { organizationId: orgId, studentId },
+      where: {
+        organizationId: orgId,
+        studentId,
+        program: { departmentId: !scope.applies || scope.all ? undefined : { in: scope.departmentIds } },
+      },
       include: ENROLLMENT_INCLUDE,
       orderBy: { admittedAt: 'desc' },
     });
@@ -307,843 +275,495 @@ export class StudentProgramEnrollmentsService {
 
   async getOpen(orgId: string, studentId: string) {
     return this.prisma.studentProgramEnrollment.findFirst({
-      where: {
-        organizationId: orgId,
-        studentId,
-        status: { in: OPEN_STATUSES },
-      },
+      where: { organizationId: orgId, studentId, status: { in: OPEN_STATUSES } },
       include: ENROLLMENT_INCLUDE,
     });
   }
 
-  async transfer(
-    orgId: string,
-    studentId: string,
-    dto: TransferStudentProgramDto,
-    actor: Actor,
-  ) {
-    const department = await this.resolveAdmissionDepartment(
-      orgId,
-      dto.programId,
-      actor,
-    );
-    return runSerializableTransaction(
-      this.prisma,
-      async (tx) => {
-        const current = await tx.studentProgramEnrollment.findFirst({
+  async progressionPreview(orgId: string, studentId: string, enrollmentId: string, actor: Actor) {
+    await this.ownedEnrollment(orgId, studentId, enrollmentId, actor);
+    const { enrollment, evaluation } = await this.progressionEvaluation(this.prisma, orgId, enrollmentId);
+    const offeringStageIds = enrollment.stageEnrollments.some((stage) => stage.status === StudentStageEnrollmentStatus.IN_PROGRESS)
+      ? evaluation.nextStageIdsAfterResolution
+      : evaluation.eligibleStageIds;
+    const offerings = offeringStageIds.length
+      ? await this.prisma.programStageOffering.findMany({
           where: {
             organizationId: orgId,
-            studentId,
-            status: { in: OPEN_STATUSES },
+            programStageId: { in: offeringStageIds },
+            status: ProgramStageOfferingStatus.OPEN,
+            programOffering: {
+              status: ProgramOfferingStatus.OPEN,
+              programId: enrollment.programId,
+              curriculumVersionId: enrollment.curriculumVersionId,
+            },
           },
-          select: { id: true, programId: true },
-        });
-        if (!current)
-          throw new ConflictException(
-            'Student does not have a current major to transfer',
-          );
-        if (current.programId === dto.programId)
-          throw new BadRequestException(
-            'Choose a different program for transfer',
-          );
-
-        const now = new Date();
-        await tx.studentStageAttempt.updateMany({
-          where: {
-            studentProgramEnrollmentId: current.id,
-            status: StudentStageAttemptStatus.IN_PROGRESS,
-          },
-          data: {
-            status: StudentStageAttemptStatus.WITHDRAWN,
-            reason: dto.reason.trim(),
-            completedAt: now,
-            resolvedById: actor.id,
-          },
-        });
-        await tx.studentProgramEnrollmentCycle.updateMany({
-          where: {
-            studentProgramEnrollmentId: current.id,
-            status: StudentProgramCycleStatus.IN_PROGRESS,
-          },
-          data: {
-            status: StudentProgramCycleStatus.WITHDRAWN,
-            reason: dto.reason.trim(),
-            completedAt: now,
-            resolvedById: actor.id,
-          },
-        });
-        await tx.studentProgramEnrollment.update({
-          where: { id: current.id },
-          data: {
-            status: StudentProgramEnrollmentStatus.TRANSFERRED_OUT,
-            openSlot: null,
-            endedAt: now,
-            endedById: actor.id,
-            exitReason: dto.reason.trim(),
-          },
-        });
-        const next = await this.admitInTransaction(
-          tx,
-          orgId,
-          studentId,
-          dto,
-          actor.id,
-        );
-        await tx.student.update({
-          where: { id: studentId },
-          data: { primaryDepartmentId: department.id },
-        });
-        return next;
-      },
-      {
-        conflictMessage:
-          'Student program transfer changed concurrently; refresh and try again',
-      },
-    );
+          include: { programStage: true, programOffering: { include: { academicCycle: true } } },
+          orderBy: [{ programStage: { sequence: 'asc' } }, { programOffering: { academicCycle: { startDate: 'asc' } } }],
+        })
+      : [];
+    const currentStage = enrollment.stageEnrollments.find((stage) => stage.status === StudentStageEnrollmentStatus.IN_PROGRESS);
+    const currentStageEvidence = currentStage
+      ? await this.stageEvidenceSnapshot(this.prisma, orgId, enrollmentId, currentStage.id)
+      : null;
+    const evaluationAfterCurrentStage = currentStage && currentStageEvidence?.eligibleToComplete
+      ? evaluateProgression({
+          progressionMode: enrollment.progressionModeSnapshot,
+          completionMode: enrollment.completionModeSnapshot,
+          stages: enrollment.curriculumVersion.stages,
+          attempts: enrollment.stageEnrollments.map((stage) => ({
+            programStageId: stage.programStageId,
+            status: stage.id === currentStage.id ? StudentStageEnrollmentStatus.COMPLETED : stage.status,
+          })),
+          entryStageId: enrollment.entryStageId,
+        })
+      : null;
+    const canCompleteAfterCurrentStage = Boolean(evaluationAfterCurrentStage?.canCompleteProgram);
+    return {
+      ...evaluation,
+      recommendation: currentStageEvidence
+        ? currentStageEvidence.eligibleToComplete
+          ? canCompleteAfterCurrentStage ? StudentProgressionOutcome.COMPLETE : StudentProgressionOutcome.ADVANCE
+          : StudentProgressionOutcome.REPEAT
+        : evaluation.recommendation,
+      canCompleteAfterCurrentStage,
+      currentStageEvidence,
+      offerings,
+    };
   }
 
-  private async ownedEnrollment(
-    tx: Transaction,
-    orgId: string,
-    studentId: string,
-    enrollmentId: string,
-  ) {
-    const enrollment = await tx.studentProgramEnrollment.findFirst({
+  private async ownedEnrollment(orgId: string, studentId: string, enrollmentId: string, actor: Actor) {
+    const enrollment = await this.prisma.studentProgramEnrollment.findFirst({
       where: { id: enrollmentId, organizationId: orgId, studentId },
-      include: { cycles: { orderBy: { sequenceSnapshot: 'asc' } } },
+      include: { program: true },
     });
-    if (!enrollment)
-      throw new NotFoundException('Student program enrollment not found');
+    if (!enrollment) throw new NotFoundException('Student program enrollment not found');
+    const scope = await getDepartmentScope(this.prisma, orgId, actor);
+    assertDepartmentInScope(scope, enrollment.program.departmentId, 'You cannot manage this program outside your assigned departments');
     return enrollment;
   }
 
-  async hold(
-    orgId: string,
-    studentId: string,
-    enrollmentId: string,
-    reason: string,
-    actorId: string,
-  ) {
+  async transfer(orgId: string, studentId: string, dto: TransferStudentProgramDto, actor: Actor, idempotencyKey?: string) {
+    const targetDepartment = await this.resolveAdmissionDepartment(orgId, dto.programId, actor);
     return this.runTransaction(async (tx) => {
-      const enrollment = await this.ownedEnrollment(
-        tx,
-        orgId,
-        studentId,
-        enrollmentId,
-      );
-      if (enrollment.status !== StudentProgramEnrollmentStatus.ACTIVE) {
-        throw new ConflictException(
-          'Only an active program enrollment can be put on hold',
-        );
+      if (idempotencyKey) {
+        const existingDecision = await tx.studentProgressionDecision.findFirst({ where: { organizationId: orgId, idempotencyKey } });
+        if (existingDecision) {
+          return tx.studentProgramEnrollment.findFirstOrThrow({ where: { organizationId: orgId, studentId, status: { in: OPEN_STATUSES } }, include: ENROLLMENT_INCLUDE });
+        }
       }
-      return tx.studentProgramEnrollment.update({
-        where: { id: enrollment.id },
-        data: {
-          status: StudentProgramEnrollmentStatus.ON_HOLD,
-          exitReason: reason.trim(),
-        },
-        include: ENROLLMENT_INCLUDE,
+      const current = await tx.studentProgramEnrollment.findFirst({
+        where: { organizationId: orgId, studentId, status: { in: OPEN_STATUSES } },
+        include: { program: true },
       });
-    });
-  }
-
-  async resume(
-    orgId: string,
-    studentId: string,
-    enrollmentId: string,
-    actorId: string,
-  ) {
-    return this.runTransaction(async (tx) => {
-      const enrollment = await this.ownedEnrollment(
-        tx,
-        orgId,
-        studentId,
-        enrollmentId,
-      );
-      if (enrollment.status !== StudentProgramEnrollmentStatus.ON_HOLD) {
-        throw new ConflictException(
-          'Only an enrollment on hold can be resumed',
-        );
-      }
-      return tx.studentProgramEnrollment.update({
-        where: { id: enrollment.id },
-        data: {
-          status: StudentProgramEnrollmentStatus.ACTIVE,
-          exitReason: null,
-          startedAt: enrollment.startedAt ?? new Date(),
-        },
-        include: ENROLLMENT_INCLUDE,
+      if (!current) throw new ConflictException('Student does not have an active major to transfer');
+      const scope = await getDepartmentScope(tx, orgId, actor);
+      assertDepartmentInScope(scope, current.program.departmentId, 'You cannot transfer a student from a program outside your assigned departments');
+      await tx.studentStageEnrollment.updateMany({
+        where: { studentProgramEnrollmentId: current.id, status: { in: [StudentStageEnrollmentStatus.PLANNED, StudentStageEnrollmentStatus.IN_PROGRESS] } },
+        data: { status: StudentStageEnrollmentStatus.WITHDRAWN, completedAt: new Date(), resolvedById: actor.id, reason: dto.reason },
       });
-    });
-  }
-
-  async withdraw(
-    orgId: string,
-    studentId: string,
-    enrollmentId: string,
-    dto: WithdrawStudentProgramDto,
-    actor: Actor,
-  ) {
-    if (!dto.retainPrimaryDepartment && !dto.replacementPrimaryDepartmentId) {
-      throw new BadRequestException(
-        'Confirm retaining the last primary department or choose a replacement department',
-      );
-    }
-    if (dto.replacementPrimaryDepartmentId) {
-      const department = await this.prisma.department.findFirst({
-        where: {
-          id: dto.replacementPrimaryDepartmentId,
+      await tx.studentProgressionDecision.create({
+        data: {
           organizationId: orgId,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      if (!department)
-        throw new NotFoundException('Replacement primary department not found');
-      const scope = await getDepartmentScope(this.prisma, orgId, actor);
-      assertDepartmentInScope(
-        scope,
-        department.id,
-        'You cannot move the student outside your department scope',
-      );
-    }
-    return this.runTransaction(async (tx) => {
-      const enrollment = await this.ownedEnrollment(
-        tx,
-        orgId,
-        studentId,
-        enrollmentId,
-      );
-      if (!OPEN_STATUSES.includes(enrollment.status))
-        throw new ConflictException('Program enrollment is already closed');
-      const now = new Date();
-      await tx.studentStageAttempt.updateMany({
-        where: {
-          studentProgramEnrollmentId: enrollment.id,
-          status: {
-            in: [
-              StudentStageAttemptStatus.PLANNED,
-              StudentStageAttemptStatus.IN_PROGRESS,
-            ],
-          },
-        },
-        data: {
-          status: StudentStageAttemptStatus.WITHDRAWN,
-          reason: dto.reason.trim(),
-          completedAt: now,
-          resolvedById: actor.id,
+          studentProgramEnrollmentId: current.id,
+          outcome: StudentProgressionOutcome.TRANSFER,
+          reason: dto.reason,
+          decidedById: actor.id,
+          idempotencyKey,
         },
       });
-      await tx.studentProgramEnrollmentCycle.updateMany({
-        where: {
-          studentProgramEnrollmentId: enrollment.id,
-          status: {
-            in: [
-              StudentProgramCycleStatus.PLANNED,
-              StudentProgramCycleStatus.IN_PROGRESS,
-            ],
-          },
-        },
-        data: {
-          status: StudentProgramCycleStatus.WITHDRAWN,
-          reason: dto.reason.trim(),
-          completedAt: now,
-          resolvedById: actor.id,
-        },
+      await tx.studentProgramEnrollment.update({
+        where: { id: current.id },
+        data: { status: StudentProgramEnrollmentStatus.TRANSFERRED_OUT, openSlot: null, endedAt: new Date(), endedById: actor.id, exitReason: dto.reason },
       });
-      const closed = await tx.studentProgramEnrollment.update({
-        where: { id: enrollment.id },
-        data: {
-          status: StudentProgramEnrollmentStatus.WITHDRAWN,
-          openSlot: null,
-          endedAt: now,
-          endedById: actor.id,
-          exitReason: dto.reason.trim(),
-        },
-        include: ENROLLMENT_INCLUDE,
-      });
-      if (dto.replacementPrimaryDepartmentId) {
-        await tx.student.update({
-          where: { id: studentId },
-          data: { primaryDepartmentId: dto.replacementPrimaryDepartmentId },
-        });
-      }
-      return closed;
+      const next = await this.admitInTransaction(tx, orgId, studentId, dto, actor.id);
+      await tx.student.update({ where: { id: studentId }, data: { primaryDepartmentId: targetDepartment.id } });
+      return next;
     });
   }
 
-  private async activateCycleInTransaction(
+  async hold(orgId: string, studentId: string, enrollmentId: string, reason: string, actor: Actor, idempotencyKey?: string) {
+    await this.ownedEnrollment(orgId, studentId, enrollmentId, actor);
+    return this.runTransaction(async (tx) => {
+      if (idempotencyKey) {
+        const existingDecision = await tx.studentProgressionDecision.findFirst({ where: { organizationId: orgId, idempotencyKey } });
+        if (existingDecision) return tx.studentProgramEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } });
+      }
+      const enrollment = await tx.studentProgramEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } });
+      if (![StudentProgramEnrollmentStatus.ADMITTED, StudentProgramEnrollmentStatus.ACTIVE].includes(enrollment.status as never)) {
+        throw new ConflictException('Only admitted or active majors can be placed on hold');
+      }
+      await tx.studentProgressionDecision.create({
+        data: { organizationId: orgId, studentProgramEnrollmentId: enrollmentId, outcome: StudentProgressionOutcome.PAUSE, reason, decidedById: actor.id, idempotencyKey },
+      });
+      return tx.studentProgramEnrollment.update({ where: { id: enrollmentId }, data: { status: StudentProgramEnrollmentStatus.ON_HOLD } });
+    });
+  }
+
+  async resume(orgId: string, studentId: string, enrollmentId: string, actor: Actor) {
+    await this.ownedEnrollment(orgId, studentId, enrollmentId, actor);
+    return this.runTransaction(async (tx) => {
+      const enrollment = await tx.studentProgramEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } });
+      if (enrollment.status !== StudentProgramEnrollmentStatus.ON_HOLD) throw new ConflictException('Only a major on hold can be resumed');
+      await tx.studentProgressionDecision.create({
+        data: { organizationId: orgId, studentProgramEnrollmentId: enrollmentId, outcome: StudentProgressionOutcome.REMAIN, reason: 'Program enrollment resumed', decidedById: actor.id },
+      });
+      return tx.studentProgramEnrollment.update({ where: { id: enrollmentId }, data: { status: StudentProgramEnrollmentStatus.ACTIVE } });
+    });
+  }
+
+  async withdraw(orgId: string, studentId: string, enrollmentId: string, dto: WithdrawStudentProgramDto, actor: Actor) {
+    const enrollment = await this.ownedEnrollment(orgId, studentId, enrollmentId, actor);
+    if (!OPEN_STATUSES.includes(enrollment.status)) throw new ConflictException('This major is already closed');
+    if (dto.replacementPrimaryDepartmentId) {
+      await assertDepartmentIdsBelongToOrg(this.prisma, orgId, [dto.replacementPrimaryDepartmentId]);
+      const scope = await getDepartmentScope(this.prisma, orgId, actor);
+      assertDepartmentInScope(scope, dto.replacementPrimaryDepartmentId, 'You cannot assign a replacement department outside your scope');
+    }
+    return this.runTransaction(async (tx) => {
+      const current = await tx.studentProgramEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } });
+      if (!OPEN_STATUSES.includes(current.status)) throw new ConflictException('This major is already closed');
+      await tx.studentStageEnrollment.updateMany({
+        where: { studentProgramEnrollmentId: enrollmentId, status: { in: [StudentStageEnrollmentStatus.PLANNED, StudentStageEnrollmentStatus.IN_PROGRESS] } },
+        data: { status: StudentStageEnrollmentStatus.WITHDRAWN, completedAt: new Date(), resolvedById: actor.id, reason: dto.reason },
+      });
+      await tx.studentProgressionDecision.create({
+        data: { organizationId: orgId, studentProgramEnrollmentId: enrollmentId, outcome: StudentProgressionOutcome.WITHDRAW, reason: dto.reason, decidedById: actor.id },
+      });
+      const result = await tx.studentProgramEnrollment.update({
+        where: { id: enrollmentId },
+        data: { status: StudentProgramEnrollmentStatus.WITHDRAWN, openSlot: null, endedAt: new Date(), endedById: actor.id, exitReason: dto.reason },
+      });
+      if (!dto.retainPrimaryDepartment) {
+        await tx.student.update({ where: { id: studentId }, data: { primaryDepartmentId: dto.replacementPrimaryDepartmentId ?? null } });
+      }
+      return result;
+    });
+  }
+
+  private async activateStageInTransaction(
     tx: Transaction,
     orgId: string,
-    studentId: string,
-    enrollmentId: string,
-    dto: ActivateProgramCycleDto,
+    enrollment: { id: string; curriculumVersionId: string; programId: string; status: StudentProgramEnrollmentStatus },
+    programStageOfferingId: string,
+    cohortOfferingId: string | undefined,
     actorId: string,
+    reason?: string,
   ) {
-    const enrollment = await this.ownedEnrollment(
-      tx,
-      orgId,
-      studentId,
-      enrollmentId,
-    );
-    if (!OPEN_STATUSES.includes(enrollment.status))
-      throw new ConflictException('Program enrollment is closed');
-    if (enrollment.status === StudentProgramEnrollmentStatus.ON_HOLD)
-      throw new ConflictException(
-        'Resume the program enrollment before activating a cycle',
-      );
-    const plan = enrollment.cycles.find(
-      (cycle) => cycle.id === dto.studentProgramEnrollmentCycleId,
-    );
-    if (!plan) throw new NotFoundException('Program cycle plan row not found');
-    await assertAcademicCycleWritable(
-      tx,
-      orgId,
-      plan.academicCycleId,
-      'DELIVERY',
-    );
-    if (plan.status !== StudentProgramCycleStatus.PLANNED)
-      throw new ConflictException('Only a planned cycle can be activated');
-    if (
-      enrollment.cycles.some(
-        (cycle) => cycle.status === StudentProgramCycleStatus.IN_PROGRESS,
-      )
-    ) {
-      throw new ConflictException(
-        'Complete the current program cycle before activating another',
-      );
-    }
-    const unresolvedPrior = enrollment.cycles.find(
-      (cycle) =>
-        cycle.sequenceSnapshot < plan.sequenceSnapshot &&
-        cycle.isRequiredSnapshot &&
-        cycle.status !== StudentProgramCycleStatus.COMPLETED &&
-        cycle.status !== StudentProgramCycleStatus.SKIPPED,
-    );
-    if (unresolvedPrior)
-      throw new ConflictException(
-        'Resolve all earlier required program cycles first',
-      );
-
-    let cohortId = dto.cohortId;
-    if (cohortId) {
-      const cohort = await tx.cohort.findFirst({
-        where: {
-          id: cohortId,
-          organizationId: orgId,
-          programAcademicCycleId: plan.programAcademicCycleId,
-          programStageId: plan.programStageId,
-          academicCycleId: plan.academicCycleId,
-          status: 'ACTIVE',
-        },
-        select: { id: true },
+    if (!OPEN_STATUSES.includes(enrollment.status)) throw new ConflictException('The student major is not open');
+    if (enrollment.status === StudentProgramEnrollmentStatus.ON_HOLD) throw new ConflictException('Resume the major before starting a stage');
+    const offering = await tx.programStageOffering.findFirst({
+      where: {
+        id: programStageOfferingId,
+        organizationId: orgId,
+        status: ProgramStageOfferingStatus.OPEN,
+        programOffering: { status: ProgramOfferingStatus.OPEN, programId: enrollment.programId, curriculumVersionId: enrollment.curriculumVersionId },
+      },
+      include: { programStage: true, programOffering: { include: { academicCycle: true } } },
+    });
+    if (!offering) throw new BadRequestException('Open stage offering does not match the student program and curriculum');
+    await assertAcademicCycleWritable(tx, orgId, offering.programOffering.academicCycleId, 'DELIVERY');
+    if (cohortOfferingId) {
+      const cohort = await tx.cohortOffering.findFirst({
+        where: { id: cohortOfferingId, organizationId: orgId, status: CohortOfferingStatus.ACTIVE, academicCycleId: offering.programOffering.academicCycleId, programStageOfferingId },
       });
-      if (!cohort)
-        throw new BadRequestException(
-          'Cohort does not match this program cycle and stage',
-        );
-    } else {
-      const matches = await tx.cohort.findMany({
-        where: {
-          organizationId: orgId,
-          programAcademicCycleId: plan.programAcademicCycleId,
-          programStageId: plan.programStageId,
-          academicCycleId: plan.academicCycleId,
-          status: 'ACTIVE',
-        },
-        select: { id: true },
-        take: 2,
-      });
-      if (matches.length > 1)
-        throw new ConflictException(
-          'Choose a cohort because multiple compatible cohorts are available',
-        );
-      cohortId = matches[0]?.id;
+      if (!cohort) throw new BadRequestException('Cohort offering does not match the selected stage offering');
     }
-
-    const now = new Date();
-    const attempt = await tx.studentStageAttempt.create({
+    const existing = await tx.studentStageEnrollment.findFirst({
+      where: { studentProgramEnrollmentId: enrollment.id, programStageOfferingId, status: { in: [StudentStageEnrollmentStatus.PLANNED, StudentStageEnrollmentStatus.IN_PROGRESS] } },
+    });
+    if (existing) return existing;
+    const { evaluation } = await this.progressionEvaluation(tx, orgId, enrollment.id);
+    if (!evaluation.eligibleStageIds.includes(offering.programStageId)) {
+      throw new ConflictException('This stage is not currently eligible under the program progression policy');
+    }
+    if (offering.capacity) {
+      const occupied = await tx.studentStageEnrollment.count({
+        where: {
+          programStageOfferingId,
+          status: { in: [StudentStageEnrollmentStatus.PLANNED, StudentStageEnrollmentStatus.IN_PROGRESS] },
+        },
+      });
+      if (occupied >= offering.capacity) throw new ConflictException('The selected stage offering is at capacity');
+    }
+    const attemptNumber = await tx.studentStageEnrollment.count({
+      where: { studentProgramEnrollmentId: enrollment.id, programStageId: offering.programStageId },
+    });
+    const stageEnrollment = await tx.studentStageEnrollment.create({
       data: {
         organizationId: orgId,
         studentProgramEnrollmentId: enrollment.id,
-        studentProgramEnrollmentCycleId: plan.id,
-        programStageId: plan.programStageId,
-        cohortId: cohortId ?? null,
-        attemptNumber: 1,
-        status: StudentStageAttemptStatus.IN_PROGRESS,
-        reason: dto.reason?.trim(),
-        startedAt: now,
-      },
-    });
-    await tx.studentProgramEnrollmentCycle.update({
-      where: { id: plan.id },
-      data: {
-        status: StudentProgramCycleStatus.IN_PROGRESS,
-        cohortId: cohortId ?? null,
-        reason: dto.reason?.trim(),
-        startedAt: now,
+        programStageId: offering.programStageId,
+        programStageOfferingId,
+        cohortOfferingId,
+        attemptNumber: attemptNumber + 1,
+        status: StudentStageEnrollmentStatus.IN_PROGRESS,
+        stageNameSnapshot: offering.programStage.name,
+        stageCodeSnapshot: offering.programStage.code,
+        cycleNameSnapshot: offering.programOffering.academicCycle.name,
+        cycleCodeSnapshot: offering.programOffering.academicCycle.code,
+        reason,
+        startedAt: new Date(),
       },
     });
     await tx.studentProgramEnrollment.update({
       where: { id: enrollment.id },
-      data: {
-        status: StudentProgramEnrollmentStatus.ACTIVE,
-        startedAt: enrollment.startedAt ?? now,
-      },
+      data: { status: StudentProgramEnrollmentStatus.ACTIVE, startedAt: { set: new Date() } },
     });
-    if (cohortId) {
-      await tx.student.update({ where: { id: studentId }, data: { cohortId } });
-    }
-    return attempt;
+    return stageEnrollment;
   }
 
-  async activateCycle(
-    orgId: string,
-    studentId: string,
-    enrollmentId: string,
-    dto: ActivateProgramCycleDto,
-    actorId: string,
-  ) {
-    return this.runTransaction((tx) =>
-      this.activateCycleInTransaction(
-        tx,
-        orgId,
+  async activateStage(orgId: string, studentId: string, enrollmentId: string, dto: ActivateProgramStageDto, actor: Actor) {
+    const enrollment = await this.ownedEnrollment(orgId, studentId, enrollmentId, actor);
+    return this.runTransaction((tx) => this.activateStageInTransaction(tx, orgId, enrollment, dto.programStageOfferingId, dto.cohortOfferingId, actor.id, dto.reason));
+  }
+
+  async ensureCohortOfferingPlacement(tx: Transaction, orgId: string, studentId: string, cohortOfferingId: string, actorId: string) {
+    const cohort = await tx.cohortOffering.findFirst({
+      where: { id: cohortOfferingId, organizationId: orgId },
+      include: { programStageOffering: { include: { programOffering: true } } },
+    });
+    if (!cohort?.programStageOffering) return null;
+    const enrollment = await tx.studentProgramEnrollment.findFirst({
+      where: {
+        organizationId: orgId,
         studentId,
-        enrollmentId,
-        dto,
-        actorId,
-      ),
-    );
+        programId: cohort.programStageOffering.programOffering.programId,
+        curriculumVersionId: cohort.programStageOffering.programOffering.curriculumVersionId,
+        status: { in: OPEN_STATUSES },
+      },
+    });
+    if (!enrollment) throw new ConflictException('Student is not admitted to the program and curriculum used by this cohort offering');
+    return this.activateStageInTransaction(tx, orgId, enrollment, cohort.programStageOfferingId!, cohortOfferingId, actorId);
   }
 
   async ensureMappedCohortPlacement(
     tx: Transaction,
     orgId: string,
     studentId: string,
-    cohort: {
-      id: string;
-      academicCycleId: string;
-      programAcademicCycleId: string | null;
-      programStageId: string | null;
-    },
+    cohort: { id: string },
     actorId: string,
   ) {
-    if (!cohort.programAcademicCycleId || !cohort.programStageId) {
-      throw new BadRequestException(
-        'Program-mapped cohort is missing its program association or stage',
-      );
-    }
-    const enrollment = await tx.studentProgramEnrollment.findFirst({
-      where: {
-        organizationId: orgId,
-        studentId,
-        status: { in: OPEN_STATUSES },
-      },
-      include: { cycles: true },
-    });
-    if (!enrollment)
-      throw new ConflictException(
-        'Student must have the matching program as their major first',
-      );
-    const plan = enrollment.cycles.find(
-      (cycle) =>
-        cycle.programAcademicCycleId === cohort.programAcademicCycleId &&
-        cycle.programStageId === cohort.programStageId &&
-        cycle.academicCycleId === cohort.academicCycleId,
-    );
-    if (!plan)
-      throw new ConflictException(
-        'Student major does not contain this program cycle and stage',
-      );
-
-    let attempt = await tx.studentStageAttempt.findFirst({
-      where: {
-        studentProgramEnrollmentCycleId: plan.id,
-        programStageId: cohort.programStageId,
-        status: StudentStageAttemptStatus.IN_PROGRESS,
-      },
-      orderBy: { attemptNumber: 'desc' },
-    });
-    if (!attempt) {
-      if (plan.status !== StudentProgramCycleStatus.PLANNED) {
-        throw new ConflictException(
-          'The matching student program cycle is not available for cohort placement',
-        );
-      }
-      attempt = await this.activateCycleInTransaction(
-        tx,
-        orgId,
-        studentId,
-        enrollment.id,
-        {
-          studentProgramEnrollmentCycleId: plan.id,
-          cohortId: cohort.id,
-          reason: 'Activated by cohort placement',
-        },
-        actorId,
-      );
-    } else if (attempt.cohortId && attempt.cohortId !== cohort.id) {
-      throw new ConflictException(
-        'The current stage attempt is already assigned to another cohort',
-      );
-    } else if (!attempt.cohortId) {
-      attempt = await tx.studentStageAttempt.update({
-        where: { id: attempt.id },
-        data: { cohortId: cohort.id },
-      });
-      await tx.studentProgramEnrollmentCycle.update({
-        where: { id: plan.id },
-        data: { cohortId: cohort.id },
-      });
-    }
-    return { enrollment, plan, attempt };
+    return this.ensureCohortOfferingPlacement(tx, orgId, studentId, cohort.id, actorId);
   }
 
   async ensureMappedSectionEnrollment(
     tx: Transaction,
     orgId: string,
     studentId: string,
-    section: {
-      academicCycleId: string;
-      cohort: {
-        id: string;
-        academicCycleId: string;
-        programAcademicCycleId: string | null;
-        programStageId: string | null;
-      } | null;
-      requirementMappings: Array<{
-        programAcademicCycleId: string;
-        stageCourseRequirement: { programStageId: string };
-      }>;
-    },
-    actorId: string,
+    section: { id: string; academicCycleId: string; programMappings?: Array<{ programStageOfferingId: string }> },
+    _actorId: string,
   ) {
-    if (section.cohort) {
-      return this.ensureMappedCohortPlacement(
-        tx,
-        orgId,
-        studentId,
-        section.cohort,
-        actorId,
-      );
-    }
-    const mapping = section.requirementMappings[0];
-    if (!mapping)
-      throw new ConflictException(
-        'Program-mapped section has no curriculum requirement mapping',
-      );
-    const enrollment = await tx.studentProgramEnrollment.findFirst({
+    const mappings = section.programMappings ?? await tx.sectionProgramMapping.findMany({ where: { sectionId: section.id } });
+    if (!mappings.length) return null;
+    const active = await tx.studentStageEnrollment.findFirst({
       where: {
         organizationId: orgId,
-        studentId,
-        status: { in: OPEN_STATUSES },
+        studentProgramEnrollment: { studentId, status: { in: OPEN_STATUSES } },
+        programStageOfferingId: { in: mappings.map((mapping) => mapping.programStageOfferingId) },
+        status: StudentStageEnrollmentStatus.IN_PROGRESS,
       },
-      include: { cycles: true },
+      include: { studentProgramEnrollment: true },
     });
-    if (!enrollment)
-      throw new ConflictException(
-        'Student must have the matching program as their major first',
-      );
-    const plan = enrollment.cycles.find(
-      (cycle) =>
-        cycle.academicCycleId === section.academicCycleId &&
-        cycle.programAcademicCycleId === mapping.programAcademicCycleId &&
-        cycle.programStageId === mapping.stageCourseRequirement.programStageId,
-    );
-    if (!plan)
-      throw new ConflictException(
-        'Student major does not contain this section program cycle and stage',
-      );
-    if (plan.status !== StudentProgramCycleStatus.IN_PROGRESS) {
-      throw new ConflictException(
-        'Activate the matching program cycle before manual section enrollment',
-      );
-    }
-    const attempt = await tx.studentStageAttempt.findFirst({
-      where: {
-        studentProgramEnrollmentCycleId: plan.id,
-        programStageId: plan.programStageId,
-        status: StudentStageAttemptStatus.IN_PROGRESS,
-      },
-      orderBy: { attemptNumber: 'desc' },
-    });
-    if (!attempt)
-      throw new ConflictException(
-        'No in-progress stage attempt exists for this section',
-      );
-    return { enrollment, plan, attempt };
+    if (!active) throw new ConflictException('Student must have an active stage enrollment served by this section');
+    return { enrollment: active.studentProgramEnrollment, stageEnrollment: active, attempt: active };
   }
 
-  async completeCycle(
+  private async resolveStage(
     orgId: string,
     studentId: string,
     enrollmentId: string,
-    cycleId: string,
-    dto: ResolveProgramCycleDto,
-    actorId: string,
+    stageEnrollmentId: string,
+    dto: ResolveProgramStageDto,
+    actor: Actor,
+    status: StudentStageEnrollmentStatus,
+    outcome: StudentProgressionOutcome,
+    idempotencyKey?: string,
+    target?: { programStageOfferingId: string; cohortOfferingId?: string },
+    completeProgramAfterResolution = false,
   ) {
+    const enrollment = await this.ownedEnrollment(orgId, studentId, enrollmentId, actor);
+    const targetCohortOfferingId = target?.cohortOfferingId;
     return this.runTransaction(async (tx) => {
-      const enrollment = await this.ownedEnrollment(
-        tx,
-        orgId,
-        studentId,
-        enrollmentId,
-      );
-      const plan = enrollment.cycles.find((cycle) => cycle.id === cycleId);
-      if (!plan)
-        throw new NotFoundException('Program cycle plan row not found');
-      await assertAcademicCycleWritable(
-        tx,
-        orgId,
-        plan.academicCycleId,
-        'CLOSEOUT',
-      );
-      if (plan.status !== StudentProgramCycleStatus.IN_PROGRESS)
-        throw new ConflictException(
-          'Only an in-progress program cycle can be completed',
-        );
-      const attempt = await tx.studentStageAttempt.findFirst({
-        where: {
-          studentProgramEnrollmentCycleId: plan.id,
-          status: StudentStageAttemptStatus.IN_PROGRESS,
-        },
-        orderBy: { attemptNumber: 'desc' },
-      });
-      if (!attempt)
-        throw new ConflictException(
-          'No in-progress stage attempt exists for this cycle',
-        );
-      const now = new Date();
-      await tx.studentStageAttempt.update({
-        where: { id: attempt.id },
-        data: {
-          status: StudentStageAttemptStatus.COMPLETED,
-          reason: dto.reason.trim(),
-          resultSnapshot: dto.resultSnapshot as
-            | Prisma.InputJsonValue
-            | undefined,
-          completedAt: now,
-          resolvedById: actorId,
-        },
-      });
-      return tx.studentProgramEnrollmentCycle.update({
-        where: { id: plan.id },
-        data: {
-          status: StudentProgramCycleStatus.COMPLETED,
-          reason: dto.reason.trim(),
-          resultSnapshot: dto.resultSnapshot as
-            | Prisma.InputJsonValue
-            | undefined,
-          completedAt: now,
-          resolvedById: actorId,
-        },
-      });
-    });
-  }
-
-  async skipCycle(
-    orgId: string,
-    studentId: string,
-    enrollmentId: string,
-    cycleId: string,
-    dto: ResolveProgramCycleDto,
-    actorId: string,
-  ) {
-    return this.runTransaction(async (tx) => {
-      const enrollment = await this.ownedEnrollment(
-        tx,
-        orgId,
-        studentId,
-        enrollmentId,
-      );
-      const plan = enrollment.cycles.find((cycle) => cycle.id === cycleId);
-      if (!plan)
-        throw new NotFoundException('Program cycle plan row not found');
-      await assertAcademicCycleWritable(
-        tx,
-        orgId,
-        plan.academicCycleId,
-        'CLOSEOUT',
-      );
-      if (
-        plan.status !== StudentProgramCycleStatus.PLANNED &&
-        plan.status !== StudentProgramCycleStatus.FAILED
-      ) {
-        throw new ConflictException(
-          'Only a planned or failed program cycle can be skipped',
-        );
+      if (idempotencyKey) {
+        const existingDecision = await tx.studentProgressionDecision.findFirst({ where: { organizationId: orgId, idempotencyKey } });
+        if (existingDecision) return tx.studentStageEnrollment.findUniqueOrThrow({ where: { id: stageEnrollmentId } });
       }
-      const attemptNumber =
-        (await tx.studentStageAttempt.count({
-          where: { studentProgramEnrollmentCycleId: plan.id },
-        })) + 1;
-      const now = new Date();
-      await tx.studentStageAttempt.create({
+      const stage = await tx.studentStageEnrollment.findFirst({
+        where: { id: stageEnrollmentId, studentProgramEnrollmentId: enrollmentId, status: StudentStageEnrollmentStatus.IN_PROGRESS },
+      });
+      if (!stage) throw new ConflictException('Only an in-progress stage can be resolved');
+      const evidence = await this.stageEvidenceSnapshot(tx, orgId, enrollmentId, stage.id);
+      const isSkip = status === StudentStageEnrollmentStatus.SKIPPED;
+      const isOverride = isSkip || (!evidence.eligibleToComplete && Boolean(dto.overrideReason?.trim()));
+      if (status === StudentStageEnrollmentStatus.COMPLETED && !evidence.eligibleToComplete && !isOverride) {
+        throw new ConflictException(`${evidence.blockers.map((blocker) => blocker.message).join(' ')} Supply an override reason to continue.`);
+      }
+      let resultSnapshot: Record<string, unknown> = { evidence, operator: dto.resultSnapshot ?? null };
+      const targetOffering = target
+        ? await tx.programStageOffering.findFirst({
+            where: {
+              id: target.programStageOfferingId,
+              organizationId: orgId,
+              status: ProgramStageOfferingStatus.OPEN,
+              programOffering: { status: ProgramOfferingStatus.OPEN },
+            },
+            select: { id: true, programStageId: true },
+          })
+        : null;
+      if (target && !targetOffering) throw new BadRequestException('Target stage offering is not open');
+      const updated = await tx.studentStageEnrollment.update({
+        where: { id: stage.id },
+        data: { status, completedAt: new Date(), resolvedById: actor.id, reason: dto.overrideReason?.trim() || dto.reason, resultSnapshot: resultSnapshot as unknown as Prisma.InputJsonValue },
+      });
+      if (completeProgramAfterResolution) {
+        const completion = await this.progressionEvaluation(tx, orgId, enrollmentId);
+        if (!completion.evaluation.canCompleteProgram && completion.enrollment.completionModeSnapshot !== ProgramCompletionMode.MANUAL) {
+          throw new ConflictException('The configured program completion requirements have not been met after resolving this stage');
+        }
+        resultSnapshot = { ...resultSnapshot, completion: completion.evaluation };
+      }
+      await tx.studentProgressionDecision.create({
         data: {
           organizationId: orgId,
-          studentProgramEnrollmentId: enrollment.id,
-          studentProgramEnrollmentCycleId: plan.id,
-          programStageId: plan.programStageId,
-          cohortId: plan.cohortId,
-          attemptNumber,
-          status: StudentStageAttemptStatus.SKIPPED,
-          reason: dto.reason.trim(),
-          resultSnapshot: dto.resultSnapshot as
-            | Prisma.InputJsonValue
-            | undefined,
-          completedAt: now,
-          resolvedById: actorId,
+          studentProgramEnrollmentId: enrollmentId,
+          sourceStageEnrollmentId: stage.id,
+          sourceStageId: stage.programStageId,
+          outcome,
+          targetStageId: targetOffering?.programStageId,
+          targetStageOfferingId: targetOffering?.id,
+          recommendationSnapshot: { outcome: evidence.eligibleToComplete ? StudentProgressionOutcome.ADVANCE : StudentProgressionOutcome.REPEAT, blockers: evidence.blockers } as Prisma.InputJsonValue,
+          reason: dto.overrideReason?.trim() || dto.reason,
+          resultSnapshot: resultSnapshot as unknown as Prisma.InputJsonValue,
+          isOverride,
+          idempotencyKey,
+          decidedById: actor.id,
         },
       });
-      return tx.studentProgramEnrollmentCycle.update({
-        where: { id: plan.id },
-        data: {
-          status: StudentProgramCycleStatus.SKIPPED,
-          reason: dto.reason.trim(),
-          resultSnapshot: dto.resultSnapshot as
-            | Prisma.InputJsonValue
-            | undefined,
-          completedAt: now,
-          resolvedById: actorId,
-        },
-      });
-    });
-  }
-
-  async repeatCycle(
-    orgId: string,
-    studentId: string,
-    enrollmentId: string,
-    cycleId: string,
-    dto: RepeatProgramCycleDto,
-    actorId: string,
-  ) {
-    return this.runTransaction(async (tx) => {
-      const enrollment = await this.ownedEnrollment(
-        tx,
-        orgId,
-        studentId,
-        enrollmentId,
-      );
-      const plan = enrollment.cycles.find((cycle) => cycle.id === cycleId);
-      if (!plan)
-        throw new NotFoundException('Program cycle plan row not found');
-      await assertAcademicCycleWritable(
-        tx,
-        orgId,
-        plan.academicCycleId,
-        'DELIVERY',
-      );
-      if (
-        plan.status !== StudentProgramCycleStatus.FAILED &&
-        plan.status !== StudentProgramCycleStatus.COMPLETED
-      ) {
-        throw new ConflictException(
-          'Only a failed or completed cycle can be repeated',
-        );
-      }
-      if (
-        enrollment.cycles.some(
-          (cycle) =>
-            cycle.id !== plan.id &&
-            cycle.status === StudentProgramCycleStatus.IN_PROGRESS,
-        )
-      ) {
-        throw new ConflictException(
-          'Resolve the current in-progress cycle before repeating another',
-        );
-      }
-      if (dto.cohortId) {
-        const cohort = await tx.cohort.findFirst({
-          where: {
-            id: dto.cohortId,
-            organizationId: orgId,
-            programAcademicCycleId: plan.programAcademicCycleId,
-            programStageId: plan.programStageId,
-            academicCycleId: plan.academicCycleId,
-            status: 'ACTIVE',
-          },
-          select: { id: true },
+      if (completeProgramAfterResolution) {
+        const completedEnrollment = await tx.studentProgramEnrollment.update({
+          where: { id: enrollmentId },
+          data: { status: StudentProgramEnrollmentStatus.COMPLETED, openSlot: null, endedAt: new Date(), endedById: actor.id, exitReason: dto.overrideReason?.trim() || dto.reason },
         });
-        if (!cohort)
-          throw new BadRequestException(
-            'Cohort does not match this program cycle and stage',
-          );
+        return { resolvedStage: updated, completedEnrollment };
       }
-      const attemptNumber =
-        (await tx.studentStageAttempt.count({
-          where: { studentProgramEnrollmentCycleId: plan.id },
-        })) + 1;
-      const now = new Date();
-      const attempt = await tx.studentStageAttempt.create({
-        data: {
-          organizationId: orgId,
-          studentProgramEnrollmentId: enrollment.id,
-          studentProgramEnrollmentCycleId: plan.id,
-          programStageId: plan.programStageId,
-          cohortId: dto.cohortId ?? plan.cohortId,
-          attemptNumber,
-          status: StudentStageAttemptStatus.IN_PROGRESS,
-          reason: dto.reason.trim(),
-          startedAt: now,
-        },
-      });
-      await tx.studentProgramEnrollmentCycle.update({
-        where: { id: plan.id },
-        data: {
-          status: StudentProgramCycleStatus.IN_PROGRESS,
-          cohortId: dto.cohortId ?? plan.cohortId,
-          reason: dto.reason.trim(),
-          startedAt: now,
-          completedAt: null,
-          resolvedById: null,
-        },
-      });
-      return attempt;
+      if (!targetOffering) return updated;
+      const next = await this.activateStageInTransaction(tx, orgId, enrollment, targetOffering.id, targetCohortOfferingId, actor.id, dto.overrideReason?.trim() || dto.reason);
+      return { resolvedStage: updated, targetStageEnrollment: next };
     });
   }
 
-  async completeProgram(
-    orgId: string,
-    studentId: string,
-    enrollmentId: string,
-    dto: ResolveProgramCycleDto,
-    actorId: string,
-  ) {
+  async completeStage(orgId: string, studentId: string, enrollmentId: string, stageId: string, dto: ResolveProgramStageDto, actor: Actor, idempotencyKey?: string) {
+    return this.resolveStage(orgId, studentId, enrollmentId, stageId, dto, actor, StudentStageEnrollmentStatus.COMPLETED, StudentProgressionOutcome.ADVANCE, idempotencyKey);
+  }
+
+  async advanceStage(orgId: string, studentId: string, enrollmentId: string, stageId: string, dto: AdvanceProgramStageDto, actor: Actor, idempotencyKey?: string) {
+    return this.resolveStage(orgId, studentId, enrollmentId, stageId, dto, actor, StudentStageEnrollmentStatus.COMPLETED, StudentProgressionOutcome.ADVANCE, idempotencyKey, {
+      programStageOfferingId: dto.targetProgramStageOfferingId,
+      cohortOfferingId: dto.cohortOfferingId,
+    });
+  }
+
+  async completeStageAndProgram(orgId: string, studentId: string, enrollmentId: string, stageId: string, dto: ResolveProgramStageDto, actor: Actor, idempotencyKey?: string) {
+    return this.resolveStage(
+      orgId,
+      studentId,
+      enrollmentId,
+      stageId,
+      dto,
+      actor,
+      StudentStageEnrollmentStatus.COMPLETED,
+      StudentProgressionOutcome.COMPLETE,
+      idempotencyKey,
+      undefined,
+      true,
+    );
+  }
+
+  async skipStage(orgId: string, studentId: string, enrollmentId: string, stageId: string, dto: ResolveProgramStageDto, actor: Actor, idempotencyKey?: string) {
+    return this.resolveStage(orgId, studentId, enrollmentId, stageId, dto, actor, StudentStageEnrollmentStatus.SKIPPED, StudentProgressionOutcome.ADVANCE, idempotencyKey);
+  }
+
+  async repeatStage(orgId: string, studentId: string, enrollmentId: string, stageEnrollmentId: string, dto: RepeatProgramStageDto, actor: Actor, idempotencyKey?: string) {
+    const enrollment = await this.ownedEnrollment(orgId, studentId, enrollmentId, actor);
+    if (!dto.targetProgramStageOfferingId) throw new BadRequestException('Choose an open offering for the repeated stage');
+    const targetProgramStageOfferingId = dto.targetProgramStageOfferingId;
     return this.runTransaction(async (tx) => {
-      const enrollment = await this.ownedEnrollment(
-        tx,
-        orgId,
-        studentId,
-        enrollmentId,
-      );
-      if (!OPEN_STATUSES.includes(enrollment.status))
-        throw new ConflictException('Program enrollment is already closed');
-      const completedRequired = enrollment.cycles.filter(
-        (cycle) =>
-          cycle.isRequiredSnapshot &&
-          (cycle.status === StudentProgramCycleStatus.COMPLETED ||
-            cycle.status === StudentProgramCycleStatus.SKIPPED),
-      ).length;
-      if (completedRequired < enrollment.requiredCycleCountSnapshot) {
-        throw new ConflictException(
-          `Complete all ${enrollment.requiredCycleCountSnapshot} required program cycles first`,
-        );
+      if (idempotencyKey) {
+        const existingDecision = await tx.studentProgressionDecision.findFirst({ where: { organizationId: orgId, idempotencyKey } });
+        if (existingDecision) return tx.studentStageEnrollment.findUniqueOrThrow({ where: { id: stageEnrollmentId } });
       }
-      const now = new Date();
-      return tx.studentProgramEnrollment.update({
-        where: { id: enrollment.id },
-        data: {
-          status: StudentProgramEnrollmentStatus.COMPLETED,
-          openSlot: null,
-          endedAt: now,
-          endedById: actorId,
-          exitReason: dto.reason.trim(),
-          metadata: {
-            completionResult: dto.resultSnapshot ?? null,
-          } as Prisma.InputJsonValue,
+      const source = await tx.studentStageEnrollment.findFirst({ where: { id: stageEnrollmentId, studentProgramEnrollmentId: enrollmentId } });
+      if (!source) throw new NotFoundException('Stage enrollment not found');
+      if (![StudentStageEnrollmentStatus.IN_PROGRESS, StudentStageEnrollmentStatus.FAILED].includes(source.status as never)) {
+        throw new ConflictException('Only an in-progress or failed stage can be repeated');
+      }
+      const target = await tx.programStageOffering.findFirst({
+        where: {
+          id: targetProgramStageOfferingId,
+          organizationId: orgId,
+          programStageId: source.programStageId,
+          status: ProgramStageOfferingStatus.OPEN,
+          programOffering: { status: ProgramOfferingStatus.OPEN, programId: enrollment.programId, curriculumVersionId: enrollment.curriculumVersionId },
         },
-        include: ENROLLMENT_INCLUDE,
+        select: { id: true },
+      });
+      if (!target) throw new BadRequestException('The repeat target must be an open offering of the same program stage');
+      const evidence = await this.stageEvidenceSnapshot(tx, orgId, enrollmentId, source.id);
+      if (source.status === StudentStageEnrollmentStatus.IN_PROGRESS) {
+        await tx.studentStageEnrollment.update({
+          where: { id: source.id },
+          data: { status: StudentStageEnrollmentStatus.FAILED, completedAt: new Date(), resolvedById: actor.id, reason: dto.reason },
+        });
+      }
+      await tx.studentProgressionDecision.create({
+        data: {
+          organizationId: orgId,
+          studentProgramEnrollmentId: enrollmentId,
+          sourceStageEnrollmentId: source.id,
+          sourceStageId: source.programStageId,
+          outcome: StudentProgressionOutcome.REPEAT,
+          targetStageId: source.programStageId,
+          targetStageOfferingId: targetProgramStageOfferingId,
+          recommendationSnapshot: { outcome: evidence.eligibleToComplete ? StudentProgressionOutcome.ADVANCE : StudentProgressionOutcome.REPEAT, blockers: evidence.blockers } as Prisma.InputJsonValue,
+          resultSnapshot: { evidence } as unknown as Prisma.InputJsonValue,
+          reason: dto.reason,
+          decidedById: actor.id,
+          idempotencyKey,
+        },
+      });
+      return this.activateStageInTransaction(tx, orgId, enrollment, targetProgramStageOfferingId, dto.cohortOfferingId, actor.id, dto.reason);
+    });
+  }
+
+  async completeProgram(orgId: string, studentId: string, enrollmentId: string, dto: ResolveProgramStageDto, actor: Actor, idempotencyKey?: string) {
+    await this.ownedEnrollment(orgId, studentId, enrollmentId, actor);
+    return this.runTransaction(async (tx) => {
+      if (idempotencyKey) {
+        const existingDecision = await tx.studentProgressionDecision.findFirst({ where: { organizationId: orgId, idempotencyKey } });
+        if (existingDecision) return tx.studentProgramEnrollment.findUniqueOrThrow({ where: { id: enrollmentId } });
+      }
+      const { enrollment: context, evaluation } = await this.progressionEvaluation(tx, orgId, enrollmentId);
+      if (!OPEN_STATUSES.includes(context.status)) throw new ConflictException('This major is already closed');
+      if (!evaluation.canCompleteProgram && context.completionModeSnapshot !== ProgramCompletionMode.MANUAL) {
+        throw new ConflictException('The configured program completion requirements have not been met');
+      }
+      await tx.studentProgressionDecision.create({
+        data: {
+          organizationId: orgId,
+          studentProgramEnrollmentId: enrollmentId,
+          outcome: StudentProgressionOutcome.COMPLETE,
+          reason: dto.reason,
+          recommendationSnapshot: evaluation as unknown as Prisma.InputJsonValue,
+          resultSnapshot: { progression: evaluation, operator: dto.resultSnapshot ?? null } as unknown as Prisma.InputJsonValue,
+          decidedById: actor.id,
+          idempotencyKey,
+        },
+      });
+      return tx.studentProgramEnrollment.update({
+        where: { id: enrollmentId },
+        data: { status: StudentProgramEnrollmentStatus.COMPLETED, openSlot: null, endedAt: new Date(), endedById: actor.id, exitReason: dto.reason },
       });
     });
   }

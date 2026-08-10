@@ -7,12 +7,7 @@ export class AdmitStudentProgramDto {
 
   @IsString()
   @IsOptional()
-  entryAcademicCycleId?: string;
-
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  entryStageSequence?: number;
+  entryStageId?: string;
 }
 
 export class TransferStudentProgramDto extends AdmitStudentProgramDto {
@@ -37,21 +32,21 @@ export class WithdrawStudentProgramDto extends ProgramEnrollmentReasonDto {
   replacementPrimaryDepartmentId?: string;
 }
 
-export class ActivateProgramCycleDto {
+export class ActivateProgramStageDto {
   @IsString()
   @IsNotEmpty()
-  studentProgramEnrollmentCycleId!: string;
+  programStageOfferingId!: string;
 
   @IsString()
   @IsOptional()
-  cohortId?: string;
+  cohortOfferingId?: string;
 
   @IsString()
   @IsOptional()
   reason?: string;
 }
 
-export class ResolveProgramCycleDto {
+export class ResolveProgramStageDto {
   @IsString()
   @IsNotEmpty()
   reason!: string;
@@ -59,14 +54,33 @@ export class ResolveProgramCycleDto {
   @IsObject()
   @IsOptional()
   resultSnapshot?: Record<string, unknown>;
+
+  @IsString()
+  @IsNotEmpty()
+  @IsOptional()
+  overrideReason?: string;
 }
 
-export class RepeatProgramCycleDto {
+export class AdvanceProgramStageDto extends ResolveProgramStageDto {
+  @IsString()
+  @IsNotEmpty()
+  targetProgramStageOfferingId!: string;
+
+  @IsString()
+  @IsOptional()
+  cohortOfferingId?: string;
+}
+
+export class RepeatProgramStageDto {
   @IsString()
   @IsNotEmpty()
   reason!: string;
 
   @IsString()
   @IsOptional()
-  cohortId?: string;
+  targetProgramStageOfferingId?: string;
+
+  @IsString()
+  @IsOptional()
+  cohortOfferingId?: string;
 }

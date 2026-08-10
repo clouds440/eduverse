@@ -19,17 +19,12 @@ export class CopyForwardDto {
   @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED)
   @IsString()
   @IsNotEmpty()
-  sourceProgramAcademicCycleId?: string;
+  sourceProgramStageOfferingId?: string;
 
   @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED)
   @IsString()
   @IsNotEmpty()
-  targetProgramAcademicCycleId?: string;
-
-  @ValidateIf((dto) => dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED)
-  @IsString()
-  @IsNotEmpty()
-  targetProgramStageId?: string;
+  targetProgramStageOfferingId?: string;
 
   @IsString()
   @IsNotEmpty()

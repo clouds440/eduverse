@@ -60,10 +60,6 @@ export class TransitionCurriculumDto {
 export class CreateProgramStageDto {
   @IsString()
   @IsNotEmpty()
-  programAcademicCycleId: string;
-
-  @IsString()
-  @IsNotEmpty()
   name: string;
 
   @IsString()

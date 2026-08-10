@@ -19,7 +19,7 @@ function createTransactionClient(status: AcademicCycleStatus) {
     attendanceSession: { count: jest.fn().mockResolvedValue(0) },
     evaluation: { count: jest.fn().mockResolvedValue(0) },
     preferenceWindow: { count: jest.fn().mockResolvedValue(0) },
-    studentProgramEnrollmentCycle: { count: jest.fn().mockResolvedValue(0) },
+    studentStageEnrollment: { count: jest.fn().mockResolvedValue(0) },
   };
 }
 
@@ -105,7 +105,7 @@ describe('AcademicCyclesService lifecycle transitions', () => {
 
   it('blocks completion while student program progression is unresolved', async () => {
     const tx = createTransactionClient(AcademicCycleStatus.ACTIVE);
-    tx.studentProgramEnrollmentCycle.count.mockResolvedValue(2);
+    tx.studentStageEnrollment.count.mockResolvedValue(2);
     const { service } = createService(tx);
 
     await expect(service.transitionCycle(

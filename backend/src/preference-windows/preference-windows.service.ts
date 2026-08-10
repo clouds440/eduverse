@@ -374,7 +374,12 @@ export class PreferenceWindowsService {
         where: {
           organizationId: window.organizationId,
           status: { not: StudentStatus.DELETED },
-          cohortId: { in: window.audiences.map((a) => a.cohortId).filter(Boolean) as string[] },
+          cohortMemberships: {
+            some: {
+              leftAt: null,
+              cohortOffering: { cohortId: { in: window.audiences.map((a) => a.cohortId).filter(Boolean) as string[] } },
+            },
+          },
         },
         include: { user: { select: { id: true, name: true, email: true } }, enrollments: { select: { sectionId: true } } },
       }),

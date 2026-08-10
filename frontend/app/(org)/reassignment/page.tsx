@@ -1,612 +1,74 @@
-﻿'use client';
+'use client';
 
-import { useMemo, useState, type Dispatch } from 'react';
+import { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { AcademicCycle, ApiError, Cohort, CopyForwardPreview, ProgramClassificationStatus, ProgramDeliveryOption, Role, Section, Student } from '@/types';
-import { api } from '@/lib/api';
-import { searchFilterLookup } from '@/lib/filterLookups';
+import { ArrowLeftRight, Copy, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useGlobal, type GlobalAction } from '@/context/GlobalContext';
+import { useGlobal } from '@/context/GlobalContext';
+import { api } from '@/lib/api';
+import { AcademicCycle, Cohort, CopyForwardPreview, PaginatedResponse, ProgramClassificationStatus, ProgramDeliveryOption, Role, Section } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
-import { RemoteFilterSelect } from '@/components/ui/RemoteFilterSelect';
-import { DocsLink } from '@/components/ui/DocsLink';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Loading } from '@/components/ui/Loading';
-import { PageHeader, PageShell, PageTabs, ResourcePanel } from '@/components/ui/PageShell';
+import { PageHeader, PageShell, PageTabs } from '@/components/ui/PageShell';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { Toggle } from '@/components/ui/Toggle';
-import { ArrowRight, ArrowLeftRight, BookOpen, CheckCircle2, Copy, GitBranch, UserMinus, Users } from 'lucide-react';
 
-const REASSIGNMENT_TABS = [
-    { value: 'copy-forward', label: 'Copy Forward', icon: Copy },
-    { value: 'reassign', label: 'Cohort Reassignment', icon: Users },
-] as const;
-
-type ReassignmentTab = typeof REASSIGNMENT_TABS[number]['value'];
+type Tab = 'copy' | 'reassign';
 
 export default function ReassignmentPage() {
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
-    const [activeTab, setActiveTab] = useState<ReassignmentTab>('copy-forward');
-
-    const cyclesKey = token ? ['academicCycles', { limit: 100 }] as const : null;
-    const { data: cyclesData, isLoading, error, mutate } = useSWR<{ data: AcademicCycle[] }>(cyclesKey);
-
-    if (!token) return <Loading className="h-full" text="Authenticating..." />;
-    if (isLoading && !cyclesData) return <Loading className="h-full" text="Loading academic transitions..." />;
+    const [tab, setTab] = useState<Tab>('copy');
+    const { data: cycles, error, isLoading, mutate } = useSWR<PaginatedResponse<AcademicCycle>>(token ? ['academicCycles', { limit: 100 }] : null);
+    if (!token || isLoading) return <Loading className="h-full" text="Loading academic transitions..." />;
     if (error) return <ErrorState error={error} onRetry={() => mutate()} />;
-
-    if (user?.role !== Role.ORG_ADMIN && user?.role !== Role.SUB_ADMIN) {
-        return (
-            <div className="flex h-full items-center justify-center">
-                <StatusBanner
-                    title="Access restricted"
-                    description="Only organization admins and sub admins can run academic transitions."
-                    variant="warning"
-                />
-            </div>
-        );
-    }
-
-    const cycles = cyclesData?.data || [];
-    return (
-        <PageShell className="gap-0.5">
-            <PageHeader
-                title="Academic Transitions"
-                description={<>Copy setup or reassign students across cohorts and sections after review. <DocsLink href="/docs/cohorts-reassignment#reassignment">Read transition docs</DocsLink></>}
-                icon={ArrowRight}
-                meta={<Badge variant="neutral" size="sm">{cycles.length} cycles</Badge>}
-                breadcrumbs={[
-                    { label: 'Organization' },
-                    { label: 'Academics' },
-                    { label: 'Reassignment' },
-                ]}
-            />
-
-            <ResourcePanel>
-                <div className="shrink-0 border-b border-border/60 rounded-t-lg bg-card/80">
-                    <PageTabs
-                        ariaLabel="Academic transition navigation"
-                        items={REASSIGNMENT_TABS}
-                        activeValue={activeTab}
-                        onValueChange={setActiveTab}
-                        tone="panel"
-                        hideOnScroll
-                    />
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
-                    {activeTab === 'copy-forward' ? (
-                        <CopyForwardView cycles={cycles} token={token} dispatch={dispatch} />
-                    ) : (
-                        <ReassignmentView cycles={cycles} token={token} dispatch={dispatch} />
-                    )}
-                </div>
-            </ResourcePanel>
-        </PageShell>
-    );
+    if (user?.role !== Role.ORG_ADMIN && user?.role !== Role.SUB_ADMIN) return <div className="flex h-full items-center justify-center"><StatusBanner title="Access restricted" description="Only organization admins and sub admins can run academic transitions." variant="warning" /></div>;
+    return <PageShell className="overflow-y-auto"><PageHeader title="Academic Transitions" description="Copy delivery setup or move students between cycle-specific sections and cohort offerings." icon={ArrowLeftRight} breadcrumbs={[{ label: 'Academics' }, { label: 'Transitions' }]} /><PageTabs ariaLabel="Transition workflow" activeValue={tab} onValueChange={setTab} items={[{ value: 'copy', label: 'Copy Forward', icon: Copy }, { value: 'reassign', label: 'Reassign Students', icon: Users }]} />{tab === 'copy' ? <CopyForward cycles={cycles?.data || []} token={token} dispatch={dispatch} /> : <Reassign cycles={cycles?.data || []} token={token} dispatch={dispatch} />}</PageShell>;
 }
 
-function StepBlock({
-    step,
-    title,
-    description,
-    children,
-}: {
-    step: number;
-    title: string;
-    description: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <section className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">
-            <div className="mb-4 flex items-start gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-black text-primary-foreground">
-                    {step}
-                </div>
-                <div className="min-w-0">
-                    <h2 className="text-base font-black text-foreground">{title}</h2>
-                    <p className="mt-1 text-sm font-medium text-muted-foreground">{description}</p>
-                </div>
-            </div>
-            {children}
-        </section>
-    );
-}
-
-function getApiErrorMessage(err: unknown, fallback: string) {
-    const apiError = err as ApiError;
-    const rawMessage = apiError?.response?.data?.message || apiError?.message || fallback;
-    return Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
-}
-
-function formatCount(count: number, singular: string, plural = `${singular}s`) {
-    return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function CopyForwardView({ cycles, token, dispatch }: { cycles: AcademicCycle[]; token: string; dispatch: Dispatch<GlobalAction> }) {
+function CopyForward({ cycles, token, dispatch }: { cycles: AcademicCycle[]; token: string; dispatch: ReturnType<typeof useGlobal>['dispatch'] }) {
     const [fromCycleId, setFromCycleId] = useState('');
     const [toCycleId, setToCycleId] = useState('');
     const [classification, setClassification] = useState(ProgramClassificationStatus.STANDALONE);
-    const [sourceProgramAcademicCycleId, setSourceProgramAcademicCycleId] = useState('');
-    const [targetProgramAcademicCycleId, setTargetProgramAcademicCycleId] = useState('');
-    const [targetProgramStageId, setTargetProgramStageId] = useState('');
+    const [sourceId, setSourceId] = useState('');
+    const [targetId, setTargetId] = useState('');
     const [options, setOptions] = useState({ copySchedules: false, copyMaterials: false });
-    const [isExecuting, setIsExecuting] = useState(false);
-    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-    const [copyPreview, setCopyPreview] = useState<CopyForwardPreview | null>(null);
-    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-
-    const fromCycle = cycles.find((cycle) => cycle.id === fromCycleId);
-    const toCycle = cycles.find((cycle) => cycle.id === toCycleId);
-    const { data: sourceDeliveryOptions = [] } = useSWR<ProgramDeliveryOption[]>(
-        fromCycleId ? ['copy-forward-source-programs', fromCycleId, token] : null,
-        () => api.programs.getDeliveryOptions(token, fromCycleId),
-    );
-    const { data: targetDeliveryOptions = [] } = useSWR<ProgramDeliveryOption[]>(
-        toCycleId ? ['copy-forward-target-programs', toCycleId, token] : null,
-        () => api.programs.getDeliveryOptions(token, toCycleId),
-    );
-    const sourceAssociation = sourceDeliveryOptions.find((option) => option.id === sourceProgramAcademicCycleId);
-    const eligibleTargets = targetDeliveryOptions.filter((option) => !sourceAssociation || option.programId === sourceAssociation.programId);
-    const targetAssociation = eligibleTargets.find((option) => option.id === targetProgramAcademicCycleId);
-    const copyForwardPayload = useMemo(() => ({
-        programClassificationStatus: classification,
-        ...(classification === ProgramClassificationStatus.PROGRAM_MAPPED ? {
-            sourceProgramAcademicCycleId,
-            targetProgramAcademicCycleId,
-            targetProgramStageId,
-        } : {}),
-        fromCycleId,
-        toCycleId,
-        copySchedules: options.copySchedules,
-        copyMaterials: options.copyMaterials,
-    }), [classification, fromCycleId, options.copyMaterials, options.copySchedules, sourceProgramAcademicCycleId, targetProgramAcademicCycleId, targetProgramStageId, toCycleId]);
-    const previewItems = copyPreview ? [
-        formatCount(copyPreview.sections, 'section'),
-        ...(options.copySchedules ? [formatCount(copyPreview.schedules, 'schedule')] : []),
-        ...(options.copyMaterials ? [formatCount(copyPreview.materials, 'material')] : []),
-    ] : [];
-    const previewTotal = copyPreview
-        ? copyPreview.sections
-        + (options.copySchedules ? copyPreview.schedules : 0)
-        + (options.copyMaterials ? copyPreview.materials : 0)
-        : 0;
-
-    const openCopyForwardConfirm = async () => {
-        if (!fromCycleId || !toCycleId) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Please select both source and target cycles.', type: 'error' } });
-            return;
-        }
-        if (fromCycleId === toCycleId) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Source and target cycles must be different.', type: 'error' } });
-            return;
-        }
-        if (classification === ProgramClassificationStatus.PROGRAM_MAPPED
-            && (!sourceProgramAcademicCycleId || !targetProgramAcademicCycleId || !targetProgramStageId)) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Choose the source program, target program, and target stage.', type: 'error' } });
-            return;
-        }
-
-        setIsPreviewLoading(true);
-        try {
-            const preview = await api.copyForward.preview(copyForwardPayload, token);
-            setCopyPreview(preview);
-            setIsConfirmOpen(true);
-        } catch (err: unknown) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: getApiErrorMessage(err, 'Could not prepare copy preview'), type: 'error' } });
-        } finally {
-            setIsPreviewLoading(false);
-        }
-    };
-
-    const executeCopyForward = async () => {
-        setIsExecuting(true);
-        dispatch({ type: 'UI_START_PROCESSING', payload: 'copy-forward' });
-        try {
-            const res = await api.copyForward.execute(copyForwardPayload, token);
-            dispatch({
-                type: 'TOAST_ADD',
-                payload: {
-                    message: `Copy forward successful. Copied ${formatCount(res.sectionsCopied, 'section')}, ${formatCount(res.schedulesCopied, 'schedule')}, and ${formatCount(res.materialsCopied, 'material')}. Assessments were not copied.`,
-                    type: 'success',
-                },
-            });
-            setFromCycleId('');
-            setToCycleId('');
-            setCopyPreview(null);
-        } catch (err: unknown) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: getApiErrorMessage(err, 'Error processing request'), type: 'error' } });
-        } finally {
-            setIsExecuting(false);
-            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'copy-forward' });
-        }
-    };
-
-    return (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="relative space-y-4">
-                <StatusBanner
-                    title="Review before copying"
-                    description={<>Copy-forward creates new section records in the target cycle. Assessments, grades, submissions, and attendance are not copied. <DocsLink href="/docs/cohorts-reassignment#copy-forward">Read copy-forward docs</DocsLink></>}
-                    variant="warning"
-                    dismissible={true}
-                    icon={GitBranch}
-                />
-
-                <StepBlock step={1} title="Choose source and target cycles" description="Copy from the completed or current cycle into the new cycle.">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold">Source Cycle</label>
-                            <CustomSelect
-                                options={cycles.map((cycle) => ({ value: cycle.id, label: cycle.name }))}
-                                value={fromCycleId}
-                                onChange={(value) => { setFromCycleId(value); setSourceProgramAcademicCycleId(''); }}
-                                placeholder="Select Source Cycle"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold">Target Cycle</label>
-                            <CustomSelect
-                                options={cycles.map((cycle) => ({ value: cycle.id, label: cycle.name }))}
-                                value={toCycleId}
-                                onChange={(value) => { setToCycleId(value); setTargetProgramAcademicCycleId(''); setTargetProgramStageId(''); }}
-                                placeholder="Select Target Cycle"
-                            />
-                        </div>
-                    </div>
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold">Delivery Type</label>
-                            <CustomSelect
-                                value={classification}
-                                onChange={(value) => { setClassification(value as ProgramClassificationStatus); setSourceProgramAcademicCycleId(''); setTargetProgramAcademicCycleId(''); setTargetProgramStageId(''); }}
-                                options={[
-                                    { value: ProgramClassificationStatus.STANDALONE, label: 'Standalone / No program' },
-                                    { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program mapped' },
-                                ]}
-                            />
-                        </div>
-                    </div>
-                    {classification === ProgramClassificationStatus.PROGRAM_MAPPED && (
-                        <div className="mt-4 grid gap-3 md:grid-cols-3">
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold">Source Program</label>
-                                <CustomSelect value={sourceProgramAcademicCycleId} onChange={(value) => { setSourceProgramAcademicCycleId(value); setTargetProgramAcademicCycleId(''); setTargetProgramStageId(''); }} options={sourceDeliveryOptions.map((option) => ({ value: option.id, label: `${option.program.code} - ${option.program.name}` }))} disabled={!fromCycleId} searchable />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold">Target Program</label>
-                                <CustomSelect value={targetProgramAcademicCycleId} onChange={(value) => { setTargetProgramAcademicCycleId(value); setTargetProgramStageId(''); }} options={eligibleTargets.map((option) => ({ value: option.id, label: `${option.program.code} - ${option.program.name}` }))} disabled={!sourceProgramAcademicCycleId || !toCycleId} searchable />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold">Target Stage</label>
-                                <CustomSelect value={targetProgramStageId} onChange={setTargetProgramStageId} options={(targetAssociation?.stages || []).map((stage) => ({ value: stage.id, label: `${stage.code} - ${stage.name}` }))} disabled={!targetProgramAcademicCycleId} />
-                            </div>
-                        </div>
-                    )}
-                </StepBlock>
-
-                <StepBlock step={2} title="Select what travels forward" description="Sections and teacher assignments are copied; optional setup records can follow if useful.">
-                    <div className="grid gap-3">
-                        <div className="flex items-center justify-between rounded-md border border-border/70 bg-background/55 p-3">
-                            <span className="text-sm font-bold">Sections</span>
-                            <Badge variant="success" size="sm" icon={CheckCircle2}>Always copied</Badge>
-                        </div>
-                        <ToggleRow label="Official weekly schedules" description="Copies teacher, room, day, and time only when no target-cycle conflict is found." checked={options.copySchedules} onChange={(value) => setOptions({ ...options, copySchedules: value })} />
-                        <ToggleRow label="Course materials and links" checked={options.copyMaterials} onChange={(value) => setOptions({ ...options, copyMaterials: value })} />
-                        <div className="rounded-md border border-border/70 bg-background/55 p-3">
-                            <span className="text-sm font-bold">Assessments, grades, submissions, and attendance</span>
-                            <p className="mt-1 text-xs font-semibold text-muted-foreground">Not copied forward. Create new assessments in the new cycle.</p>
-                        </div>
-                    </div>
-                </StepBlock>
-
-                <div className="flex justify-end">
-                    <Button onClick={openCopyForwardConfirm} disabled={isExecuting || isPreviewLoading} isLoading={isPreviewLoading} icon={Copy}>
-                        Review Copy Forward
-                    </Button>
-                </div>
-            </div>
-
-            <SummaryPanel
-                title="Copy Summary"
-                items={[
-                    ['Source', fromCycle?.name || 'Not selected'],
-                    ['Target', toCycle?.name || 'Not selected'],
-                    ['Delivery', classification === ProgramClassificationStatus.STANDALONE ? 'Standalone / No program' : sourceAssociation?.program.name || 'Program not selected'],
-                    ['Schedules', options.copySchedules ? 'Included with conflict checks' : 'Skipped'],
-                    ['Materials', options.copyMaterials ? 'Included' : 'Skipped'],
-                    ['Assessments', 'Never copied'],
-                ]}
-            />
-
-            <ConfirmDialog
-                isOpen={isConfirmOpen}
-                onClose={() => setIsConfirmOpen(false)}
-                onConfirm={executeCopyForward}
-                title="Confirm copy forward"
-                description={`Copy selected setup from ${fromCycle?.name || 'the source cycle'} into ${toCycle?.name || 'the target cycle'}. This creates new records and cannot be reversed automatically.`}
-                confirmText="Confirm Copy"
-                loadingId="copy-forward"
-            >
-                <div className="rounded-md border border-border/70 bg-background/70 p-3">
-                    <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Selected for copy</p>
-                    <p className="mt-2 text-sm font-bold leading-6 text-foreground">
-                        {previewItems.length > 0 ? `${previewItems.slice(0, -1).join(', ')}${previewItems.length > 1 ? ', and ' : ''}${previewItems.at(-1)} ${previewTotal === 1 ? 'is' : 'are'} selected for copy forward.` : 'No preview is available.'}
-                    </p>
-                </div>
-            </ConfirmDialog>
-        </div>
-    );
+    const [preview, setPreview] = useState<CopyForwardPreview | null>(null);
+    const [error, setError] = useState('');
+    const { data: sources = [] } = useSWR<ProgramDeliveryOption[]>(fromCycleId ? ['program-delivery-options', fromCycleId] : null, () => api.programs.getDeliveryOptions(token, fromCycleId));
+    const { data: targets = [] } = useSWR<ProgramDeliveryOption[]>(toCycleId ? ['program-delivery-options', toCycleId] : null, () => api.programs.getDeliveryOptions(token, toCycleId));
+    const source = sources.find((item) => item.id === sourceId);
+    const eligibleTargets = targets.filter((item) => !source || item.programOffering.programId === source.programOffering.programId);
+    const payload = { programClassificationStatus: classification, sourceProgramStageOfferingId: classification === ProgramClassificationStatus.PROGRAM_MAPPED ? sourceId : undefined, targetProgramStageOfferingId: classification === ProgramClassificationStatus.PROGRAM_MAPPED ? targetId : undefined, fromCycleId, toCycleId, ...options };
+    const run = async (execute: boolean) => { setError(''); dispatch({ type: 'UI_START_PROCESSING', payload: execute ? 'copy-execute' : 'copy-preview' }); try { if (execute) { const result = await api.copyForward.execute(payload, token); dispatch({ type: 'TOAST_ADD', payload: { message: result.message, type: 'success' } }); setPreview(null); } else setPreview(await api.copyForward.preview(payload, token)); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to copy setup'); } finally { dispatch({ type: 'UI_STOP_PROCESSING', payload: execute ? 'copy-execute' : 'copy-preview' }); } };
+    const valid = fromCycleId && toCycleId && fromCycleId !== toCycleId && (classification === ProgramClassificationStatus.STANDALONE || (sourceId && targetId));
+    return <Workflow title="Copy setup forward" text="Copies section setup between institute cycles. Program-mapped copies require matching source and destination stage offerings.">{error && <ErrorText text={error} />}<CyclePair cycles={cycles} from={fromCycleId} to={toCycleId} onFrom={(id) => { setFromCycleId(id); setSourceId(''); setPreview(null); }} onTo={(id) => { setToCycleId(id); setTargetId(''); setPreview(null); }} /><Field label="Delivery type"><CustomSelect value={classification} onChange={(value) => { setClassification(value); setSourceId(''); setTargetId(''); }} options={[{ value: ProgramClassificationStatus.STANDALONE, label: 'Standalone sections' }, { value: ProgramClassificationStatus.PROGRAM_MAPPED, label: 'Program-mapped sections' }]} /></Field>{classification === ProgramClassificationStatus.PROGRAM_MAPPED && <div className="grid gap-4 md:grid-cols-2"><Field label="Source stage offering"><CustomSelect searchable value={sourceId} onChange={(id) => { setSourceId(id); setTargetId(''); }} options={sources.map(stageOption)} /></Field><Field label="Destination stage offering"><CustomSelect searchable value={targetId} onChange={setTargetId} options={eligibleTargets.map(stageOption)} /></Field></div>}<div className="flex flex-wrap gap-5"><Toggle checked={options.copySchedules} onCheckedChange={(copySchedules) => setOptions({ ...options, copySchedules })} label="Copy schedules" /><Toggle checked={options.copyMaterials} onCheckedChange={(copyMaterials) => setOptions({ ...options, copyMaterials })} label="Copy materials" /></div>{preview && <div className="flex flex-wrap gap-2 rounded-md border border-border/70 p-3"><Badge variant="neutral">{preview.sections} sections</Badge><Badge variant="neutral">{preview.schedules} schedules</Badge><Badge variant="neutral">{preview.materials} materials</Badge></div>}<div className="flex justify-end gap-2"><Button variant="secondary" loadingId="copy-preview" disabled={!valid} onClick={() => run(false)}>Preview</Button><Button loadingId="copy-execute" disabled={!valid || !preview} onClick={() => run(true)}>Copy forward</Button></div></Workflow>;
 }
 
-type ReassignmentMode = 'cohort' | 'section';
-type SectionWithEnrollments = Section & { enrollments?: Array<{ student: Student }> };
-
-function studentLabel(student: Student) {
-    return student.user?.name || student.user?.email || student.registrationNumber || 'Unnamed student';
+function Reassign({ cycles, token, dispatch }: { cycles: AcademicCycle[]; token: string; dispatch: ReturnType<typeof useGlobal>['dispatch'] }) {
+    const [sourceType, setSourceType] = useState<'cohort' | 'section'>('cohort');
+    const [fromCycleId, setFromCycleId] = useState('');
+    const [toCycleId, setToCycleId] = useState('');
+    const [fromId, setFromId] = useState('');
+    const [toId, setToId] = useState('');
+    const [error, setError] = useState('');
+    const { data: fromSections } = useSWR<PaginatedResponse<Section>>(fromCycleId && sourceType === 'section' ? ['sections', { academicCycleId: fromCycleId, limit: 1000 }] : null, () => api.org.getSections(token, { academicCycleId: fromCycleId, limit: 1000 }));
+    const { data: toSections } = useSWR<PaginatedResponse<Section>>(toCycleId && sourceType === 'section' ? ['sections', { academicCycleId: toCycleId, limit: 1000 }] : null, () => api.org.getSections(token, { academicCycleId: toCycleId, limit: 1000 }));
+    const { data: fromCohorts } = useSWR<PaginatedResponse<Cohort>>(fromCycleId && sourceType === 'cohort' ? ['cohorts', { academicCycleId: fromCycleId, limit: 1000 }] : null, () => api.cohorts.getCohorts(token, { academicCycleId: fromCycleId, limit: 1000 }));
+    const { data: toCohorts } = useSWR<PaginatedResponse<Cohort>>(toCycleId && sourceType === 'cohort' ? ['cohorts', { academicCycleId: toCycleId, limit: 1000 }] : null, () => api.cohorts.getCohorts(token, { academicCycleId: toCycleId, limit: 1000 }));
+    const sourceCohortOfferings = useMemo(() => flattenCohorts(fromCohorts?.data || [], fromCycleId), [fromCohorts?.data, fromCycleId]);
+    const targetCohortOfferings = useMemo(() => flattenCohorts(toCohorts?.data || [], toCycleId), [toCohorts?.data, toCycleId]);
+    const submit = async () => { dispatch({ type: 'UI_START_PROCESSING', payload: 'reassign-students' }); setError(''); try { const result = await api.reassignment.reassignStudents({ sourceType, fromCycleId, toCycleId, fromCohortId: sourceType === 'cohort' ? fromId : undefined, toCohortId: sourceType === 'cohort' ? toId : undefined, fromSectionId: sourceType === 'section' ? fromId : undefined, toSectionId: sourceType === 'section' ? toId : undefined }, token); dispatch({ type: 'TOAST_ADD', payload: { message: `${result.reassigned} students reassigned; ${result.skipped} skipped`, type: 'success' } }); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to reassign students'); } finally { dispatch({ type: 'UI_STOP_PROCESSING', payload: 'reassign-students' }); } };
+    return <Workflow title="Reassign students" text="Moves all active members of a cohort offering, or all enrolled students in a section, to a destination in another cycle.">{error && <ErrorText text={error} />}<Field label="Source type"><CustomSelect value={sourceType} onChange={(value) => { setSourceType(value); setFromId(''); setToId(''); }} options={[{ value: 'cohort', label: 'Cohort offering' }, { value: 'section', label: 'Section' }]} /></Field><CyclePair cycles={cycles} from={fromCycleId} to={toCycleId} onFrom={(id) => { setFromCycleId(id); setFromId(''); }} onTo={(id) => { setToCycleId(id); setToId(''); }} /><div className="grid gap-4 md:grid-cols-2"><Field label={`Source ${sourceType}`}><CustomSelect searchable value={fromId} onChange={setFromId} options={sourceType === 'section' ? (fromSections?.data || []).map(sectionOption) : sourceCohortOfferings} /></Field><Field label={`Destination ${sourceType}`}><CustomSelect searchable value={toId} onChange={setToId} options={sourceType === 'section' ? (toSections?.data || []).map(sectionOption) : targetCohortOfferings} /></Field></div><div className="flex justify-end"><Button loadingId="reassign-students" disabled={!fromCycleId || !toCycleId || !fromId || !toId} onClick={submit}>Reassign students</Button></div></Workflow>;
 }
 
-function ReassignmentView({ cycles, token, dispatch }: { cycles: AcademicCycle[]; token: string; dispatch: Dispatch<GlobalAction> }) {
-    const [mode, setMode] = useState<ReassignmentMode>('cohort');
-    const [sourceCohortId, setSourceCohortId] = useState('');
-    const [sourceSectionId, setSourceSectionId] = useState('');
-    const [targetCycleId, setTargetCycleId] = useState('');
-    const [targetCohortId, setTargetCohortId] = useState('');
-    const [targetSectionId, setTargetSectionId] = useState('');
-    const [excludedStudentIds, setExcludedStudentIds] = useState<string[]>([]);
-    const [isExecuting, setIsExecuting] = useState(false);
-
-    const {
-        data: sourceCohortDetail,
-        isLoading: isSourceCohortLoading,
-        error: sourceCohortError,
-    } = useSWR<Cohort>(mode === 'cohort' && sourceCohortId ? ['cohort', sourceCohortId] as const : null);
-    const {
-        data: sourceSectionDetail,
-        isLoading: isSourceSectionLoading,
-        error: sourceSectionError,
-    } = useSWR<SectionWithEnrollments>(mode === 'section' && sourceSectionId ? ['section-detail', sourceSectionId] as const : null);
-
-    const targetCycle = cycles.find((cycle) => cycle.id === targetCycleId);
-    const sourceStudents = mode === 'cohort'
-        ? sourceCohortDetail?.students || []
-        : sourceSectionDetail?.students || sourceSectionDetail?.enrollments?.map((enrollment) => enrollment.student) || [];
-    const sourceError = mode === 'cohort' ? sourceCohortError : sourceSectionError;
-    const isSourceLoading = mode === 'cohort' ? isSourceCohortLoading : isSourceSectionLoading;
-    const sourceSelected = mode === 'cohort' ? Boolean(sourceCohortId) : Boolean(sourceSectionId);
-    const studentCount = sourceStudents.length;
-    const reassignmentCount = Math.max(studentCount - excludedStudentIds.length, 0);
-    const studentCountLabel = sourceSelected && isSourceLoading ? 'Loading roster...' : `${reassignmentCount} of ${studentCount}`;
-
-    const resetSource = (nextMode: ReassignmentMode) => {
-        setMode(nextMode);
-        setSourceCohortId('');
-        setSourceSectionId('');
-        setTargetCohortId('');
-        setTargetSectionId('');
-        setExcludedStudentIds([]);
-    };
-
-    const handleReassign = async () => {
-        if (mode === 'cohort' && (!sourceCohortId || !targetCycleId || !targetCohortId)) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Please select source cohort, destination cycle, and destination cohort.', type: 'error' } });
-            return;
-        }
-        if (mode === 'section' && (!sourceSectionId || !targetCycleId || !targetSectionId)) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Please select source section, destination cycle, and destination section.', type: 'error' } });
-            return;
-        }
-        if (sourceError) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: getApiErrorMessage(sourceError, 'Could not load the source roster.'), type: 'error' } });
-            return;
-        }
-        if (isSourceLoading) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'Still loading the source roster. Please try again in a moment.', type: 'error' } });
-            return;
-        }
-        if (studentCount === 0) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'The selected source has no students to reassign.', type: 'error' } });
-            return;
-        }
-        if (reassignmentCount === 0) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: 'All source students are excluded.', type: 'error' } });
-            return;
-        }
-
-        setIsExecuting(true);
-        dispatch({ type: 'UI_START_PROCESSING', payload: 'reassign' });
-        try {
-            const res = await api.reassignment.reassignStudents({
-                sourceType: mode,
-                fromCycleId: mode === 'cohort' ? sourceCohortDetail?.academicCycleId : sourceSectionDetail?.academicCycleId,
-                toCycleId: targetCycleId,
-                fromCohortId: mode === 'cohort' ? sourceCohortId : undefined,
-                fromSectionId: mode === 'section' ? sourceSectionId : undefined,
-                toCohortId: mode === 'cohort' ? targetCohortId : undefined,
-                toSectionId: mode === 'section' ? targetSectionId : undefined,
-                excludedStudentIds,
-            }, token);
-            dispatch({ type: 'TOAST_ADD', payload: { message: res.message, type: 'success' } });
-            setExcludedStudentIds([]);
-        } catch (err: unknown) {
-            dispatch({ type: 'TOAST_ADD', payload: { message: getApiErrorMessage(err, 'Error processing request'), type: 'error' } });
-        } finally {
-            setIsExecuting(false);
-            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'reassign' });
-        }
-    };
-
-    const exclusionOptions = sourceStudents.map((student) => ({
-        value: student.id,
-        label: studentLabel(student),
-        description: student.user?.email,
-        meta: student.rollNumber ? `Roll ${student.rollNumber}` : student.registrationNumber,
-    }));
-
-    return (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="relative space-y-4">
-                <StatusBanner
-                    title="Review before reassigning"
-                    description={<>Reassignment changes current placement while preserving previous-cycle academic history. <DocsLink href="/docs/cohorts-reassignment#reassignment">Read reassignment docs</DocsLink></>}
-                    variant="warning"
-                    dismissible={true}
-                    icon={ArrowLeftRight}
-                />
-
-                <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/70 bg-card p-2">
-                    <Button variant={mode === 'cohort' ? 'primary' : 'secondary'} icon={Users} onClick={() => resetSource('cohort')}>Cohort</Button>
-                    <Button variant={mode === 'section' ? 'primary' : 'secondary'} icon={BookOpen} onClick={() => resetSource('section')}>Section</Button>
-                </div>
-
-                <StepBlock step={1} title={`Select the source ${mode}`} description="Everyone in the source is included unless you exclude individual students.">
-                    <div className="space-y-3">
-                        {mode === 'cohort' ? (
-                            <RemoteFilterSelect
-                                cacheKey="reassignment-source-cohort"
-                                value={sourceCohortId}
-                                onChange={(value) => {
-                                    setSourceCohortId(value);
-                                    setExcludedStudentIds([]);
-                                }}
-                                placeholder="Select source cohort"
-                                allLabel="Select source cohort"
-                                selectedLabel="Selected cohort"
-                                loadOptions={(search) => searchFilterLookup({ token, entity: 'cohorts', search, includeAllCycles: true })}
-                            />
-                        ) : (
-                            <RemoteFilterSelect
-                                cacheKey="reassignment-source-section"
-                                value={sourceSectionId}
-                                onChange={(value) => {
-                                    setSourceSectionId(value);
-                                    setExcludedStudentIds([]);
-                                }}
-                                placeholder="Select source section"
-                                allLabel="Select source section"
-                                selectedLabel="Selected section"
-                                loadOptions={(search) => searchFilterLookup({ token, entity: 'sections', search })}
-                            />
-                        )}
-                        {sourceSelected && (
-                            <div className="space-y-3 rounded-md border border-border/70 bg-background/55 p-3">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Badge variant={sourceError ? 'error' : 'neutral'} size="sm" className="whitespace-normal text-left leading-tight">
-                                        {sourceError ? 'Roster unavailable' : studentCountLabel}
-                                    </Badge>
-                                    <span className="text-xs font-semibold text-muted-foreground">
-                                        {isSourceLoading ? 'Fetching roster.' : 'Students selected for reassignment.'}
-                                    </span>
-                                </div>
-                                <CustomMultiSelect
-                                    values={excludedStudentIds}
-                                    onChange={setExcludedStudentIds}
-                                    icon={UserMinus}
-                                    options={exclusionOptions}
-                                    placeholder="Exclude individual students..."
-                                    disabled={isSourceLoading || studentCount === 0}
-                                />
-                            </div>
-                        )}
-                    </div>
-                </StepBlock>
-
-                <StepBlock step={2} title="Choose the destination" description={mode === 'cohort' ? 'Pick the destination cycle, then the cohort inside that cycle.' : 'Pick the destination cycle, then the section inside that cycle.'}>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold">Destination Cycle</label>
-                            <CustomSelect
-                                options={cycles.map((cycle) => ({ value: cycle.id, label: cycle.name }))}
-                                value={targetCycleId}
-                                onChange={(value) => {
-                                    setTargetCycleId(value);
-                                    setTargetCohortId('');
-                                    setTargetSectionId('');
-                                }}
-                                placeholder="Select destination cycle"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold">{mode === 'cohort' ? 'Destination Cohort' : 'Destination Section'}</label>
-                            {mode === 'cohort' ? (
-                                <RemoteFilterSelect
-                                    cacheKey={`reassignment-target-cohort-${targetCycleId || 'none'}`}
-                                    value={targetCohortId}
-                                    onChange={setTargetCohortId}
-                                    placeholder={targetCycleId ? 'Select destination cohort' : 'Select cycle first'}
-                                    allLabel={targetCycleId ? 'Select destination cohort' : 'Select cycle first'}
-                                    selectedLabel="Selected cohort"
-                                    disabled={!targetCycleId}
-                                    loadOptions={(search) => searchFilterLookup({ token, entity: 'cohorts', search, academicCycleId: targetCycleId })}
-                                />
-                            ) : (
-                                <RemoteFilterSelect
-                                    cacheKey={`reassignment-target-section-${targetCycleId || 'none'}`}
-                                    value={targetSectionId}
-                                    onChange={setTargetSectionId}
-                                    placeholder={targetCycleId ? 'Select destination section' : 'Select cycle first'}
-                                    allLabel={targetCycleId ? 'Select destination section' : 'Select cycle first'}
-                                    selectedLabel="Selected section"
-                                    disabled={!targetCycleId}
-                                    loadOptions={(search) => searchFilterLookup({ token, entity: 'sections', search, academicCycleId: targetCycleId })}
-                                />
-                            )}
-                        </div>
-                    </div>
-                </StepBlock>
-
-                <div className="flex justify-end">
-                    <Button onClick={handleReassign} disabled={isExecuting || isSourceLoading} isLoading={isExecuting} icon={ArrowLeftRight}>
-                        Reassign Students
-                    </Button>
-                </div>
-            </div>
-
-            <SummaryPanel
-                title="Reassignment Summary"
-                items={[
-                    ['Mode', mode === 'cohort' ? 'Cohort' : 'Section'],
-                    ['Source', mode === 'cohort' ? (sourceCohortDetail?.name || (sourceCohortId ? 'Selected cohort' : 'Not selected')) : (sourceSectionDetail?.name || (sourceSectionId ? 'Selected section' : 'Not selected'))],
-                    ['Students', studentCountLabel],
-                    ['Excluded', `${excludedStudentIds.length}`],
-                    ['Destination cycle', targetCycle?.name || 'Not selected'],
-                    ['Destination', mode === 'cohort' ? (targetCohortId ? 'Selected cohort' : 'Not selected') : (targetSectionId ? 'Selected section' : 'Not selected')],
-                ]}
-            />
-        </div>
-    );
-}
-
-function ToggleRow({ label, description, checked, onChange }: { label: string; description?: string; checked: boolean; onChange: (checked: boolean) => void }) {
-    return (
-        <div className="flex items-center justify-between rounded-md border border-border/70 bg-background/55 p-3">
-            <div className="min-w-0 pr-3">
-                <span className="text-sm font-bold">{label}</span>
-                {description && <p className="mt-1 text-xs font-semibold text-muted-foreground">{description}</p>}
-            </div>
-            <Toggle checked={checked} onCheckedChange={onChange} />
-        </div>
-    );
-}
-
-function SummaryPanel({ title, items }: { title: string; items: [string, string][] }) {
-    return (
-        <aside className="h-fit rounded-lg border border-border/70 bg-card p-4 shadow-sm">
-            <h2 className="text-sm font-black uppercase tracking-wide text-muted-foreground">{title}</h2>
-            <div className="mt-4 space-y-3">
-                {items.map(([label, value]) => (
-                    <div key={label} className="rounded-md border border-border/60 bg-background/55 p-3">
-                        <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">{label}</p>
-                        <p className="mt-1 text-sm font-bold text-foreground">{value}</p>
-                    </div>
-                ))}
-            </div>
-        </aside>
-    );
-}
-
+function Workflow({ title, text, children }: { title: string; text: string; children: React.ReactNode }) { return <section className="space-y-5 rounded-lg border border-border/70 bg-card/75 p-5"><div><h2 className="text-base font-black">{title}</h2><p className="mt-1 text-sm text-muted-foreground">{text}</p></div>{children}</section>; }
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-2"><label className="text-sm font-bold">{label}</label>{children}</div>; }
+function CyclePair({ cycles, from, to, onFrom, onTo }: { cycles: AcademicCycle[]; from: string; to: string; onFrom: (id: string) => void; onTo: (id: string) => void }) { const options = cycles.map((item) => ({ value: item.id, label: `${item.code} - ${item.name}` })); return <div className="grid gap-4 md:grid-cols-2"><Field label="Source cycle"><CustomSelect searchable value={from} onChange={onFrom} options={options} /></Field><Field label="Destination cycle"><CustomSelect searchable value={to} onChange={onTo} options={options.filter((item) => item.value !== from)} /></Field></div>; }
+function stageOption(item: ProgramDeliveryOption) { return { value: item.id, label: `${item.programOffering.program.code} - ${item.programStage.name}` }; }
+function sectionOption(item: Section) { return { value: item.id, label: `${item.course?.code || 'Course'} - ${item.name}` }; }
+function flattenCohorts(cohorts: Cohort[], cycleId: string) { return cohorts.flatMap((cohort) => (cohort.offerings || []).filter((item) => item.academicCycleId === cycleId).map((item) => ({ value: item.id, label: `${cohort.code} - ${cohort.name}${item.programStageOffering ? ` · ${item.programStageOffering.programStage.name}` : ''}` }))); }
+function ErrorText({ text }: { text: string }) { return <div role="alert" className="rounded-md border border-danger/35 bg-danger/5 px-4 py-3 text-sm font-semibold text-danger">{text}</div>; }

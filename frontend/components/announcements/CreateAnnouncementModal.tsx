@@ -67,7 +67,7 @@ export function CreateAnnouncementModal({ isOpen, onClose, onSuccess }: Props) {
                     const res = await api.org.getCourses(token, { limit: 500 });
                     setTargetOptions(res.data.map(c => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name, icon: BookOpen })));
                 } else if (targetType === TargetType.COHORT) {
-                    const res = await api.cohorts.getCohorts(token, { limit: 500, includeAllCycles: true });
+                    const res = await api.cohorts.getCohorts(token, { limit: 500 });
                     setTargetOptions(res.data.map(c => ({ value: c.id, label: c.code ? `${c.code} - ${c.name}` : c.name, icon: Network })));
                 } else if (targetType === TargetType.ORG && isPlatformAdmin) {
                     const res = await api.admin.getOrganizations(token, { limit: 100 });

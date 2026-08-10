@@ -209,12 +209,14 @@ export const docsPages: DocPage[] = [
             headers: ['Term', 'Meaning'],
             rows: [
               ['Academic Cycle', 'A time period such as a semester, term, or academic year.'],
-              ['Program', 'A department-owned offering with an ordered relationship to shared institute cycles and one or more curricula.'],
+              ['Program', 'A department-owned qualification or major with one or more versioned curricula.'],
               ['Curriculum Version', 'A versioned set of program stages and course requirements assigned to a particular student batch.'],
-              ['Program Stage', 'The planned level, semester, year, or custom stage connected to one program cycle.'],
-              ['Student Major', 'The durable student enrollment in one program, including a frozen admitted cycle plan.'],
+              ['Program Stage', 'A stable level, semester, year, or custom position inside a curriculum.'],
+              ['Program Offering', 'A time-bound relationship between a program, curriculum, and shared institute academic cycle.'],
+              ['Stage Offering', 'A stable program stage made available inside one program offering.'],
+              ['Student Major', 'The durable student enrollment in one program and pinned curriculum version.'],
               ['Standalone Delivery', 'A cohort or section that is not mapped to a defined program.'],
-              ['Program-Mapped Delivery', 'A cohort or section linked to a program cycle, curriculum stage, and where applicable a course requirement.'],
+              ['Program-Mapped Delivery', 'A cohort offering or section linked to a stage offering and, for sections, a course requirement.'],
               ['Course', 'A subject such as Mathematics, Biology, or English.'],
               ['Section', 'The actual class students attend for a course in a specific cycle.'],
               ['Cohort', 'A group of students that usually move through the same academic period together.'],
@@ -365,7 +367,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'note',
             title: 'Progression is explicit',
-            text: 'The institute moving an academic cycle to Completed does not automatically complete the student program cycle.',
+            text: 'Moving an institute academic cycle to Completed does not automatically resolve student stage enrollments.',
           },
         ],
       },
@@ -560,7 +562,7 @@ export const docsPages: DocPage[] = [
             items: [
               'Choose Standalone for one-time courses or organizations that are not using programs.',
               'Choose Program mapped when the section delivers a course requirement in a program stage.',
-              'For mapped delivery, select a program cycle using the same institute cycle as the section.',
+              'For mapped delivery, select a stage offering using the same institute cycle as the section.',
               'Select the compatible curriculum stage and the requirement matching the section course.',
               'A cohort can also be program-mapped, but the section requirement mapping remains the exact delivery link.',
             ],
@@ -848,28 +850,28 @@ export const docsPages: DocPage[] = [
     related: ['academic-cycles', 'students', 'courses-sections', 'cohorts-reassignment', 'past-records', 'csv-imports'],
     sections: [
       {
-        id: 'program-cycle-model',
+        id: 'program-offering-model',
         title: 'Programs and cycles stay independent',
         tags: ['shared cycles', 'relationship'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'A program is a department-owned course offering. An academic cycle is an institute-wide time period. Programs attach the same shared cycle records in an ordered plan; EduVerse does not create a separate Fall 2026 cycle for every program.',
+            text: 'A program is a department-owned qualification or major. An academic cycle is an institute-wide time period. They remain independent until a Program Offering connects a curriculum to a shared cycle for actual delivery.',
           },
           {
             type: 'list',
             items: [
               'One department can own many programs.',
-              'One program can attach many institute academic cycles in sequence.',
-              'One academic cycle can appear in many programs and can also deliver standalone courses.',
-              'The required cycle count is derived from the program cycle plan.',
+              'One program can have many offerings across institute academic cycles.',
+              'One academic cycle can host many programs, several stages of the same program, and standalone courses.',
+              'The curriculum stage sequence defines progression; it is not a list of calendar periods.',
               'Completing or archiving a shared cycle does not pause or archive any related program.',
             ],
           },
           {
             type: 'note',
             title: 'Do not duplicate cycles',
-            text: 'Create Fall 2026 once for the institute, then attach that same cycle to every program that uses it. A cycle can also exist with no program relationship.',
+            text: 'Create Fall 2026 once for the institute, then create an offering for each program and curriculum delivered in it. A cycle can exist with no program offering.',
           },
         ],
       },
@@ -936,11 +938,10 @@ export const docsPages: DocPage[] = [
           {
             type: 'steps',
             items: [
-              'Create the department, courses, and institute academic cycles that the offering needs.',
+              'Create the owning department and courses. Academic cycles are not required yet.',
               'Open Programs, create the program, and choose its main department.',
               'Choose the structure, progression, and completion rules. Add duration and admissions text where useful.',
-              'Use the plus control to add each required cycle in order. Select an existing institute cycle or create a missing one inline.',
-              'Define one curriculum stage for every cycle row and attach required, elective, or optional courses from the same department.',
+              'Add stable curriculum stages in progression order and attach required, elective, or optional courses. Cross-department courses are allowed when policy and permissions permit.',
               'Activate a complete curriculum as the admissions default, then activate the program.',
               'Enable admissions visibility only when the offering should appear to applicants.',
             ],
@@ -959,7 +960,7 @@ export const docsPages: DocPage[] = [
           {
             type: 'note',
             title: 'Configuration history',
-            text: 'Changing the program cycle array requires a reason and creates a new immutable configuration revision. Existing student plans keep their original revision, curriculum, cycle order, and snapshots.',
+            text: 'Changing activated program structure requires a reason and creates a new immutable configuration revision. Existing student majors keep their pinned revision, curriculum, and historical stage attempts.',
           },
         ],
       },
@@ -993,21 +994,21 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'Programs describe the planned offering. Cohorts and sections describe actual delivery. Every cohort and section must be explicitly standalone or program-mapped.',
+            text: 'Programs describe stable academic structure. Program, stage, and cohort offerings describe cycle-specific delivery. A section is standalone when it has no program mappings.',
           },
           {
             type: 'table',
             headers: ['Delivery type', 'Use it when', 'Required program context'],
             rows: [
               ['Standalone', 'The cohort or class is not part of a defined program.', 'None. The institute cycle and ordinary course/section fields remain enough.'],
-              ['Program mapped', 'The cohort or class delivers part of a program curriculum.', 'Program cycle and stage; sections also map to the matching stage course requirement.'],
+              ['Program mapped', 'The cohort offering or class delivers part of a program curriculum.', 'A stage offering; sections also map to the matching stage course requirement.'],
             ],
           },
           {
             type: 'list',
             items: [
-              'The selected program cycle must use the same institute cycle as the cohort or section.',
-              'The selected stage must belong to the chosen curriculum and program cycle.',
+              'The selected stage offering must use the same institute cycle as the cohort offering or section.',
+              'The selected stable stage must belong to the program offering curriculum.',
               'The section course must match the mapped stage course requirement.',
               'Imports and copy-forward preserve the delivery classification instead of guessing from names.',
             ],
@@ -1021,27 +1022,54 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'A student can have one open major program. Assigning it derives the primary department and copies the admitted configuration, curriculum, cycles, and stages so the plan survives later academic-cycle and program edits.',
+            text: 'A student can have one open major program. Assigning it derives the primary department and pins the admitted configuration and curriculum. Actual stage rows are created only when the student is placed into a real stage offering.',
           },
           {
             type: 'list',
             items: [
               'Assign the major during student admission or from Manage Enrollment.',
-              'Choose an eligible entry cycle and stage when the student joins after the first planned cycle.',
-              'Activate and complete each student program cycle through the progression controls.',
-              'Record skip, repeat, hold, withdrawal, completion, and transfer decisions with their required reason.',
+              'Optionally choose a stable entry stage at admission; no future cycle is pre-allocated.',
+              'Place the student into an open stage offering and optional cohort offering when delivery is ready.',
+              'Preview finalized grades, course requirements, elective groups, credits, attendance, and eligible next offerings before resolving a stage.',
+              'Record advance, skip, repeat, hold, withdrawal, completion, and transfer decisions with their required reason and immutable evidence snapshot.',
               'Program transfer preserves the previous enrollment instead of rewriting its history.',
             ],
           },
           {
             type: 'flow',
             title: 'Student program lifecycle',
-            steps: ['Admit', 'Activate cycle', 'Complete, skip, or repeat', 'Continue through required cycles', 'Complete program or transfer/withdraw'],
+            steps: ['Admit major', 'Place in stage offering', 'Complete, skip, or repeat', 'Continue through curriculum stages', 'Complete program or transfer/withdraw'],
           },
           {
             type: 'note',
             title: 'Institute cycle status is separate',
             text: 'Activating or completing an institute cycle does not automatically progress every student. Student progression is an explicit enrollment action.',
+          },
+          {
+            type: 'paragraph',
+            text: 'Program passing and optional attendance thresholds are pinned when the student is admitted. Later program edits affect new admissions only. Sequential, credit-accumulation, flexible, and manual programs use their own evaluator, while completion can be based on final stage, requirements, credits, or an explicit manual decision.',
+          },
+          {
+            type: 'note',
+            title: 'Overrides remain auditable',
+            text: 'When automatic evidence does not support completion or advancement, an operator must provide an override reason. The original recommendation, evidence, chosen result, actor, and override flag remain on the progression decision and in archived records.',
+          },
+          {
+            type: 'paragraph',
+            text: 'The Progression Workbench previews all in-progress students for one stage offering, supports row-level actions and targets, and returns independent success or failure results. Apply requests use an idempotency key so a retry cannot create duplicate decisions or stage attempts.',
+          },
+          {
+            type: 'paragraph',
+            text: 'A student academic identity always prefers the active major program, then the current cohort, then a current section. The same identity appears in student lists, profiles, transcripts, transcript PDFs, and Copilot context.',
+          },
+          {
+            type: 'note',
+            title: 'Expected graduation',
+            text: 'The student Overview uses a recorded graduation date when available. Otherwise, month- or year-based program duration produces an estimate from the start or admission date. Cycle-based duration does not produce a speculative calendar date.',
+          },
+          {
+            type: 'paragraph',
+            text: 'EduVerse Copilot can resolve programs and retrieve permitted program structure, curriculum stages, requirements, offerings, progression policy, duration, and a visible student major summary. Its department and relationship permissions remain identical to the normal application APIs.',
           },
         ],
       },
@@ -1070,9 +1098,8 @@ export const docsPages: DocPage[] = [
             type: 'list',
             items: [
               'Creating a separate copy of the same institute cycle for each program.',
-              'Activating a program before its curriculum has one valid stage for every required cycle.',
-              'Using a course from another department in a program stage.',
-              'Changing a cycle array and expecting existing students to inherit the new order.',
+              'Opening an offering before the program and admissions curriculum are ready.',
+              'Changing curriculum structure and expecting existing students to inherit it.',
               'Editing a student department manually instead of assigning or transferring the major.',
               'Marking a mapped section as standalone to bypass a missing requirement mapping.',
             ],
@@ -1234,9 +1261,9 @@ export const docsPages: DocPage[] = [
           {
             type: 'steps',
             items: [
-              'Finish grade, attendance, enrollment, and student program-cycle decisions.',
+              'Finish grade, attendance, enrollment, and student stage decisions.',
               'Transition the cycle to Completed.',
-              'Confirm no student program cycle for this institute cycle remains in progress.',
+              'Confirm no student stage enrollment for this institute cycle remains in progress.',
               'As Org Admin, choose Archive. EduVerse snapshots every section and builds student/program search indexes.',
               'Wait for Ready. If a build fails, review the reason and use Retry after correcting the source problem.',
               'Use Verify to confirm section checksums, the archive checksum, expected section count, and locked files.',
@@ -1262,7 +1289,7 @@ export const docsPages: DocPage[] = [
               'Creating sections in the wrong cycle and later wondering why students cannot see them.',
               'Using copy-forward without reviewing copied dates, rooms, teachers, and instructions.',
               'Changing setup after teachers have already started grading without telling staff.',
-              'Archiving while a student program cycle is still in progress.',
+              'Archiving while a student stage enrollment is still in progress.',
               'Expecting archived records to remain editable from the live section control panel.',
             ],
           },
@@ -3036,8 +3063,8 @@ export const docsPages: DocPage[] = [
             items: [
               'Choose Standalone when the group does not belong to a defined program.',
               'Choose Program mapped when the group follows a program curriculum stage.',
-              'The program cycle must reference the same institute cycle as the cohort.',
-              'The stage must belong to the selected program cycle and active curriculum context.',
+              'The stage offering must reference the same institute cycle as the cohort offering.',
+              'The stage must belong to the selected program offering and curriculum context.',
               'Student major progression and cohort placement are related but remain explicit records; changing one does not silently rewrite the other.',
             ],
           },
@@ -3762,7 +3789,7 @@ export const docsPages: DocPage[] = [
               ['Changing a cycle GPA policy', 'It affects transcript results for that cycle until grades are finalized.', 'Confirm the policy matches school rules before teachers finalize grades.'],
               ['Finalizing grades', 'Finalized grades are treated as official for transcripts.', 'Review marks, weightage, student names, and feedback.'],
               ['Opening evaluation windows', 'Students can submit evaluations only while a matching window is active.', 'Confirm grades have been finalized and the window scope is correct.'],
-              ['Changing a program cycle plan', 'It creates a future configuration and must not rewrite admitted students.', 'Provide a clear reason and prepare a complete replacement curriculum.'],
+              ['Changing activated program structure', 'It creates a future configuration and must not rewrite admitted students.', 'Provide a clear reason and prepare a complete replacement curriculum.'],
               ['Archiving a cycle', 'It freezes academic records and referenced files into Past Records.', 'Resolve student progression, verify files, then check the completed archive.'],
               ['Deleting or archiving records', 'Old records may explain historical transcripts, payments, or enrollments.', 'Archive when history still needs to remain understandable.'],
               ['Confirming payments', 'Balances and transaction history change after confirmation.', 'Check receipt, reference, amount, and student before accepting.'],
@@ -4396,13 +4423,13 @@ export const docsPages: DocPage[] = [
         blocks: [
           {
             type: 'paragraph',
-            text: 'After grades, transcripts, placement, and student program-cycle outcomes are settled, archive the completed institute cycle to create the permanent read-only record.',
+            text: 'After grades, transcripts, placement, and student stage outcomes are settled, archive the completed institute cycle to create the permanent read-only record.',
           },
           {
             type: 'steps',
             items: [
               'Confirm the cycle status is Completed.',
-              'Resolve every in-progress student program cycle linked to it.',
+              'Resolve every in-progress student stage enrollment linked to it.',
               'As Org Admin, create the archive and wait for Ready.',
               'Run archive verification and review the counts/checksum result.',
               'Open Past Records and spot-check one standalone section, one program-mapped section, and one student history.',
@@ -4701,7 +4728,7 @@ export const docsPages: DocPage[] = [
             type: 'table',
             headers: ['Module', 'Who can import', 'Required columns', 'Relationship or optional columns'],
             rows: [
-              ['Import students CSV', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, gender', 'profile fields, department/section/cohort codes, programClassificationStatus, programCode, curriculumCode, entryAcademicCycleCode, stageCode'],
+              ['Import students CSV', 'Org Admin or Sub Admin', 'name, email, password, registrationNumber, rollNumber, gender', 'profile fields, department/section codes, cohortCode with cohortAcademicCycleCode, and optional programCode, curriculumCode, stageCode'],
               ['Import teachers CSV', 'Org Admin or Sub Admin', 'name, email, password, phone, education, designation, subject', 'department, joiningDate, emergencyContact, bloodGroup, address, status, departmentCodes'],
               ['Import guardians CSV', 'Org Admin or Sub Admin', 'name, email, password', 'phone, status, address'],
               ['Import courses CSV', 'Org Admin or Sub Admin', 'name, code', 'description, creditHours, departmentCode'],
@@ -4729,7 +4756,7 @@ export const docsPages: DocPage[] = [
               'departmentCodes accepts multiple department codes separated by semicolons.',
               'primaryDepartmentCode, departmentCode, buildingCode, courseCode, academicCycleCode, defaultRoomCode, and cohortCode must belong to the same organization.',
               'Create departments, buildings, courses, academic cycles, cohorts, and rooms before importing records that reference them.',
-              'Use STANDALONE with blank program columns, or PROGRAM_MAPPED with matching programCode, curriculumCode, and stageCode. Student majors also require entryAcademicCycleCode.',
+              'Use STANDALONE with blank program columns, or PROGRAM_MAPPED with matching programCode, curriculumCode, and stable stageCode. A cohort placement requires cohortCode plus cohortAcademicCycleCode; major admission does not require a cycle.',
               'Use buildingCode for room imports. Do not paste database IDs into navigation or CSV fields.',
               'Read the Identification Codes page for examples such as SCI, MAIN, ROOM-101, 2026-SPRING, GRADE-9, MATH-101, and GRADE-9-A.',
             ],

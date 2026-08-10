@@ -32,6 +32,7 @@ import {
 } from '../common/department-scope';
 import { StudentProgramEnrollmentsService } from '../student-program-enrollments/student-program-enrollments.service';
 import { toPublicGradeEvidenceAttachment } from '../grade-evidence/grade-evidence.types';
+import { buildStudentAcademicIdentity, buildStudentProgramOverview } from '../common/student-academic-identity';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -63,8 +64,15 @@ export class StudentService {
         },
         include: {
           program: { include: { department: true } },
-          curriculumVersion: true,
-          cycles: { orderBy: { sequenceSnapshot: 'asc' as const } },
+          curriculumVersion: {
+            include: {
+              stages: {
+                orderBy: { sequence: 'asc' as const },
+                include: { courseRequirements: true },
+              },
+            },
+          },
+          stageEnrollments: { orderBy: { createdAt: 'asc' as const } },
         },
         take: 1,
         orderBy: { admittedAt: 'desc' as const },
@@ -76,10 +84,21 @@ export class StudentService {
     if (!student) return student;
     const normalized = this.normalizeStudentGuardian(student);
     const majorProgramEnrollment = student.programEnrollments?.[0] || null;
+    const currentCohortMembership = student.cohortMemberships?.[0] || null;
+    const academicIdentity = buildStudentAcademicIdentity({
+      majorProgramEnrollment,
+      currentCohortMembership,
+      cohort: currentCohortMembership?.cohortOffering?.cohort,
+      enrollments: student.enrollments,
+    });
     return {
       ...normalized,
       majorProgramEnrollment,
       majorProgram: majorProgramEnrollment?.program || null,
+      currentCohortMembership,
+      cohort: currentCohortMembership?.cohortOffering?.cohort || null,
+      academicIdentity,
+      programOverview: buildStudentProgramOverview(majorProgramEnrollment, student.graduationDate),
     };
   }
 
@@ -269,7 +288,9 @@ export class StudentService {
             },
           }
         : {}),
-      ...(options.cohortId ? { cohortId: options.cohortId } : {}),
+      ...(options.cohortId
+        ? { cohortMemberships: { some: { leftAt: null, cohortOffering: { cohortId: options.cohortId } } } }
+        : {}),
       ...(options.programId
         ? { programEnrollments: { some: { programId: options.programId, status: { in: ['ADMITTED', 'ACTIVE', 'ON_HOLD'] } } } }
         : {}),
@@ -339,7 +360,7 @@ export class StudentService {
           avatarUpdatedAt: true,
         },
       },
-      cohort: true,
+      cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true, academicCycle: true } } } },
       primaryDepartment: true,
       studentDepartments: { include: { department: true } },
       ...this.currentProgramInclude(),
@@ -377,8 +398,8 @@ export class StudentService {
         student.user?.phone,
         student.registrationNumber,
         student.rollNumber,
-        student.cohort?.name,
-        student.cohort?.code,
+        student.cohortMemberships?.[0]?.cohortOffering?.cohort?.name,
+        student.cohortMemberships?.[0]?.cohortOffering?.cohort?.code,
         student.primaryDepartment?.name,
         student.primaryDepartment?.code,
         ...(student.studentDepartments || []).flatMap((link) => [
@@ -427,7 +448,7 @@ export class StudentService {
             avatarUpdatedAt: true,
           },
         },
-        cohort: true,
+        cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true, academicCycle: true } } } },
         primaryDepartment: true,
         studentDepartments: { include: { department: true } },
         ...this.currentProgramInclude(),
@@ -564,8 +585,7 @@ export class StudentService {
             student.id,
             {
               programId: data.programId,
-              entryAcademicCycleId: data.entryAcademicCycleId,
-              entryStageSequence: data.entryStageSequence,
+              entryStageId: data.entryStageId,
             },
             userContext.id!,
           );
@@ -579,7 +599,7 @@ export class StudentService {
           where: { id: student.id },
           include: {
             user: { select: { email: true, name: true, phone: true } },
-            cohort: { select: { id: true, name: true } },
+            cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true, academicCycle: true } } } },
             primaryDepartment: true,
             studentDepartments: { include: { department: true } },
             ...this.currentProgramInclude(),
@@ -763,7 +783,7 @@ export class StudentService {
               avatarUpdatedAt: true,
             },
           },
-          cohort: { select: { id: true, name: true } },
+          cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true, academicCycle: true } } } },
           primaryDepartment: true,
           studentDepartments: { include: { department: true } },
           ...this.currentProgramInclude(),
@@ -850,7 +870,7 @@ export class StudentService {
             avatarUpdatedAt: true,
           },
         },
-        cohort: { select: { id: true, name: true, code: true } },
+        cohortMemberships: { where: { leftAt: null }, take: 1, include: { cohortOffering: { include: { cohort: true, academicCycle: true } } } },
         primaryDepartment: true,
         studentDepartments: { include: { department: true } },
         ...this.studentGuardianInclude(),

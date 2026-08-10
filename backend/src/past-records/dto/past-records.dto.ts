@@ -16,6 +16,18 @@ export class PastRecordFiltersDto {
 
   @IsString()
   @IsOptional()
+  programOfferingId?: string;
+
+  @IsString()
+  @IsOptional()
+  programStageId?: string;
+
+  @IsString()
+  @IsOptional()
+  programStageOfferingId?: string;
+
+  @IsString()
+  @IsOptional()
   cohortId?: string;
 
   @IsString()

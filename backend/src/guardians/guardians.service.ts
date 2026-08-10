@@ -706,7 +706,7 @@ export class GuardiansService {
               registrationNumber: true,
               rollNumber: true,
               status: true,
-              cohort: { select: { id: true, name: true } },
+              cohortMemberships: { where: { leftAt: null }, take: 1, select: { cohortOffering: { select: { cohort: { select: { id: true, name: true } } } } } },
               user: { select: { id: true, name: true, email: true, avatarUrl: true, avatarUpdatedAt: true } },
             },
           },

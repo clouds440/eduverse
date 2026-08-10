@@ -413,7 +413,7 @@ export class AttendanceService {
           },
         },
         academicCycle: true,
-        cohort: true,
+        cohortOfferingSections: { include: { cohortOffering: { include: { cohort: true } } } },
         assessments: true,
         defaultRoom: { include: { building: true } },
         schedules: {

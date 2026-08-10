@@ -3,7 +3,7 @@ import {
   AcademicCycleStatus,
   CurriculumStatus,
   OrgStatus,
-  ProgramAcademicCycleStatus,
+  ProgramOfferingStatus,
   ProgramStatus,
 } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -41,7 +41,6 @@ export class ProgramOfferingsService {
             code: true,
             admissionsLabel: true,
             admissionsDescription: true,
-            requiredCycleCount: true,
             configurationVersion: true,
             structureType: true,
             durationValue: true,
@@ -49,14 +48,13 @@ export class ProgramOfferingsService {
             department: { select: { id: true, name: true, code: true } },
             configurationRevisions: {
               orderBy: { version: 'desc' },
-              select: { id: true, version: true, requiredCycleCount: true },
+              select: { id: true, version: true },
             },
-            academicCycles: {
-              where: { status: ProgramAcademicCycleStatus.ACTIVE, isRequired: true },
-              orderBy: { sequence: 'asc' },
+            offerings: {
+              where: { status: ProgramOfferingStatus.OPEN },
+              orderBy: { academicCycle: { startDate: 'asc' } },
               select: {
                 id: true,
-                sequence: true,
                 academicCycle: {
                   select: {
                     id: true,
@@ -83,7 +81,6 @@ export class ProgramOfferingsService {
                   select: {
                     id: true,
                     sequence: true,
-                    programAcademicCycleId: true,
                     isOptional: true,
                     _count: { select: { courseRequirements: true } },
                   },
@@ -103,33 +100,23 @@ export class ProgramOfferingsService {
       const curriculum = program.curriculumVersions.find(
         (row) => row.programConfigurationRevisionId === revision?.id,
       );
-      const associationIds = new Set(program.academicCycles.map((row) => row.id));
-      const stageAssociationIds = new Set(curriculum?.stages.map((row) => row.programAcademicCycleId));
       const structurallyComplete = Boolean(
         revision
-        && revision.requiredCycleCount === program.requiredCycleCount
-        && program.requiredCycleCount > 0
-        && program.academicCycles.length === program.requiredCycleCount
-        && new Set(program.academicCycles.map((row) => row.sequence)).size === program.requiredCycleCount
-        && program.academicCycles.every((row, index) => row.sequence === index + 1)
         && curriculum
-        && curriculum.stages.length === program.requiredCycleCount
-        && stageAssociationIds.size === associationIds.size
-        && [...associationIds].every((id) => stageAssociationIds.has(id))
+        && curriculum.stages.length > 0
         && curriculum.stages.every((stage) => stage.isOptional || stage._count.courseRequirements > 0),
       );
       if (!structurallyComplete || !revision || !curriculum) return [];
 
       const seenCycles = new Set<string>();
-      const eligibleEntryCycles = program.academicCycles.flatMap((association) => {
+      const eligibleEntryCycles = program.offerings.flatMap((association) => {
         if (
           seenCycles.has(association.academicCycle.id)
           || !ELIGIBLE_ENTRY_CYCLE_STATUSES.has(association.academicCycle.status)
         ) return [];
         seenCycles.add(association.academicCycle.id);
         return [{
-          programAcademicCycleId: association.id,
-          sequence: association.sequence,
+          programOfferingId: association.id,
           academicCycle: association.academicCycle,
         }];
       });
@@ -140,7 +127,7 @@ export class ProgramOfferingsService {
         code: program.code,
         description: program.admissionsDescription,
         department: program.department,
-        requiredCycleCount: program.requiredCycleCount,
+        requiredStageCount: curriculum.stages.length,
         structureType: program.structureType,
         duration: program.durationValue && program.durationUnit
           ? { value: program.durationValue, unit: program.durationUnit }

@@ -323,7 +323,7 @@ export default function PreferenceWindowsPage() {
         selectedAudienceCourses,
     ), [audienceCourses?.data, selectedAudienceCourses]);
     const audienceCohortOptions = useMemo<SelectOption[]>(() => mergeSelectedOptions(
-        (audienceCohorts?.data || []).map((cohort) => ({ value: cohort.id, label: cohortLabel(cohort), icon: Network, description: cohort.academicCycle?.name })),
+        (audienceCohorts?.data || []).map((cohort) => ({ value: cohort.id, label: cohortLabel(cohort), icon: Network, description: cohort.offerings?.[0]?.academicCycle.name })),
         selectedAudienceCohorts,
     ), [audienceCohorts?.data, selectedAudienceCohorts]);
     const selectedAudienceCourseSet = useMemo(() => new Set(audienceCourseIds), [audienceCourseIds]);

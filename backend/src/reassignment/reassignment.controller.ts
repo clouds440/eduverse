@@ -26,6 +26,6 @@ export class ReassignmentController {
   @Access(AccessLevel.WRITE)
   @Post()
   reassign(@OrgId() orgId: string, @Body() dto: ReassignStudentsDto, @Request() req: AuthenticatedRequest) {
-    return this.reassignmentService.reassignStudents(orgId, dto, req.user.id);
+    return this.reassignmentService.reassignStudents(orgId, dto, req.user);
   }
 }

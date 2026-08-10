@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Body,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { CopyForwardService } from './copy-forward.service';
@@ -13,6 +14,7 @@ import { Role } from '../common/enums';
 import { OrgId } from '../common/decorators/org-id.decorator';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
+import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -23,14 +25,22 @@ export class CopyForwardController {
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post('preview')
-  previewCopyForward(@OrgId() orgId: string, @Body() dto: CopyForwardDto) {
-    return this.copyForwardService.previewCopyForward(orgId, dto);
+  previewCopyForward(
+    @OrgId() orgId: string,
+    @Body() dto: CopyForwardDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.copyForwardService.previewCopyForward(orgId, dto, req.user);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)
   @Post()
-  copyForward(@OrgId() orgId: string, @Body() dto: CopyForwardDto) {
-    return this.copyForwardService.copyForward(orgId, dto);
+  copyForward(
+    @OrgId() orgId: string,
+    @Body() dto: CopyForwardDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.copyForwardService.copyForward(orgId, dto, req.user);
   }
 }

@@ -1,209 +1,104 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import {
   CurriculumStatus,
-  ProgramAcademicCycleStatus,
   ProgramStatus,
-  StudentProgramCycleStatus,
   StudentProgramEnrollmentStatus,
+  StudentStageEnrollmentStatus,
 } from '@/prisma/prisma-client';
 import { StudentProgramEnrollmentsService } from './student-program-enrollments.service';
 
 function admissionProgram() {
-  const associations = [1, 2].map((sequence) => ({
-    id: `association-${sequence}`,
-    academicCycleId: `cycle-${sequence}`,
-    sequence,
-    isRequired: true,
-    status: ProgramAcademicCycleStatus.ACTIVE,
-    academicCycle: {
-      id: `cycle-${sequence}`,
-      name: sequence === 1 ? 'Fall 2026' : 'Spring 2027',
-      code: sequence === 1 ? 'FALL-2026' : 'SPRING-2027',
-      startDate: new Date(`202${sequence + 5}-01-01`),
-      endDate: new Date(`202${sequence + 5}-05-31`),
-    },
-  }));
   return {
     id: 'program-1',
     organizationId: 'org-1',
     departmentId: 'department-1',
     status: ProgramStatus.ACTIVE,
-    configurationVersion: 3,
-    requiredCycleCount: 2,
+    configurationVersion: 2,
     department: { id: 'department-1' },
-    configurationRevisions: [{ id: 'revision-3', version: 3, checksum: 'frozen-plan-checksum' }],
+    configurationRevisions: [{ id: 'revision-2', version: 2, checksum: 'curriculum-hash' }],
     curriculumVersions: [{
-      id: 'curriculum-3',
+      id: 'curriculum-1',
+      programConfigurationRevisionId: 'revision-2',
       status: CurriculumStatus.ACTIVE,
       isDefaultForAdmissions: true,
-      programConfigurationRevisionId: 'revision-3',
-      stages: associations.map((association) => ({
-        id: `stage-${association.sequence}`,
-        name: `Semester ${association.sequence}`,
-        code: `SEM-${association.sequence}`,
-        programAcademicCycleId: association.id,
-      })),
+      stages: [
+        { id: 'stage-1', name: 'Semester 1', code: 'SEM-1', sequence: 1, isOptional: false },
+        { id: 'stage-2', name: 'Semester 2', code: 'SEM-2', sequence: 2, isOptional: false },
+      ],
     }],
-    academicCycles: associations,
   };
 }
 
-function createHarness() {
+function harness() {
+  const created = { id: 'major-1', program: { departmentId: 'department-1' } };
   const tx = {
-    student: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'student-1' }),
-      update: jest.fn().mockResolvedValue({}),
-    },
-    program: { findFirst: jest.fn().mockResolvedValue(admissionProgram()) },
-    academicCycle: { findFirst: jest.fn().mockResolvedValue({ id: 'cycle-1', status: 'ACTIVE' }) },
+    student: { findFirst: jest.fn().mockResolvedValue({ id: 'student-1' }), update: jest.fn() },
     studentProgramEnrollment: {
       findFirst: jest.fn().mockResolvedValue(null),
-      create: jest.fn(async ({ data }) => ({ id: 'enrollment-1', ...data, program: admissionProgram() })),
-      update: jest.fn().mockResolvedValue({ id: 'enrollment-1' }),
+      create: jest.fn().mockResolvedValue(created),
+      update: jest.fn(),
     },
-    studentProgramEnrollmentCycle: {
-      update: jest.fn().mockResolvedValue({ id: 'plan-1' }),
-    },
-    studentStageAttempt: {
-      findFirst: jest.fn(),
-      create: jest.fn().mockResolvedValue({ id: 'attempt-1' }),
-      count: jest.fn().mockResolvedValue(0),
-    },
-    cohort: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    program: { findFirst: jest.fn().mockResolvedValue(admissionProgram()) },
+    studentStageEnrollment: { findFirst: jest.fn(), count: jest.fn().mockResolvedValue(0), create: jest.fn(), updateMany: jest.fn() },
+    programStageOffering: { findFirst: jest.fn() },
+    cohortOffering: { findFirst: jest.fn() },
   };
-  const prisma = {
-    $transaction: jest.fn(async (operation: (client: unknown) => unknown) => operation(tx)),
-  };
-  return {
-    service: new StudentProgramEnrollmentsService(prisma as never),
-    prisma,
-    tx,
-  };
+  const prisma = { $transaction: jest.fn((operation) => operation(tx)) };
+  return { service: new StudentProgramEnrollmentsService(prisma as never), tx };
 }
 
 describe('StudentProgramEnrollmentsService', () => {
-  it('snapshots the complete ordered program plan at admission', async () => {
-    const { service, tx } = createHarness();
-
-    await service.admitInTransaction(
-      tx as never,
-      'org-1',
-      'student-1',
-      { programId: 'program-1' },
-      'admin-1',
-    );
+  it('admits a long-lived major without pre-creating future cycle or stage rows', async () => {
+    const { service, tx } = harness();
+    await service.admitInTransaction(tx as never, 'org-1', 'student-1', { programId: 'program-1' }, 'admin-1');
 
     expect(tx.studentProgramEnrollment.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
-        openSlot: 'student:student-1',
-        requiredCycleCountSnapshot: 2,
-        programConfigurationVersionSnapshot: 3,
-        programCyclePlanSnapshotHash: 'frozen-plan-checksum',
-        cycles: {
-          create: [
-            expect.objectContaining({ sequenceSnapshot: 1, cycleCodeSnapshot: 'FALL-2026', stageCodeSnapshot: 'SEM-1' }),
-            expect.objectContaining({ sequenceSnapshot: 2, cycleCodeSnapshot: 'SPRING-2027', stageCodeSnapshot: 'SEM-2' }),
-          ],
-        },
+        requiredStageCountSnapshot: 2,
+        entryStageId: 'stage-1',
+        curriculumSnapshotHash: 'curriculum-hash',
       }),
     }));
+    expect(tx.studentProgramEnrollment.create.mock.calls[0][0].data).not.toHaveProperty('cycles');
+    expect(tx.studentStageEnrollment.create).not.toHaveBeenCalled();
   });
 
-  it('rejects a second open major before reading a new program plan', async () => {
-    const { service, tx } = createHarness();
+  it('rejects a second open major before loading another program', async () => {
+    const { service, tx } = harness();
     tx.studentProgramEnrollment.findFirst.mockResolvedValue({ id: 'existing-major' });
-
-    await expect(service.admitInTransaction(
-      tx as never,
-      'org-1',
-      'student-1',
-      { programId: 'program-1' },
-      'admin-1',
-    )).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.admitInTransaction(tx as never, 'org-1', 'student-1', { programId: 'program-1' }, 'admin-1'))
+      .rejects.toBeInstanceOf(ConflictException);
     expect(tx.program.findFirst).not.toHaveBeenCalled();
   });
 
-  it('rejects a mapped section when the student major does not contain its stage', async () => {
-    const { service, tx } = createHarness();
-    tx.studentProgramEnrollment.findFirst.mockResolvedValue({
-      id: 'enrollment-1',
-      cycles: [{
-        id: 'plan-1',
-        academicCycleId: 'cycle-1',
-        programAcademicCycleId: 'association-1',
-        programStageId: 'stage-1',
-        status: StudentProgramCycleStatus.IN_PROGRESS,
-      }],
-    });
-
+  it('requires an active stage enrollment before a mapped section can be joined', async () => {
+    const { service, tx } = harness();
+    tx.studentStageEnrollment.findFirst.mockResolvedValue(null);
     await expect(service.ensureMappedSectionEnrollment(
       tx as never,
       'org-1',
       'student-1',
-      {
-        academicCycleId: 'cycle-1',
-        cohort: null,
-        requirementMappings: [{
-          programAcademicCycleId: 'association-2',
-          stageCourseRequirement: { programStageId: 'stage-2' },
-        }],
-      },
+      { id: 'section-1', academicCycleId: 'cycle-1', programMappings: [{ programStageOfferingId: 'offering-1' }] },
       'admin-1',
     )).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('rejects a repeat cohort outside the exact snapshotted cycle and stage', async () => {
-    const { service, tx } = createHarness();
-    tx.studentProgramEnrollment.findFirst.mockResolvedValue({
-      id: 'enrollment-1',
-      status: StudentProgramEnrollmentStatus.ACTIVE,
-      cycles: [{
-        id: 'plan-1',
-        organizationId: 'org-1',
-        academicCycleId: 'cycle-1',
-        programAcademicCycleId: 'association-1',
-        programStageId: 'stage-1',
-        cohortId: null,
-        status: StudentProgramCycleStatus.COMPLETED,
-      }],
-    });
-    tx.cohort.findFirst.mockResolvedValue(null);
-
-    await expect(service.repeatCycle(
+  it('accepts a current stage placement without mutating an old attempt', async () => {
+    const { service, tx } = harness();
+    const active = {
+      id: 'stage-enrollment-1',
+      status: StudentStageEnrollmentStatus.IN_PROGRESS,
+      studentProgramEnrollment: { id: 'major-1', status: StudentProgramEnrollmentStatus.ACTIVE },
+    };
+    tx.studentStageEnrollment.findFirst.mockResolvedValue(active);
+    const result = await service.ensureMappedSectionEnrollment(
+      tx as never,
       'org-1',
       'student-1',
-      'enrollment-1',
-      'plan-1',
-      { reason: 'Repeat approved', cohortId: 'wrong-cohort' },
-      'admin-1',
-    )).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('allows an explicitly skipped required stage to satisfy frozen-plan completion', async () => {
-    const { service, tx } = createHarness();
-    tx.studentProgramEnrollment.findFirst.mockResolvedValue({
-      id: 'enrollment-1',
-      status: StudentProgramEnrollmentStatus.ACTIVE,
-      requiredCycleCountSnapshot: 2,
-      cycles: [
-        { id: 'plan-1', isRequiredSnapshot: true, status: StudentProgramCycleStatus.COMPLETED },
-        { id: 'plan-2', isRequiredSnapshot: true, status: StudentProgramCycleStatus.SKIPPED },
-      ],
-    });
-
-    await service.completeProgram(
-      'org-1',
-      'student-1',
-      'enrollment-1',
-      { reason: 'Requirements approved' },
+      { id: 'section-1', academicCycleId: 'cycle-1', programMappings: [{ programStageOfferingId: 'offering-1' }] },
       'admin-1',
     );
-
-    expect(tx.studentProgramEnrollment.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        status: StudentProgramEnrollmentStatus.COMPLETED,
-        openSlot: null,
-      }),
-    }));
+    expect(result?.stageEnrollment).toBe(active);
+    expect(tx.studentStageEnrollment.create).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import useSWR from 'swr';
-import { AcademicCycle, Role, Student } from '@/types';
+import { AcademicCycle, Role, Student, StudentAcademicIdentity, StudentProgramOverview } from '@/types';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Badge } from '@/components/ui/Badge';
@@ -30,6 +30,8 @@ interface TranscriptStudent {
     registrationNumber?: string | null;
     rollNumber?: string | null;
     currentCohort?: { id: string; name: string } | null;
+    academicIdentity?: StudentAcademicIdentity;
+    programOverview?: StudentProgramOverview | null;
 }
 
 interface TranscriptAssessmentGrade {
@@ -264,7 +266,7 @@ export function StudentTranscriptView({
                                                     <BrandIcon variant="user" size="sm" user={student.user} />
                                                     <div className="min-w-0">
                                                         <span className="block truncate font-semibold">{student.user?.name}</span>
-                                                        <span className="block truncate text-xs text-muted-foreground">{student.registrationNumber || student.rollNumber}</span>
+                                                        <span className="block truncate text-xs text-muted-foreground">{student.academicIdentity?.label || student.registrationNumber || student.rollNumber}</span>
                                                     </div>
                                                 </button>
                                             ))}
@@ -435,8 +437,9 @@ export function StudentTranscriptView({
                                 <p className="text-lg font-bold">{transcriptResponse.student.registrationNumber || transcriptResponse.student.rollNumber || 'N/A'}</p>
                             </div>
                             <div>
-                                <p className="text-xs font-semibold uppercase text-muted-foreground">Batch</p>
-                                <p className="text-lg font-bold">{transcriptResponse.student.currentCohort?.name || 'Independent'}</p>
+                                <p className="text-xs font-semibold uppercase text-muted-foreground">Academic Identity</p>
+                                <p className="text-lg font-bold">{transcriptResponse.student.academicIdentity?.label || transcriptResponse.student.currentCohort?.name || 'Independent'}</p>
+                                {transcriptResponse.student.programOverview?.currentStage && <p className="mt-0.5 text-xs font-semibold text-muted-foreground">{transcriptResponse.student.programOverview.currentStage.stageNameSnapshot}</p>}
                             </div>
                             <div>
                                 <p className="text-xs font-semibold uppercase text-muted-foreground">CGPA</p>

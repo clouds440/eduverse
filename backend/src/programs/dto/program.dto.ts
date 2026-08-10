@@ -3,7 +3,6 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
-  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -11,6 +10,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -24,11 +24,6 @@ import {
   ProgramStructureType,
 } from '@/prisma/prisma-client';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
-
-export enum ProgramCycleInputKind {
-  EXISTING = 'EXISTING',
-  NEW = 'NEW',
-}
 
 export class ProgramCourseRequirementInputDto {
   @IsString()
@@ -92,41 +87,6 @@ export class ProgramStageInputDto {
   courseRequirements: ProgramCourseRequirementInputDto[];
 }
 
-export class ProgramCycleInputDto {
-  @IsEnum(ProgramCycleInputKind)
-  kind: ProgramCycleInputKind;
-
-  @IsString()
-  @IsOptional()
-  academicCycleId?: string;
-
-  @IsString()
-  @IsOptional()
-  name?: string;
-
-  @IsString()
-  @MaxLength(32)
-  @Matches(ENTITY_CODE_PATTERN)
-  @IsOptional()
-  code?: string;
-
-  @IsDateString()
-  @IsOptional()
-  startDate?: string;
-
-  @IsDateString()
-  @IsOptional()
-  endDate?: string;
-
-  @IsString()
-  @IsOptional()
-  gpaPolicyId?: string;
-
-  @ValidateNested()
-  @Type(() => ProgramStageInputDto)
-  stage: ProgramStageInputDto;
-}
-
 export class CreateProgramDto {
   @IsString()
   @IsNotEmpty()
@@ -154,6 +114,18 @@ export class CreateProgramDto {
 
   @IsEnum(ProgramCompletionMode)
   completionMode: ProgramCompletionMode;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  minimumPassingPercentage?: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  minimumAttendancePercentage?: number;
 
   @IsInt()
   @Min(1)
@@ -193,8 +165,8 @@ export class CreateProgramDto {
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => ProgramCycleInputDto)
-  cycles: ProgramCycleInputDto[];
+  @Type(() => ProgramStageInputDto)
+  stages: ProgramStageInputDto[];
 }
 
 export class UpdateProgramDto {
@@ -228,6 +200,18 @@ export class UpdateProgramDto {
   @IsOptional()
   completionMode?: ProgramCompletionMode;
 
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  minimumPassingPercentage?: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  minimumAttendancePercentage?: number;
+
   @IsInt()
   @Min(1)
   @IsOptional()
@@ -250,7 +234,7 @@ export class UpdateProgramDto {
   admissionsDescription?: string;
 }
 
-export class ReplaceProgramCyclesDto {
+export class ReplaceProgramStructureDto {
   @IsInt()
   @Min(1)
   configurationVersion: number;
@@ -276,8 +260,8 @@ export class ReplaceProgramCyclesDto {
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => ProgramCycleInputDto)
-  cycles: ProgramCycleInputDto[];
+  @Type(() => ProgramStageInputDto)
+  stages: ProgramStageInputDto[];
 
   @IsOptional()
   @ValidateNested()

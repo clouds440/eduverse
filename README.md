@@ -315,7 +315,7 @@ Rules:
 
 - A section can have multiple assigned teachers.
 - Every section declares `programClassificationStatus` as `STANDALONE` or `PROGRAM_MAPPED`.
-- A program-mapped section uses `SectionRequirementMapping` to identify the program cycle, curriculum stage, and course requirement it delivers.
+- A program-mapped section uses `SectionProgramMapping` to identify the stage offering and course requirement it delivers.
 - A standalone section remains valid without any program relationship.
 - Section create/edit is the source of teacher assignment. Teacher profile forms do not assign sections.
 - Section colors use predefined safe colors so labels remain readable.
@@ -431,17 +431,17 @@ DRAFT -> ACTIVE -> COMPLETED -> ARCHIVING -> ARCHIVED
 Rules:
 
 - Cycle identity is unique by organization and code.
-- Only one cycle can be active for an organization.
-- Program relationships use `ProgramAcademicCycle`; they never duplicate or embed institute cycle records.
+- More than one cycle may be active when institute calendars overlap.
+- Programs and cycles are independent. `ProgramOffering` relates a program and curriculum to a shared institute cycle only when that delivery is needed.
 - Completing or archiving a cycle never changes a program's status and never silently advances a student program enrollment.
 - Operational writes are blocked as the cycle moves out of its writable lifecycle.
 - A cycle can store a selected GPA policy and immutable policy snapshot.
 - Once finalized grades exist, the selected cycle policy cannot change.
-- A completed cycle can be archived only when no student program cycle for it remains in progress.
+- A completed cycle can be archived only when no student stage enrollment in that cycle remains in progress.
 
 ### Programs and Curricula
 
-`Program` is a hard-defined, department-owned course offering. It exists independently from academic cycles while maintaining an ordered relationship array to shared institute cycles.
+`Program` is a hard-defined, department-owned qualification or major. Its curriculum exists independently from institute academic cycles.
 
 Core program fields:
 
@@ -449,7 +449,7 @@ Core program fields:
 - unique organization code and display metadata
 - lifecycle: `DRAFT`, `ACTIVE`, `PAUSED`, `TEACH_OUT`, `ARCHIVED`
 - structure, progression, and completion modes
-- server-derived `requiredCycleCount`
+- ordered stable curriculum stages
 - admissions visibility, label, description, duration, and sort order
 - monotonic `configurationVersion`
 
@@ -458,23 +458,25 @@ Program structure:
 ```text
 Department
   -> Program
-     -> ProgramAcademicCycle[] -> shared AcademicCycle
      -> ProgramConfigurationRevision[]
      -> CurriculumVersion[]
         -> ProgramStage[]
            -> StageCourseRequirement[] -> Course
+
+AcademicCycle
+  -> ProgramOffering -> Program + CurriculumVersion
+     -> ProgramStageOffering[] -> stable ProgramStage
 ```
 
 Rules:
 
 - One department can own many programs.
-- One shared academic cycle can appear in many programs.
-- `requiredCycleCount` is derived from the ordered active required relationships and cannot be patched independently.
-- Program creation accepts an expanding ordered cycle array. Each entry can reference an eligible existing cycle or create a new institute cycle inline.
-- The entire program, relationship array, initial immutable configuration revision, draft curriculum, stages, and course requirements are created transactionally.
-- Replacing the relationship array requires the caller's current `configurationVersion` and a change reason.
+- One shared academic cycle can host many program offerings, and one program can offer several stages in the same cycle.
+- Program creation configures stable stages and requirements without creating or selecting cycles.
+- Program metadata, its initial immutable configuration revision, draft curriculum, stages, and course requirements are created transactionally.
+- Replacing program structure requires the caller's current `configurationVersion` and a change reason.
 - Structural edits append a `ProgramConfigurationRevision`, increment the version, and scaffold a new draft curriculum for future students.
-- Existing student plans never change when program metadata, cycle order, or curriculum structure changes later.
+- Existing student majors never change when program metadata or future curriculum structure changes later.
 - Programs with student history cannot move to another department.
 - `TEACH_OUT` blocks new admissions but allows existing students to finish. Archiving never archives shared cycles.
 
@@ -482,12 +484,11 @@ Rules:
 
 Programs do not own cohorts or sections. Delivery records explicitly state whether they are standalone or mapped.
 
-- `Cohort.programClassificationStatus` is `STANDALONE` or `PROGRAM_MAPPED`.
-- A mapped cohort points to one `ProgramAcademicCycle` and one compatible `ProgramStage`.
-- A mapped section is connected through one or more `SectionRequirementMapping` records to the exact stage course requirement it delivers.
-- Program, curriculum, stage, course, department, organization, and academic-cycle compatibility are validated server-side.
-- Standalone cohorts and sections remain first-class and require no program fields.
-- Copy-forward, reassignment, imports, reports, and filters preserve and validate this classification rather than guessing it from labels.
+- `Cohort` is a durable group; `CohortOffering` places it in a cycle and optionally in a `ProgramStageOffering`.
+- `CohortOfferingSection` allows sections to serve several cohort offerings without giving a section a single cohort owner.
+- A mapped section uses one or more `SectionProgramMapping` rows for exact stage-offering and requirement pairs.
+- Program, curriculum, stage, course, organization, and academic-cycle compatibility are validated server-side. Cross-department courses remain possible.
+- Cohort offerings and sections with no program mapping remain first-class standalone delivery.
 
 ### Student Program Enrollment
 
@@ -497,13 +498,13 @@ Key invariants:
 
 - A student can have at most one open major enrollment.
 - Assigning a major derives `Student.primaryDepartmentId` from the program department.
-- Admission stores the exact program, curriculum, configuration revision, required-cycle count, entry cycle, and cycle-plan hash.
-- `StudentProgramEnrollmentCycle` copies cycle and stage names, codes, dates, sequence, and required flags at admission time.
-- `StudentStageAttempt` records attempts, repeats, outcomes, cohort placement, and result snapshots.
-- Program edits never mutate previously copied student rows.
+- Admission stores the exact program, curriculum, configuration revision, required-stage count, and optional stable entry stage. It creates no future cycle rows.
+- `StudentStageEnrollment` records each actual stage attempt in a real `ProgramStageOffering`; repeats create new rows in the chosen cycle.
+- `StudentProgressionDecision` records advance, repeat, pause, transfer, withdrawal, and completion decisions with evidence and reasons.
+- Program edits never mutate a student's pinned curriculum or historical attempts.
 - Transfer closes the old enrollment as `TRANSFERRED_OUT` and creates a new historical chain; it does not overwrite the old major.
-- Hold, resume, withdrawal, cycle activation, completion, skip, repeat, and final program completion are explicit commands with actor/reason metadata where required.
-- Section and enrollment history can reference the program enrollment and stage attempt that produced the placement.
+- Hold, resume, withdrawal, stage activation, completion, skip, repeat, transfer, and final program completion are explicit commands with actor/reason metadata.
+- Section and enrollment history can reference the major, stage enrollment, and cohort membership that produced the placement.
 
 ### Academic Cycle Archives and Past Records
 
@@ -952,34 +953,51 @@ The linked Google email option follows the same old-address confirmation rule wh
 
 1. Org Admin or department-scoped Sub Admin selects the owning department.
 2. Admin enters program identity, structure, progression, completion, duration, and optional admissions metadata.
-3. Admin uses the expanding `+` cycle array to select an existing institute cycle or create a missing cycle inline.
-4. Every cycle row defines its corresponding curriculum stage and course requirements.
-5. Backend validates organization, department, cycle, course, ordering, uniqueness, and date invariants.
-6. One transaction creates the program, shared-cycle associations, revision 1, draft curriculum, stages, and requirements.
+3. Admin adds stable curriculum stages in progression order and assigns course requirements.
+4. Academic cycles are created independently; a program offering is added only when the curriculum will run in a cycle.
+5. Backend validates organization, department scope, course, ordering, uniqueness, and curriculum invariants.
+6. One transaction creates the program, revision 1, draft curriculum, stages, and requirements.
 7. Admin reviews the generated curriculum, activates a complete version as the admissions default, then activates the program.
 
 ### Program Change
 
 1. Metadata-only edits update the program without changing historical student plans.
-2. Cycle-array edits use the dedicated replace command with current `configurationVersion` and a reason.
-3. The backend rejects stale versions, retires removed associations where safe, appends a configuration revision, and scaffolds a future draft curriculum.
-4. Existing students retain their original revision, curriculum, cycle snapshots, and progression rows.
+2. Structural edits use the dedicated replace command with current `configurationVersion` and a reason.
+3. The backend rejects stale versions, appends a configuration revision, and scaffolds a future draft curriculum.
+4. Existing students retain their original revision, curriculum, stage attempts, and progression decisions.
 
 ### Student Major Admission and Transfer
 
 1. Admin selects a program during student admission or from Manage Enrollment.
-2. The selected active/default curriculum and eligible entry cycle are resolved.
+2. The selected active/default curriculum and optional stable entry stage are resolved.
 3. The student's primary department is derived from the program department.
-4. Admission creates one open `StudentProgramEnrollment` and copies every required cycle/stage row.
-5. Progression activates and resolves student cycle rows explicitly; institute cycle transitions do not advance students automatically.
+4. Admission creates one open `StudentProgramEnrollment` without pre-creating future cycle rows.
+5. Placement creates `StudentStageEnrollment` rows against actual stage offerings; institute cycle transitions do not advance students automatically.
 6. Changing majors uses transfer, closes the old enrollment with history, and creates a new enrollment chain.
 7. Clearing a major requires an explicit withdrawal reason; generic student profile edits cannot erase it.
+
+### Student Progression
+
+1. Each major enrollment pins the program's progression mode, completion mode, passing threshold, optional attendance threshold, curriculum revision, and entry stage at admission time.
+2. A preview evaluates finalized weighted grades, required courses, elective-group minima, earned credits, attendance, prior attempts, and open target offerings without changing records.
+3. Sequential programs advance in stage order; credit-accumulation and flexible programs evaluate their configured evidence; manual programs always require an explicit operator decision.
+4. Completing and advancing a stage is one atomic operation. The completed attempt, immutable decision, and next attempt either all persist or all roll back.
+5. A failed automatic recommendation can be overridden only with a reason. The recommendation, evidence, result, actor, and override flag are retained for audit and archives.
+6. The Progression Workbench previews a stage offering in bulk and applies selected rows with per-student results. Retrying the same request with the same idempotency key cannot duplicate decisions or stage attempts.
+
+### Student Academic Identity and Program View
+
+- Student-facing identity resolves in one order everywhere: active major program, then current cohort, then current section, then unassigned.
+- The student Overview shows the major, department, curriculum, current and next stage, stage and credit progress, configured duration, progression/completion policy, and expected graduation.
+- Expected graduation uses the recorded student graduation date when present. Otherwise, month/year program durations produce an estimate from the program start or admission date; cycle-based durations remain undated instead of inventing a calendar date.
+- Transcripts, printable/PDF transcript headers, student lists, selectors, and AI student results use the same academic identity projection.
+- Copilot resolves programs as first-class entities and can retrieve role-scoped program structure, curricula, stages, course requirements, open offerings, student progress, duration, and expected graduation context.
 
 ### Standalone and Program-Mapped Delivery
 
 1. Admin chooses `STANDALONE` or `PROGRAM_MAPPED` when creating a cohort or section.
 2. Standalone delivery needs only the ordinary academic cycle/course context.
-3. Program-mapped delivery selects a compatible program cycle and curriculum stage.
+3. Program-mapped delivery selects a compatible program stage offering in the section's cycle.
 4. A mapped section additionally resolves the stage course requirement it delivers.
 5. Imports, copy-forward, reassignment, filters, and archive indexes preserve the selected classification.
 
@@ -1077,9 +1095,9 @@ The linked Google email option follows the same old-address confirmation rule wh
 
 ### Cycle Completion, Archive, and Past Records
 
-1. Staff finishes operational corrections and student program-cycle decisions.
+1. Staff finishes operational corrections and resolves in-progress student stage enrollments.
 2. Org Admin transitions the active cycle to `COMPLETED`.
-3. Archive creation rejects remaining in-progress student program cycles or unverifiable referenced files.
+3. Archive creation rejects remaining in-progress stage enrollments or unverifiable referenced files.
 4. The archive service creates immutable section snapshots and student/program search indexes.
 5. It verifies per-section checksums, aggregate checksum, counts, and file locks before marking the archive ready.
 6. Only then does the cycle become `ARCHIVED` and appear in Past Records.

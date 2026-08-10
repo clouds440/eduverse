@@ -8,6 +8,14 @@ import { CopyForwardDto } from './dto/copy-forward.dto';
 import { ScheduleType } from '@/prisma/prisma-client';
 import { ProgramClassificationStatus } from '../common/enums';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
+import {
+  assertDepartmentInScope,
+  getDepartmentScope,
+  sectionDepartmentScopeWhere,
+  type DepartmentScopedUser,
+} from '../common/department-scope';
+
+type Actor = DepartmentScopedUser & { id: string };
 
 @Injectable()
 export class CopyForwardService {
@@ -60,48 +68,49 @@ export class CopyForwardService {
     return { fromCycle, toCycle };
   }
 
-  private async validateProgramMapping(orgId: string, dto: CopyForwardDto) {
+  private async validateProgramMapping(orgId: string, dto: CopyForwardDto, actor: Actor) {
     if (dto.programClassificationStatus === ProgramClassificationStatus.STANDALONE) return null;
-    if (!dto.sourceProgramAcademicCycleId || !dto.targetProgramAcademicCycleId || !dto.targetProgramStageId) {
-      throw new BadRequestException('Source program association, target program association, and target stage are required');
+    if (!dto.sourceProgramStageOfferingId || !dto.targetProgramStageOfferingId) {
+      throw new BadRequestException('Source and target program stage offerings are required');
     }
     const [source, targetStage] = await Promise.all([
-      this.prisma.programAcademicCycle.findFirst({
-        where: { id: dto.sourceProgramAcademicCycleId, organizationId: orgId, academicCycleId: dto.fromCycleId, status: 'ACTIVE' },
+      this.prisma.programStageOffering.findFirst({
+        where: { id: dto.sourceProgramStageOfferingId, organizationId: orgId, programOffering: { academicCycleId: dto.fromCycleId } },
+        include: { programOffering: { include: { program: true } } },
       }),
-      this.prisma.programStage.findFirst({
+      this.prisma.programStageOffering.findFirst({
         where: {
-          id: dto.targetProgramStageId,
+          id: dto.targetProgramStageOfferingId,
           organizationId: orgId,
-          programAcademicCycleId: dto.targetProgramAcademicCycleId,
-          programAcademicCycle: { academicCycleId: dto.toCycleId, status: 'ACTIVE' },
-          curriculumVersion: { status: 'ACTIVE' },
+          programOffering: { academicCycleId: dto.toCycleId },
         },
         include: {
-          programAcademicCycle: true,
-          courseRequirements: true,
-          curriculumVersion: { include: { programConfigurationRevision: true } },
+          programOffering: { include: { program: true } },
+          programStage: { include: { courseRequirements: true } },
         },
       }),
     ]);
     if (!source || !targetStage) throw new BadRequestException('Selected program copy-forward mapping is not eligible');
-    if (source.programId !== targetStage.programAcademicCycle.programId) {
+    if (source.programOffering.programId !== targetStage.programOffering.programId) {
       throw new BadRequestException('Source and target associations must belong to the same program');
     }
+    const scope = await getDepartmentScope(this.prisma, orgId, actor);
+    assertDepartmentInScope(scope, source.programOffering.program.departmentId, 'You cannot copy this program outside your assigned departments');
+    assertDepartmentInScope(scope, targetStage.programOffering.program.departmentId, 'You cannot copy into this program outside your assigned departments');
     return { source, targetStage };
   }
 
-  async previewCopyForward(orgId: string, dto: CopyForwardDto) {
+  async previewCopyForward(orgId: string, dto: CopyForwardDto, actor: Actor) {
     const options = this.getOptions(dto);
     await this.validateCycles(orgId, dto);
-    await this.validateProgramMapping(orgId, dto);
+    await this.validateProgramMapping(orgId, dto, actor);
+    const scope = await getDepartmentScope(this.prisma, orgId, actor);
 
     const sectionWhere = {
       academicCycleId: dto.fromCycleId,
-      course: { organizationId: orgId },
-      programClassificationStatus: dto.programClassificationStatus,
+      AND: [{ course: { organizationId: orgId } }, sectionDepartmentScopeWhere(scope)],
       ...(dto.programClassificationStatus === ProgramClassificationStatus.PROGRAM_MAPPED
-        ? { requirementMappings: { some: { programAcademicCycleId: dto.sourceProgramAcademicCycleId } } }
+        ? { programMappings: { some: { programStageOfferingId: dto.sourceProgramStageOfferingId } } }
         : {}),
     };
 
@@ -132,19 +141,19 @@ export class CopyForwardService {
    * with target-cycle teacher or room conflicts are skipped.
    * Assessments, grades, submissions, and attendance sessions are not copied.
    */
-  async copyForward(orgId: string, dto: CopyForwardDto) {
+  async copyForward(orgId: string, dto: CopyForwardDto, actor: Actor) {
     const options = this.getOptions(dto);
     const { toCycle } = await this.validateCycles(orgId, dto);
     await assertAcademicCycleWritable(this.prisma, orgId, dto.toCycleId, 'SETUP');
-    const programMapping = await this.validateProgramMapping(orgId, dto);
+    const programMapping = await this.validateProgramMapping(orgId, dto, actor);
+    const scope = await getDepartmentScope(this.prisma, orgId, actor);
 
     // Get all sections from the source cycle
     const sourceSections = await this.prisma.section.findMany({
       where: {
         academicCycleId: dto.fromCycleId,
-        course: { organizationId: orgId },
-        programClassificationStatus: dto.programClassificationStatus,
-        ...(programMapping ? { requirementMappings: { some: { programAcademicCycleId: programMapping.source.id } } } : {}),
+        AND: [{ course: { organizationId: orgId } }, sectionDepartmentScopeWhere(scope)],
+        ...(programMapping ? { programMappings: { some: { programStageOfferingId: programMapping.source.id } } } : { programMappings: { none: {} } }),
       },
       include: {
         teachers: { select: { id: true } },
@@ -189,7 +198,7 @@ export class CopyForwardService {
     await this.prisma.$transaction(async (tx) => {
       for (const sourceSection of sourceSections) {
         const targetRequirements = programMapping
-          ? programMapping.targetStage.courseRequirements.filter((requirement) => requirement.courseId === sourceSection.courseId)
+          ? programMapping.targetStage.programStage.courseRequirements.filter((requirement) => requirement.courseId === sourceSection.courseId)
           : [];
         if (programMapping && targetRequirements.length === 0) {
           throw new BadRequestException(`Target stage has no requirement for section course ${sourceSection.courseId}`);
@@ -221,15 +230,15 @@ export class CopyForwardService {
             courseId: sourceSection.courseId,
             academicCycleId: dto.toCycleId,
             status: 'ACTIVE',
-            programClassificationStatus: dto.programClassificationStatus,
             teachers: {
               connect: sourceSection.teachers.map((teacher) => ({ id: teacher.id })),
             },
-            requirementMappings: programMapping ? {
+            programMappings: programMapping ? {
               create: targetRequirements.map((requirement) => ({
                   organizationId: orgId,
                   stageCourseRequirementId: requirement.id,
-                  programAcademicCycleId: programMapping.targetStage.programAcademicCycleId,
+                  programStageOfferingId: programMapping.targetStage.id,
+                  createdById: actor.id,
                 })),
             } : undefined,
           },

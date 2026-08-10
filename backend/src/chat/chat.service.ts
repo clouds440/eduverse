@@ -618,7 +618,6 @@ export class ChatService {
         role: true,
         studentProfile: {
           select: {
-            cohortId: true,
             primaryDepartmentId: true,
             enrollments: {
               select: {
@@ -629,7 +628,7 @@ export class ChatService {
                     id: true,
                     name: true,
                     code: true,
-                    cohort: { select: { id: true, name: true, code: true } },
+                    cohortOfferingSections: { take: 1, select: { cohortOffering: { select: { cohort: { select: { id: true, name: true, code: true } } } } } },
                   },
                 },
               },
@@ -641,7 +640,7 @@ export class ChatService {
               },
             },
             primaryDepartment: { select: { id: true, name: true, code: true } },
-            cohort: { select: { id: true, name: true, code: true } },
+            cohortMemberships: { where: { leftAt: null }, take: 1, select: { cohortOffering: { select: { cohort: { select: { id: true, name: true, code: true } } } } } },
           },
         },
         teacherProfile: {
@@ -651,8 +650,7 @@ export class ChatService {
                 id: true,
                 name: true,
                 code: true,
-                cohortId: true,
-                cohort: { select: { id: true, name: true, code: true } },
+                cohortOfferingSections: { take: 1, select: { cohortOffering: { select: { cohort: { select: { id: true, name: true, code: true } } } } } },
               },
             },
             teacherDepartments: {
@@ -1068,7 +1066,7 @@ export class ChatService {
           is: {
             studentLinks: {
               some: {
-                student: { cohortId },
+                student: { cohortMemberships: { some: { leftAt: null, cohortOffering: { cohortId } } } },
               },
             },
           },
@@ -1086,13 +1084,13 @@ export class ChatService {
       requireStudentPreset();
       const cohortId = requireCohort();
       if (isOrgAdmin) {
-        where = whereWith({ role: Role.STUDENT }, { studentProfile: { is: { cohortId } } });
+        where = whereWith({ role: Role.STUDENT }, { studentProfile: { is: { cohortMemberships: { some: { leftAt: null, cohortOffering: { cohortId } } } } } });
       } else {
         const studentUserIds = await this.getAssignedStudentUserIds(user.id, user.role);
         where = whereWith(
           { role: Role.STUDENT },
           { id: { in: studentUserIds } },
-          { studentProfile: { is: { cohortId } } },
+          { studentProfile: { is: { cohortMemberships: { some: { leftAt: null, cohortOffering: { cohortId } } } } } },
         );
       }
     } else if (presetKey === 'STUDENTS_BY_DEPARTMENT') {
@@ -1233,15 +1231,16 @@ export class ChatService {
             seenScopeUsers,
           );
 
-          if (enrollment.section.cohort) {
+          const sectionCohort = enrollment.section.cohortOfferingSections[0]?.cohortOffering.cohort;
+          if (sectionCohort) {
             addScopeCount(
               scopeMap,
               {
                 type: 'COHORT',
                 audienceRole: Role.STUDENT,
-                id: enrollment.section.cohort.id,
-                name: enrollment.section.cohort.name,
-                code: enrollment.section.cohort.code,
+                id: sectionCohort.id,
+                name: sectionCohort.name,
+                code: sectionCohort.code,
               },
               candidate.id,
               seenScopeUsers,
@@ -1251,9 +1250,9 @@ export class ChatService {
               {
                 type: 'COHORT',
                 audienceRole: 'EVERYONE',
-                id: enrollment.section.cohort.id,
-                name: enrollment.section.cohort.name,
-                code: enrollment.section.cohort.code,
+                id: sectionCohort.id,
+                name: sectionCohort.name,
+                code: sectionCohort.code,
               },
               candidate.id,
               seenScopeUsers,
@@ -1315,15 +1314,16 @@ export class ChatService {
           );
         }
 
-        if (student.cohort) {
+        const studentCohort = student.cohortMemberships[0]?.cohortOffering.cohort;
+        if (studentCohort) {
           addScopeCount(
             scopeMap,
             {
               type: 'COHORT',
               audienceRole: Role.STUDENT,
-              id: student.cohort.id,
-              name: student.cohort.name,
-              code: student.cohort.code,
+              id: studentCohort.id,
+              name: studentCohort.name,
+              code: studentCohort.code,
             },
             candidate.id,
             seenScopeUsers,
@@ -1333,9 +1333,9 @@ export class ChatService {
             {
               type: 'COHORT',
               audienceRole: 'EVERYONE',
-              id: student.cohort.id,
-              name: student.cohort.name,
-              code: student.cohort.code,
+              id: studentCohort.id,
+              name: studentCohort.name,
+              code: studentCohort.code,
             },
             candidate.id,
             seenScopeUsers,
@@ -1372,15 +1372,16 @@ export class ChatService {
             seenScopeUsers,
           );
 
-          if (section.cohort) {
+          const sectionCohort = section.cohortOfferingSections[0]?.cohortOffering.cohort;
+          if (sectionCohort) {
             addScopeCount(
               scopeMap,
               {
                 type: 'COHORT',
                 audienceRole: Role.TEACHER,
-                id: section.cohort.id,
-                name: section.cohort.name,
-                code: section.cohort.code,
+                id: sectionCohort.id,
+                name: sectionCohort.name,
+                code: sectionCohort.code,
               },
               candidate.id,
               seenScopeUsers,
@@ -1390,9 +1391,9 @@ export class ChatService {
               {
                 type: 'COHORT',
                 audienceRole: 'EVERYONE',
-                id: section.cohort.id,
-                name: section.cohort.name,
-                code: section.cohort.code,
+                id: sectionCohort.id,
+                name: sectionCohort.name,
+                code: sectionCohort.code,
               },
               candidate.id,
               seenScopeUsers,

@@ -164,13 +164,13 @@ export default function StudentsPage() {
             )
         },
         {
-            header: 'Major',
+            header: 'Academic Identity',
             sortable: false,
-            accessor: (row: Student) => row.majorProgram ? (
-                <Badge variant="secondary" size="sm" title={row.majorProgram.name}>
-                    {row.majorProgram.code || row.majorProgram.name}
+            accessor: (row: Student) => row.academicIdentity ? (
+                <Badge variant={row.academicIdentity.kind === 'PROGRAM' ? 'secondary' : 'neutral'} size="sm" title={row.academicIdentity.label}>
+                    {row.academicIdentity.label}
                 </Badge>
-            ) : <span className="text-muted-foreground/30 italic">No major</span>,
+            ) : <span className="text-muted-foreground/30 italic">No academic placement</span>,
         },
         {
             header: 'Department',
@@ -203,12 +203,6 @@ export default function StudentsPage() {
                     </div>
                 ) : <span className="text-muted-foreground/30 italic">Unassigned</span>;
             },
-        },
-        {
-            header: 'Cohort',
-            sortable: false,
-            badge: true,
-            accessor: (row: Student) => row.cohort?.name || <span className="text-muted-foreground/30 italic">Independent</span>
         },
         {
             header: 'Contact',
