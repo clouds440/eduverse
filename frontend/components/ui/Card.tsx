@@ -38,9 +38,9 @@ export const Card = ({
         xl: 'p-6 md:p-8',
     };
     const variantClasses = {
-        default: 'border-border/70 bg-card text-card-foreground shadow-xs',
+        default: 'border-border/70 bg-card text-card-foreground shadow-[var(--app-shadow-sm)]',
         muted: 'border-border/60 bg-muted/35 text-foreground shadow-none',
-        raised: 'border-border/70 bg-surface-raised text-foreground shadow-sm',
+        raised: 'border-border/70 bg-card text-foreground shadow-[var(--app-shadow-md)]',
         bare: 'border-transparent bg-transparent text-foreground shadow-none',
     };
 
@@ -61,10 +61,10 @@ export const Card = ({
             role={onClick ? 'button' : undefined}
             tabIndex={onClick ? 0 : undefined}
             className={cn(
-                "relative flex h-full flex-col overflow-hidden rounded-lg border transition-colors duration-200",
+                "relative flex h-full flex-col overflow-hidden rounded-lg border transition-[border-color,background-color,box-shadow,transform] duration-200",
                 paddingClasses[padding],
                 variantClasses[variant],
-                hoverable && "group hover:border-primary/40 hover:shadow-sm",
+                hoverable && "group hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-[0_16px_34px_rgba(var(--primary-rgb),0.11)]",
                 onClick && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 animate && "opacity-0 animate-fade-in-up-subtle",
                 className

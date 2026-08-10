@@ -81,7 +81,7 @@ export function PageShell({ children, className, style }: PageShellProps) {
   return (
     <div
       className={cn(
-        "flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden sm:gap-0.5",
+        "page-shell-accent flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden rounded-lg sm:gap-0.5",
         className,
       )}
       style={style}
@@ -403,8 +403,10 @@ export function PageTabs<T extends string = string>({
         <div
           ref={tabsScrollerRef}
           className={cn(
-            "flex gap-0.5 overflow-x-auto p-0.5 rounded-lg scrollbar-none",
-            tone === "page" ? "bg-card/95 shadow-sm" : "bg-muted/45",
+            "flex gap-0.5 overflow-x-auto rounded-lg p-0.5 scrollbar-none",
+            tone === "page"
+              ? "page-tabs-accent shadow-sm"
+              : "border border-border/60 bg-muted/35",
           )}
         >
           {visibleItems.map(({ value, label, icon: Icon, count, href }) => {
@@ -426,12 +428,12 @@ export function PageTabs<T extends string = string>({
                 ? "min-h-9 px-2.5 py-1.5 text-xs sm:min-w-28 sm:px-3"
                 : "min-h-10 px-3 py-2 text-sm sm:min-w-32",
               isActive
-                ? "bg-foreground/20 text-foreground shadow-xs"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                ? "bg-primary/10 text-primary shadow-xs ring-1 ring-primary/20"
+                : "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
               tone === "panel" &&
                 (isActive
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:bg-background/60 hover:text-foreground"),
+                  ? "bg-card text-primary shadow-xs ring-1 ring-primary/20"
+                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"),
               itemClassName,
             );
 
@@ -611,7 +613,7 @@ export function PageHeader({
     <header
       ref={headerRef}
       className={cn(
-        "sticky top-0 z-30 shrink-0 rounded-lg border border-border bg-card/85 shadow-sm backdrop-blur-xl print:hidden",
+        "page-header-accent sticky top-0 z-30 shrink-0 rounded-lg border backdrop-blur-xl print:hidden",
         isCompact ? "p-2" : "p-2.5 md:p-3",
         className,
       )}
@@ -631,7 +633,7 @@ export function PageHeader({
           {Icon && (
             <div
               className={cn(
-                "flex shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary shadow-inner",
+                "flex shrink-0 items-center justify-center rounded-md border border-primary/15 bg-primary/10 text-primary shadow-inner",
                 isCompact ? "h-7 w-7" : "h-10 w-10",
               )}
             >
@@ -680,7 +682,7 @@ export function PageHeader({
             <time
               dateTime={currentDateTime.toISOString()}
               className={cn(
-                "min-w-0 rounded-md border border-border/70 bg-background/70 px-2.5 py-1.5 text-right font-black text-foreground shadow-xs",
+                "min-w-0 rounded-md border border-primary/10 bg-card/55 px-2.5 py-1.5 text-right font-black text-foreground shadow-xs",
                 isCompact
                   ? "max-w-36 truncate text-[11px] sm:max-w-52"
                   : "hidden max-w-64 text-xs sm:block",
@@ -693,7 +695,7 @@ export function PageHeader({
             <button
               type="button"
               onClick={() => setActionsOpen((open) => !open)}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background/70 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-primary/10 bg-card/55 text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               aria-expanded={actionsOpen}
               aria-label={
                 actionsOpen ? "Collapse page actions" : "Expand page actions"
@@ -731,6 +733,7 @@ export function ResourcePanel({
       {...props}
       className={cn(
         "flex min-h-0 min-w-0 max-w-full flex-1 flex-col overflow-hidden rounded-lg border border-border/70 bg-card shadow-sm",
+        "resource-panel-accent",
         className,
       )}
       style={style}
@@ -755,7 +758,7 @@ export function ResourceToolbar({
   return (
     <div
       className={cn(
-        "shrink-0 border-b border-border/60 bg-card/85 p-2.5 sm:p-3",
+        "resource-toolbar-accent shrink-0 border-b border-border/60 p-2.5 sm:p-3",
         className,
       )}
     >
@@ -783,7 +786,7 @@ export function ResourceToolbar({
           {activeFilters.map((filter) => (
             <span
               key={filter.key}
-              className="inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground"
+              className="filter-chip-accent inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-foreground"
             >
               <span className="shrink-0 text-muted-foreground">
                 {filter.label}

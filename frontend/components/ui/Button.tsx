@@ -29,14 +29,14 @@ interface BaseButtonProps extends ButtonProps {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-    primary: "border-transparent bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover focus-visible:ring-primary/35",
-    secondary: "border-border bg-surface-raised text-foreground shadow-xs hover:border-primary/35 hover:bg-muted/70 focus-visible:ring-primary/25",
-    danger: "border-transparent bg-danger text-white shadow-xs hover:bg-danger/85 focus-visible:ring-danger/30",
-    success: "border-transparent bg-success text-white shadow-xs hover:bg-success/85 focus-visible:ring-success/30",
-    warning: "border-transparent bg-warning text-white shadow-xs hover:bg-warning/85 focus-visible:ring-warning/30",
+    primary: "border-transparent bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(var(--primary-rgb),0.18)] hover:bg-primary-hover hover:shadow-[0_10px_24px_rgba(var(--primary-rgb),0.24)] focus-visible:ring-primary/35",
+    secondary: "border-border/80 bg-card text-foreground shadow-xs hover:border-primary/35 hover:bg-primary/5 focus-visible:ring-primary/25",
+    danger: "border-transparent bg-danger text-white shadow-[0_8px_18px_rgba(199,28,39,0.18)] hover:bg-danger/85 focus-visible:ring-danger/30",
+    success: "border-transparent bg-success text-white shadow-[0_8px_18px_rgba(1,146,86,0.18)] hover:bg-success/85 focus-visible:ring-success/30",
+    warning: "border-transparent bg-warning text-white shadow-[0_8px_18px_rgba(216,148,54,0.18)] hover:bg-warning/85 focus-visible:ring-warning/30",
     black: "border-border/50 bg-foreground text-background shadow-xs hover:bg-foreground/85 focus-visible:ring-foreground/25",
-    ghost: "border-transparent bg-transparent text-foreground hover:bg-muted/65 focus-visible:ring-primary/25",
-    outline: "border-border bg-transparent text-foreground hover:border-primary/40 hover:bg-primary/5 focus-visible:ring-primary/25",
+    ghost: "border-transparent bg-transparent text-foreground hover:bg-muted/70 focus-visible:ring-primary/25",
+    outline: "border-border/80 bg-card/40 text-foreground hover:border-primary/45 hover:bg-primary/5 focus-visible:ring-primary/25",
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -85,7 +85,7 @@ const BaseButton = React.forwardRef<HTMLButtonElement, BaseButtonProps>(
             <button
                 className={cn(
                     "group relative inline-flex min-w-0 items-center justify-center gap-2 rounded-md border font-semibold leading-tight outline-none",
-                    "transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    "transition-[background-color,border-color,color,box-shadow,transform] duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     "disabled:pointer-events-none disabled:opacity-55",
                     "active:translate-y-px motion-reduce:transition-none motion-reduce:active:translate-y-0",
                     sizeClasses[size],

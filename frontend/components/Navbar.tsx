@@ -259,7 +259,7 @@ export default function Navbar() {
                     releaseNavInteractionHold();
                 }
             }}
-            className={`app-navbar fixed top-0 left-0 right-0 z-100 h-16 border-b border-border/70 bg-background/85 text-navbar-foreground shadow-sm backdrop-blur-md transition-transform duration-200 ease-out ${isNavHidden ? '-translate-y-full' : 'translate-y-0'}`}
+            className={`app-navbar navbar-accent fixed top-0 left-0 right-0 z-100 h-16 border-b text-navbar-foreground backdrop-blur-md transition-transform duration-200 ease-out ${isNavHidden ? '-translate-y-full' : 'translate-y-0'}`}
         >
             <div className="mx-auto flex h-full w-full items-center justify-between gap-2 px-3 sm:px-4 lg:pr-8">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -295,7 +295,7 @@ export default function Navbar() {
                 </div>
 
                 {!isDashboard && (
-                    <div className="hidden lg:flex items-center justify-center gap-1 rounded-full border border-border/60 bg-card/45 p-1">
+                    <div className="navbar-control-accent hidden items-center justify-center gap-1 rounded-full border p-1 lg:flex">
                         {PUBLIC_NAV_LINKS.map((item) => {
                             const isActive = item.href === '/docs'
                                 ? pathname === '/docs' || pathname.startsWith('/docs/')
@@ -333,7 +333,7 @@ export default function Navbar() {
                             <NotificationDropdown onOpenChange={setIsNotificationMenuOpen} />
                         </div>
                     ) : (
-                        <div className="ml-1 flex min-w-0 overflow-hidden items-center rounded-full border border-border/70 bg-card/55 p-1 shadow-sm">
+                        <div className="navbar-control-accent ml-1 flex min-w-0 items-center overflow-hidden rounded-full border p-1 shadow-sm">
                             <Link
                                 href="/login"
                                 className={`flex h-9 items-center gap-1.5 rounded-full px-2.5 sm:px-4 text-xs sm:text-sm font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${pathname === '/login'

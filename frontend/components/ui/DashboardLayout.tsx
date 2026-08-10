@@ -55,21 +55,21 @@ const SidebarNavLink = React.memo(function SidebarNavLink({
             href={href}
             onClick={onClick}
             className={`
-                flex items-center rounded-lg transition-colors group relative hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35
+                flex items-center rounded-md transition-[background-color,color,box-shadow,transform] group relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35
                 ${isActive
-                    ? 'bg-primary/20 text-primary shadow-sm ring-1 ring-primary/20'
-                    : 'text-sidebar-text/70 hover:text-foreground/70 hover:text-sidebar-text'
+                    ? 'bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(var(--primary-rgb),0.22)] hover:bg-primary-hover hover:shadow-[0_8px_18px_rgba(var(--primary-rgb),0.18)]'
+                    : 'text-[var(--sidebar-subtle)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]'
                 }
                 ${isSidebarCompact ? 'lg:justify-center p-3' : 'px-4 py-3'}
             `}
             title={isSidebarCompact ? link.label : undefined}
         >
             {isActive && (
-                <div className="absolute left-0 top-2.5 bottom-2.5 w-1 bg-primary rounded-full z-10 shadow-[0_0_8px_rgba(var(--primary-rgb),0.6)]" />
+                <div className="absolute left-1 top-2.5 bottom-2.5 w-1 bg-primary-foreground/80 rounded-full z-10" />
             )}
-            <Icon className={`w-5 h-5 shrink-0 text-primary/80 transition-transform ${isActive ? 'scale-110 text-primary' : 'group-hover:scale-110'}`} />
+            <Icon className={`w-5 h-5 shrink-0 transition-transform ${isActive ? 'scale-105 text-primary-foreground' : 'text-primary/80 group-hover:scale-105'}`} />
             {showSidebarText && (
-                <span className="font-bold text-sm tracking-wide ml-2">
+                <span className="font-bold text-sm ml-2">
                     {link.label}
                 </span>
             )}
@@ -238,7 +238,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
             {/* Mobile Overlay */}
             {isMobileOpen && (
                 <div
-                    className="fixed inset-0 bg-card/50 backdrop-blur-sm z-80 lg:hidden transition-opacity duration-300"
+                    className="fixed inset-0 bg-[var(--app-surface-overlay)] backdrop-blur-sm z-80 lg:hidden transition-opacity duration-300"
                     onClick={() => setIsMobileOpen(false)}
                 />
             )}
@@ -247,7 +247,7 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
             <aside
                 className={`
                     fixed lg:relative inset-y-0 left-0 z-90 transform
-                    flex flex-col bg-background text-sidebar-text border-r border-border shadow-[4px_0_24px_var(--shadow-color)]
+                    flex flex-col border-r border-border/70 bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] shadow-[4px_0_24px_var(--shadow-color)]
                     ${isMobileOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'}
                     ${effectiveExpanded ? 'lg:w-64' : 'lg:w-18'}
                     h-full shrink-0 overflow-hidden
@@ -255,12 +255,12 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                 `}
             >
                 {/* Sidebar Header - Branded */}
-                <div className={`h-16 mt-14 lg:mt-0 flex items-center px-4 border-b border-border shrink-0 ${isSidebarCompact ? 'justify-center' : 'justify-between'} gap-2 overflow-hidden relative group`}>
+                <div className={`h-16 mt-14 lg:mt-0 flex items-center px-4 border-b border-border/70 shrink-0 ${isSidebarCompact ? 'justify-center' : 'justify-between'} gap-2 overflow-hidden relative group`}>
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="ml-auto opacity-40 hover:opacity-100 transition-opacity">
                             <BackButton
                                 {...(showSidebarText ? { label: activeLink?.label } : { label: "" })}
-                                className="bg-transparent! border-none! rounded-md! shadow-none! text-foreground! py-1.5! px-3.5! outline-none! focus:outline-none!"
+                                className="bg-transparent! border-none! rounded-md! shadow-none! text-[var(--sidebar-text)]! py-1.5! px-3.5! outline-none! focus:outline-none!"
                             />
                         </div>
                     </div>
@@ -285,12 +285,12 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                 </div>
 
                 {/* Branded Sidebar Footer */}
-                <div className={`px-3 pb-[env(safe-area-inset-bottom,0px)] border-t ${isBottomSectionCollapsed ? '' : 'bg-card'} border-border shrink-0 relative`}>
+                <div className={`px-3 pb-[env(safe-area-inset-bottom,0px)] border-t border-border/70 shrink-0 relative ${isBottomSectionCollapsed ? '' : 'bg-[var(--sidebar-panel)]'}`}>
                     {/* Toggle button sitting on top of border */}
                     <button
                         type="button"
                         onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
-                        className={`absolute -top-2 left-1/2 -translate-x-1/2 px-5 py-0 rounded-md border border-border/40 text-sidebar-text/60 bg-background hover:bg-card transition-all shadow-sm`}
+                        className="absolute -top-3 left-1/2 flex h-6 min-w-12 -translate-x-1/2 items-center justify-center rounded-full border border-border/70 bg-[var(--sidebar-bg)] px-4 text-[var(--sidebar-subtle)] shadow-sm transition-colors hover:border-primary/40 hover:bg-[var(--sidebar-hover)] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                         title={isBottomSectionCollapsed ? "Show more" : "Show less"}
                     >
                         {isBottomSectionCollapsed ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronUp className="w-4 h-4 shrink-0" />}
@@ -305,20 +305,20 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
 
                     {/* Collapsible bottom links */}
                     <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isBottomSectionCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'}`}>
-                        <div className="space-y-2 pb-3 pt-4">
+                        <div className="space-y-1.5 pb-3 pt-5">
                             {user?.role !== Role.SUPER_ADMIN && user?.role !== Role.PLATFORM_ADMIN && (
                                 <>
                                     <Link
                                         href="/mail"
                                         onClick={closeMobileSidebar}
-                                        className={`flex items-center hover:bg-primary/10 ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/mail') ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
+                                        className={`flex items-center ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-md transition-colors py-2.5 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/mail') ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover' : 'text-[var(--sidebar-subtle)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]'}`}
                                         title="Mail"
                                     >
                                         {pathname.includes('/mail') && (
-                                            <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
+                                            <div className="absolute left-1 top-2.5 bottom-2.5 w-0.5 bg-primary-foreground/80 rounded-full z-10" />
                                         )}
-                                        <Mail className="w-4 h-4 shrink-0 text-primary/80" />
-                                        {showSidebarText && <span className="ml-2 font-bold text-[10px] tracking-wider">Mail</span>}
+                                        <Mail className={`w-4 h-4 shrink-0 ${pathname.includes('/mail') ? 'text-primary-foreground' : 'text-primary/80'}`} />
+                                        {showSidebarText && <span className="ml-2 font-bold text-xs">Mail</span>}
                                         {/* Mail Count */}
                                         {mailCount.unread > 0 && (
                                             <span className={`ml-auto ${isSidebarCompact ? 'absolute top-0 -right-0.5' : ''}`}>
@@ -333,14 +333,14 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                                         <Link
                                             href="/contact"
                                             onClick={closeMobileSidebar}
-                                            className={`flex items-center hover:bg-primary/10 ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname === '/contact' ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
+                                            className={`flex items-center ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-md transition-colors py-2.5 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname === '/contact' ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover' : 'text-[var(--sidebar-subtle)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]'}`}
                                             title="Contact Us"
                                         >
                                             {pathname === '/contact' && (
-                                                <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
+                                                <div className="absolute left-1 top-2.5 bottom-2.5 w-0.5 bg-primary-foreground/80 rounded-full z-10" />
                                             )}
-                                            <MessageCircleQuestionMark className="w-4 h-4 shrink-0 text-primary/80" />
-                                            {showSidebarText && <span className="ml-2 font-bold text-[10px] tracking-wider">Contact Us</span>}
+                                            <MessageCircleQuestionMark className={`w-4 h-4 shrink-0 ${pathname === '/contact' ? 'text-primary-foreground' : 'text-primary/80'}`} />
+                                            {showSidebarText && <span className="ml-2 font-bold text-xs">Contact Us</span>}
                                         </Link>}
                                 </>
                             )}
@@ -348,41 +348,43 @@ export function DashboardLayout({ children, links, bottomLinks = [], showPadding
                             <Link
                                 href={changePasswordHref}
                                 onClick={closeMobileSidebar}
-                                className={`flex items-center hover:bg-primary/10 ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-lg text-sidebar-text/60 transition-colors py-3 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/change-password') ? 'bg-primary/20 text-primary ring-1 ring-primary/20' : 'bg-background hover:text-foreground/70'}`}
+                                className={`flex items-center ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} rounded-md transition-colors py-2.5 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 ${pathname.includes('/change-password') ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover' : 'text-[var(--sidebar-subtle)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]'}`}
                                 title="Change Password"
                             >
                                 {pathname.includes('/change-password') && (
-                                    <div className="absolute left-0 top-2.5 bottom-2.5 w-0.5 bg-primary rounded-full z-10" />
+                                    <div className="absolute left-1 top-2.5 bottom-2.5 w-0.5 bg-primary-foreground/80 rounded-full z-10" />
                                 )}
-                                <Key className="w-4 h-4 shrink-0 text-primary/80" />
-                                {showSidebarText && <span className="ml-2 font-bold text-[10px] tracking-wider">Change Password</span>}
+                                <Key className={`w-4 h-4 shrink-0 ${pathname.includes('/change-password') ? 'text-primary-foreground' : 'text-primary/80'}`} />
+                                {showSidebarText && <span className="ml-2 font-bold text-xs">Change Password</span>}
                             </Link>
 
                             {/* log out button separater */}
-                            <div className="border-t-2 my-2 border-border"></div>
+                            <div className="my-2 border-t border-border/70"></div>
 
                             <button
                                 type="button"
                                 onClick={handleLogout}
-                                className={`flex items-center cursor-pointer ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} w-full rounded-md text-danger bg-danger/10 hover:bg-danger/30 transition-all py-3`}
+                                className={`flex items-center cursor-pointer ${isSidebarCompact ? 'justify-center' : 'justify-start px-3'} w-full rounded-md border border-danger/20 text-danger bg-danger/10 hover:bg-danger/20 transition-colors py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30`}
                                 title="Log out"
                             >
                                 <LogOut className="w-4 h-4 shrink-0 text-danger" />
-                                {showSidebarText && <span className="ml-2 font-bold text-[10px] tracking-wider">Log out</span>}
+                                {showSidebarText && <span className="ml-2 font-bold text-xs">Log out</span>}
                             </button>
                         </div>
                     </div>
 
                     {user && (
-                        <div className={`flex items-center mt-2 cursor-pointer ${isSidebarCompact ? 'lg:justify-center' : 'space-x-3 px-1'} mb-4`}
+                        <div className={`mb-4 mt-2 flex min-h-13 items-center rounded-lg border border-border/70 bg-[var(--sidebar-panel)] p-2 shadow-xs cursor-pointer transition-colors hover:border-primary/30 hover:bg-[var(--sidebar-hover)] ${isSidebarCompact ? 'lg:justify-center' : 'gap-3'}`}
                             onClick={() => setIsBottomSectionCollapsed(!isBottomSectionCollapsed)}
+                            title={user.name || user.email}
                         >
-                            <div className={`w-9 h-9 flex items-center justify-center shrink-0 shadow-inner relative`}>
+                            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
                                 <BrandIcon variant="user" user={user} size="sm" className="w-9 h-9" imageLoading="eager" />
+                                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--sidebar-panel)] bg-success" />
                             </div>
-                            <div className={`overflow-hidden transition-all ml-2 ${!showSidebarText ? 'lg:hidden lg:w-0' : 'w-auto'}`}>
-                                <div className="text-xs font-black text-sidebar-text truncate max-w-30">{user.name || user.email}</div>
-                                <div className="text-[9px] font-bold text-sidebar-text/60 tracking-tighter leading-none mt-0.5">{user.designation || getRoleLabel(user.role, '')}</div>
+                            <div className={`min-w-0 overflow-hidden transition-all ${!showSidebarText ? 'lg:hidden lg:w-0' : 'w-auto flex-1'}`}>
+                                <div className="truncate text-sm font-black leading-tight text-[var(--sidebar-text)]">{user.name || user.email}</div>
+                                <div className="mt-0.5 truncate text-[11px] font-semibold leading-tight text-[var(--sidebar-subtle)]">{user.designation || getRoleLabel(user.role, '')}</div>
                             </div>
                         </div>
                     )}

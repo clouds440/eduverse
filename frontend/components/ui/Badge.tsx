@@ -22,17 +22,17 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-    success: "border-success/20 bg-success/10 text-success dark:bg-success/20",
-    error: "border-danger/20 bg-danger/50 text-white dark:bg-danger/70",
-    warning: "border-warning/25 bg-warning/10 text-warning dark:bg-warning/20",
-    neutral: "border-border bg-muted/55 text-muted-foreground",
-    primary: "border-primary/20 bg-primary/10 text-primary dark:bg-primary/20",
-    secondary: "border-secondary/35 bg-secondary/35 text-secondary-foreground dark:bg-secondary/30",
-    info: "border-info/20 bg-info/10 text-info dark:bg-info/20",
-    purple: "border-purple/20 bg-purple/25 text-purple dark:bg-purple/25 dark:text-purple",
-    teal: "border-teal/20 bg-teal/25 text-teal dark:bg-teal/25 dark:text-teal",
-    cyan: "border-cyan/20 bg-cyan/25 text-cyan dark:bg-cyan/25 dark:text-cyan",
-    rose: "border-rose/20 bg-rose/25 text-rose dark:bg-rose/25 dark:text-rose",
+    success: "border-success/25 bg-success/10 text-success dark:bg-success/20",
+    error: "border-danger/25 bg-danger/10 text-danger dark:bg-danger/20 dark:text-red-200",
+    warning: "border-warning/30 bg-warning/10 text-warning dark:bg-warning/20 dark:text-amber-200",
+    neutral: "border-border/80 bg-muted/55 text-muted-foreground",
+    primary: "border-primary/25 bg-primary/10 text-primary dark:bg-primary/20",
+    secondary: "border-secondary/35 bg-secondary/35 text-secondary-foreground dark:bg-secondary/25",
+    info: "border-info/25 bg-info/10 text-info dark:bg-info/20 dark:text-blue-200",
+    purple: "border-purple/25 bg-purple/10 text-purple dark:bg-purple/20 dark:text-violet-200",
+    teal: "border-teal/25 bg-teal/10 text-teal dark:bg-teal/20 dark:text-teal-200",
+    cyan: "border-cyan/25 bg-cyan/10 text-cyan dark:bg-cyan/20 dark:text-cyan-200",
+    rose: "border-rose/25 bg-rose/10 text-rose dark:bg-rose/20 dark:text-pink-200",
 };
 
 const dotColors: Record<BadgeVariant, string> = {
@@ -76,7 +76,7 @@ export function Badge({
     const colorStyle = isValidHexColor(color) ? getSectionTintStyle(color) : undefined;
     const mergedStyle = colorStyle ? { ...colorStyle, ...style } : style;
     const classes = cn(
-        "inline-flex items-center justify-center border font-semibold leading-none whitespace-nowrap",
+        "inline-flex items-center justify-center border font-semibold leading-none whitespace-nowrap shadow-xs",
         "select-none shrink-0",
         onClick && "cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
         sizeStyles[size],

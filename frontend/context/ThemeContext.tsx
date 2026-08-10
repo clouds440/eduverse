@@ -122,9 +122,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         // Navbar defaults
         root.style.setProperty('--navbar-bg', surfaces.navbarBg);
         root.style.setProperty('--navbar-text', surfaces.navbarText);
+        root.style.setProperty('--sidebar-bg', surfaces.sidebarBg);
+        root.style.setProperty('--sidebar-text', surfaces.sidebarText);
+        root.style.setProperty('--sidebar-subtle', surfaces.sidebarSubtle);
+        root.style.setProperty('--sidebar-panel', surfaces.sidebarPanel);
+        root.style.setProperty('--sidebar-hover', surfaces.sidebarHover);
 
         // Shadows
-        root.style.setProperty('--shadow-color', isDark ? 'rgba(0,0,0,0.5)' : `rgba(${primaryRgb?.r || 0}, ${primaryRgb?.g || 0}, ${primaryRgb?.b || 0}, 0.15)`);
+        root.style.setProperty('--shadow-color', isDark ? 'rgba(0,0,0,0.42)' : `rgba(${primaryRgb?.r || 0}, ${primaryRgb?.g || 0}, ${primaryRgb?.b || 0}, 0.12)`);
     }, []);
 
     const setThemeColors = useCallback((primary: string, secondary: string) => {

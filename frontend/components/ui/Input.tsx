@@ -59,14 +59,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
                     type={inputType}
                     className={cn(
                         "block w-full rounded-md border text-foreground placeholder:text-muted-foreground outline-none shadow-xs",
-                        "transition-colors duration-200 focus:ring-2 disabled:cursor-not-allowed disabled:bg-muted/45 disabled:text-muted-foreground disabled:opacity-75",
+                        "transition-[background-color,border-color,box-shadow,color] duration-200 focus:ring-2 disabled:cursor-not-allowed disabled:bg-muted/45 disabled:text-muted-foreground disabled:opacity-75",
                         sizeClasses[size],
                         hasIcon ? iconPaddingClasses[size] : basePaddingClasses[size],
                         isPassword && passwordPaddingClasses[size],
-                        variant === 'quiet' ? "bg-transparent" : "bg-input",
+                        variant === 'quiet' ? "bg-transparent" : "bg-input/95",
                         error
                             ? "border-danger/70 bg-danger/5 ring-1 ring-danger/20 focus:border-danger focus:ring-danger/20"
-                            : "border-border focus:border-primary focus:bg-input focus:ring-primary/20",
+                            : "border-border/80 hover:border-primary/35 focus:border-primary focus:bg-card focus:shadow-[0_0_0_4px_rgba(var(--primary-rgb),0.08)] focus:ring-primary/20",
                         className,
                     )}
                     ref={ref}

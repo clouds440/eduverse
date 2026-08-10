@@ -122,10 +122,10 @@ async function getMermaid() {
             securityLevel: 'strict',
             fontFamily: 'inherit',
             themeVariables: {
-                background: '#0f172a',
-                primaryColor: '#4f46e5',
-                secondaryColor: '#1e293b',
-                tertiaryColor: '#192231'
+                background: 'var(--card-bg)',
+                primaryColor: 'var(--primary)',
+                secondaryColor: 'var(--muted-bg)',
+                tertiaryColor: 'var(--accent-bg)'
             }
         });
         mermaidInitialized = true;
@@ -142,7 +142,7 @@ markdownRenderer.code = ({ text, lang }) => {
 
     if (language === 'mermaid') {
         return `<div class="mermaid-outer-container my-4 overflow-auto scrollbar-thin" style="width: 100%; min-width: 0;">
-                    <div class="mermaid-container" style="min-width: 600px; display: flex; justify-content: center; background: #0f172a; padding: 2rem; border-radius: 1rem; border: 1px solid rgba(255,255,255,0.05);">
+                    <div class="mermaid-container" style="min-width: 600px; display: flex; justify-content: center; background: var(--card-bg); padding: 2rem; border-radius: 1rem; border: 1px solid var(--border-color);">
                         <div class="mermaid" style="width: 100%; display: flex; justify-content: center;">${escapeHtml(decodedText)}</div>
                     </div>
                 </div>`;
@@ -325,12 +325,12 @@ function useMarkdownEnhancements(containerRef: React.RefObject<HTMLDivElement | 
                 if (copyIcon && checkIcon) {
                     copyIcon.classList.add('hidden');
                     checkIcon.classList.remove('hidden');
-                    btn.classList.add('bg-emerald-500/20', 'border-emerald-500/30');
+                    btn.classList.add('bg-success/20', 'border-success/30');
 
                     window.setTimeout(() => {
                         copyIcon.classList.remove('hidden');
                         checkIcon.classList.add('hidden');
-                        btn.classList.remove('bg-emerald-500/20', 'border-emerald-500/30');
+                        btn.classList.remove('bg-success/20', 'border-success/30');
                     }, 2000);
                 }
             } catch (error) {

@@ -444,7 +444,7 @@ function CustomSelectComponent<T extends string = string>({
                                         )}
                                     </span>
                                     {option.badge !== undefined && (
-                                        <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${option.value === value ? 'bg-card/20 text-card-text' : 'bg-primary/10 text-primary'
+                                        <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${option.value === value ? 'bg-card/20 text-primary-foreground' : 'bg-primary/10 text-primary'
                                             }`}>
                                             {option.badge}
                                         </span>
