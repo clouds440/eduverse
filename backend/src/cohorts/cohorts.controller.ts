@@ -14,7 +14,7 @@ import {
 import { CohortsService } from './cohorts.service';
 import { CreateCohortDto } from './dto/create-cohort.dto';
 import { UpdateCohortDto } from './dto/update-cohort.dto';
-import { AssignCohortSectionDto, CreateCohortOfferingDto, UpdateCohortOfferingDto } from './dto/cohort-offering.dto';
+import { AssignCohortSectionDto, CreateCohortOfferingDto, PreviewCohortOfferingDto, PreviewAssignCohortSectionDto, UpdateCohortOfferingDto } from './dto/cohort-offering.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -60,6 +60,17 @@ export class CohortsController {
     });
   }
 
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Post('offerings/preview')
+  previewOffering(
+    @OrgId() orgId: string,
+    @Body() dto: PreviewCohortOfferingDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.cohortsService.previewCreateOffering(orgId, dto, req.user);
+  }
+
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
   @Get(':id')
   findOne(@OrgId() orgId: string, @Param('id') id: string) {
@@ -87,6 +98,18 @@ export class CohortsController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.cohortsService.deleteCohort(orgId, id, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Post(':id/offerings/preview')
+  previewCohortOffering(
+    @OrgId() orgId: string,
+    @Param('id') cohortId: string,
+    @Body() dto: PreviewCohortOfferingDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.cohortsService.previewCreateOffering(orgId, dto, req.user, cohortId);
   }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -146,6 +169,18 @@ export class CohortsController {
   }
 
   // --- Section ↔ Cohort ---
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Post('offerings/:offeringId/sections/preview')
+  previewAssignSection(
+    @OrgId() orgId: string,
+    @Param('offeringId') offeringId: string,
+    @Body() dto: PreviewAssignCohortSectionDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.cohortsService.previewAssignSectionToCohort(orgId, offeringId, dto, req.user);
+  }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   @Access(AccessLevel.WRITE)

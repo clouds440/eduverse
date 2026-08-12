@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Patch,
+  Put,
   Post,
   Delete,
   Body,
@@ -52,6 +53,8 @@ import { AccessLevel } from '../common/access-control/access-level.enum';
 import { InsightsQueryDto } from '../insights/dto/insights-query.dto';
 import { RoleAccountsService, type UpdateRoleAccountInput } from '../role-accounts/role-accounts.service';
 import { AcademicEventsService } from '../academic-events/academic-events.service';
+import { CourseResultSchemesService } from '../course-result-schemes/course-result-schemes.service';
+import { UpsertCourseResultSchemeDto } from '../course-result-schemes/dto/course-result-scheme.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Access(AccessLevel.READ)
@@ -68,6 +71,7 @@ export class OrgController {
     private readonly attendanceService: AttendanceService,
     private readonly roleAccountsService: RoleAccountsService,
     private readonly academicEventsService: AcademicEventsService,
+    private readonly courseResultSchemesService: CourseResultSchemesService,
   ) { }
 
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER, Role.STUDENT, Role.GUARDIAN, Role.FINANCE_MANAGER)
@@ -229,6 +233,55 @@ export class OrgController {
     @Request() req: AuthenticatedRequest,
   ) {
     return this.coursesService.deleteCourse(orgId, id, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Get('courses/:id/result-schemes')
+  getCourseResultScheme(
+    @OrgId() orgId: string,
+    @Param('id') courseId: string,
+    @Query('academicCycleId') academicCycleId: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    if (!academicCycleId) throw new BadRequestException('academicCycleId is required');
+    return this.courseResultSchemesService.getScheme(orgId, courseId, academicCycleId, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Post('courses/:id/result-schemes/:academicCycleId/preview')
+  previewCourseResultScheme(
+    @OrgId() orgId: string,
+    @Param('id') courseId: string,
+    @Param('academicCycleId') academicCycleId: string,
+    @Body() dto: UpsertCourseResultSchemeDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.courseResultSchemesService.previewScheme(orgId, courseId, academicCycleId, dto, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Put('courses/:id/result-schemes/:academicCycleId')
+  upsertCourseResultScheme(
+    @OrgId() orgId: string,
+    @Param('id') courseId: string,
+    @Param('academicCycleId') academicCycleId: string,
+    @Body() dto: UpsertCourseResultSchemeDto,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.courseResultSchemesService.upsertScheme(orgId, courseId, academicCycleId, dto, req.user);
+  }
+
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  @Access(AccessLevel.WRITE)
+  @Delete('course-result-schemes/:id')
+  deleteCourseResultScheme(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.courseResultSchemesService.deleteScheme(orgId, id, req.user);
   }
 
   // --- Sections ---

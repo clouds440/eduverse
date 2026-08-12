@@ -25,6 +25,8 @@ interface TranscriptAssessmentGrade {
 
 interface TranscriptCycleSection {
     sectionId: string;
+    resultKind?: 'SECTION' | 'COMPONENT_AGGREGATE';
+    isComplete?: boolean;
     sectionName: string;
     sectionColor?: string | null;
     courseId?: string;
@@ -37,6 +39,16 @@ interface TranscriptCycleSection {
     letterGrade?: string;
     gradePoints?: number;
     qualityPoints?: number;
+    components?: Array<{
+        componentType: 'THEORY' | 'LAB' | 'PRACTICAL' | 'TUTORIAL' | 'RECITATION' | 'CLINIC' | 'STUDIO' | 'FIELDWORK' | 'OTHER';
+        label: string;
+        weight: number;
+        sectionName: string | null;
+        totalPercentage: number | null;
+        weightedContribution: number | null;
+        letterGrade?: string;
+        isMissing?: boolean;
+    }>;
 }
 
 interface TranscriptCycle {
@@ -151,7 +163,9 @@ function getSectionMetrics(section: TranscriptCycleSection) {
     const totalWeight = roundScore(grades.reduce((sum, grade) => sum + Number(grade.weightage || 0), 0));
     const rawPercentage = totalMarks > 0 ? roundScore((marksObtained / totalMarks) * 100) : 0;
     const weightedScore = roundScore(section.totalPercentage || 0);
-    const grade = section.wasExcluded || grades.length === 0 ? 'N/A' : section.letterGrade || 'N/A';
+    const grade = section.wasExcluded || (grades.length === 0 && section.resultKind !== 'COMPONENT_AGGREGATE') || (section.resultKind === 'COMPONENT_AGGREGATE' && !section.isComplete)
+        ? 'N/A'
+        : section.letterGrade || 'N/A';
 
     return {
         assessmentCount: grades.length,
@@ -311,18 +325,39 @@ export async function createTranscriptPdf({
             });
             pdf.rect({ x: table.x, y: y - rowHeight + 8, width: 4, height: rowHeight, fill: sectionColor });
             drawCell(labelParts.courseName || labelParts.inlineLabel, table.courseX, table.courseWidth, y - 9, { size: 9, font: 'bold', color: sectionColor });
-            if (labelParts.sectionName) {
-                drawCell(labelParts.sectionName, table.courseX, table.courseWidth, y - 21, { size: 7, color: mixHex(sectionColor, palette.text, 0.35) });
+            if (labelParts.sectionName || section.resultKind === 'COMPONENT_AGGREGATE') {
+                drawCell(section.resultKind === 'COMPONENT_AGGREGATE' ? 'Final course result' : labelParts.sectionName || '', table.courseX, table.courseWidth, y - 21, { size: 7, color: mixHex(sectionColor, palette.text, 0.35) });
             }
             drawCell(`${metrics.creditHours}`, table.creditX, table.creditWidth, y - 10, { size: 9, color: palette.text });
-            drawCell(`${metrics.marksObtained}/${metrics.totalMarks}`, table.marksX, table.marksWidth, y - 10, { size: 9, color: palette.text });
-            drawCell(`${metrics.rawPercentage}%`, table.rawX, table.rawWidth, y - 10, { size: 9, color: palette.text });
+            drawCell(section.resultKind === 'COMPONENT_AGGREGATE' ? '-' : `${metrics.marksObtained}/${metrics.totalMarks}`, table.marksX, table.marksWidth, y - 10, { size: 9, color: palette.text });
+            drawCell(section.resultKind === 'COMPONENT_AGGREGATE' ? '-' : `${metrics.rawPercentage}%`, table.rawX, table.rawWidth, y - 10, { size: 9, color: palette.text });
             drawCell(`${metrics.weightedScore}%`, table.scoreX, table.scoreWidth, y - 10, { size: 9, font: 'bold', color: sectionColor });
             drawCell(metrics.grade, table.gradeX, table.gradeWidth, y - 10, { size: 9, font: 'bold', color: palette.text });
             drawCell(`${metrics.gradePoints ?? 'N/A'}`, table.pointsX, table.pointsWidth, y - 10, { size: 9, color: palette.text });
             drawCell(`${metrics.qualityPoints ?? 'N/A'}`, table.qualityX, table.qualityWidth, y - 10, { size: 9, color: palette.text });
             y -= rowHeight + 6;
             pdf.cursorY = y;
+
+            for (const component of section.components || []) {
+                await ensureSpace(24);
+                const componentHeight = 22;
+                pdf.rect({
+                    x: table.x + 8,
+                    y: y - componentHeight + 5,
+                    width: table.width - 8,
+                    height: componentHeight,
+                    fill: palette.softSurface,
+                    stroke: palette.softBorder,
+                    borderWidth: 0.4,
+                });
+                drawCell(`${component.label} - ${component.weight}%${component.sectionName ? ` - ${component.sectionName}` : ''}`, table.courseX + 12, table.courseWidth - 12, y - 8, { size: 7, color: palette.muted });
+                drawCell(component.isMissing ? 'Missing' : 'Component', table.marksX, table.marksWidth, y - 8, { size: 7, color: palette.muted });
+                drawCell(component.totalPercentage === null ? 'N/A' : `${component.totalPercentage}%`, table.rawX, table.rawWidth, y - 8, { size: 7, color: palette.text });
+                drawCell(component.weightedContribution === null ? 'N/A' : `${component.weightedContribution}%`, table.scoreX, table.scoreWidth, y - 8, { size: 7, font: 'bold', color: sectionColor });
+                drawCell(component.letterGrade || 'N/A', table.gradeX, table.gradeWidth, y - 8, { size: 7, color: palette.text });
+                y -= componentHeight + 4;
+                pdf.cursorY = y;
+            }
         }
 
         y -= 14;

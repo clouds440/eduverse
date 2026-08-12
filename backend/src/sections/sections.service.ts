@@ -15,6 +15,7 @@ import {
 } from '../common/department-scope';
 import { normalizeEntityCode } from '../common/entity-code';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
+import { CourseResultSchemesService } from '../course-result-schemes/course-result-schemes.service';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -48,6 +49,7 @@ export class SectionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly coursesService: CoursesService,
+    private readonly courseResultSchemesService: CourseResultSchemesService,
   ) {}
 
   private async validateMappings(
@@ -248,6 +250,13 @@ export class SectionsService {
     const scope = await getDepartmentScope(this.prisma, orgId, requester);
     assertDepartmentInScope(scope, existing.course.departmentId, 'You cannot update a section outside your department scope');
     const nextCourseId = sectionData.courseId ?? existing.courseId;
+    if ((sectionData.courseId && sectionData.courseId !== existing.courseId)
+      || (sectionData.academicCycleId && sectionData.academicCycleId !== existing.academicCycleId)) {
+      const linkedScheme = await this.courseResultSchemesService.findLockedSectionLink(id);
+      if (linkedScheme) {
+        throw new ConflictException('Sections linked to section result relationships cannot be moved to another course or academic cycle');
+      }
+    }
     if (sectionData.courseId && sectionData.courseId !== existing.courseId) {
       const course = await this.coursesService.validateCourseBelongsToOrg(sectionData.courseId, orgId);
       assertDepartmentInScope(scope, course.departmentId, 'You cannot move a section outside your department scope');
@@ -336,6 +345,7 @@ export class SectionsService {
             preferenceOptions: true,
             preferenceAudiences: true,
             archiveSections: true,
+            resultComponentLinks: true,
             cohortOfferingSections: true,
             programMappings: true,
           },

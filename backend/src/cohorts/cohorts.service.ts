@@ -15,7 +15,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCohortDto } from './dto/create-cohort.dto';
 import { UpdateCohortDto } from './dto/update-cohort.dto';
-import { CreateCohortOfferingDto, UpdateCohortOfferingDto } from './dto/cohort-offering.dto';
+import { AssignCohortSectionDto, CreateCohortOfferingDto, UpdateCohortOfferingDto } from './dto/cohort-offering.dto';
 import { formatPaginatedResponse, getPaginationOptions, PaginationOptions } from '../common/utils';
 import { normalizeEntityCode } from '../common/entity-code';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
@@ -27,6 +27,7 @@ import {
   type DepartmentScopedUser,
 } from '../common/department-scope';
 import { assertLifecycleTransition, COHORT_OFFERING_TRANSITIONS } from '../common/offering-lifecycle';
+import { CourseResultSchemesService } from '../course-result-schemes/course-result-schemes.service';
 
 type Transaction = Prisma.TransactionClient;
 type Actor = DepartmentScopedUser & { id: string };
@@ -54,6 +55,7 @@ export class CohortsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly studentPrograms: StudentProgramEnrollmentsService,
+    private readonly courseResultSchemes: CourseResultSchemesService,
   ) {}
 
   private async assertCodeUnique(orgId: string, value: string, excludeId?: string) {
@@ -172,7 +174,8 @@ export class CohortsService {
       if (!stageOffering) throw new BadRequestException('Program stage offering does not belong to this academic cycle');
     }
 
-    const sectionIds = [...new Set(dto.sectionIds ?? [])];
+    const expandedSections = await this.courseResultSchemes.expandSectionIdsWithRelated(orgId, dto.sectionIds ?? []);
+    const sectionIds = expandedSections.sectionIds;
     const sections = sectionIds.length
       ? await this.prisma.section.findMany({ where: { id: { in: sectionIds }, organizationId: orgId, academicCycleId: cycle.id }, include: { course: true } })
       : [];
@@ -208,6 +211,52 @@ export class CohortsService {
       return offering;
     });
     return this.offering(orgId, created.id);
+  }
+
+  async previewCreateOffering(orgId: string, dto: CreateCohortOfferingDto, actor: Actor, cohortId?: string) {
+    const cycle = await this.prisma.academicCycle.findFirst({ where: { id: dto.academicCycleId, organizationId: orgId } });
+    if (!cycle) throw new NotFoundException('Academic cycle not found');
+    if (cohortId) {
+      const cohort = await this.prisma.cohort.findFirst({ where: { id: cohortId, organizationId: orgId } });
+      if (!cohort) throw new NotFoundException('Cohort not found');
+    }
+
+    let stageOffering: { id: string; programOffering: { program: { departmentId: string } } } | null = null;
+    if (dto.programStageOfferingId) {
+      stageOffering = await this.prisma.programStageOffering.findFirst({
+        where: {
+          id: dto.programStageOfferingId,
+          organizationId: orgId,
+          programOffering: { academicCycleId: cycle.id },
+        },
+        include: { programOffering: { include: { program: true } } },
+      });
+      if (!stageOffering) throw new BadRequestException('Program stage offering does not belong to this academic cycle');
+    }
+
+    const expandedSections = await this.courseResultSchemes.expandSectionIdsWithRelated(orgId, dto.sectionIds ?? []);
+    const sectionIds = expandedSections.sectionIds;
+    const sections = sectionIds.length
+      ? await this.prisma.section.findMany({
+          where: { id: { in: sectionIds }, organizationId: orgId, academicCycleId: cycle.id },
+          include: { course: true },
+        })
+      : [];
+    if (sections.length !== sectionIds.length) throw new BadRequestException('All sections must belong to the cohort offering cycle');
+    await this.assertDepartmentContext(orgId, actor, [
+      stageOffering?.programOffering.program.departmentId,
+      ...sections.map((section) => section.course.departmentId),
+    ]);
+
+    return this.buildCohortSectionExpansionPreview({
+      orgId,
+      selectedSectionIds: dto.sectionIds ?? [],
+      expandedSectionIds: sectionIds,
+      addedSectionIds: expandedSections.addedSectionIds,
+      groups: expandedSections.groups,
+      studentIds: [...new Set(dto.studentIds ?? [])],
+      sections,
+    });
   }
 
   async updateOffering(orgId: string, offeringId: string, dto: UpdateCohortOfferingDto, actor: Actor) {
@@ -428,21 +477,78 @@ export class CohortsService {
     });
     if (!section) throw new BadRequestException('Section must belong to the cohort offering cycle');
     await assertAcademicCycleWritable(this.prisma, orgId, offering.academicCycleId, 'DELIVERY');
+    const expandedSections = await this.courseResultSchemes.expandSectionIdsWithRelated(orgId, [sectionId]);
+    const sectionIds = expandedSections.sectionIds;
+    const sections = await this.prisma.section.findMany({
+      where: { id: { in: sectionIds }, organizationId: orgId, academicCycleId: offering.academicCycleId },
+    });
+    if (sections.length !== sectionIds.length) throw new BadRequestException('Every related section must belong to the cohort offering cycle');
     return this.prisma.$transaction(async (tx) => {
-      const link = await tx.cohortOfferingSection.upsert({
-        where: { cohortOfferingId_sectionId: { cohortOfferingId: offeringId, sectionId } },
-        create: { organizationId: orgId, cohortOfferingId: offeringId, sectionId, source, isDefault, createdById: actor.id },
-        update: { source, isDefault },
-      });
+      let primaryLink: Prisma.CohortOfferingSectionGetPayload<Record<string, never>> | null = null;
+      for (const relatedSectionId of sectionIds) {
+        const link = await tx.cohortOfferingSection.upsert({
+          where: { cohortOfferingId_sectionId: { cohortOfferingId: offeringId, sectionId: relatedSectionId } },
+          create: { organizationId: orgId, cohortOfferingId: offeringId, sectionId: relatedSectionId, source, isDefault, createdById: actor.id },
+          update: { source, isDefault },
+        });
+        if (relatedSectionId === sectionId) primaryLink = link;
+      }
       if (isDefault) {
         const memberships = await tx.studentCohortMembership.findMany({
           where: { cohortOfferingId: offeringId, leftAt: null },
         });
+        const sectionById = new Map(sections.map((row) => [row.id, row]));
         for (const membership of memberships) {
-          await this.autoEnroll(tx, membership.studentId, section, membership.id, membership.studentStageEnrollmentId);
+          for (const relatedSectionId of sectionIds) {
+            const relatedSection = sectionById.get(relatedSectionId);
+            if (relatedSection) await this.autoEnroll(tx, membership.studentId, relatedSection, membership.id, membership.studentStageEnrollmentId);
+          }
         }
       }
-      return link;
+      return {
+        link: primaryLink,
+        expandedSectionIds: sectionIds,
+        addedSectionIds: expandedSections.addedSectionIds,
+        relationshipGroups: expandedSections.groups,
+      };
+    });
+  }
+
+  async previewAssignSectionToCohort(
+    orgId: string,
+    offeringId: string,
+    dto: AssignCohortSectionDto,
+    actor: Actor,
+  ) {
+    await this.assertOfferingScope(orgId, offeringId, actor);
+    const offering = await this.offering(orgId, offeringId);
+    const section = await this.prisma.section.findFirst({
+      where: { id: dto.sectionId, organizationId: orgId, academicCycleId: offering.academicCycleId },
+    });
+    if (!section) throw new BadRequestException('Section must belong to the cohort offering cycle');
+    await assertAcademicCycleWritable(this.prisma, orgId, offering.academicCycleId, 'DELIVERY');
+    const expandedSections = await this.courseResultSchemes.expandSectionIdsWithRelated(orgId, [dto.sectionId]);
+    const sectionIds = expandedSections.sectionIds;
+    const sections = await this.prisma.section.findMany({
+      where: { id: { in: sectionIds }, organizationId: orgId, academicCycleId: offering.academicCycleId },
+      include: { course: true },
+    });
+    if (sections.length !== sectionIds.length) throw new BadRequestException('Every related section must belong to the cohort offering cycle');
+    const memberships = await this.prisma.studentCohortMembership.findMany({
+      where: { cohortOfferingId: offeringId, leftAt: null },
+      select: { studentId: true },
+    });
+    const currentSectionIds = offering.sections.map((link) => link.sectionId);
+
+    return this.buildCohortSectionExpansionPreview({
+      orgId,
+      selectedSectionIds: [dto.sectionId],
+      expandedSectionIds: sectionIds,
+      addedSectionIds: expandedSections.addedSectionIds.filter((sectionId) => !currentSectionIds.includes(sectionId)),
+      groups: expandedSections.groups,
+      studentIds: memberships.map((membership) => membership.studentId),
+      sections,
+      existingOfferingSectionIds: currentSectionIds,
     });
   }
 
@@ -505,6 +611,94 @@ export class CohortsService {
       },
       update: {},
     });
+  }
+
+  private async buildCohortSectionExpansionPreview({
+    orgId,
+    selectedSectionIds,
+    expandedSectionIds,
+    addedSectionIds,
+    groups,
+    studentIds,
+    sections,
+    existingOfferingSectionIds = [],
+  }: {
+    orgId: string;
+    selectedSectionIds: string[];
+    expandedSectionIds: string[];
+    addedSectionIds: string[];
+    groups: Array<{
+      schemeId: string;
+      schemeName: string;
+      triggerSectionId: string;
+      sections: Array<{
+        id: string;
+        name: string;
+        code: string;
+        componentType: string;
+        componentLabel: string;
+        componentWeight: number;
+      }>;
+    }>;
+    studentIds: string[];
+    sections: Array<{ id: string; name: string; code: string; componentType: string; course?: { code: string | null; name: string } }>;
+    existingOfferingSectionIds?: string[];
+  }) {
+    const uniqueStudentIds = [...new Set(studentIds.filter(Boolean))];
+    const existingSectionSet = new Set(existingOfferingSectionIds);
+    const sectionsToAdd = sections.filter((section) => !existingSectionSet.has(section.id));
+    const existingEnrollments = uniqueStudentIds.length && expandedSectionIds.length
+      ? await this.prisma.enrollment.findMany({
+          where: { studentId: { in: uniqueStudentIds }, sectionId: { in: expandedSectionIds }, section: { organizationId: orgId } },
+          select: { studentId: true, sectionId: true },
+        })
+      : [];
+    const existingPairs = new Set(existingEnrollments.map((enrollment) => `${enrollment.studentId}:${enrollment.sectionId}`));
+    const students = uniqueStudentIds.length
+      ? await this.prisma.student.findMany({
+          where: { id: { in: uniqueStudentIds }, organizationId: orgId },
+          select: { id: true, registrationNumber: true, user: { select: { name: true, email: true } } },
+        })
+      : [];
+    const studentById = new Map(students.map((student) => [student.id, student]));
+    const sectionById = new Map(sections.map((section) => [section.id, section]));
+    const missingEnrollments = uniqueStudentIds.flatMap((studentId) => expandedSectionIds
+      .filter((sectionId) => !existingPairs.has(`${studentId}:${sectionId}`))
+      .map((sectionId) => {
+        const student = studentById.get(studentId);
+        const section = sectionById.get(sectionId);
+        return {
+          studentId,
+          studentName: student?.user.name || student?.user.email || 'Student',
+          registrationNumber: student?.registrationNumber || null,
+          sectionId,
+          sectionName: section?.name || 'Section',
+          sectionCode: section?.code || '',
+        };
+      }));
+
+    return {
+      selectedSectionCount: [...new Set(selectedSectionIds.filter(Boolean))].length,
+      expandedSectionCount: expandedSectionIds.length,
+      addedRelatedSectionCount: addedSectionIds.length,
+      sectionsToAddCount: sectionsToAdd.length,
+      studentCount: uniqueStudentIds.length,
+      missingEnrollmentCount: missingEnrollments.length,
+      selectedSectionIds,
+      expandedSectionIds,
+      addedSectionIds,
+      sections: sections.map((section) => ({
+        id: section.id,
+        name: section.name,
+        code: section.code,
+        componentType: section.componentType,
+        courseCode: section.course?.code ?? null,
+        courseName: section.course?.name ?? null,
+        alreadyAssigned: existingSectionSet.has(section.id),
+      })),
+      missingEnrollments,
+      relationshipGroups: groups,
+    };
   }
 
   private async archiveEnrollments(tx: Transaction, enrollments: Awaited<ReturnType<Transaction['enrollment']['findMany']>>) {

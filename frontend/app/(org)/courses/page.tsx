@@ -262,6 +262,11 @@ export default function CoursesPage() {
                         setDeletingCourse(row);
                         setDeleteDialogOpen(true);
                     } : undefined}
+                    extraActions={isAdmin ? [{
+                        variant: 'link',
+                        title: 'Section Relationships',
+                        onClick: () => router.push(`/section-relationships?courseId=${row.id}`),
+                    }] : []}
                     editTitle="Edit Course"
                     deleteTitle="Delete Course"
                     variant="default"

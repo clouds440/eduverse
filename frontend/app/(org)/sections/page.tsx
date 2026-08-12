@@ -227,6 +227,11 @@ export default function SectionsPage() {
                             setDeletingSection(row);
                             setDeleteDialogOpen(true);
                         } : undefined}
+                        extraActions={canManageSections ? [{
+                            variant: 'link',
+                            title: 'Relationships',
+                            onClick: () => router.push(`/section-relationships?sectionId=${row.id}`),
+                        }] : []}
                         editTitle="Edit Section"
                         deleteTitle="Delete Section"
                         variant="default"

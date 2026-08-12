@@ -125,10 +125,29 @@ export default function ProgramDetailPage() {
 
 function OfferingRow({ offering, token, canManage, onEdit }: { offering: ProgramOffering; token: string; canManage: boolean; onEdit: () => void }) {
     const { data: readiness } = useSWR<ProgramOfferingReadiness>(['program-offering-readiness', offering.id], () => api.programOfferings.readiness(offering.id, token));
-    return <div className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-center">
-        <div><p className="text-sm font-black">{offering.academicCycle.name}</p><p className="text-xs text-muted-foreground">{offering.academicCycle.code}</p></div>
-        <p className="text-sm font-semibold text-muted-foreground">{offering.stageOfferings.length} stage {offering.stageOfferings.length === 1 ? 'offering' : 'offerings'}</p>
-        <div className="flex flex-wrap gap-2"><Badge variant={offering.status === 'OPEN' ? 'success' : 'neutral'} size="sm">{offering.status}</Badge>{readiness && <Badge variant={readiness.readyForDelivery ? 'success' : readiness.readyForAdmissions ? 'warning' : 'error'} size="sm">{readiness.readyForDelivery ? 'Delivery ready' : readiness.readyForAdmissions ? 'Admissions ready' : `${readiness.blockers.length} blockers`}</Badge>}</div>
-        {canManage && <Button size="icon" variant="ghost" icon={Pencil} title="Edit offering" onClick={onEdit} />}
+    return <div className="space-y-3 px-4 py-3">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-center">
+            <div><p className="text-sm font-black">{offering.academicCycle.name}</p><p className="text-xs text-muted-foreground">{offering.academicCycle.code}</p></div>
+            <p className="text-sm font-semibold text-muted-foreground">{offering.stageOfferings.length} stage {offering.stageOfferings.length === 1 ? 'offering' : 'offerings'}</p>
+            <div className="flex flex-wrap gap-2"><Badge variant={offering.status === 'OPEN' ? 'success' : 'neutral'} size="sm">{offering.status}</Badge>{readiness && <Badge variant={readiness.readyForDelivery ? 'success' : readiness.readyForAdmissions ? 'warning' : 'error'} size="sm">{readiness.readyForDelivery ? 'Delivery ready' : readiness.readyForAdmissions ? 'Admissions ready' : `${readiness.blockers.length} blockers`}</Badge>}</div>
+            {canManage && <Button size="icon" variant="ghost" icon={Pencil} title="Edit offering" onClick={onEdit} />}
+        </div>
+        {offering.stageOfferings.length > 0 && (
+            <div className="grid gap-2 md:grid-cols-2">
+                {offering.stageOfferings.map((stage) => (
+                    <div key={stage.id} className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/15 px-3 py-2">
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-black">{stage.programStage.name}</p>
+                            <p className="truncate text-xs font-semibold text-muted-foreground">{stage.programStage.code} - {stage.status}</p>
+                        </div>
+                        {canManage && (
+                            <Link href={`/cohorts/create?academicCycleId=${offering.academicCycleId}&programStageOfferingId=${stage.id}&returnTo=${encodeURIComponent(`/programs/${offering.programId}`)}`}>
+                                <Button size="sm" variant="secondary" icon={Plus}>Add cohort</Button>
+                            </Link>
+                        )}
+                    </div>
+                ))}
+            </div>
+        )}
     </div>;
 }

@@ -1,15 +1,17 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR, { mutate } from 'swr';
 import { CalendarRange, Hash, Save, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
-import { AcademicCycle, Cohort, CohortOfferingStatus, PaginatedResponse, ProgramDeliveryOption, Role, Section, Student } from '@/types';
+import { AcademicCycle, Cohort, CohortOfferingStatus, CohortSectionExpansionPreview, PaginatedResponse, ProgramDeliveryOption, Role, Section, Student } from '@/types';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
@@ -32,6 +34,7 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
     const { token, user } = useAuth();
     const { dispatch } = useGlobal();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const isEdit = mode === 'edit';
     const [name, setName] = useState(cohort?.name || '');
     const [code, setCode] = useState(cohort?.code || '');
@@ -41,7 +44,10 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
     const [studentIds, setStudentIds] = useState<string[]>([]);
     const [sectionIds, setSectionIds] = useState<string[]>([]);
     const [error, setError] = useState('');
+    const [preview, setPreview] = useState<CohortSectionExpansionPreview | null>(null);
+    const [confirmOpen, setConfirmOpen] = useState(false);
     const processingId = isEdit ? 'cohort-update' : 'cohort-create';
+    const resolvedReturnTo = returnTo || searchParams.get('returnTo') || undefined;
 
     useEffect(() => {
         if (user && user.role !== Role.ORG_ADMIN && user.role !== Role.SUB_ADMIN) router.replace('/cohorts');
@@ -53,6 +59,13 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
     const { data: stageOfferings = [] } = useSWR<ProgramDeliveryOption[]>(token && academicCycleId ? ['program-delivery-options', academicCycleId] : null, () => api.programs.getDeliveryOptions(token!, academicCycleId));
     const eligibleSections = useMemo(() => (sections?.data || []).filter((section) => section.academicCycleId === academicCycleId), [academicCycleId, sections?.data]);
 
+    useEffect(() => {
+        const cycleId = searchParams.get('academicCycleId');
+        const stageOfferingId = searchParams.get('programStageOfferingId');
+        if (cycleId) setAcademicCycleId(cycleId);
+        if (stageOfferingId) setProgramStageOfferingId(stageOfferingId);
+    }, [searchParams]);
+
     const changeCycle = (id: string) => {
         setAcademicCycleId(id);
         setProgramStageOfferingId('');
@@ -60,8 +73,16 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
         setSectionIds([]);
     };
 
-    const submit = async (event: FormEvent) => {
-        event.preventDefault();
+    const offeringPayload = () => ({
+        academicCycleId,
+        programStageOfferingId: programStageOfferingId || undefined,
+        status: CohortOfferingStatus.PLANNED,
+        capacity: capacity ? Number(capacity) : undefined,
+        studentIds,
+        sectionIds,
+    });
+
+    const save = async () => {
         if (!token) return;
         if (!name.trim() || !code.trim()) {
             setError('Cohort name and code are required.');
@@ -74,20 +95,37 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
                 ? await api.cohorts.updateCohort(cohort.id, { name, code }, token)
                 : await api.cohorts.createCohort({ name, code }, token);
             if (academicCycleId) {
-                await api.cohorts.createOffering(saved.id, {
-                    academicCycleId,
-                    programStageOfferingId: programStageOfferingId || undefined,
-                    status: CohortOfferingStatus.PLANNED,
-                    capacity: capacity ? Number(capacity) : undefined,
-                    studentIds,
-                    sectionIds,
-                }, token);
+                await api.cohorts.createOffering(saved.id, offeringPayload(), token);
             }
             mutate(matchesCacheKeyPrefix('cohorts'));
             dispatch({ type: 'TOAST_ADD', payload: { message: cohort ? 'Cohort updated' : 'Cohort created', type: 'success' } });
-            router.push(returnTo || `/cohorts/${saved.id}`);
+            router.push(resolvedReturnTo || `/cohorts/${saved.id}`);
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : 'Unable to save cohort');
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: processingId });
+        }
+    };
+
+    const submit = async (event: FormEvent) => {
+        event.preventDefault();
+        if (!token) return;
+        if (!academicCycleId) {
+            await save();
+            return;
+        }
+        if (!name.trim() || !code.trim()) {
+            setError('Cohort name and code are required.');
+            return;
+        }
+        dispatch({ type: 'UI_START_PROCESSING', payload: processingId });
+        setError('');
+        try {
+            const result = await api.cohorts.previewOffering(offeringPayload(), token, cohort?.id);
+            setPreview(result);
+            setConfirmOpen(true);
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : 'Unable to preview cohort offering');
         } finally {
             dispatch({ type: 'UI_STOP_PROCESSING', payload: processingId });
         }
@@ -113,12 +151,40 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
                             <div className="space-y-2"><Label>Program stage offering</Label><CustomSelect value={programStageOfferingId} onChange={setProgramStageOfferingId} searchable options={[{ value: '', label: 'Standalone / no program' }, ...stageOfferings.map((offering) => ({ value: offering.id, label: `${offering.programOffering.program.code} - ${offering.programStage.name}` }))]} /></div>
                             <div className="space-y-2"><Label>Capacity</Label><Input type="number" min={1} value={capacity} onChange={(event) => setCapacity(event.target.value)} placeholder="No limit" /></div>
                             <div className="space-y-2"><Label>Students</Label><CustomMultiSelect values={studentIds} onChange={setStudentIds} searchable options={(students?.data || []).map((student) => ({ value: student.id, label: `${student.user.name || student.user.email}${student.academicIdentity?.label ? ` - ${student.academicIdentity.label}` : student.registrationNumber ? ` - ${student.registrationNumber}` : ''}` }))} placeholder="Select students" /></div>
-                            <div className="space-y-2"><Label>Sections in this cycle</Label><CustomMultiSelect values={sectionIds} onChange={setSectionIds} searchable options={eligibleSections.map((section) => ({ value: section.id, label: `${section.code} - ${section.name}` }))} placeholder="Select sections" /></div>
+                            <div className="space-y-2"><Label>Sections in this cycle</Label><CustomMultiSelect values={sectionIds} onChange={setSectionIds} searchable options={eligibleSections.map((section) => ({ value: section.id, label: `${section.code} - ${section.name}${section.componentType ? ` (${section.componentType})` : ''}` }))} placeholder="Select sections" /><p className="text-xs font-semibold text-muted-foreground">If a selected section belongs to a result relationship, EduVerse also adds the related sections and enrolls cohort students into them.</p></div>
                         </>}
                     </div>
                 </section>
-                <div className="flex justify-end gap-2 border-t border-border pt-4"><Button type="button" variant="secondary" onClick={() => router.push(returnTo || (cohort ? `/cohorts/${cohort.id}` : '/cohorts'))}>Cancel</Button><Button type="submit" icon={Save} loadingId={processingId}>{isEdit ? 'Save cohort' : 'Create cohort'}</Button></div>
+                <div className="flex justify-end gap-2 border-t border-border pt-4"><Button type="button" variant="secondary" onClick={() => router.push(resolvedReturnTo || (cohort ? `/cohorts/${cohort.id}` : '/cohorts'))}>Cancel</Button><Button type="submit" icon={Save} loadingId={processingId}>{academicCycleId ? 'Preview and save' : isEdit ? 'Save cohort' : 'Create cohort'}</Button></div>
             </form>
+            <ConfirmDialog
+                isOpen={confirmOpen}
+                onClose={() => setConfirmOpen(false)}
+                onConfirm={save}
+                title="Confirm Cohort Offering"
+                description={(
+                    <span className="block space-y-3 text-sm">
+                        <span className="block">This will create the cohort offering and apply related-section expansion before enrolling students.</span>
+                        <span className="grid gap-2 sm:grid-cols-3">
+                            <Badge variant="neutral" size="sm">{preview?.expandedSectionCount ?? 0} sections</Badge>
+                            <Badge variant="neutral" size="sm">{preview?.studentCount ?? 0} students</Badge>
+                            <Badge variant={(preview?.missingEnrollmentCount ?? 0) > 0 ? 'warning' : 'success'} size="sm">{preview?.missingEnrollmentCount ?? 0} enrollments to ensure</Badge>
+                        </span>
+                        {(preview?.addedRelatedSectionCount ?? 0) > 0 && <span className="block text-xs font-bold text-warning">{preview?.addedRelatedSectionCount} related sections will be added automatically.</span>}
+                        {(preview?.sections?.length ?? 0) > 0 && (
+                            <span className="block max-h-48 overflow-y-auto rounded-md border border-border/70 bg-muted/20 p-2 text-left">
+                                {preview?.sections.slice(0, 30).map((section) => (
+                                    <span key={section.id} className="block py-1 text-xs font-semibold text-muted-foreground">
+                                        {section.code} - {section.name}{section.componentType ? ` (${section.componentType})` : ''}{section.alreadyAssigned ? ' already assigned' : ''}
+                                    </span>
+                                ))}
+                            </span>
+                        )}
+                    </span>
+                )}
+                confirmText="Create Offering"
+                loadingId={processingId}
+            />
         </div>
     );
 }

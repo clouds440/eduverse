@@ -16,6 +16,7 @@ import { AuthModule } from '../auth/auth.module';
 import { SecurityModule } from '../security/security.module';
 import { RoleAccountsModule } from '../role-accounts/role-accounts.module';
 import { AcademicEventsModule } from '../academic-events/academic-events.module';
+import { CourseResultSchemesModule } from '../course-result-schemes/course-result-schemes.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AcademicEventsModule } from '../academic-events/academic-events.module'
     SecurityModule,
     RoleAccountsModule,
     AcademicEventsModule,
+    CourseResultSchemesModule,
   ],
   controllers: [OrgController],
   providers: [OrgService, RemindersService],
@@ -46,6 +48,7 @@ import { AcademicEventsModule } from '../academic-events/academic-events.module'
     CoursesModule,
     SectionsModule,
     AcademicEventsModule,
+    CourseResultSchemesModule,
   ],
 })
 export class OrgModule {}

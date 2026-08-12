@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import { IsArray, IsEnum, IsOptional, IsString, IsNotEmpty, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 import { HEX_COLOR_PATTERN } from '../section-colors';
+import { CourseResultComponentType } from '@/prisma/prisma-client';
 import { SectionLifecycleStatus } from '../../common/enums';
 
 export class SectionProgramMappingInputDto {
@@ -50,6 +51,10 @@ export class CreateSectionDto {
   @IsEnum(SectionLifecycleStatus)
   @IsOptional()
   status?: SectionLifecycleStatus;
+
+  @IsEnum(CourseResultComponentType)
+  @IsOptional()
+  componentType?: CourseResultComponentType;
 
   @IsString()
   @IsOptional()

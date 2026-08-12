@@ -5,6 +5,8 @@ import { GpaService } from '../gpa/gpa.service';
 import { GpaRounding, Prisma } from '@/prisma/prisma-client';
 import { StudentService } from '../students/student.service';
 import { buildStudentAcademicIdentity, buildStudentProgramOverview } from '../common/student-academic-identity';
+import { CourseResultAggregationService } from '../course-result-schemes/course-result-aggregation.service';
+import { CourseResultSchemesService } from '../course-result-schemes/course-result-schemes.service';
 
 @Injectable()
 export class TranscriptsService {
@@ -12,6 +14,8 @@ export class TranscriptsService {
     private readonly prisma: PrismaService,
     private readonly gpaService: GpaService,
     private readonly studentService: StudentService,
+    private readonly courseResultSchemesService: CourseResultSchemesService,
+    private readonly courseResultAggregationService: CourseResultAggregationService,
   ) {}
 
   /**
@@ -264,10 +268,40 @@ export class TranscriptsService {
     // Format response
     const transcript = await Promise.all(Array.from(cycleMap.entries()).map(async ([_, cycleData]) => {
       const sectionValues = Array.from(cycleData.sections.values());
-      const gpaEligibleSections = sectionValues.filter((s) => !s.wasExcluded && s.grades.length > 0);
       const gpaPolicy = await this.gpaService.getPolicyForCycle(orgId, cycleData.cycle);
+      const sectionGpa = this.gpaService.calculateCourses(
+        sectionValues.filter((s) => !s.wasExcluded && s.grades.length > 0).map((s) => ({
+          courseId: s.courseId,
+          courseName: s.courseName,
+          sectionId: s.sectionId,
+          sectionName: s.sectionName,
+          creditHours: s.creditHours,
+          percentage: parseFloat(s.totalPercentage.toFixed(2)),
+        })),
+        gpaPolicy,
+      );
+
+      const sectionGpaBySectionId = new Map(sectionGpa.courses.map((course) => [course.sectionId, course]));
+
+      const sectionsWithGrades = sectionValues.map((s) => {
+        const gpaCourse = sectionGpaBySectionId.get(s.sectionId);
+        return {
+          ...s,
+          totalPercentage: parseFloat(s.totalPercentage.toFixed(2)),
+          letterGrade: s.wasExcluded || s.grades.length === 0 ? 'N/A' : (gpaCourse?.letterGrade || 'N/A'),
+          gradePoints: s.wasExcluded || s.grades.length === 0 ? 0 : (gpaCourse?.gradePoints || 0),
+          qualityPoints: s.wasExcluded || s.grades.length === 0 ? 0 : (gpaCourse?.qualityPoints || 0),
+        };
+      });
+
+      const schemes = cycleData.cycle?.id
+        ? await this.courseResultSchemesService.getSchemesForCycle(orgId, cycleData.cycle.id)
+        : [];
+      const sections = this.courseResultAggregationService.aggregateTranscriptSections(sectionsWithGrades, schemes);
+      const gpaEligibleSections = sections.filter((s) => !s.wasExcluded && s.grades.length > 0);
+      const gpaEligibleAggregates = sections.filter((s) => s.resultKind === 'COMPONENT_AGGREGATE' && s.isComplete && !s.wasExcluded);
       const cycleGpa = this.gpaService.calculateCourses(
-        gpaEligibleSections.map((s) => ({
+        [...gpaEligibleSections, ...gpaEligibleAggregates].map((s) => ({
           courseId: s.courseId,
           courseName: s.courseName,
           sectionId: s.sectionId,
@@ -289,25 +323,26 @@ export class TranscriptsService {
         gpaScale: cycleGpa.summary.gpaScale,
       })));
 
-      const sections = sectionValues.map((s) => {
+      const transcriptSections = sections.map((s) => {
         const gpaCourse = gpaBySectionId.get(s.sectionId);
         return {
           ...s,
-          totalPercentage: parseFloat(s.totalPercentage.toFixed(2)),
-          letterGrade: s.wasExcluded || s.grades.length === 0 ? 'N/A' : (gpaCourse?.letterGrade || 'N/A'),
-          gradePoints: s.wasExcluded || s.grades.length === 0 ? 0 : (gpaCourse?.gradePoints || 0),
-          qualityPoints: s.wasExcluded || s.grades.length === 0 ? 0 : (gpaCourse?.qualityPoints || 0),
+          letterGrade: s.wasExcluded || (!s.grades.length && s.resultKind !== 'COMPONENT_AGGREGATE') || (s.resultKind === 'COMPONENT_AGGREGATE' && !s.isComplete)
+            ? 'N/A'
+            : (gpaCourse?.letterGrade || s.letterGrade || 'N/A'),
+          gradePoints: s.wasExcluded || (s.resultKind === 'COMPONENT_AGGREGATE' && !s.isComplete) ? 0 : (gpaCourse?.gradePoints || s.gradePoints || 0),
+          qualityPoints: s.wasExcluded || (s.resultKind === 'COMPONENT_AGGREGATE' && !s.isComplete) ? 0 : (gpaCourse?.qualityPoints || s.qualityPoints || 0),
         };
       });
 
-      const overallPercentage = sections.length > 0
-        ? parseFloat((sections.reduce((sum, s) => sum + s.totalPercentage, 0) / sections.length).toFixed(2))
+      const overallPercentage = transcriptSections.length > 0
+        ? parseFloat((transcriptSections.reduce((sum, s) => sum + s.totalPercentage, 0) / transcriptSections.length).toFixed(2))
         : 0;
 
       return {
         academicCycle: cycleData.cycle,
         cohortName: cycleData.cohortName,
-        sections,
+        sections: transcriptSections,
         overallPercentage,
         gpa: cycleGpa.summary.gpa,
         totalCreditHours: cycleGpa.summary.totalCreditHours,

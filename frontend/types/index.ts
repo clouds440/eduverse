@@ -218,6 +218,115 @@ export interface Course {
     department?: Department | null;
 }
 
+export type CourseResultComponentType = 'THEORY' | 'LAB' | 'PRACTICAL' | 'TUTORIAL' | 'RECITATION' | 'CLINIC' | 'STUDIO' | 'FIELDWORK' | 'OTHER';
+
+export interface CourseResultComponentSection {
+    id: string;
+    name: string;
+    code: string;
+    color?: string | null;
+    courseId: string;
+    academicCycleId: string;
+    componentType?: CourseResultComponentType;
+    status?: SectionLifecycleStatus;
+}
+
+export interface CourseResultSchemeComponent {
+    id?: string;
+    componentType: CourseResultComponentType;
+    label: string;
+    weight: number;
+    sortOrder: number;
+    sectionIds: string[];
+    sections?: CourseResultComponentSection[];
+}
+
+export interface CourseResultScheme {
+    id?: string;
+    organizationId?: string;
+    courseId: string;
+    academicCycleId: string;
+    name?: string;
+    components: CourseResultSchemeComponent[];
+    course?: Pick<Course, 'id' | 'name' | 'code' | 'creditHours'> | null;
+    academicCycle?: Pick<AcademicCycle, 'id' | 'name' | 'code' | 'status'> | null;
+}
+
+export interface UpsertCourseResultSchemeRequest {
+    name?: string;
+    syncEnrollments?: boolean;
+    components: Array<{
+        componentType: CourseResultComponentType;
+        label?: string;
+        weight: number;
+        sortOrder?: number;
+        sectionIds: string[];
+    }>;
+}
+
+export interface CourseResultSchemePreview {
+    sectionCount: number;
+    studentCount: number;
+    missingEnrollmentCount: number;
+    missingEnrollments: Array<{
+        studentId: string;
+        studentName: string;
+        registrationNumber?: string | null;
+        sectionId: string;
+        sectionName: string;
+        sectionCode: string;
+    }>;
+    components: Array<{
+        componentType: CourseResultComponentType;
+        label: string;
+        weight: number;
+        sectionIds: string[];
+        sections: CourseResultComponentSection[];
+    }>;
+}
+
+export interface CohortSectionExpansionPreview {
+    selectedSectionCount: number;
+    expandedSectionCount: number;
+    addedRelatedSectionCount: number;
+    sectionsToAddCount: number;
+    studentCount: number;
+    missingEnrollmentCount: number;
+    selectedSectionIds: string[];
+    expandedSectionIds: string[];
+    addedSectionIds: string[];
+    sections: Array<{
+        id: string;
+        name: string;
+        code: string;
+        componentType: CourseResultComponentType;
+        courseCode?: string | null;
+        courseName?: string | null;
+        alreadyAssigned?: boolean;
+    }>;
+    missingEnrollments: Array<{
+        studentId: string;
+        studentName: string;
+        registrationNumber?: string | null;
+        sectionId: string;
+        sectionName: string;
+        sectionCode: string;
+    }>;
+    relationshipGroups: Array<{
+        schemeId: string;
+        schemeName: string;
+        triggerSectionId: string;
+        sections: Array<{
+            id: string;
+            name: string;
+            code: string;
+            componentType: CourseResultComponentType;
+            componentLabel: string;
+            componentWeight: number;
+        }>;
+    }>;
+}
+
 export interface Department {
     id: string;
     organizationId: string;
@@ -422,6 +531,7 @@ export interface Section {
     academicCycleId?: string;
     academicCycle?: AcademicCycle;
     status: SectionLifecycleStatus;
+    componentType?: CourseResultComponentType;
     programClassificationStatus?: ProgramClassificationStatus;
     cohortId?: string;
     cohort?: Cohort;
@@ -2862,6 +2972,7 @@ export interface AcademicCycle {
     gpaPolicy?: Pick<GpaPolicy, 'id' | 'name' | 'isArchived'> | null;
     hasFinalizedGrades?: boolean;
     currentArchiveId?: string | null;
+    currentArchive?: AcademicCycleArchive | null;
     archivedAt?: string | null;
     archiveReason?: string | null;
     _count?: {
@@ -2932,6 +3043,9 @@ export interface EnrollmentHistory {
 
 export interface TranscriptSection {
     sectionId: string;
+    resultKind?: 'SECTION' | 'COMPONENT_AGGREGATE';
+    schemeId?: string;
+    isComplete?: boolean;
     courseName: string;
     sectionName: string;
     courseId?: string;
@@ -2946,6 +3060,19 @@ export interface TranscriptSection {
     gradePoints?: number;
     qualityPoints?: number;
     status: string;
+    components?: Array<{
+        componentType: CourseResultComponentType;
+        label: string;
+        weight: number;
+        sectionId: string | null;
+        sectionName: string | null;
+        sectionColor?: string | null;
+        totalPercentage: number | null;
+        weightedContribution: number | null;
+        letterGrade?: string;
+        gradePoints?: number;
+        isMissing?: boolean;
+    }>;
 }
 
 export interface Transcript {

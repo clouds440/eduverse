@@ -5,7 +5,10 @@ import useSWR from 'swr';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
-import { CohortOffering, CohortOfferingStatus, ProgramDeliveryOption } from '@/types';
+import { CohortOffering, CohortOfferingStatus, CohortSectionExpansionPreview, ProgramDeliveryOption, Section } from '@/types';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -24,10 +27,16 @@ export function CohortOfferingModal({ offering, onClose, onSaved }: CohortOfferi
     const [status, setStatus] = useState(CohortOfferingStatus.PLANNED);
     const [capacity, setCapacity] = useState('');
     const [programStageOfferingId, setProgramStageOfferingId] = useState('');
+    const [sectionId, setSectionId] = useState('');
+    const [sectionPreview, setSectionPreview] = useState<CohortSectionExpansionPreview | null>(null);
+    const [sectionConfirmOpen, setSectionConfirmOpen] = useState(false);
     const [error, setError] = useState('');
     const { data: deliveryOptions = [] } = useSWR<ProgramDeliveryOption[]>(
         token && offering ? ['program-delivery-options', offering.academicCycleId] : null,
         () => api.programs.getDeliveryOptions(token!, offering!.academicCycleId),
+    );
+    const { data: sections } = useSWR<{ data: Section[] }>(
+        token && offering ? ['sections', { academicCycleId: offering.academicCycleId, limit: 1000 }] as const : null,
     );
 
     useEffect(() => {
@@ -35,6 +44,9 @@ export function CohortOfferingModal({ offering, onClose, onSaved }: CohortOfferi
         setStatus(offering.status);
         setCapacity(offering.capacity ? String(offering.capacity) : '');
         setProgramStageOfferingId(offering.programStageOfferingId || '');
+        setSectionId('');
+        setSectionPreview(null);
+        setSectionConfirmOpen(false);
         setError('');
     }, [offering]);
 
@@ -59,11 +71,87 @@ export function CohortOfferingModal({ offering, onClose, onSaved }: CohortOfferi
         }
     };
 
-    return <ModalForm isOpen={Boolean(offering)} onClose={onClose} title="Edit Cohort Offering" submitText="Save offering" loadingId="cohort-offering-save" onSubmit={submit}>
+    const previewSectionAssignment = async () => {
+        if (!token || !offering || !sectionId) return;
+        dispatch({ type: 'UI_START_PROCESSING', payload: 'cohort-section-assign' });
+        setError('');
+        try {
+            const result = await api.cohorts.previewAssignSection(offering.id, sectionId, token, { isDefault: true });
+            setSectionPreview(result);
+            setSectionConfirmOpen(true);
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : 'Unable to preview section assignment');
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'cohort-section-assign' });
+        }
+    };
+
+    const assignSection = async () => {
+        if (!token || !offering || !sectionId) return;
+        dispatch({ type: 'UI_START_PROCESSING', payload: 'cohort-section-assign' });
+        setError('');
+        try {
+            await api.cohorts.assignSection(offering.id, sectionId, token, { isDefault: true });
+            dispatch({ type: 'TOAST_ADD', payload: { message: 'Section assigned to cohort offering', type: 'success' } });
+            setSectionId('');
+            setSectionConfirmOpen(false);
+            await onSaved();
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : 'Unable to assign section');
+        } finally {
+            dispatch({ type: 'UI_STOP_PROCESSING', payload: 'cohort-section-assign' });
+        }
+    };
+
+    return <>
+    <ModalForm isOpen={Boolean(offering)} onClose={onClose} title="Edit Cohort Offering" submitText="Save offering" loadingId="cohort-offering-save" onSubmit={submit}>
         <div className="rounded-md border border-border/70 bg-muted/25 px-4 py-3 text-sm font-medium text-muted-foreground">Changes apply only to this cohort placement in {offering?.academicCycle.name}. The durable cohort remains unchanged.</div>
         {error && <div role="alert" className="rounded-md border border-danger/35 bg-danger/5 px-4 py-3 text-sm font-semibold text-danger">{error}</div>}
         <div className="space-y-2"><Label>Status</Label><CustomSelect value={status} onChange={setStatus} options={offering ? cohortOfferingStatusOptions(offering.status) : []} /></div>
         <div className="space-y-2"><Label>Program stage offering</Label><CustomSelect searchable value={programStageOfferingId} onChange={setProgramStageOfferingId} options={[{ value: '', label: 'Standalone / no program' }, ...deliveryOptions.map((option) => ({ value: option.id, label: `${option.programOffering.program.code} - ${option.programStage.name}` }))]} /></div>
         <div className="space-y-2"><Label>Capacity</Label><Input type="number" min={1} value={capacity} onChange={(event) => setCapacity(event.target.value)} placeholder="No limit" /></div>
-    </ModalForm>;
+        <div className="space-y-3 rounded-md border border-border/70 p-3">
+            <div><p className="text-sm font-black">Add default section</p><p className="mt-1 text-xs font-semibold text-muted-foreground">Related sections are included automatically after preview.</p></div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <CustomSelect
+                    searchable
+                    value={sectionId}
+                    onChange={setSectionId}
+                    options={(sections?.data || [])
+                        .filter((section) => !offering?.sections?.some((assignment) => assignment.sectionId === section.id))
+                        .map((section) => ({ value: section.id, label: `${section.code} - ${section.name}${section.componentType ? ` (${section.componentType})` : ''}` }))}
+                    placeholder="Select section"
+                />
+                <Button type="button" variant="secondary" onClick={previewSectionAssignment} loadingId="cohort-section-assign" disabled={!sectionId}>Preview</Button>
+            </div>
+        </div>
+    </ModalForm>
+    <ConfirmDialog
+        isOpen={sectionConfirmOpen}
+        onClose={() => setSectionConfirmOpen(false)}
+        onConfirm={assignSection}
+        title="Confirm Section Assignment"
+        description={(
+            <span className="block space-y-3 text-sm">
+                <span className="block">This will assign the selected section and any related sections to the cohort offering.</span>
+                <span className="grid gap-2 sm:grid-cols-3">
+                    <Badge variant="neutral" size="sm">{sectionPreview?.sectionsToAddCount ?? 0} sections to add</Badge>
+                    <Badge variant="neutral" size="sm">{sectionPreview?.studentCount ?? 0} students</Badge>
+                    <Badge variant={(sectionPreview?.missingEnrollmentCount ?? 0) > 0 ? 'warning' : 'success'} size="sm">{sectionPreview?.missingEnrollmentCount ?? 0} enrollments to ensure</Badge>
+                </span>
+                {(sectionPreview?.sections?.length ?? 0) > 0 && (
+                    <span className="block max-h-40 overflow-y-auto rounded-md border border-border/70 bg-muted/20 p-2">
+                        {sectionPreview?.sections.map((section) => (
+                            <span key={section.id} className="block py-1 text-xs font-semibold text-muted-foreground">
+                                {section.code} - {section.name}{section.componentType ? ` (${section.componentType})` : ''}{section.alreadyAssigned ? ' already assigned' : ''}
+                            </span>
+                        ))}
+                    </span>
+                )}
+            </span>
+        )}
+        confirmText="Assign Sections"
+        loadingId="cohort-section-assign"
+    />
+    </>;
 }

@@ -322,6 +322,57 @@ Rules:
 - Teacher selection for schedules is limited to teachers assigned to the selected section.
 - Removing a teacher from a section requires resolving any schedules owned by that teacher by moving those schedules to another assigned teacher or deleting them.
 
+### Section Result Relationships
+
+Theory/Lab and similar paired delivery is modeled as a course-level section relationship over normal sections. The same model can represent Theory/Lab, Lecture/Practical, Lecture/Tutorial, Studio/Critique, Clinic/Classroom, or other weighted relationships between sections.
+
+Important models:
+
+- `CourseResultScheme`: one optional aggregation setup for a course in an academic cycle.
+- `CourseResultComponent`: a weighted component such as `THEORY`, `LAB`, `PRACTICAL`, `TUTORIAL`, or `OTHER`.
+- `CourseResultComponentSection`: links a component to one or more independent sections.
+
+Rules:
+
+- Related sections remain ordinary `Section` records.
+- A related section is not a child section, nested assessment, or simplified grading record.
+- Each linked section keeps its own teachers, enrollments, attendance, assessments, gradebook, schedules, materials, and academic operations.
+- `Section.componentType` labels the section's role in relationships and reports.
+- Component weights must total `100`.
+- Every component section must belong to the same organization, course, and academic cycle as the scheme.
+- A section can appear in only one component within the same scheme.
+- A linked section cannot be moved to another course or academic cycle while the scheme exists.
+- A scheme cannot be changed or deleted after linked finalized grades exist.
+- Saving a relationship can synchronize enrollments so students present in any related section are enrolled in the missing related sections.
+- Adding one related section to a cohort offering expands to the other related sections before cohort student enrollment is applied.
+- Cohort offering creation and cohort section assignment both preview relationship expansion before confirmation.
+- Program detail pages can start cohort creation for a specific program stage offering. This preselects the program stage and academic cycle, then the cohort offering bulk-adds selected sections.
+
+Calculation:
+
+1. Each section result is calculated using the existing assessment and gradebook rules.
+2. Transcript aggregation finds the student's own enrolled/history-linked component sections.
+3. Component section percentages are combined using the configured weights.
+4. The final course percentage is passed to the existing GPA policy calculation.
+5. Transcript web and PDF output show the final course result and the component breakdown.
+
+UI flow:
+
+1. Open a section and choose `Relationships`, or open Courses and choose `Section Relationships`.
+2. Pick the course and academic cycle when they are not already preselected.
+3. Add component rows such as Theory, Lab, Practical, Tutorial, Studio, Clinic, or Other.
+4. Select the sections for each component and keep the weights at exactly `100`.
+5. Preview the change. The confirmation window shows affected sections, affected students, and missing enrollments that will be created.
+6. Confirm only when the summary is correct.
+
+Example:
+
+```text
+Theory: 82 x 75% = 61.5
+Lab:    90 x 25% = 22.5
+Final:             84
+```
+
 ### Schedules
 
 Schedules are stored as section schedules.
@@ -1088,10 +1139,12 @@ The linked Google email option follows the same old-address confirmation rule wh
 
 1. Transcript service loads student enrollments and finalized grades.
 2. Course and section details include course credit hours.
-3. Cycle GPA policy snapshot is resolved.
-4. GPA service maps percentages to letter grades and grade points.
-5. GPA service calculates GPA and CGPA.
-6. Web and PDF views render credit hours, grade points, quality points, GPA, CGPA, scale, and policy name.
+3. Section results are calculated from finalized assessment grades.
+4. Optional section result schemes aggregate independent component section results into one course result.
+5. Cycle GPA policy snapshot is resolved.
+6. GPA service maps percentages to letter grades and grade points.
+7. GPA service calculates GPA and CGPA.
+8. Web and PDF views render credit hours, grade points, quality points, GPA, CGPA, scale, policy name, and component breakdowns when configured.
 
 ### Cycle Completion, Archive, and Past Records
 

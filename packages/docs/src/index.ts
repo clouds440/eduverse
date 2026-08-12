@@ -521,6 +521,62 @@ export const docsPages: DocPage[] = [
         ],
       },
       {
+        id: 'section-result-relationships',
+        title: 'Section result relationships',
+        tags: ['theory', 'lab', 'practical', 'tutorial', 'result scheme', 'transcript'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Some courses have multiple connected parts, such as Theory and Lab, Lecture and Practical, or Lecture and Tutorial. In EduVerse, every part stays as a normal section. Each section still has its own teacher, students, attendance, assessments, gradebook, schedules, and materials. The result relationship only tells transcripts how to combine those independent section results into one final course result.',
+          },
+          {
+            type: 'note',
+            title: 'Relationship, not ownership',
+            text: 'Do not think of one section as living inside another. Related sections are separate classes. The relationship is used for enrollment synchronization, final course calculation, and transcript breakdowns.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'Create the course, such as Physics.',
+              'Create each related section for the same course and academic cycle.',
+              'Set each section type, such as Theory, Lab, Practical, Tutorial, Studio, or Other.',
+              'Open either section and choose Relationships, or open Courses and choose Section Relationships.',
+              'Select the course and academic cycle when they are not already preselected.',
+              'Select each component type, label, weight, and section list.',
+              'Save only when the weights total 100%.',
+              'Review the confirmation window. It shows affected sections, affected students, and which missing student enrollments will be created across related sections.',
+              'Confirm when the summary is correct. Teachers continue grading each section normally. Transcripts combine the finalized results later.',
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Example', 'Meaning'],
+            rows: [
+              ['Theory 75%, Lab 25%', 'A student with 82% in Theory and 90% in Lab receives 84% as the final course result.'],
+              ['Related sections', 'Each keeps its own assessments, gradebook, attendance, teachers, students, and schedules.'],
+              ['Cohort assignment', 'Adding one related section to a cohort previews and then adds the related sections and enrolls cohort students into them.'],
+              ['Program cohort shortcut', 'From a program stage offering, use Add cohort to create a cohort already mapped to that program stage and cycle.'],
+              ['Final course result', 'The weighted result shown for the course on transcript and GPA calculations.'],
+            ],
+          },
+          {
+            type: 'checklist',
+            items: [
+              'Related sections are in the same academic cycle',
+              'Related sections belong to the same course',
+              'Students are enrolled in the component sections they actually attend',
+              'Weights add up to exactly 100%',
+              'The result scheme is reviewed before grades are finalized',
+            ],
+          },
+          {
+            type: 'tip',
+            title: 'When not to use a result scheme',
+            text: 'If the Lab, practical, tutorial, or studio work is only one assessment inside the same class, create it as an assessment in that section instead. Use a section relationship only when each part is a separate section that should remain operationally independent.',
+          },
+        ],
+      },
+      {
         id: 'section-creation',
         title: 'Section creation',
         tags: ['create section', 'teachers', 'students'],
@@ -1999,12 +2055,50 @@ export const docsPages: DocPage[] = [
               'Quality points equal grade points multiplied by credit hours.',
               'Total credit hours should sum the displayed course credit hours for the transcript scope.',
               'CGPA is calculated cumulatively across returned transcript cycles.',
+              'When a course has a section result relationship, the transcript shows one final course result with component rows underneath.',
             ],
           },
           {
             type: 'note',
             title: 'Why finalized grades matter',
             text: 'Draft and Published grades can still change. Finalized grades are the ones treated as ready for official transcript calculation.',
+          },
+        ],
+      },
+      {
+        id: 'component-transcripts',
+        title: 'Component transcript results',
+        tags: ['theory', 'lab', 'practical', 'tutorial', 'component result', 'final result'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'A related-section course can show separate component results and one final weighted course result. This helps schools keep labs, practicals, tutorials, clinics, studios, and other independent class parts visible without treating one section as the child of another.',
+          },
+          {
+            type: 'flow',
+            title: 'How the result is built',
+            steps: [
+              'Teachers grade assessments inside each related section normally.',
+              'Only finalized grades are used for official transcript calculation.',
+              'EduVerse calculates each section result using the existing assessment weights.',
+              'The section relationship applies the configured component weights.',
+              'The final weighted percentage is converted to letter grade, grade points, GPA, and CGPA using the cycle GPA policy.',
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Transcript line', 'What it means'],
+            rows: [
+              ['Physics Final Result: 84%', 'The weighted course result used for GPA.'],
+              ['Theory: 82%', 'The student result from the Theory section.'],
+              ['Lab: 90%', 'The student result from the Lab section.'],
+              ['Missing component result', 'The final course result may be incomplete until every required component has finalized grades and the student has the correct related-section enrollment.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Historical consistency',
+            text: 'Review component weights before finalization. EduVerse blocks relationship changes after linked finalized grades exist so old transcript results do not silently change.',
           },
         ],
       },
@@ -3033,7 +3127,8 @@ export const docsPages: DocPage[] = [
             type: 'list',
             items: [
               'Adding students to a cohort can enroll them into the cohort sections.',
-              'Assigning a section to a cohort can enroll eligible cohort students into that section.',
+              'Assigning a section to a cohort previews related-section expansion before enrolling eligible cohort students.',
+              'If the selected section is related to other sections, the cohort offering adds those related sections too.',
               'A student can be excluded from a cohort section when they should not attend that class.',
             ],
           },
@@ -3063,6 +3158,7 @@ export const docsPages: DocPage[] = [
             items: [
               'Choose Standalone when the group does not belong to a defined program.',
               'Choose Program mapped when the group follows a program curriculum stage.',
+              'From a program detail page, use Add cohort on a stage offering to start cohort creation with the cycle and stage already selected.',
               'The stage offering must reference the same institute cycle as the cohort offering.',
               'The stage must belong to the selected program offering and curriculum context.',
               'Student major progression and cohort placement are related but remain explicit records; changing one does not silently rewrite the other.',

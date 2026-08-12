@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import useSWR from 'swr';
 import { AcademicCycle, Role, Student, StudentAcademicIdentity, StudentProgramOverview } from '@/types';
 import { api } from '@/lib/api';
@@ -46,6 +46,9 @@ interface TranscriptAssessmentGrade {
 
 interface TranscriptCycleSection {
     sectionId: string;
+    resultKind?: 'SECTION' | 'COMPONENT_AGGREGATE';
+    schemeId?: string;
+    isComplete?: boolean;
     sectionName: string;
     sectionColor?: string | null;
     courseId?: string;
@@ -58,6 +61,18 @@ interface TranscriptCycleSection {
     letterGrade?: string;
     gradePoints?: number;
     qualityPoints?: number;
+    components?: Array<{
+        componentType: 'THEORY' | 'LAB' | 'PRACTICAL' | 'TUTORIAL' | 'RECITATION' | 'CLINIC' | 'STUDIO' | 'FIELDWORK' | 'OTHER';
+        label: string;
+        weight: number;
+        sectionId: string | null;
+        sectionName: string | null;
+        sectionColor?: string | null;
+        totalPercentage: number | null;
+        weightedContribution: number | null;
+        letterGrade?: string;
+        isMissing?: boolean;
+    }>;
 }
 
 interface TranscriptCycle {
@@ -95,7 +110,9 @@ function getSectionMetrics(section: TranscriptCycleSection) {
     const totalWeight = roundScore(grades.reduce((sum, grade) => sum + Number(grade.weightage || 0), 0));
     const rawPercentage = totalMarks > 0 ? roundScore((marksObtained / totalMarks) * 100) : 0;
     const weightedScore = roundScore(section.totalPercentage || 0);
-    const grade = section.wasExcluded || grades.length === 0 ? 'N/A' : section.letterGrade || 'N/A';
+    const grade = section.wasExcluded || (grades.length === 0 && section.resultKind !== 'COMPONENT_AGGREGATE') || (section.resultKind === 'COMPONENT_AGGREGATE' && !section.isComplete)
+        ? 'N/A'
+        : section.letterGrade || 'N/A';
 
     return {
         assessmentCount: grades.length,
@@ -502,28 +519,45 @@ export function StudentTranscriptView({
                                                             const metrics = getSectionMetrics(section);
                                                             const sectionColor = getSectionColor(section.sectionColor);
                                                             return (
-                                                                <tr
-                                                                    key={section.sectionId}
-                                                                    className={section.wasExcluded ? 'opacity-55' : ''}
-                                                                    style={{ boxShadow: `inset 3px 0 0 ${sectionColor}` }}
-                                                                >
-                                                                    <td className="px-4 py-4" style={{ backgroundColor: `${sectionColor}0D` }}>
-                                                                        <div className="font-semibold" style={{ color: sectionColor }}>{section.courseName}</div>
-                                                                        <div className="text-xs font-semibold" style={{ color: `${sectionColor}CC` }}>{section.sectionName}</div>
-                                                                        <div className="sr-only">{formatCourseSectionLabel({ courseName: section.courseName, sectionName: section.sectionName })}</div>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 text-center font-bold">{metrics.creditHours}</td>
-                                                                    <td className="px-4 py-4 font-mono text-sm font-bold">
-                                                                        {metrics.marksObtained} / {metrics.totalMarks}
-                                                                    </td>
-                                                                    <td className="px-4 py-4 text-center font-bold">{metrics.rawPercentage}%</td>
-                                                                    <td className="px-4 py-4 text-center font-bold text-primary">{metrics.weightedScore}%</td>
-                                                                    <td className="px-4 py-4 text-center">
-                                                                        <Badge variant={metrics.grade === 'N/A' ? 'neutral' : metrics.grade === 'F' ? 'error' : 'success'} size="sm">{metrics.grade}</Badge>
-                                                                    </td>
-                                                                    <td className="px-4 py-4 text-center font-bold">{metrics.gradePoints ?? 'N/A'}</td>
-                                                                    <td className="px-4 py-4 text-center font-bold">{metrics.qualityPoints ?? 'N/A'}</td>
-                                                                </tr>
+                                                                <Fragment key={section.sectionId}>
+                                                                    <tr
+                                                                        className={section.wasExcluded ? 'opacity-55' : ''}
+                                                                        style={{ boxShadow: `inset 3px 0 0 ${sectionColor}` }}
+                                                                    >
+                                                                        <td className="px-4 py-4" style={{ backgroundColor: `${sectionColor}0D` }}>
+                                                                            <div className="font-semibold" style={{ color: sectionColor }}>{section.courseName}</div>
+                                                                            <div className="text-xs font-semibold" style={{ color: `${sectionColor}CC` }}>
+                                                                                {section.resultKind === 'COMPONENT_AGGREGATE' ? 'Final course result' : section.sectionName}
+                                                                            </div>
+                                                                            <div className="sr-only">{formatCourseSectionLabel({ courseName: section.courseName, sectionName: section.sectionName })}</div>
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-center font-bold">{metrics.creditHours}</td>
+                                                                        <td className="px-4 py-4 font-mono text-sm font-bold">
+                                                                            {section.resultKind === 'COMPONENT_AGGREGATE' ? '-' : `${metrics.marksObtained} / ${metrics.totalMarks}`}
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-center font-bold">{section.resultKind === 'COMPONENT_AGGREGATE' ? '-' : `${metrics.rawPercentage}%`}</td>
+                                                                        <td className="px-4 py-4 text-center font-bold text-primary">{metrics.weightedScore}%</td>
+                                                                        <td className="px-4 py-4 text-center">
+                                                                            <Badge variant={metrics.grade === 'N/A' ? 'neutral' : metrics.grade === 'F' ? 'error' : 'success'} size="sm">{metrics.grade}</Badge>
+                                                                        </td>
+                                                                        <td className="px-4 py-4 text-center font-bold">{metrics.gradePoints ?? 'N/A'}</td>
+                                                                        <td className="px-4 py-4 text-center font-bold">{metrics.qualityPoints ?? 'N/A'}</td>
+                                                                    </tr>
+                                                                    {section.components?.map((component) => (
+                                                                        <tr key={`${section.sectionId}:${component.componentType}`} className="bg-muted/15 text-xs">
+                                                                            <td className="px-4 py-2 pl-8 font-semibold text-muted-foreground">
+                                                                                {component.label} - {component.weight}% {component.sectionName ? `- ${component.sectionName}` : ''}
+                                                                            </td>
+                                                                            <td className="px-4 py-2 text-center text-muted-foreground">-</td>
+                                                                            <td className="px-4 py-2 text-muted-foreground">{component.isMissing ? 'Missing result' : 'Component result'}</td>
+                                                                            <td className="px-4 py-2 text-center font-bold">{component.totalPercentage === null ? 'N/A' : `${component.totalPercentage}%`}</td>
+                                                                            <td className="px-4 py-2 text-center font-bold text-primary">{component.weightedContribution === null ? 'N/A' : `${component.weightedContribution}%`}</td>
+                                                                            <td className="px-4 py-2 text-center"><Badge variant={component.letterGrade === 'N/A' ? 'neutral' : component.letterGrade === 'F' ? 'error' : 'success'} size="sm">{component.letterGrade || 'N/A'}</Badge></td>
+                                                                            <td className="px-4 py-2 text-center text-muted-foreground">-</td>
+                                                                            <td className="px-4 py-2 text-center text-muted-foreground">-</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </Fragment>
                                                             );
                                                         })}
                                                         {sections.length === 0 && (

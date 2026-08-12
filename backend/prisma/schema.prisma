@@ -92,6 +92,7 @@ model Organization {
   academicCycleArchiveSections              AcademicCycleArchiveSection[]
   academicCycleArchiveSectionProgramIndexes AcademicCycleArchiveSectionProgramIndex[]
   academicCycleArchiveStudentIndexes        AcademicCycleArchiveStudentIndex[]
+  courseResultSchemes                       CourseResultScheme[]
 
   @@index([status])
   @@index([type])
@@ -526,6 +527,7 @@ model Course {
   preferenceOptions       PreferenceWindowOption[]   @relation("PreferenceOptionCourse")
   preferenceAudiences     PreferenceWindowAudience[] @relation("PreferenceAudienceCourse")
   stageCourseRequirements StageCourseRequirement[]
+  resultSchemes           CourseResultScheme[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -745,6 +747,7 @@ model Section {
   name                   String
   code                   String
   color                  String                        @default("#3B82F6")
+  componentType          CourseResultComponentType      @default(OTHER)
   room                   String?
   defaultRoomId          String?
   courseId               String
@@ -770,6 +773,7 @@ model Section {
   programMappings        SectionProgramMapping[]
   cohortOfferingSections CohortOfferingSection[]
   archiveSections        AcademicCycleArchiveSection[]
+  resultComponentLinks   CourseResultComponentSection[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -2209,11 +2213,76 @@ model AcademicCycle {
   programOfferings    ProgramOffering[]
   archives            AcademicCycleArchive[] @relation("AcademicCycleArchives")
   currentArchive      AcademicCycleArchive?  @relation("CurrentAcademicCycleArchive", fields: [currentArchiveId], references: [id], onDelete: Restrict)
+  courseResultSchemes CourseResultScheme[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
   @@index([status])
   @@index([gpaPolicyId])
+}
+
+enum CourseResultComponentType {
+  THEORY
+  LAB
+  PRACTICAL
+  TUTORIAL
+  RECITATION
+  CLINIC
+  STUDIO
+  FIELDWORK
+  OTHER
+}
+
+model CourseResultScheme {
+  id              String   @id @default(uuid())
+  organizationId  String
+  courseId        String
+  academicCycleId String
+  name            String   @default("Section Result Relationship")
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization  Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  course        Course                  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  academicCycle AcademicCycle           @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  components    CourseResultComponent[]
+
+  @@unique([organizationId, courseId, academicCycleId])
+  @@index([organizationId])
+  @@index([courseId])
+  @@index([academicCycleId])
+}
+
+model CourseResultComponent {
+  id            String                    @id @default(uuid())
+  schemeId      String
+  componentType CourseResultComponentType
+  label         String
+  weight        Float
+  sortOrder     Int                       @default(0)
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  scheme       CourseResultScheme             @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  sectionLinks CourseResultComponentSection[]
+
+  @@unique([schemeId, componentType])
+  @@index([schemeId])
+  @@index([componentType])
+}
+
+model CourseResultComponentSection {
+  id          String   @id @default(uuid())
+  componentId String
+  sectionId   String
+  createdAt   DateTime @default(now())
+
+  component CourseResultComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  section   Section               @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+
+  @@unique([componentId, sectionId])
+  @@index([sectionId])
 }
 
 model Cohort {

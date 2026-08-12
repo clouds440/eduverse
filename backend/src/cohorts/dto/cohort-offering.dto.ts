@@ -44,6 +44,10 @@ export class AssignCohortSectionDto {
   isDefault?: boolean;
 }
 
+export class PreviewCohortOfferingDto extends CreateCohortOfferingDto {}
+
+export class PreviewAssignCohortSectionDto extends AssignCohortSectionDto {}
+
 export class UpdateCohortOfferingDto {
   @ValidateIf((_object, value) => value !== undefined && value !== null)
   @IsString()

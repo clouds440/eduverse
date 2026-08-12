@@ -29,6 +29,7 @@ import type {
     ChatDeviceHistoryGrantPayload,
     Program, ProgramStatus, CurriculumStatus, CreateProgramRequest, ProgramConfigurationRevision, ProgramDeliveryOption, ProgramOffering, ProgramOfferingReadiness, CreateProgramOfferingRequest, StudentProgramEnrollment, StudentProgressionPreview, ProgressionWorkbenchPreview, BulkProgressionItem, BulkProgressionResult,
     AcademicCycleArchiveStatusResponse, PastRecordFilters, PastRecordOptions, PastRecordSectionDetail, PastRecordSectionSummary, PastRecordStudentSummary,
+    CohortSectionExpansionPreview, CourseResultScheme, CourseResultSchemePreview, UpsertCourseResultSchemeRequest,
 } from '@/types';
 import type {
     AIOrgSettingsResponse,
@@ -965,6 +966,14 @@ export const api = {
             request<Course>(`/org/courses/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteCourse: (id: string, token: string) =>
             request<void>(`/org/courses/${id}`, { method: 'DELETE', token }),
+        getCourseResultScheme: (courseId: string, academicCycleId: string, token: string) =>
+            request<CourseResultScheme>(`/org/courses/${courseId}/result-schemes${buildQueryString({ academicCycleId })}`, { token }),
+        previewCourseResultScheme: (courseId: string, academicCycleId: string, data: UpsertCourseResultSchemeRequest, token: string) =>
+            request<CourseResultSchemePreview>(`/org/courses/${courseId}/result-schemes/${academicCycleId}/preview`, { method: 'POST', body: JSON.stringify(data), token }),
+        upsertCourseResultScheme: (courseId: string, academicCycleId: string, data: UpsertCourseResultSchemeRequest, token: string) =>
+            request<CourseResultScheme>(`/org/courses/${courseId}/result-schemes/${academicCycleId}`, { method: 'PUT', body: JSON.stringify(data), token }),
+        deleteCourseResultScheme: (id: string, token: string) =>
+            request<{ message: string }>(`/org/course-result-schemes/${id}`, { method: 'DELETE', token }),
 
         getDepartments: (token: string, params: { page?: number, limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc' | 'desc', isActive?: boolean } = {}) =>
             request<PaginatedResponse<Department>>(`/org/departments${buildQueryString(params)}`, { token }),
@@ -1528,6 +1537,8 @@ export const api = {
             request<Cohort>(`/org/cohorts/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         createOffering: (id: string, data: CreateCohortOfferingDto, token: string) =>
             request<CohortOffering>(`/org/cohorts/${id}/offerings`, { method: 'POST', body: JSON.stringify(data), token }),
+        previewOffering: (data: CreateCohortOfferingDto, token: string, cohortId?: string) =>
+            request<CohortSectionExpansionPreview>(cohortId ? `/org/cohorts/${cohortId}/offerings/preview` : `/org/cohorts/offerings/preview`, { method: 'POST', body: JSON.stringify(data), token }),
         updateOffering: (offeringId: string, data: { programStageOfferingId?: string | null; status?: CohortOfferingStatus; capacity?: number }, token: string) =>
             request<CohortOffering>(`/org/cohorts/offerings/${offeringId}`, { method: 'PATCH', body: JSON.stringify(data), token }),
         deleteCohort: (id: string, token: string) =>
@@ -1538,6 +1549,8 @@ export const api = {
             request<{ message: string }>(`/org/cohorts/offerings/${offeringId}/students/${studentId}`, { method: 'DELETE', token }),
         assignSection: (offeringId: string, sectionId: string, token: string, options: { source?: CohortSectionSource; isDefault?: boolean } = {}) =>
             request<{ message: string }>(`/org/cohorts/offerings/${offeringId}/sections`, { method: 'POST', body: JSON.stringify({ sectionId, ...options }), token }),
+        previewAssignSection: (offeringId: string, sectionId: string, token: string, options: { source?: CohortSectionSource; isDefault?: boolean } = {}) =>
+            request<CohortSectionExpansionPreview>(`/org/cohorts/offerings/${offeringId}/sections/preview`, { method: 'POST', body: JSON.stringify({ sectionId, ...options }), token }),
         removeSection: (offeringId: string, sectionId: string, token: string) =>
             request<{ message: string }>(`/org/cohorts/offerings/${offeringId}/sections/${sectionId}`, { method: 'DELETE', token }),
         excludeStudentFromSection: (studentId: string, sectionId: string, token: string) =>

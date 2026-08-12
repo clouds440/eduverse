@@ -11,6 +11,7 @@ import {
     CalendarCheck,
     ClipboardList,
     FileText,
+    GitBranch,
     GraduationCap,
     LayoutDashboard,
     MapPin,
@@ -238,10 +239,16 @@ export default function SectionDetailPage() {
                 description="A clearer control panel for class operations, grades, attendance, schedules, and materials."
                 icon={BookOpen}
                 actions={canEditSection ? (
-                    <Link href={`/sections/edit/${section.id}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70">
-                        <Pencil className="h-4 w-4" />
-                        Edit Section
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                        <Link href={`/section-relationships?sectionId=${section.id}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70">
+                            <GitBranch className="h-4 w-4" />
+                            Relationships
+                        </Link>
+                        <Link href={`/sections/edit/${section.id}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface-raised px-3 py-2 text-sm font-semibold text-foreground shadow-xs transition-colors hover:border-primary/35 hover:bg-muted/70">
+                            <Pencil className="h-4 w-4" />
+                            Edit Section
+                        </Link>
+                    </div>
                 ) : undefined}
                 breadcrumbs={[
                     { label: 'Organization' },
@@ -328,6 +335,7 @@ export default function SectionDetailPage() {
                         <ActionTile onClick={() => handleTabChange('evaluations')} icon={ClipboardList} title="Evaluations" description="Create, review, and grade assessments for this section." />
                         <ActionTile href={`/attendance/${section.id}`} icon={CalendarCheck} title="Attendance" description="Open the attendance sheet for today and class sessions." />
                         <ActionTile href={`/grades/${section.id}`} icon={Trophy} title="Grades List" description="View all students, assessments, grades, and section totals." />
+                        <ActionTile href={`/section-relationships?sectionId=${section.id}`} icon={GitBranch} title="Relationships" description="Manage related sections and enrollment sync for this course." />
                         <ActionTile onClick={() => handleTabChange('materials')} icon={FileText} title="Materials" description="Manage files, links, videos, and class resources." />
                     </section>
                 </>

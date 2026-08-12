@@ -4,9 +4,10 @@ import { TranscriptsController } from './transcripts.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StudentModule } from '../students/student.module';
 import { GpaModule } from '../gpa/gpa.module';
+import { CourseResultSchemesModule } from '../course-result-schemes/course-result-schemes.module';
 
 @Module({
-  imports: [PrismaModule, StudentModule, GpaModule],
+  imports: [PrismaModule, StudentModule, GpaModule, CourseResultSchemesModule],
   controllers: [TranscriptsController],
   providers: [TranscriptsService],
   exports: [TranscriptsService],

@@ -4,6 +4,7 @@ import { ENTITY_CODE_PATTERN } from '../../common/entity-code';
 import { HEX_COLOR_PATTERN } from '../section-colors';
 import { SectionLifecycleStatus } from '../../common/enums';
 import { SectionProgramMappingInputDto } from './create-section.dto';
+import { CourseResultComponentType } from '@/prisma/prisma-client';
 
 export class SectionScheduleTeacherResolutionDto {
   @IsIn(['MOVE', 'DELETE'])
@@ -23,6 +24,10 @@ export class UpdateSectionDto {
   @IsEnum(SectionLifecycleStatus)
   @IsOptional()
   status?: SectionLifecycleStatus;
+
+  @IsEnum(CourseResultComponentType)
+  @IsOptional()
+  componentType?: CourseResultComponentType;
   @IsString()
   @IsOptional()
   name?: string;
