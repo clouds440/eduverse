@@ -17,6 +17,7 @@ import { validateRoomBelongsToOrg } from '../common/department-scope';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Prisma, ScheduleType } from '@/prisma/prisma-client';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
+import { SECTION_COMPONENT_OMIT } from '../common/section-query';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -505,7 +506,7 @@ export class AttendanceService {
   async updateSchedule(orgId: string, scheduleId: string, dto: UpdateScheduleDto, user: JwtPayload) {
     const existing = await this.prisma.sectionSchedule.findUnique({
       where: { id: scheduleId },
-      include: { section: { include: { course: true, _count: { select: { enrollments: true } } } } },
+      include: { section: { include: { course: true, _count: { select: { enrollments: true } } }, omit: SECTION_COMPONENT_OMIT } },
     });
 
     if (!existing || existing.section.course.organizationId !== orgId) {
@@ -561,7 +562,7 @@ export class AttendanceService {
     const existing = await this.prisma.sectionSchedule.findUnique({
       where: { id: scheduleId },
       include: {
-        section: { include: { course: true } },
+        section: { include: { course: true }, omit: SECTION_COMPONENT_OMIT },
         _count: { select: { attendanceSessions: true } },
       },
     });
@@ -1026,7 +1027,7 @@ export class AttendanceService {
     const session = await this.prisma.attendanceSession.findUnique({
       where: { id: sessionId },
       include: {
-        section: { include: { course: true } },
+        section: { include: { course: true }, omit: SECTION_COMPONENT_OMIT },
         schedule: { include: { teacher: { select: { userId: true, organizationId: true } } } },
       },
     });
@@ -1055,9 +1056,14 @@ export class AttendanceService {
             sessionId,
             studentId: record.studentId,
             status: record.status,
+            source: 'MANUAL',
           },
           update: {
             status: record.status,
+            source: 'MANUAL',
+            note: null,
+            transferredFromSectionId: null,
+            transferredFromAttendancePercent: null,
           },
         });
       }

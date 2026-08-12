@@ -17,8 +17,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Loading } from '@/components/ui/Loading';
-import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
 import { StatusBanner } from '@/components/ui/StatusBanner';
+import { SettingsSection } from '../SettingsSection';
 import {
     ApiError,
     GpaCalculationMethod,
@@ -603,43 +603,72 @@ export function GpaPoliciesSettingsTab() {
 
     if (!token || user?.role !== Role.ORG_ADMIN) return <Loading className="h-full" text="Checking access..." />;
 
-    return (
-        <PageShell>
-            <PageHeader
-                title="GPA Policies"
-                description={<>Manage GPA scales, grade boundaries, and transcript rules. <DocsLink href="/docs/gpa-policies#policy-basics">Read GPA policy docs</DocsLink></>}
-                icon={Trophy}
-                breadcrumbs={[
-                    { label: 'Organization' },
-                    { label: 'Academic Settings' },
-                    { label: 'GPA Policies' },
-                ]}
-                actions={(
+    const headerActions = (
+        <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+            <Button
+                type="button"
+                variant="secondary"
+                icon={hasDraftChanges ? ListRestart : Plus}
+                title={newPolicyActionTitle}
+                onClick={() => {
+                    setDraft(newDraft());
+                    setSelectedPolicyId(NEW_POLICY_ID);
+                    setFormError(null);
+                    setPreview(null);
+                    setPreviewError(null);
+                    setHighlightedRuleId(null);
+                }}
+            >
+                {newPolicyActionLabel}
+            </Button>
+            {selectedPolicy && (
+                <>
                     <Button
                         type="button"
                         variant="secondary"
-                        icon={hasDraftChanges ? ListRestart : Plus}
-                        title={newPolicyActionTitle}
-                        onClick={() => {
-                            setDraft(newDraft());
-                            setSelectedPolicyId(NEW_POLICY_ID);
-                            setFormError(null);
-                            setPreview(null);
-                            setPreviewError(null);
-                            setHighlightedRuleId(null);
-                        }}
+                        icon={Star}
+                        disabled={selectedPolicy.isDefault || selectedPolicy.isArchived}
+                        onClick={() => setDefaultPolicy(selectedPolicy)}
                     >
-                        {newPolicyActionLabel}
+                        {selectedPolicy.isDefault ? 'Default Policy' : selectedPolicy.isArchived ? 'Archived' : 'Set Default'}
                     </Button>
-                )}
-            />
+                    <Button
+                        type="button"
+                        variant="danger"
+                        icon={Trash2}
+                        disabled={selectedPolicy.isDefault}
+                        onClick={() => setDeletingPolicy(selectedPolicy)}
+                    >
+                        {(selectedPolicy._count?.academicCycles || 0) > 0 ? 'Archive' : 'Delete'}
+                    </Button>
+                </>
+            )}
+            <Button
+                type="submit"
+                form="gpa-policy-form"
+                icon={Save}
+                isLoading={saving}
+                loadingText="Saving"
+            >
+                Save Policy
+            </Button>
+        </div>
+    );
 
-            <ResourcePanel>
+    return (
+        <div className="grid gap-4">
+            <SettingsSection
+                icon={Trophy}
+                title="GPA Policies"
+                description={<>Manage GPA scales, grade boundaries, and transcript rules. <DocsLink href="/docs/gpa-policies#policy-basics">Read GPA policy docs</DocsLink></>}
+                action={headerActions}
+                contentClassName="p-0"
+            >
                 {isLoading && <Loading text="Loading GPA policies..." />}
                 {error && <ErrorState error={error} onRetry={() => mutate()} />}
 
                 {!isLoading && !error && (
-                    <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[320px_minmax(0,1fr)]">
+                    <div className="grid min-h-0 min-w-0 grid-cols-1 overflow-hidden lg:grid-cols-[320px_minmax(0,1fr)]">
                         <aside className="min-h-0 min-w-0 overflow-y-auto border-b border-border/70 p-4 lg:border-b-0 lg:border-r">
                             <div className="space-y-2">
                                 {isNewPolicyDraft && (
@@ -699,6 +728,7 @@ export function GpaPoliciesSettingsTab() {
                         <div className="min-h-0 min-w-0 overflow-y-auto p-4">
                             <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
                                 <form
+                                    id="gpa-policy-form"
                                     className="min-w-0 space-y-5"
                                     onSubmit={(event) => {
                                         event.preventDefault();
@@ -890,35 +920,6 @@ export function GpaPoliciesSettingsTab() {
                                         </div>
                                     </section>
 
-                                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-                                        <div className="flex gap-2">
-                                            {selectedPolicy && (
-                                                <>
-                                                    <Button
-                                                        type="button"
-                                                        variant="secondary"
-                                                        icon={Star}
-                                                        disabled={selectedPolicy.isDefault || selectedPolicy.isArchived}
-                                                        onClick={() => setDefaultPolicy(selectedPolicy)}
-                                                    >
-                                                        {selectedPolicy.isDefault ? 'Default Policy' : selectedPolicy.isArchived ? 'Archived' : 'Set Default'}
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="danger"
-                                                        icon={Trash2}
-                                                        disabled={selectedPolicy.isDefault}
-                                                        onClick={() => setDeletingPolicy(selectedPolicy)}
-                                                    >
-                                                        {(selectedPolicy._count?.academicCycles || 0) > 0 ? 'Archive' : 'Delete'}
-                                                    </Button>
-                                                </>
-                                            )}
-                                        </div>
-                                        <Button type="submit" icon={Save} isLoading={saving} loadingText="Saving">
-                                            Save Policy
-                                        </Button>
-                                    </div>
                                 </form>
 
                                 <aside className="space-y-4">
@@ -993,7 +994,7 @@ export function GpaPoliciesSettingsTab() {
                         </div>
                     </div>
                 )}
-            </ResourcePanel>
+            </SettingsSection>
 
             <ConfirmDialog
                 isOpen={Boolean(deletingPolicy)}
@@ -1006,6 +1007,6 @@ export function GpaPoliciesSettingsTab() {
                 confirmText={(deletingPolicy?._count?.academicCycles || 0) > 0 ? 'Archive' : 'Delete'}
                 isDestructive
             />
-        </PageShell>
+        </div>
     );
 }

@@ -1,19 +1,18 @@
-const VERSION = 'eduverse-v2.0.2';
+const VERSION = 'eduverse-v2.0.3';
 const STATIC_CACHE = `${VERSION}:static`;
 const RUNTIME_CACHE = `${VERSION}:runtime`;
 const IMAGE_CACHE = `${VERSION}:images`;
 
-const APP_SHELL = [
+const APP_SHELL = Array.from(new Set([
   '/',
   '/offline',
   '/manifest.json',
-  '/assets/eduverse-icon-192.png',
   '/assets/eduverse-icon-192.png',
   '/assets/chat-doodle.svg',
   '/assets/shortcut-timetable.svg',
   '/assets/shortcut-chats.svg',
   '/assets/shortcut-mail.svg',
-];
+]));
 
 const MAX_IMAGE_ENTRIES = 80;
 
@@ -121,7 +120,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (request.method === 'GET') {
+  if (request.method === 'GET' && url.pathname.startsWith('/assets/')) {
     event.respondWith(staleWhileRevalidate(request, RUNTIME_CACHE));
   }
 });

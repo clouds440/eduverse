@@ -763,6 +763,7 @@ Main responsibilities:
 - Calculate cycle GPA and cumulative CGPA through `GpaService`.
 - Use the cycle policy snapshot when present.
 - Preserve finalized-grade filtering.
+- Use enrollment history so mid-cycle section transfers can preserve old-section academic records while allowing excluded historical sections to appear without contributing to GPA or merit.
 
 ### Attendance and Schedules
 
@@ -772,6 +773,7 @@ Main responsibilities:
 - Validate schedule teacher assignment.
 - Preserve room, time-slot, and teacher conflict checks.
 - Record and retrieve attendance.
+- Keep historical attendance attached to the section where it was originally recorded. A transfer must not delete old attendance.
 
 ### Course Materials
 
@@ -1060,6 +1062,17 @@ The linked Google email option follows the same old-address confirmation rule wh
 4. Students are enrolled through the dedicated enrollment workflow, either directly into sections or through cohorts.
 5. Materials, schedules, attendance, assessments, and grades attach to sections.
 
+### Section Removal and Transfer Policy
+
+1. Removing a student from a section closes the live enrollment only. Attendance records, grades, submissions, and enrollment history remain preserved.
+2. If the section already has grades for the student, the removal confirmation must offer a clear `wasExcluded` choice. Excluding the section means it can remain visible as historical context but should not contribute to transcript GPA, CGPA, rank, or merit calculations.
+3. The removal confirmation must warn: if the intent is to move the student into another section, use the dedicated transfer or reassignment utility instead of remove-then-add.
+4. Section transfer changes current placement from a source section to a destination section and records the source enrollment as historical. It should be used for mid-cycle section moves, not for deleting academic evidence.
+5. Previous-section attendance should remain in the previous section. Destination-section attendance starts from the transfer date.
+6. Percentage-only attendance transfer is available as an auditable administrative adjustment, not as real session mapping. It stores the source percentage and reason, marks generated destination records with `TRANSFER_PERCENTAGE`, and keeps them distinguishable from ordinary teacher-marked attendance.
+7. Missed assessments caused by transfer do not become automatic zeroes. The transfer utility creates explicit destination assessment exemptions for assessments before the transfer date when the student has no grade.
+8. After transfer, staff should review transcript inclusion, attendance summary, destination gradebook exemptions, and any required makeup assessments before finalization.
+
 ### Multi-Teacher Sections
 
 - Sections support multiple assigned teachers.
@@ -1137,14 +1150,15 @@ The linked Google email option follows the same old-address confirmation rule wh
 
 ### Transcript Generation
 
-1. Transcript service loads student enrollments and finalized grades.
+1. Transcript service loads student enrollment history and finalized grades.
 2. Course and section details include course credit hours.
 3. Section results are calculated from finalized assessment grades.
 4. Optional section result schemes aggregate independent component section results into one course result.
 5. Cycle GPA policy snapshot is resolved.
 6. GPA service maps percentages to letter grades and grade points.
 7. GPA service calculates GPA and CGPA.
-8. Web and PDF views render credit hours, grade points, quality points, GPA, CGPA, scale, policy name, and component breakdowns when configured.
+8. Sections marked excluded remain historical transcript context but do not contribute to GPA, CGPA, rank, or merit.
+9. Web and PDF views render credit hours, grade points, quality points, GPA, CGPA, scale, policy name, and component breakdowns when configured.
 
 ### Cycle Completion, Archive, and Past Records
 

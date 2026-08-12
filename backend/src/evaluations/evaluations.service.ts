@@ -23,6 +23,7 @@ import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from './dto/update-evaluation.dto';
 import { BulkCreateEvaluationWindowsDto, CreateEvaluationWindowDto, UpdateEvaluationWindowDto } from './dto/evaluation-window.dto';
 import { EvaluationVisibilityDto } from './dto/evaluation-visibility.dto';
+import { SECTION_COMPONENT_OMIT } from '../common/section-query';
 
 interface CurrentUser extends DepartmentScopedUser {
   id: string;
@@ -55,7 +56,7 @@ export class EvaluationsService {
 
   private includeEvaluation = {
     student: { include: { user: { select: { id: true, name: true, email: true } } } },
-    section: { include: { course: { select: { id: true, name: true, departmentId: true } } } },
+    section: { include: { course: { select: { id: true, name: true, departmentId: true } } }, omit: SECTION_COMPONENT_OMIT },
     course: { select: { id: true, name: true, departmentId: true } },
     teacher: { include: { user: { select: { id: true, name: true, email: true } } } },
     academicCycle: { select: { id: true, name: true } },

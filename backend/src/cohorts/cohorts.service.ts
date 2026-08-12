@@ -29,6 +29,7 @@ import {
 import { assertLifecycleTransition, COHORT_OFFERING_TRANSITIONS } from '../common/offering-lifecycle';
 import { CourseResultSchemesService } from '../course-result-schemes/course-result-schemes.service';
 import { buildMissingEnrollmentPreview, enrollmentPairKey } from '../common/enrollment-preview';
+import { SECTION_COMPONENT_OMIT } from '../common/section-query';
 
 type Transaction = Prisma.TransactionClient;
 type Actor = DepartmentScopedUser & { id: string };
@@ -44,7 +45,7 @@ const COHORT_INCLUDE = {
           programOffering: { include: { program: { include: { department: true } } } },
         },
       },
-      sections: { include: { section: { include: { course: true } } } },
+      sections: { include: { section: { include: { course: true }, omit: SECTION_COMPONENT_OMIT } } },
       memberships: { where: { leftAt: null }, include: { student: { include: { user: true } } } },
       _count: { select: { memberships: true, sections: true, stageEnrollments: true } },
     },
@@ -86,7 +87,7 @@ export class CohortsService {
       where: { id: offeringId, organizationId: orgId },
       include: {
         programStageOffering: { include: { programOffering: { include: { program: true } } } },
-        sections: { include: { section: { include: { course: true } } } },
+        sections: { include: { section: { include: { course: true }, omit: SECTION_COMPONENT_OMIT } } },
       },
     });
     if (!offering) throw new NotFoundException('Cohort offering not found');
@@ -107,7 +108,7 @@ export class CohortsService {
         offerings: {
           include: {
             programStageOffering: { include: { programOffering: { include: { program: true } } } },
-            sections: { include: { section: { include: { course: true } } } },
+            sections: { include: { section: { include: { course: true }, omit: SECTION_COMPONENT_OMIT } } },
           },
         },
       },
@@ -129,7 +130,7 @@ export class CohortsService {
         programStageOffering: {
           include: { programStage: true, programOffering: { include: { program: true } } },
         },
-        sections: { include: { section: true } },
+        sections: { include: { section: { omit: SECTION_COMPONENT_OMIT } } },
       },
     });
     if (!offering) throw new NotFoundException('Cohort offering not found');
@@ -394,7 +395,7 @@ export class CohortsService {
   ) {
     const offering = await tx.cohortOffering.findFirst({
       where: { id: cohortOfferingId, organizationId: orgId },
-      include: { sections: { where: { isDefault: true }, include: { section: true } }, programStageOffering: true },
+      include: { sections: { where: { isDefault: true }, include: { section: { omit: SECTION_COMPONENT_OMIT } } }, programStageOffering: true },
     });
     if (!offering) throw new NotFoundException('Cohort offering not found');
     if (!([CohortOfferingStatus.PLANNED, CohortOfferingStatus.ACTIVE] as CohortOfferingStatus[]).includes(offering.status)) {

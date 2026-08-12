@@ -386,6 +386,8 @@ export const docsPages: DocPage[] = [
               'Use cohort placement for the normal class group.',
               'Use individual section placement for exceptions, transfers, or extra classes.',
               'Avoid removing historical context just to clean up a current view; old enrollment data may explain transcript and attendance history.',
+              'When a student is removed from a section with grades, decide whether that historical section should be excluded from transcript GPA, CGPA, rank, and merit.',
+              'If the student is moving to another section, use the transfer or reassignment utility instead of removing and then adding the student manually.',
             ],
           },
         ],
@@ -2056,6 +2058,7 @@ export const docsPages: DocPage[] = [
               'Total credit hours should sum the displayed course credit hours for the transcript scope.',
               'CGPA is calculated cumulatively across returned transcript cycles.',
               'When a course has a section result relationship, the transcript shows one final course result with component rows underneath.',
+              'Historical sections marked excluded can remain visible for context but should not contribute to GPA, CGPA, rank, or merit.',
             ],
           },
           {
@@ -3168,17 +3171,52 @@ export const docsPages: DocPage[] = [
       },
       {
         id: 'reassignment',
-        title: 'Cohort reassignment',
-        tags: ['move students', 'new cycle', 'sections'],
+        title: 'Cohort and section reassignment',
+        tags: ['move students', 'new cycle', 'sections', 'transfer'],
         blocks: [
           {
             type: 'paragraph',
-            text: 'Cohort reassignment moves selected students from one cohort or section into another. It can move students to a later academic cycle, move them within the same cycle, or demote them when needed.',
+            text: 'Reassignment moves selected students from one cohort or section into another. It can move students to a later academic cycle, move them within the same cycle, or demote them when needed. Use this utility for real transfers so the source enrollment is closed historically and the destination enrollment becomes current.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Attendance, grades, submissions, and enrollment history from the source section are preserved.',
+              'The source section can be marked excluded when it should appear as history but not contribute to transcript GPA, CGPA, rank, or merit.',
+              'Previous-section attendance stays attached to the previous section. Destination-section attendance starts after transfer.',
+              'Do not remove and then add a student when the intent is a transfer; that loses the explicit transfer decision context.',
+              'Missed destination assessments before the transfer date are handled with explicit transfer exemptions instead of automatic zero marks.',
+            ],
+          },
+          {
+            type: 'table',
+            headers: ['Choice', 'Effect'],
+            rows: [
+              ['Preserve and include', 'Old-section finalized results remain historical and can contribute to transcript and merit. Use only when school policy says the completed old-section work counts.'],
+              ['Preserve and exclude', 'Old-section records remain visible but do not contribute to GPA, CGPA, rank, or merit. Use when the section is only context after transfer.'],
+              ['Remove only', 'Closes the live enrollment and preserves records. Use for withdrawal from a section, not for transfer to another section.'],
+              ['Transfer', 'Closes the source enrollment historically and creates the destination enrollment. Use for mid-cycle section changes.'],
+            ],
           },
           {
             type: 'note',
             title: 'Review before reassigning',
-            text: 'Reassignment changes current placement while preserving historical academic data. Review the source, destination, and excluded students before confirming.',
+            text: 'Reassignment changes current placement while preserving historical academic data. Review source and destination sections, transcript exclusion, attendance treatment, and required assessment accommodations before confirming.',
+          },
+          {
+            type: 'note',
+            title: 'About percentage attendance transfer',
+            text: 'A percentage-only attendance transfer is an administrative approximation, not real session history. It creates generated destination records marked as TRANSFER_PERCENTAGE, stores the source percentage and reason, and keeps them audit-distinguishable from teacher-marked attendance.',
+          },
+          {
+            type: 'steps',
+            items: [
+              'After transfer, confirm the student appears in the destination section roster.',
+              'Review whether the source section should be excluded from transcript GPA and merit.',
+              'Review previous-section attendance in the source section and future attendance in the destination section.',
+              'Review transfer-created exemptions for destination assessments before the transfer date.',
+              'Check the transcript preview before finalizing grades.',
+            ],
           },
         ],
       },
@@ -4506,6 +4544,8 @@ export const docsPages: DocPage[] = [
               'Create the new academic cycle if it does not exist yet.',
               'Create target cohorts in the new cycle.',
               'Use the reassignment tool to select a source cohort or section, optionally exclude students, and move the remaining students to the destination.',
+              'For mid-cycle section transfers, review whether the source section should be included or excluded from transcript GPA and merit.',
+              'Review transfer-created assessment exemptions before finalization.',
               'Review reassigned students to confirm correct placement.',
               'Use copy-forward to carry sections, schedules, or materials into the new cycle if needed.',
             ],

@@ -739,49 +739,54 @@ export class AdminInsightsBuilder {
   }
 
   private async getSectionRelationshipSummary(orgId: string) {
-    const schemes = await this.prisma.courseResultScheme.findMany({
-      where: { organizationId: orgId },
-      take: 50,
-      include: {
-        course: { select: { name: true, code: true } },
-        academicCycle: { select: { name: true, code: true, status: true } },
-        components: {
-          include: {
-            sectionLinks: {
-              include: {
-                section: { include: { _count: { select: { enrollments: true } } } },
+    try {
+      const schemes = await this.prisma.courseResultScheme.findMany({
+        where: { organizationId: orgId },
+        take: 50,
+        include: {
+          course: { select: { name: true, code: true } },
+          academicCycle: { select: { name: true, code: true, status: true } },
+          components: {
+            include: {
+              sectionLinks: {
+                include: {
+                  section: { select: { id: true, _count: { select: { enrollments: true } } } },
+                },
               },
             },
           },
         },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+        orderBy: { updatedAt: 'desc' },
+      });
 
-    const schemeRows = schemes.map((scheme) => {
-      const linkedSections = scheme.components.reduce((sum, component) => sum + component.sectionLinks.length, 0);
-      const enrolledStudents = scheme.components.reduce(
-        (sum, component) => sum + component.sectionLinks.reduce((sectionSum, link) => sectionSum + link.section._count.enrollments, 0),
-        0,
-      );
+      const schemeRows = schemes.map((scheme) => {
+        const linkedSections = scheme.components.reduce((sum, component) => sum + component.sectionLinks.length, 0);
+        const enrolledStudents = scheme.components.reduce(
+          (sum, component) => sum + component.sectionLinks.reduce((sectionSum, link) => sectionSum + link.section._count.enrollments, 0),
+          0,
+        );
+        return {
+          course: scheme.course.code || scheme.course.name,
+          cycle: scheme.academicCycle.code || scheme.academicCycle.name,
+          components: scheme.components.length,
+          linkedSections,
+          enrolledStudents,
+        };
+      });
+      const topSchemes = [...schemeRows]
+        .sort((a, b) => b.linkedSections - a.linkedSections || b.enrolledStudents - a.enrolledStudents)
+        .slice(0, 10);
+
       return {
-        course: scheme.course.code || scheme.course.name,
-        cycle: scheme.academicCycle.code || scheme.academicCycle.name,
-        components: scheme.components.length,
-        linkedSections,
-        enrolledStudents,
+        schemeCount: schemes.length,
+        linkedSectionCount: schemeRows.reduce((sum, scheme) => sum + scheme.linkedSections, 0),
+        componentCount: schemeRows.reduce((sum, scheme) => sum + scheme.components, 0),
+        topSchemes,
       };
-    });
-    const topSchemes = [...schemeRows]
-      .sort((a, b) => b.linkedSections - a.linkedSections || b.enrolledStudents - a.enrolledStudents)
-      .slice(0, 10);
-
-    return {
-      schemeCount: schemes.length,
-      linkedSectionCount: schemeRows.reduce((sum, scheme) => sum + scheme.linkedSections, 0),
-      componentCount: schemeRows.reduce((sum, scheme) => sum + scheme.components, 0),
-      topSchemes,
-    };
+    } catch (error) {
+      console.warn('Section relationship insights unavailable:', error instanceof Error ? error.message : error);
+      return { schemeCount: 0, linkedSectionCount: 0, componentCount: 0, topSchemes: [] };
+    }
   }
 
   private getProgramCoverageGroup(coverage: ProgramCoverage): DashboardInsightGroup {

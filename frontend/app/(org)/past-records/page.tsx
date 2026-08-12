@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { Archive, Calendar, Layers, LibraryBig, Users } from 'lucide-react';
+import { Archive, Calendar, Layers, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { AcademicCycle, PaginatedResponse, PastRecordOptions, PastRecordSectionSummary, PastRecordStudentSummary, ProgramClassificationStatus } from '@/types';
@@ -87,17 +87,6 @@ export default function PastRecordsPage() {
         { header: 'Status', accessor: () => <Badge variant="success" size="sm">Archived</Badge> },
     ], []);
 
-    const modeCounts = {
-        sections: sections?.totalRecords,
-        students: students?.totalRecords,
-        cycles: cycleResults?.totalRecords,
-    };
-    const modeSummaries = {
-        sections: mode === 'sections' ? `${pluralize(sections?.totalRecords, 'section')} found` : 'Browse archived classes and course records',
-        students: mode === 'students' ? `${pluralize(students?.totalRecords, 'student')} found` : 'Find a learner across old cycles',
-        cycles: mode === 'cycles' ? `${pluralize(cycleResults?.totalRecords, 'cycle')} found` : 'Start from a completed academic cycle',
-    };
-
     const activeFilters: ActiveFilter[] = [
         ...(cycleId ? [{ key: 'cycle', label: 'Cycle', value: cycles?.data.find((cycle) => cycle.id === cycleId)?.code || 'Selected', onRemove: () => updateQueryParams({ cycleId: undefined, page: 1 }) }] : []),
         ...(departmentId ? [{ key: 'department', label: 'Department', value: options?.departments.find((item) => item.id === departmentId)?.label || 'Selected', onRemove: () => updateQueryParams({ departmentId: undefined, page: 1 }) }] : []),
@@ -135,36 +124,6 @@ export default function PastRecordsPage() {
                 breadcrumbs={[{ label: 'Academics' }, { label: 'Past Records' }]}
                 actions={<PageControls activeFilters={activeFilters} leading={<SearchBar value={search} onChange={(value) => updateQueryParams({ search: value || undefined, page: 1 })} placeholder={`Search archived ${mode}...`} mobileMode="expandable" />} renderFilters={() => filterPanel} />}
             />
-            <section className="grid shrink-0 gap-2 md:grid-cols-3" aria-label="Past record categories">
-                {[
-                    { value: 'sections' as const, label: 'Sections', icon: Layers, count: modeCounts.sections, summary: modeSummaries.sections },
-                    { value: 'students' as const, label: 'Students', icon: Users, count: modeCounts.students, summary: modeSummaries.students },
-                    { value: 'cycles' as const, label: 'Cycles', icon: LibraryBig, count: modeCounts.cycles, summary: modeSummaries.cycles },
-                ].map((item) => {
-                    const Icon = item.icon;
-                    const active = mode === item.value;
-                    return (
-                        <button
-                            key={item.value}
-                            type="button"
-                            onClick={() => updateQueryParams({ mode: item.value, page: 1, search: undefined, studentId: undefined })}
-                            className={`flex min-h-24 items-start gap-3 rounded-lg border p-3 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${active ? 'border-primary/35 bg-primary/10' : 'border-border/70 bg-card hover:bg-primary/5'}`}
-                            aria-pressed={active}
-                        >
-                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${active ? 'border-primary/25 bg-card text-primary' : 'border-border/60 bg-muted/45 text-muted-foreground'}`}>
-                                <Icon className="h-4 w-4" aria-hidden="true" />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                                <span className="flex items-center gap-2">
-                                    <span className="font-black text-foreground">{item.label}</span>
-                                    {item.count !== undefined && <Badge variant={active ? 'primary' : 'neutral'} size="sm">{item.count}</Badge>}
-                                </span>
-                                <span className="mt-1 block text-xs font-semibold leading-5 text-muted-foreground">{item.summary}</span>
-                            </span>
-                        </button>
-                    );
-                })}
-            </section>
             <PageTabs<SearchMode>
                 activeValue={mode}
                 onValueChange={(value) => updateQueryParams({ mode: value, page: 1, search: undefined, studentId: undefined })}

@@ -1591,10 +1591,14 @@ export interface Enrollment {
 
 export interface EnrollmentMutationResponse {
     enrollment?: Enrollment;
+    withdrawn?: { enrollment?: Enrollment };
+    enrolled?: { enrollment?: Enrollment };
     count?: number;
     warnings?: { code: string; message: string }[];
     results?: EnrollmentMutationResponse[];
 }
+
+export type AttendanceTransferMode = 'PRESERVE_ONLY' | 'PERCENTAGE_ADJUSTMENT';
 
 export interface CreateGuardianRequest {
     name: string;
@@ -1870,6 +1874,10 @@ export interface SectionGradebookAssessment {
 export interface SectionGradebookCell {
     assessmentId: string;
     gradeId?: string | null;
+    exemptionId?: string | null;
+    isExempt?: boolean;
+    exemptionReason?: string | null;
+    exemptionSource?: string | null;
     marksObtained?: number | null;
     totalMarks: number;
     weightage: number;
@@ -1894,6 +1902,7 @@ export interface SectionGradebookStudentRow {
         totalWeight: number;
         weightedPercentage: number;
         gradedAssessments: number;
+        exemptedAssessments?: number;
         missingAssessments: number;
         draftCount: number;
         publishedCount: number;
@@ -1926,6 +1935,7 @@ export interface SectionGradebookResponse {
         assessmentCount: number;
         enteredGradeCount: number;
         missingGradeCount: number;
+        exemptedGradeCount?: number;
         finalizedGradeCount: number;
         publishedGradeCount: number;
         draftGradeCount: number;
@@ -2874,6 +2884,10 @@ export interface AttendanceRecord {
     sessionId: string;
     studentId: string;
     status: AttendanceStatus;
+    source?: 'MANUAL' | 'TRANSFER_PERCENTAGE';
+    note?: string | null;
+    transferredFromSectionId?: string | null;
+    transferredFromAttendancePercent?: number | null;
     session?: AttendanceSession;
     student?: Student;
 }
@@ -3479,6 +3493,10 @@ export interface ReassignStudentsDto {
     fromSectionId?: string;
     toCohortId?: string;
     toSectionId?: string;
+    wasExcluded?: boolean;
+    attendanceTransferMode?: AttendanceTransferMode;
+    transferDate?: string;
+    reason?: string;
 }
 
 export interface CopyForwardDto {

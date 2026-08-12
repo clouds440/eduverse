@@ -763,7 +763,9 @@ model Section {
   teachers               Teacher[]                     @relation("SectionToTeacher")
   schedules              SectionSchedule[]
   attendanceSessions     AttendanceSession[]
+  attendanceTransfersOut AttendanceRecord[]            @relation("AttendanceTransferSourceSection")
   assessments            Assessment[]
+  assessmentExemptionsOut AssessmentExemption[]         @relation("AssessmentExemptionSourceSection")
   evaluationWindows      EvaluationWindow[]
   evaluations            Evaluation[]
   courseMaterials        CourseMaterial[]
@@ -836,6 +838,7 @@ model Student {
   studentDepartments            StudentDepartment[]
   guardianLinks                 GuardianStudent[]
   grades                        Grade[]
+  assessmentExemptions          AssessmentExemption[]
   evaluations                   Evaluation[]
   submissions                   Submission[]
   preferenceSubmissions         PreferenceSubmission[]
@@ -875,6 +878,7 @@ model Assessment {
   organizationId   String
   grades           Grade[]
   submissions      Submission[]
+  exemptions       AssessmentExemption[]
 
   @@index([sectionId])
   @@index([courseId])
@@ -907,6 +911,29 @@ model Grade {
   @@unique([assessmentId, studentId])
   @@index([studentId])
   @@index([academicCycleId])
+}
+
+model AssessmentExemption {
+  id              String   @id @default(uuid())
+  assessmentId    String
+  studentId       String
+  academicCycleId String
+  reason          String
+  source          String   @default("TRANSFER")
+  sourceSectionId String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assessment    Assessment    @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicCycle AcademicCycle @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  sourceSection Section?      @relation("AssessmentExemptionSourceSection", fields: [sourceSectionId], references: [id], onDelete: SetNull)
+
+  @@unique([assessmentId, studentId])
+  @@index([studentId])
+  @@index([academicCycleId])
+  @@index([sourceSectionId])
 }
 
 model Submission {
@@ -2093,16 +2120,30 @@ model AttendanceSession {
 }
 
 model AttendanceRecord {
-  id        String           @id @default(uuid())
-  sessionId String
-  studentId String
-  status    AttendanceStatus
+  id                                String                 @id @default(uuid())
+  sessionId                         String
+  studentId                         String
+  status                            AttendanceStatus
+  source                            AttendanceRecordSource @default(MANUAL)
+  note                              String?
+  transferredFromSectionId          String?
+  transferredFromAttendancePercent  Float?
+  createdAt                         DateTime               @default(now())
+  updatedAt                         DateTime               @updatedAt
 
-  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  student Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  session                AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student                Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  transferredFromSection Section?          @relation("AttendanceTransferSourceSection", fields: [transferredFromSectionId], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, studentId])
   @@index([studentId])
+  @@index([source])
+  @@index([transferredFromSectionId])
+}
+
+enum AttendanceRecordSource {
+  MANUAL
+  TRANSFER_PERCENTAGE
 }
 
 enum AttendanceStatus {
@@ -2203,6 +2244,7 @@ model AcademicCycle {
   cohortOfferings     CohortOffering[]
   assessments         Assessment[]
   grades              Grade[]
+  assessmentExemptions AssessmentExemption[]
   submissions         Submission[]
   attendanceSessions  AttendanceSession[]
   courseMaterials     CourseMaterial[]

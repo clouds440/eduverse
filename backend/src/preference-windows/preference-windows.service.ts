@@ -25,6 +25,7 @@ import {
 } from '../common/department-scope';
 import { formatPaginatedResponse, getPaginationOptions } from '../common/utils';
 import { PreferenceSubmissionDto, PreferenceWindowDto, UpdatePreferenceWindowDto } from './dto/preference-window.dto';
+import { SECTION_COMPONENT_OMIT } from '../common/section-query';
 
 interface CurrentUser extends DepartmentScopedUser {
   id: string;
@@ -64,6 +65,7 @@ const WINDOW_INCLUDE = {
           },
           _count: { select: { enrollments: true } },
         },
+        omit: SECTION_COMPONENT_OMIT,
       },
     },
     orderBy: { displayOrder: 'asc' as const },
@@ -72,7 +74,7 @@ const WINDOW_INCLUDE = {
     include: {
       course: { select: { id: true, name: true, code: true, departmentId: true } },
       cohort: { select: { id: true, name: true, code: true, academicCycleId: true } },
-      section: { include: { course: { select: { id: true, name: true, code: true, departmentId: true } } } },
+      section: { include: { course: { select: { id: true, name: true, code: true, departmentId: true } } }, omit: SECTION_COMPONENT_OMIT },
     },
   },
   submissions: {
@@ -293,7 +295,7 @@ export class PreferenceWindowsService {
     const window = await this.prisma.preferenceWindow.findUnique({
       where: { id: windowId },
       include: {
-        options: { include: { course: true, section: { include: { schedules: true } } } },
+        options: { include: { course: true, section: { include: { schedules: true }, omit: SECTION_COMPONENT_OMIT } } },
       },
     });
     if (!window) throw new NotFoundException('Preference window not found');

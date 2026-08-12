@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional, IsIn, IsNotEmpty } from 'class-validator';
+import { IsString, IsArray, IsOptional, IsIn, IsNotEmpty, IsBoolean } from 'class-validator';
 
 export class ReassignStudentsDto {
   @IsIn(['cohort', 'section'])
@@ -38,4 +38,20 @@ export class ReassignStudentsDto {
   @IsString({ each: true })
   @IsOptional()
   excludedStudentIds?: string[];
+
+  @IsBoolean()
+  @IsOptional()
+  wasExcluded?: boolean;
+
+  @IsIn(['PRESERVE_ONLY', 'PERCENTAGE_ADJUSTMENT'])
+  @IsOptional()
+  attendanceTransferMode?: 'PRESERVE_ONLY' | 'PERCENTAGE_ADJUSTMENT';
+
+  @IsString()
+  @IsOptional()
+  transferDate?: string;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }

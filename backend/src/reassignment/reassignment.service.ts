@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EnrollmentSource, Prisma } from '@/prisma/prisma-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReassignStudentsDto } from './dto/reassign-students.dto';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 import { StudentProgramEnrollmentsService } from '../student-program-enrollments/student-program-enrollments.service';
+import { EnrollmentsService } from '../enrollments/enrollments.service';
 import {
   assertDepartmentInScope,
   getDepartmentScope,
@@ -18,6 +19,7 @@ export class ReassignmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly studentPrograms: StudentProgramEnrollmentsService,
+    private readonly enrollments: EnrollmentsService,
   ) {}
 
   private unique(ids?: Array<string | undefined>): string[] {
@@ -201,12 +203,35 @@ export class ReassignmentService {
         include: { programMappings: true },
       });
       if (!toSection) throw new NotFoundException('Destination section not found in the target cycle');
-      await this.prisma.$transaction(async (tx) => {
-        for (const studentId of studentIds) {
-          if (await this.moveSection(tx, orgId, studentId, dto.fromSectionId!, toSection, actorId)) results.reassigned++;
-          else results.skipped++;
+      for (const studentId of studentIds) {
+        try {
+          await this.enrollments.transferSectionEnrollment(
+            orgId,
+            studentId,
+            dto.fromSectionId,
+            toSection.id,
+            actor,
+            {
+              wasExcluded: dto.wasExcluded,
+              attendanceTransferMode: dto.attendanceTransferMode,
+              transferDate: dto.transferDate,
+              reason: dto.reason,
+            },
+          );
+          results.reassigned++;
+        } catch (cause) {
+          if (
+            cause instanceof NotFoundException ||
+            cause instanceof BadRequestException ||
+            cause instanceof ConflictException ||
+            cause instanceof ForbiddenException
+          ) {
+            results.skipped++;
+            continue;
+          }
+          throw cause;
         }
-      });
+      }
       return { message: 'Section reassignment complete', ...results };
     }
 

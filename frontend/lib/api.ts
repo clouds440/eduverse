@@ -925,10 +925,10 @@ export const api = {
             request<EnrollmentMutationResponse>('/org/enrollments', { method: 'POST', body: JSON.stringify({ studentId, sectionId }), token }),
         bulkEnrollStudentsInSection: (sectionId: string, studentIds: string[], token: string) =>
             request<EnrollmentMutationResponse>('/org/enrollments/bulk', { method: 'POST', body: JSON.stringify({ sectionId, studentIds }), token }),
-        withdrawStudentFromSection: (studentId: string, sectionId: string, token: string) =>
-            request<EnrollmentMutationResponse>('/org/enrollments/withdraw', { method: 'POST', body: JSON.stringify({ studentId, sectionId }), token }),
-        transferStudentEnrollment: (studentId: string, fromSectionId: string, toSectionId: string, token: string) =>
-            request<EnrollmentMutationResponse>('/org/enrollments/transfer', { method: 'POST', body: JSON.stringify({ studentId, fromSectionId, toSectionId }), token }),
+        withdrawStudentFromSection: (studentId: string, sectionId: string, token: string, options: { wasExcluded?: boolean; reason?: string } = {}) =>
+            request<EnrollmentMutationResponse>('/org/enrollments/withdraw', { method: 'POST', body: JSON.stringify({ studentId, sectionId, ...options }), token }),
+        transferStudentEnrollment: (studentId: string, fromSectionId: string, toSectionId: string, token: string, options: { wasExcluded?: boolean; attendanceTransferMode?: 'PRESERVE_ONLY' | 'PERCENTAGE_ADJUSTMENT'; transferDate?: string; reason?: string } = {}) =>
+            request<EnrollmentMutationResponse>('/org/enrollments/transfer', { method: 'POST', body: JSON.stringify({ studentId, fromSectionId, toSectionId, ...options }), token }),
         restoreStudent: (id: string, status: string, token: string) =>
             request<{ message: string }>(`/org/students/${id}/restore`, { method: 'PATCH', body: JSON.stringify({ status }), token }),
         deleteStudent: (id: string, token: string) =>

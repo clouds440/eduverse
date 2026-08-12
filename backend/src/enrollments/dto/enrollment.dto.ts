@@ -1,4 +1,6 @@
-import { ArrayNotEmpty, IsArray, IsOptional, IsString } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+
+export type AttendanceTransferMode = 'PRESERVE_ONLY' | 'PERCENTAGE_ADJUSTMENT';
 
 export class EnrollStudentDto {
   @IsString()
@@ -27,6 +29,22 @@ export class TransferEnrollmentDto {
 
   @IsString()
   toSectionId!: string;
+
+  @IsBoolean()
+  @IsOptional()
+  wasExcluded?: boolean;
+
+  @IsIn(['PRESERVE_ONLY', 'PERCENTAGE_ADJUSTMENT'])
+  @IsOptional()
+  attendanceTransferMode?: AttendanceTransferMode;
+
+  @IsString()
+  @IsOptional()
+  transferDate?: string;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }
 
 export class WithdrawEnrollmentDto {
@@ -39,4 +57,8 @@ export class WithdrawEnrollmentDto {
   @IsString()
   @IsOptional()
   reason?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  wasExcluded?: boolean;
 }

@@ -432,6 +432,16 @@ export class AssessmentsService {
                 },
               },
             },
+            exemptions: {
+              select: {
+                id: true,
+                studentId: true,
+                reason: true,
+                source: true,
+                sourceSectionId: true,
+                createdAt: true,
+              },
+            },
           },
           orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
         },
@@ -467,20 +477,32 @@ export class AssessmentsService {
         assessmentGradeByStudent.get(grade.studentId)!.set(assessment.id, grade);
       });
     });
+    const assessmentExemptionByStudent = new Map<string, Map<string, (typeof section.assessments)[number]['exemptions'][number]>>();
+    section.assessments.forEach((assessment) => {
+      assessment.exemptions.forEach((exemption) => {
+        if (!assessmentExemptionByStudent.has(exemption.studentId)) {
+          assessmentExemptionByStudent.set(exemption.studentId, new Map());
+        }
+        assessmentExemptionByStudent.get(exemption.studentId)!.set(assessment.id, exemption);
+      });
+    });
 
     const students = sortedEnrollments.map((enrollment) => {
       const gradeByAssessment = assessmentGradeByStudent.get(enrollment.studentId) || new Map();
+      const exemptionByAssessment = assessmentExemptionByStudent.get(enrollment.studentId) || new Map();
       let marksObtained = 0;
       let totalMarks = 0;
       let totalWeight = 0;
       let weightedPercentage = 0;
       let gradedAssessments = 0;
+      let exemptedAssessments = 0;
       let draftCount = 0;
       let publishedCount = 0;
       let finalizedCount = 0;
 
       const grades = assessments.map((assessment) => {
         const grade = gradeByAssessment.get(assessment.id) || null;
+        const exemption = exemptionByAssessment.get(assessment.id) || null;
         const status = grade?.status || null;
         const marks = Number(grade?.marksObtained ?? 0);
         const assessmentTotalMarks = Number(assessment.totalMarks || 0);
@@ -501,11 +523,17 @@ export class AssessmentsService {
           if (status === GradeStatus.DRAFT) draftCount++;
           if (status === GradeStatus.PUBLISHED) publishedCount++;
           if (status === GradeStatus.FINALIZED) finalizedCount++;
+        } else if (exemption) {
+          exemptedAssessments++;
         }
 
         return {
           assessmentId: assessment.id,
           gradeId: grade?.id || null,
+          exemptionId: exemption?.id || null,
+          isExempt: Boolean(exemption),
+          exemptionReason: exemption?.reason || null,
+          exemptionSource: exemption?.source || null,
           marksObtained: grade?.marksObtained ?? null,
           totalMarks: assessment.totalMarks,
           weightage: assessment.weightage,
@@ -536,7 +564,8 @@ export class AssessmentsService {
           totalWeight: Number(totalWeight.toFixed(2)),
           weightedPercentage: roundedWeightedPercentage,
           gradedAssessments,
-          missingAssessments: Math.max(assessments.length - gradedAssessments, 0),
+          exemptedAssessments,
+          missingAssessments: Math.max(assessments.length - gradedAssessments - exemptedAssessments, 0),
           draftCount,
           publishedCount,
           finalizedCount,
@@ -548,7 +577,7 @@ export class AssessmentsService {
     });
 
     const enteredGradeCount = students.reduce((sum, student) => sum + student.summary.gradedAssessments, 0);
-    const possibleGradeCount = students.length * assessments.length;
+    const possibleGradeCount = students.reduce((sum, student) => sum + assessments.length - student.summary.exemptedAssessments, 0);
 
     return {
       section: {
@@ -579,6 +608,7 @@ export class AssessmentsService {
         assessmentCount: assessments.length,
         enteredGradeCount,
         missingGradeCount: Math.max(possibleGradeCount - enteredGradeCount, 0),
+        exemptedGradeCount: students.reduce((sum, student) => sum + student.summary.exemptedAssessments, 0),
         finalizedGradeCount: students.reduce((sum, student) => sum + student.summary.finalizedCount, 0),
         publishedGradeCount: students.reduce((sum, student) => sum + student.summary.publishedCount, 0),
         draftGradeCount: students.reduce((sum, student) => sum + student.summary.draftCount, 0),
@@ -801,6 +831,7 @@ export class AssessmentsService {
           },
         },
         grades: { select: { studentId: true, status: true } },
+        exemptions: { select: { studentId: true } },
       },
     });
 
@@ -825,14 +856,15 @@ export class AssessmentsService {
     const gradeByStudentId = new Map(
       assessment.grades.map((grade) => [grade.studentId, grade]),
     );
+    const exemptedStudentIds = new Set(assessment.exemptions.map((exemption) => exemption.studentId));
     const missingGrades = [...enrolledStudentIds].filter(
-      (studentId) => !gradeByStudentId.has(studentId),
+      (studentId) => !gradeByStudentId.has(studentId) && !exemptedStudentIds.has(studentId),
     );
     const draftGrades = assessment.grades.filter(
       (grade) => enrolledStudentIds.has(grade.studentId) && grade.status === GradeStatus.DRAFT,
     );
 
-    if (enrolledStudentIds.size === 0) {
+    if (enrolledStudentIds.size === 0 || [...enrolledStudentIds].every((studentId) => exemptedStudentIds.has(studentId))) {
       throw new BadRequestException('Cannot finalize an assessment with no enrolled students');
     }
 
@@ -938,6 +970,7 @@ export class AssessmentsService {
             correctionReason: true,
           },
         },
+        exemptions: { select: { studentId: true } },
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     });
@@ -972,12 +1005,14 @@ export class AssessmentsService {
       const enrolledStudentIds = new Set(
         assessment.section.enrollments.map((enrollment) => enrollment.studentId),
       );
+      const exemptedStudentIds = new Set(assessment.exemptions.map((exemption) => exemption.studentId));
       const relevantGrades = assessment.grades.filter((grade) =>
         enrolledStudentIds.has(grade.studentId),
       );
       const totalStudents = enrolledStudentIds.size;
       const gradedStudents = new Set(relevantGrades.map((grade) => grade.studentId)).size;
-      const missingGrades = Math.max(totalStudents - gradedStudents, 0);
+      const exemptionCount = [...exemptedStudentIds].filter((studentId) => enrolledStudentIds.has(studentId)).length;
+      const missingGrades = Math.max(totalStudents - gradedStudents - exemptionCount, 0);
       const draftCount = relevantGrades.filter((grade) => grade.status === GradeStatus.DRAFT).length;
       const publishedCount = relevantGrades.filter((grade) => grade.status === GradeStatus.PUBLISHED).length;
       const finalizedCount = relevantGrades.filter((grade) => grade.status === GradeStatus.FINALIZED).length;
@@ -1041,6 +1076,7 @@ export class AssessmentsService {
         })),
         totalStudents,
         gradedStudents,
+        exemptionCount,
         missingGrades,
         draftCount,
         publishedCount,

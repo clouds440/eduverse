@@ -57,6 +57,14 @@ function getAssessmentCell(row: SectionGradebookStudentRow, assessmentId: string
 }
 
 function GradeCell({ cell }: { cell?: SectionGradebookCell }) {
+    if (cell?.isExempt) {
+        return (
+            <div className="min-w-0 space-y-1">
+                <Badge variant="neutral" size="sm">Exempt</Badge>
+                <p className="truncate text-xs text-muted-foreground">{cell.exemptionReason || 'Transfer accommodation'}</p>
+            </div>
+        );
+    }
     if (!cell || cell.marksObtained === null || cell.marksObtained === undefined) {
         return (
             <div className="min-w-0 space-y-1">
@@ -111,11 +119,13 @@ function PrintableGradebook({ gradebook }: { gradebook: SectionGradebookResponse
                                 const cell = getAssessmentCell(row, assessment.id);
                                 return (
                                     <td key={assessment.id} className="border border-gray-300 px-2 py-1 align-top">
-                                        {cell?.marksObtained === null || cell?.marksObtained === undefined
+                                        {cell?.isExempt
+                                            ? 'Exempt'
+                                            : cell?.marksObtained === null || cell?.marksObtained === undefined
                                             ? 'Missing'
                                             : `${formatNumber(cell.marksObtained)} / ${formatNumber(cell.totalMarks)}`}
                                         <br />
-                                        <span>{getStatusLabel(cell?.status)}</span>
+                                        <span>{cell?.isExempt ? 'Transfer accommodation' : getStatusLabel(cell?.status)}</span>
                                     </td>
                                 );
                             })}
@@ -153,7 +163,7 @@ export default function SectionGradesPage() {
             ]) > 0;
 
             const matchesStatus = statusFilter === 'ALL'
-                || row.grades.some((grade) => statusFilter === 'MISSING' ? !grade.status : grade.status === statusFilter);
+                || row.grades.some((grade) => statusFilter === 'MISSING' ? !grade.status && !grade.isExempt : grade.status === statusFilter);
 
             return matchesSearch && matchesStatus;
         });
@@ -199,8 +209,8 @@ export default function SectionGradesPage() {
             },
             {
                 header: 'Progress',
-                accessor: (row) => `${row.summary.gradedAssessments}/${gradebook?.assessments.length || 0} graded`,
-                width: 130,
+                accessor: (row) => `${row.summary.gradedAssessments}/${gradebook?.assessments.length || 0} graded${row.summary.exemptedAssessments ? `, ${row.summary.exemptedAssessments} exempt` : ''}`,
+                width: 170,
             },
         ];
     }, [gradebook?.assessments]);
@@ -302,6 +312,10 @@ export default function SectionGradesPage() {
                             <div className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">
                                 <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Missing</p>
                                 <p className="mt-2 text-2xl font-black text-foreground">{gradebook.summary.missingGradeCount}</p>
+                            </div>
+                            <div className="rounded-lg border border-border/70 bg-card p-4 shadow-sm">
+                                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Exempt</p>
+                                <p className="mt-2 text-2xl font-black text-foreground">{gradebook.summary.exemptedGradeCount || 0}</p>
                             </div>
                         </div>
 

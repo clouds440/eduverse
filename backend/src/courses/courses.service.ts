@@ -73,7 +73,7 @@ export class CoursesService {
         ? searchWhere
         : {}),
     };
-    const include = { sections: true, department: true } satisfies Prisma.CourseInclude;
+    const include = { department: true } satisfies Prisma.CourseInclude;
 
     const [courses, totalRecords] = await Promise.all([
       this.prisma.course.findMany({
@@ -190,7 +190,7 @@ export class CoursesService {
   async deleteCourse(orgId: string, id: string, requester?: DepartmentScopedUser) {
     const course = await this.prisma.course.findUnique({
       where: { id },
-      include: { sections: true },
+      include: { sections: { select: { id: true } } },
     });
     if (!course || course.organizationId !== orgId) {
       throw new NotFoundException('Course not found');

@@ -16,6 +16,7 @@ import {
 import { normalizeEntityCode } from '../common/entity-code';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 import { CourseResultSchemesService } from '../course-result-schemes/course-result-schemes.service';
+import { SECTION_COMPONENT_OMIT } from '../common/section-query';
 
 interface JwtPayload {
   name: string | null | undefined;
@@ -43,6 +44,10 @@ const SECTION_INCLUDE = {
   enrollments: { include: { student: { include: { user: true } } } },
   _count: { select: { enrollments: true, courseMaterials: true } },
 } satisfies Prisma.SectionInclude;
+
+type SectionPayload = Omit<Prisma.SectionGetPayload<{ include: typeof SECTION_INCLUDE }>, 'componentType'> & {
+  componentType?: string;
+};
 
 @Injectable()
 export class SectionsService {
@@ -129,11 +134,11 @@ export class SectionsService {
       ? { course: { name: sortOrder } }
       : { [sortBy]: sortOrder };
     const [sections, total] = await Promise.all([
-      this.prisma.section.findMany({ where, skip, take, include: SECTION_INCLUDE, orderBy }),
+      this.prisma.section.findMany({ where, skip, take, include: SECTION_INCLUDE, omit: SECTION_COMPONENT_OMIT, orderBy }),
       this.prisma.section.count({ where }),
     ]);
     if (options.search && total === 0) {
-      const candidates = await this.prisma.section.findMany({ where: baseWhere, take: 500, include: SECTION_INCLUDE, orderBy });
+      const candidates = await this.prisma.section.findMany({ where: baseWhere, take: 500, include: SECTION_INCLUDE, omit: SECTION_COMPONENT_OMIT, orderBy });
       const ranked = fuzzyFilterAndRank(candidates, options.search, (section) => [
         section.name,
         section.code,
@@ -147,10 +152,11 @@ export class SectionsService {
     return formatPaginatedResponse(sections.map(this.formatSection), total, options.page, options.limit);
   }
 
-  private formatSection(section: Prisma.SectionGetPayload<{ include: typeof SECTION_INCLUDE }>) {
+  private formatSection(section: SectionPayload) {
     const cohort = section.cohortOfferingSections[0]?.cohortOffering.cohort;
     return {
       ...section,
+      componentType: section.componentType ?? 'OTHER',
       students: section.enrollments.map((enrollment) => ({ ...enrollment.student, user: enrollment.student.user })),
       studentsCount: section._count.enrollments,
       courseMaterialsCount: section._count.courseMaterials,
@@ -161,7 +167,7 @@ export class SectionsService {
   }
 
   async getSectionById(id: string) {
-    const section = await this.prisma.section.findUnique({ where: { id }, include: SECTION_INCLUDE });
+    const section = await this.prisma.section.findUnique({ where: { id }, include: SECTION_INCLUDE, omit: SECTION_COMPONENT_OMIT });
     if (!section) throw new NotFoundException('Section not found');
     return this.formatSection(section);
   }
@@ -207,7 +213,7 @@ export class SectionsService {
     if (data.defaultRoomId) await validateRoomBelongsToOrg(this.prisma, orgId, data.defaultRoomId);
     const teacherIds = await this.assertTeachersBelongToOrg(orgId, data.teacherIds);
     const mappings = await this.validateMappings(this.prisma, orgId, data.academicCycleId, data.courseId, data.programMappings);
-    return this.prisma.section.create({
+    const section = await this.prisma.section.create({
       data: {
         organizationId: orgId,
         name: data.name.trim(),
@@ -231,11 +237,13 @@ export class SectionsService {
           : undefined,
       },
       include: SECTION_INCLUDE,
+      omit: SECTION_COMPONENT_OMIT,
     });
+    return this.formatSection(section);
   }
 
   async updateSection(orgId: string, id: string, data: UpdateSectionDto, requester?: DepartmentScopedUser) {
-    const { teacherIds, scheduleTeacherResolution, programMappings, ...sectionData } = data;
+    const { teacherIds, scheduleTeacherResolution, programMappings, componentType, ...sectionData } = data;
     const existing = await this.prisma.section.findFirst({
       where: { id, organizationId: orgId },
       include: {
@@ -311,7 +319,7 @@ export class SectionsService {
           })),
         });
       }
-      return tx.section.update({
+      const section = await tx.section.update({
         where: { id },
         data: {
           ...sectionData,
@@ -322,7 +330,9 @@ export class SectionsService {
           teachers: nextTeacherIds ? { set: nextTeacherIds.map((teacherId) => ({ id: teacherId })) } : undefined,
         },
         include: SECTION_INCLUDE,
+        omit: SECTION_COMPONENT_OMIT,
       });
+      return this.formatSection(section);
     });
   }
 
