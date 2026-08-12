@@ -26,6 +26,7 @@ import {
 } from '../common/utils';
 import { normalizeEntityCode } from '../common/entity-code';
 import { runSerializableTransaction } from '../common/prisma-transaction';
+import { isMissingSchemaObjectError } from '../common/prisma-errors';
 import {
   CreateProgramDto,
   ProgramCourseRequirementInputDto,
@@ -74,6 +75,28 @@ const PROGRAM_DETAIL_INCLUDE = {
   },
   _count: { select: { studentEnrollments: true, curriculumVersions: true, offerings: true } },
 } satisfies Prisma.ProgramInclude;
+
+const PROGRAM_LIST_SELECT = {
+  id: true,
+  organizationId: true,
+  departmentId: true,
+  name: true,
+  code: true,
+  description: true,
+  status: true,
+  configurationVersion: true,
+  structureType: true,
+  progressionMode: true,
+  completionMode: true,
+  durationValue: true,
+  durationUnit: true,
+  createdAt: true,
+  updatedAt: true,
+  archivedAt: true,
+  archivedById: true,
+  archiveReason: true,
+  department: true,
+} satisfies Prisma.ProgramSelect;
 
 @Injectable()
 export class ProgramsService {
@@ -327,20 +350,59 @@ export class ProgramsService {
           ]
         : undefined,
     };
-    const [data, total] = await Promise.all([
-      this.prisma.program.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
-        include: {
-          department: true,
-          _count: { select: { curriculumVersions: true, offerings: true, studentEnrollments: true } },
-        },
-      }),
-      this.prisma.program.count({ where }),
-    ]);
-    return formatPaginatedResponse(data, total, options.page || 1, options.limit || 20);
+    const hasProgramRollout = await this.prisma.hasProgramRolloutSchema();
+    if (!hasProgramRollout) {
+      const [data, total] = await Promise.all([
+        this.prisma.program.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
+          select: PROGRAM_LIST_SELECT,
+        }),
+        this.prisma.program.count({ where }),
+      ]);
+      return formatPaginatedResponse(
+        data.map((program) => ({ ...program, minimumPassingPercentage: 50, _count: { curriculumVersions: 0, offerings: 0, studentEnrollments: 0 } })),
+        total,
+        options.page || 1,
+        options.limit || 20,
+      );
+    }
+    try {
+      const [data, total] = await Promise.all([
+        this.prisma.program.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
+          select: {
+            ...PROGRAM_LIST_SELECT,
+            _count: { select: { curriculumVersions: true, offerings: true, studentEnrollments: true } },
+          },
+        }),
+        this.prisma.program.count({ where }),
+      ]);
+      return formatPaginatedResponse(data, total, options.page || 1, options.limit || 20);
+    } catch (error) {
+      if (!isMissingSchemaObjectError(error)) throw error;
+      const [data, total] = await Promise.all([
+        this.prisma.program.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
+          select: PROGRAM_LIST_SELECT,
+        }),
+        this.prisma.program.count({ where }),
+      ]);
+      return formatPaginatedResponse(
+        data.map((program) => ({ ...program, minimumPassingPercentage: 50, _count: { curriculumVersions: 0, offerings: 0, studentEnrollments: 0 } })),
+        total,
+        options.page || 1,
+        options.limit || 20,
+      );
+    }
   }
 
   async get(orgId: string, id: string, actor: Actor) {

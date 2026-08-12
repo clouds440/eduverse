@@ -30,6 +30,7 @@ import { assertLifecycleTransition, COHORT_OFFERING_TRANSITIONS } from '../commo
 import { CourseResultSchemesService } from '../course-result-schemes/course-result-schemes.service';
 import { buildMissingEnrollmentPreview, enrollmentPairKey } from '../common/enrollment-preview';
 import { SECTION_COMPONENT_OMIT } from '../common/section-query';
+import { isMissingSchemaObjectError } from '../common/prisma-errors';
 
 type Transaction = Prisma.TransactionClient;
 type Actor = DepartmentScopedUser & { id: string };
@@ -51,6 +52,16 @@ const COHORT_INCLUDE = {
     },
   },
 } satisfies Prisma.CohortInclude;
+
+const COHORT_LIST_SELECT = {
+  id: true,
+  name: true,
+  code: true,
+  organizationId: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.CohortSelect;
 
 @Injectable()
 export class CohortsService {
@@ -341,17 +352,74 @@ export class CohortsService {
           }
         : undefined,
     };
-    const [data, total] = await Promise.all([
-      this.prisma.cohort.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
-        include: COHORT_INCLUDE,
-      }),
-      this.prisma.cohort.count({ where }),
-    ]);
-    return formatPaginatedResponse(data, total, options.page || 1, options.limit || 50);
+    const hasProgramRollout = await this.prisma.hasProgramRolloutSchema();
+    if (!hasProgramRollout) {
+      const fallbackWhere: Prisma.CohortWhereInput = {
+        organizationId: orgId,
+        OR: options.search
+          ? [
+              { name: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+              { code: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+            ]
+          : undefined,
+      };
+      const [data, total] = await Promise.all([
+        this.prisma.cohort.findMany({
+          where: fallbackWhere,
+          skip,
+          take,
+          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
+          select: COHORT_LIST_SELECT,
+        }),
+        this.prisma.cohort.count({ where: fallbackWhere }),
+      ]);
+      return formatPaginatedResponse(
+        data.map((cohort) => ({ ...cohort, offerings: [], _count: { memberships: 0, sections: 0, stageEnrollments: 0 } })),
+        total,
+        options.page || 1,
+        options.limit || 50,
+      );
+    }
+    try {
+      const [data, total] = await Promise.all([
+        this.prisma.cohort.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
+          include: COHORT_INCLUDE,
+        }),
+        this.prisma.cohort.count({ where }),
+      ]);
+      return formatPaginatedResponse(data, total, options.page || 1, options.limit || 50);
+    } catch (error) {
+      if (!isMissingSchemaObjectError(error)) throw error;
+      const fallbackWhere: Prisma.CohortWhereInput = {
+        organizationId: orgId,
+        OR: options.search
+          ? [
+              { name: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+              { code: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+            ]
+          : undefined,
+      };
+      const [data, total] = await Promise.all([
+        this.prisma.cohort.findMany({
+          where: fallbackWhere,
+          skip,
+          take,
+          orderBy: { [sortBy || 'createdAt']: sortOrder || 'desc' },
+          select: COHORT_LIST_SELECT,
+        }),
+        this.prisma.cohort.count({ where: fallbackWhere }),
+      ]);
+      return formatPaginatedResponse(
+        data.map((cohort) => ({ ...cohort, offerings: [], _count: { memberships: 0, sections: 0, stageEnrollments: 0 } })),
+        total,
+        options.page || 1,
+        options.limit || 50,
+      );
+    }
   }
 
   async getCohort(orgId: string, id: string) {

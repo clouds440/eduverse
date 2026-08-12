@@ -11,6 +11,7 @@ import { formatPercent, formatSectionLabel } from '../shared/insights-format.uti
 import type { DashboardInsightGroup, DashboardInsightItem, InsightsUser, StandardDashboardInsightsResponse } from '../shared/insights.types';
 import { getBuildingRoomInsights } from '../helpers/building-room-insights.helper';
 import { getDepartmentAdminInsights } from '../helpers/department-admin-insights.helper';
+import { isMissingSchemaObjectError } from '../../common/prisma-errors';
 
 type AdminSection = Awaited<ReturnType<AdminInsightsBuilder['getSections']>>[number];
 type OfficialSchedule = Awaited<ReturnType<AdminInsightsBuilder['getOfficialSchedules']>>[number];
@@ -542,100 +543,123 @@ export class AdminInsightsBuilder {
   }
 
   private async getOperationalHealth(orgId: string, now: Date, from: Date, to: Date) {
-    const [
-      activeAcademicCycles,
-      activeCohorts,
-      studentsWithoutGuardians,
-      activePreferenceWindows,
-      activeEvaluationWindows,
-      upcomingAcademicEvents,
-      announcementsInRange,
-      pendingFinanceConfirmations,
-      pendingPaymentClaims,
-      overdueFinanceEntries,
-      aiCreditsUsed,
-      cohortMovesInRange,
-    ] = await Promise.all([
-      this.prisma.academicCycle.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
-      this.prisma.cohort.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
-      this.prisma.student.count({
-        where: {
-          organizationId: orgId,
-          status: { not: StudentStatus.DELETED },
-          guardianLinks: { none: {} },
-        },
-      }),
-      this.prisma.preferenceWindow.count({
-        where: {
-          organizationId: orgId,
-          status: PreferenceWindowStatus.ACTIVE,
-          startAt: { lte: now },
-          endAt: { gte: now },
-        },
-      }),
-      this.prisma.evaluationWindow.count({
-        where: {
-          organizationId: orgId,
-          isActive: true,
-          startDate: { lte: now },
-          endDate: { gte: now },
-        },
-      }),
-      this.prisma.academicEvent.count({
-        where: {
-          organizationId: orgId,
-          isActive: true,
-          startDate: { lte: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 14) },
-          endDate: { gte: now },
-        },
-      }),
-      this.prisma.announcement.count({
-        where: { organizationId: orgId, createdAt: { gte: from, lte: to } },
-      }),
-      this.prisma.financialEntry.count({
-        where: { organizationId: orgId, status: EntryStatus.UNVERIFIED },
-      }),
-      this.prisma.paymentClaim.count({
-        where: { organizationId: orgId, status: PaymentClaimStatus.PENDING },
-      }),
-      this.prisma.financialEntry.count({
-        where: {
-          organizationId: orgId,
-          status: { in: [EntryStatus.PENDING, EntryStatus.PARTIAL, EntryStatus.OVERDUE, EntryStatus.UNVERIFIED] },
-          dueDate: { lt: now },
-        },
-      }),
-      this.prisma.aIUsage.aggregate({
-        where: {
-          organizationId: orgId,
-          periodStart: { lte: to },
-          periodEnd: { gte: from },
-        },
-        _sum: { creditUsed: true },
-      }),
-      this.prisma.studentCohortMembership.count({
-        where: { organizationId: orgId, joinedAt: { gte: from, lte: to } },
-      }),
-    ]);
+    const hasProgramRollout = await this.prisma.hasProgramRolloutSchema();
+    try {
+      const [
+        activeAcademicCycles,
+        activeCohorts,
+        studentsWithoutGuardians,
+        activePreferenceWindows,
+        activeEvaluationWindows,
+        upcomingAcademicEvents,
+        announcementsInRange,
+        pendingFinanceConfirmations,
+        pendingPaymentClaims,
+        overdueFinanceEntries,
+        aiCreditsUsed,
+        cohortMovesInRange,
+      ] = await Promise.all([
+        this.prisma.academicCycle.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
+        this.prisma.cohort.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
+        this.prisma.student.count({
+          where: {
+            organizationId: orgId,
+            status: { not: StudentStatus.DELETED },
+            guardianLinks: { none: {} },
+          },
+        }),
+        this.prisma.preferenceWindow.count({
+          where: {
+            organizationId: orgId,
+            status: PreferenceWindowStatus.ACTIVE,
+            startAt: { lte: now },
+            endAt: { gte: now },
+          },
+        }),
+        this.prisma.evaluationWindow.count({
+          where: {
+            organizationId: orgId,
+            isActive: true,
+            startDate: { lte: now },
+            endDate: { gte: now },
+          },
+        }),
+        this.prisma.academicEvent.count({
+          where: {
+            organizationId: orgId,
+            isActive: true,
+            startDate: { lte: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 14) },
+            endDate: { gte: now },
+          },
+        }),
+        this.prisma.announcement.count({
+          where: { organizationId: orgId, createdAt: { gte: from, lte: to } },
+        }),
+        this.prisma.financialEntry.count({
+          where: { organizationId: orgId, status: EntryStatus.UNVERIFIED },
+        }),
+        this.prisma.paymentClaim.count({
+          where: { organizationId: orgId, status: PaymentClaimStatus.PENDING },
+        }),
+        this.prisma.financialEntry.count({
+          where: {
+            organizationId: orgId,
+            status: { in: [EntryStatus.PENDING, EntryStatus.PARTIAL, EntryStatus.OVERDUE, EntryStatus.UNVERIFIED] },
+            dueDate: { lt: now },
+          },
+        }),
+        this.prisma.aIUsage.aggregate({
+          where: {
+            organizationId: orgId,
+            periodStart: { lte: to },
+            periodEnd: { gte: from },
+          },
+          _sum: { creditUsed: true },
+        }),
+        hasProgramRollout
+          ? this.prisma.studentCohortMembership.count({
+              where: { organizationId: orgId, joinedAt: { gte: from, lte: to } },
+            })
+          : Promise.resolve(0),
+      ]);
 
-    return {
-      activeAcademicCycles,
-      activeCohorts,
-      studentsWithoutGuardians,
-      activePreferenceWindows,
-      activeEvaluationWindows,
-      upcomingAcademicEvents,
-      announcementsInRange,
-      pendingFinanceConfirmations,
-      pendingPaymentClaims,
-      overdueFinanceEntries,
-      aiCreditsUsed: aiCreditsUsed._sum.creditUsed || 0,
-      cohortMovesInRange,
-    };
+      return {
+        activeAcademicCycles,
+        activeCohorts,
+        studentsWithoutGuardians,
+        activePreferenceWindows,
+        activeEvaluationWindows,
+        upcomingAcademicEvents,
+        announcementsInRange,
+        pendingFinanceConfirmations,
+        pendingPaymentClaims,
+        overdueFinanceEntries,
+        aiCreditsUsed: aiCreditsUsed._sum.creditUsed || 0,
+        cohortMovesInRange,
+      };
+    } catch (error) {
+      if (!isMissingSchemaObjectError(error)) throw error;
+      return {
+        activeAcademicCycles: await this.prisma.academicCycle.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
+        activeCohorts: await this.prisma.cohort.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
+        studentsWithoutGuardians: 0,
+        activePreferenceWindows: 0,
+        activeEvaluationWindows: 0,
+        upcomingAcademicEvents: 0,
+        announcementsInRange: 0,
+        pendingFinanceConfirmations: 0,
+        pendingPaymentClaims: 0,
+        overdueFinanceEntries: 0,
+        aiCreditsUsed: 0,
+        cohortMovesInRange: 0,
+      };
+    }
   }
 
   private async getCycleComparison(orgId: string) {
-    const current = await this.prisma.academicCycle.findFirst({
+    const hasProgramRollout = await this.prisma.hasProgramRolloutSchema();
+    try {
+      const current = await this.prisma.academicCycle.findFirst({
       where: { organizationId: orgId, status: AcademicCycleStatus.ACTIVE },
       orderBy: { startDate: 'desc' },
     }) ?? await this.prisma.academicCycle.findFirst({
@@ -659,7 +683,7 @@ export class AdminInsightsBuilder {
           select: {
             sections: true,
             cohorts: true,
-            programOfferings: true,
+            ...(hasProgramRollout ? { programOfferings: true } : {}),
             assessments: true,
             attendanceSessions: true,
           },
@@ -682,63 +706,118 @@ export class AdminInsightsBuilder {
       studentsByCycle.set(enrollment.academicCycleId, students);
     });
 
-    return cycles.map((cycle) => ({
-      id: cycle.id,
-      name: cycle.name,
-      code: cycle.code,
-      students: studentsByCycle.get(cycle.id)?.size || 0,
-      sections: cycle._count.sections,
-      cohorts: cycle._count.cohorts,
-      programOfferings: cycle._count.programOfferings,
-      assessments: cycle._count.assessments,
-      attendanceSessions: cycle._count.attendanceSessions,
-    }));
+      return cycles.map((cycle) => ({
+        id: cycle.id,
+        name: cycle.name,
+        code: cycle.code,
+        students: studentsByCycle.get(cycle.id)?.size || 0,
+        sections: cycle._count.sections,
+        cohorts: cycle._count.cohorts,
+        programOfferings: hasProgramRollout ? cycle._count.programOfferings : 0,
+        assessments: cycle._count.assessments,
+        attendanceSessions: cycle._count.attendanceSessions,
+      }));
+    } catch (error) {
+      if (!isMissingSchemaObjectError(error)) throw error;
+      return [];
+    }
   }
 
   private async getProgramCoverage(orgId: string) {
-    const programs = await this.prisma.program.findMany({
-      where: { organizationId: orgId, status: 'ACTIVE' },
-      include: {
-        curriculumVersions: { where: { status: 'ACTIVE' }, select: { id: true } },
-        studentEnrollments: { where: { status: { in: [StudentProgramEnrollmentStatus.ADMITTED, StudentProgramEnrollmentStatus.ACTIVE, StudentProgramEnrollmentStatus.ON_HOLD] } }, select: { id: true } },
-        offerings: {
-          include: {
-            stageOfferings: { include: { _count: { select: { sectionMappings: true } } } },
+    const hasProgramRollout = await this.prisma.hasProgramRolloutSchema();
+    if (!hasProgramRollout) {
+      const programs = await this.prisma.program.findMany({
+        where: { organizationId: orgId, status: 'ACTIVE' },
+        select: { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      });
+      return {
+        activePrograms: programs.length,
+        openOfferings: 0,
+        unofferedActivePrograms: programs.length,
+        programsWithoutActiveCurriculum: 0,
+        mappedSections: 0,
+        topPrograms: programs.slice(0, 10).map((program) => ({
+          program: program.code || program.name,
+          activeEnrollments: 0,
+          openOfferings: 0,
+          mappedSections: 0,
+          activeCurricula: 0,
+        })),
+      };
+    }
+    try {
+      const programs = await this.prisma.program.findMany({
+        where: { organizationId: orgId, status: 'ACTIVE' },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          curriculumVersions: { where: { status: 'ACTIVE' }, select: { id: true } },
+          studentEnrollments: { where: { status: { in: [StudentProgramEnrollmentStatus.ADMITTED, StudentProgramEnrollmentStatus.ACTIVE, StudentProgramEnrollmentStatus.ON_HOLD] } }, select: { id: true } },
+          offerings: {
+            include: {
+              stageOfferings: { include: { _count: { select: { sectionMappings: true } } } },
+            },
           },
         },
-      },
-      orderBy: { name: 'asc' },
-    });
+        orderBy: { name: 'asc' },
+      });
 
-    const programRows = programs.map((program) => {
-      const openOfferings = program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN);
-      const mappedSections = openOfferings.reduce(
-        (sum, offering) => sum + offering.stageOfferings.reduce((stageSum, stage) => stageSum + stage._count.sectionMappings, 0),
-        0,
-      );
+      const programRows = programs.map((program) => {
+        const openOfferings = program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN);
+        const mappedSections = openOfferings.reduce(
+          (sum, offering) => sum + offering.stageOfferings.reduce((stageSum, stage) => stageSum + stage._count.sectionMappings, 0),
+          0,
+        );
+        return {
+          program: program.code || program.name,
+          activeEnrollments: program.studentEnrollments.length,
+          openOfferings: openOfferings.length,
+          mappedSections,
+          activeCurricula: program.curriculumVersions.length,
+        };
+      });
+      const topPrograms = [...programRows]
+        .sort((a, b) => b.activeEnrollments - a.activeEnrollments || b.openOfferings - a.openOfferings || a.program.localeCompare(b.program))
+        .slice(0, 10);
+
       return {
-        program: program.code || program.name,
-        activeEnrollments: program.studentEnrollments.length,
-        openOfferings: openOfferings.length,
-        mappedSections,
-        activeCurricula: program.curriculumVersions.length,
+        activePrograms: programs.length,
+        openOfferings: programs.reduce((sum, program) => sum + program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN).length, 0),
+        unofferedActivePrograms: programs.filter((program) => !program.offerings.some((offering) => offering.status === ProgramOfferingStatus.OPEN)).length,
+        programsWithoutActiveCurriculum: programs.filter((program) => program.curriculumVersions.length === 0).length,
+        mappedSections: programRows.reduce((sum, program) => sum + program.mappedSections, 0),
+        topPrograms,
       };
-    });
-    const topPrograms = [...programRows]
-      .sort((a, b) => b.activeEnrollments - a.activeEnrollments || b.openOfferings - a.openOfferings || a.program.localeCompare(b.program))
-      .slice(0, 10);
-
-    return {
-      activePrograms: programs.length,
-      openOfferings: programs.reduce((sum, program) => sum + program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN).length, 0),
-      unofferedActivePrograms: programs.filter((program) => !program.offerings.some((offering) => offering.status === ProgramOfferingStatus.OPEN)).length,
-      programsWithoutActiveCurriculum: programs.filter((program) => program.curriculumVersions.length === 0).length,
-      mappedSections: programRows.reduce((sum, program) => sum + program.mappedSections, 0),
-      topPrograms,
-    };
+    } catch (error) {
+      if (!isMissingSchemaObjectError(error)) throw error;
+      const programs = await this.prisma.program.findMany({
+        where: { organizationId: orgId, status: 'ACTIVE' },
+        select: { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      });
+      return {
+        activePrograms: programs.length,
+        openOfferings: 0,
+        unofferedActivePrograms: programs.length,
+        programsWithoutActiveCurriculum: 0,
+        mappedSections: 0,
+        topPrograms: programs.slice(0, 10).map((program) => ({
+          program: program.code || program.name,
+          activeEnrollments: 0,
+          openOfferings: 0,
+          mappedSections: 0,
+          activeCurricula: 0,
+        })),
+      };
+    }
   }
 
   private async getSectionRelationshipSummary(orgId: string) {
+    if (!(await this.prisma.hasCourseResultRelationshipSchema())) {
+      return { schemeCount: 0, linkedSectionCount: 0, componentCount: 0, topSchemes: [] };
+    }
     try {
       const schemes = await this.prisma.courseResultScheme.findMany({
         where: { organizationId: orgId },
@@ -784,7 +863,6 @@ export class AdminInsightsBuilder {
         topSchemes,
       };
     } catch (error) {
-      console.warn('Section relationship insights unavailable:', error instanceof Error ? error.message : error);
       return { schemeCount: 0, linkedSectionCount: 0, componentCount: 0, topSchemes: [] };
     }
   }

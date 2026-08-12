@@ -41,11 +41,44 @@ const SECTION_INCLUDE = {
     },
   },
   cohortOfferingSections: { include: { cohortOffering: { include: { cohort: true } } } },
-  enrollments: { include: { student: { include: { user: true } } } },
+  enrollments: {
+    select: {
+      id: true,
+      studentId: true,
+      sectionId: true,
+      academicCycleId: true,
+      createdAt: true,
+      updatedAt: true,
+      student: { include: { user: true } },
+    },
+  },
+  _count: { select: { enrollments: true, courseMaterials: true } },
+} satisfies Prisma.SectionInclude;
+
+const SECTION_LEGACY_INCLUDE = {
+  course: { include: { department: true } },
+  defaultRoom: { include: { building: true } },
+  teachers: { include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } } },
+  academicCycle: true,
+  enrollments: {
+    select: {
+      id: true,
+      studentId: true,
+      sectionId: true,
+      academicCycleId: true,
+      createdAt: true,
+      updatedAt: true,
+      student: { include: { user: true } },
+    },
+  },
   _count: { select: { enrollments: true, courseMaterials: true } },
 } satisfies Prisma.SectionInclude;
 
 type SectionPayload = Omit<Prisma.SectionGetPayload<{ include: typeof SECTION_INCLUDE }>, 'componentType'> & {
+  componentType?: string;
+};
+
+type LegacySectionPayload = Omit<Prisma.SectionGetPayload<{ include: typeof SECTION_LEGACY_INCLUDE }>, 'componentType'> & {
   componentType?: string;
 };
 
@@ -101,14 +134,18 @@ export class SectionsService {
     });
     const scope = await getDepartmentScope(this.prisma, orgId, requester);
     const scopeWhere = sectionDepartmentScopeWhere(scope);
+    const hasProgramRollout = await this.prisma.hasProgramRolloutSchema();
+    if (!hasProgramRollout && (options.cohortId || options.programId)) {
+      return formatPaginatedResponse([], 0, options.page, options.limit);
+    }
     const baseWhere: Prisma.SectionWhereInput = {
       organizationId: orgId,
       ...(Object.keys(scopeWhere).length ? { AND: [scopeWhere] } : {}),
       ...(options.departmentId ? { course: { departmentId: options.departmentId } } : {}),
       ...(options.academicCycleId ? { academicCycleId: options.academicCycleId } : {}),
       ...(options.activeAcademicCycleOnly ? { academicCycle: { status: AcademicCycleStatus.ACTIVE } } : {}),
-      ...(options.cohortId ? { cohortOfferingSections: { some: { cohortOffering: { cohortId: options.cohortId } } } } : {}),
-      ...(options.programId ? { programMappings: { some: { programStageOffering: { programOffering: { programId: options.programId } } } } } : {}),
+      ...(hasProgramRollout && options.cohortId ? { cohortOfferingSections: { some: { cohortOffering: { cohortId: options.cohortId } } } } : {}),
+      ...(hasProgramRollout && options.programId ? { programMappings: { some: { programStageOffering: { programOffering: { programId: options.programId } } } } } : {}),
       ...(options.teacherId ? { teachers: { some: { id: options.teacherId } } } : {}),
       ...(options.my && options.userId
         ? { OR: [{ teachers: { some: { userId: options.userId } } }, { enrollments: { some: { student: { userId: options.userId } } } }] }
@@ -133,12 +170,16 @@ export class SectionsService {
     const orderBy: Prisma.SectionOrderByWithRelationInput = sortBy === 'courseName'
       ? { course: { name: sortOrder } }
       : { [sortBy]: sortOrder };
+    const include = hasProgramRollout ? SECTION_INCLUDE : SECTION_LEGACY_INCLUDE;
+    const format = hasProgramRollout
+      ? (section: SectionPayload | LegacySectionPayload) => this.formatSection(section as SectionPayload)
+      : (section: SectionPayload | LegacySectionPayload) => this.formatLegacySection(section as LegacySectionPayload);
     const [sections, total] = await Promise.all([
-      this.prisma.section.findMany({ where, skip, take, include: SECTION_INCLUDE, omit: SECTION_COMPONENT_OMIT, orderBy }),
+      this.prisma.section.findMany({ where, skip, take, include, omit: SECTION_COMPONENT_OMIT, orderBy }),
       this.prisma.section.count({ where }),
     ]);
     if (options.search && total === 0) {
-      const candidates = await this.prisma.section.findMany({ where: baseWhere, take: 500, include: SECTION_INCLUDE, omit: SECTION_COMPONENT_OMIT, orderBy });
+      const candidates = await this.prisma.section.findMany({ where: baseWhere, take: 500, include, omit: SECTION_COMPONENT_OMIT, orderBy });
       const ranked = fuzzyFilterAndRank(candidates, options.search, (section) => [
         section.name,
         section.code,
@@ -147,9 +188,9 @@ export class SectionsService {
         section.course.code,
         section.course.department?.name,
       ]);
-      return formatPaginatedResponse(ranked.slice(skip, skip + take).map(this.formatSection), ranked.length, options.page, options.limit);
+      return formatPaginatedResponse(ranked.slice(skip, skip + take).map((section) => format(section)), ranked.length, options.page, options.limit);
     }
-    return formatPaginatedResponse(sections.map(this.formatSection), total, options.page, options.limit);
+    return formatPaginatedResponse(sections.map((section) => format(section)), total, options.page, options.limit);
   }
 
   private formatSection(section: SectionPayload) {
@@ -164,6 +205,14 @@ export class SectionsService {
       cohortId: cohort?.id,
       cohort,
     };
+  }
+
+  private formatLegacySection(section: LegacySectionPayload) {
+    return this.formatSection({
+      ...section,
+      programMappings: [],
+      cohortOfferingSections: [],
+    } as SectionPayload);
   }
 
   async getSectionById(id: string) {
