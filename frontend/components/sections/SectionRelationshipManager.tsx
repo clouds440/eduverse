@@ -8,28 +8,18 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
+import { formatComponentTypeLabel, formatSectionWithComponentType, sectionComponentTypeOptions } from '@/lib/sectionRelationships';
 import { AcademicCycle, Course, CourseResultComponentType, CourseResultScheme, CourseResultSchemePreview, PaginatedResponse, Role, Section } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { SectionExpansionPreviewSummary } from '@/components/sections/SectionExpansionPreviewSummary';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { PageHeader, PageShell, ResourcePanel } from '@/components/ui/PageShell';
-
-const SECTION_COMPONENT_TYPE_OPTIONS: Array<{ value: CourseResultComponentType; label: string }> = [
-    { value: 'OTHER', label: 'Other' },
-    { value: 'THEORY', label: 'Theory' },
-    { value: 'LAB', label: 'Lab' },
-    { value: 'PRACTICAL', label: 'Practical' },
-    { value: 'TUTORIAL', label: 'Tutorial' },
-    { value: 'RECITATION', label: 'Recitation' },
-    { value: 'CLINIC', label: 'Clinic' },
-    { value: 'STUDIO', label: 'Studio' },
-    { value: 'FIELDWORK', label: 'Fieldwork' },
-];
 
 interface RelationshipComponentForm {
     componentType: CourseResultComponentType;
@@ -49,10 +39,6 @@ function defaultComponents(): RelationshipComponentForm[] {
         { componentType: 'THEORY', label: 'Theory', weight: '75', sectionIds: [] },
         { componentType: 'LAB', label: 'Lab', weight: '25', sectionIds: [] },
     ];
-}
-
-function componentLabel(componentType: CourseResultComponentType) {
-    return componentType.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function SectionRelationshipManager({ initialCourseId, initialAcademicCycleId, initialSectionId }: SectionRelationshipManagerProps) {
@@ -136,9 +122,9 @@ export function SectionRelationshipManager({ initialCourseId, initialAcademicCyc
 
     const addComponent = () => {
         const used = new Set(form.components.map((component) => component.componentType));
-        const nextType = SECTION_COMPONENT_TYPE_OPTIONS.find((option) => !used.has(option.value))?.value || 'OTHER';
+        const nextType = sectionComponentTypeOptions.find((option) => !used.has(option.value))?.value || 'OTHER';
         setForm((current) => ({
-            components: [...current.components, { componentType: nextType, label: componentLabel(nextType), weight: '0', sectionIds: [] }],
+            components: [...current.components, { componentType: nextType, label: formatComponentTypeLabel(nextType), weight: '0', sectionIds: [] }],
         }));
     };
 
@@ -150,7 +136,7 @@ export function SectionRelationshipManager({ initialCourseId, initialAcademicCyc
         syncEnrollments,
         components: form.components.map((component, index) => ({
             componentType: component.componentType,
-            label: component.label || componentLabel(component.componentType),
+            label: component.label || formatComponentTypeLabel(component.componentType),
             weight: Number(component.weight),
             sortOrder: index,
             sectionIds: component.sectionIds,
@@ -280,8 +266,8 @@ export function SectionRelationshipManager({ initialCourseId, initialAcademicCyc
                                     <Label>Type</Label>
                                     <CustomSelect
                                         value={component.componentType}
-                                        onChange={(value) => updateComponent(index, { componentType: value as CourseResultComponentType, label: component.label || componentLabel(value as CourseResultComponentType) })}
-                                        options={SECTION_COMPONENT_TYPE_OPTIONS}
+                                        onChange={(value) => updateComponent(index, { componentType: value as CourseResultComponentType, label: component.label || formatComponentTypeLabel(value as CourseResultComponentType) })}
+                                        options={sectionComponentTypeOptions}
                                         disabled={!canManage}
                                     />
                                 </div>
@@ -306,7 +292,7 @@ export function SectionRelationshipManager({ initialCourseId, initialAcademicCyc
                                     disabled={!canManage || !courseId || !academicCycleId}
                                     options={availableSections
                                         .filter((section) => !selectedSectionIds.includes(section.id) || component.sectionIds.includes(section.id))
-                                        .map((section) => ({ value: section.id, label: `${section.code} - ${section.name}${section.componentType ? ` (${section.componentType})` : ''}` }))}
+                                        .map((section) => ({ value: section.id, label: formatSectionWithComponentType(section) }))}
                                     placeholder="Select sections"
                                 />
                             </div>
@@ -328,21 +314,7 @@ export function SectionRelationshipManager({ initialCourseId, initialAcademicCyc
                 description={(
                     <span className="block space-y-3 text-sm">
                         <span className="block">This will save the relationship and synchronize enrollment across the related sections.</span>
-                        <span className="grid gap-2 sm:grid-cols-3">
-                            <Badge variant="neutral" size="sm">{preview?.sectionCount ?? 0} sections</Badge>
-                            <Badge variant="neutral" size="sm">{preview?.studentCount ?? 0} students</Badge>
-                            <Badge variant={(preview?.missingEnrollmentCount ?? 0) > 0 ? 'warning' : 'success'} size="sm">{preview?.missingEnrollmentCount ?? 0} enrollments to add</Badge>
-                        </span>
-                        {(preview?.missingEnrollments?.length ?? 0) > 0 && (
-                            <span className="block max-h-48 overflow-y-auto rounded-md border border-border/70 bg-muted/20 p-2 text-left">
-                                {preview?.missingEnrollments.slice(0, 30).map((item) => (
-                                    <span key={`${item.studentId}:${item.sectionId}`} className="block py-1 text-xs font-semibold text-muted-foreground">
-                                        {item.studentName} will be enrolled in {item.sectionCode} - {item.sectionName}
-                                    </span>
-                                ))}
-                                {(preview?.missingEnrollments.length ?? 0) > 30 && <span className="block py-1 text-xs font-bold text-muted-foreground">+{(preview?.missingEnrollments.length ?? 0) - 30} more</span>}
-                            </span>
-                        )}
+                        <SectionExpansionPreviewSummary preview={preview} mode="relationship" />
                     </span>
                 )}
                 confirmText="Save and Sync Enrollments"

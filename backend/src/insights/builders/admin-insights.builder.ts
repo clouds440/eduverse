@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EntryStatus, PaymentClaimStatus, PreferenceWindowStatus, ScheduleType } from '@/prisma/prisma-client';
+import { AcademicCycleStatus, EntryStatus, PaymentClaimStatus, PreferenceWindowStatus, ProgramOfferingStatus, ScheduleType, StudentProgramEnrollmentStatus } from '@/prisma/prisma-client';
 import { AttendanceStatus, InsightTone, MailStatus, Role, StudentStatus, TeacherStatus } from '../../common/enums';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { InsightsQueryDto } from '../dto/insights-query.dto';
@@ -17,6 +17,8 @@ type OfficialSchedule = Awaited<ReturnType<AdminInsightsBuilder['getOfficialSche
 type AttendanceSessionForInsight = Awaited<ReturnType<AdminInsightsBuilder['getAttendanceSessions']>>[number];
 type AttendanceRecordAggregate = Awaited<ReturnType<AdminInsightsBuilder['getAttendanceRecordAggregates']>>[number];
 type UpcomingAssessment = Awaited<ReturnType<AdminInsightsBuilder['getUpcomingAssessments']>>[number];
+type ProgramCoverage = Awaited<ReturnType<AdminInsightsBuilder['getProgramCoverage']>>;
+type SectionRelationshipSummary = Awaited<ReturnType<AdminInsightsBuilder['getSectionRelationshipSummary']>>;
 
 @Injectable()
 export class AdminInsightsBuilder {
@@ -65,6 +67,8 @@ export class AdminInsightsBuilder {
       upcomingAssessments,
       operationalHealth,
       activePrograms,
+      programCoverage,
+      sectionRelationships,
     ] = await Promise.all([
       this.prisma.teacher.count({ where: { organizationId: orgId, status: { not: TeacherStatus.DELETED } } }),
       this.prisma.student.count({ where: { organizationId: orgId, status: { not: StudentStatus.DELETED } } }),
@@ -81,6 +85,8 @@ export class AdminInsightsBuilder {
       this.getUpcomingAssessments(orgId, now),
       this.getOperationalHealth(orgId, now, range.from, range.to),
       this.prisma.program.count({ where: { organizationId: orgId, status: 'ACTIVE' } }),
+      this.getProgramCoverage(orgId),
+      this.getSectionRelationshipSummary(orgId),
     ]);
 
     const attendanceCoverage = getAttendanceCoverage(
@@ -125,9 +131,17 @@ export class AdminInsightsBuilder {
           id: 'programs',
           label: 'Active Programs',
           value: `${activePrograms}`,
-          detail: 'Current department course offerings',
+          detail: `${programCoverage.openOfferings} open offerings, ${programCoverage.unofferedActivePrograms} without an open offering`,
           href: '/programs',
-          tone: activePrograms > 0 ? InsightTone.SUCCESS : InsightTone.INFO,
+          tone: programCoverage.unofferedActivePrograms > 0 ? InsightTone.WARNING : activePrograms > 0 ? InsightTone.SUCCESS : InsightTone.INFO,
+        },
+        {
+          id: 'section-relationships',
+          label: 'Section Links',
+          value: `${sectionRelationships.schemeCount}`,
+          detail: `${sectionRelationships.linkedSectionCount} component sections connected`,
+          href: '/section-relationships',
+          tone: sectionRelationships.schemeCount > 0 ? InsightTone.SUCCESS : InsightTone.INFO,
         },
         {
           id: 'coverage',
@@ -167,6 +181,8 @@ export class AdminInsightsBuilder {
       }),
       groups: [
         this.getAcademicSetupGroup(operationalHealth, sectionsWithoutTeachers, sectionsWithoutSchedules),
+        this.getProgramCoverageGroup(programCoverage),
+        this.getSectionRelationshipGroup(sectionRelationships),
         this.getFinanceOperationsGroup(operationalHealth),
         this.getCommunicationGroup(operationalHealth, openMailCount),
       ],
@@ -259,6 +275,60 @@ export class AdminInsightsBuilder {
           teacherWorkload,
           departmentActivity: departmentInsights.chart,
           departmentPerformance: departmentInsights.performance,
+        },
+      };
+    }
+
+    if (module === 'cycles') {
+      const cycleComparison = await this.getCycleComparison(orgId);
+      return {
+        ...response,
+        groups: [{
+          id: 'cycle-comparison',
+          title: 'Cycle comparison',
+          description: 'Current or latest cycle compared with up to five previous cycles.',
+          items: cycleComparison.map((cycle, index) => ({
+            id: `cycle:${cycle.id}`,
+            title: `${cycle.code} - ${cycle.name}`,
+            description: `${cycle.sections} sections, ${cycle.students} students, ${cycle.cohorts} cohorts`,
+            meta: `${cycle.assessments} assessments, ${cycle.attendanceSessions} attendance sessions`,
+            href: '/academic-cycles',
+            badge: index === 0 ? 'Current' : 'Previous',
+            tone: index === 0 ? InsightTone.INFO : InsightTone.DEFAULT,
+          })),
+        }],
+        charts: {
+          cycleComparison: cycleComparison.map((cycle) => ({
+            cycle: cycle.code || cycle.name,
+            students: cycle.students,
+            sections: cycle.sections,
+            cohorts: cycle.cohorts,
+            programOfferings: cycle.programOfferings,
+            assessments: cycle.assessments,
+            attendanceSessions: cycle.attendanceSessions,
+          })),
+        },
+      };
+    }
+
+    if (module === 'programs') {
+      const programCoverage = await this.getProgramCoverage(orgId);
+      return {
+        ...response,
+        groups: [this.getProgramCoverageGroup(programCoverage)],
+        charts: {
+          programCoverage: programCoverage.topPrograms,
+        },
+      };
+    }
+
+    if (module === 'relationships') {
+      const sectionRelationships = await this.getSectionRelationshipSummary(orgId);
+      return {
+        ...response,
+        groups: [this.getSectionRelationshipGroup(sectionRelationships)],
+        charts: {
+          sectionRelationships: sectionRelationships.topSchemes,
         },
       };
     }
@@ -561,6 +631,216 @@ export class AdminInsightsBuilder {
       overdueFinanceEntries,
       aiCreditsUsed: aiCreditsUsed._sum.creditUsed || 0,
       cohortMovesInRange,
+    };
+  }
+
+  private async getCycleComparison(orgId: string) {
+    const current = await this.prisma.academicCycle.findFirst({
+      where: { organizationId: orgId, status: AcademicCycleStatus.ACTIVE },
+      orderBy: { startDate: 'desc' },
+    }) ?? await this.prisma.academicCycle.findFirst({
+      where: { organizationId: orgId },
+      orderBy: { startDate: 'desc' },
+    });
+    if (!current) return [];
+
+    const cycles = await this.prisma.academicCycle.findMany({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { id: current.id },
+          { startDate: { lt: current.startDate } },
+        ],
+      },
+      orderBy: { startDate: 'desc' },
+      take: 6,
+      include: {
+        _count: {
+          select: {
+            sections: true,
+            cohorts: true,
+            programOfferings: true,
+            assessments: true,
+            attendanceSessions: true,
+          },
+        },
+      },
+    });
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: {
+        academicCycleId: { in: cycles.map((cycle) => cycle.id) },
+        section: { course: { organizationId: orgId } },
+      },
+      select: { academicCycleId: true, studentId: true },
+    });
+    const studentsByCycle = new Map<string, Set<string>>();
+    enrollments.forEach((enrollment) => {
+      if (!enrollment.academicCycleId) return;
+      const students = studentsByCycle.get(enrollment.academicCycleId) ?? new Set<string>();
+      students.add(enrollment.studentId);
+      studentsByCycle.set(enrollment.academicCycleId, students);
+    });
+
+    return cycles.map((cycle) => ({
+      id: cycle.id,
+      name: cycle.name,
+      code: cycle.code,
+      students: studentsByCycle.get(cycle.id)?.size || 0,
+      sections: cycle._count.sections,
+      cohorts: cycle._count.cohorts,
+      programOfferings: cycle._count.programOfferings,
+      assessments: cycle._count.assessments,
+      attendanceSessions: cycle._count.attendanceSessions,
+    }));
+  }
+
+  private async getProgramCoverage(orgId: string) {
+    const programs = await this.prisma.program.findMany({
+      where: { organizationId: orgId, status: 'ACTIVE' },
+      include: {
+        curriculumVersions: { where: { status: 'ACTIVE' }, select: { id: true } },
+        studentEnrollments: { where: { status: { in: [StudentProgramEnrollmentStatus.ADMITTED, StudentProgramEnrollmentStatus.ACTIVE, StudentProgramEnrollmentStatus.ON_HOLD] } }, select: { id: true } },
+        offerings: {
+          include: {
+            stageOfferings: { include: { _count: { select: { sectionMappings: true } } } },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const programRows = programs.map((program) => {
+      const openOfferings = program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN);
+      const mappedSections = openOfferings.reduce(
+        (sum, offering) => sum + offering.stageOfferings.reduce((stageSum, stage) => stageSum + stage._count.sectionMappings, 0),
+        0,
+      );
+      return {
+        program: program.code || program.name,
+        activeEnrollments: program.studentEnrollments.length,
+        openOfferings: openOfferings.length,
+        mappedSections,
+        activeCurricula: program.curriculumVersions.length,
+      };
+    });
+    const topPrograms = [...programRows]
+      .sort((a, b) => b.activeEnrollments - a.activeEnrollments || b.openOfferings - a.openOfferings || a.program.localeCompare(b.program))
+      .slice(0, 10);
+
+    return {
+      activePrograms: programs.length,
+      openOfferings: programs.reduce((sum, program) => sum + program.offerings.filter((offering) => offering.status === ProgramOfferingStatus.OPEN).length, 0),
+      unofferedActivePrograms: programs.filter((program) => !program.offerings.some((offering) => offering.status === ProgramOfferingStatus.OPEN)).length,
+      programsWithoutActiveCurriculum: programs.filter((program) => program.curriculumVersions.length === 0).length,
+      mappedSections: programRows.reduce((sum, program) => sum + program.mappedSections, 0),
+      topPrograms,
+    };
+  }
+
+  private async getSectionRelationshipSummary(orgId: string) {
+    const schemes = await this.prisma.courseResultScheme.findMany({
+      where: { organizationId: orgId },
+      take: 50,
+      include: {
+        course: { select: { name: true, code: true } },
+        academicCycle: { select: { name: true, code: true, status: true } },
+        components: {
+          include: {
+            sectionLinks: {
+              include: {
+                section: { include: { _count: { select: { enrollments: true } } } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const schemeRows = schemes.map((scheme) => {
+      const linkedSections = scheme.components.reduce((sum, component) => sum + component.sectionLinks.length, 0);
+      const enrolledStudents = scheme.components.reduce(
+        (sum, component) => sum + component.sectionLinks.reduce((sectionSum, link) => sectionSum + link.section._count.enrollments, 0),
+        0,
+      );
+      return {
+        course: scheme.course.code || scheme.course.name,
+        cycle: scheme.academicCycle.code || scheme.academicCycle.name,
+        components: scheme.components.length,
+        linkedSections,
+        enrolledStudents,
+      };
+    });
+    const topSchemes = [...schemeRows]
+      .sort((a, b) => b.linkedSections - a.linkedSections || b.enrolledStudents - a.enrolledStudents)
+      .slice(0, 10);
+
+    return {
+      schemeCount: schemes.length,
+      linkedSectionCount: schemeRows.reduce((sum, scheme) => sum + scheme.linkedSections, 0),
+      componentCount: schemeRows.reduce((sum, scheme) => sum + scheme.components, 0),
+      topSchemes,
+    };
+  }
+
+  private getProgramCoverageGroup(coverage: ProgramCoverage): DashboardInsightGroup {
+    return {
+      id: 'program-coverage',
+      title: 'Program coverage',
+      description: 'How active programs are represented in curricula, cycle offerings, section mappings, and active enrollments.',
+      items: [
+        {
+          id: 'program-offerings',
+          title: `${coverage.openOfferings} open program offerings`,
+          description: `${coverage.unofferedActivePrograms} active programs do not have an open offering`,
+          href: '/programs',
+          badge: 'Offerings',
+          tone: coverage.unofferedActivePrograms > 0 ? InsightTone.WARNING : InsightTone.SUCCESS,
+        },
+        {
+          id: 'program-curricula',
+          title: `${coverage.programsWithoutActiveCurriculum} programs without active curricula`,
+          description: `${coverage.activePrograms} active programs tracked`,
+          href: '/programs',
+          badge: 'Curriculum',
+          tone: coverage.programsWithoutActiveCurriculum > 0 ? InsightTone.DANGER : InsightTone.SUCCESS,
+        },
+        {
+          id: 'program-section-mapping',
+          title: `${coverage.mappedSections} mapped delivery sections`,
+          description: 'Sections connected to open program stage offerings.',
+          href: '/programs',
+          badge: 'Delivery',
+          tone: coverage.mappedSections > 0 ? InsightTone.INFO : InsightTone.WARNING,
+        },
+      ],
+    };
+  }
+
+  private getSectionRelationshipGroup(summary: SectionRelationshipSummary): DashboardInsightGroup {
+    return {
+      id: 'section-relationships',
+      title: 'Section relationship coverage',
+      description: 'Course result schemes that connect related theory, lab, practical, and other component sections.',
+      items: [
+        {
+          id: 'relationship-count',
+          title: `${summary.schemeCount} relationship schemes configured`,
+          description: `${summary.componentCount} components across ${summary.linkedSectionCount} linked sections`,
+          href: '/section-relationships',
+          badge: 'Schemes',
+          tone: summary.schemeCount > 0 ? InsightTone.SUCCESS : InsightTone.WARNING,
+        },
+        ...summary.topSchemes.slice(0, 4).map((scheme, index) => ({
+          id: `relationship:${index}:${scheme.course}:${scheme.cycle}`,
+          title: `${scheme.course} in ${scheme.cycle}`,
+          description: `${scheme.components} components, ${scheme.enrolledStudents} student-section links`,
+          href: '/section-relationships',
+          badge: `${scheme.linkedSections} sections`,
+          tone: InsightTone.INFO,
+        })),
+      ],
     };
   }
 

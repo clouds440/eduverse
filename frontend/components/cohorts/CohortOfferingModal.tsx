@@ -3,12 +3,13 @@
 import { FormEvent, useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
+import { formatSectionWithComponentType } from '@/lib/sectionRelationships';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { CohortOffering, CohortOfferingStatus, CohortSectionExpansionPreview, ProgramDeliveryOption, Section } from '@/types';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { SectionExpansionPreviewSummary } from '@/components/sections/SectionExpansionPreviewSummary';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -119,7 +120,7 @@ export function CohortOfferingModal({ offering, onClose, onSaved }: CohortOfferi
                     onChange={setSectionId}
                     options={(sections?.data || [])
                         .filter((section) => !offering?.sections?.some((assignment) => assignment.sectionId === section.id))
-                        .map((section) => ({ value: section.id, label: `${section.code} - ${section.name}${section.componentType ? ` (${section.componentType})` : ''}` }))}
+                        .map((section) => ({ value: section.id, label: formatSectionWithComponentType(section) }))}
                     placeholder="Select section"
                 />
                 <Button type="button" variant="secondary" onClick={previewSectionAssignment} loadingId="cohort-section-assign" disabled={!sectionId}>Preview</Button>
@@ -134,20 +135,7 @@ export function CohortOfferingModal({ offering, onClose, onSaved }: CohortOfferi
         description={(
             <span className="block space-y-3 text-sm">
                 <span className="block">This will assign the selected section and any related sections to the cohort offering.</span>
-                <span className="grid gap-2 sm:grid-cols-3">
-                    <Badge variant="neutral" size="sm">{sectionPreview?.sectionsToAddCount ?? 0} sections to add</Badge>
-                    <Badge variant="neutral" size="sm">{sectionPreview?.studentCount ?? 0} students</Badge>
-                    <Badge variant={(sectionPreview?.missingEnrollmentCount ?? 0) > 0 ? 'warning' : 'success'} size="sm">{sectionPreview?.missingEnrollmentCount ?? 0} enrollments to ensure</Badge>
-                </span>
-                {(sectionPreview?.sections?.length ?? 0) > 0 && (
-                    <span className="block max-h-40 overflow-y-auto rounded-md border border-border/70 bg-muted/20 p-2">
-                        {sectionPreview?.sections.map((section) => (
-                            <span key={section.id} className="block py-1 text-xs font-semibold text-muted-foreground">
-                                {section.code} - {section.name}{section.componentType ? ` (${section.componentType})` : ''}{section.alreadyAssigned ? ' already assigned' : ''}
-                            </span>
-                        ))}
-                    </span>
-                )}
+                <SectionExpansionPreviewSummary preview={sectionPreview} mode="cohort-assign" />
             </span>
         )}
         confirmText="Assign Sections"

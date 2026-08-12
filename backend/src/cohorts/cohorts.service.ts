@@ -28,6 +28,7 @@ import {
 } from '../common/department-scope';
 import { assertLifecycleTransition, COHORT_OFFERING_TRANSITIONS } from '../common/offering-lifecycle';
 import { CourseResultSchemesService } from '../course-result-schemes/course-result-schemes.service';
+import { buildMissingEnrollmentPreview, enrollmentPairKey } from '../common/enrollment-preview';
 
 type Transaction = Prisma.TransactionClient;
 type Actor = DepartmentScopedUser & { id: string };
@@ -653,7 +654,7 @@ export class CohortsService {
           select: { studentId: true, sectionId: true },
         })
       : [];
-    const existingPairs = new Set(existingEnrollments.map((enrollment) => `${enrollment.studentId}:${enrollment.sectionId}`));
+    const existingPairs = new Set(existingEnrollments.map((enrollment) => enrollmentPairKey(enrollment.studentId, enrollment.sectionId)));
     const students = uniqueStudentIds.length
       ? await this.prisma.student.findMany({
           where: { id: { in: uniqueStudentIds }, organizationId: orgId },
@@ -662,20 +663,7 @@ export class CohortsService {
       : [];
     const studentById = new Map(students.map((student) => [student.id, student]));
     const sectionById = new Map(sections.map((section) => [section.id, section]));
-    const missingEnrollments = uniqueStudentIds.flatMap((studentId) => expandedSectionIds
-      .filter((sectionId) => !existingPairs.has(`${studentId}:${sectionId}`))
-      .map((sectionId) => {
-        const student = studentById.get(studentId);
-        const section = sectionById.get(sectionId);
-        return {
-          studentId,
-          studentName: student?.user.name || student?.user.email || 'Student',
-          registrationNumber: student?.registrationNumber || null,
-          sectionId,
-          sectionName: section?.name || 'Section',
-          sectionCode: section?.code || '',
-        };
-      }));
+    const missingEnrollments = buildMissingEnrollmentPreview({ studentIds: uniqueStudentIds, sectionIds: expandedSectionIds, existingPairs, studentById, sectionById });
 
     return {
       selectedSectionCount: [...new Set(selectedSectionIds.filter(Boolean))].length,

@@ -131,6 +131,7 @@ export class AIContextToolsService implements OnModuleInit {
     if (include.has('finance')) addOnce('getFinanceSummary', { search, limit: input.limit ?? 6 });
     if (include.has('relationships')) {
       addOnce('resolveEduVerseEntities', { search, entities: input.entities?.length ? input.entities : inferEntityKinds(search), limit: input.limit ?? 8 });
+      addOnce('getSectionRelationshipContext', { search, limit: input.limit ?? 8 });
       addOnce('getScheduleContext', { ...shared, includeLoad: true });
       addOnce('getAcademicPerformanceProfile', { search, limit: input.limit ?? 8 });
     }
@@ -281,6 +282,7 @@ export class AIContextToolsService implements OnModuleInit {
     const entities = input.entities?.length ? input.entities : inferEntityKinds(search);
     const requests: Array<{ name: string; input?: Record<string, unknown> }> = [
       { name: 'resolveEduVerseEntities', input: { search, entities, limit: input.limit ?? 8 } },
+      { name: 'getSectionRelationshipContext', input: { search, limit: input.limit ?? 8 } },
       { name: 'getScheduleContext', input: { search, limit: input.limit ?? 12, includeLoad: true } },
     ];
 

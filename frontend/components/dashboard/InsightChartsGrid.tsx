@@ -105,6 +105,9 @@ export function hasInsightCharts(role: string, charts: InsightCharts) {
   }
 
   const hasAdminCharts = Boolean(
+    hasPositiveValue(charts.cycleComparison, ['students', 'sections', 'cohorts', 'programOfferings', 'assessments', 'attendanceSessions']) ||
+    hasPositiveValue(charts.programCoverage, ['activeEnrollments', 'openOfferings', 'mappedSections', 'activeCurricula']) ||
+    hasPositiveValue(charts.sectionRelationships, ['components', 'linkedSections', 'enrolledStudents']) ||
     hasPositiveValue(charts.enrollmentTrend, ['value']) ||
     hasPositiveValue(charts.mailStatus, ['count']) ||
     hasPositiveValue(charts.sectionCapacity, ['enrolled']) ||
@@ -120,6 +123,9 @@ export function hasInsightCharts(role: string, charts: InsightCharts) {
   if (hasAdminCharts || role === Role.ORG_ADMIN || role === Role.SUB_ADMIN) {
     return Boolean(
       hasPositiveValue(charts.enrollmentTrend, ['value']) ||
+      hasPositiveValue(charts.cycleComparison, ['students', 'sections', 'cohorts', 'programOfferings', 'assessments', 'attendanceSessions']) ||
+      hasPositiveValue(charts.programCoverage, ['activeEnrollments', 'openOfferings', 'mappedSections', 'activeCurricula']) ||
+      hasPositiveValue(charts.sectionRelationships, ['components', 'linkedSections', 'enrolledStudents']) ||
       hasPositiveValue(charts.attendanceTrend, ['value']) ||
       hasPositiveValue(charts.mailStatus, ['count']) ||
       hasPositiveValue(charts.sectionCapacity, ['enrolled']) ||
@@ -224,6 +230,9 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
   }
 
   const hasAdminCharts = Boolean(
+    hasPositiveValue(charts.cycleComparison, ['students', 'sections', 'cohorts', 'programOfferings', 'assessments', 'attendanceSessions']) ||
+    hasPositiveValue(charts.programCoverage, ['activeEnrollments', 'openOfferings', 'mappedSections', 'activeCurricula']) ||
+    hasPositiveValue(charts.sectionRelationships, ['components', 'linkedSections', 'enrolledStudents']) ||
     hasPositiveValue(charts.enrollmentTrend, ['value']) ||
     hasPositiveValue(charts.attendanceTrend, ['value']) ||
     hasPositiveValue(charts.mailStatus, ['count']) ||
@@ -248,6 +257,55 @@ export function InsightChartsGrid({ role, charts }: { role: string; charts: Insi
   if (hasAdminCharts || role === Role.ORG_ADMIN || role === Role.SUB_ADMIN) {
     return (
       <div className="space-y-6">
+        {hasPositiveValue(charts.cycleComparison, ['students', 'sections', 'cohorts', 'programOfferings', 'assessments', 'attendanceSessions']) && (
+          <ChartPanel>
+            <GroupedBarChart
+              data={charts.cycleComparison ?? []}
+              nameKey="cycle"
+              title="Cycle Comparison"
+              horizontal
+              bars={[
+                { key: 'students', name: 'Students', color: COLORS.info },
+                { key: 'sections', name: 'Sections', color: COLORS.success },
+                { key: 'cohorts', name: 'Cohorts', color: COLORS.warning },
+                { key: 'programOfferings', name: 'Program Offerings', color: COLORS.purple },
+                { key: 'assessments', name: 'Assessments', color: COLORS.primary },
+                { key: 'attendanceSessions', name: 'Attendance Sessions', color: COLORS.teal },
+              ]}
+            />
+          </ChartPanel>
+        )}
+        {hasPositiveValue(charts.programCoverage, ['activeEnrollments', 'openOfferings', 'mappedSections', 'activeCurricula']) && (
+          <ChartPanel>
+            <GroupedBarChart
+              data={charts.programCoverage ?? []}
+              nameKey="program"
+              title="Program Coverage"
+              horizontal
+              bars={[
+                { key: 'activeEnrollments', name: 'Active Enrollments', color: COLORS.info },
+                { key: 'openOfferings', name: 'Open Offerings', color: COLORS.success },
+                { key: 'mappedSections', name: 'Mapped Sections', color: COLORS.warning },
+                { key: 'activeCurricula', name: 'Active Curricula', color: COLORS.purple },
+              ]}
+            />
+          </ChartPanel>
+        )}
+        {hasPositiveValue(charts.sectionRelationships, ['components', 'linkedSections', 'enrolledStudents']) && (
+          <ChartPanel>
+            <GroupedBarChart
+              data={charts.sectionRelationships ?? []}
+              nameKey="course"
+              title="Section Relationship Coverage"
+              horizontal
+              bars={[
+                { key: 'components', name: 'Components', color: COLORS.primary },
+                { key: 'linkedSections', name: 'Linked Sections', color: COLORS.success },
+                { key: 'enrolledStudents', name: 'Student Links', color: COLORS.info },
+              ]}
+            />
+          </ChartPanel>
+        )}
         {hasPositiveValue(charts.enrollmentTrend, ['value']) && (
           <ChartPanel>
             <InsightLineChart data={charts.enrollmentTrend ?? []} title="New Student Trend" color={COLORS.info} />

@@ -1284,6 +1284,9 @@ export interface DashboardInsightCharts {
     departmentPerformance?: { department: string; averageGradePercent: number; attendanceRatePercent: number; gradedAssessments: number; attendanceMarks: number; color?: string | null }[];
     roomUsage?: { room: string; building: string; scheduledSlots: number; capacity?: number | null }[];
     buildingUsage?: { building: string; rooms: number; scheduledSlots: number }[];
+    cycleComparison?: { cycle: string; students: number; sections: number; cohorts: number; programOfferings: number; assessments: number; attendanceSessions: number }[];
+    programCoverage?: { program: string; activeEnrollments: number; openOfferings: number; mappedSections: number; activeCurricula: number }[];
+    sectionRelationships?: { course: string; cycle: string; components: number; linkedSections: number; enrolledStudents: number }[];
     departmentFinance?: { departmentId: string; department: string; expectedAmount: number; collectedAmount: number; pendingAmount: number; overdueAmount: number; collectionRatePercent: number; estimated: boolean }[];
     moneyFlowTrend?: Array<{
         label: string;

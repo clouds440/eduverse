@@ -5,6 +5,8 @@ import { UpsertCourseResultSchemeDto } from './dto/course-result-scheme.dto';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
 import { assertDepartmentInScope, getDepartmentScope, type DepartmentScopedUser } from '../common/department-scope';
 import { StudentProgramEnrollmentsService } from '../student-program-enrollments/student-program-enrollments.service';
+import { buildMissingEnrollmentPreview, enrollmentPairKey } from '../common/enrollment-preview';
+import { formatEnumLabel } from '../common/enum-label';
 
 const WEIGHT_TOTAL = 100;
 const WEIGHT_EPSILON = 0.000001;
@@ -334,18 +336,9 @@ export class CourseResultSchemesService {
     });
     const sectionById = new Map(sections.map((section) => [section.id, section]));
     const allStudentIds = Array.from(new Set(sections.flatMap((section) => section.enrollments.map((enrollment) => enrollment.studentId))));
-    const existingPairs = new Set(sections.flatMap((section) => section.enrollments.map((enrollment) => `${enrollment.studentId}:${section.id}`)));
+    const existingPairs = new Set(sections.flatMap((section) => section.enrollments.map((enrollment) => enrollmentPairKey(enrollment.studentId, section.id))));
     const studentById = new Map(sections.flatMap((section) => section.enrollments.map((enrollment) => [enrollment.studentId, enrollment.student])));
-    const missingEnrollments = allStudentIds.flatMap((studentId) => sectionIds
-      .filter((sectionId) => !existingPairs.has(`${studentId}:${sectionId}`))
-      .map((sectionId) => ({
-        studentId,
-        studentName: studentById.get(studentId)?.user.name || studentById.get(studentId)?.user.email || 'Student',
-        registrationNumber: studentById.get(studentId)?.registrationNumber || null,
-        sectionId,
-        sectionName: sectionById.get(sectionId)?.name || 'Section',
-        sectionCode: sectionById.get(sectionId)?.code || '',
-      })));
+    const missingEnrollments = buildMissingEnrollmentPreview({ studentIds: allStudentIds, sectionIds, existingPairs, studentById, sectionById });
 
     return {
       sectionCount: sectionIds.length,
@@ -424,7 +417,7 @@ export class CourseResultSchemesService {
   }
 
   private defaultLabel(componentType: CourseResultComponentType) {
-    return componentType.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+    return formatEnumLabel(componentType);
   }
 
   private formatScheme(scheme: CourseResultSchemeWithComponents) {

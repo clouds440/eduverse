@@ -8,10 +8,11 @@ import { useAuth } from '@/context/AuthContext';
 import { useGlobal } from '@/context/GlobalContext';
 import { api } from '@/lib/api';
 import { matchesCacheKeyPrefix } from '@/lib/swr';
+import { formatSectionWithComponentType } from '@/lib/sectionRelationships';
 import { AcademicCycle, Cohort, CohortOfferingStatus, CohortSectionExpansionPreview, PaginatedResponse, ProgramDeliveryOption, Role, Section, Student } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { SectionExpansionPreviewSummary } from '@/components/sections/SectionExpansionPreviewSummary';
 import { CustomMultiSelect } from '@/components/ui/CustomMultiSelect';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Input } from '@/components/ui/Input';
@@ -151,7 +152,7 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
                             <div className="space-y-2"><Label>Program stage offering</Label><CustomSelect value={programStageOfferingId} onChange={setProgramStageOfferingId} searchable options={[{ value: '', label: 'Standalone / no program' }, ...stageOfferings.map((offering) => ({ value: offering.id, label: `${offering.programOffering.program.code} - ${offering.programStage.name}` }))]} /></div>
                             <div className="space-y-2"><Label>Capacity</Label><Input type="number" min={1} value={capacity} onChange={(event) => setCapacity(event.target.value)} placeholder="No limit" /></div>
                             <div className="space-y-2"><Label>Students</Label><CustomMultiSelect values={studentIds} onChange={setStudentIds} searchable options={(students?.data || []).map((student) => ({ value: student.id, label: `${student.user.name || student.user.email}${student.academicIdentity?.label ? ` - ${student.academicIdentity.label}` : student.registrationNumber ? ` - ${student.registrationNumber}` : ''}` }))} placeholder="Select students" /></div>
-                            <div className="space-y-2"><Label>Sections in this cycle</Label><CustomMultiSelect values={sectionIds} onChange={setSectionIds} searchable options={eligibleSections.map((section) => ({ value: section.id, label: `${section.code} - ${section.name}${section.componentType ? ` (${section.componentType})` : ''}` }))} placeholder="Select sections" /><p className="text-xs font-semibold text-muted-foreground">If a selected section belongs to a result relationship, EduVerse also adds the related sections and enrolls cohort students into them.</p></div>
+                            <div className="space-y-2"><Label>Sections in this cycle</Label><CustomMultiSelect values={sectionIds} onChange={setSectionIds} searchable options={eligibleSections.map((section) => ({ value: section.id, label: formatSectionWithComponentType(section) }))} placeholder="Select sections" /><p className="text-xs font-semibold text-muted-foreground">If a selected section belongs to a result relationship, EduVerse also adds the related sections and enrolls cohort students into them.</p></div>
                         </>}
                     </div>
                 </section>
@@ -165,21 +166,7 @@ export function CohortFormPage({ mode, cohort, returnTo }: CohortFormPageProps) 
                 description={(
                     <span className="block space-y-3 text-sm">
                         <span className="block">This will create the cohort offering and apply related-section expansion before enrolling students.</span>
-                        <span className="grid gap-2 sm:grid-cols-3">
-                            <Badge variant="neutral" size="sm">{preview?.expandedSectionCount ?? 0} sections</Badge>
-                            <Badge variant="neutral" size="sm">{preview?.studentCount ?? 0} students</Badge>
-                            <Badge variant={(preview?.missingEnrollmentCount ?? 0) > 0 ? 'warning' : 'success'} size="sm">{preview?.missingEnrollmentCount ?? 0} enrollments to ensure</Badge>
-                        </span>
-                        {(preview?.addedRelatedSectionCount ?? 0) > 0 && <span className="block text-xs font-bold text-warning">{preview?.addedRelatedSectionCount} related sections will be added automatically.</span>}
-                        {(preview?.sections?.length ?? 0) > 0 && (
-                            <span className="block max-h-48 overflow-y-auto rounded-md border border-border/70 bg-muted/20 p-2 text-left">
-                                {preview?.sections.slice(0, 30).map((section) => (
-                                    <span key={section.id} className="block py-1 text-xs font-semibold text-muted-foreground">
-                                        {section.code} - {section.name}{section.componentType ? ` (${section.componentType})` : ''}{section.alreadyAssigned ? ' already assigned' : ''}
-                                    </span>
-                                ))}
-                            </span>
-                        )}
+                        <SectionExpansionPreviewSummary preview={preview} mode="cohort-create" />
                     </span>
                 )}
                 confirmText="Create Offering"

@@ -48,6 +48,7 @@ export class AIAcademicToolsService implements OnModuleInit {
     this.register('listCourses', 'List compact courses visible to the current user.', (input, context) => this.listCourses(context, parseInput(input)));
     this.register('getProgramContext', 'Return role-scoped program definitions, curricula, stages, current cycle offerings, and student major progress. Use for program, major, curriculum, stage, duration, credits, and expected graduation questions.', (input, context) => this.getProgramContext(context, parseInput(input)));
     this.register('listSections', 'List compact sections visible to the current user.', (input, context) => this.listSections(context, parseInput(input)));
+    this.register('getSectionRelationshipContext', 'Return role-scoped course result section relationships: related theory, lab, practical, tutorial, and other component sections grouped by course and academic cycle, plus enrollment expansion context.', (input, context) => this.getSectionRelationshipContext(context, parseInput(input)));
     this.register('getCourseEnrollmentRanking', 'Rank visible courses by enrolled student count for the current or selected academic cycle.', (input, context) => this.getCourseEnrollmentRanking(context, parseInput(input)));
     this.register('getSectionDetails', 'Return compact details for a visible section.', (input, context) => this.getSectionDetails(context, parseInput(input)));
     this.register('getPendingDeadlines', 'Return upcoming assessment deadlines visible to the current user.', (input, context) => this.getPendingDeadlines(context, parseInput(input)));
@@ -302,6 +303,103 @@ export class AIAcademicToolsService implements OnModuleInit {
           assessments: section._count.assessments,
           href: `/sections/${section.id}`,
         })),
+      },
+    };
+  }
+
+  private async getSectionRelationshipContext(context: AIToolContext, input: AcademicToolInput): Promise<AIToolResult<unknown>> {
+    if (!context.orgId) return permissionDenied('Organization context is required.');
+    if (!ACADEMIC_STAFF_ROLES.has(context.role ?? '') && context.role !== Role.STUDENT && context.role !== Role.GUARDIAN) {
+      return permissionDenied('Section relationships are not available for this role.');
+    }
+
+    const sectionWhere = await this.sectionWhereForActor(context, input);
+    const visibleSections = await this.prisma.section.findMany({
+      where: sectionWhere,
+      select: { id: true },
+      take: 500,
+    });
+    const visibleSectionIds = new Set(visibleSections.map((section) => section.id));
+    if (!visibleSectionIds.size) return { ok: true, data: { relationships: [], emptyReason: 'No visible sections were found.' } };
+
+    const search = input.search?.trim();
+    const schemes = await this.prisma.courseResultScheme.findMany({
+      where: {
+        organizationId: context.orgId,
+        ...(input.courseId ? { courseId: input.courseId } : {}),
+        ...(search ? {
+          OR: [
+            { name: { contains: search, mode: Prisma.QueryMode.insensitive } },
+            { course: { name: { contains: search, mode: Prisma.QueryMode.insensitive } } },
+            { course: { code: { contains: search, mode: Prisma.QueryMode.insensitive } } },
+            { academicCycle: { name: { contains: search, mode: Prisma.QueryMode.insensitive } } },
+            { academicCycle: { code: { contains: search, mode: Prisma.QueryMode.insensitive } } },
+          ],
+        } : {}),
+        components: {
+          some: {
+            sectionLinks: {
+              some: { sectionId: { in: Array.from(visibleSectionIds) } },
+            },
+          },
+        },
+      },
+      take: clampLimit(input.limit, 8),
+      include: {
+        course: { select: { id: true, name: true, code: true } },
+        academicCycle: { select: { id: true, name: true, code: true, status: true } },
+        components: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            sectionLinks: {
+              include: {
+                section: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                    componentType: true,
+                    _count: { select: { enrollments: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return {
+      ok: true,
+      data: {
+        relationships: schemes.map((scheme) => {
+          const components = scheme.components.map((component) => ({
+            componentType: component.componentType,
+            label: component.label,
+            weight: component.weight,
+            sections: component.sectionLinks
+              .filter((link) => visibleSectionIds.has(link.sectionId))
+              .map((link) => ({
+                sectionId: link.section.id,
+                name: link.section.name,
+                code: link.section.code,
+                componentType: link.section.componentType,
+                students: link.section._count.enrollments,
+                href: `/sections/${link.section.id}`,
+              })),
+          }));
+          return {
+            schemeId: scheme.id,
+            name: scheme.name,
+            course: scheme.course,
+            academicCycle: scheme.academicCycle,
+            components,
+            linkedSectionCount: components.reduce((sum, component) => sum + component.sections.length, 0),
+            totalWeight: components.reduce((sum, component) => sum + Number(component.weight || 0), 0),
+            note: 'When one related section is assigned through cohort flows, EduVerse can expand enrollment to the related component sections.',
+          };
+        }),
       },
     };
   }

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { Activity, BarChart3, Building2, ClipboardCheck, Landmark, LayoutDashboard, ListChecks, PieChart, Sparkles, Users, WalletCards } from 'lucide-react';
+import { Activity, BarChart3, Building2, ClipboardCheck, GitBranch, GraduationCap, Landmark, LayoutDashboard, ListChecks, PieChart, Repeat2, Sparkles, Users, WalletCards } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { DashboardInsights, Role, type InsightTimeRange } from '@/types';
@@ -18,6 +18,9 @@ const defaultRange: InsightTimeRange = '1M';
 function moduleDefinitions(role?: string) {
     if (role === Role.ORG_ADMIN || role === Role.SUB_ADMIN) {
         return [
+            { id: 'cycles', title: 'Cycle Comparison', description: 'Current cycle compared with up to five previous cycles.', icon: <Repeat2 className="h-5 w-5" /> },
+            { id: 'programs', title: 'Program Coverage', description: 'Program offerings, curricula, enrollment, and section delivery coverage.', icon: <GraduationCap className="h-5 w-5" /> },
+            { id: 'relationships', title: 'Section Relationships', description: 'Related theory, lab, practical, and component section coverage.', icon: <GitBranch className="h-5 w-5" /> },
             { id: 'attendance', title: 'Attendance', description: 'Official attendance trend and hotspots.', icon: <ClipboardCheck className="h-5 w-5" /> },
             { id: 'structure', title: 'Academic Structure', description: 'Sections, teaching load, and department performance.', icon: <Users className="h-5 w-5" /> },
             { id: 'campus', title: 'Campus Usage', description: 'Building schedules, room usage, and capacity warnings.', icon: <Building2 className="h-5 w-5" /> },
