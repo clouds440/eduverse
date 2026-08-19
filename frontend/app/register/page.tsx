@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { School, MapPin, Building, Mail, Lock, Phone, BookOpen, GraduationCap, Library, MonitorPlay, Pencil, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { RegisterRequest, OrganizationType, ApiError } from '@/types';
+import { RegisterRequest, OrganizationType, ApiError, type HumanVerificationValue } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Label } from '@/components/ui/Label';
@@ -19,12 +19,16 @@ import { registerSchema, RegisterFormData } from '@/lib/schemas';
 import { PLATFORM_NAME } from '@/lib/constants';
 import Image from 'next/image';
 import { getDeviceId, getDeviceInfo } from '@/lib/deviceUtils';
+import { HumanVerification } from '@/components/ui/HumanVerification';
 
 export default function RegisterPage() {
     const router = useRouter();
     const { state, dispatch } = useGlobal();
     const [sameAsLoginEmail, setSameAsLoginEmail] = useState(false);
     const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
+    const [humanVerification, setHumanVerification] = useState<HumanVerificationValue | null>(null);
+    const [verificationResetKey, setVerificationResetKey] = useState(0);
+    const handleVerificationChange = useCallback((value: HumanVerificationValue | null) => setHumanVerification(value), []);
 
     const {
         register,
@@ -58,12 +62,13 @@ export default function RegisterPage() {
     }, [formData.email, sameAsLoginEmail, setValue, trigger, errors.contactEmail]);
 
     const onSubmit: SubmitHandler<RegisterFormData> = async (data) => {
-        if (state.ui.processing['register-submit']) return;
+        if (state.ui.processing['register-submit'] || !humanVerification) return;
         dispatch({ type: 'UI_START_PROCESSING', payload: 'register-submit' });
         try {
             const payload: RegisterRequest = {
                 ...data,
                 contactEmail: sameAsLoginEmail ? data.email : (data.contactEmail || data.email),
+                ...humanVerification,
             };
 
             await api.auth.register(payload);
@@ -98,6 +103,7 @@ export default function RegisterPage() {
             dispatch({ type: 'TOAST_ADD', payload: { message: 'Registration successful! Please verify your contact email.', type: 'success' } });
             router.push('/login');
         } catch (error: unknown) {
+            setVerificationResetKey((current) => current + 1);
             const apiError = error as ApiError;
             const message = (apiError?.response?.data?.message || (error instanceof Error ? error.message : 'Registration failed'));
 
@@ -350,6 +356,7 @@ export default function RegisterPage() {
 
                     {/* Submit */}
                     <div className="space-y-4 max-w-6xl mx-auto flex flex-col">
+                        <HumanVerification purpose="ORG_REGISTRATION" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={Boolean(state.ui.processing['register-submit'])} />
                         <div className="justify-center sm:justify-end flex">
                             <Button
                                 type="submit"
@@ -357,6 +364,7 @@ export default function RegisterPage() {
                                 icon={ArrowRight}
                                 className="w-auto"
                                 loadingText="Creating account..."
+                                disabled={!humanVerification}
                             >
                                 Create Organization
                             </Button>

@@ -733,6 +733,8 @@ export interface Organization {
     logoUrl?: string | null;
     avatarUpdatedAt?: string | null;
     accentColor?: { primary?: string; secondary?: string; mode?: ThemeMode } | null;
+    onlineAdmissionsEnabled?: boolean;
+    onlineAdmissionEmailTemplates?: OnlineAdmissionEmailTemplates | null;
     status: OrgStatus;
     statusHistory?: StatusHistoryEntry[];
     createdAt: string;
@@ -748,6 +750,28 @@ export interface RegisterRequest {
     contactEmail: string;
     phone?: string;
     password: string;
+    challengeId: string;
+    challengeAnswer: string;
+}
+
+export interface OnlineAdmissionEmailTemplates {
+    submissionSubject?: string;
+    submissionBody?: string;
+    statusSubject?: string;
+    statusBody?: string;
+}
+
+export type HumanVerificationPurpose = 'ONLINE_ADMISSION' | 'ORG_REGISTRATION' | 'LOGIN';
+
+export interface HumanVerificationChallenge {
+    challengeId: string;
+    prompt: string;
+    expiresAt: string;
+}
+
+export interface HumanVerificationValue {
+    challengeId: string;
+    challengeAnswer: string;
 }
 
 export interface RegisterIntentResponse {
@@ -764,12 +788,15 @@ export interface LoginRequest {
     browser?: string;
     os?: string;
     loginPreparationId?: string | null;
+    challengeId?: string;
+    challengeAnswer?: string;
 }
 
 export interface PrepareLoginResponse {
     email: string;
     loginPreparationId?: string | null;
     expiresAt?: string | null;
+    requiresHumanVerification?: boolean;
 }
 
 export type LoginBootstrapKind =
@@ -897,6 +924,8 @@ export interface UpdateOrgSettingsRequest {
     phone?: string;
     currency?: string;
     accentColor?: { primary?: string; secondary?: string; mode?: ThemeMode };
+    onlineAdmissionsEnabled?: boolean;
+    onlineAdmissionEmailTemplates?: OnlineAdmissionEmailTemplates;
 }
 
 export interface PlatformAdmin {
@@ -1552,7 +1581,10 @@ export type CreateFinanceManagerRequest = Omit<CreateRoleAccountRequest, 'depart
 export type UpdateFinanceManagerRequest = Partial<CreateFinanceManagerRequest>;
 
 export interface CreateStudentRequest {
+    onlineAdmissionId?: string | null;
     programId?: string | null;
+    programOfferingId?: string | null;
+    entryStageId?: string | null;
     name: string;
     email: string;
     phone?: string | null;
@@ -3748,6 +3780,132 @@ export enum ProgramStageOfferingStatus {
     CANCELLED = 'CANCELLED',
 }
 
+export interface OnlineAdmissionDocumentRequirement {
+    id: string;
+    organizationId: string;
+    programOfferingId: string;
+    label: string;
+    description?: string | null;
+    isRequired: boolean;
+    sortOrder: number;
+    acceptedMimeTypes?: string[] | null;
+    maxFileSizeBytes?: number | null;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface OnlineAdmissionDocumentRequirementInput {
+    label: string;
+    description?: string | null;
+    isRequired?: boolean;
+    sortOrder?: number;
+    acceptedMimeTypes?: string[];
+    maxFileSizeBytes?: number | null;
+}
+
+export enum OnlineAdmissionSubmissionStatus {
+    SUBMITTED = 'SUBMITTED',
+    UNDER_REVIEW = 'UNDER_REVIEW',
+    NEEDS_UPDATE = 'NEEDS_UPDATE',
+    ACCEPTED = 'ACCEPTED',
+    ADMITTED = 'ADMITTED',
+    REJECTED = 'REJECTED',
+    WITHDRAWN = 'WITHDRAWN',
+}
+
+export interface PublicOnlineAdmissionOrganization {
+    id: string;
+    name: string;
+    slug: string;
+    location: string;
+    logoUrl?: string | null;
+    programTags: Array<{ id: string; code: string; label: string }>;
+}
+
+export interface PublicOnlineAdmissionOffering extends ProgramOffering {
+    organization: Pick<Organization, 'id' | 'name' | 'location' | 'logoUrl'> & { slug: string; onlineAdmissionsEnabled?: boolean };
+}
+
+export interface PublicOnlineAdmissionOrganizationDetail {
+    id: string;
+    name: string;
+    slug: string;
+    location: string;
+    logoUrl?: string | null;
+    programOfferings: PublicOnlineAdmissionOffering[];
+}
+
+export interface CreateOnlineAdmissionSubmissionRequest {
+    applicantEmail: string;
+    applicantName: string;
+    applicantPhone?: string;
+    formData: Record<string, unknown>;
+    documents?: Record<string, File | null | undefined>;
+    challengeId: string;
+    challengeAnswer: string;
+}
+
+export interface PublicOnlineAdmissionUpdateSubmission {
+    id: string;
+    publicReference: string;
+    status: OnlineAdmissionSubmissionStatus;
+    applicantName: string;
+    organization: Pick<Organization, 'id' | 'name' | 'logoUrl'> & { slug: string };
+    program: Pick<Program, 'id' | 'name' | 'code'>;
+    submittedAt: string;
+    documentRequirements: OnlineAdmissionDocumentRequirement[];
+    documentUploads: Array<{
+        id: string;
+        requirementId: string;
+        labelSnapshot: string;
+        file: Attachment;
+        createdAt: string;
+    }>;
+}
+
+export interface OnlineAdmissionSubmission {
+    id: string;
+    publicReference: string;
+    organizationId: string;
+    departmentId: string;
+    programId: string;
+    programOfferingId: string;
+    academicCycleId: string;
+    status: OnlineAdmissionSubmissionStatus;
+    applicantEmail: string;
+    applicantName: string;
+    applicantPhone?: string | null;
+    formData: Record<string, unknown>;
+    submittedAt: string;
+    updatedAt: string;
+    reviewedAt?: string | null;
+    decisionReason?: string | null;
+    department?: Department;
+    program?: Pick<Program, 'id' | 'name' | 'code' | 'departmentId'>;
+    academicCycle?: AcademicCycle;
+    programOffering?: ProgramOffering;
+    statusEvents?: Array<{
+        id: string;
+        fromStatus?: OnlineAdmissionSubmissionStatus | null;
+        toStatus: OnlineAdmissionSubmissionStatus;
+        note?: string | null;
+        actorType: string;
+        createdAt: string;
+        actor?: Pick<User, 'id' | 'name' | 'email' | 'role'> | null;
+    }>;
+    documentUploads?: Array<{
+        id: string;
+        requirementId: string;
+        labelSnapshot: string;
+        createdAt: string;
+        requirement: OnlineAdmissionDocumentRequirement;
+        file: Attachment;
+    }>;
+    _count?: { documentUploads: number };
+    requiredDocumentCount?: number;
+    uploadedRequiredDocumentCount?: number;
+}
+
 export interface ProgramOffering {
     id: string;
     programId: string;
@@ -3758,10 +3916,13 @@ export interface ProgramOffering {
     closesAt?: string | null;
     capacity?: number | null;
     notes?: string | null;
+    onlineAdmissionEnabled?: boolean;
+    onlineAdmissionInstructions?: string | null;
     academicCycle: AcademicCycle;
     program: Program;
     curriculumVersion: CurriculumVersion;
     stageOfferings: ProgramStageOffering[];
+    onlineAdmissionDocumentRequirements?: OnlineAdmissionDocumentRequirement[];
 }
 
 export interface ProgramOfferingReadiness {
@@ -3794,6 +3955,8 @@ export interface CreateProgramOfferingRequest {
     closesAt?: string | null;
     capacity?: number;
     notes?: string;
+    onlineAdmissionEnabled?: boolean;
+    onlineAdmissionInstructions?: string | null;
     stages: Array<{
         programStageId: string;
         status?: ProgramStageOfferingStatus;

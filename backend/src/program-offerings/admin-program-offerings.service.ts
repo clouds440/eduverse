@@ -10,7 +10,12 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { assertDepartmentInScope, getDepartmentScope, type DepartmentScopedUser } from '../common/department-scope';
 import { assertAcademicCycleWritable } from '../common/academic-cycle-write-policy';
-import { CreateProgramOfferingDto, ProgramStageOfferingInputDto, UpdateProgramOfferingDto } from './dto/program-offering.dto';
+import {
+  CreateProgramOfferingDto,
+  OnlineAdmissionDocumentRequirementInputDto,
+  ProgramStageOfferingInputDto,
+  UpdateProgramOfferingDto,
+} from './dto/program-offering.dto';
 import {
   assertLifecycleTransition,
   PROGRAM_OFFERING_TRANSITIONS,
@@ -30,6 +35,7 @@ const OFFERING_INCLUDE = {
       _count: { select: { cohortOfferings: true, sectionMappings: true, studentStageEnrollments: true } },
     },
   },
+  onlineAdmissionDocumentRequirements: { orderBy: [{ sortOrder: 'asc' as const }, { createdAt: 'asc' as const }] },
 } satisfies Prisma.ProgramOfferingInclude;
 
 @Injectable()
@@ -70,6 +76,34 @@ export class AdminProgramOfferingsService {
     }
   }
 
+  private normalizeOnlineAdmissionInstructions(value: string | null | undefined) {
+    if (value === undefined) return undefined;
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private normalizeDocumentRequirements(requirements: OnlineAdmissionDocumentRequirementInputDto[]) {
+    const seenLabels = new Set<string>();
+    return requirements.map((requirement, index) => {
+      const label = requirement.label.trim();
+      if (!label) throw new BadRequestException('Document requirement label is required');
+      const key = label.toLowerCase();
+      if (seenLabels.has(key)) throw new BadRequestException('Document requirement labels must be unique per offering');
+      seenLabels.add(key);
+      const acceptedMimeTypes = requirement.acceptedMimeTypes
+        ?.map((item) => item.trim().toLowerCase())
+        .filter(Boolean);
+      return {
+        label,
+        description: requirement.description?.trim() || null,
+        isRequired: requirement.isRequired ?? true,
+        sortOrder: requirement.sortOrder ?? index,
+        acceptedMimeTypes: acceptedMimeTypes?.length ? acceptedMimeTypes : undefined,
+        maxFileSizeBytes: requirement.maxFileSizeBytes ?? null,
+      };
+    });
+  }
+
   private async scopedOffering(orgId: string, id: string, actor: Actor) {
     const offering = await this.prisma.programOffering.findFirst({
       where: { id, organizationId: orgId },
@@ -105,6 +139,8 @@ export class AdminProgramOfferingsService {
           closesAt: dto.closesAt ? new Date(dto.closesAt) : null,
           capacity: dto.capacity,
           notes: dto.notes?.trim() || null,
+          onlineAdmissionEnabled: dto.onlineAdmissionEnabled ?? false,
+          onlineAdmissionInstructions: this.normalizeOnlineAdmissionInstructions(dto.onlineAdmissionInstructions),
           createdById: actor.id,
           stageOfferings: {
             create: dto.stages.map((stage) => ({
@@ -273,8 +309,54 @@ export class AdminProgramOfferingsService {
           closesAt: dto.closesAt === undefined ? undefined : dto.closesAt ? new Date(dto.closesAt) : null,
           capacity: dto.capacity,
           notes: dto.notes === undefined ? undefined : dto.notes.trim() || null,
+          onlineAdmissionEnabled: dto.onlineAdmissionEnabled,
+          onlineAdmissionInstructions: this.normalizeOnlineAdmissionInstructions(dto.onlineAdmissionInstructions),
         },
         include: OFFERING_INCLUDE,
+      });
+    });
+  }
+
+  async listOnlineAdmissionRequirements(orgId: string, offeringId: string, actor: Actor) {
+    await this.scopedOffering(orgId, offeringId, actor);
+    return this.prisma.onlineAdmissionDocumentRequirement.findMany({
+      where: { organizationId: orgId, programOfferingId: offeringId },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async replaceOnlineAdmissionRequirements(
+    orgId: string,
+    offeringId: string,
+    requirements: OnlineAdmissionDocumentRequirementInputDto[],
+    actor: Actor,
+  ) {
+    await this.scopedOffering(orgId, offeringId, actor);
+    const normalized = this.normalizeDocumentRequirements(requirements);
+    const submissionCount = await this.prisma.onlineAdmissionSubmission.count({
+      where: { organizationId: orgId, programOfferingId: offeringId },
+    });
+    if (submissionCount) {
+      throw new ConflictException(
+        'Document requirements cannot be changed after applications have been submitted for this offering',
+      );
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.onlineAdmissionDocumentRequirement.deleteMany({
+        where: { organizationId: orgId, programOfferingId: offeringId },
+      });
+      if (normalized.length) {
+        await tx.onlineAdmissionDocumentRequirement.createMany({
+          data: normalized.map((requirement) => ({
+            organizationId: orgId,
+            programOfferingId: offeringId,
+            ...requirement,
+          })),
+        });
+      }
+      return tx.onlineAdmissionDocumentRequirement.findMany({
+        where: { organizationId: orgId, programOfferingId: offeringId },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       });
     });
   }

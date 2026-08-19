@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Clock,
   FileText,
+  FileCheck2,
   GraduationCap,
   Layers,
   LayoutDashboard,
@@ -140,6 +141,13 @@ const ADMIN_ITEMS: SidebarItemConfig[] = [
     label: "Programs",
     href: "/programs",
     icon: GraduationCap,
+    roles: ADMIN_ROLES,
+  },
+  {
+    id: "ONLINE_ADMISSIONS",
+    label: "Online Admissions",
+    href: "/online-admissions",
+    icon: FileCheck2,
     roles: ADMIN_ROLES,
   },
   {

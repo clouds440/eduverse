@@ -23,10 +23,13 @@ const DEFAULT_FORM_DATA: OrganizationSettingsFormData = {
         primary: '#4f46e5',
         mode: ThemeMode.SYSTEM,
     },
+    onlineAdmissionsEnabled: false,
+    onlineAdmissionEmailTemplates: {},
 };
 
 const PROFILE_FIELDS = ['name', 'location', 'contactEmail', 'phone'] as const;
 const FINANCE_FIELDS = ['currency'] as const;
+const ADMISSIONS_FIELDS = ['onlineAdmissionsEnabled', 'onlineAdmissionEmailTemplates'] as const;
 
 function normalizeText(value: string | null | undefined) {
     return (value ?? '').trim();
@@ -88,6 +91,8 @@ export function useOrganizationSettingsForm() {
                         primary: getSafePrimaryColor(data.accentColor?.primary || '#4f46e5'),
                         mode: userSettings.themeMode,
                     },
+                    onlineAdmissionsEnabled: Boolean(data.onlineAdmissionsEnabled),
+                    onlineAdmissionEmailTemplates: data.onlineAdmissionEmailTemplates || {},
                 };
                 setFormData(nextFormData);
                 setSavedFormData(nextFormData);
@@ -118,6 +123,7 @@ export function useOrganizationSettingsForm() {
     const dirtyCounts = useMemo(() => {
         const profile = countChangedFields(formData, savedFormData, PROFILE_FIELDS);
         const finance = countChangedFields(formData, savedFormData, FINANCE_FIELDS);
+        const admissions = ADMISSIONS_FIELDS.filter((field) => JSON.stringify(formData[field]) !== JSON.stringify(savedFormData[field])).length;
         const appearance =
             getSafePrimaryColor(formData.accentColor.primary) !== getSafePrimaryColor(savedFormData.accentColor.primary)
                 ? 1
@@ -127,9 +133,10 @@ export function useOrganizationSettingsForm() {
         return {
             profile,
             finance,
+            admissions,
             appearance,
             branding,
-            total: profile + finance + appearance + branding,
+            total: profile + finance + admissions + appearance + branding,
         };
     }, [formData, pendingLogoFile, savedFormData]);
 
@@ -164,7 +171,7 @@ export function useOrganizationSettingsForm() {
         dispatch({ type: 'UI_START_PROCESSING', payload: 'settings-submit' });
         try {
             let savedOrg = orgData;
-            if (dirtyCounts.profile > 0 || dirtyCounts.finance > 0 || dirtyCounts.appearance > 0) {
+            if (dirtyCounts.profile > 0 || dirtyCounts.finance > 0 || dirtyCounts.appearance > 0 || dirtyCounts.admissions > 0) {
                 savedOrg = await api.org.updateSettings(
                     {
                         name: formData.name,
@@ -172,6 +179,10 @@ export function useOrganizationSettingsForm() {
                         contactEmail: formData.contactEmail,
                         phone: formData.phone,
                         ...(dirtyCounts.finance > 0 ? { currency: formData.currency } : {}),
+                        ...(dirtyCounts.admissions > 0 ? {
+                            onlineAdmissionsEnabled: formData.onlineAdmissionsEnabled,
+                            onlineAdmissionEmailTemplates: formData.onlineAdmissionEmailTemplates,
+                        } : {}),
                         ...(dirtyCounts.appearance > 0
                             ? {
                                 accentColor: {
@@ -215,6 +226,8 @@ export function useOrganizationSettingsForm() {
                         primary: getSafePrimaryColor(savedOrg.accentColor?.primary || formData.accentColor.primary),
                         mode: formData.accentColor.mode,
                     },
+                    onlineAdmissionsEnabled: Boolean(savedOrg.onlineAdmissionsEnabled),
+                    onlineAdmissionEmailTemplates: savedOrg.onlineAdmissionEmailTemplates || {},
                 };
                 setFormData(nextSavedFormData);
                 setSavedFormData(nextSavedFormData);

@@ -7,6 +7,10 @@ export class AdmitStudentProgramDto {
 
   @IsString()
   @IsOptional()
+  programOfferingId?: string;
+
+  @IsString()
+  @IsOptional()
   entryStageId?: string;
 }
 

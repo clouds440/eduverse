@@ -34,6 +34,10 @@ import {
   type PublicContactReplyEmailInput,
   type PublicContactSubmittedEmailInput,
 } from './public-contact-email.template';
+import {
+  renderOnlineAdmissionStatusEmail,
+  type OnlineAdmissionStatusEmailInput,
+} from './online-admission-status-email.template';
 
 /**
  * Injectable facade for pure email templates. Keeping this facade means business
@@ -77,6 +81,10 @@ export class EmailTemplateService {
 
   buildPublicContactReplyEmail(input: PublicContactReplyEmailInput) {
     return renderPublicContactReplyEmail(input);
+  }
+
+  buildOnlineAdmissionStatusEmail(input: OnlineAdmissionStatusEmailInput) {
+    return renderOnlineAdmissionStatusEmail(input);
   }
 
   getSafeAssetUrl(value: string | null | undefined, appBaseUrl: string) {

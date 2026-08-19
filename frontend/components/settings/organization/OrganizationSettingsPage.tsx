@@ -20,6 +20,7 @@ import { AppearanceSettingsTab } from "@/components/settings/organization/Appear
 import { BrandingSettingsTab } from "@/components/settings/organization/BrandingSettingsTab";
 import { FinanceSettingsTab } from "@/components/settings/organization/FinanceSettingsTab";
 import { ProfileSettingsTab } from "@/components/settings/organization/ProfileSettingsTab";
+import { AdmissionsSettingsTab } from "@/components/settings/organization/AdmissionsSettingsTab";
 import { AccountSecuritySettings } from "@/components/settings/account/AccountSecuritySettings";
 import { GpaPoliciesSettingsTab } from "@/components/settings/organization/GpaPoliciesSettingsTab";
 import { AISettingsTab } from "@/components/settings/organization/AISettingsTab";
@@ -100,11 +101,13 @@ export function OrganizationSettingsPage() {
     const appearanceCount = orgSettings.dirtyCounts.appearance + themeDirtyCount;
     if (appearanceCount) counts.appearance = appearanceCount;
     if (orgSettings.dirtyCounts.finance) counts.finance = orgSettings.dirtyCounts.finance;
+    if (orgSettings.dirtyCounts.admissions) counts.admissions = orgSettings.dirtyCounts.admissions;
     if (orgSettings.dirtyCounts.branding) counts.branding = orgSettings.dirtyCounts.branding;
     if (preferenceNotificationDirtyCount) counts.preferences = preferenceNotificationDirtyCount;
     return counts;
   }, [
     orgSettings.dirtyCounts.appearance,
+    orgSettings.dirtyCounts.admissions,
     orgSettings.dirtyCounts.branding,
     orgSettings.dirtyCounts.finance,
     orgSettings.dirtyCounts.profile,
@@ -143,6 +146,13 @@ export function OrganizationSettingsPage() {
     enabled: boolean,
   ) => {
     setDraftUserSettings((current) => ({ ...current, [key]: enabled }));
+  };
+
+  const handleOnlineAdmissionsToggle = (onlineAdmissionsEnabled: boolean) => {
+    orgSettings.setFormData((current) => ({
+      ...current,
+      onlineAdmissionsEnabled,
+    }));
   };
 
   const handleSaveSettings = async () => {
@@ -295,6 +305,14 @@ export function OrganizationSettingsPage() {
               setFormData={orgSettings.setFormData}
               formErrors={orgSettings.formErrors}
               setFormErrors={orgSettings.setFormErrors}
+            />
+          )}
+
+          {activeTab === "admissions" && (
+            <AdmissionsSettingsTab
+              formData={orgSettings.formData}
+              onToggleOnlineAdmissions={handleOnlineAdmissionsToggle}
+              setFormData={orgSettings.setFormData}
             />
           )}
 

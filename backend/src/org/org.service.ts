@@ -70,6 +70,8 @@ export class OrgService {
       logoUrl: org.logoUrl,
       avatarUpdatedAt: org.avatarUpdatedAt,
       accentColor: org.accentColor,
+      onlineAdmissionsEnabled: org.onlineAdmissionsEnabled,
+      onlineAdmissionEmailTemplates: org.onlineAdmissionEmailTemplates,
       status: org.status,
       statusHistory: org.statusHistory,
       createdAt: org.createdAt,
@@ -101,10 +103,14 @@ export class OrgService {
       await this.authService.assertContactEmailChangeAuthorized(actor);
     }
 
+    const { onlineAdmissionEmailTemplates, ...settingsData } = data;
     const updatedOrg = await this.prisma.organization.update({
       where: { id: orgId },
       data: {
-        ...data,
+        ...settingsData,
+        ...(onlineAdmissionEmailTemplates !== undefined
+          ? { onlineAdmissionEmailTemplates: onlineAdmissionEmailTemplates as Prisma.InputJsonValue }
+          : {}),
         ...(contactEmailChanged
           ? {
               contactEmailVerifiedAt: null,
@@ -129,6 +135,8 @@ export class OrgService {
         logoUrl: true,
         avatarUpdatedAt: true,
         accentColor: true,
+        onlineAdmissionsEnabled: true,
+        onlineAdmissionEmailTemplates: true,
         status: true,
         statusHistory: true,
         createdAt: true,

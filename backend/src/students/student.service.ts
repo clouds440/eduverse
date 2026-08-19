@@ -6,19 +6,22 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { GradeStatus, Prisma, StudentProgramEnrollmentStatus } from '@/prisma/prisma-client';
+import {
+  GradeStatus,
+  OnlineAdmissionSubmissionStatus,
+  Prisma,
+  StudentProgramEnrollmentStatus,
+} from '@/prisma/prisma-client';
 import { Role, StudentStatus, UserStatus } from '../common/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UserService } from '../users/user.service';
 import { CreateStudentDto } from '../org/dto/create-student.dto';
 import { UpdateStudentDto } from '../org/dto/update-student.dto';
-import * as bcrypt from 'bcrypt';
 import {
   getPaginationOptions,
   formatPaginatedResponse,
   extractUpdateFields,
-  BCRYPT_ROUNDS,
   PaginationOptions,
   extractTimetableEntries,
   fuzzyFilterAndRank,
@@ -478,8 +481,38 @@ export class StudentService {
     data: CreateStudentDto,
     userContext: { id?: string; role?: string; name?: string | null; email: string },
   ) {
+    const onlineAdmission = data.onlineAdmissionId
+      ? await this.prisma.onlineAdmissionSubmission.findFirst({
+          where: { id: data.onlineAdmissionId, organizationId: orgId },
+          select: {
+            id: true,
+            status: true,
+            programId: true,
+            programOfferingId: true,
+          },
+        })
+      : null;
+    if (data.onlineAdmissionId && !onlineAdmission) {
+      throw new NotFoundException('Online admission submission not found');
+    }
+    if (onlineAdmission) {
+      if (onlineAdmission.status === OnlineAdmissionSubmissionStatus.REJECTED) {
+        throw new ConflictException('Rejected online admissions cannot be converted to students');
+      }
+      if (onlineAdmission.status === OnlineAdmissionSubmissionStatus.ADMITTED) {
+        throw new ConflictException('Online admission has already been converted');
+      }
+      if (
+        data.programId !== onlineAdmission.programId
+        || data.programOfferingId !== onlineAdmission.programOfferingId
+      ) {
+        throw new BadRequestException(
+          'Student program and offering must match the online admission submission',
+        );
+      }
+    }
     const programDepartment = data.programId
-      ? await this.studentPrograms.resolveAdmissionDepartment(orgId, data.programId, userContext.id && userContext.role ? { id: userContext.id, role: userContext.role } : undefined)
+      ? await this.studentPrograms.resolveAdmissionDepartment(orgId, data.programId, userContext.id && userContext.role ? { id: userContext.id, role: userContext.role } : undefined, data.programOfferingId)
       : null;
     if (programDepartment && data.primaryDepartmentId && data.primaryDepartmentId !== programDepartment.id) {
       throw new BadRequestException('Primary department is derived from the selected major program');
@@ -585,6 +618,7 @@ export class StudentService {
             student.id,
             {
               programId: data.programId,
+              programOfferingId: data.programOfferingId,
               entryStageId: data.entryStageId,
             },
             userContext.id!,
@@ -592,6 +626,38 @@ export class StudentService {
           await prisma.student.update({
             where: { id: student.id },
             data: { primaryDepartmentId: major.program.departmentId },
+          });
+        }
+
+        if (onlineAdmission) {
+          const linked = await prisma.onlineAdmissionSubmission.updateMany({
+            where: {
+              id: onlineAdmission.id,
+              organizationId: orgId,
+              status: onlineAdmission.status,
+              admittedStudentId: null,
+            },
+            data: {
+              status: OnlineAdmissionSubmissionStatus.ADMITTED,
+              admittedStudentId: student.id,
+              reviewedById: userContext.id,
+              reviewedAt: new Date(),
+              updateTokenHash: null,
+              updateTokenExpiresAt: null,
+            },
+          });
+          if (linked.count !== 1) {
+            throw new ConflictException('Online admission changed while the student was being created');
+          }
+          await prisma.onlineAdmissionStatusEvent.create({
+            data: {
+              submissionId: onlineAdmission.id,
+              fromStatus: onlineAdmission.status,
+              toStatus: OnlineAdmissionSubmissionStatus.ADMITTED,
+              actorUserId: userContext.id,
+              actorType: 'ADMIN',
+              note: 'Converted to student admission',
+            },
           });
         }
 

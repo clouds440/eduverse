@@ -49,11 +49,14 @@ import { PastRecordsModule } from './past-records/past-records.module';
 import { GradeEvidenceModule } from './grade-evidence/grade-evidence.module';
 import { ProgramOfferingsModule } from './program-offerings/program-offerings.module';
 import { HealthModule } from './health/health.module';
+import { OnlineAdmissionsModule } from './online-admissions/online-admissions.module';
+import { HumanVerificationModule } from './human-verification/human-verification.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EmailTemplatesModule,
+    HumanVerificationModule,
     ActivityLogsModule,
     ScheduleModule.forRoot(),
     HealthModule,
@@ -80,6 +83,7 @@ import { HealthModule } from './health/health.module';
     PastRecordsModule,
     GradeEvidenceModule,
     ProgramOfferingsModule,
+    OnlineAdmissionsModule,
     ProgramsModule,
     StudentProgramEnrollmentsModule,
     CohortsModule,

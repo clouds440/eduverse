@@ -22,6 +22,7 @@
     "programs:preflight": "node scripts/programs-preflight.js",
     "programs:removed-fields-check": "node scripts/programs-removed-fields-check.js",
     "phase11:critical-api": "node scripts/phase11-critical-api-check.js --apply",
+    "online-admissions:e2e": "node scripts/online-admissions-e2e-check.js --apply",
     "programs:restore-check": "node scripts/programs-backup-restore-check.js --apply",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:reset": "prisma migrate reset",

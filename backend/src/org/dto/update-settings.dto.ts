@@ -6,6 +6,8 @@ import {
   ValidateNested,
   IsNotEmpty,
   IsIn,
+  IsBoolean,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -19,6 +21,28 @@ class AccentColorDto {
   @IsString()
   @IsOptional()
   secondary?: string;
+}
+
+class OnlineAdmissionEmailTemplatesDto {
+  @IsString()
+  @IsOptional()
+  @MaxLength(160)
+  submissionSubject?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(4000)
+  submissionBody?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(160)
+  statusSubject?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(4000)
+  statusBody?: string;
 }
 
 export class UpdateSettingsDto {
@@ -48,4 +72,14 @@ export class UpdateSettingsDto {
   @ValidateNested()
   @Type(() => AccentColorDto)
   accentColor?: { primary?: string; secondary?: string };
+
+  @IsBoolean()
+  @IsOptional()
+  onlineAdmissionsEnabled?: boolean;
+
+  @IsObject()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OnlineAdmissionEmailTemplatesDto)
+  onlineAdmissionEmailTemplates?: OnlineAdmissionEmailTemplatesDto;
 }

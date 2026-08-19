@@ -170,7 +170,35 @@ export class StudentProgramEnrollmentsService {
     });
   }
 
-  private async admissionProgram(tx: Transaction, orgId: string, programId: string) {
+  private async admissionProgram(tx: Transaction, orgId: string, programId: string, programOfferingId?: string) {
+    if (programOfferingId) {
+      const offering = await tx.programOffering.findFirst({
+        where: {
+          id: programOfferingId,
+          organizationId: orgId,
+          programId,
+          program: { status: ProgramStatus.ACTIVE },
+        },
+        include: {
+          program: { include: { department: true } },
+          curriculumVersion: {
+            include: {
+              stages: { orderBy: { sequence: 'asc' } },
+              programConfigurationRevision: true,
+            },
+          },
+        },
+      });
+      if (!offering) throw new NotFoundException('Program offering not found');
+      if (offering.curriculumVersion.stages.length === 0) {
+        throw new ConflictException('The program offering curriculum has no stages');
+      }
+      return {
+        program: offering.program,
+        revision: offering.curriculumVersion.programConfigurationRevision,
+        curriculum: offering.curriculumVersion,
+      };
+    }
     const program = await tx.program.findFirst({
       where: { id: programId, organizationId: orgId, status: ProgramStatus.ACTIVE },
       include: {
@@ -193,9 +221,9 @@ export class StudentProgramEnrollmentsService {
     return { program, revision, curriculum };
   }
 
-  async resolveAdmissionDepartment(orgId: string, programId: string, actor?: Actor) {
+  async resolveAdmissionDepartment(orgId: string, programId: string, actor?: Actor, programOfferingId?: string) {
     return this.runTransaction(async (tx) => {
-      const { program } = await this.admissionProgram(tx, orgId, programId);
+      const { program } = await this.admissionProgram(tx, orgId, programId, programOfferingId);
       const scope = await getDepartmentScope(this.prisma, orgId, actor);
       assertDepartmentInScope(scope, program.departmentId, 'You cannot assign a program outside your department scope');
       return program.department;
@@ -217,7 +245,7 @@ export class StudentProgramEnrollmentsService {
     });
     if (open) throw new ConflictException('Student already has an active major');
 
-    const { program, revision, curriculum } = await this.admissionProgram(tx, orgId, dto.programId);
+    const { program, revision, curriculum } = await this.admissionProgram(tx, orgId, dto.programId, dto.programOfferingId);
     const entryStage = dto.entryStageId
       ? curriculum.stages.find((stage) => stage.id === dto.entryStageId)
       : curriculum.stages[0];
@@ -247,7 +275,7 @@ export class StudentProgramEnrollmentsService {
   }
 
   async admit(orgId: string, studentId: string, dto: AdmitStudentProgramDto, actor: Actor) {
-    const department = await this.resolveAdmissionDepartment(orgId, dto.programId, actor);
+    const department = await this.resolveAdmissionDepartment(orgId, dto.programId, actor, dto.programOfferingId);
     return this.runTransaction(async (tx) => {
       const enrollment = await this.admitInTransaction(tx, orgId, studentId, dto, actor.id);
       await tx.student.update({ where: { id: studentId }, data: { primaryDepartmentId: department.id } });

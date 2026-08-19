@@ -30,6 +30,8 @@ model Organization {
   avatarUpdatedAt                           DateTime?
   logoUrl                                   String?
   accentColor                               Json?
+  onlineAdmissionsEnabled                   Boolean                                   @default(false)
+  onlineAdmissionEmailTemplates             Json?
   courses                                   Course[]
   sections                                  Section[]
   students                                  Student[]
@@ -88,6 +90,9 @@ model Organization {
   studentProgressionDecisions               StudentProgressionDecision[]
   progressionBulkOperations                 ProgressionBulkOperation[]
   gradeAnswerbookAttachments                GradeAnswerbookAttachment[]
+  onlineAdmissionDocumentRequirements       OnlineAdmissionDocumentRequirement[]
+  onlineAdmissionSubmissions                OnlineAdmissionSubmission[]
+  onlineAdmissionDocumentUploads            OnlineAdmissionDocumentUpload[]
   academicCycleArchives                     AcademicCycleArchive[]
   academicCycleArchiveSections              AcademicCycleArchiveSection[]
   academicCycleArchiveSectionProgramIndexes AcademicCycleArchiveSectionProgramIndex[]
@@ -96,6 +101,19 @@ model Organization {
 
   @@index([status])
   @@index([type])
+}
+
+model HumanVerificationChallenge {
+  id         String   @id @default(uuid())
+  purpose    String
+  answerHash String
+  attempts   Int      @default(0)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([purpose, expiresAt])
+  @@index([createdAt])
 }
 
 model User {
@@ -133,6 +151,8 @@ model User {
   sentMessages                       MailMessage[]        @relation("SentMessages")
   performedActions                   MailActionLog[]      @relation("PerformedActions")
   viewedMails                        MailUserView[]
+  reviewedOnlineAdmissionSubmissions OnlineAdmissionSubmission[] @relation("OnlineAdmissionSubmissionReviewers")
+  onlineAdmissionStatusEvents        OnlineAdmissionStatusEvent[]
 
   createdChats                          Chat[]                          @relation("CreatedChats")
   chatParticipations                    ChatParticipant[]               @relation("ChatParticipations")
@@ -557,6 +577,7 @@ model Department {
   subAdminDepartments      SubAdminDepartment[]
   academicEventDepartments AcademicEventDepartment[]
   programs                 Program[]
+  onlineAdmissionSubmissions OnlineAdmissionSubmission[]
 
   @@unique([organizationId, name])
   @@unique([organizationId, code])
@@ -850,6 +871,7 @@ model Student {
   financialEntries              FinancialEntry[]
   programEnrollments            StudentProgramEnrollment[]
   archiveStudentIndexes         AcademicCycleArchiveStudentIndex[]
+  admittedOnlineAdmissionSubmission OnlineAdmissionSubmission? @relation("OnlineAdmissionAdmittedStudent")
 
   @@index([organizationId])
   @@index([primaryDepartmentId])
@@ -1062,6 +1084,7 @@ model File {
   lockedByArchiveId         String?
   createdAt                 DateTime                   @default(now())
   gradeAnswerbookAttachment GradeAnswerbookAttachment?
+  onlineAdmissionDocumentUpload OnlineAdmissionDocumentUpload?
   lockedByArchive           AcademicCycleArchive?      @relation(fields: [lockedByArchiveId], references: [id], onDelete: Restrict)
 
   @@index([entityType, entityId])
@@ -2253,6 +2276,7 @@ model AcademicCycle {
   sectionSchedules    SectionSchedule[]
   preferenceWindows   PreferenceWindow[]
   programOfferings    ProgramOffering[]
+  onlineAdmissionSubmissions OnlineAdmissionSubmission[]
   archives            AcademicCycleArchive[] @relation("AcademicCycleArchives")
   currentArchive      AcademicCycleArchive?  @relation("CurrentAcademicCycleArchive", fields: [currentArchiveId], references: [id], onDelete: Restrict)
   courseResultSchemes CourseResultScheme[]
@@ -2429,6 +2453,16 @@ enum ProgramStageOfferingStatus {
   CANCELLED
 }
 
+enum OnlineAdmissionSubmissionStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  NEEDS_UPDATE
+  ACCEPTED
+  ADMITTED
+  REJECTED
+  WITHDRAWN
+}
+
 enum CohortOfferingStatus {
   PLANNED
   ACTIVE
@@ -2533,6 +2567,7 @@ model Program {
   configurationRevisions ProgramConfigurationRevision[]
   curriculumVersions     CurriculumVersion[]
   studentEnrollments     StudentProgramEnrollment[]
+  onlineAdmissionSubmissions OnlineAdmissionSubmission[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -2659,6 +2694,8 @@ model ProgramOffering {
   closesAt            DateTime?
   capacity            Int?
   notes               String?
+  onlineAdmissionEnabled Boolean               @default(false)
+  onlineAdmissionInstructions String?
   createdById         String
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
@@ -2668,11 +2705,14 @@ model ProgramOffering {
   curriculumVersion CurriculumVersion      @relation(fields: [curriculumVersionId], references: [id], onDelete: Restrict)
   academicCycle     AcademicCycle          @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
   stageOfferings    ProgramStageOffering[]
+  onlineAdmissionDocumentRequirements OnlineAdmissionDocumentRequirement[]
+  onlineAdmissionSubmissions OnlineAdmissionSubmission[]
 
   @@unique([programId, curriculumVersionId, academicCycleId])
   @@index([organizationId])
   @@index([academicCycleId, status])
   @@index([programId, status])
+  @@index([onlineAdmissionEnabled, status])
 }
 
 model ProgramStageOffering {
@@ -2700,6 +2740,106 @@ model ProgramStageOffering {
   @@unique([programOfferingId, programStageId])
   @@index([organizationId])
   @@index([programStageId, status])
+}
+
+model OnlineAdmissionDocumentRequirement {
+  id                String   @id @default(uuid())
+  organizationId    String
+  programOfferingId String
+  label             String
+  description       String?
+  isRequired        Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  acceptedMimeTypes Json?
+  maxFileSizeBytes  Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization    Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  programOffering ProgramOffering                 @relation(fields: [programOfferingId], references: [id], onDelete: Cascade)
+  uploads         OnlineAdmissionDocumentUpload[]
+
+  @@index([organizationId])
+  @@index([programOfferingId, sortOrder])
+}
+
+model OnlineAdmissionSubmission {
+  id                String                          @id @default(uuid())
+  publicReference   String                          @unique
+  organizationId    String
+  departmentId      String
+  programId         String
+  programOfferingId String
+  academicCycleId   String
+  status            OnlineAdmissionSubmissionStatus @default(SUBMITTED)
+  applicantEmail    String
+  applicantName     String
+  applicantPhone    String?
+  formData          Json
+  sourceIpHash      String?
+  userAgent         String?
+  updateTokenHash   String?
+  updateTokenExpiresAt DateTime?
+  submittedAt       DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
+  reviewedById      String?
+  reviewedAt        DateTime?
+  decisionReason    String?
+  admittedStudentId String?                         @unique
+
+  organization    Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  department      Department                        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  program         Program                           @relation(fields: [programId], references: [id], onDelete: Restrict)
+  programOffering ProgramOffering                   @relation(fields: [programOfferingId], references: [id], onDelete: Restrict)
+  academicCycle   AcademicCycle                     @relation(fields: [academicCycleId], references: [id], onDelete: Restrict)
+  reviewedBy      User?                             @relation("OnlineAdmissionSubmissionReviewers", fields: [reviewedById], references: [id], onDelete: SetNull)
+  admittedStudent Student?                          @relation("OnlineAdmissionAdmittedStudent", fields: [admittedStudentId], references: [id], onDelete: SetNull)
+  documentUploads OnlineAdmissionDocumentUpload[]
+  statusEvents    OnlineAdmissionStatusEvent[]
+
+  @@index([organizationId, status, submittedAt])
+  @@index([departmentId, status])
+  @@index([programId, status])
+  @@index([programOfferingId, status])
+  @@index([academicCycleId, status])
+  @@index([applicantEmail])
+  @@index([updateTokenHash])
+}
+
+model OnlineAdmissionDocumentUpload {
+  id             String   @id @default(uuid())
+  organizationId String
+  submissionId   String
+  requirementId  String
+  fileId         String   @unique
+  labelSnapshot  String
+  createdAt      DateTime @default(now())
+
+  organization Organization                       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  submission   OnlineAdmissionSubmission          @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  requirement  OnlineAdmissionDocumentRequirement @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  file         File                               @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@unique([submissionId, requirementId])
+  @@index([organizationId])
+  @@index([requirementId])
+}
+
+model OnlineAdmissionStatusEvent {
+  id           String                           @id @default(uuid())
+  submissionId String
+  fromStatus   OnlineAdmissionSubmissionStatus?
+  toStatus     OnlineAdmissionSubmissionStatus
+  note         String?
+  actorUserId  String?
+  actorType    String                           @default("ADMIN")
+  createdAt    DateTime                         @default(now())
+
+  submission OnlineAdmissionSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  actor      User?                     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([submissionId, createdAt])
+  @@index([actorUserId])
 }
 
 model CohortOffering {

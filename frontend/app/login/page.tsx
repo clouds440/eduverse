@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { TrustedDevicePrompt } from "@/components/TrustedDevicePrompt";
-import { LoginBootstrapPayload, TrustedDevicePromptFlow } from "@/types";
+import { HumanVerificationValue, LoginBootstrapPayload, TrustedDevicePromptFlow } from "@/types";
+import { HumanVerification } from "@/components/ui/HumanVerification";
 
 type LoginStep = "email" | "password";
 
@@ -38,6 +39,10 @@ export default function LoginPage() {
   const [loginPreparationId, setLoginPreparationId] = useState<string | null>(
     null,
   );
+  const [requiresHumanVerification, setRequiresHumanVerification] = useState(false);
+  const [humanVerification, setHumanVerification] = useState<HumanVerificationValue | null>(null);
+  const [verificationResetKey, setVerificationResetKey] = useState(0);
+  const handleVerificationChange = useCallback((value: HumanVerificationValue | null) => setHumanVerification(value), []);
 
   useEffect(() => {
     const hashParams =
@@ -90,6 +95,7 @@ export default function LoginPage() {
           password: "",
         }));
         setLoginPreparationId(prepared.loginPreparationId ?? null);
+        setRequiresHumanVerification(Boolean(prepared.requiresHumanVerification));
         setLoginStep("password");
       } catch (error) {
         const message =
@@ -102,6 +108,10 @@ export default function LoginPage() {
     }
 
     if (state.ui.processing["login-submit"]) return;
+    if (requiresHumanVerification && !humanVerification) {
+      setErrors({ general: "Complete the human verification challenge" });
+      return;
+    }
     dispatch({ type: "UI_START_PROCESSING", payload: "login-submit" });
 
     try {
@@ -115,6 +125,7 @@ export default function LoginPage() {
         deviceType: deviceInfo?.deviceType,
         browser: deviceInfo?.browser,
         os: deviceInfo?.os,
+        ...(humanVerification || {}),
       };
       const res = await api.auth.login(loginPayload);
       if (res.requiresTwoFactor && res.temporaryToken) {
@@ -125,6 +136,7 @@ export default function LoginPage() {
       await login(res.access_token);
       primeLoginBootstrap(res.access_token, res.bootstrap);
     } catch (error: unknown) {
+      if (requiresHumanVerification) setVerificationResetKey((current) => current + 1);
       const message = error instanceof Error ? error.message : "Login failed";
       const msgStr = Array.isArray(message) ? message[0] : message;
       const nextErrors: typeof errors = {};
@@ -173,6 +185,8 @@ export default function LoginPage() {
     setLoginStep("email");
     setErrors({});
     setLoginPreparationId(null);
+    setRequiresHumanVerification(false);
+    setHumanVerification(null);
     setFormData((current) => ({ ...current, password: "" }));
   };
 
@@ -419,12 +433,17 @@ export default function LoginPage() {
                     </label>
                   </div>
 
+                  {requiresHumanVerification && (
+                    <HumanVerification purpose="LOGIN" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={Boolean(state.ui.processing["login-submit"])} />
+                  )}
+
                   <Button
                     type="submit"
                     loadingId="login-submit"
                     loadingText="Signing in..."
                     icon={ArrowRight}
                     className="h-12 w-full text-base font-bold shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
+                    disabled={requiresHumanVerification && !humanVerification}
                   >
                     Sign In
                   </Button>

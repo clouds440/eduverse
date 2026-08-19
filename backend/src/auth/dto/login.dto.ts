@@ -42,4 +42,12 @@ export class LoginDto {
   @IsString()
   @IsOptional()
   loginPreparationId?: string;
+
+  @IsString()
+  @IsOptional()
+  challengeId?: string;
+
+  @IsString()
+  @IsOptional()
+  challengeAnswer?: string;
 }

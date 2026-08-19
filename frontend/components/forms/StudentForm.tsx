@@ -27,6 +27,9 @@ interface StudentFormProps {
     studentId?: string;
     initialData?: Student;
     isProfile?: boolean;
+    initialValues?: Partial<StudentCreateFormData>;
+    onlineAdmissionId?: string;
+    onlineAdmissionOfferingId?: string;
 }
 
 const STUDENT_STATUS_OPTIONS = [
@@ -51,8 +54,8 @@ function dateInputValue(value?: string | Date | null, fallback = '') {
     return value ? new Date(value).toISOString().split('T')[0] : fallback;
 }
 
-function getStudentDefaults(initialData?: Student) {
-    return initialData ? {
+function getStudentDefaults(initialData?: Student, initialValues: Partial<StudentCreateFormData> = {}) {
+    const defaults = initialData ? {
         name: initialData.user?.name || '',
         email: initialData.user?.email || '',
         password: '',
@@ -95,6 +98,7 @@ function getStudentDefaults(initialData?: Student) {
         guardianId: '',
         guardianRelationship: '',
     };
+    return { ...defaults, ...initialValues };
 }
 
 function studentStatusIcon(status?: StudentStatus) {
@@ -103,7 +107,7 @@ function studentStatusIcon(status?: StudentStatus) {
     return GraduationCap;
 }
 
-export default function StudentForm({ studentId, initialData, isProfile }: StudentFormProps) {
+export default function StudentForm({ studentId, initialData, isProfile, initialValues = {}, onlineAdmissionId, onlineAdmissionOfferingId }: StudentFormProps) {
     const { token, user: currentUser, updateUser } = useAuth();
     const router = useRouter();
     const { dispatch } = useGlobal();
@@ -116,7 +120,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
         () => zodResolver(isProfile ? studentProfileSchema : (studentId ? studentUpdateSchema : studentCreateSchema)),
         [isProfile, studentId]
     );
-    const defaultValues = useMemo(() => getStudentDefaults(initialData), [initialData]);
+    const defaultValues = useMemo(() => getStudentDefaults(initialData, initialValues), [initialData, initialValues]);
 
     const {
         control,
@@ -133,9 +137,9 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
 
     useEffect(() => {
         if (initialData) {
-            reset(getStudentDefaults(initialData));
+            reset(getStudentDefaults(initialData, initialValues));
         }
-    }, [initialData, reset]);
+    }, [initialData, initialValues, reset]);
 
     const watchedStatus = useWatch({ control, name: 'status' }) as StudentStatus | undefined;
     const watchedGender = useWatch({ control, name: 'gender' }) as string | undefined;
@@ -262,6 +266,8 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                 ...rest,
                 age: age ? Number(age) : null,
                 ...(!studentId && programId ? { programId } : {}),
+                ...(!studentId && onlineAdmissionOfferingId ? { programOfferingId: onlineAdmissionOfferingId } : {}),
+                ...(!studentId && onlineAdmissionId ? { onlineAdmissionId } : {}),
                 ...(studentId ? (password ? { password } : {}) : { password }),
             };
 
@@ -272,6 +278,9 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
                 savedStudent = await api.org.updateStudent(studentId, payload as UpdateStudentRequest, token!);
             } else {
                 savedStudent = await api.org.createStudent(payload as CreateStudentRequest, token!);
+                if (onlineAdmissionId) {
+                    await api.onlineAdmissions.markAdmitted(onlineAdmissionId, { studentId: savedStudent.id }, token!);
+                }
             }
 
             // Sync global auth state if the updated student is the current user.
@@ -303,7 +312,7 @@ export default function StudentForm({ studentId, initialData, isProfile }: Stude
             if (isProfile) {
                 router.refresh();
             } else {
-                router.push(listHref);
+                router.push(onlineAdmissionId ? `/online-admissions/${onlineAdmissionId}` : listHref);
             }
 
             mutate(matchesCacheKeyPrefix('students'));

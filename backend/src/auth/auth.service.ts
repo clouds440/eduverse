@@ -57,6 +57,7 @@ import { currentUtcMonthPeriod, freeOrgMonthlyCredits } from '../ai/ai-free-quot
 import { LoginPreparationService } from './login-preparation.service';
 import { ActivityLogType } from '../activity-logs/activity-log.types';
 import { allocateOrganizationSlug } from '../common/organization-slug';
+import { HumanVerificationService } from '../human-verification/human-verification.service';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -89,6 +90,7 @@ export class AuthService {
     @Optional() emailTemplateService?: EmailTemplateService,
     @Optional() private readonly twoFactorService?: TwoFactorService,
     @Optional() private readonly loginPreparationService?: LoginPreparationService,
+    @Optional() private readonly humanVerificationService?: HumanVerificationService,
   ) {
     const templates = emailTemplateService ?? new EmailTemplateService();
     const security =
@@ -155,6 +157,7 @@ export class AuthService {
     meta?: RequestMetadata,
     registrationIntent?: string,
   ) {
+    await this.humanVerificationService?.verify('ORG_REGISTRATION', registerDto);
     await this.verifyRegistrationIntent(registrationIntent, meta);
     const existing = await this.prisma.user.findUnique({
       where: { email: registerDto.email },
@@ -262,6 +265,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (await this.requiresLoginHumanVerification(user)) {
+      if (!this.humanVerificationService) {
+        throw new UnauthorizedException('Human verification is temporarily unavailable');
+      }
+      await this.humanVerificationService.verify('LOGIN', loginDto);
+    }
+
     const isMatch = await bcrypt.compare(loginDto.password, user.password);
     if (!isMatch) {
       await this.recordLoginAudit('login_failed', user, loginDto, ip, {
@@ -313,7 +323,20 @@ export class AuthService {
       email: user.email,
       loginPreparationId: preparation?.loginPreparationId ?? null,
       expiresAt: preparation?.expiresAt ?? null,
+      requiresHumanVerification: await this.requiresLoginHumanVerification(user),
     };
+  }
+
+  private async requiresLoginHumanVerification(user: Pick<User, 'id' | 'organizationId'>) {
+    const where = {
+      action: 'login_failed',
+      targetUserId: user.id,
+      createdAt: { gte: new Date(Date.now() - 15 * 60_000) },
+    };
+    const attempts = user.organizationId
+      ? await this.prisma.organizationActivityLog.count({ where: { ...where, organizationId: user.organizationId } })
+      : await this.prisma.platformActivityLog.count({ where });
+    return attempts >= 3;
   }
 
   async generateToken(

@@ -12,6 +12,7 @@ export const DASHBOARD_MODULES = [
   "announcements",
   "assessments",
   "programs",
+  "online-admissions",
   "timetable",
   "sections",
   "tasks",

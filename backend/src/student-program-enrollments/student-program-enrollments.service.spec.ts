@@ -39,6 +39,7 @@ function harness() {
       update: jest.fn(),
     },
     program: { findFirst: jest.fn().mockResolvedValue(admissionProgram()) },
+    programOffering: { findFirst: jest.fn() },
     studentStageEnrollment: { findFirst: jest.fn(), count: jest.fn().mockResolvedValue(0), create: jest.fn(), updateMany: jest.fn() },
     programStageOffering: { findFirst: jest.fn() },
     cohortOffering: { findFirst: jest.fn() },
@@ -68,6 +69,36 @@ describe('StudentProgramEnrollmentsService', () => {
     tx.studentProgramEnrollment.findFirst.mockResolvedValue({ id: 'existing-major' });
     await expect(service.admitInTransaction(tx as never, 'org-1', 'student-1', { programId: 'program-1' }, 'admin-1'))
       .rejects.toBeInstanceOf(ConflictException);
+    expect(tx.program.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('uses the selected offering curriculum instead of the program admissions default', async () => {
+    const { service, tx } = harness();
+    const program = admissionProgram();
+    tx.programOffering.findFirst.mockResolvedValue({
+      id: 'offering-2',
+      program,
+      curriculumVersion: {
+        id: 'curriculum-2',
+        programConfigurationRevisionId: 'revision-1',
+        stages: [{ id: 'offering-stage-1', sequence: 1, isOptional: false }],
+        programConfigurationRevision: { id: 'revision-1', checksum: 'offering-curriculum-hash' },
+      },
+    });
+
+    await service.admitInTransaction(tx as never, 'org-1', 'student-1', {
+      programId: 'program-1',
+      programOfferingId: 'offering-2',
+    }, 'admin-1');
+
+    expect(tx.studentProgramEnrollment.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        curriculumVersionId: 'curriculum-2',
+        programConfigurationRevisionId: 'revision-1',
+        curriculumSnapshotHash: 'offering-curriculum-hash',
+        entryStageId: 'offering-stage-1',
+      }),
+    }));
     expect(tx.program.findFirst).not.toHaveBeenCalled();
   });
 

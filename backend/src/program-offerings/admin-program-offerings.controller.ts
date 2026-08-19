@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { Access } from '../common/access-control/access.decorator';
 import { AccessLevel } from '../common/access-control/access-level.enum';
 import { OrgId } from '../common/decorators/org-id.decorator';
@@ -6,7 +6,11 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums';
 import type { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
 import { AdminProgramOfferingsService } from './admin-program-offerings.service';
-import { CreateProgramOfferingDto, UpdateProgramOfferingDto } from './dto/program-offering.dto';
+import {
+  CreateProgramOfferingDto,
+  ReplaceOnlineAdmissionDocumentRequirementsDto,
+  UpdateProgramOfferingDto,
+} from './dto/program-offering.dto';
 
 @Access(AccessLevel.READ)
 @Controller('org/program-offerings')
@@ -36,6 +40,12 @@ export class AdminProgramOfferingsController {
     return this.offerings.readiness(orgId, id, req.user);
   }
 
+  @Get(':id/online-admission-requirements')
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER)
+  onlineAdmissionRequirements(@OrgId() orgId: string, @Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.offerings.listOnlineAdmissionRequirements(orgId, id, req.user);
+  }
+
   @Post()
   @Access(AccessLevel.WRITE)
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
@@ -48,5 +58,17 @@ export class AdminProgramOfferingsController {
   @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
   update(@OrgId() orgId: string, @Param('id') id: string, @Body() dto: UpdateProgramOfferingDto, @Req() req: AuthenticatedRequest) {
     return this.offerings.update(orgId, id, dto, req.user);
+  }
+
+  @Put(':id/online-admission-requirements')
+  @Access(AccessLevel.WRITE)
+  @Roles(Role.ORG_ADMIN, Role.SUB_ADMIN)
+  replaceOnlineAdmissionRequirements(
+    @OrgId() orgId: string,
+    @Param('id') id: string,
+    @Body() dto: ReplaceOnlineAdmissionDocumentRequirementsDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.offerings.replaceOnlineAdmissionRequirements(orgId, id, dto.requirements, req.user);
   }
 }

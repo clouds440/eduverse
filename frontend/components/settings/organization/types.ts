@@ -1,4 +1,4 @@
-import type { ThemeMode } from '@/types';
+import type { OnlineAdmissionEmailTemplates, ThemeMode } from '@/types';
 
 export interface OrganizationSettingsFormData {
     name: string;
@@ -10,6 +10,8 @@ export interface OrganizationSettingsFormData {
         primary: string;
         mode: ThemeMode;
     };
+    onlineAdmissionsEnabled: boolean;
+    onlineAdmissionEmailTemplates: OnlineAdmissionEmailTemplates;
 }
 
 export interface OrganizationSettingsFormErrors {
@@ -19,5 +21,7 @@ export interface OrganizationSettingsFormErrors {
     phone?: string;
     currency?: string;
     accentColor?: string;
+    onlineAdmissionsEnabled?: string;
+    onlineAdmissionEmailTemplates?: string;
     general?: string;
 }

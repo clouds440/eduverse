@@ -1,5 +1,5 @@
 import type {
-    Teacher, Student, Organization, RegisterRequest, RegisterIntentResponse, LoginRequest, PrepareLoginResponse, AuthResponse, ContactEmailStatus,
+    Teacher, Student, Organization, RegisterRequest, RegisterIntentResponse, LoginRequest, PrepareLoginResponse, AuthResponse, ContactEmailStatus, HumanVerificationPurpose, HumanVerificationChallenge,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
     CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
@@ -27,7 +27,7 @@ import type {
     ApproveTrustedDevicePayload, PendingDeviceApprovalContext, RecipientEncryptionDevicesResponse, RegisterChatHistoryKeyPayload, RegisterTrustedDevicePayload, SendChatMessagePayload,
     TrustedDeviceRegistrationResponse, TrustedDevicesResponse, TwoFactorChallenge, TwoFactorLoginMethod,
     ChatDeviceHistoryGrantPayload,
-    Program, ProgramStatus, CurriculumStatus, CreateProgramRequest, ProgramConfigurationRevision, ProgramDeliveryOption, ProgramOffering, ProgramOfferingReadiness, CreateProgramOfferingRequest, StudentProgramEnrollment, StudentProgressionPreview, ProgressionWorkbenchPreview, BulkProgressionItem, BulkProgressionResult,
+    Program, ProgramStatus, CurriculumStatus, CreateProgramRequest, ProgramConfigurationRevision, ProgramDeliveryOption, ProgramOffering, ProgramOfferingReadiness, CreateProgramOfferingRequest, OnlineAdmissionDocumentRequirement, OnlineAdmissionDocumentRequirementInput, OnlineAdmissionSubmission, OnlineAdmissionSubmissionStatus, PublicOnlineAdmissionOrganization, PublicOnlineAdmissionOrganizationDetail, PublicOnlineAdmissionOffering, PublicOnlineAdmissionUpdateSubmission, CreateOnlineAdmissionSubmissionRequest, StudentProgramEnrollment, StudentProgressionPreview, ProgressionWorkbenchPreview, BulkProgressionItem, BulkProgressionResult,
     AcademicCycleArchiveStatusResponse, PastRecordFilters, PastRecordOptions, PastRecordSectionDetail, PastRecordSectionSummary, PastRecordStudentSummary,
     CohortSectionExpansionPreview, CourseResultScheme, CourseResultSchemePreview, UpsertCourseResultSchemeRequest,
 } from '@/types';
@@ -168,6 +168,28 @@ function buildQueryString(params: QueryParams): string {
         .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
         .join('&');
     return query ? `?${query}` : '';
+}
+
+function buildOnlineAdmissionSubmissionBody(data: CreateOnlineAdmissionSubmissionRequest) {
+    const documents = data.documents || {};
+    const files = Object.entries(documents).filter(([, file]) => file instanceof File) as Array<[string, File]>;
+    if (files.length === 0) {
+        const { documents: _documents, ...payload } = data;
+        return JSON.stringify(payload);
+    }
+    const form = new FormData();
+    const { documents: _documents, ...payload } = data;
+    form.append('payload', JSON.stringify(payload));
+    files.forEach(([requirementId, file]) => form.append(`document:${requirementId}`, file));
+    return form;
+}
+
+function buildOnlineAdmissionDocumentsBody(documents: Record<string, File | null | undefined>) {
+    const form = new FormData();
+    Object.entries(documents).forEach(([requirementId, file]) => {
+        if (file instanceof File) form.append(`document:${requirementId}`, file);
+    });
+    return form;
 }
 
 function parseApiErrorData(data: unknown, fallback: string) {
@@ -1437,6 +1459,11 @@ export const api = {
             request<{ valid: boolean; archiveId: string; checksum: string }>(`/org/academic-cycles/${id}/archive/verify`, { token }),
     },
 
+    humanVerification: {
+        createChallenge: (purpose: HumanVerificationPurpose) =>
+            request<HumanVerificationChallenge>(`/public/human-verification/challenge${buildQueryString({ purpose })}`),
+    },
+
     pastRecords: {
         options: (token: string, params: PastRecordFilters = {}) =>
             request<PastRecordOptions>(`/org/past-records/options${buildQueryString(params)}`, { token }),
@@ -1482,10 +1509,48 @@ export const api = {
             request<ProgramOffering>(`/org/program-offerings/${id}`, { token }),
         readiness: (id: string, token: string) =>
             request<ProgramOfferingReadiness>(`/org/program-offerings/${id}/readiness`, { token }),
+        getOnlineAdmissionRequirements: (id: string, token: string) =>
+            request<OnlineAdmissionDocumentRequirement[]>(`/org/program-offerings/${id}/online-admission-requirements`, { token }),
+        replaceOnlineAdmissionRequirements: (id: string, requirements: OnlineAdmissionDocumentRequirementInput[], token: string) =>
+            request<OnlineAdmissionDocumentRequirement[]>(`/org/program-offerings/${id}/online-admission-requirements`, { method: 'PUT', body: JSON.stringify({ requirements }), token }),
         create: (data: CreateProgramOfferingRequest, token: string) =>
             request<ProgramOffering>('/org/program-offerings', { method: 'POST', body: JSON.stringify(data), token }),
         update: (id: string, data: Partial<Omit<CreateProgramOfferingRequest, 'programId' | 'curriculumVersionId' | 'academicCycleId'>>, token: string) =>
             request<ProgramOffering>(`/org/program-offerings/${id}`, { method: 'PATCH', body: JSON.stringify(data), token }),
+    },
+
+    publicOnlineAdmissions: {
+        listOrganizations: (params: { search?: string } = {}) =>
+            request<PublicOnlineAdmissionOrganization[]>(`/public/online-admissions/organizations${buildQueryString(params)}`),
+        getOrganization: (slug: string) =>
+            request<PublicOnlineAdmissionOrganizationDetail>(`/public/online-admissions/organizations/${slug}`),
+        getOffering: (id: string) =>
+            request<PublicOnlineAdmissionOffering>(`/public/online-admissions/offerings/${id}`),
+        submit: (offeringId: string, data: CreateOnlineAdmissionSubmissionRequest) =>
+            request<{ reference: string; status: OnlineAdmissionSubmissionStatus }>(`/public/online-admissions/offerings/${offeringId}/submissions`, {
+                method: 'POST',
+                body: buildOnlineAdmissionSubmissionBody(data),
+            }),
+        getUpdateSubmission: (token: string) =>
+            request<PublicOnlineAdmissionUpdateSubmission>(`/public/online-admissions/submissions/update/${encodeURIComponent(token)}`),
+        uploadUpdateDocuments: (token: string, documents: Record<string, File | null | undefined>) =>
+            request<PublicOnlineAdmissionUpdateSubmission>(`/public/online-admissions/submissions/update/${encodeURIComponent(token)}/documents`, {
+                method: 'POST',
+                body: buildOnlineAdmissionDocumentsBody(documents),
+            }),
+    },
+
+    onlineAdmissions: {
+        list: (token: string, params: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; status?: string; departmentId?: string; programId?: string; programOfferingId?: string; academicCycleId?: string; submittedFrom?: string; submittedTo?: string; missingRequiredDocuments?: boolean } = {}) =>
+            request<PaginatedResponse<OnlineAdmissionSubmission> & { statusCounts?: Record<string, number> }>(`/org/online-admissions${buildQueryString(params)}`, { token }),
+        exportUrl: (params: { search?: string; status?: string; departmentId?: string; programId?: string; programOfferingId?: string; academicCycleId?: string; submittedFrom?: string; submittedTo?: string; missingRequiredDocuments?: boolean } = {}) =>
+            `/org/online-admissions/export.csv${buildQueryString(params)}`,
+        get: (id: string, token: string) =>
+            request<OnlineAdmissionSubmission>(`/org/online-admissions/${id}`, { token }),
+        updateStatus: (id: string, data: { status: OnlineAdmissionSubmissionStatus; note?: string }, token: string) =>
+            request<OnlineAdmissionSubmission>(`/org/online-admissions/${id}/status`, { method: 'PATCH', body: JSON.stringify(data), token }),
+        markAdmitted: (id: string, data: { studentId: string; note?: string }, token: string) =>
+            request<OnlineAdmissionSubmission>(`/org/online-admissions/${id}/admit`, { method: 'PATCH', body: JSON.stringify(data), token }),
     },
 
     studentPrograms: {

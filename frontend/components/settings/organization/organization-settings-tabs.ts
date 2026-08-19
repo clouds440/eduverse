@@ -2,6 +2,7 @@ import {
     Building2,
     BellRing,
     Coins,
+    FileCheck2,
     Palette,
     School,
     ShieldCheck,
@@ -15,6 +16,7 @@ export type OrganizationSettingsTabKey =
     | 'profile'
     | 'appearance'
     | 'preferences'
+    | 'admissions'
     | 'finance'
     | 'ai'
     | 'gpa-policies'
@@ -30,6 +32,7 @@ export const ORGANIZATION_SETTINGS_TABS: readonly OrganizationSettingsTabDefinit
     { key: 'profile', label: 'Profile', icon: Building2 },
     { key: 'appearance', label: 'Appearance', icon: Palette },
     { key: 'preferences', label: 'Preferences', icon: BellRing },
+    { key: 'admissions', label: 'Admissions', icon: FileCheck2, allowedRoles: [Role.ORG_ADMIN] },
     { key: 'finance', label: 'Finance', icon: Coins },
     { key: 'ai', label: 'EduVerse Copilot', icon: CopilotIcon },
     {
