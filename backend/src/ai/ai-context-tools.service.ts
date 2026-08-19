@@ -28,7 +28,7 @@ export class AIContextToolsService implements OnModuleInit {
     this.toolRegistry.register({
       name: 'getEduVerseContext',
       description:
-        'General orchestration context tool for compound Copilot requests. Accepts intent/search/date/startDate/endDate/include and returns separated EduVerse context sections for entities, schedule, academic, operations, policy/docs/flows/routes, communication, and finance without mutating records.',
+        'General orchestration context tool for compound Copilot requests. Accepts intent/search/date/startDate/endDate/include and returns separated EduVerse context sections for entities, schedule, academic, online admissions, operations, policy/docs/flows/routes, communication, and finance without mutating records.',
       run: async (input: unknown, context) => this.getEduVerseContext(parseInput(input), context),
     });
 
@@ -129,6 +129,10 @@ export class AIContextToolsService implements OnModuleInit {
     }
     if (include.has('communication')) addOnce('getCommunicationContext', { search, limit: input.limit ?? 6 });
     if (include.has('finance')) addOnce('getFinanceSummary', { search, limit: input.limit ?? 6 });
+    if (include.has('admissions')) {
+      addOnce('getOnlineAdmissionsContext', { search, limit: input.limit ?? 8 });
+      addOnce('getOnlineAdmissionOfferingReadiness', { search, limit: input.limit ?? 8 });
+    }
     if (include.has('relationships')) {
       addOnce('resolveEduVerseEntities', { search, entities: input.entities?.length ? input.entities : inferEntityKinds(search), limit: input.limit ?? 8 });
       addOnce('getSectionRelationshipContext', { search, limit: input.limit ?? 8 });
@@ -426,7 +430,7 @@ function parseInput(input: unknown): ContextToolInput {
 function normalizeIncludes(input: ContextToolInput) {
   const include = new Set((input.include?.length ? input.include : ['entities', 'knowledge']).map((item) => item.toLowerCase()));
   if (include.has('all')) {
-    return new Set(['entities', 'knowledge', 'policy', 'schedule', 'academic', 'operations', 'communication', 'finance', 'relationships', 'planning', 'enrollment']);
+    return new Set(['entities', 'knowledge', 'policy', 'schedule', 'academic', 'admissions', 'operations', 'communication', 'finance', 'relationships', 'planning', 'enrollment']);
   }
   return include;
 }
@@ -436,6 +440,7 @@ function friendlyToolSection(name: string) {
   if (name.includes('Flows')) return 'Workflow guide';
   if (name.includes('Routes')) return 'Navigation';
   if (name.includes('Schedule')) return 'Schedule';
+  if (name.includes('Admission')) return 'Online admissions';
   if (name.includes('Academic') || name.includes('Course') || name.includes('Section') || name.includes('Student') || name.includes('Teacher')) return 'Academic records';
   if (name.includes('Operations') || name.includes('Calendar') || name.includes('Campus') || name.includes('Announcement') || name.includes('Preference')) return 'Operations';
   if (name.includes('Communication') || name.includes('Mail')) return 'Communication';

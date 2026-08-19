@@ -29,11 +29,7 @@ export class CreateOnlineAdmissionSubmissionDto {
 
   @IsString()
   @IsNotEmpty()
-  challengeId?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  challengeAnswer?: string;
+  captchaToken!: string;
 }
 
 export class UpdateOnlineAdmissionSubmissionStatusDto {

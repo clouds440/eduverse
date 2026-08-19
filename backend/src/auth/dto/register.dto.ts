@@ -48,9 +48,5 @@ export class RegisterDto {
 
   @IsString()
   @IsNotEmpty()
-  challengeId?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  challengeAnswer?: string;
+  captchaToken!: string;
 }

@@ -3,6 +3,7 @@ import { AttendanceModule } from '../attendance/attendance.module';
 import { EvaluationsModule } from '../evaluations/evaluations.module';
 import { InsightsModule } from '../insights/insights.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { OnlineAdmissionsModule } from '../online-admissions/online-admissions.module';
 import { AIAcademicToolsService } from './ai-academic-tools.service';
 import { AIBillingService } from './ai-billing.service';
 import { AIContextToolsService } from './ai-context-tools.service';
@@ -19,6 +20,7 @@ import {
   AIProviderService,
 } from './ai-provider.service';
 import { AIOperationsToolsService } from './ai-operations-tools.service';
+import { AIOnlineAdmissionsToolsService } from './ai-online-admissions-tools.service';
 import { AIPerformanceToolsService } from './ai-performance-tools.service';
 import { AIScheduleToolsService } from './ai-schedule-tools.service';
 import { AIService } from './ai.service';
@@ -28,7 +30,7 @@ import { AIToolRegistryService } from './ai-tool-registry.service';
 import { AIUsageService } from './ai-usage.service';
 
 @Module({
-  imports: [PrismaModule, AttendanceModule, EvaluationsModule, InsightsModule],
+  imports: [PrismaModule, AttendanceModule, EvaluationsModule, InsightsModule, OnlineAdmissionsModule],
   controllers: [AIController],
   providers: [
     AIAcademicToolsService,
@@ -43,6 +45,7 @@ import { AIUsageService } from './ai-usage.service';
     AIKnowledgeService,
     AILangChainProviderAdapter,
     AIOperationsToolsService,
+    AIOnlineAdmissionsToolsService,
     AIPerformanceToolsService,
     AIProviderService,
     AIScheduleToolsService,
@@ -64,6 +67,7 @@ import { AIUsageService } from './ai-usage.service';
     AIFreeQuotaService,
     AIKnowledgeService,
     AIOperationsToolsService,
+    AIOnlineAdmissionsToolsService,
     AIPerformanceToolsService,
     AIProviderService,
     AIScheduleToolsService,

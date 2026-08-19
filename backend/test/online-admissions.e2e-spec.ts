@@ -21,6 +21,7 @@ import { AppModule } from '../src/app.module';
 import { AccessLevel } from '../src/common/access-control/access-level.enum';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { EmailService } from '../src/security/email.service';
+import { CaptchaService } from '../src/captcha/captcha.service';
 
 const ids = {
   org: 'admissions-e2e-org',
@@ -50,6 +51,8 @@ describe('Online admissions API (disposable database)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(EmailService)
       .useValue({ send: jest.fn().mockResolvedValue(undefined) })
+      .overrideProvider(CaptchaService)
+      .useValue({ verifyToken: jest.fn().mockResolvedValue(undefined) })
       .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
@@ -245,32 +248,18 @@ describe('Online admissions API (disposable database)', () => {
     return token;
   }
 
-  async function challengeAnswer(purpose: string) {
-    const response = await request(app.getHttpServer())
-      .get('/public/human-verification/challenge')
-      .query({ purpose })
-      .expect(200);
-    const match = String(response.body.prompt).match(/(\d+)\s*([+\-x])\s*(\d+)/);
-    if (!match) throw new Error('Unexpected challenge prompt');
-    const left = Number(match[1]);
-    const right = Number(match[3]);
-    const answer = match[2] === '+' ? left + right : match[2] === '-' ? left - right : left * right;
-    return { challengeId: response.body.challengeId, challengeAnswer: String(answer) };
-  }
-
-  it('allows public discovery and a challenge-verified submission without authentication', async () => {
+  it('allows public discovery and a CAPTCHA-verified submission without authentication', async () => {
     const organizations = await request(app.getHttpServer())
       .get('/public/online-admissions/organizations')
       .expect(200);
     expect(organizations.body[0]).toMatchObject({ slug: 'admissions-institute' });
-    const verification = await challengeAnswer('ONLINE_ADMISSION');
     const submitted = await request(app.getHttpServer())
       .post(`/public/online-admissions/offerings/${computing.offering.id}/submissions`)
       .send({
         applicantName: 'Public Applicant',
         applicantEmail: 'public-applicant@example.test',
         formData: { gender: 'Other' },
-        ...verification,
+        captchaToken: 'captcha-token',
       })
       .expect(201);
     expect(submitted.body).toMatchObject({ status: OnlineAdmissionSubmissionStatus.SUBMITTED });

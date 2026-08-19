@@ -1,9 +1,12 @@
 # EduVerse - Technical Design Document
 
-**Version:** 3.0.0
-**Date:** August 2026
+**Version:** 3.1.0
+**Document Revision Date:** August 19, 2026
 **Repository:** `clouds440/eduverse`  
 **Document Type:** Technical Design Document (TDD)
+
+> **License: PolyForm Noncommercial 1.0.0**
+> Commercial use, resale, or commercial deployment is not permitted without a separate license from the copyright holder.
 
 ---
 
@@ -74,6 +77,8 @@ The application is web-first and responsive. It uses a NestJS backend, PostgreSQ
 - Password strength, password reset, sessions, and audit logging.
 - Optional email-code and trusted-device two-factor authentication.
 - Linked Google sign-in, verified contact emails, and preference-aware login alerts.
+- Public online admissions with program discovery, required-document uploads, email updates, department-scoped review, rejection retention, and student conversion.
+- Self-hosted Cap proof-of-work verification for organization registration, suspicious sign-in, and public admission submission.
 
 ---
 
@@ -170,9 +175,11 @@ backend/
   src/
     academic-cycles/
     admin/
+    ai/
     announcements/
     attendance/
     auth/
+    captcha/
     chat/
     cohorts/
     common/
@@ -187,9 +194,12 @@ backend/
     insights/
     mail/
     notifications/
+    online-admissions/
     org/
     prisma/
     promotions/
+    program-offerings/
+    programs/
     sections/
     students/
     guardians/
@@ -557,6 +567,21 @@ Key invariants:
 - Hold, resume, withdrawal, stage activation, completion, skip, repeat, transfer, and final program completion are explicit commands with actor/reason metadata.
 - Section and enrollment history can reference the major, stage enrollment, and cohort membership that produced the placement.
 
+### Online Admissions
+
+`OnlineAdmissionSubmission` keeps public applications separate from admitted student accounts until an authorized administrator completes conversion.
+
+Key records and rules:
+
+- Organization settings explicitly enable or disable public admissions and store applicant email templates.
+- `ProgramOffering.onlineAdmissionEnabled` controls whether one active offering accepts public applications.
+- `OnlineAdmissionDocumentRequirement` defines labeled required or optional uploads, accepted file types, ordering, and size limits for that offering.
+- A submission snapshots applicant form data, program, department, offering, cycle, contact email, status history, and uploaded-document labels.
+- Applicants do not need an account. Expiring email links allow requested document updates without exposing internal records.
+- Review is organization- and department-scoped. Rejected and withdrawn records remain auditable instead of being deleted.
+- Student conversion preloads the normal admission form, permits an administrator to correct data and choose the final login email, and links the admitted student atomically.
+- Public submission, organization registration, and suspicious login use separate, single-use Cap CAPTCHA token scopes.
+
 ### Academic Cycle Archives and Past Records
 
 Archive data is a verified read model, not a live query with an old-cycle filter.
@@ -594,6 +619,7 @@ Main responsibilities:
 - Linked Google account management and use of its verified email as the contact email.
 - Login email and push alerts governed by the centralized user settings context.
 - Guards and decorators for role and organization context.
+- Purpose-isolated Cap challenge and token verification for bot-sensitive public operations.
 
 The backend resolves the complete user settings context through `UserSettingsContextService`. Feature services consume that context instead of independently querying individual preference booleans. The frontend mirrors this with `UserSettingsProvider`, which loads one canonical settings object and exposes shared refresh/update operations.
 
@@ -607,6 +633,7 @@ Selected routes:
 - `GET /auth/google/login`, `/google/link`, and `/google/callback`
 - `GET /auth/sessions` plus session revocation routes
 - `PATCH /admin/organizations/:id/contact-email/recovery`
+- `POST /public/captcha/:purpose/challenge|redeem`
 
 ### Org Module
 
@@ -725,9 +752,23 @@ Selected routes under `/org/students/:studentId/program-enrollments`:
 
 Admission and transfer commands snapshot the active curriculum and program configuration. Student creation and Manage Enrollment use these commands instead of manually patching a department or program ID.
 
-### Program Offerings
+### Program Offerings and Online Admissions
 
-`GET /public/organizations/:slug/program-offerings` is public and applicant-safe. It returns only programs whose organization and department are active, whose program is active and admissions-visible, and whose current revision/default curriculum/stage structure is complete. The projection contains no internal actor, audit, or unrestricted curriculum fields. Online application submission itself remains outside this release.
+`ProgramOfferingsModule` manages cycle-specific program delivery, online-admission availability, instructions, and document requirements. `OnlineAdmissionsModule` owns public discovery and submission, applicant update links, department-scoped review, status transitions, export, protected document downloads, and final student linkage.
+
+Selected routes:
+
+- `GET /public/online-admissions/organizations`
+- `GET /public/online-admissions/organizations/:slug`
+- `GET /public/online-admissions/offerings/:id`
+- `POST /public/online-admissions/offerings/:id/submissions`
+- `GET|PATCH /public/online-admissions/submissions/update/:token`
+- `GET /org/online-admissions` and `/org/online-admissions/:id`
+- `PATCH /org/online-admissions/:id/status|admit`
+- `GET /org/online-admissions/export.csv`
+- document requirement routes under `/org/program-offerings/:id/online-admission-requirements`
+
+Public responses use applicant-safe projections and never expose internal template configuration, storage identifiers, source IP fingerprints, or reviewer-only state.
 
 ### Academic Cycle Archives and Past Records
 
@@ -1012,6 +1053,16 @@ The linked Google email option follows the same old-address confirmation rule wh
 6. One transaction creates the program, revision 1, draft curriculum, stages, and requirements.
 7. Admin reviews the generated curriculum, activates a complete version as the admissions default, then activates the program.
 
+### Online Admission Setup and Review
+
+1. Org Admin enables Online Admissions in organization settings and reviews applicant email templates.
+2. Org Admin or department-scoped Sub Admin opens a program offering, enables online admission, adds applicant instructions, and defines required or optional document labels.
+3. An applicant browses `/admissions`, chooses an organization and offering, completes the student-style form, solves Cap verification, uploads required documents, and submits without creating an account.
+4. Org Admin, scoped Sub Admin, or Manager reviews visible applications and documents. Org Admin and Sub Admin can request updates, accept, or reject; rejected records remain available by status.
+5. A requested applicant update uses the expiring email link to supply missing documents.
+6. For an accepted submission, an authorized administrator opens the prefilled student-admission form, corrects data as needed, chooses the final login email, and creates the student.
+7. Student creation and application linkage commit atomically, then the submission becomes `ADMITTED` and outstanding update links are revoked.
+
 ### Program Change
 
 1. Metadata-only edits update the program without changing historical student plans.
@@ -1209,12 +1260,13 @@ The linked Google email option follows the same old-address confirmation rule wh
 - Student access is scoped to the signed-in student's own data.
 - Guardian access is scoped to students linked through guardian relationships.
 - Finance Manager access is scoped to finance workflows and finance-related communication.
+- Online-admission reads are available to Org Admin, department-scoped Sub Admin, and department-scoped Manager. Decisions and student conversion remain Org Admin/Sub Admin writes.
 
 | Role              | Backend authority summary                                                                               | Frontend route summary                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `ORG_ADMIN`       | Full organization management, programs across all departments, student majors, cycle archive, settings, finance, users, academic setup, grade finalization. | `/overview`, `/users/*`, `/programs/*`, `/past-records/*`, academics, finance, settings. |
-| `SUB_ADMIN`       | Delegated operations and program/major writes inside explicitly assigned departments; cannot archive cycles or manage main admin-only areas. | `/overview`, permitted `/users/*`, scoped `/programs/*`, `/past-records/*`, academics. |
-| `ORG_MANAGER`     | Assigned-section academic oversight, attendance, assessments, grades, transcripts, finalization review. | Academic monitoring routes; no finance/settings/user orchestration.                          |
+| `ORG_ADMIN`       | Full organization management, programs and admissions across all departments, student majors, cycle archive, settings, finance, users, academic setup, grade finalization. | `/overview`, `/users/*`, `/programs/*`, `/online-admissions/*`, `/past-records/*`, academics, finance, settings. |
+| `SUB_ADMIN`       | Delegated operations and program/admission/major writes inside explicitly assigned departments; cannot archive cycles or manage main admin-only areas. | `/overview`, permitted `/users/*`, scoped `/programs/*`, `/online-admissions/*`, `/past-records/*`, academics. |
+| `ORG_MANAGER`     | Assigned-department academic oversight, admission review, attendance, assessments, grades, transcripts, finalization review. | Academic monitoring and read-only scoped online-admission routes; no finance/settings/user orchestration. |
 | `FINANCE_MANAGER` | Finance structures, entries, payment claims, transactions, finance mail.                                | `/finance`, mail/chat support routes.                                                        |
 | `TEACHER`         | Assigned sections, materials, assessments, submissions, attendance, grading.                            | Teaching profile, assigned courses/sections, attendance, grades, timetable.                  |
 | `STUDENT`         | Own portal data, own finance claims, own transcript and attendance.                                     | Student portal, fees, timetable, transcript, chat.                                           |

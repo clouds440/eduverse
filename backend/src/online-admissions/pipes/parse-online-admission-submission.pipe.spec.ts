@@ -7,8 +7,7 @@ describe('ParseOnlineAdmissionSubmissionPipe', () => {
     applicantName: 'Ada Lovelace',
     applicantEmail: 'ada@example.com',
     formData: {},
-    challengeId: 'challenge-1',
-    challengeAnswer: '7',
+    captchaToken: 'captcha-token',
   };
 
   it('parses and validates multipart JSON payloads', async () => {

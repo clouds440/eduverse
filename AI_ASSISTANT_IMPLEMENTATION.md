@@ -37,6 +37,7 @@ The core split stays strict:
 - [x] Phase 19: Real LangChain/Gemini provider, Lemon Squeezy billing, and conversation retention cleanup
 - [x] Phase 20: Separate AI usage, settings, and subscription flows
 - [x] Phase 21: Public docs and TDD refresh for AI role capabilities and payment flows
+- [x] Phase 22: Department-scoped online admissions context and offering-readiness tools
 
 ## Current System Findings
 
@@ -1189,7 +1190,7 @@ E2E:
 
 ## Stop Point
 
-Phase 0 through Phase 17 implementation notes:
+Phase 0 through Phase 22 implementation notes:
 
 - Phase 0 confirmed the backend/frontend separation: backend owns Copilot intelligence, permissions, subscriptions, credits, tools, audit, docs retrieval, and provider integration; frontend owns Copilot UX.
 - Phase 1 produced this Copilot-focused implementation plan and tracker.
@@ -1213,5 +1214,6 @@ Phase 0 through Phase 17 implementation notes:
 - Phase 19 replaced the placeholder provider with a real LangChain Gemini provider path, added model-driven backend tool planning with deterministic fallback routing, added general AI model env configuration, installed real LangChain/Gemini dependencies, added Lemon Squeezy checkout/portal/webhook billing integration with durable Lemon Squeezy subscription fields, wired org and personal billing UI flows to Lemon Squeezy, and added scheduled deletion of expired Copilot conversations.
 - Phase 20 separated AI usage, org settings, and subscription management into distinct frontend flows. `/ai` is now a gated usage dashboard with a link to subscriptions, `/ai/subscription` owns org and personal package checkout/portal actions, org settings only shows AI role/credit configuration when an active org AI subscription exists, and the Copilot disabled state points users to subscribe. The Copilot composer was restyled to match the main chat input pattern without chat-only attachments/features.
 - Phase 21 updated user-facing docs for AI Copilot role capabilities and payment/billing process, kept public AI docs provider-neutral, added the new docs pages to navigation, and refreshed the TDD with the current checkout, portal, webhook, provider, and test coverage requirements.
+- Phase 22 added read-only online-admissions context and offering-readiness tools, department-scoped applicant summaries, admissions-aware deterministic routing, public documentation and workflow/route knowledge, and focused permission tests.
 
 Next implementation phase: production rollout polish, provider observability, Lemon Squeezy webhook end-to-end testing, and deeper role/scope test coverage.

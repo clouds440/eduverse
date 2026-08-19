@@ -103,19 +103,6 @@ model Organization {
   @@index([type])
 }
 
-model HumanVerificationChallenge {
-  id         String   @id @default(uuid())
-  purpose    String
-  answerHash String
-  attempts   Int      @default(0)
-  expiresAt  DateTime
-  usedAt     DateTime?
-  createdAt  DateTime @default(now())
-
-  @@index([purpose, expiresAt])
-  @@index([createdAt])
-}
-
 model User {
   id                                 String               @id @default(uuid())
   email                              String               @unique

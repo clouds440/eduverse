@@ -50,13 +50,13 @@ import { GradeEvidenceModule } from './grade-evidence/grade-evidence.module';
 import { ProgramOfferingsModule } from './program-offerings/program-offerings.module';
 import { HealthModule } from './health/health.module';
 import { OnlineAdmissionsModule } from './online-admissions/online-admissions.module';
-import { HumanVerificationModule } from './human-verification/human-verification.module';
+import { CaptchaModule } from './captcha/captcha.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EmailTemplatesModule,
-    HumanVerificationModule,
+    CaptchaModule,
     ActivityLogsModule,
     ScheduleModule.forRoot(),
     HealthModule,

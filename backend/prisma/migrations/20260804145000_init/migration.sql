@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "GpaCalculationMethod" AS ENUM ('SIMPLE_AVERAGE', 'WEIGHTED_BY_CREDIT_HOURS');
 

@@ -1,5 +1,7 @@
 # EduVerse Copilot V1 Current State
 
+**Revision:** August 19, 2026
+
 This document summarizes the currently implemented EduVerse Copilot V1 so it can be shared with another AI chat when discussing capabilities, gaps, and V2 design.
 
 ## Product Positioning
@@ -235,7 +237,7 @@ Implemented tools:
 - `getPolicyContext`
 - `getCommunicationContext`
 
-These tools are meant to reduce one-off scenario tools. They orchestrate existing tools and return separated context sections so the response model can combine data across docs, flows, routes, schedules, academic records, operations, communication, finance, relationships, planning, and enrollment feasibility.
+These tools are meant to reduce one-off scenario tools. They orchestrate existing tools and return separated context sections so the response model can combine data across docs, flows, routes, schedules, academic records, online admissions, operations, communication, finance, relationships, planning, and enrollment feasibility.
 
 ### Domain Tool Files
 
@@ -243,6 +245,7 @@ These tools are meant to reduce one-off scenario tools. They orchestrate existin
 - `ai-performance-tools.service.ts`
 - `ai-schedule-tools.service.ts`
 - `ai-operations-tools.service.ts`
+- `ai-online-admissions-tools.service.ts`
 - `ai-entity-resolver.service.ts`
 - `ai-knowledge.service.ts`
 - `ai-routes.source.ts`
@@ -261,6 +264,7 @@ Available context includes:
 - attendance risk
 - students needing attention
 - operations context for calendar, rooms/buildings, announcements, and preference windows
+- department-scoped online admission status, applicant, document-completion, and offering-readiness context
 - communication context for visible mail and announcements
 - AI credit status and usage summaries
 
@@ -376,6 +380,7 @@ backend/src/ai/
   ai-performance-tools.service.ts
   ai-schedule-tools.service.ts
   ai-operations-tools.service.ts
+  ai-online-admissions-tools.service.ts
   ai-entity-resolver.service.ts
   ai-knowledge.service.ts
   ai-conversation.service.ts
@@ -446,4 +451,3 @@ packages/docs/
 - Older conversation memory is not yet summarized into durable long-term memory.
 - Planner and response quality still depend on the selected model's reasoning strength.
 - Tool coverage is broad but should be expanded only when new durable domain entities or workflows are added.
-

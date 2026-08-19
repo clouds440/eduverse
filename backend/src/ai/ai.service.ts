@@ -877,6 +877,19 @@ function selectRelevantTools(
     add('getProgramContext', { search: prompt, limit: 8 });
   }
 
+  if (mentionsAny(text, ['online admission', 'admission application', 'applicant', 'application status', 'missing document', 'rejected application', 'accepted application'])) {
+    add('getOnlineAdmissionsContext', {
+      search: prompt,
+      limit: 10,
+      missingRequiredDocuments: mentionsAny(text, ['missing document', 'incomplete document']),
+      ...(mentionsAny(text, ['rejected application', 'rejected admission']) ? { status: 'REJECTED' } : {}),
+      ...(mentionsAny(text, ['accepted application', 'accepted admission']) ? { status: 'ACCEPTED' } : {}),
+    });
+    if (mentionsAny(text, ['offering', 'open', 'enabled', 'ready', 'document requirement', 'application window'])) {
+      add('getOnlineAdmissionOfferingReadiness', { search: prompt, limit: 10, includeDisabled: true });
+    }
+  }
+
   if (mentionsAny(text, ['attendance', 'absent', 'late', 'risk'])) {
     if (role === 'STUDENT' || role === 'GUARDIAN') add('getAcademicPerformanceProfile', { ...input, targetType: 'student' });
     else add('getAttendanceRisk', input);
@@ -1028,7 +1041,7 @@ function classifyCopilotRequest(prompt: string, role?: string): CopilotRequestPo
     return {
       kind: 'mixed',
       skipPlanner: false,
-      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'resolveEduVerseEntities', 'getProgramContext', 'getAcademicPerformanceProfile', 'getScheduleContext', 'searchFlows', 'searchDocs', 'searchRoutes'],
+      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'getOnlineAdmissionsContext', 'getOnlineAdmissionOfferingReadiness', 'resolveEduVerseEntities', 'getProgramContext', 'getAcademicPerformanceProfile', 'getScheduleContext', 'searchFlows', 'searchDocs', 'searchRoutes'],
       responseContract: 'Combine workflow guidance and live EduVerse data. Separate known facts, recommendation, and next steps. Ask at most one question only if a required choice is missing.',
     };
   }
@@ -1044,7 +1057,7 @@ function classifyCopilotRequest(prompt: string, role?: string): CopilotRequestPo
     return {
       kind: 'live-data',
       skipPlanner: false,
-      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'resolveEduVerseEntities', 'getProgramContext', 'getAcademicPerformanceProfile', 'getScheduleContext', 'getOperationsContext', 'getCommunicationContext'],
+      preferredTools: ['getEduVerseContext', 'getEntityRelationshipContext', 'getAcademicPlanningContext', 'getEnrollmentFeasibilityContext', 'getOnlineAdmissionsContext', 'getOnlineAdmissionOfferingReadiness', 'resolveEduVerseEntities', 'getProgramContext', 'getAcademicPerformanceProfile', 'getScheduleContext', 'getOperationsContext', 'getCommunicationContext'],
       responseContract: 'Use live backend context. Explain empty results precisely: target missing, target found with no child records, permission denied, or partial data.',
     };
   }
@@ -1117,6 +1130,9 @@ function isLiveDataQuery(value: string) {
     'graduat',
     'semester',
     'academic cycle',
+    'online admission',
+    'admission application',
+    'applicant',
   ]);
 }
 
@@ -1150,6 +1166,7 @@ function inferEduVerseContextIncludes(value: string, role?: string) {
   if (mentionsAny(value, ['room', 'building', 'announcement', 'calendar', 'event', 'academic event', 'poll', 'preference'])) include.add('operations');
   if (mentionsAny(value, ['mail', 'message', 'communication'])) include.add('communication');
   if (mentionsAny(value, ['finance', 'fee', 'payment', 'salary']) || role === 'FINANCE_MANAGER') include.add('finance');
+  if (mentionsAny(value, ['online admission', 'admission application', 'applicant', 'application status', 'missing document'])) include.add('admissions');
   return Array.from(include);
 }
 
@@ -1293,6 +1310,7 @@ function includesCoveredByTool(name: string) {
   if (name === 'getOperationsContext') return ['operations'];
   if (name === 'getCommunicationContext') return ['communication'];
   if (name === 'getFinanceSummary') return ['finance'];
+  if (name === 'getOnlineAdmissionsContext' || name === 'getOnlineAdmissionOfferingReadiness') return ['admissions'];
   if (name === 'getEntityRelationshipContext') return ['relationships'];
   if (name === 'getAcademicPlanningContext') return ['planning'];
   if (name === 'getEnrollmentFeasibilityContext') return ['enrollment'];

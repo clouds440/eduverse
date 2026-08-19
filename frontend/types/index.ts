@@ -750,8 +750,7 @@ export interface RegisterRequest {
     contactEmail: string;
     phone?: string;
     password: string;
-    challengeId: string;
-    challengeAnswer: string;
+    captchaToken: string;
 }
 
 export interface OnlineAdmissionEmailTemplates {
@@ -761,18 +760,7 @@ export interface OnlineAdmissionEmailTemplates {
     statusBody?: string;
 }
 
-export type HumanVerificationPurpose = 'ONLINE_ADMISSION' | 'ORG_REGISTRATION' | 'LOGIN';
-
-export interface HumanVerificationChallenge {
-    challengeId: string;
-    prompt: string;
-    expiresAt: string;
-}
-
-export interface HumanVerificationValue {
-    challengeId: string;
-    challengeAnswer: string;
-}
+export type CaptchaPurpose = 'ONLINE_ADMISSION' | 'ORG_REGISTRATION' | 'LOGIN';
 
 export interface RegisterIntentResponse {
     token: string;
@@ -788,8 +776,7 @@ export interface LoginRequest {
     browser?: string;
     os?: string;
     loginPreparationId?: string | null;
-    challengeId?: string;
-    challengeAnswer?: string;
+    captchaToken?: string;
 }
 
 export interface PrepareLoginResponse {
@@ -3841,8 +3828,7 @@ export interface CreateOnlineAdmissionSubmissionRequest {
     applicantPhone?: string;
     formData: Record<string, unknown>;
     documents?: Record<string, File | null | undefined>;
-    challengeId: string;
-    challengeAnswer: string;
+    captchaToken: string;
 }
 
 export interface PublicOnlineAdmissionUpdateSubmission {

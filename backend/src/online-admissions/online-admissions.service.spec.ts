@@ -25,8 +25,8 @@ function createService(prismaOverrides: Record<string, unknown> = {}, filesOverr
   const emailTemplates: any = {
     buildOnlineAdmissionStatusEmail: jest.fn().mockReturnValue({ subject: 'Application update', text: 'Updated', html: '<p>Updated</p>' }),
   };
-  const humanVerification: any = { verify: jest.fn().mockResolvedValue(undefined) };
-  return { service: new OnlineAdmissionsService(prisma, email, config, files, emailTemplates, humanVerification), prisma, files, email };
+  const captcha: any = { verifyToken: jest.fn().mockResolvedValue(undefined) };
+  return { service: new OnlineAdmissionsService(prisma, email, config, files, emailTemplates, captcha), prisma, files, email };
 }
 
 function adminSubmission(overrides: Record<string, unknown> = {}) {

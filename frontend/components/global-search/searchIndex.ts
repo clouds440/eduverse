@@ -3,8 +3,10 @@ import {
     Bell,
     Building,
     Calendar,
+    FileCheck2,
     FileText,
     GraduationCap,
+    GitBranch,
     Key,
     ListChecks,
     Mail,
@@ -59,11 +61,16 @@ const SHORTHANDS: Record<string, string[]> = {
 
 const GROUP_BY_ID: Record<string, RouteSearchGroup> = {
     ACADEMIC_CYCLES: 'Academic',
+    AI_COPILOT: 'Navigation',
+    ASSESSMENTS: 'Academic',
     ATTENDANCE: 'Academic',
     COHORTS: 'Academic',
     COURSES: 'Academic',
     DEPARTMENTS: 'Academic',
     PROGRAMS: 'Academic',
+    ONLINE_ADMISSIONS: 'Academic',
+    PROGRESSION: 'Academic',
+    REASSIGNMENT: 'Academic',
     EVALUATIONS: 'Academic',
     GRADE_FINALIZATION: 'Academic',
     GRADES: 'Academic',
@@ -79,11 +86,23 @@ const GROUP_BY_ID: Record<string, RouteSearchGroup> = {
     TRANSCRIPTS: 'Academic',
     FINANCE: 'Finance',
     FEES: 'Finance',
+    MY_FINANCE: 'Finance',
+    TEACHER_FINANCE: 'Finance',
     SETTINGS: 'Settings',
     PROFILE: 'Settings',
 };
 
 const ROUTE_METADATA: Record<string, Pick<RouteSearchItem, 'description' | 'aliases' | 'keywords'>> = {
+    AI_COPILOT: {
+        description: 'Ask role-aware questions using live EduVerse context',
+        aliases: ['copilot', 'assistant'],
+        keywords: ['ai', 'help', 'credits', 'context'],
+    },
+    ASSESSMENTS: {
+        description: 'Assignments, quizzes, exams, and submissions',
+        aliases: ['assignments', 'exams'],
+        keywords: ['assessment', 'quiz', 'submission', 'deadline'],
+    },
     ACADEMIC_CYCLES: {
         description: 'Sessions and academic years',
         aliases: ['sessions', 'terms'],
@@ -124,6 +143,21 @@ const ROUTE_METADATA: Record<string, Pick<RouteSearchItem, 'description' | 'alia
         aliases: ['majors', 'course offerings'],
         keywords: ['program', 'major', 'curriculum', 'stages'],
     },
+    ONLINE_ADMISSIONS: {
+        description: 'Review public program applications and required documents',
+        aliases: ['applications', 'applicants', 'admission portal'],
+        keywords: ['online admission', 'application', 'documents', 'accepted', 'rejected', 'admit student'],
+    },
+    PROGRESSION: {
+        description: 'Preview and resolve student program stage progression',
+        aliases: ['advance students', 'stage progression'],
+        keywords: ['progress', 'advance', 'repeat', 'hold', 'complete program'],
+    },
+    REASSIGNMENT: {
+        description: 'Move students between cohorts and sections safely',
+        aliases: ['transfer students', 'move students'],
+        keywords: ['reassign', 'transfer', 'cohort', 'section'],
+    },
     EVALUATIONS: {
         description: 'Teacher and course feedback',
         aliases: ['feedback', 'teacher feedback'],
@@ -138,6 +172,21 @@ const ROUTE_METADATA: Record<string, Pick<RouteSearchItem, 'description' | 'alia
         description: 'Finance, fee structures, entries, and transactions',
         aliases: ['payments', 'fees'],
         keywords: ['fee', 'pay', 'salary', 'salaries', 'billing'],
+    },
+    MY_FINANCE: {
+        description: 'View personal salary, payments, and finance records',
+        aliases: ['my payments', 'salary'],
+        keywords: ['finance', 'salary', 'payment', 'claim'],
+    },
+    TEACHER_FINANCE: {
+        description: 'View personal salary, payments, and finance records',
+        aliases: ['my payments', 'salary'],
+        keywords: ['finance', 'salary', 'payment', 'claim'],
+    },
+    FEEDBACK: {
+        description: 'Review teaching and course feedback',
+        aliases: ['evaluations', 'reviews'],
+        keywords: ['teacher feedback', 'rating', 'evaluation'],
     },
     GRADE_FINALIZATION: {
         description: 'Finalize grades and assessment status',
@@ -233,6 +282,16 @@ function platformSearchItems(user: JwtPayload | null): RouteSearchItem[] {
 
     const items: RouteSearchItem[] = [
         routeItem({
+            id: 'admin-overview',
+            title: 'Platform Overview',
+            href: '/admin',
+            group: 'Navigation',
+            description: 'Platform organizations, activity, and operational summary',
+            icon: Shield,
+            aliases: ['admin dashboard'],
+            keywords: ['platform', 'overview', 'dashboard'],
+        }),
+        routeItem({
             id: 'admin-organizations',
             title: 'Organizations',
             href: '/admin/organizations',
@@ -251,6 +310,16 @@ function platformSearchItems(user: JwtPayload | null): RouteSearchItem[] {
             icon: Mail,
             aliases: ['inbox', 'requests'],
             keywords: ['support', 'mail'],
+        }),
+        routeItem({
+            id: 'admin-public-mail',
+            title: 'Public Support Mail',
+            href: '/admin/mail/public',
+            group: 'Navigation',
+            description: 'Review unauthenticated contact and support requests',
+            icon: Mail,
+            aliases: ['contact messages'],
+            keywords: ['public mail', 'support', 'contact'],
         }),
         routeItem({
             id: 'admin-chat',
@@ -303,6 +372,16 @@ function platformSearchItems(user: JwtPayload | null): RouteSearchItem[] {
                 icon: ScrollText,
                 aliases: ['logs', 'audit logs'],
                 keywords: ['audit', 'activity', 'security'],
+            }),
+            routeItem({
+                id: 'admin-copilot-quality',
+                title: 'Copilot Quality',
+                href: '/admin/copilot-quality',
+                group: 'Navigation',
+                description: 'Review Copilot quality and tool behavior',
+                icon: FileText,
+                aliases: ['ai quality'],
+                keywords: ['copilot', 'ai', 'quality', 'tools'],
             }),
         );
     }
@@ -425,10 +504,49 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
     const canManagePolls = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.ORG_MANAGER;
     const canManageStudentEnrollment = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN;
     const canUseFinance = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.FINANCE_MANAGER;
+    const canReviewAdmissions = role === Role.ORG_ADMIN || role === Role.SUB_ADMIN || role === Role.ORG_MANAGER;
     const accountSettingsHref = user?.id ? settingsPath(user.id) : '/';
 
     return [
+        ...(role ? [{
+            id: 'help-docs',
+            title: 'Help & Documentation',
+            href: '/docs',
+            group: 'Navigation' as const,
+            description: 'Search EduVerse guides, workflows, and role documentation',
+            icon: FileText,
+            aliases: ['help center', 'guides'],
+            keywords: ['docs', 'documentation', 'how to', 'support'],
+        }, {
+            id: 'public-admissions',
+            title: 'Public Admissions Portal',
+            href: '/admissions',
+            group: 'Navigation' as const,
+            description: 'Browse organizations and programs accepting online applications',
+            icon: FileCheck2,
+            aliases: ['apply online'],
+            keywords: ['public', 'admissions', 'programs', 'applications'],
+        }, {
+            id: 'ai-subscription',
+            title: 'AI Subscription & Credits',
+            href: '/ai/subscription',
+            group: 'Settings' as const,
+            description: 'Review Copilot availability, subscription, and AI Credits',
+            icon: Settings,
+            aliases: ['copilot subscription'],
+            keywords: ['ai', 'credits', 'subscription', 'plan'],
+        }] : []),
         ...(canManageAcademic ? [
+            {
+                id: 'create-program',
+                title: 'Add Program',
+                href: '/programs/create',
+                group: 'Actions' as const,
+                description: 'Create a department program and curriculum',
+                icon: GraduationCap,
+                aliases: ['new program', 'new major'],
+                keywords: ['program', 'major', 'curriculum'],
+            },
             {
                 id: 'create-course',
                 title: 'Add Course',
@@ -469,7 +587,56 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
                 aliases: ['new batch'],
                 keywords: ['batch', 'cohort'],
             },
+            {
+                id: 'section-relationships',
+                title: 'Section Relationships',
+                href: '/section-relationships',
+                group: 'Academic' as const,
+                description: 'Configure theory, lab, practical, and component section results',
+                icon: GitBranch,
+                aliases: ['course result scheme', 'lab theory relationship'],
+                keywords: ['section components', 'theory', 'lab', 'weights'],
+            },
+            {
+                id: 'manage-academic-calendar',
+                title: 'Manage Academic Calendar',
+                href: '/academic-calendar/manage',
+                group: 'Actions' as const,
+                description: 'Create and update academic events and closures',
+                icon: Calendar,
+                aliases: ['add academic event'],
+                keywords: ['calendar', 'event', 'holiday', 'closure'],
+            },
         ] : []),
+        ...(canReviewAdmissions ? [{
+            id: 'admissions-missing-documents',
+            title: 'Admissions Missing Documents',
+            href: '/online-admissions?missingRequiredDocuments=true',
+            group: 'Academic' as const,
+            description: 'Show applications missing required uploads',
+            icon: FileCheck2,
+            aliases: ['incomplete applications'],
+            keywords: ['admission', 'documents', 'missing', 'applicant'],
+        }, {
+            id: 'admissions-rejected',
+            title: 'Rejected Admissions',
+            href: '/online-admissions?status=REJECTED',
+            group: 'Academic' as const,
+            description: 'Review retained rejected applications',
+            icon: FileCheck2,
+            aliases: ['rejected applications'],
+            keywords: ['admission', 'rejected', 'decision'],
+        }] : []),
+        ...(canManageAcademic ? [{
+            id: 'create-evaluation-window',
+            title: 'Add Evaluation Window',
+            href: '/evaluations/windows/create',
+            group: 'Actions' as const,
+            description: 'Open a teacher or course evaluation period',
+            icon: ListChecks,
+            aliases: ['new evaluation'],
+            keywords: ['feedback', 'evaluation', 'window'],
+        }] : []),
         ...(canManagePolls ? [{
             id: 'create-preference-poll',
             title: 'New Section/Course Poll',
@@ -520,6 +687,26 @@ function contextualActions(user: JwtPayload | null): RouteSearchItem[] {
                 icon: Wallet,
                 aliases: ['payments'],
                 keywords: ['pay', 'receipt'],
+            },
+            {
+                id: 'finance-payroll',
+                title: 'Payroll',
+                href: '/finance/payroll',
+                group: 'Finance' as const,
+                description: 'Review staff payroll and salary entries',
+                icon: Wallet,
+                aliases: ['salaries'],
+                keywords: ['payroll', 'salary', 'staff pay'],
+            },
+            {
+                id: 'finance-audit-logs',
+                title: 'Finance Audit Logs',
+                href: '/finance/audit-logs',
+                group: 'Finance' as const,
+                description: 'Review finance activity and changes',
+                icon: ScrollText,
+                aliases: ['finance history'],
+                keywords: ['audit', 'finance', 'activity'],
             },
         ] : []),
         ...(role === Role.ORG_ADMIN ? [{

@@ -905,7 +905,7 @@ export const docsPages: DocPage[] = [
     description: 'Create department-owned offerings, relate shared institute cycles, build curricula, map delivery, and preserve student majors.',
     category: 'Academic Settings',
     tags: ['programs', 'majors', 'curriculum', 'stages', 'academic cycles', 'admissions', 'department scope'],
-    related: ['academic-cycles', 'students', 'courses-sections', 'cohorts-reassignment', 'past-records', 'csv-imports'],
+    related: ['online-admissions', 'academic-cycles', 'students', 'courses-sections', 'cohorts-reassignment', 'past-records', 'csv-imports'],
     sections: [
       {
         id: 'program-offering-model',
@@ -1142,8 +1142,8 @@ export const docsPages: DocPage[] = [
           },
           {
             type: 'note',
-            title: 'Applications are separate',
-            text: 'The offering contract is ready for a later online application workflow. This release does not create or submit application records.',
+            title: 'Applications stay separate until admission',
+            text: 'Public applications remain review records until an authorized administrator converts an accepted submission through the normal student admission form. The organization chooses the final student login email during conversion.',
           },
         ],
       },
@@ -1161,6 +1161,160 @@ export const docsPages: DocPage[] = [
               'Editing a student department manually instead of assigning or transferring the major.',
               'Marking a mapped section as standalone to bypass a missing requirement mapping.',
             ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'online-admissions',
+    title: 'Online Admissions',
+    description: 'Publish program offerings, collect applicant details and documents, review submissions by department, and convert accepted applicants into students.',
+    category: 'Academics',
+    tags: ['online admissions', 'applications', 'applicants', 'documents', 'program offerings', 'student admission', 'captcha'],
+    related: ['programs', 'students', 'roles-permissions', 'settings', 'files-attachments'],
+    sections: [
+      {
+        id: 'admissions-overview',
+        title: 'How online admissions works',
+        tags: ['public application', 'no login', 'email updates'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Online Admissions lets an approved organization publish selected program offerings on the public admissions portal. Applicants do not create an account. They submit contact and student details, complete human verification, and upload the documents configured for that offering.',
+          },
+          {
+            type: 'flow',
+            title: 'Application lifecycle',
+            steps: ['Publish offering', 'Applicant submits', 'Department review', 'Request updates or decide', 'Create student', 'Mark admitted'],
+          },
+          {
+            type: 'note',
+            title: 'Application email is not automatically the login email',
+            text: 'The application email is used for status and document-update messages. During final student admission, the organization reviews the prefilled form and chooses the student login email.',
+          },
+        ],
+      },
+      {
+        id: 'enable-online-admissions',
+        title: 'Enable public admissions',
+        tags: ['organization settings', 'program offering', 'publish'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'As Org Admin, open Settings and enable Online Admissions for the organization.',
+              'Review the submission and status email templates used for applicant updates.',
+              'Open Programs and choose the program offering for the intended academic cycle.',
+              'Confirm the program, curriculum, department, academic cycle, and offering are active and ready.',
+              'Enable online admission for the offering and add concise applicant instructions.',
+              'Review the public admissions page before sharing it.',
+            ],
+          },
+          {
+            type: 'checklist',
+            items: [
+              'Organization is approved and public admissions are enabled.',
+              'Program and department are active and visible for admissions.',
+              'Offering is open and inside its configured opening and closing dates.',
+              'Default admissions curriculum is active and complete.',
+              'Applicant email delivery and document storage are configured.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'document-requirements',
+        title: 'Configure required documents',
+        tags: ['uploads', 'requirements', 'file types', 'missing documents'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Each online-enabled offering owns its own document checklist. Every requirement has a student-facing label and can include a description, required flag, accepted file types, size limit, and display order.',
+          },
+          {
+            type: 'list',
+            items: [
+              'Use labels applicants can recognize, such as Previous transcript or Identity document.',
+              'Mark only genuinely mandatory files as required.',
+              'Keep accepted file types and size limits practical for mobile applicants.',
+              'Review the checklist before the first submission. Requirements are locked after applications exist so an applicant record cannot silently change later.',
+            ],
+          },
+        ],
+      },
+      {
+        id: 'applicant-flow',
+        title: 'Applicant submission and updates',
+        tags: ['applicant', 'cap', 'update link', 'email'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Open the public Admissions page and choose an organization.',
+              'Choose one available program offering.',
+              'Complete the student information form and attach each required document.',
+              'Complete the Cap human-verification control and submit once.',
+              'Keep the application reference shown after submission and watch the submitted email address for updates.',
+              'When the organization requests missing documents, use the expiring email link to review the checklist and upload replacements.',
+            ],
+          },
+          {
+            type: 'note',
+            title: 'No applicant account is required',
+            text: 'Public application and document-update links do not create a student login. Update links are private, expire, and stop working after final admission.',
+          },
+        ],
+      },
+      {
+        id: 'review-and-decide',
+        title: 'Review and decide applications',
+        tags: ['filters', 'status', 'department scope', 'reject', 'accept'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'Open Online Admissions to search by applicant or reference and filter by status, department, program, offering, academic cycle, submission date, or missing required documents. Org Admin sees the organization; Sub Admin and Manager results follow department scope.',
+          },
+          {
+            type: 'table',
+            headers: ['Status', 'Meaning'],
+            rows: [
+              ['Submitted', 'A new application is waiting for review.'],
+              ['Under review', 'Staff are checking details and documents.'],
+              ['Needs update', 'The applicant has been asked for missing or corrected information.'],
+              ['Accepted', 'The application can proceed to student admission.'],
+              ['Admitted', 'A student record was created and linked.'],
+              ['Rejected', 'The decision is retained in the rejected view with its history.'],
+              ['Withdrawn', 'The application is retained but no longer active.'],
+            ],
+          },
+          {
+            type: 'note',
+            title: 'Read and write permissions differ',
+            text: 'Org Admin, scoped Sub Admin, and scoped Manager can review visible applications. Status decisions and student conversion are limited to Org Admin and Sub Admin.',
+          },
+        ],
+      },
+      {
+        id: 'convert-to-student',
+        title: 'Convert an accepted applicant to a student',
+        tags: ['student creation', 'prefill', 'login email', 'admitted'],
+        blocks: [
+          {
+            type: 'steps',
+            items: [
+              'Accept the reviewed application.',
+              'Choose Admit student to open the existing student admission form with applicant data prefilled.',
+              'Review and correct identity, contact, academic, and enrollment fields.',
+              'Choose the final student login email; it may differ from the application email.',
+              'Create the student and confirm the selected program and curriculum match the offering.',
+              'EduVerse links the student and marks the application Admitted in one operation.',
+            ],
+          },
+          {
+            type: 'tip',
+            title: 'Keep rejected records',
+            text: 'Rejecting an application moves it to the rejected status view. It does not delete the submission, documents, or decision history.',
           },
         ],
       },
@@ -2181,8 +2335,8 @@ export const docsPages: DocPage[] = [
             rows: [
               ['Student', 'Study coach, schedule-aware planner, deadline assistant, attendance advisor, course guidance, evaluation explanations, and personalized study plans.', 'What should I study today? What classes do I have tomorrow? Why is my attendance at risk? Explain my weakest course.'],
               ['Teacher', 'Teaching workload assistant for next classes, weekly schedule, pending grading, attendance reminders, preparation ideas, and students who may need attention.', 'What do I teach next? Summarize my week. What grading is pending? Which students need attention?'],
-              ['Manager', 'Academic operations assistant for department summaries, workload analysis, staffing concerns, attendance trends, evaluation trends, and schedule bottlenecks.', 'Summarize today\'s academic activity. Show workload issues. Which departments need attention? Identify scheduling bottlenecks.'],
-              ['Org Admin', 'Organization health assistant for operations, AI usage, AI Credits, estimated cost, subscription management, and role access configuration.', 'How much AI usage do we have left? Which roles are using Copilot most? Show organization health. Should we enable Copilot for students?'],
+              ['Manager', 'Academic operations assistant for department summaries, scoped admission review, workload analysis, staffing concerns, attendance trends, evaluation trends, and schedule bottlenecks.', 'Summarize today\'s academic activity. Which applications are missing documents? Show workload issues. Identify scheduling bottlenecks.'],
+              ['Org Admin', 'Organization health assistant for operations, online admissions, offering readiness, AI usage, AI Credits, estimated cost, subscription management, and role access configuration.', 'Which applications need review? Are our admission offerings ready? How much AI usage do we have left? Show organization health.'],
               ['Finance Manager', 'Finance-focused assistant for fee status, payment claim review context, finance summaries, and permitted finance workflow guidance.', 'Which payment claims need review? Summarize unpaid balances. What finance activity changed recently?'],
               ['Guardian', 'Linked-student assistant for attendance, grades, timetable, fee status, and school guidance where the guardian already has access.', 'How is my linked student doing? Are there attendance concerns? What fees need attention?'],
             ],
@@ -2191,6 +2345,22 @@ export const docsPages: DocPage[] = [
             type: 'note',
             title: 'Same permissions, better guidance',
             text: 'Copilot answers are limited by the same access rules as the rest of EduVerse. For example, a teacher can receive help for assigned sections, while a guardian can only receive linked-student context.',
+          },
+        ],
+      },
+      {
+        id: 'online-admissions-context',
+        title: 'Online admissions context',
+        tags: ['online admissions', 'applications', 'documents', 'offering readiness'],
+        blocks: [
+          {
+            type: 'paragraph',
+            text: 'For Org Admin, Sub Admin, and Manager roles, Copilot can summarize visible application status counts, find applicants or references, identify missing required documents, and explain whether program offerings are enabled and inside their application windows.',
+          },
+          {
+            type: 'note',
+            title: 'Read-only and department-scoped',
+            text: 'Copilot cannot accept, reject, request documents, download files, or create students. Sub Admin and Manager results use the same department scope as Online Admissions.',
           },
         ],
       },
@@ -5083,6 +5253,7 @@ export const docsNavGroups: DocNavGroup[] = [
     title: 'Academics',
     pages: [
       'programs',
+      'online-admissions',
       'academic-cycles',
       'past-records',
       'academic-calendar',

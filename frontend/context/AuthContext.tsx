@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (user) {
                 // Enforce password change on first login for all roles
-                if (user.isFirstLogin) {
+                if (user.isFirstLogin && (isUserPath || isGuestPath)) {
                     const changePasswordPath = (user.role === Role.SUPER_ADMIN || user.role === Role.PLATFORM_ADMIN)
                         ? '/admin/change-password'
                         : '/change-password';
@@ -158,17 +158,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             'users',
                             'buildings-and-rooms',
                             'departments',
-                            'courses',
-                            'academic-cycles',
+                             'courses',
+                             'programs',
+                             'online-admissions',
+                             'academic-cycles',
                             'academic-calendar',
                             'cohorts',
-                            'sections',
+                             'sections',
+                             'section-relationships',
                             'attendance',
-                            'schedules',
-                            'transcripts',
-                            'reassignment',
+                             'schedules',
+                             'timetable',
+                             'transcripts',
+                             'past-records',
+                             'reassignment',
+                             'progression',
                             'preference-windows',
-                            'grade-finalization',
+                             'grade-finalization',
+                             'evaluations',
                             'finance',
                             'teacher-finance',
                             'ai',

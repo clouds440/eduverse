@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { School, MapPin, Building, Mail, Lock, Phone, BookOpen, GraduationCap, Library, MonitorPlay, Pencil, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { RegisterRequest, OrganizationType, ApiError, type HumanVerificationValue } from '@/types';
+import { RegisterRequest, OrganizationType, ApiError } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { CustomSelect } from '@/components/ui/CustomSelect';
 import { Label } from '@/components/ui/Label';
@@ -19,16 +19,16 @@ import { registerSchema, RegisterFormData } from '@/lib/schemas';
 import { PLATFORM_NAME } from '@/lib/constants';
 import Image from 'next/image';
 import { getDeviceId, getDeviceInfo } from '@/lib/deviceUtils';
-import { HumanVerification } from '@/components/ui/HumanVerification';
+import { CapVerification } from '@/components/ui/CapVerification';
 
 export default function RegisterPage() {
     const router = useRouter();
     const { state, dispatch } = useGlobal();
     const [sameAsLoginEmail, setSameAsLoginEmail] = useState(false);
     const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
-    const [humanVerification, setHumanVerification] = useState<HumanVerificationValue | null>(null);
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
     const [verificationResetKey, setVerificationResetKey] = useState(0);
-    const handleVerificationChange = useCallback((value: HumanVerificationValue | null) => setHumanVerification(value), []);
+    const handleVerificationChange = useCallback((value: string | null) => setCaptchaToken(value), []);
 
     const {
         register,
@@ -62,13 +62,13 @@ export default function RegisterPage() {
     }, [formData.email, sameAsLoginEmail, setValue, trigger, errors.contactEmail]);
 
     const onSubmit: SubmitHandler<RegisterFormData> = async (data) => {
-        if (state.ui.processing['register-submit'] || !humanVerification) return;
+        if (state.ui.processing['register-submit'] || !captchaToken) return;
         dispatch({ type: 'UI_START_PROCESSING', payload: 'register-submit' });
         try {
             const payload: RegisterRequest = {
                 ...data,
                 contactEmail: sameAsLoginEmail ? data.email : (data.contactEmail || data.email),
-                ...humanVerification,
+                captchaToken,
             };
 
             await api.auth.register(payload);
@@ -356,7 +356,7 @@ export default function RegisterPage() {
 
                     {/* Submit */}
                     <div className="space-y-4 max-w-6xl mx-auto flex flex-col">
-                        <HumanVerification purpose="ORG_REGISTRATION" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={Boolean(state.ui.processing['register-submit'])} />
+                        <CapVerification purpose="ORG_REGISTRATION" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={Boolean(state.ui.processing['register-submit'])} />
                         <div className="justify-center sm:justify-end flex">
                             <Button
                                 type="submit"
@@ -364,7 +364,7 @@ export default function RegisterPage() {
                                 icon={ArrowRight}
                                 className="w-auto"
                                 loadingText="Creating account..."
-                                disabled={!humanVerification}
+                                disabled={!captchaToken}
                             >
                                 Create Organization
                             </Button>

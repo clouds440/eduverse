@@ -31,7 +31,7 @@ import { EmailService } from '../security/email.service';
 import { FilesService, type DownloadPayload } from '../files/files.service';
 import { EmailTemplateService } from '../common/email-templates/email-template.service';
 import { CreateOnlineAdmissionSubmissionDto } from './dto/online-admission.dto';
-import { HumanVerificationService } from '../human-verification/human-verification.service';
+import { CaptchaService } from '../captcha/captcha.service';
 
 type Actor = DepartmentScopedUser & { id: string; email?: string | null; name?: string | null };
 type PublicUploadOwner = { id: string; role: string; organizationId: string | null };
@@ -131,7 +131,7 @@ export class OnlineAdmissionsService {
     private readonly config: ConfigService,
     private readonly files: FilesService,
     private readonly emailTemplates: EmailTemplateService,
-    private readonly humanVerification: HumanVerificationService,
+    private readonly captcha: CaptchaService,
   ) {}
 
   private nowWindowWhere(): Prisma.ProgramOfferingWhereInput {
@@ -178,8 +178,7 @@ export class OnlineAdmissionsService {
   }
 
   private hashSourceIp(ip: string) {
-    const secret = this.config.get<string>('HUMAN_VERIFICATION_SECRET')
-      || this.config.get<string>('JWT_SECRET');
+    const secret = this.config.get<string>('JWT_SECRET');
     if (!secret) return null;
     return createHmac('sha256', secret).update(ip).digest('hex');
   }
@@ -330,7 +329,7 @@ export class OnlineAdmissionsService {
     metadata: { ip?: string | null; userAgent?: string | null } = {},
     files: Express.Multer.File[] = [],
   ) {
-    await this.humanVerification.verify('ONLINE_ADMISSION', dto);
+    await this.captcha.verifyToken('ONLINE_ADMISSION', dto.captchaToken);
     const offering = await this.findPublicOffering(offeringId);
     const applicantEmail = dto.applicantEmail.trim().toLowerCase();
     const duplicate = await this.prisma.onlineAdmissionSubmission.findFirst({

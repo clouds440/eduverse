@@ -22,5 +22,6 @@ import { ParseOnlineAdmissionSubmissionPipe } from './pipes/parse-online-admissi
   ],
   controllers: [PublicOnlineAdmissionsController, AdminOnlineAdmissionsController],
   providers: [OnlineAdmissionsService, ParseOnlineAdmissionSubmissionPipe],
+  exports: [OnlineAdmissionsService],
 })
 export class OnlineAdmissionsModule {}

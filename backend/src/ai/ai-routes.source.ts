@@ -87,6 +87,22 @@ export const aiRouteEntries: AIRouteEntry[] = [
     tags: ['programs', 'majors', 'curricula', 'stages', 'course offerings'],
   },
   {
+    label: 'Online Admissions',
+    href: '/online-admissions',
+    roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER],
+    description: 'Review department-scoped public applications, document completion, decisions, and student admission readiness.',
+    module: 'Admissions',
+    tags: ['online admissions', 'applications', 'applicants', 'documents', 'accepted', 'rejected'],
+  },
+  {
+    label: 'Public Admissions Portal',
+    href: '/admissions',
+    roles: ALL_ORG_ROLES,
+    description: 'Public directory of organizations and program offerings currently accepting online applications.',
+    module: 'Admissions',
+    tags: ['public admissions', 'apply online', 'program offerings', 'no login'],
+  },
+  {
     label: 'Sections',
     href: '/sections',
     roles: [Role.ORG_ADMIN, Role.SUB_ADMIN, Role.ORG_MANAGER, Role.TEACHER],

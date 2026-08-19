@@ -1103,11 +1103,11 @@ Avoid:
 ### [x] Phase 10: Testing
 
 - [x] Focused service tests for required uploads, persistence cleanup, duplicate blocking, closed offerings, update-token expiry, invalid status transitions, department scope, missing-document filtering, scoped downloads, and admission linkage.
-- [x] Human-verification service/controller tests and online-admission controller delegation/streaming tests.
+- [x] Cap CAPTCHA service/controller tests and online-admission controller delegation/streaming tests.
 - [x] Prisma validation and backend/frontend production builds.
-- [x] Controller-level coverage for public submission metadata, admin filtering, scoped document streaming, and challenge-purpose validation.
+- [x] Controller-level coverage for public submission metadata, admin filtering, scoped document streaming, and CAPTCHA purpose validation.
 - [x] Database-backed e2e coverage for unauthenticated public submission, authenticated admin boundaries, department scope, rejection retention, CSV export, and conversion, implemented in `backend/test/online-admissions.e2e-spec.ts` with the guarded disposable-database runner `backend/scripts/online-admissions-e2e-check.js`.
-- [x] Documented browser QA matrix for public discovery/submission, challenge refresh/error/expiry, organization registration, risk-triggered login, email-template placeholders, admin filters, rejection, document updates, and conversion.
+- [x] Documented browser QA matrix for public discovery/submission, Cap solve/error/expiry, organization registration, risk-triggered login, email-template placeholders, admin filters, rejection, document updates, and conversion.
 
 Execution note: the e2e runner refuses non-local database hosts and always drops its temporary database. Its latest local execution was stopped before Jest completed at the operator's request; the focused test suites, Prisma validation, and backend/frontend production builds are the completed verification baseline for this phase.
 
@@ -1120,15 +1120,16 @@ Execution note: the e2e runner refuses non-local database hosts and always drops
 - [x] Document requirements become immutable after the first submission so later edits cannot change an applicant's checklist retroactively.
 - [x] Public references use cryptographic randomness and stored source-IP fingerprints use keyed HMAC hashing.
 - [x] Requirement count and configured file-size limits match the upload middleware limits.
-- [x] `HUMAN_VERIFICATION_SECRET` is documented and covered by production environment validation.
-- [x] Full backend unit regression suite: 58 suites and 251 tests passed.
+- [x] The custom arithmetic verifier, secret, and Prisma challenge model were replaced by reusable `@cap.js/server` and `@cap.js/widget` integration.
+- [x] Full backend unit regression suite: 59 suites and 257 tests passed.
 - [x] Backend TypeScript compile, backend production build, frontend production build, Prisma validation, focused semantic lint, and `git diff --check` passed.
 
 Deployment gate:
 
 - Run `npm run release:env-check` with the production environment.
 - Back up the target PostgreSQL database, then run `npm run release:migrate` before starting the new application image.
-- Configure `HUMAN_VERIFICATION_SECRET`, `FRONTEND_URL`, `CLOUDINARY_URL`, `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` in production.
+- Configure `FRONTEND_URL`, `CLOUDINARY_URL`, `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` in production.
+- Keep one backend replica while Cap uses in-memory state. Configure shared Cap storage before horizontally scaling the API.
 - Run `npm run online-admissions:e2e` against an isolated local or CI PostgreSQL instance; the suite is deliberately blocked from shared/non-local database hosts.
 - Perform staging smoke tests with real object storage and email delivery before enabling an organization's public admissions toggle.
 

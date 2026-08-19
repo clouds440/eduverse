@@ -15,8 +15,8 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { TrustedDevicePrompt } from "@/components/TrustedDevicePrompt";
-import { HumanVerificationValue, LoginBootstrapPayload, TrustedDevicePromptFlow } from "@/types";
-import { HumanVerification } from "@/components/ui/HumanVerification";
+import { LoginBootstrapPayload, TrustedDevicePromptFlow } from "@/types";
+import { CapVerification } from "@/components/ui/CapVerification";
 
 type LoginStep = "email" | "password";
 
@@ -40,9 +40,9 @@ export default function LoginPage() {
     null,
   );
   const [requiresHumanVerification, setRequiresHumanVerification] = useState(false);
-  const [humanVerification, setHumanVerification] = useState<HumanVerificationValue | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [verificationResetKey, setVerificationResetKey] = useState(0);
-  const handleVerificationChange = useCallback((value: HumanVerificationValue | null) => setHumanVerification(value), []);
+  const handleVerificationChange = useCallback((value: string | null) => setCaptchaToken(value), []);
 
   useEffect(() => {
     const hashParams =
@@ -108,7 +108,7 @@ export default function LoginPage() {
     }
 
     if (state.ui.processing["login-submit"]) return;
-    if (requiresHumanVerification && !humanVerification) {
+    if (requiresHumanVerification && !captchaToken) {
       setErrors({ general: "Complete the human verification challenge" });
       return;
     }
@@ -125,7 +125,7 @@ export default function LoginPage() {
         deviceType: deviceInfo?.deviceType,
         browser: deviceInfo?.browser,
         os: deviceInfo?.os,
-        ...(humanVerification || {}),
+        ...(captchaToken ? { captchaToken } : {}),
       };
       const res = await api.auth.login(loginPayload);
       if (res.requiresTwoFactor && res.temporaryToken) {
@@ -186,7 +186,7 @@ export default function LoginPage() {
     setErrors({});
     setLoginPreparationId(null);
     setRequiresHumanVerification(false);
-    setHumanVerification(null);
+    setCaptchaToken(null);
     setFormData((current) => ({ ...current, password: "" }));
   };
 
@@ -434,7 +434,7 @@ export default function LoginPage() {
                   </div>
 
                   {requiresHumanVerification && (
-                    <HumanVerification purpose="LOGIN" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={Boolean(state.ui.processing["login-submit"])} />
+                    <CapVerification purpose="LOGIN" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={Boolean(state.ui.processing["login-submit"])} />
                   )}
 
                   <Button
@@ -443,7 +443,7 @@ export default function LoginPage() {
                     loadingText="Signing in..."
                     icon={ArrowRight}
                     className="h-12 w-full text-base font-bold shadow-lg transition-all duration-200 hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
-                    disabled={requiresHumanVerification && !humanVerification}
+                    disabled={requiresHumanVerification && !captchaToken}
                   >
                     Sign In
                   </Button>

@@ -57,7 +57,7 @@ import { currentUtcMonthPeriod, freeOrgMonthlyCredits } from '../ai/ai-free-quot
 import { LoginPreparationService } from './login-preparation.service';
 import { ActivityLogType } from '../activity-logs/activity-log.types';
 import { allocateOrganizationSlug } from '../common/organization-slug';
-import { HumanVerificationService } from '../human-verification/human-verification.service';
+import { CaptchaService } from '../captcha/captcha.service';
 
 export type TokenUser = User & {
   organization?: Organization | null;
@@ -90,7 +90,7 @@ export class AuthService {
     @Optional() emailTemplateService?: EmailTemplateService,
     @Optional() private readonly twoFactorService?: TwoFactorService,
     @Optional() private readonly loginPreparationService?: LoginPreparationService,
-    @Optional() private readonly humanVerificationService?: HumanVerificationService,
+    @Optional() private readonly captchaService?: CaptchaService,
   ) {
     const templates = emailTemplateService ?? new EmailTemplateService();
     const security =
@@ -157,7 +157,7 @@ export class AuthService {
     meta?: RequestMetadata,
     registrationIntent?: string,
   ) {
-    await this.humanVerificationService?.verify('ORG_REGISTRATION', registerDto);
+    await this.captchaService?.verifyToken('ORG_REGISTRATION', registerDto.captchaToken);
     await this.verifyRegistrationIntent(registrationIntent, meta);
     const existing = await this.prisma.user.findUnique({
       where: { email: registerDto.email },
@@ -266,10 +266,10 @@ export class AuthService {
     }
 
     if (await this.requiresLoginHumanVerification(user)) {
-      if (!this.humanVerificationService) {
+      if (!this.captchaService) {
         throw new UnauthorizedException('Human verification is temporarily unavailable');
       }
-      await this.humanVerificationService.verify('LOGIN', loginDto);
+      await this.captchaService.verifyToken('LOGIN', loginDto.captchaToken);
     }
 
     const isMatch = await bcrypt.compare(loginDto.password, user.password);

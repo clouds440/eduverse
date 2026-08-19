@@ -35,6 +35,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@cap.js/server": "^4.0.5",
     "@eduverse/docs": "file:../packages/docs",
     "@langchain/core": "^1.2.1",
     "@langchain/openai": "^1.5.3",

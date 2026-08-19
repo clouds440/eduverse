@@ -1,5 +1,5 @@
 import type {
-    Teacher, Student, Organization, RegisterRequest, RegisterIntentResponse, LoginRequest, PrepareLoginResponse, AuthResponse, ContactEmailStatus, HumanVerificationPurpose, HumanVerificationChallenge,
+    Teacher, Student, Organization, RegisterRequest, RegisterIntentResponse, LoginRequest, PrepareLoginResponse, AuthResponse, ContactEmailStatus,
     UpdateOrgSettingsRequest, PlatformAdmin, AdminStats, Section, Course,
     CreateTeacherRequest, UpdateTeacherRequest, CreateSubAdminRequest, UpdateSubAdminRequest, CreateFinanceManagerRequest, UpdateFinanceManagerRequest, CreateStudentRequest, UpdateStudentRequest,
     CreateGuardianRequest, GuardianOverview, GuardianProfile, UpdateGuardianRequest,
@@ -1457,11 +1457,6 @@ export const api = {
             request<AcademicCycleArchiveStatusResponse>(`/org/academic-cycles/${id}/archive${buildQueryString({ retry: retry || undefined })}`, { method: 'POST', token }),
         verifyArchive: (id: string, token: string) =>
             request<{ valid: boolean; archiveId: string; checksum: string }>(`/org/academic-cycles/${id}/archive/verify`, { token }),
-    },
-
-    humanVerification: {
-        createChallenge: (purpose: HumanVerificationPurpose) =>
-            request<HumanVerificationChallenge>(`/public/human-verification/challenge${buildQueryString({ purpose })}`),
     },
 
     pastRecords: {

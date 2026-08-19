@@ -357,6 +357,13 @@ const TEACHER_ITEMS: SidebarItemConfig[] = [
 
 const MANAGER_ITEMS: SidebarItemConfig[] = [
   {
+    id: "ONLINE_ADMISSIONS",
+    label: "Online Admissions",
+    href: "/online-admissions",
+    icon: FileCheck2,
+    roles: [Role.ORG_MANAGER],
+  },
+  {
     id: "SECTIONS",
     label: "My Sections",
     href: "/sections",

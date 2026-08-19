@@ -7,7 +7,7 @@ import useSWR from 'swr';
 import { ArrowLeft, CheckCircle2, FileText, Mail, RefreshCcw, UserPlus, XCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { OnlineAdmissionSubmissionStatus, type BadgeVariant, type OnlineAdmissionSubmission } from '@/types';
+import { OnlineAdmissionSubmissionStatus, Role, type BadgeVariant, type OnlineAdmissionSubmission } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -51,7 +51,7 @@ function statusBadge(status: OnlineAdmissionSubmissionStatus) {
 }
 
 export default function OnlineAdmissionDetailPage() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const router = useRouter();
     const params = useParams<{ id: string }>();
     const id = decodeURIComponent(params.id);
@@ -65,6 +65,7 @@ export default function OnlineAdmissionDetailPage() {
     const [pendingStatus, setPendingStatus] = useState<OnlineAdmissionSubmissionStatus | null>(null);
     const [isAdmitConfirmOpen, setIsAdmitConfirmOpen] = useState(false);
     const terminal = data?.status === OnlineAdmissionSubmissionStatus.ADMITTED || data?.status === OnlineAdmissionSubmissionStatus.REJECTED;
+    const canDecide = user?.role === Role.ORG_ADMIN || user?.role === Role.SUB_ADMIN;
 
     const updateStatus = async (status: OnlineAdmissionSubmissionStatus) => {
         if (!token || !data) return;
@@ -173,25 +174,31 @@ export default function OnlineAdmissionDetailPage() {
                         <section className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
                             <h2 className="text-base font-black">Decision</h2>
                             {terminal && <StatusBanner className="mt-3" title="Final status" description="Rejected and admitted submissions are retained as final records." variant="info" />}
-                            <Textarea className="mt-3" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note sent to the applicant by email" disabled={terminal} />
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                <Button icon={UserPlus} size="sm" disabled={terminal || data.status === OnlineAdmissionSubmissionStatus.REJECTED} onClick={() => setIsAdmitConfirmOpen(true)}>
-                                    Admit student
-                                </Button>
-                                {decisions.map((decision) => (
-                                    <Button
-                                        key={decision.status}
-                                        icon={decision.icon}
-                                        variant={decision.variant}
-                                        size="sm"
-                                        disabled={terminal || data.status === decision.status}
-                                        isLoading={busyStatus === decision.status}
-                                        onClick={() => setPendingStatus(decision.status)}
-                                    >
-                                        {decision.label}
-                                    </Button>
-                                ))}
-                            </div>
+                            {canDecide ? (
+                                <>
+                                    <Textarea className="mt-3" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional note sent to the applicant by email" disabled={terminal} />
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <Button icon={UserPlus} size="sm" disabled={terminal || data.status === OnlineAdmissionSubmissionStatus.REJECTED} onClick={() => setIsAdmitConfirmOpen(true)}>
+                                            Admit student
+                                        </Button>
+                                        {decisions.map((decision) => (
+                                            <Button
+                                                key={decision.status}
+                                                icon={decision.icon}
+                                                variant={decision.variant}
+                                                size="sm"
+                                                disabled={terminal || data.status === decision.status}
+                                                isLoading={busyStatus === decision.status}
+                                                onClick={() => setPendingStatus(decision.status)}
+                                            >
+                                                {decision.label}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <StatusBanner className="mt-3" title="Review access" description="You can review this department's application and documents. Admission decisions are handled by an Org Admin or Sub Admin." variant="info" />
+                            )}
                         </section>
 
                         <section className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
@@ -206,7 +213,7 @@ export default function OnlineAdmissionDetailPage() {
                                 ))}
                             </div>
                         </section>
-                        <ConfirmDialog
+                        {canDecide && <ConfirmDialog
                             isOpen={Boolean(pendingStatus)}
                             onClose={() => setPendingStatus(null)}
                             onConfirm={() => pendingStatus ? updateStatus(pendingStatus) : null}
@@ -218,15 +225,15 @@ export default function OnlineAdmissionDetailPage() {
                                     : 'This will update the application status and notify the applicant by email.'}
                             confirmText={pendingDecision?.label || 'Update'}
                             isDestructive={pendingStatus === OnlineAdmissionSubmissionStatus.REJECTED}
-                        />
-                        <ConfirmDialog
+                        />}
+                        {canDecide && <ConfirmDialog
                             isOpen={isAdmitConfirmOpen}
                             onClose={() => setIsAdmitConfirmOpen(false)}
                             onConfirm={() => router.push(`/users/students/add/online-admission/${data.id}`)}
                             title="Admit this applicant?"
                             description="The student admission form will open with submitted details prefilled. You can still set the final login email, password, and registration numbers before creating the student."
                             confirmText="Open admission form"
-                        />
+                        />}
                     </>
                 )}
             </div>

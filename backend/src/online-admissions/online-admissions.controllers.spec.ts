@@ -15,8 +15,7 @@ describe('Online admissions controllers', () => {
       applicantName: 'Ada Lovelace',
       applicantEmail: 'ada@example.com',
       formData: {},
-      challengeId: 'challenge-1',
-      challengeAnswer: '7',
+      captchaToken: 'captcha-token',
     };
 
     await controller.submit('offering-1', payload, [file], '127.0.0.1', 'test-agent');

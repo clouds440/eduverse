@@ -13,7 +13,6 @@ const REQUIRED_ENV = [
 ] as const;
 
 const RECOMMENDED_ENV = [
-  'HUMAN_VERIFICATION_SECRET',
   'THROTTLE_TTL',
   'THROTTLE_LIMIT',
   'DATABASE_POOL_MAX',
@@ -100,14 +99,6 @@ export function environmentErrors(env: Environment): string[] {
     if ((env.JWT_SECRET || '').length < 32) {
       errors.push(
         'JWT_SECRET must contain at least 32 characters in production',
-      );
-    }
-    if (
-      env.HUMAN_VERIFICATION_SECRET
-      && env.HUMAN_VERIFICATION_SECRET.length < 32
-    ) {
-      errors.push(
-        'HUMAN_VERIFICATION_SECRET must contain at least 32 characters in production when provided',
       );
     }
     if (cookieSecure !== true) {

@@ -45,9 +45,5 @@ export class LoginDto {
 
   @IsString()
   @IsOptional()
-  challengeId?: string;
-
-  @IsString()
-  @IsOptional()
-  challengeAnswer?: string;
+  captchaToken?: string;
 }

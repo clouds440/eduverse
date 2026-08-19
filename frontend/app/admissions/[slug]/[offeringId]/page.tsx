@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import useSWR from 'swr';
 import { ArrowLeft, CheckCircle2, FileText, Mail, Paperclip, Phone, Send, User } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { HumanVerificationValue, PublicOnlineAdmissionOffering } from '@/types';
+import type { PublicOnlineAdmissionOffering } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/Input';
 import { Loading } from '@/components/ui/Loading';
 import { StatusBanner } from '@/components/ui/StatusBanner';
 import { Textarea } from '@/components/ui/Textarea';
-import { HumanVerification } from '@/components/ui/HumanVerification';
+import { CapVerification } from '@/components/ui/CapVerification';
 
 const initialForm = {
     applicantName: '',
@@ -44,16 +44,16 @@ export default function AdmissionApplicationPage() {
     const [submitError, setSubmitError] = useState('');
     const [reference, setReference] = useState('');
     const [documents, setDocuments] = useState<Record<string, File | null>>({});
-    const [humanVerification, setHumanVerification] = useState<HumanVerificationValue | null>(null);
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
     const [verificationResetKey, setVerificationResetKey] = useState(0);
     const requirements = useMemo(() => offering?.onlineAdmissionDocumentRequirements || [], [offering]);
 
     const updateField = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
-    const handleVerificationChange = useCallback((value: HumanVerificationValue | null) => setHumanVerification(value), []);
+    const handleVerificationChange = useCallback((value: string | null) => setCaptchaToken(value), []);
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
-        if (!offering || !humanVerification) return;
+        if (!offering || !captchaToken) return;
         setSubmitError('');
         setIsSubmitting(true);
         try {
@@ -72,7 +72,7 @@ export default function AdmissionApplicationPage() {
                     notes: form.notes,
                 },
                 documents,
-                ...humanVerification,
+                captchaToken,
             });
             setReference(result.reference);
         } catch (err) {
@@ -172,10 +172,10 @@ export default function AdmissionApplicationPage() {
                                 </div>
                             )}
                             <div className="mt-5">
-                                <HumanVerification purpose="ONLINE_ADMISSION" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={isSubmitting} />
+                                <CapVerification purpose="ONLINE_ADMISSION" onChange={handleVerificationChange} resetKey={verificationResetKey} disabled={isSubmitting} />
                             </div>
                             <div className="mt-5 flex justify-end">
-                                <Button type="submit" icon={Send} isLoading={isSubmitting} loadingText="Submitting" disabled={!humanVerification}>Submit application</Button>
+                                <Button type="submit" icon={Send} isLoading={isSubmitting} loadingText="Submitting" disabled={!captchaToken}>Submit application</Button>
                             </div>
                         </form>
                     </>
