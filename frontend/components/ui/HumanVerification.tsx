@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, ApiRequestError } from '@/lib/api';
 import type { HumanVerificationChallenge, HumanVerificationPurpose, HumanVerificationValue } from '@/types';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -39,7 +39,12 @@ export function HumanVerification({
             const next = await api.humanVerification.createChallenge(purpose);
             setChallenge(next);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Verification challenge could not be loaded.');
+            const unavailable = err instanceof ApiRequestError && (err.status === 404 || err.status >= 500);
+            setError(unavailable
+                ? 'Verification is temporarily unavailable. Please try again shortly.'
+                : err instanceof ApiRequestError && err.status === 429
+                    ? 'Too many verification requests. Please wait a moment and try again.'
+                    : 'Verification challenge could not be loaded. Please check your connection and try again.');
         } finally {
             setIsLoading(false);
         }

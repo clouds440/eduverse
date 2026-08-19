@@ -12,7 +12,7 @@
     "start": "npm run prepare:docs && nest start",
     "start:dev": "npm run prepare:docs && nest start --watch",
     "start:debug": "npm run prepare:docs && nest start --debug --watch",
-    "start:prod": "node dist/main.js",
+    "start:prod": "node scripts/start-production.js",
     "release:migrate": "prisma migrate deploy",
     "release:env-check": "node dist/common/env-validation-cli.js",
     "seed:demo-org": "node scripts/seed-demo-org.js",

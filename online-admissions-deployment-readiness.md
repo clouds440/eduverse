@@ -42,6 +42,7 @@ The implementation is code-ready for staging. Production rollout is conditional 
 ## Known Operational Notes
 
 - The database e2e suite is implemented but was not completed in this workspace at the operator's request. Its runner refuses non-local PostgreSQL hosts by design.
+- The production launcher and Docker image now run `prisma migrate deploy` before Nest starts. An explicit release migration remains recommended so migration failures stop the release before traffic is shifted.
 - The repository-wide ESLint command exceeds the local time budget and reports a pre-existing LF/CRLF Prettier mismatch across touched legacy files. Semantic lint for the changed backend surface passes.
 - Rate limiting uses the application's current throttler storage. Multi-instance deployments should use a shared throttler store if strict cross-instance limits are required.
 - Keep organization online admissions disabled until each public offering, document checklist, applicant email template, object storage, and outbound email configuration has been reviewed.
